@@ -20,6 +20,9 @@ public class PaymentView {
   private Instant createdAt;
   private Instant paidAt;
   private Instant expiresAt;
+  private String checkoutUrl;
+  private String actionType;
+  private String qrPayload;
 
   public Long getId() { return id; }
   public Long getOrderId() { return orderId; }
@@ -37,4 +40,7 @@ public class PaymentView {
   public Instant getCreatedAt() { return createdAt; }
   public Instant getPaidAt() { return paidAt; }
   public Instant getExpiresAt() { return expiresAt; }
+  public String getCheckoutUrl() { return checkoutUrl; }
+  public String getActionType() { return actionType; }
+  public String getQrPayload() { return qrPayload; }
 }

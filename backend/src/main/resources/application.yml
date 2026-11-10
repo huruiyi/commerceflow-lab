@@ -49,3 +49,8 @@ security:
   remember-me:
     key: ${REMEMBER_ME_KEY:education-demo-remember-me-key-change-in-production}
     validity-seconds: ${REMEMBER_ME_VALIDITY_SECONDS:1209600}
+
+education:
+  payment-platform:
+    base-url: ${PAYMENT_PLATFORM_BASE_URL:http://localhost:18082}
+    callback-secret: ${PAYMENT_CALLBACK_SECRET:demo-platform-callback-secret}

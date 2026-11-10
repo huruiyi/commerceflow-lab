@@ -63,6 +63,11 @@ public interface ShopOrderMapper {
   void insertPaymentEvent(@Param("paymentId")Long paymentId,@Param("eventId")String eventId,
       @Param("type")String type,@Param("fromStatus")String fromStatus,
       @Param("toStatus")String toStatus,@Param("detail")String detail);
+  @Update("UPDATE payment_records SET checkout_url=#{checkoutUrl},action_type=#{actionType},qr_payload=#{qrPayload} WHERE id=#{id}") void updateCheckout(@Param("id")Long id,@Param("checkoutUrl")String checkoutUrl,@Param("actionType")String actionType,@Param("qrPayload")String qrPayload);
+  @Select("SELECT p.*,m.merchant_no FROM payment_records p LEFT JOIN payment_merchant_accounts m ON m.id=p.merchant_account_id WHERE p.channel_transaction_no=#{transactionNo} FOR UPDATE") Optional<PaymentView> lockPaymentByTransaction(String transactionNo);
+  @Insert("INSERT INTO payment_notifications(payment_id,channel,notification_id,channel_transaction_no,signature_valid,processing_status,payload_digest,failure_reason,raw_status,received_at,processed_at) VALUES(#{paymentId},#{channel},#{notificationId},#{transactionNo},TRUE,#{processingStatus},#{digest},#{reason},#{rawStatus},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)") void insertNotification(@Param("paymentId")Long paymentId,@Param("channel")String channel,@Param("notificationId")String notificationId,@Param("transactionNo")String transactionNo,@Param("processingStatus")String processingStatus,@Param("digest")String digest,@Param("reason")String reason,@Param("rawStatus")String rawStatus);
+  @Update("UPDATE payment_records SET status=#{toStatus},failure_reason=#{reason},paid_at=CASE WHEN #{toStatus}='SUCCESS' THEN CURRENT_TIMESTAMP ELSE paid_at END,updated_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=#{id} AND status='PENDING'") int finishPayment(@Param("id")Long id,@Param("toStatus")String toStatus,@Param("reason")String reason);
+  @Select("SELECT customer_id FROM shop_orders WHERE id=#{orderId}") Long orderCustomerId(Long orderId);
   @Update("UPDATE shop_orders SET status=#{toStatus},updated_at=CURRENT_TIMESTAMP WHERE id=#{id} AND status=#{fromStatus}")
   int updateStatus(@Param("id")Long id,@Param("fromStatus")String fromStatus,@Param("toStatus")String toStatus);
 }

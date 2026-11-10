@@ -15,8 +15,8 @@ import java.util.*;
 
 @Service
 public class PurchaseOrderService {
-  private final ShopOrderMapper orders; private final CartMapper carts;
-  public PurchaseOrderService(ShopOrderMapper orders, CartMapper carts){this.orders=orders;this.carts=carts;}
+  private final ShopOrderMapper orders; private final CartMapper carts;private final PaymentGatewayClient gateway;
+  public PurchaseOrderService(ShopOrderMapper orders, CartMapper carts,PaymentGatewayClient gateway){this.orders=orders;this.carts=carts;this.gateway=gateway;}
 
   @Transactional
   public ShopOrderResponse checkout(AppUser user) {
@@ -57,23 +57,17 @@ public class PurchaseOrderService {
       return assemble(orders.find(user.getId(),id).orElseThrow(),existing.get());
     }
     if(!"PENDING_PAYMENT".equals(order.getStatus())) throw new BusinessRuleException("Only pending orders can be paid");
-    String status=request.simulateFailure()?"FAILED":"SUCCESS";
-    String reason=request.simulateFailure()?"Simulated payment decline":"";
+    String status="PENDING";
+    String reason="";
     Instant now=Instant.now();
+    String paymentNumber=number("PAY");
+    PaymentGatewayClient.Result remote=gateway.create(paymentNumber,request.channel(),"Order "+order.getOrderNumber(),order.getTotalAmount(),order.getCurrency(),"NONE");
     orders.insertPayment(id,merchant.getId(),number("PAY"),request.idempotencyKey(),request.channel(),
-        order.getCurrency(),fingerprint,number("MOCK"),order.getTotalAmount(),status,reason,
-        request.simulateFailure()?null:now,now.plusSeconds(900));
+        order.getCurrency(),fingerprint,remote.channelTransactionNo(),order.getTotalAmount(),status,reason,null,remote.expiresInstant());
     PaymentView payment=orders.paymentByKey(request.idempotencyKey()).orElseThrow();
-    orders.insertPaymentEvent(payment.getId(),UUID.randomUUID().toString(),
-        request.simulateFailure()?"PAYMENT_FAILED":"PAYMENT_SUCCEEDED","CREATED",status,
-        request.simulateFailure()?reason:"Synchronous compatibility payment accepted");
-    if(request.simulateFailure()){
-      orders.insertEvent(id,user.getId(),"PAYMENT_FAILED","PENDING_PAYMENT","PENDING_PAYMENT",reason);
-    } else {
-      if(orders.updateStatus(id,"PENDING_PAYMENT","PAID")!=1) throw new BusinessRuleException("Order status changed; payment was not applied");
-      orders.insertEvent(id,user.getId(),"PAYMENT_SUCCEEDED","PENDING_PAYMENT","PAID","Simulated payment accepted");
-    }
-    return assemble(orders.find(user.getId(),id).orElseThrow(),payment);
+    orders.updateCheckout(payment.getId(),remote.checkoutUrl(),remote.actionType(),remote.qrPayload());
+    orders.insertPaymentEvent(payment.getId(),UUID.randomUUID().toString(),"PAYMENT_PENDING","CREATED",status,"Waiting for signed asynchronous notification");
+    return assemble(orders.find(user.getId(),id).orElseThrow(),orders.paymentByKey(request.idempotencyKey()).orElseThrow());
   }
 
   private ShopOrderResponse assemble(ShopOrderView o,PaymentView payment){

@@ -34,16 +34,18 @@ public class ChannelTransactionService {
   private final AuditService audit;
   private final Map<String, ChannelAdapter> adapters;
   private final String checkoutBaseUrl;
+  private final PaymentCallbackClient callbacks;
 
   public ChannelTransactionService(ChannelTransactionMapper transactions, PaymentAdminUserMapper users,
       MerchantService merchants, AuditService audit, List<ChannelAdapter> adapters,
-      @Value("${payment-platform.checkout-base-url}") String checkoutBaseUrl) {
+      @Value("${payment-platform.checkout-base-url}") String checkoutBaseUrl,PaymentCallbackClient callbacks) {
     this.transactions = transactions;
     this.users = users;
     this.merchants = merchants;
     this.audit = audit;
     this.adapters = adapters.stream().collect(Collectors.toMap(ChannelAdapter::channel, Function.identity()));
     this.checkoutBaseUrl = checkoutBaseUrl;
+    this.callbacks=callbacks;
   }
 
   @Transactional
@@ -146,6 +148,7 @@ public class ChannelTransactionService {
     }
     value.setUpdatedAt(LocalDateTime.now());
     transactions.updateById(value);
+    callbacks.send(value);
     return response(value);
   }
 

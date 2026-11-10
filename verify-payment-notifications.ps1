@@ -1,0 +1,10 @@
+param([string]$BaseUrl='http://localhost:14200')
+$ErrorActionPreference='Stop';$s=[Microsoft.PowerShell.Commands.WebRequestSession]::new();$csrf=Invoke-RestMethod "$BaseUrl/api/auth/csrf" -WebSession $s;$h=@{$csrf.headerName=$csrf.token};Invoke-RestMethod "$BaseUrl/api/auth/login" -Method Post -WebSession $s -Headers $h -ContentType application/json -Body '{"email":"demo@example.com","password":"demo-password","rememberMe":false}'|Out-Null
+Invoke-RestMethod "$BaseUrl/api/cart/items" -Method Post -WebSession $s -Headers $h -ContentType application/json -Body '{"productId":1,"quantity":1,"note":"05A-4"}'|Out-Null
+$order=Invoke-RestMethod "$BaseUrl/api/purchase-orders/checkout" -Method Post -WebSession $s -Headers $h -ContentType application/json -Body '{}'
+$key=[guid]::NewGuid().ToString();$payment=Invoke-RestMethod "$BaseUrl/api/purchase-orders/$($order.id)/payments" -Method Post -WebSession $s -Headers $h -ContentType application/json -Body (@{idempotencyKey=$key;simulateFailure=$false;channel='ALIPAY'}|ConvertTo-Json -Compress)
+if($payment.status-ne'PENDING_PAYMENT'-or$payment.payment.status-ne'PENDING'-or-not$payment.payment.checkoutUrl){throw'Payment was not left pending for callback'}
+$token=$payment.payment.checkoutUrl.Split('/')[-1].Split('?')[0];Invoke-RestMethod "http://localhost:14201/api/checkout/$token/complete?success=true" -Method Post|Out-Null
+$resolved=Invoke-RestMethod "$BaseUrl/api/purchase-orders/$($order.id)" -WebSession $s;if($resolved.status-ne'PAID'-or$resolved.payment.status-ne'SUCCESS'){throw'Signed callback did not apply payment'}
+try{Invoke-RestMethod "$BaseUrl/api/payment-notifications/callback" -Method Post -Headers @{'X-Callback-Signature'='bad'} -ContentType application/json -Body '{}' -ErrorAction Stop|Out-Null;throw'Invalid callback accepted'}catch{if([int]$_.Exception.Response.StatusCode-ne401){throw}}
+Write-Output "05A-4 verification passed: order=$($order.orderNumber), pending-before-callback=true, paid-after-signed-callback=true, invalid-signature=401"

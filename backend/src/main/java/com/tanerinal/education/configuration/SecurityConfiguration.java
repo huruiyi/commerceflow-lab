@@ -104,11 +104,12 @@ public class SecurityConfiguration {
     http
         .csrf(csrf -> csrf
             .csrfTokenRepository(csrfRepository)
-            .csrfTokenRequestHandler(csrfRequestHandler))
+            .csrfTokenRequestHandler(csrfRequestHandler)
+            .ignoringRequestMatchers("/api/payment-notifications/**"))
         .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
         .rememberMe(remember -> remember.rememberMeServices(rememberMeServices))
         .authorizeHttpRequests(authorize -> authorize
-            .requestMatchers("/api/auth/login", "/api/auth/csrf", "/actuator/health", "/actuator/info").permitAll()
+            .requestMatchers("/api/auth/login", "/api/auth/csrf", "/api/payment-notifications/**", "/actuator/health", "/actuator/info").permitAll()
             .anyRequest().authenticated())
         .exceptionHandling(errors -> errors
             .authenticationEntryPoint((request, response, exception) -> {
