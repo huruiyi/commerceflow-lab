@@ -1,0 +1,24 @@
+<h2>Shipping Addresses</h2>
+<div *ngIf="message" class="alert alert-success">{{message}}</div>
+<form #addressForm="ngForm" (ngSubmit)="save()" class="row g-2 mb-4">
+  <div class="col-md-4"><label class="form-label">Label / 标签</label><input class="form-control" name="label" [(ngModel)]="draft.label" required maxlength="40"></div>
+  <div class="col-md-4"><label class="form-label">Recipient / 收件人</label><input class="form-control" name="recipient" [(ngModel)]="draft.recipientName" required maxlength="100"></div>
+  <div class="col-md-4"><label class="form-label">Phone / 电话</label><input class="form-control" name="phone" [(ngModel)]="draft.phone" required maxlength="40"></div>
+  <div class="col-md-2"><label class="form-label">Country code</label><input class="form-control" name="country" [(ngModel)]="draft.countryCode" required pattern="[A-Za-z]{2}" maxlength="2"></div>
+  <div class="col-md-3"><label class="form-label">Province / 省州</label><input class="form-control" name="state" [(ngModel)]="draft.stateProvince" required></div>
+  <div class="col-md-3"><label class="form-label">City / 城市</label><input class="form-control" name="city" [(ngModel)]="draft.city" required></div>
+  <div class="col-md-4"><label class="form-label">District / 区县</label><input class="form-control" name="district" [(ngModel)]="draft.district" required></div>
+  <div class="col-md-8"><label class="form-label">Address line / 详细地址</label><input class="form-control" name="line1" [(ngModel)]="draft.addressLine1" required></div>
+  <div class="col-md-4"><label class="form-label">Postal code / 邮编</label><input class="form-control" name="postal" [(ngModel)]="draft.postalCode" required></div>
+  <div class="col-12"><label class="form-label">Address line 2</label><input class="form-control" name="line2" [(ngModel)]="draft.addressLine2"></div>
+  <div class="col-12 form-check ms-2"><input class="form-check-input" type="checkbox" name="default" [(ngModel)]="draft.isDefault" id="defaultAddress"><label class="form-check-label" for="defaultAddress">Default address / 默认地址</label></div>
+  <div class="col-12"><button class="btn btn-primary" [disabled]="addressForm.invalid">{{editingId ? 'Update' : 'Add address'}}</button> <button *ngIf="editingId" type="button" class="btn btn-secondary" (click)="cancel()">Cancel</button></div>
+</form>
+<div class="row g-3">
+  <div class="col-md-6" *ngFor="let a of addresses"><div class="card h-100"><div class="card-body">
+    <h5>{{a.label}} <span *ngIf="a.isDefault" class="badge bg-primary">Default</span> <span *ngIf="selectedAddressId===a.id" class="badge bg-success">Selected</span></h5>
+    <p>{{a.recipientName}} · {{a.phone}}<br>{{a.addressLine1}} {{a.addressLine2}}<br>{{a.district}}, {{a.city}}, {{a.stateProvince}}, {{a.countryCode}} {{a.postalCode}}</p>
+    <button class="btn btn-sm btn-outline-primary me-1" (click)="edit(a)">Edit</button><button class="btn btn-sm btn-outline-secondary me-1" (click)="makeDefault(a.id)" [disabled]="a.isDefault">Set default</button><button class="btn btn-sm btn-outline-success me-1" (click)="select(a.id)">Use for checkout</button><button class="btn btn-sm btn-outline-danger" (click)="remove(a.id)">Delete</button>
+  </div></div></div>
+</div>
+<div *ngIf="addresses.length===0" class="alert alert-info">No shipping addresses yet.</div>

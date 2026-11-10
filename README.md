@@ -72,6 +72,7 @@ docker compose down
 - Redis 服务端 Session、14 天持久化 Remember-Me、注销撤销令牌和五分钟登录失败限流。
 - `HttpOnly` 会话 Cookie，以及 Angular 兼容的 `XSRF-TOKEN` Cookie / `X-XSRF-TOKEN` Header 防护。
 - 商品查询、去重购物车、数量调整、移除、清空、单价/小计计算和管理员用户列表。
+- 客户收货地址 CRUD、唯一默认地址、中英文地址字段和结算地址选择。
 - MyBatis-Plus 数据访问、Flyway 版本化结构/演示数据初始化。
 - Redis 基础设施、持久化卷和健康检查（Session、缓存、限流在后续章节启用）。
 - 前后端单元/集成测试、Docker 健康检查和 Nginx API 反向代理。

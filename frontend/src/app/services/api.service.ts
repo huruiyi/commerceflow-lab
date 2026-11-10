@@ -5,6 +5,7 @@ import { CreateOrderRequest } from 'src/model/IOrder';
 import { OrderList } from 'src/model/IOrderList';
 import { Product } from 'src/model/IProduct';
 import { IUser } from 'src/model/IUser';
+import { ShippingAddress, ShippingAddressRequest } from 'src/model/IShippingAddress';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -34,4 +35,11 @@ export class ApiService {
   getUsers(): Observable<IUser[]> {
     return this.http.get<IUser[]>('/api/users');
   }
+  getAddresses(): Observable<ShippingAddress[]> { return this.http.get<ShippingAddress[]>('/api/addresses'); }
+  createAddress(value: ShippingAddressRequest): Observable<ShippingAddress> { return this.http.post<ShippingAddress>('/api/addresses', value); }
+  updateAddress(id: number, value: ShippingAddressRequest): Observable<ShippingAddress> { return this.http.put<ShippingAddress>(`/api/addresses/${id}`, value); }
+  setDefaultAddress(id: number): Observable<ShippingAddress> { return this.http.put<ShippingAddress>(`/api/addresses/${id}/default`, {}); }
+  selectAddress(id: number): Observable<ShippingAddress> { return this.http.put<ShippingAddress>(`/api/addresses/${id}/select`, {}); }
+  selectedAddress(): Observable<{addressId?: number}> { return this.http.get<{addressId?: number}>('/api/addresses/selected'); }
+  deleteAddress(id: number): Observable<void> { return this.http.delete<void>(`/api/addresses/${id}`); }
 }

@@ -62,6 +62,12 @@ MySQL app_users
 | PUT | `/api/cart/items/{id}` | CUSTOMER | 调整数量，范围 1–99 |
 | DELETE | `/api/cart/items/{id}` | CUSTOMER | 移除商品 |
 | DELETE | `/api/cart` | CUSTOMER | 清空购物车 |
+| GET | `/api/addresses` | CUSTOMER | 当前客户的地址列表 |
+| POST | `/api/addresses` | CUSTOMER | 新增地址，首个地址自动设为默认 |
+| PUT | `/api/addresses/{id}` | CUSTOMER | 编辑自己的地址 |
+| PUT | `/api/addresses/{id}/default` | CUSTOMER | 设为唯一默认地址 |
+| PUT | `/api/addresses/{id}/select` | CUSTOMER | 选择结算地址 |
+| DELETE | `/api/addresses/{id}` | CUSTOMER | 删除地址并维护默认/结算选择 |
 | GET | `/api/users` | ADMIN | 演示用户列表 |
 | GET | `/actuator/health` | 否 | MySQL、Redis 与应用健康检查 |
 

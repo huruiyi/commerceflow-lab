@@ -100,6 +100,25 @@ class EducationBackendIntegrationTest {
     mvc.perform(get("/api/users").session(csrf.session()))
         .andExpect(status().isForbidden());
 
+    String addressJson = """
+        {"recipientName":"Demo Student","phone":"13800000000","countryCode":"CN",
+         "stateProvince":"Shanghai","city":"Shanghai","district":"Pudong",
+         "addressLine1":"100 Learning Road","addressLine2":"Room 2022",
+         "postalCode":"200120","label":"Home","isDefault":false}
+        """;
+    MvcResult createdAddress = mvc.perform(post("/api/addresses").session(csrf.session()).cookie(csrf.cookie())
+            .header("X-XSRF-TOKEN", csrf.token()).contentType("application/json").content(addressJson))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.isDefault").value(true)).andReturn();
+    long addressId = objectMapper.readTree(createdAddress.getResponse().getContentAsString()).get("id").asLong();
+    mvc.perform(put("/api/addresses/{id}/select", addressId).session(csrf.session()).cookie(csrf.cookie())
+            .header("X-XSRF-TOKEN", csrf.token()).contentType("application/json").content("{}"))
+        .andExpect(status().isOk());
+    mvc.perform(get("/api/addresses/selected").session(csrf.session()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.addressId").value(addressId));
+    mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/addresses/{id}", addressId)
+            .session(csrf.session()).cookie(csrf.cookie()).header("X-XSRF-TOKEN", csrf.token()))
+        .andExpect(status().isNoContent());
+
     mvc.perform(post("/api/auth/logout").session(csrf.session()).cookie(csrf.cookie())
             .header("X-XSRF-TOKEN", csrf.token()))
         .andExpect(status().isNoContent());

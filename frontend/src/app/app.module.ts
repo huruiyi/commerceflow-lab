@@ -16,6 +16,7 @@ import { TrcurrencyPipe } from './pipes/trcurrency.pipe';
 import { ApptitleDirective } from './directive/apptitle.directive';
 import { GlobalErrorHandler } from './services/GlobalErrorHandler';
 import { UseritemComponent } from './inc/useritem/useritem.component';
+import { AddressesComponent } from './addresses/addresses.component';
 
 @NgModule({
   declarations: [
@@ -29,7 +30,8 @@ import { UseritemComponent } from './inc/useritem/useritem.component';
     TrdatePipe,
     TrcurrencyPipe,
     ApptitleDirective,
-    UseritemComponent
+    UseritemComponent,
+    AddressesComponent
   ],
   imports: [
     BrowserModule,

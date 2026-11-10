@@ -39,4 +39,10 @@ public interface CartMapper {
 
   @Delete("DELETE FROM cart_items WHERE cart_id IN (SELECT id FROM carts WHERE user_id=#{userId})")
   int clear(Long userId);
+
+  @Update("UPDATE carts SET selected_address_id=#{addressId},updated_at=CURRENT_TIMESTAMP WHERE user_id=#{userId}")
+  int selectAddress(@Param("userId") Long userId, @Param("addressId") Long addressId);
+
+  @Select("SELECT selected_address_id FROM carts WHERE user_id=#{userId}")
+  Long selectedAddressId(Long userId);
 }
