@@ -134,17 +134,21 @@ public class ChannelTransactionService {
   }
 
   @Transactional
-  public ChannelTransactionResponse simulatePay(String token, boolean success) {
+  public ChannelTransactionResponse simulatePay(String token, String outcome) {
     ChannelTransaction value = require(transactions.selectOne(new LambdaQueryWrapper<ChannelTransaction>()
         .eq(ChannelTransaction::getCheckoutToken, token)));
     if (!"PENDING".equals(value.getStatus())) return response(value);
     if (value.getExpiresAt().isBefore(LocalDateTime.now())) {
       value.setStatus("EXPIRED");
-    } else if (success) {
-      value.setStatus("SUCCESS");
-      value.setPaidAt(LocalDateTime.now());
     } else {
-      value.setStatus("FAILED");
+      switch (outcome.toUpperCase()) {
+        case "SUCCESS" -> { value.setStatus("SUCCESS"); value.setPaidAt(LocalDateTime.now()); }
+        case "FAILED" -> value.setStatus("FAILED");
+        case "INSUFFICIENT_FUNDS" -> { value.setStatus("FAILED"); value.setFaultScenario("INSUFFICIENT_FUNDS"); }
+        case "CANCELLED", "CLOSED" -> { value.setStatus("CLOSED"); value.setClosedAt(LocalDateTime.now()); }
+        case "TIMEOUT", "EXPIRED" -> value.setStatus("EXPIRED");
+        default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"不支持的收银台结果");
+      }
     }
     value.setUpdatedAt(LocalDateTime.now());
     transactions.updateById(value);

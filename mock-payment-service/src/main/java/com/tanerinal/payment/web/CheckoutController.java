@@ -25,7 +25,9 @@ public class CheckoutController {
 
   @PostMapping("/{token}/complete")
   public ChannelTransactionResponse complete(@PathVariable String token,
-      @RequestParam(defaultValue = "true") boolean success) {
-    return transactions.simulatePay(token, success);
+      @RequestParam(required = false) Boolean success,
+      @RequestParam(required = false) String outcome) {
+    String resolved=outcome!=null?outcome:(Boolean.FALSE.equals(success)?"FAILED":"SUCCESS");
+    return transactions.simulatePay(token, resolved);
   }
 }

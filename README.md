@@ -39,6 +39,7 @@ docker compose ps
 - 前端健康检查：`http://localhost:14200/healthz`
 - 后端健康检查：`http://localhost:18081/actuator/health`
 - 支付服务健康检查：`http://localhost:18082/actuator/health`
+- Kafka UI：`http://localhost:14202`
 
 教学账号（密码均为 `demo-password`）：
 
@@ -58,7 +59,7 @@ docker compose ps
 
 ### 如何登录
 
-1. 确认 `docker compose ps` 中商城与支付平台的七个服务均为 `healthy`。
+1. 确认 `docker compose ps` 中所有长期运行服务均为 `running`，带健康检查的服务均为 `healthy`。
 2. 浏览器打开 `http://localhost:14200`。
 3. 输入 `demo@example.com` 和 `demo-password`。
 4. 点击登录后进入商品页，可继续查看订单和用户列表。
@@ -118,3 +119,6 @@ Compose 中的数据库密码和教学账号只适用于本地 Demo。支付按�
 
 高级三渠道模拟支付、Kafka、幂等、安全和高可用实验的设计与分章计划见
 [高级模拟支付实现方案](docs/ADVANCED-PAYMENT-PLAN.md)。
+
+05A-5～05A-8 的 Kafka、三渠道收银台、HA、监控和故障实验见
+[可靠支付交付指南](docs/CHAPTER-05A-5-TO-8.md)。

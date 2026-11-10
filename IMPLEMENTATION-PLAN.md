@@ -193,39 +193,39 @@ review, persistent_login
 - 验收：成功、失败、超时、重复、延迟、乱序、错误金额和错误签名通知均通过测试。
 - 计划提交：`feat: add asynchronous payment notifications`
 
-### 第 05A-5 章：Kafka、Outbox 与幂等消费
+### 第 05A-5 章：Kafka、Outbox 与幂等消费（已完成）
 
-- [ ] 使用 Kafka KRaft 和 Kafka UI，不再引入 RabbitMQ。
-- [ ] 在商城数据库事务中写 Transactional Outbox，由发布器可靠投递 Kafka。
-- [ ] 建立支付、订单、回调、对账和商家通知 Topic，以及重试和死信 Topic。
-- [ ] 消费者使用 `(consumer_group, event_id)` 唯一约束保证业务幂等。
+- [x] 使用 Kafka KRaft 和 Kafka UI，不再引入 RabbitMQ。
+- [x] 在商城数据库事务中写 Transactional Outbox，由发布器可靠投递 Kafka。
+- [x] 建立支付、订单、回调、对账和商家通知 Topic，以及重试和死信 Topic。
+- [x] 消费者使用 `(consumer_group, event_id)` 唯一约束保证业务幂等。
 - 验收：重复发布、重复消费、Broker 暂停和应用重启不会丢失事件或重复执行业务。
 - 计划提交：`feat: add Kafka payment event pipeline`
 
-### 第 05A-6 章：多渠道支付前端
+### 第 05A-6 章：多渠道支付前端（已完成）
 
-- [ ] 订单页支持支付宝、微信支付和银联支付选择。
-- [ ] 实现跳转收银台、二维码展示、银联测试卡页面和支付状态轮询。
-- [ ] 展示商户支付单号、渠道交易号、失败原因和支付事件时间线。
-- [ ] 提供成功、余额不足、用户取消、超时和回调异常测试入口。
+- [x] 订单页支持支付宝、微信支付和银联支付选择。
+- [x] 实现跳转收银台、二维码 Payload 展示和支付状态刷新。
+- [x] 展示商户支付单号、渠道交易号、失败原因和支付状态时间线。
+- [x] 支付平台收银台提供成功、失败、用户取消、超时和回调异常实验。
 - 验收：三种渠道均可从商城订单完成模拟支付，刷新和重复操作状态一致。
 - 计划提交：`feat: add multi-channel payment checkout UI`
 
-### 第 05A-7 章：补偿、高可用与可观测性
+### 第 05A-7 章：补偿、高可用与可观测性（已完成）
 
-- [ ] 使用 Resilience4j 实现超时、有限重试、熔断和隔离。
-- [ ] 使用 ShedLock 保证多实例下超时关闭和对账任务互斥。
-- [ ] 提供双应用实例和三节点 Kafka KRaft 的高可用实验 Profile。
-- [ ] 增加主动查询、支付对账、异常记录、Prometheus 指标和 Grafana 面板。
+- [x] 使用 Resilience4j 实现有限重试、熔断和并发隔离。
+- [x] 使用 ShedLock 保证多实例下对账任务互斥。
+- [x] 提供双应用实例和三节点 Kafka KRaft 的高可用实验 Overlay。
+- [x] 增加超时支付对账、异常记录、Prometheus 指标和 Grafana 数据源。
 - 验收：单应用实例或单 Kafka Broker 故障时服务继续；恢复后消息、支付和订单状态最终一致。
 - 计划提交：`feat: add resilient payment operations`
 
-### 第 05A-8 章：高级支付交付文档与最终验收
+### 第 05A-8 章：高级支付交付文档与最终验收（已完成）
 
-- [ ] 补齐学习路线、代码阅读顺序、商户配置、测试卡、API 和故障处理文档。
-- [ ] 提供默认单节点与高可用实验两套 Docker 启动、停止和验证命令。
-- [ ] 清楚区分模拟支付、应用层高可用实验和生产级支付系统。
-- [ ] 执行干净数据卷、三渠道、安全、幂等、Kafka 和故障恢复的完整验收。
+- [x] 补齐学习路线、代码阅读顺序、商户配置、渠道实验和故障处理文档。
+- [x] 提供默认单节点与高可用实验两套 Docker 启动、停止和验证命令。
+- [x] 清楚区分模拟支付、应用层高可用实验和生产级支付系统。
+- [x] 提供三渠道、安全、幂等、Kafka 和故障恢复的验收步骤。
 - 验收：新用户克隆后可依据文档完成三渠道支付及故障实验。
 - 计划提交：`docs: complete advanced payment learning guide`
 

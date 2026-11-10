@@ -65,19 +65,6 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  kafka-init:
-    image: apache/kafka:4.1.1
-    depends_on:
-      kafka:
-        condition: service_healthy
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - >-
-        for topic in payment-events order-events payment-callback-events payment-reconciliation-events merchant-notification-events payment-events-retry-1m payment-events-retry-5m payment-events-dlq;
-        do /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic $$topic --partitions 3 --replication-factor 1;
-        done
-    restart: "no"
-
   prometheus:
     image: prom/prometheus:v3.7.3
     profiles: [observability]

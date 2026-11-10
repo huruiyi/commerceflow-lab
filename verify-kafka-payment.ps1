@@ -1,5 +1,6 @@
 $ErrorActionPreference = 'Stop'
 & "$PSScriptRoot/verify-payment-notifications.ps1"
+if (-not $?) { throw 'Payment notification verification failed' }
 $topics = docker compose exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list
 foreach ($required in @('payment-events','order-events','payment-callback-events','payment-reconciliation-events','merchant-notification-events','payment-events-dlq')) {
   if ($topics -notcontains $required) { throw "Kafka topic missing: $required" }

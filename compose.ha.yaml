@@ -34,6 +34,7 @@ services:
     ports: !reset []
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092,kafka-2:9092,kafka-3:9092
+      EDUCATION_KAFKA_TOPIC_REPLICAS: 3
     depends_on:
       kafka: {condition: service_started}
       kafka-2: {condition: service_started}
