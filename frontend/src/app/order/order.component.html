@@ -1,15 +1,16 @@
-<h2 appApptitle>Orders</h2>
+<div class="d-flex justify-content-between align-items-center"><h2 appApptitle>Shopping Cart</h2><button *ngIf="customerOrders.length" class="btn btn-outline-danger" (click)="clearCart()">Clear cart</button></div>
 <div *ngIf="customerOrders && customerOrders.length>0">
 <table class="table table-hover">
     <thead>
       <tr>
-        <th scope="col">Order Id</th>
+        <th scope="col">Item Id</th>
         <th scope="col">Product Image</th>
-        <th scope="col">Order Date</th>
+        <th scope="col">Updated</th>
         <th scope="col">Product Name</th>
         <th scope="col">Unit Price</th>
         <th scope="col">Quantity</th>
         <th scope="col">Subtotal</th>
+        <th scope="col">Action</th>
       </tr>
     </thead>
     <tbody>
@@ -35,8 +36,9 @@
           </div>
         </td>
         <td>{{ order.totalPrice | trcurrency }}</td>
+        <td><button class="btn btn-sm btn-outline-danger" (click)="remove(order)">Remove</button></td>
       </tr>
     </tbody>
   </table>
 </div>
-<div *ngIf="customerOrders && customerOrders.length === 0" class="alert alert-danger" role="alert">No orders yet!</div>
+<div *ngIf="customerOrders && customerOrders.length === 0" class="alert alert-info" role="status">Your cart is empty.</div>

@@ -68,7 +68,7 @@ class EducationBackendIntegrationTest {
 
     Long productId = products.selectList(new LambdaQueryWrapper<Product>().orderByAsc(Product::getId))
         .get(0).getId();
-    MvcResult createdOrder = mvc.perform(post("/api/orders").session(csrf.session()).cookie(csrf.cookie())
+    MvcResult createdOrder = mvc.perform(post("/api/cart/items").session(csrf.session()).cookie(csrf.cookie())
             .header("X-XSRF-TOKEN", csrf.token())
             .contentType("application/json")
             .content("{\"productId\":" + productId + ",\"quantity\":3,\"note\":\"integration test\"}"))
@@ -79,19 +79,19 @@ class EducationBackendIntegrationTest {
         .andReturn();
 
     long orderId = objectMapper.readTree(createdOrder.getResponse().getContentAsString()).get("id").asLong();
-    mvc.perform(put("/api/orders/{orderId}/quantity", orderId)
+    mvc.perform(put("/api/cart/items/{orderId}", orderId)
             .session(csrf.session()).cookie(csrf.cookie()).header("X-XSRF-TOKEN", csrf.token())
             .contentType("application/json")
             .content("{\"quantity\":5}"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.quantity").value(5));
 
-    mvc.perform(get("/api/orders").session(csrf.session()))
+    mvc.perform(get("/api/cart").session(csrf.session()))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$[0].note").value("integration test"))
+        .andExpect(jsonPath("$[0].note").value(""))
         .andExpect(jsonPath("$[0].quantity").value(5));
 
-    mvc.perform(put("/api/orders/{orderId}/quantity", orderId)
+    mvc.perform(put("/api/cart/items/{orderId}", orderId)
             .session(csrf.session()).cookie(csrf.cookie()).header("X-XSRF-TOKEN", csrf.token())
             .contentType("application/json")
             .content("{\"quantity\":0}"))

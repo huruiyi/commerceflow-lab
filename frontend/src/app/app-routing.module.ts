@@ -10,7 +10,7 @@ import { UsersComponent } from './users/users.component';
 const routes: Routes = [
   {path: '', component: LoginComponent},  //LoginGuard
   {path: 'dashboard', component: DashboardComponent, canActivate: [AuthGuard]},
-  {path: 'order', component: OrderComponent, canActivate: [AuthGuard]},
+  {path: 'cart', component: OrderComponent, canActivate: [AuthGuard]},
   {path: 'users', component: UsersComponent, canActivate: [AuthGuard]},
   {path: '**', component: ErrorpageComponent}
 ];

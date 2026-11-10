@@ -60,7 +60,7 @@ export class DashboardComponent implements OnInit {
           //try
           //console.log(res.order[0].durum);
           //newThis.router.navigate(['/order'])
-          window.location.href = '/order'
+          window.location.href = '/cart'
         },
         error: err => {
           console.log(err)

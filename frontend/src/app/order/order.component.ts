@@ -62,6 +62,14 @@ export class OrderComponent implements OnInit {
     this.changeQuantity(order, (event.target as HTMLInputElement).valueAsNumber)
   }
 
+  remove(order: OrderList): void {
+    this.api.removeCartItem(order.id).subscribe(() => { this.customerOrders = this.customerOrders.filter(i => i.id !== order.id); this.changeDetector.markForCheck(); });
+  }
+
+  clearCart(): void {
+    this.api.clearCart().subscribe(() => { this.customerOrders = []; this.changeDetector.markForCheck(); });
+  }
+
   private normalizeQuantity(quantity: number): number {
     if (!Number.isFinite(quantity)) {
       return 1

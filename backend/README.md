@@ -57,9 +57,11 @@ MySQL app_users
 | GET | `/api/auth/me` | 是 | 当前登录用户 |
 | POST | `/api/auth/logout` | 是 | 注销并失效 Session |
 | GET | `/api/products` | 是 | 商品列表 |
-| GET | `/api/orders` | 是 | 当前用户订单 |
-| POST | `/api/orders` | 是 | 创建订单，`quantity` 范围 1–99 |
-| PUT | `/api/orders/{orderId}/quantity` | 是 | 调整当前用户订单数量 |
+| GET | `/api/cart` | CUSTOMER | 当前购物车 |
+| POST | `/api/cart/items` | CUSTOMER | 添加商品；重复商品累加数量 |
+| PUT | `/api/cart/items/{id}` | CUSTOMER | 调整数量，范围 1–99 |
+| DELETE | `/api/cart/items/{id}` | CUSTOMER | 移除商品 |
+| DELETE | `/api/cart` | CUSTOMER | 清空购物车 |
 | GET | `/api/users` | ADMIN | 演示用户列表 |
 | GET | `/actuator/health` | 否 | MySQL、Redis 与应用健康检查 |
 

@@ -10,7 +10,7 @@
             <a class="nav-link" aria-current="page" role="button" [routerLink]="['/dashboard']" routerLinkActive="active" >Products</a>
           </li>
           <li class="nav-item" *ngIf="bilgiler.role === 'CUSTOMER'">
-            <a class="nav-link" aria-current="page" role="button" [routerLink]="['/order']" routerLinkActive="active" >Orders</a>
+            <a class="nav-link" aria-current="page" role="button" [routerLink]="['/cart']" routerLinkActive="active" >Cart</a>
           </li>
           <li class="nav-item" *ngIf="bilgiler.role === 'ADMIN'">
             <a class="nav-link" aria-current="page" role="button" [routerLink]="['/users']" routerLinkActive="active" >Users</a>
