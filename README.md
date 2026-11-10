@@ -83,3 +83,6 @@ docker compose down
 Compose 中的数据库密码和教学账号只适用于本地 Demo。支付按钮只写入本地模拟支付记录，不会连接支付机构或产生真实资金交易。真实部署应使用密钥管理、HTTPS、自定义 Cookie Secure 策略，并移除对外暴露的后端调试端口。Flyway 迁移已启用；已经发布的迁移脚本不应直接修改，而应新增后续版本。
 
 详见 [前端说明](frontend/README.md) 和 [后端说明](backend/README.md)。
+
+高级三渠道模拟支付、Kafka、幂等、安全和高可用实验的设计与分章计划见
+[高级模拟支付实现方案](docs/ADVANCED-PAYMENT-PLAN.md)。
