@@ -13,7 +13,8 @@ public record ShopOrderResponse(Long id, String orderNumber, String status, BigD
   public record Address(String recipientName,String phone,String countryCode,String stateProvince,String city,String district,String addressLine1,String addressLine2,String postalCode,String label) {
     public static Address from(OrderAddressView a){return a==null?null:new Address(a.getRecipientName(),a.getPhone(),a.getCountryCode(),a.getStateProvince(),a.getCity(),a.getDistrict(),a.getAddressLine1(),a.getAddressLine2(),a.getPostalCode(),a.getLabel());}
   }
-  public record Payment(String paymentNumber,String status,String failureReason,BigDecimal amount,Instant createdAt) {
-    public static Payment from(PaymentView p){return p==null?null:new Payment(p.getPaymentNumber(),p.getStatus(),p.getFailureReason(),p.getAmount(),p.getCreatedAt());}
+  public record Payment(String paymentNumber,String merchantNo,String channel,String channelTransactionNo,
+      String status,String failureReason,BigDecimal amount,String currency,Instant createdAt,Instant paidAt,Instant expiresAt) {
+    public static Payment from(PaymentView p){return p==null?null:new Payment(p.getPaymentNumber(),p.getMerchantNo(),p.getChannel(),p.getChannelTransactionNo(),p.getStatus(),p.getFailureReason(),p.getAmount(),p.getCurrency(),p.getCreatedAt(),p.getPaidAt(),p.getExpiresAt());}
   }
 }

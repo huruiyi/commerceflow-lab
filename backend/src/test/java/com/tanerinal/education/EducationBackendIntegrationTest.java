@@ -15,10 +15,15 @@ import org.springframework.context.annotation.Import;
 import org.springframework.session.MapSessionRepository;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -45,6 +50,9 @@ class EducationBackendIntegrationTest {
 
   @Autowired
   ObjectMapper objectMapper;
+
+  @Autowired
+  JdbcTemplate jdbcTemplate;
 
   @Test
   void authenticationProductsOrdersAndLogoutWorkTogether() throws Exception {
@@ -130,23 +138,53 @@ class EducationBackendIntegrationTest {
     mvc.perform(get("/api/purchase-orders/{id}", purchaseOrderId).session(csrf.session()))
         .andExpect(status().isOk()).andExpect(jsonPath("$.address.addressLine1").value("100 Learning Road"));
 
-    String failedPayment = "{\"idempotencyKey\":\"test-failed-payment\",\"simulateFailure\":true}";
-    MvcResult failed = mvc.perform(post("/api/purchase-orders/{id}/payments", purchaseOrderId)
-            .session(csrf.session()).cookie(csrf.cookie()).header("X-XSRF-TOKEN", csrf.token())
-            .contentType("application/json").content(failedPayment))
-        .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
-        .andExpect(jsonPath("$.payment.status").value("FAILED")).andReturn();
+    String failedPayment = "{\"idempotencyKey\":\"test-failed-payment\",\"simulateFailure\":true,\"channel\":\"ALIPAY\"}";
+    ExecutorService executor = Executors.newFixedThreadPool(2);
+    CountDownLatch ready = new CountDownLatch(2);
+    CountDownLatch start = new CountDownLatch(1);
+    java.util.concurrent.Callable<MvcResult> concurrentPayment = () -> {
+      ready.countDown();
+      start.await();
+      return mvc.perform(post("/api/purchase-orders/{id}/payments", purchaseOrderId)
+              .session(csrf.session()).cookie(csrf.cookie()).header("X-XSRF-TOKEN", csrf.token())
+              .contentType("application/json").content(failedPayment))
+          .andReturn();
+    };
+    Future<MvcResult> firstFuture = executor.submit(concurrentPayment);
+    Future<MvcResult> secondFuture = executor.submit(concurrentPayment);
+    ready.await();
+    start.countDown();
+    MvcResult failed = firstFuture.get();
+    MvcResult concurrentRepeat = secondFuture.get();
+    executor.shutdownNow();
+    org.junit.jupiter.api.Assertions.assertEquals(200, failed.getResponse().getStatus());
+    org.junit.jupiter.api.Assertions.assertEquals(200, concurrentRepeat.getResponse().getStatus());
+    org.junit.jupiter.api.Assertions.assertEquals("ALIPAY",
+        objectMapper.readTree(failed.getResponse().getContentAsString()).path("payment").path("channel").asText());
+    org.junit.jupiter.api.Assertions.assertEquals("ALIPAY_MERCHANT_10001",
+        objectMapper.readTree(failed.getResponse().getContentAsString()).path("payment").path("merchantNo").asText());
+    org.junit.jupiter.api.Assertions.assertEquals("FAILED",
+        objectMapper.readTree(failed.getResponse().getContentAsString()).path("payment").path("status").asText());
     String failedPaymentNumber = objectMapper.readTree(failed.getResponse().getContentAsString()).path("payment").path("paymentNumber").asText();
+    org.junit.jupiter.api.Assertions.assertEquals(failedPaymentNumber,
+        objectMapper.readTree(concurrentRepeat.getResponse().getContentAsString()).path("payment").path("paymentNumber").asText());
     mvc.perform(post("/api/purchase-orders/{id}/payments", purchaseOrderId)
             .session(csrf.session()).cookie(csrf.cookie()).header("X-XSRF-TOKEN", csrf.token())
             .contentType("application/json").content(failedPayment))
         .andExpect(status().isOk()).andExpect(jsonPath("$.payment.paymentNumber").value(failedPaymentNumber));
+    mvc.perform(post("/api/purchase-orders/{id}/payments", purchaseOrderId)
+            .session(csrf.session()).cookie(csrf.cookie()).header("X-XSRF-TOKEN", csrf.token())
+            .contentType("application/json")
+            .content("{\"idempotencyKey\":\"test-failed-payment\",\"simulateFailure\":true,\"channel\":\"WECHAT_PAY\"}"))
+        .andExpect(status().isConflict());
 
     mvc.perform(post("/api/purchase-orders/{id}/payments", purchaseOrderId)
             .session(csrf.session()).cookie(csrf.cookie()).header("X-XSRF-TOKEN", csrf.token())
             .contentType("application/json")
-            .content("{\"idempotencyKey\":\"test-success-payment\",\"simulateFailure\":false}"))
+            .content("{\"idempotencyKey\":\"test-success-payment\",\"simulateFailure\":false,\"channel\":\"UNION_PAY\"}"))
         .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PAID"))
+        .andExpect(jsonPath("$.payment.channel").value("UNION_PAY"))
+        .andExpect(jsonPath("$.payment.merchantNo").value("898310000000001"))
         .andExpect(jsonPath("$.payment.status").value("SUCCESS"));
     mvc.perform(post("/api/purchase-orders/{id}/payments", purchaseOrderId)
             .session(csrf.session()).cookie(csrf.cookie()).header("X-XSRF-TOKEN", csrf.token())
@@ -183,6 +221,13 @@ class EducationBackendIntegrationTest {
             .contentType("application/json")
             .content("{\"email\":\"demo@example.com\",\"password\":\"wrong\"}"))
         .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void advancedPaymentMerchantAccountsAreSeeded() {
+    Integer count = jdbcTemplate.queryForObject(
+        "SELECT COUNT(*) FROM payment_merchant_accounts WHERE enabled=TRUE", Integer.class);
+    org.junit.jupiter.api.Assertions.assertEquals(3, count);
   }
 
   private CsrfContext csrfContext() throws Exception {

@@ -91,9 +91,12 @@ MySQL app_users
 - `shipping_addresses`：客户可维护并选择用于结算的地址。
 - `shop_orders`、`order_items`、`order_shipping_addresses`：正式订单及下单时不可变的商品、价格和地址快照。
 - `payment_records`、`order_events`：模拟支付结果、幂等键和关键状态变更。
+- `payment_merchant_accounts`：支付宝、微信支付和银联的公开教学商户配置。
+- `payment_notifications`、`payment_events`：后续异步通知处理和支付状态审计的数据基础。
+- `payment_idempotency_locks`：并发请求按幂等键串行化，避免“同时查不到、同时创建”的竞态。
 - `customer_orders`：早期基线 Demo 的兼容表，新流程不再把它当作购物车或正式订单。
 
-模拟支付仅用于学习状态机、事务和幂等处理，不连接真实支付渠道。失败支付不会改变订单状态；成功支付只允许把当前客户自己的订单从 `PENDING_PAYMENT` 变为 `PAID`。
+支付请求支持 `ALIPAY`、`WECHAT_PAY` 和 `UNION_PAY` 渠道。客户端幂等键、商户账户、请求指纹和数据库唯一约束共同保证安全重试；同一键改变订单、渠道、金额或测试结果会返回 409。模拟支付仅用于学习状态机、事务和幂等处理，不连接真实支付渠道。失败支付不会改变订单状态；成功支付只允许把当前客户自己的订单从 `PENDING_PAYMENT` 变为 `PAID`。
 
 ## 通过 Docker 运行
 

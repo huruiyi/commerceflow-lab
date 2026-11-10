@@ -7,6 +7,10 @@ import com.tanerinal.education.web.dto.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.util.*;
 
 @Service
@@ -37,22 +41,38 @@ public class PurchaseOrderService {
   @Transactional
   public ShopOrderResponse pay(AppUser user,Long id,PaymentRequest request){
     ShopOrderView order=orders.lock(user.getId(),id).orElseThrow(()->new ResourceNotFoundException("Order not found"));
+    PaymentMerchantAccount merchant=orders.merchantAccount(request.channel())
+        .orElseThrow(()->new BusinessRuleException("Payment channel is disabled"));
+    String fingerprint=fingerprint(user.getId(),order,request);
+    orders.ensurePaymentIdempotencyKey(request.idempotencyKey());
+    orders.lockPaymentIdempotencyKey(request.idempotencyKey());
     Optional<PaymentView> existing=orders.paymentByKey(request.idempotencyKey());
     if(existing.isPresent()){
-      if(!existing.get().getOrderId().equals(id)) throw new BusinessRuleException("Idempotency key belongs to another order");
+      PaymentView payment=existing.get();
+      if(!payment.getOrderId().equals(id)
+          || !merchant.getId().equals(payment.getMerchantAccountId())
+          || !fingerprint.equals(payment.getRequestFingerprint())) {
+        throw new BusinessRuleException("Idempotency key was already used with different payment parameters");
+      }
       return assemble(orders.find(user.getId(),id).orElseThrow(),existing.get());
     }
     if(!"PENDING_PAYMENT".equals(order.getStatus())) throw new BusinessRuleException("Only pending orders can be paid");
     String status=request.simulateFailure()?"FAILED":"SUCCESS";
     String reason=request.simulateFailure()?"Simulated payment decline":"";
-    orders.insertPayment(id,number("PAY"),request.idempotencyKey(),order.getTotalAmount(),status,reason);
+    Instant now=Instant.now();
+    orders.insertPayment(id,merchant.getId(),number("PAY"),request.idempotencyKey(),request.channel(),
+        order.getCurrency(),fingerprint,number("MOCK"),order.getTotalAmount(),status,reason,
+        request.simulateFailure()?null:now,now.plusSeconds(900));
+    PaymentView payment=orders.paymentByKey(request.idempotencyKey()).orElseThrow();
+    orders.insertPaymentEvent(payment.getId(),UUID.randomUUID().toString(),
+        request.simulateFailure()?"PAYMENT_FAILED":"PAYMENT_SUCCEEDED","CREATED",status,
+        request.simulateFailure()?reason:"Synchronous compatibility payment accepted");
     if(request.simulateFailure()){
       orders.insertEvent(id,user.getId(),"PAYMENT_FAILED","PENDING_PAYMENT","PENDING_PAYMENT",reason);
     } else {
       if(orders.updateStatus(id,"PENDING_PAYMENT","PAID")!=1) throw new BusinessRuleException("Order status changed; payment was not applied");
       orders.insertEvent(id,user.getId(),"PAYMENT_SUCCEEDED","PENDING_PAYMENT","PAID","Simulated payment accepted");
     }
-    PaymentView payment=orders.paymentByKey(request.idempotencyKey()).orElseThrow();
     return assemble(orders.find(user.getId(),id).orElseThrow(),payment);
   }
 
@@ -62,4 +82,14 @@ public class PurchaseOrderService {
     return new ShopOrderResponse(o.getId(),o.getOrderNumber(),o.getStatus(),o.getTotalAmount(),o.getCurrency(),o.getCreatedAt(),items,ShopOrderResponse.Address.from(orders.address(o.getId())),ShopOrderResponse.Payment.from(resolved));
   }
   private String number(String prefix){return prefix+"-"+UUID.randomUUID().toString().replace("-","").substring(0,16).toUpperCase();}
+
+  private String fingerprint(Long customerId,ShopOrderView order,PaymentRequest request){
+    String value=customerId+"|"+order.getId()+"|"+request.channel()+"|"
+        +order.getTotalAmount().stripTrailingZeros().toPlainString()+"|"+order.getCurrency()+"|"+request.simulateFailure();
+    try {
+      return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
+    } catch (NoSuchAlgorithmException exception) {
+      throw new IllegalStateException("SHA-256 is required by the Java runtime",exception);
+    }
+  }
 }

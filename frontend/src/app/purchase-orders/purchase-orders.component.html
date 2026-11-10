@@ -7,6 +7,6 @@
     <button *ngIf="order.status==='PENDING_PAYMENT'" class="btn btn-success mt-2" (click)="pay(order)" [disabled]="paying.has(order.id)">Pay (simulated)</button>
     <button *ngIf="order.status==='PENDING_PAYMENT'" class="btn btn-outline-warning mt-2 ms-2" (click)="pay(order,true)" [disabled]="paying.has(order.id)">Simulate decline</button>
   </div>
-  <small *ngIf="order.payment">Last payment: {{order.payment.status}} {{order.payment.failureReason}}</small>
+  <small *ngIf="order.payment">Last payment: {{order.payment.channel}} / {{order.payment.merchantNo}} / {{order.payment.status}} {{order.payment.failureReason}}</small>
 </div></div>
 <div *ngIf="orders.length===0" class="alert alert-info">No orders yet.</div>

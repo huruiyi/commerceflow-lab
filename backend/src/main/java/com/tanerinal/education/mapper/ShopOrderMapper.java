@@ -37,10 +37,32 @@ public interface ShopOrderMapper {
   @Select("SELECT * FROM order_items WHERE order_id=#{orderId} ORDER BY id") List<OrderItemView> items(Long orderId);
   @Select("SELECT * FROM order_shipping_addresses WHERE order_id=#{orderId}") OrderAddressView address(Long orderId);
 
-  @Select("SELECT * FROM payment_records WHERE idempotency_key=#{key}") Optional<PaymentView> paymentByKey(String key);
-  @Select("SELECT * FROM payment_records WHERE order_id=#{orderId} ORDER BY id DESC LIMIT 1") Optional<PaymentView> latestPayment(Long orderId);
-  @Insert("INSERT INTO payment_records(order_id,payment_number,idempotency_key,amount,status,failure_reason,created_at) VALUES(#{orderId},#{number},#{key},#{amount},#{status},#{reason},CURRENT_TIMESTAMP)")
-  void insertPayment(@Param("orderId")Long orderId,@Param("number")String number,@Param("key")String key,@Param("amount")BigDecimal amount,@Param("status")String status,@Param("reason")String reason);
+  @Select("SELECT * FROM payment_merchant_accounts WHERE channel=#{channel} AND enabled=TRUE")
+  Optional<PaymentMerchantAccount> merchantAccount(PaymentChannel channel);
+  @Insert("INSERT INTO payment_idempotency_locks(idempotency_key,created_at) VALUES(#{key},CURRENT_TIMESTAMP) ON DUPLICATE KEY UPDATE idempotency_key=idempotency_key")
+  void ensurePaymentIdempotencyKey(String key);
+  @Select("SELECT idempotency_key FROM payment_idempotency_locks WHERE idempotency_key=#{key} FOR UPDATE")
+  String lockPaymentIdempotencyKey(String key);
+  @Select("SELECT p.*,m.merchant_no FROM payment_records p LEFT JOIN payment_merchant_accounts m ON m.id=p.merchant_account_id WHERE p.idempotency_key=#{key}")
+  Optional<PaymentView> paymentByKey(String key);
+  @Select("SELECT p.*,m.merchant_no FROM payment_records p LEFT JOIN payment_merchant_accounts m ON m.id=p.merchant_account_id WHERE p.order_id=#{orderId} ORDER BY p.id DESC LIMIT 1")
+  Optional<PaymentView> latestPayment(Long orderId);
+  @Insert("""
+      INSERT INTO payment_records(order_id,merchant_account_id,payment_number,idempotency_key,channel,currency,
+        request_fingerprint,channel_transaction_no,amount,status,failure_reason,paid_at,expires_at,created_at,updated_at)
+      VALUES(#{orderId},#{merchantId},#{number},#{key},#{channel},#{currency},#{fingerprint},#{transactionNo},
+        #{amount},#{status},#{reason},#{paidAt},#{expiresAt},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+      """)
+  void insertPayment(@Param("orderId")Long orderId,@Param("merchantId")Long merchantId,
+      @Param("number")String number,@Param("key")String key,@Param("channel")PaymentChannel channel,
+      @Param("currency")String currency,@Param("fingerprint")String fingerprint,
+      @Param("transactionNo")String transactionNo,@Param("amount")BigDecimal amount,
+      @Param("status")String status,@Param("reason")String reason,
+      @Param("paidAt")java.time.Instant paidAt,@Param("expiresAt")java.time.Instant expiresAt);
+  @Insert("INSERT INTO payment_events(payment_id,event_id,event_type,from_status,to_status,detail,created_at) VALUES(#{paymentId},#{eventId},#{type},#{fromStatus},#{toStatus},#{detail},CURRENT_TIMESTAMP)")
+  void insertPaymentEvent(@Param("paymentId")Long paymentId,@Param("eventId")String eventId,
+      @Param("type")String type,@Param("fromStatus")String fromStatus,
+      @Param("toStatus")String toStatus,@Param("detail")String detail);
   @Update("UPDATE shop_orders SET status=#{toStatus},updated_at=CURRENT_TIMESTAMP WHERE id=#{id} AND status=#{fromStatus}")
   int updateStatus(@Param("id")Long id,@Param("fromStatus")String fromStatus,@Param("toStatus")String toStatus);
 }
