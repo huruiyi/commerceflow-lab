@@ -5,8 +5,10 @@
 | 路径 | 页面 | 功能 |
 | --- | --- | --- |
 | `/` | 登录 | Reactive Forms 校验、记住用户界面状态 |
-| `/dashboard` | 商品 | 商品列表、详情、选择 1–99 数量并创建订单 |
-| `/order` | 订单 | 当前用户订单、数量调整、单价和小计 |
+| `/dashboard` | 商品 | 商品列表、详情、选择 1–99 数量并加入购物车 |
+| `/cart` | 购物车 | 数量调整、移除、清空、小计和结算 |
+| `/addresses` | 收货地址 | 地址 CRUD、默认地址和结算地址选择 |
+| `/orders` | 订单与支付实验 | 三渠道选择、商户信息、幂等键、重放、冲突实验和支付回执 |
 | `/users` | 用户 | 后端演示用户列表和前端搜索 |
 | 其他 | 404 | 错误页 |
 
@@ -46,9 +48,12 @@ npm audit
 1. `src/app/app-routing.module.ts`：页面入口与路由保护。
 2. `src/app/login/login.component.ts`：登录表单。
 3. `src/app/services/account.service.ts`：CSRF、登录、注销与前端用户状态。
-4. `src/app/services/api.service.ts`：商品、订单和用户 API。
-5. `src/app/dashboard/`、`order/`、`users/`：业务页面。
+4. `src/app/services/api.service.ts`：商品、购物车、订单、地址和支付 API。
+5. `src/app/purchase-orders/`：三渠道支付领域与幂等实验 UI。
+6. `src/app/dashboard/`、`order/`、`addresses/`、`users/`：其他业务页面。
 
 ## 安全边界
 
 `AuthGuard` 和浏览器中的用户资料只负责界面导航；真实认证与授权由 Spring Security 会话完成。“记住我”仅决定非敏感用户资料放入 `localStorage` 还是 `sessionStorage`，不会将密码或会话令牌写入 Web Storage。
+
+支付页面只保存当前教学请求的随机幂等键、渠道和失败模拟标记，不保存 App Secret、私钥或平台密钥。切换渠道会生成新键；网络结果不确定时可精确重放原请求；跨渠道复用旧键会展示后端返回的 409 安全冲突。

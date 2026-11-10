@@ -6,7 +6,7 @@ import { OrderList } from 'src/model/IOrderList';
 import { Product } from 'src/model/IProduct';
 import { IUser } from 'src/model/IUser';
 import { ShippingAddress, ShippingAddressRequest } from 'src/model/IShippingAddress';
-import { PurchaseOrder } from 'src/model/IPurchaseOrder';
+import { PaymentChannel, PurchaseOrder } from 'src/model/IPurchaseOrder';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -45,7 +45,7 @@ export class ApiService {
   deleteAddress(id: number): Observable<void> { return this.http.delete<void>(`/api/addresses/${id}`); }
   checkout(): Observable<PurchaseOrder> { return this.http.post<PurchaseOrder>('/api/purchase-orders/checkout', {}); }
   purchaseOrders(): Observable<PurchaseOrder[]> { return this.http.get<PurchaseOrder[]>('/api/purchase-orders'); }
-  payOrder(id:number, idempotencyKey:string, simulateFailure=false, channel='ALIPAY'): Observable<PurchaseOrder> {
+  payOrder(id:number, idempotencyKey:string, simulateFailure=false, channel:PaymentChannel='ALIPAY'): Observable<PurchaseOrder> {
     return this.http.post<PurchaseOrder>(`/api/purchase-orders/${id}/payments`, {idempotencyKey, simulateFailure, channel});
   }
 }

@@ -73,7 +73,7 @@ docker compose down
 - `HttpOnly` 会话 Cookie，以及 Angular 兼容的 `XSRF-TOKEN` Cookie / `X-XSRF-TOKEN` Header 防护。
 - 商品查询、去重购物车、数量调整、移除、清空、单价/小计计算和管理员用户列表。
 - 客户收货地址 CRUD、唯一默认地址、中英文地址字段和结算地址选择。
-- 多商品结算、商品与地址快照、订单历史，以及带幂等键的成功/失败模拟支付。
+- 多商品结算、商品与地址快照、订单历史，以及支付宝/微信支付/银联选择、幂等键管理、请求重放和支付回执 UI。
 - MyBatis-Plus 数据访问、Flyway 版本化结构/演示数据初始化。
 - Redis Session、登录限流、持久化卷和健康检查；商品缓存等业务增强留在后续章节。
 - 前后端单元/集成测试、Docker 健康检查和 Nginx API 反向代理。

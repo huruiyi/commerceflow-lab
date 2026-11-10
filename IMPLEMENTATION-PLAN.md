@@ -156,12 +156,17 @@ review, persistent_login
 - [x] 使用数据库唯一约束和幂等键行锁保护支付请求、渠道交易和异步通知幂等。
 - [x] 使用请求指纹区分安全重试与同一幂等键下的参数冲突。
 - [x] 保持已完成的第 05 章接口和数据卷可迁移。
+- [x] Angular 订单页提供三渠道选择、商户信息、幂等键管理、精确重放、冲突实验和支付回执 UI。
 - 验收：三类商户初始化、Flyway 升级、重复请求和参数冲突测试通过。
 - 计划提交：`refactor: add advanced payment domain model`
 
 ### 第 05A-2 章：独立多渠道模拟支付服务
 
 - [ ] 新建独立 Spring Boot `mock-payment-service`，使用独立数据库边界。
+- [ ] 新建 Vue 3 + TypeScript 支付收银台和支付平台管理 UI。
+- [ ] 实现支付后台登录、注销、Redis Session、CSRF、登录限流、账号锁定和角色权限。
+- [ ] 提供 `PAYMENT_ADMIN`、`PAYMENT_OPERATOR`、`PAYMENT_AUDITOR` 三类演示账号及最小权限菜单。
+- [ ] 实现商户入驻、App ID/Secret 签发、商户公钥登记、平台公钥下载、凭据禁用和轮换入口。
 - [ ] 实现支付宝跳转、微信二维码和银联网关三种渠道适配器。
 - [ ] 实现创建、查询、关闭渠道交易及故障场景模拟。
 - [ ] 加入 Docker Compose 和健康检查。
@@ -174,6 +179,8 @@ review, persistent_login
 - [ ] Redis 保存短期 Nonce、限流状态和可重建缓存，MySQL 保持最终安全约束。
 - [ ] 回调地址使用商户配置白名单，日志隐藏密钥和敏感内容。
 - [ ] 提供仅供本地教学使用的演示密钥和密钥轮换结构。
+- [ ] 支付后台敏感操作要求重新认证，并为管理员提供 TOTP 二次验证和恢复码教学流程。
+- [ ] 登录、凭据查看、轮换、禁用和权限变更全部写入不可篡改式审计记录。
 - 验收：错误签名、过期时间戳、重复 Nonce、篡改金额和未知商户全部被拒绝。
 - 计划提交：`feat: secure payment requests and callbacks`
 
