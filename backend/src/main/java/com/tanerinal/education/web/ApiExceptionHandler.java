@@ -2,6 +2,7 @@ package com.tanerinal.education.web;
 
 import com.tanerinal.education.service.ResourceNotFoundException;
 import com.tanerinal.education.service.LoginRateLimitException;
+import com.tanerinal.education.service.BusinessRuleException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.AuthenticationException;
@@ -22,6 +23,11 @@ public class ApiExceptionHandler {
   @ExceptionHandler(LoginRateLimitException.class)
   ResponseEntity<Map<String, Object>> rateLimited(LoginRateLimitException exception) {
     return response(HttpStatus.TOO_MANY_REQUESTS, exception.getMessage());
+  }
+
+  @ExceptionHandler(BusinessRuleException.class)
+  ResponseEntity<Map<String, Object>> businessRule(BusinessRuleException exception) {
+    return response(HttpStatus.CONFLICT, exception.getMessage());
   }
 
   @ExceptionHandler(MethodArgumentNotValidException.class)

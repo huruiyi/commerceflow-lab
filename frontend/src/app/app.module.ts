@@ -17,6 +17,7 @@ import { ApptitleDirective } from './directive/apptitle.directive';
 import { GlobalErrorHandler } from './services/GlobalErrorHandler';
 import { UseritemComponent } from './inc/useritem/useritem.component';
 import { AddressesComponent } from './addresses/addresses.component';
+import { PurchaseOrdersComponent } from './purchase-orders/purchase-orders.component';
 
 @NgModule({
   declarations: [
@@ -31,7 +32,8 @@ import { AddressesComponent } from './addresses/addresses.component';
     TrcurrencyPipe,
     ApptitleDirective,
     UseritemComponent,
-    AddressesComponent
+    AddressesComponent,
+    PurchaseOrdersComponent
   ],
   imports: [
     BrowserModule,

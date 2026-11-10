@@ -1,5 +1,6 @@
 <div class="d-flex justify-content-between align-items-center"><h2 appApptitle>Shopping Cart</h2><button *ngIf="customerOrders.length" class="btn btn-outline-danger" (click)="clearCart()">Clear cart</button></div>
 <div *ngIf="customerOrders && customerOrders.length>0">
+<div *ngIf="checkoutError" class="alert alert-danger">{{checkoutError}} <a routerLink="/addresses">Manage shipping addresses</a></div>
 <table class="table table-hover">
     <thead>
       <tr>
@@ -40,5 +41,6 @@
       </tr>
     </tbody>
   </table>
+  <div class="text-end"><button class="btn btn-success" (click)="checkout()" [disabled]="checkingOut">{{checkingOut ? 'Creating order...' : 'Checkout'}}</button></div>
 </div>
 <div *ngIf="customerOrders && customerOrders.length === 0" class="alert alert-info" role="status">Your cart is empty.</div>

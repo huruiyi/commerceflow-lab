@@ -115,9 +115,44 @@ class EducationBackendIntegrationTest {
         .andExpect(status().isOk());
     mvc.perform(get("/api/addresses/selected").session(csrf.session()))
         .andExpect(status().isOk()).andExpect(jsonPath("$.addressId").value(addressId));
+
+    MvcResult checkout = mvc.perform(post("/api/purchase-orders/checkout").session(csrf.session()).cookie(csrf.cookie())
+            .header("X-XSRF-TOKEN", csrf.token()).contentType("application/json").content("{}"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
+        .andExpect(jsonPath("$.items[0].quantity").value(5)).andExpect(jsonPath("$.address.label").value("Home"))
+        .andReturn();
+    long purchaseOrderId = objectMapper.readTree(checkout.getResponse().getContentAsString()).get("id").asLong();
+    mvc.perform(get("/api/cart").session(csrf.session())).andExpect(status().isOk()).andExpect(jsonPath("$").isEmpty());
+
     mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/addresses/{id}", addressId)
             .session(csrf.session()).cookie(csrf.cookie()).header("X-XSRF-TOKEN", csrf.token()))
         .andExpect(status().isNoContent());
+    mvc.perform(get("/api/purchase-orders/{id}", purchaseOrderId).session(csrf.session()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.address.addressLine1").value("100 Learning Road"));
+
+    String failedPayment = "{\"idempotencyKey\":\"test-failed-payment\",\"simulateFailure\":true}";
+    MvcResult failed = mvc.perform(post("/api/purchase-orders/{id}/payments", purchaseOrderId)
+            .session(csrf.session()).cookie(csrf.cookie()).header("X-XSRF-TOKEN", csrf.token())
+            .contentType("application/json").content(failedPayment))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
+        .andExpect(jsonPath("$.payment.status").value("FAILED")).andReturn();
+    String failedPaymentNumber = objectMapper.readTree(failed.getResponse().getContentAsString()).path("payment").path("paymentNumber").asText();
+    mvc.perform(post("/api/purchase-orders/{id}/payments", purchaseOrderId)
+            .session(csrf.session()).cookie(csrf.cookie()).header("X-XSRF-TOKEN", csrf.token())
+            .contentType("application/json").content(failedPayment))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.payment.paymentNumber").value(failedPaymentNumber));
+
+    mvc.perform(post("/api/purchase-orders/{id}/payments", purchaseOrderId)
+            .session(csrf.session()).cookie(csrf.cookie()).header("X-XSRF-TOKEN", csrf.token())
+            .contentType("application/json")
+            .content("{\"idempotencyKey\":\"test-success-payment\",\"simulateFailure\":false}"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PAID"))
+        .andExpect(jsonPath("$.payment.status").value("SUCCESS"));
+    mvc.perform(post("/api/purchase-orders/{id}/payments", purchaseOrderId)
+            .session(csrf.session()).cookie(csrf.cookie()).header("X-XSRF-TOKEN", csrf.token())
+            .contentType("application/json")
+            .content("{\"idempotencyKey\":\"another-payment\",\"simulateFailure\":false}"))
+        .andExpect(status().isConflict());
 
     mvc.perform(post("/api/auth/logout").session(csrf.session()).cookie(csrf.cookie())
             .header("X-XSRF-TOKEN", csrf.token()))

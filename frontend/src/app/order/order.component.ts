@@ -2,6 +2,7 @@ import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { OrderList } from 'src/model/IOrderList';
 import { ApiService } from '../services/api.service';
 import { SeoService } from '../services/seo.service';
+import { Router } from '@angular/router';
 
 @Component({
   standalone: false,
@@ -13,9 +14,11 @@ export class OrderComponent implements OnInit {
 
   customerOrders: OrderList[] = []
   updatingOrderIds = new Set<number>()
+  checkoutError = ''
+  checkingOut = false
 
 
-  constructor(private api: ApiService, private seoService: SeoService,
+  constructor(private api: ApiService, private seoService: SeoService, private router: Router,
               private changeDetector: ChangeDetectorRef) {
     seoService.setTitle("Order Page")
     seoService.setMeta("The page that lists users orders...")
@@ -68,6 +71,11 @@ export class OrderComponent implements OnInit {
 
   clearCart(): void {
     this.api.clearCart().subscribe(() => { this.customerOrders = []; this.changeDetector.markForCheck(); });
+  }
+
+  checkout(): void {
+    this.checkingOut=true; this.checkoutError='';
+    this.api.checkout().subscribe({next:()=>void this.router.navigate(['/orders']),error:err=>{this.checkoutError=err.error?.message ?? 'Checkout failed.';this.checkingOut=false;this.changeDetector.markForCheck();},complete:()=>{this.checkingOut=false;this.changeDetector.markForCheck();}});
   }
 
   private normalizeQuantity(quantity: number): number {

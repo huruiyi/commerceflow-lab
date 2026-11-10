@@ -1,0 +1,12 @@
+<h2>My Orders</h2>
+<div *ngIf="message" class="alert alert-info">{{message}}</div>
+<div *ngFor="let order of orders" class="card mb-3"><div class="card-header d-flex justify-content-between"><span>{{order.orderNumber}}</span><span class="badge bg-secondary">{{order.status}}</span></div><div class="card-body">
+  <div *ngFor="let item of order.items" class="d-flex align-items-center border-bottom py-2"><img [src]="item.thumbnailUrl" width="96" class="me-3"><span class="flex-grow-1">{{item.productName}} × {{item.quantity}}</span><strong>{{item.subtotal | number:'1.2-2'}} {{order.currency}}</strong></div>
+  <p class="mt-3"><strong>Ship to:</strong> {{order.address.recipientName}}, {{order.address.addressLine1}} {{order.address.addressLine2}}, {{order.address.district}}, {{order.address.city}}, {{order.address.stateProvince}}, {{order.address.countryCode}} {{order.address.postalCode}}</p>
+  <div class="text-end"><strong>Total: {{order.totalAmount | number:'1.2-2'}} {{order.currency}}</strong><br>
+    <button *ngIf="order.status==='PENDING_PAYMENT'" class="btn btn-success mt-2" (click)="pay(order)" [disabled]="paying.has(order.id)">Pay (simulated)</button>
+    <button *ngIf="order.status==='PENDING_PAYMENT'" class="btn btn-outline-warning mt-2 ms-2" (click)="pay(order,true)" [disabled]="paying.has(order.id)">Simulate decline</button>
+  </div>
+  <small *ngIf="order.payment">Last payment: {{order.payment.status}} {{order.payment.failureReason}}</small>
+</div></div>
+<div *ngIf="orders.length===0" class="alert alert-info">No orders yet.</div>

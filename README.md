@@ -73,12 +73,13 @@ docker compose down
 - `HttpOnly` 会话 Cookie，以及 Angular 兼容的 `XSRF-TOKEN` Cookie / `X-XSRF-TOKEN` Header 防护。
 - 商品查询、去重购物车、数量调整、移除、清空、单价/小计计算和管理员用户列表。
 - 客户收货地址 CRUD、唯一默认地址、中英文地址字段和结算地址选择。
+- 多商品结算、商品与地址快照、订单历史，以及带幂等键的成功/失败模拟支付。
 - MyBatis-Plus 数据访问、Flyway 版本化结构/演示数据初始化。
-- Redis 基础设施、持久化卷和健康检查（Session、缓存、限流在后续章节启用）。
+- Redis Session、登录限流、持久化卷和健康检查；商品缓存等业务增强留在后续章节。
 - 前后端单元/集成测试、Docker 健康检查和 Nginx API 反向代理。
 
 ## 安全和生产边界
 
-Compose 中的数据库密码和教学账号只适用于本地 Demo。真实部署应使用密钥管理、HTTPS、自定义 Cookie Secure 策略，并移除对外暴露的后端调试端口。Flyway 迁移已启用；已经发布的迁移脚本不应直接修改，而应新增后续版本。
+Compose 中的数据库密码和教学账号只适用于本地 Demo。支付按钮只写入本地模拟支付记录，不会连接支付机构或产生真实资金交易。真实部署应使用密钥管理、HTTPS、自定义 Cookie Secure 策略，并移除对外暴露的后端调试端口。Flyway 迁移已启用；已经发布的迁移脚本不应直接修改，而应新增后续版本。
 
 详见 [前端说明](frontend/README.md) 和 [后端说明](backend/README.md)。

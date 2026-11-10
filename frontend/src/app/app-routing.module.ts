@@ -7,12 +7,14 @@ import { LoginComponent } from './login/login.component';
 import { OrderComponent } from './order/order.component';
 import { UsersComponent } from './users/users.component';
 import { AddressesComponent } from './addresses/addresses.component';
+import { PurchaseOrdersComponent } from './purchase-orders/purchase-orders.component';
 
 const routes: Routes = [
   {path: '', component: LoginComponent},  //LoginGuard
   {path: 'dashboard', component: DashboardComponent, canActivate: [AuthGuard]},
   {path: 'cart', component: OrderComponent, canActivate: [AuthGuard]},
   {path: 'addresses', component: AddressesComponent, canActivate: [AuthGuard]},
+  {path: 'orders', component: PurchaseOrdersComponent, canActivate: [AuthGuard]},
   {path: 'users', component: UsersComponent, canActivate: [AuthGuard]},
   {path: '**', component: ErrorpageComponent}
 ];

@@ -7,7 +7,7 @@
 - MyBatis-Plus 3.5.18
 - Flyway 数据库迁移
 - MySQL 8.4（Docker 运行）
-- Redis 7.4（本章先提供连接、持久化和健康检查，后续用于 Session、缓存和限流）
+- Redis 7.4（Session、登录限流和持久化；缓存增强在后续章节实现）
 - H2 MySQL 兼容模式（自动化测试）
 
 ## 当前用户与密码
@@ -68,6 +68,10 @@ MySQL app_users
 | PUT | `/api/addresses/{id}/default` | CUSTOMER | 设为唯一默认地址 |
 | PUT | `/api/addresses/{id}/select` | CUSTOMER | 选择结算地址 |
 | DELETE | `/api/addresses/{id}` | CUSTOMER | 删除地址并维护默认/结算选择 |
+| POST | `/api/purchase-orders/checkout` | CUSTOMER | 按服务端实时价格结算购物车并保存快照 |
+| GET | `/api/purchase-orders` | CUSTOMER | 当前客户的订单历史 |
+| GET | `/api/purchase-orders/{id}` | CUSTOMER | 当前客户的订单详情 |
+| POST | `/api/purchase-orders/{id}/payments` | CUSTOMER | 模拟支付；请求携带唯一幂等键 |
 | GET | `/api/users` | ADMIN | 演示用户列表 |
 | GET | `/actuator/health` | 否 | MySQL、Redis 与应用健康检查 |
 
@@ -82,10 +86,14 @@ MySQL app_users
 当前数据模型：
 
 - `app_users`：用户、BCrypt 密码哈希、角色和启用状态。
-- `products`：商品名称、价格、描述和图片 URL。
-- `customer_orders`：所属用户、商品、数量、备注和创建时间。
+- `products`：商品名称、价格、描述、图片 URL 和所属商家。
+- `carts`、`cart_items`：每个客户的当前购物车和去重商品项。
+- `shipping_addresses`：客户可维护并选择用于结算的地址。
+- `shop_orders`、`order_items`、`order_shipping_addresses`：正式订单及下单时不可变的商品、价格和地址快照。
+- `payment_records`、`order_events`：模拟支付结果、幂等键和关键状态变更。
+- `customer_orders`：早期基线 Demo 的兼容表，新流程不再把它当作购物车或正式订单。
 
-购物车和正式订单会在后续章节拆分，当前表用于兼容基线功能。
+模拟支付仅用于学习状态机、事务和幂等处理，不连接真实支付渠道。失败支付不会改变订单状态；成功支付只允许把当前客户自己的订单从 `PENDING_PAYMENT` 变为 `PAID`。
 
 ## 通过 Docker 运行
 
@@ -135,4 +143,4 @@ docker run --rm -v "${PWD}:/workspace" -w /workspace `
   maven:3.9.11-eclipse-temurin-21-alpine mvn -q clean test
 ```
 
-集成测试使用 H2 和真实 Flyway 脚本，覆盖 CSRF、正确与错误密码、商品查询、创建/调整/查询订单、用户列表和注销。
+集成测试使用 H2 和真实 Flyway 脚本，覆盖 CSRF、登录与权限、购物车、地址、结算、地址快照、支付失败/成功/幂等、用户列表和注销。
