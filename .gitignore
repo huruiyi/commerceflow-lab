@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.angular/
+coverage/
+.idea/
+.vscode/
+*.log
+.env
+.env.*
+!.env.example
+*.pem
+*.key

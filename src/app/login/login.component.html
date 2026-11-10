@@ -1,0 +1,33 @@
+<div class="row">
+  <div class="col-sm-4"></div>
+  <div class="col-sm-4">
+    <h2>User Login</h2>
+    <div *ngIf="isFormSubmitted && !formLoginGroup.valid">
+        <div class="alert alert-danger" role="alert">
+           Form Validation Error!
+        </div>
+    </div>
+    <div *ngIf="isFormSubmitted && !isFormDataValid">
+        <div class="alert alert-danger" role="alert">
+           Email or Password is wrong!
+        </div>
+    </div>
+    <form [formGroup]="formLoginGroup" (submit)="formOnSubmit()">
+        <div class="mb-3">
+            <label for="exampleInputEmail1" class="form-label">Email address</label>
+            <input #refEmail type="email" class="form-control" id="exampleInputEmail1" aria-describedby="emailHelp" formControlName="email">
+            <div id="emailHelp" class="form-text">We'll never share your email with anyone else.</div>
+        </div>
+        <div class="mb-3">
+            <label for="exampleInputPassword1" class="form-label">Password</label>
+            <input #refPassword type="password" class="form-control" id="exampleInputPassword1" formControlName="password">
+        </div>
+        <div class="mb-3 form-check">
+            <input type="checkbox" class="form-check-input" id="exampleCheck1" formControlName="remember">
+            <label class="form-check-label" for="exampleCheck1">Remember Me</label>
+        </div>
+        <button type="submit" class="btn btn-primary">Submit</button>
+    </form>
+  </div>
+  <div class="col-sm-4"></div>
+</div>

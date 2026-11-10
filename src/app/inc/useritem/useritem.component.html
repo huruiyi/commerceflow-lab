@@ -1,0 +1,11 @@
+<div *ngIf="userItem" class="card mb-3">
+    <img src="https://i.pravatar.cc/300?id={{ userItem.id }}" class="card-img-top" />
+    <div class="card-body">
+        <p class="card-text"><i class="bi bi-person"></i>  {{ userItem.name }}</p>
+        <p class="card-text"><i class="bi bi-envelope-paper"></i>  {{ userItem.email }}</p>
+        <p class="card-text"><i class="bi bi-phone-vibrate"></i>  {{ userItem.phone }}</p>
+        <div class="d-grid gap-2">
+            <button class="btn btn-secondary" (click)="fncBtnDetail()">Go To Details</button>
+        </div>
+    </div>
+</div>

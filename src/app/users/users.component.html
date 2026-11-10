@@ -1,0 +1,11 @@
+<h2>User List</h2>
+<div class="mb-3 col-sm-4">
+    <input type="search" (keyup)="filterUsers()" [(ngModel)]="searchText" placeholder="Search..." class="form-control">
+</div>
+<div *ngIf="users">
+    <div class="row">
+        <div *ngFor="let user of filteredUsers" class="col-sm-3">
+            <app-useritem [userItem]="user"></app-useritem>
+        </div>
+    </div>
+</div>

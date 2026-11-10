@@ -1,0 +1,14 @@
+name: tanerinal-angular-education
+services:
+  web:
+    build:
+      context: .
+    ports:
+      - "14200:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped

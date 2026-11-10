@@ -1,0 +1,45 @@
+<h2>Product List</h2>
+<div class="row mt-3" *ngIf="proBilgiler" >
+    <div *ngFor="let item of proBilgiler; let i = index" class="card col-sm-4 mb-4">
+        <img src="{{ item.images![0].normal }}" class="card-img-top" alt="...">
+        <span class="position-absolute top-0 start-50 translate-middle badge bg-danger p-2"> {{ item.price }}₺ </span>
+        <div class="card-body">
+          <h5 class="card-title"> {{ item.productName }} </h5>
+          <p class="card-text"> {{ item.brief }} </p>
+          <a (click)="fncSelectDetail(i)" data-bs-toggle="modal" data-bs-target="#exampleModal" class="btn btn-primary position-absolute bottom-0 end-0 m-1 ">Product Detail</a>
+        </div>
+    </div>
+</div>
+
+
+<div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="exampleModalLabel"> {{ singleBilgi.productName }} </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" *ngIf="singleBilgi">
+          <div class="container">
+            <div class="row">
+                <div class="col-sm-6">
+                    <img src="{{ bigImage }}" class="img-fluid" />
+                    <div class="mt-2">
+                        <img *ngFor="let imgItem of singleBilgi.images" src="{{ imgItem.thumb }}" (click)="fncSelectBigImage(imgItem.normal)" role="button" class="img-thumbnail m-1">
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <h3>{{ singleBilgi.productName }} <span class="badge bg-secondary">{{ singleBilgi.price }}</span></h3>
+                    <div [innerHtml]='singleBilgi.description'></div>
+                </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <img *ngIf="showLoader" src="../../assets/loading.gif" width="50" height="50"/>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="bi bi-x-circle"></i> Close</button>
+          <button type="button" class="btn btn-success" (click)="fncAddBasket(singleBilgi.productId!)"><i class="bi bi-cart-plus-fill"></i> Add Basket</button>
+        </div>
+      </div>
+    </div>
+  </div>
