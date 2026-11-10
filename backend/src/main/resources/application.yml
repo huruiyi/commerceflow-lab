@@ -43,7 +43,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus,metrics
   endpoint:
     health:
       probes:
@@ -62,3 +62,13 @@ education:
   payment-platform:
     base-url: ${PAYMENT_PLATFORM_BASE_URL:http://localhost:18082}
     callback-secret: ${PAYMENT_CALLBACK_SECRET:demo-platform-callback-secret}
+resilience4j:
+  retry:
+    instances:
+      paymentPlatform: {max-attempts: 3, wait-duration: 250ms}
+  circuitbreaker:
+    instances:
+      paymentPlatform: {sliding-window-size: 10, minimum-number-of-calls: 5, failure-rate-threshold: 50, wait-duration-in-open-state: 15s}
+  bulkhead:
+    instances:
+      paymentPlatform: {max-concurrent-calls: 20, max-wait-duration: 0}
