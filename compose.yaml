@@ -29,6 +29,77 @@ services:
       retries: 20
     restart: unless-stopped
 
+  kafka:
+    image: apache/kafka:4.1.1
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 8s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    environment:
+      KAFKA_CLUSTERS_0_NAME: education
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    ports:
+      - "14202:8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  kafka-init:
+    image: apache/kafka:4.1.1
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        for topic in payment-events order-events payment-callback-events payment-reconciliation-events merchant-notification-events payment-events-retry-1m payment-events-retry-5m payment-events-dlq;
+        do /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic $$topic --partitions 3 --replication-factor 1;
+        done
+    restart: "no"
+
+  prometheus:
+    image: prom/prometheus:v3.7.3
+    profiles: [observability]
+    ports: ["19090:9090"]
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      backend: {condition: service_healthy}
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:12.2.1
+    profiles: [observability]
+    ports: ["13000:3000"]
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: education-grafana
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on: [prometheus]
+    restart: unless-stopped
+
   payment-mysql:
     image: mysql:8.4
     command: ["--log-bin-trust-function-creators=1"]
@@ -104,6 +175,7 @@ services:
       REDIS_PORT: 6379
       PAYMENT_PLATFORM_BASE_URL: http://mock-payment-service:8080
       PAYMENT_CALLBACK_SECRET: demo-platform-callback-secret
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
       - "18081:8080"
     depends_on:
@@ -112,6 +184,8 @@ services:
       redis:
         condition: service_healthy
       mock-payment-service:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
@@ -141,3 +215,4 @@ volumes:
   mysql-data:
   redis-data:
   payment-mysql-data:
+  kafka-data:
