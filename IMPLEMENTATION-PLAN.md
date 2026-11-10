@@ -160,16 +160,16 @@ review, persistent_login
 - 验收：三类商户初始化、Flyway 升级、重复请求和参数冲突测试通过。
 - 计划提交：`refactor: add advanced payment domain model`
 
-### 第 05A-2 章：独立多渠道模拟支付服务
+### 第 05A-2 章：独立多渠道模拟支付服务（已完成）
 
-- [ ] 新建独立 Spring Boot `mock-payment-service`，使用独立数据库边界。
-- [ ] 新建 Vue 3 + TypeScript 支付收银台和支付平台管理 UI。
-- [ ] 实现支付后台登录、注销、Redis Session、CSRF、登录限流、账号锁定和角色权限。
-- [ ] 提供 `PAYMENT_ADMIN`、`PAYMENT_OPERATOR`、`PAYMENT_AUDITOR` 三类演示账号及最小权限菜单。
-- [ ] 实现商户入驻、App ID/Secret 签发、商户公钥登记、平台公钥下载、凭据禁用和轮换入口。
-- [ ] 实现支付宝跳转、微信二维码和银联网关三种渠道适配器。
-- [ ] 实现创建、查询、关闭渠道交易及故障场景模拟。
-- [ ] 加入 Docker Compose 和健康检查。
+- [x] 新建独立 Spring Boot `mock-payment-service`，使用独立数据库边界。
+- [x] 新建 Vue 3 + TypeScript 支付收银台和支付平台管理 UI。
+- [x] 实现支付后台登录、注销、Redis Session、CSRF、登录限流、账号锁定和角色权限。
+- [x] 提供 `PAYMENT_ADMIN`、`PAYMENT_OPERATOR`、`PAYMENT_AUDITOR` 三类演示账号及最小权限菜单。
+- [x] 实现商户入驻、App ID/Secret 签发、商户公钥登记、平台公钥下载、凭据禁用和轮换入口。
+- [x] 实现支付宝跳转、微信二维码和银联网关三种渠道适配器。
+- [x] 实现创建、查询、关闭渠道交易及故障场景模拟。
+- [x] 加入 Docker Compose 和健康检查。
 - 验收：三种渠道均可独立创建、查询和关闭模拟交易，商城不能直接修改渠道数据库。
 - 计划提交：`feat: add multi-channel mock payment service`
 

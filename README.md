@@ -11,10 +11,16 @@
             ├─ Angular 22 静态页面
             └─ /api/* → Spring Boot 3.5.16 → MyBatis-Plus → MySQL 8.4
                                       └────→ Redis 7.4
+
+支付平台浏览器 http://localhost:14201
+  └─ Vue 3 + Nginx → 独立 Spring Boot 支付服务 → 独立 MySQL
+                                      └────────────→ 独立 Redis Session 命名空间
 ```
 
 - `frontend/`：Angular 前端、Nginx 配置和前端 Dockerfile。
 - `backend/`：Java 21、Spring Boot 3.5.16、Spring Security 6、MyBatis-Plus、Flyway 和后端 Dockerfile。
+- `mock-payment-service/`：独立支付数据库、后台安全、商户凭据和三渠道交易服务。
+- `mock-payment-ui/`：Vue 3 支付管理后台与支付宝/微信/银联模拟收银台。
 - `compose.yaml`：一键启动 MySQL、Redis、后端和前端。
 
 ## 一键启动
@@ -29,8 +35,10 @@ docker compose ps
 访问地址：
 
 - 前端：`http://localhost:14200`
+- 支付平台：`http://localhost:14201`
 - 前端健康检查：`http://localhost:14200/healthz`
 - 后端健康检查：`http://localhost:18081/actuator/health`
+- 支付服务健康检查：`http://localhost:18082/actuator/health`
 
 教学账号（密码均为 `demo-password`）：
 
@@ -40,12 +48,35 @@ docker compose ps
 管理员：admin@example.com
 ```
 
+支付平台账号（密码同为 `demo-password`）：
+
+```text
+平台管理员：payment-admin
+支付运营员：payment-operator
+支付审计员：payment-auditor
+```
+
 ### 如何登录
 
-1. 确认 `docker compose ps` 中 `mysql`、`redis`、`backend`、`web` 均为 `healthy`。
+1. 确认 `docker compose ps` 中商城与支付平台的七个服务均为 `healthy`。
 2. 浏览器打开 `http://localhost:14200`。
 3. 输入 `demo@example.com` 和 `demo-password`。
 4. 点击登录后进入商品页，可继续查看订单和用户列表。
+
+支付平台使用方法：
+
+1. 打开 `http://localhost:14201`，用 `payment-admin` / `demo-password` 登录。
+2. 在“商户与凭据”创建商户，立即保存只显示一次的 App Secret。
+3. 在“渠道交易”填写 App ID 与 App Secret，依次体验支付宝跳转、微信二维码和银联网关。
+4. 可在“后台账号”创建包含邮箱、MFA 策略、角色和商户范围的独立支付后台用户。
+
+完整自动验收：
+
+```powershell
+./verify-payment.ps1
+```
+
+脚本会验证三渠道创建、收银成功、后台关闭、幂等重放、运营员商户范围、审计员越权拒绝和审计日志。
 
 本项目**没有 Spring Boot 启动时随机生成的默认密码**。三个演示账号由 Flyway 创建，密码以 BCrypt 哈希保存。Spring Security 的 `User` 是认证时从数据库记录转换出来的运行时对象，不是另一个内置账号。
 

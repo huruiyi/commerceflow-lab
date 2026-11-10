@@ -29,6 +29,67 @@ services:
       retries: 20
     restart: unless-stopped
 
+  payment-mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: payment_platform
+      MYSQL_USER: payment
+      MYSQL_PASSWORD: payment-password
+      MYSQL_ROOT_PASSWORD: local-payment-root-password
+    ports:
+      - "13307:3306"
+    volumes:
+      - payment-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
+  mock-payment-service:
+    build:
+      context: ./mock-payment-service
+    environment:
+      PAYMENT_DATABASE_URL: jdbc:mysql://payment-mysql:3306/payment_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      PAYMENT_DATABASE_USERNAME: payment
+      PAYMENT_DATABASE_PASSWORD: payment-password
+      PAYMENT_CREDENTIAL_MASTER_KEY: bG9jYWwtZGVtby1rZXktMTIzNDU2Nzg5MC1hYmNkZWY=
+      PAYMENT_CHECKOUT_BASE_URL: http://localhost:14201
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - "18082:8080"
+    depends_on:
+      payment-mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 25s
+    restart: unless-stopped
+
+  payment-ui:
+    build:
+      context: ./mock-payment-ui
+    ports:
+      - "14201:80"
+    depends_on:
+      mock-payment-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -72,3 +133,4 @@ services:
 volumes:
   mysql-data:
   redis-data:
+  payment-mysql-data:
