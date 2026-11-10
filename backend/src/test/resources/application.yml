@@ -5,8 +5,11 @@ spring:
     password:
     driver-class-name: org.h2.Driver
   flyway:
-    baseline-on-migrate: true
-    baseline-version: 0
+    enabled: false
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-test.sql
   data:
     redis:
       repositories:
@@ -22,3 +25,9 @@ security:
   remember-me:
     key: education-test-remember-me-key
     validity-seconds: 1209600
+
+education:
+  outbox:
+    initial-delay: 3600000
+  reconciliation:
+    initial-delay: 3600000

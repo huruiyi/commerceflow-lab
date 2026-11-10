@@ -1,0 +1,17 @@
+CREATE TABLE app_users(id BIGINT AUTO_INCREMENT PRIMARY KEY,email VARCHAR(190) UNIQUE NOT NULL,password_hash VARCHAR(100) NOT NULL,first_name VARCHAR(80) NOT NULL,last_name VARCHAR(80) NOT NULL,phone VARCHAR(40) NOT NULL,role VARCHAR(30) NOT NULL,enabled BOOLEAN NOT NULL);
+CREATE TABLE roles(id BIGINT AUTO_INCREMENT PRIMARY KEY,code VARCHAR(40) UNIQUE NOT NULL,description VARCHAR(160) NOT NULL);
+CREATE TABLE user_roles(user_id BIGINT NOT NULL,role_id BIGINT NOT NULL,PRIMARY KEY(user_id,role_id));
+CREATE TABLE persistent_logins(username VARCHAR(190),series VARCHAR(64) PRIMARY KEY,token VARCHAR(64),last_used TIMESTAMP);
+CREATE TABLE products(id BIGINT AUTO_INCREMENT PRIMARY KEY,name VARCHAR(160),brief VARCHAR(300),description VARCHAR(2000),price DECIMAL(12,2),image_url VARCHAR(500),thumbnail_url VARCHAR(500),merchant_id BIGINT);
+CREATE TABLE product_translations(product_id BIGINT,locale VARCHAR(10),name VARCHAR(160),brief VARCHAR(300),description VARCHAR(2000),PRIMARY KEY(product_id,locale));
+CREATE TABLE product_reviews(id BIGINT AUTO_INCREMENT PRIMARY KEY,order_item_id BIGINT,product_id BIGINT,customer_id BIGINT,rating INT,comment VARCHAR(1000),created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE carts(id BIGINT AUTO_INCREMENT PRIMARY KEY,user_id BIGINT UNIQUE NOT NULL,selected_address_id BIGINT,created_at TIMESTAMP,updated_at TIMESTAMP);
+CREATE TABLE cart_items(id BIGINT AUTO_INCREMENT PRIMARY KEY,cart_id BIGINT NOT NULL,product_id BIGINT NOT NULL,quantity INT NOT NULL,created_at TIMESTAMP,updated_at TIMESTAMP,UNIQUE(cart_id,product_id));
+CREATE TABLE shedlock(name VARCHAR(64) PRIMARY KEY,lock_until TIMESTAMP,locked_at TIMESTAMP,locked_by VARCHAR(255));
+INSERT INTO app_users(email,password_hash,first_name,last_name,phone,role,enabled) VALUES('demo@example.com','$2a$10$.vOuqtr8OlOAWivaL/d9te.Y3JkyUNC.T1cBG3eHPG/U8zv0e1Gg6','Demo','Student','13800000000','CUSTOMER',TRUE);
+INSERT INTO app_users(email,password_hash,first_name,last_name,phone,role,enabled) VALUES('admin@example.com','$2a$10$.vOuqtr8OlOAWivaL/d9te.Y3JkyUNC.T1cBG3eHPG/U8zv0e1Gg6','Admin','User','13800000002','ADMIN',TRUE);
+INSERT INTO roles(code,description) VALUES('CUSTOMER','Customer'),('MERCHANT','Merchant'),('ADMIN','Admin');
+INSERT INTO user_roles(user_id,role_id) SELECT u.id,r.id FROM app_users u,roles r WHERE u.email='demo@example.com' AND r.code='CUSTOMER';
+INSERT INTO user_roles(user_id,role_id) SELECT u.id,r.id FROM app_users u,roles r WHERE u.email='admin@example.com' AND r.code='ADMIN';
+INSERT INTO products(name,brief,description,price,image_url,thumbnail_url) VALUES('Learning Laptop','Coding laptop','Learning workstation',1299,'image','thumb');
+INSERT INTO product_translations(product_id,locale,name,brief,description) VALUES(1,'zh-CN','学习笔记本电脑','编程电脑','学习工作站');

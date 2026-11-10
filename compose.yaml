@@ -4,9 +4,9 @@ services:
     image: mysql:8.4
     environment:
       MYSQL_DATABASE: education_demo
-      MYSQL_USER: education
-      MYSQL_PASSWORD: education-password
-      MYSQL_ROOT_PASSWORD: local-root-password
+      MYSQL_USER: ${DATABASE_USERNAME:-education}
+      MYSQL_PASSWORD: ${DATABASE_PASSWORD:-education-password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
@@ -92,9 +92,9 @@ services:
     command: ["--log-bin-trust-function-creators=1"]
     environment:
       MYSQL_DATABASE: payment_platform
-      MYSQL_USER: payment
-      MYSQL_PASSWORD: payment-password
-      MYSQL_ROOT_PASSWORD: local-payment-root-password
+      MYSQL_USER: ${PAYMENT_DATABASE_USERNAME:-payment}
+      MYSQL_PASSWORD: ${PAYMENT_DATABASE_PASSWORD:-payment-password}
+      MYSQL_ROOT_PASSWORD: ${PAYMENT_MYSQL_ROOT_PASSWORD:-local-payment-root-password}
     ports:
       - "13307:3306"
     volumes:
@@ -112,14 +112,14 @@ services:
       context: ./mock-payment-service
     environment:
       PAYMENT_DATABASE_URL: jdbc:mysql://payment-mysql:3306/payment_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      PAYMENT_DATABASE_USERNAME: payment
-      PAYMENT_DATABASE_PASSWORD: payment-password
-      PAYMENT_CREDENTIAL_MASTER_KEY: bG9jYWwtZGVtby1rZXktMTIzNDU2Nzg5MC1hYmNkZWY=
+      PAYMENT_DATABASE_USERNAME: ${PAYMENT_DATABASE_USERNAME:-payment}
+      PAYMENT_DATABASE_PASSWORD: ${PAYMENT_DATABASE_PASSWORD:-payment-password}
+      PAYMENT_CREDENTIAL_MASTER_KEY: ${PAYMENT_CREDENTIAL_MASTER_KEY:-bG9jYWwtZGVtby1rZXktMTIzNDU2Nzg5MC1hYmNkZWY=}
       PAYMENT_CHECKOUT_BASE_URL: http://localhost:14201
       REDIS_HOST: redis
       REDIS_PORT: 6379
       PAYMENT_CALLBACK_URL: http://backend:8080/api/payment-notifications/callback
-      PAYMENT_CALLBACK_SECRET: demo-platform-callback-secret
+      PAYMENT_CALLBACK_SECRET: ${PAYMENT_CALLBACK_SECRET:-demo-platform-callback-secret}
     ports:
       - "18082:8080"
     depends_on:
@@ -156,12 +156,13 @@ services:
       context: ./backend
     environment:
       DATABASE_URL: jdbc:mysql://mysql:3306/education_demo?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      DATABASE_USERNAME: education
-      DATABASE_PASSWORD: education-password
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-education}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-education-password}
+      REMEMBER_ME_KEY: ${REMEMBER_ME_KEY:-education-demo-remember-me-key-change-in-production}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       PAYMENT_PLATFORM_BASE_URL: http://mock-payment-service:8080
-      PAYMENT_CALLBACK_SECRET: demo-platform-callback-secret
+      PAYMENT_CALLBACK_SECRET: ${PAYMENT_CALLBACK_SECRET:-demo-platform-callback-secret}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
       - "18081:8080"
