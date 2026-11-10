@@ -3,6 +3,8 @@ import { OrderList } from 'src/model/IOrderList';
 import { ApiService } from '../services/api.service';
 import { SeoService } from '../services/seo.service';
 import { Router } from '@angular/router';
+import { I18nService } from '../services/i18n.service';
+import { forkJoin } from 'rxjs';
 
 @Component({
   standalone: false,
@@ -19,13 +21,14 @@ export class OrderComponent implements OnInit {
 
 
   constructor(private api: ApiService, private seoService: SeoService, private router: Router,
-              private changeDetector: ChangeDetectorRef) {
-    seoService.setTitle("Order Page")
-    seoService.setMeta("The page that lists users orders...")
+              private changeDetector: ChangeDetectorRef, private i18n: I18nService) {
+    seoService.setTitle(i18n.t('shoppingCart'))
+    seoService.setMeta(i18n.t('shoppingCart'))
 
-    api.getOrders().subscribe({
-        next: res => {
-          this.customerOrders = res
+    forkJoin({orders: api.getOrders(), products: api.allProducts()}).subscribe({
+        next: ({orders, products}) => {
+          const names = new Map(products.map(product => [product.id, product.name]))
+          this.customerOrders = orders.map(order => ({...order, productName: names.get(order.productId) ?? order.productName}))
           this.changeDetector.markForCheck()
         },
         error: err => {
@@ -75,7 +78,7 @@ export class OrderComponent implements OnInit {
 
   checkout(): void {
     this.checkingOut=true; this.checkoutError='';
-    this.api.checkout().subscribe({next:()=>void this.router.navigate(['/orders']),error:err=>{this.checkoutError=err.error?.message ?? 'Checkout failed.';this.checkingOut=false;this.changeDetector.markForCheck();},complete:()=>{this.checkingOut=false;this.changeDetector.markForCheck();}});
+    this.api.checkout().subscribe({next:()=>void this.router.navigate(['/orders']),error:err=>{this.checkoutError=err.error?.message ?? this.i18n.t('checkoutFailed');this.checkingOut=false;this.changeDetector.markForCheck();},complete:()=>{this.checkingOut=false;this.changeDetector.markForCheck();}});
   }
 
   private normalizeQuantity(quantity: number): number {

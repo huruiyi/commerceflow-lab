@@ -16,7 +16,7 @@ public interface CartMapper {
   void add(@Param("cartId") Long cartId, @Param("productId") Long productId, @Param("quantity") int quantity);
 
   @Select("""
-      SELECT i.id, i.updated_at AS created_at, '' AS note, i.quantity,
+      SELECT i.id, i.product_id, i.updated_at AS created_at, '' AS note, i.quantity,
              p.name AS product_name, p.price, p.thumbnail_url
       FROM cart_items i JOIN carts c ON c.id=i.cart_id JOIN products p ON p.id=i.product_id
       WHERE c.user_id=#{userId} ORDER BY i.created_at, i.id
@@ -24,7 +24,7 @@ public interface CartMapper {
   List<OrderView> list(Long userId);
 
   @Select("""
-      SELECT i.id, i.updated_at AS created_at, '' AS note, i.quantity,
+      SELECT i.id, i.product_id, i.updated_at AS created_at, '' AS note, i.quantity,
              p.name AS product_name, p.price, p.thumbnail_url
       FROM cart_items i JOIN carts c ON c.id=i.cart_id JOIN products p ON p.id=i.product_id
       WHERE c.user_id=#{userId} AND i.id=#{itemId}

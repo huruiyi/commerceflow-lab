@@ -32,8 +32,8 @@ export class LoginComponent implements OnInit, AfterViewInit {
               private router: Router,
               private seoService: SeoService,
               private changeDetector: ChangeDetectorRef,public i18n:I18nService) {
-    this.seoService.setTitle('User Login');
-    this.seoService.setMeta('Login Page Detail');
+    this.seoService.setTitle(this.i18n.t('loginTitle'));
+    this.seoService.setMeta(this.i18n.t('loginTitle'));
   }
 
   ngOnInit(): void {
@@ -70,11 +70,11 @@ export class LoginComponent implements OnInit, AfterViewInit {
   private rejectLogin(error: HttpErrorResponse): void {
     this.isFormDataValid = false;
     if (error.status === 429) {
-      this.loginMessage = 'Too many failed attempts. Please wait five minutes and try again.';
+      this.loginMessage = this.i18n.t('loginRateLimited');
     } else if (error.status === 0 || error.status >= 500) {
-      this.loginMessage = 'The login service is temporarily unavailable. Please try again.';
+      this.loginMessage = this.i18n.t('loginUnavailable');
     } else {
-      this.loginMessage = 'The email or password is incorrect, or this account is disabled.';
+      this.loginMessage = this.i18n.t('loginRejected');
     }
     this.formLoginGroup.controls.password.reset('');
     this.viewEmailInput.nativeElement.focus();

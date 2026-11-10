@@ -1,6 +1,6 @@
 <h2>{{'userList'|t}}</h2>
 <div class="mb-3 col-sm-4">
-    <input type="search" (keyup)="filterUsers()" [(ngModel)]="searchText" placeholder="Search..." class="form-control">
+    <input type="search" (keyup)="filterUsers()" [(ngModel)]="searchText" [placeholder]="'search'|t" class="form-control">
 </div>
 <div *ngIf="users">
     <div class="row">

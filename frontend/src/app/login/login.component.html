@@ -16,7 +16,7 @@
         <div class="mb-3">
             <label for="exampleInputEmail1" class="form-label">{{'email'|t}}</label>
             <input #refEmail type="email" class="form-control" id="exampleInputEmail1" aria-describedby="emailHelp" formControlName="email">
-            <div id="emailHelp" class="form-text">We'll never share your email with anyone else.</div>
+            <div id="emailHelp" class="form-text">{{'emailPrivacy'|t}}</div>
         </div>
         <div class="mb-3">
             <label for="exampleInputPassword1" class="form-label">{{'password'|t}}</label>
@@ -32,10 +32,10 @@
     </form>
     <div class="alert alert-info mt-3" role="note">
       <strong>{{'demoAccounts'|t}}</strong><br>
-      Customer: demo@example.com<br>
-      Merchant: merchant@example.com<br>
-      Admin: admin@example.com<br>
-      Password for all accounts: demo-password
+      {{'customer'|t}}: demo@example.com<br>
+      {{'merchant'|t}}: merchant@example.com<br>
+      {{'administrator'|t}}: admin@example.com<br>
+      {{'allAccountPassword'|t}}: demo-password
     </div>
   </div>
   <div class="col-sm-4"></div>

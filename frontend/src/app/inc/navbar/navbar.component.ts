@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { AccountService } from 'src/app/services/account.service';
 import { UserProfile } from 'src/model/IUserLogin';
 import { I18nService } from '../../services/i18n.service';
+import { Router } from '@angular/router';
 
 @Component({
   standalone: false,
@@ -10,6 +11,7 @@ import { I18nService } from '../../services/i18n.service';
   styleUrls: ['./navbar.component.css']
 })
 export class NavbarComponent implements OnInit {
+  searchText = ''
   bilgiler: UserProfile = {
     id: 0,
     firstName: '',
@@ -19,7 +21,7 @@ export class NavbarComponent implements OnInit {
     role: ''
   }
 
-  constructor(private accountService :AccountService,public i18n:I18nService) {
+  constructor(private accountService :AccountService,public i18n:I18nService,private router:Router) {
     const userInfo = this.accountService.loginControl()
 
     if (userInfo) {
@@ -32,5 +34,12 @@ export class NavbarComponent implements OnInit {
 
   logout(): void {
     this.accountService.logout()
+  }
+
+  get isProductPage(): boolean { return this.router.url.startsWith('/dashboard') }
+
+  search(): void {
+    const query = this.searchText.trim()
+    void this.router.navigate(['/dashboard'], {queryParams: query ? {q: query} : {}})
   }
 }

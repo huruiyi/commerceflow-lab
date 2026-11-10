@@ -1,11 +1,12 @@
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
-import { finalize } from 'rxjs';
+import { finalize, forkJoin } from 'rxjs';
 import { PaymentChannel, PurchaseOrder } from 'src/model/IPurchaseOrder';
 import { ApiService } from '../services/api.service';
+import { I18nService } from '../services/i18n.service';
 
 interface ChannelOption {
-  code: PaymentChannel; name: string; merchantNo: string; appId: string;
-  protocol: string; description: string; badge: string;
+  code: PaymentChannel; nameKey: string; merchantNo: string; appId: string;
+  protocol: string; descriptionKey: string; badge: string;
 }
 interface PaymentAttempt { key: string; channel: PaymentChannel; simulateFailure: boolean; paymentNumber?: string; }
 interface Notice { type: 'success'|'warning'|'danger'|'info'; text: string; }
@@ -13,16 +14,16 @@ interface Notice { type: 'success'|'warning'|'danger'|'info'; text: string; }
 @Component({standalone:false,selector:'app-purchase-orders',templateUrl:'./purchase-orders.component.html',styleUrls:['./purchase-orders.component.css']})
 export class PurchaseOrdersComponent implements OnInit {
   readonly channels:ChannelOption[]=[
-    {code:'ALIPAY',name:'Alipay / 支付宝',merchantNo:'ALIPAY_MERCHANT_10001',appId:'2026111000000001',protocol:'RSA-SHA256',description:'App payment with an RSA-signed merchant request.',badge:'A'},
-    {code:'WECHAT_PAY',name:'WeChat Pay / 微信支付',merchantNo:'1900001001',appId:'wx202611100001',protocol:'HMAC-SHA256',description:'QR-style payment using the demo API secret.',badge:'W'},
-    {code:'UNION_PAY',name:'UnionPay / 银联支付',merchantNo:'898310000000001',appId:'UP202611100001',protocol:'RSA-SHA256',description:'Gateway payment with a simulated UnionPay certificate.',badge:'U'}
+    {code:'ALIPAY',nameKey:'alipay',merchantNo:'ALIPAY_MERCHANT_10001',appId:'2026111000000001',protocol:'RSA-SHA256',descriptionKey:'alipayDescription',badge:'A'},
+    {code:'WECHAT_PAY',nameKey:'wechatPay',merchantNo:'1900001001',appId:'wx202611100001',protocol:'HMAC-SHA256',descriptionKey:'wechatDescription',badge:'W'},
+    {code:'UNION_PAY',nameKey:'unionPay',merchantNo:'898310000000001',appId:'UP202611100001',protocol:'RSA-SHA256',descriptionKey:'unionPayDescription',badge:'U'}
   ];
   orders:PurchaseOrder[]=[]; paying=new Set<number>(); selectedChannels:Record<number,PaymentChannel>={};
   draftKeys:Record<number,string>={}; lastAttempts:Record<number,PaymentAttempt>={}; notices:Record<number,Notice>={};
   ratings:Record<number,number>={}; reviewComments:Record<number,string>={}; reviewed=new Set<number>();
-  constructor(private api:ApiService,private changeDetector:ChangeDetectorRef){}
+  constructor(private api:ApiService,private changeDetector:ChangeDetectorRef,public i18n:I18nService){}
   ngOnInit():void{this.reload();}
-  reload():void{this.api.purchaseOrders().subscribe(orders=>{this.orders=orders;orders.forEach(order=>this.initializeOrder(order));this.changeDetector.markForCheck();});}
+  reload():void{forkJoin({orders:this.api.purchaseOrders(),products:this.api.allProducts()}).subscribe(({orders,products})=>{const names=new Map(products.map(product=>[product.id,product.name]));this.orders=orders.map(order=>({...order,items:order.items.map(item=>({...item,productName:names.get(item.productId)??item.productName}))}));this.orders.forEach(order=>this.initializeOrder(order));this.changeDetector.markForCheck();});}
   selectChannel(order:PurchaseOrder,channel:PaymentChannel):void{this.selectedChannels[order.id]=channel;this.newAttempt(order);}
   newAttempt(order:PurchaseOrder):void{this.draftKeys[order.id]=crypto.randomUUID();delete this.notices[order.id];}
   pay(order:PurchaseOrder,simulateFailure=false):void{this.execute(order,{key:this.draftKeys[order.id]??crypto.randomUUID(),channel:this.selectedChannels[order.id]??'ALIPAY',simulateFailure},false);}
@@ -30,15 +31,15 @@ export class PurchaseOrdersComponent implements OnInit {
   replayOnAnotherChannel(order:PurchaseOrder):void{const previous=this.lastAttempts[order.id];if(!previous)return;const alternative=this.channels.find(channel=>channel.code!==previous.channel)?.code??'WECHAT_PAY';this.execute(order,{...previous,channel:alternative},true);}
   channel(order:PurchaseOrder):ChannelOption{const code=this.selectedChannels[order.id]??'ALIPAY';return this.channels.find(channel=>channel.code===code)??this.channels[0];}
   trackOrder(_index:number,order:PurchaseOrder):number{return order.id;}
-  refresh(order:PurchaseOrder):void{this.api.purchaseOrder(order.id).subscribe(updated=>{this.orders=this.orders.map(item=>item.id===updated.id?updated:item);this.notices[order.id]={type:updated.status==='PAID'?'success':'info',text:updated.status==='PAID'?'Signed callback received. The order is paid.':'Still waiting for the asynchronous provider callback.'};this.changeDetector.markForCheck();});}
-  openCheckout(order:PurchaseOrder):void{const url=order.payment?.checkoutUrl;if(url){window.open(url,'payment-checkout','width=1040,height=760');this.notices[order.id]={type:'info',text:'Cashier opened. Complete or cancel there, then refresh payment status.'};}}
-  receive(order:PurchaseOrder):void{this.api.receiveOrder(order.id).subscribe(updated=>{this.orders=this.orders.map(o=>o.id===updated.id?updated:o);this.notices[order.id]={type:'success',text:'Receipt confirmed. You can now review each purchased item.'};});}
-  review(order:PurchaseOrder,itemId:number):void{this.api.reviewOrderItem(itemId,this.ratings[itemId]||5,this.reviewComments[itemId]||'').subscribe(()=>{this.reviewed.add(itemId);this.notices[order.id]={type:'success',text:'Review submitted. Thank you.'};});}
+  refresh(order:PurchaseOrder):void{this.api.purchaseOrder(order.id).subscribe(updated=>{this.orders=this.orders.map(item=>item.id===updated.id?updated:item);this.notices[order.id]={type:updated.status==='PAID'?'success':'info',text:this.i18n.t(updated.status==='PAID'?'signedCallbackPaid':'waitingCallback')};this.changeDetector.markForCheck();});}
+  openCheckout(order:PurchaseOrder):void{const url=order.payment?.checkoutUrl;if(url){window.open(url,'payment-checkout','width=1040,height=760');this.notices[order.id]={type:'info',text:this.i18n.t('cashierOpened')};}}
+  receive(order:PurchaseOrder):void{this.api.receiveOrder(order.id).subscribe(updated=>{this.orders=this.orders.map(o=>o.id===updated.id?updated:o);this.notices[order.id]={type:'success',text:this.i18n.t('receiptConfirmed')};});}
+  review(order:PurchaseOrder,itemId:number):void{this.api.reviewOrderItem(itemId,this.ratings[itemId]||5,this.reviewComments[itemId]||'').subscribe(()=>{this.reviewed.add(itemId);this.notices[order.id]={type:'success',text:this.i18n.t('reviewSubmitted')};});}
   private execute(order:PurchaseOrder,attempt:PaymentAttempt,replay:boolean):void{
-    this.paying.add(order.id);this.notices[order.id]={type:'info',text:replay?'Replaying the stored idempotent request…':'Submitting the payment request…'};
+    this.paying.add(order.id);this.notices[order.id]={type:'info',text:this.i18n.t(replay?'replayingRequest':'submittingPayment')};
     this.api.payOrder(order.id,attempt.key,attempt.simulateFailure,attempt.channel).pipe(finalize(()=>{this.paying.delete(order.id);this.changeDetector.markForCheck();})).subscribe({
-      next:updated=>{attempt.paymentNumber=updated.payment?.paymentNumber;this.lastAttempts[order.id]=attempt;this.persist(order.id,attempt);this.orders=this.orders.map(item=>item.id===updated.id?updated:item);this.notices[order.id]={type:'info',text:`Payment ${attempt.paymentNumber} is pending. Open the provider cashier and wait for its signed callback.`};},
-      error:error=>{if(!replay||!this.lastAttempts[order.id]){this.lastAttempts[order.id]=attempt;this.persist(order.id,attempt);}this.notices[order.id]={type:'danger',text:error.error?.message??'Payment request failed. The same key is preserved for a safe retry.'};}
+      next:updated=>{attempt.paymentNumber=updated.payment?.paymentNumber;this.lastAttempts[order.id]=attempt;this.persist(order.id,attempt);this.orders=this.orders.map(item=>item.id===updated.id?updated:item);this.notices[order.id]={type:'info',text:this.i18n.t('paymentPending',{payment:attempt.paymentNumber??''})};},
+      error:error=>{if(!replay||!this.lastAttempts[order.id]){this.lastAttempts[order.id]=attempt;this.persist(order.id,attempt);}this.notices[order.id]={type:'danger',text:error.error?.message??this.i18n.t('paymentRequestFailed')};}
     });
   }
   private initializeOrder(order:PurchaseOrder):void{

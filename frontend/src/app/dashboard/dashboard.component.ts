@@ -1,8 +1,9 @@
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
-import {  Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Product } from 'src/model/IProduct';
 import { ApiService } from '../services/api.service';
 import { SeoService } from '../services/seo.service';
+import { I18nService } from '../services/i18n.service';
 
 @Component({
   standalone: false,
@@ -12,19 +13,22 @@ import { SeoService } from '../services/seo.service';
 })
 export class DashboardComponent implements OnInit {
   products: Product[] = []
+  allProducts: Product[] = []
+  searchQuery = ''
   selectedProduct?: Product
   bigImage = ''
   showLoader = false
   selectedQuantity = 1
 
-  constructor(private api: ApiService, private router: Router, private seoService: SeoService,
-              private changeDetector: ChangeDetectorRef) {
+  constructor(private api: ApiService, private router: Router, private route: ActivatedRoute, private seoService: SeoService,
+              private changeDetector: ChangeDetectorRef, public i18n: I18nService) {
     seoService.setTitle("Product List")
     seoService.setMeta("The page that lists products...")
 
     api.allProducts().subscribe({
       next: value => {
-        this.products = value
+        this.allProducts = value
+        this.applySearch()
         this.changeDetector.markForCheck()
       },
       error: err => {
@@ -33,7 +37,21 @@ export class DashboardComponent implements OnInit {
     })
   }
 
-  ngOnInit(): void { }
+  ngOnInit(): void {
+    this.route.queryParamMap.subscribe(params => {
+      this.searchQuery = (params.get('q') || '').trim()
+      this.applySearch()
+      this.changeDetector.markForCheck()
+    })
+  }
+
+  clearSearch(): void { void this.router.navigate(['/dashboard']) }
+
+  private applySearch(): void {
+    const query = this.searchQuery.toLocaleLowerCase()
+    this.products = query ? this.allProducts.filter(product =>
+      [product.name, product.brief, product.description].some(value => value.toLocaleLowerCase().includes(query))) : [...this.allProducts]
+  }
 
   fncSelectDetail( index:number ) {
     this.selectedProduct = this.products[index]

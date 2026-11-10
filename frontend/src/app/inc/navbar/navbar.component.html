@@ -1,7 +1,7 @@
 <nav class="navbar navbar-expand-lg bg-light">
     <div class="container-fluid">
-      <a class="navbar-brand" href="#">Navbar</a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <a class="navbar-brand" [routerLink]="['/dashboard']">{{'brand'|t}}</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" [attr.aria-label]="'toggleNavigation'|t">
         <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="navbarSupportedContent">
@@ -24,12 +24,9 @@
           <li class="nav-item" *ngIf="bilgiler.role === 'MERCHANT'"><a class="nav-link" [routerLink]="['/merchant/orders']" routerLinkActive="active">{{'fulfillment'|t}}</a></li>
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              Dropdown
+              {{'account'|t}}
             </a>
             <ul class="dropdown-menu">
-              <li><a class="dropdown-item" href="#">Action</a></li>
-              <li><a class="dropdown-item" href="#">Another action</a></li>
-              <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item" (click)="logout()" role="button" routerLinkActive="router-link-active" >{{'logout'|t}}</a></li>
             </ul>
           </li>
@@ -37,10 +34,13 @@
             <a class="nav-link disabled">{{ bilgiler.firstName + " " + bilgiler.lastName }}</a>
           </li>
         </ul>
-        <form class="d-flex" role="search">
-          <button class="btn btn-outline-secondary me-2" type="button" (click)="i18n.switch()">{{'language'|t}}</button><input class="form-control me-2" type="search" [placeholder]="'search'|t" [attr.aria-label]="'search'|t">
-          <button class="btn btn-outline-success" type="submit">{{'search'|t}}</button>
-        </form>
+        <div class="d-flex align-items-center">
+          <button class="btn btn-outline-secondary me-2" type="button" (click)="i18n.switch()">{{'language'|t}}</button>
+          <form *ngIf="isProductPage" class="d-flex" role="search" (ngSubmit)="search()">
+            <input class="form-control me-2" type="search" name="productSearch" [(ngModel)]="searchText" [placeholder]="'searchProducts'|t" [attr.aria-label]="'searchProducts'|t">
+            <button class="btn btn-outline-success" type="submit">{{'search'|t}}</button>
+          </form>
+        </div>
       </div>
     </div>
   </nav>

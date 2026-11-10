@@ -1,5 +1,6 @@
 import { Component, Input, OnInit } from '@angular/core';
 import { IUser } from 'src/model/IUser';
+import { I18nService } from '../../services/i18n.service';
 
 @Component({
   standalone: false,
@@ -10,13 +11,13 @@ import { IUser } from 'src/model/IUser';
 export class UseritemComponent implements OnInit {
   @Input() userItem?: IUser;
 
-  constructor() { }
+  constructor(private i18n: I18nService) { }
 
   ngOnInit(): void {
   }
 
   fncBtnDetail() {
-    alert("Detail clicked for " + this.userItem?.id);
+    alert(this.i18n.t('detailClicked', {id: this.userItem?.id ?? ''}));
   }
 
 }

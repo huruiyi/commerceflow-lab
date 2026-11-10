@@ -1,24 +1,24 @@
 <div class="d-flex justify-content-between align-items-center"><h2 appApptitle>{{'shoppingCart'|t}}</h2><button *ngIf="customerOrders.length" class="btn btn-outline-danger" (click)="clearCart()">{{'clearCart'|t}}</button></div>
 <div *ngIf="customerOrders && customerOrders.length>0">
-<div *ngIf="checkoutError" class="alert alert-danger">{{checkoutError}} <a routerLink="/addresses">Manage shipping addresses</a></div>
+<div *ngIf="checkoutError" class="alert alert-danger">{{checkoutError}} <a routerLink="/addresses">{{'manageAddresses'|t}}</a></div>
 <table class="table table-hover">
     <thead>
       <tr>
-        <th scope="col">Item Id</th>
-        <th scope="col">Product Image</th>
-        <th scope="col">Updated</th>
-        <th scope="col">Product Name</th>
-        <th scope="col">Unit Price</th>
-        <th scope="col">Quantity</th>
-        <th scope="col">Subtotal</th>
-        <th scope="col">Action</th>
+        <th scope="col">{{'itemId'|t}}</th>
+        <th scope="col">{{'productImage'|t}}</th>
+        <th scope="col">{{'updated'|t}}</th>
+        <th scope="col">{{'productName'|t}}</th>
+        <th scope="col">{{'unitPrice'|t}}</th>
+        <th scope="col">{{'quantity'|t}}</th>
+        <th scope="col">{{'subtotal'|t}}</th>
+        <th scope="col">{{'action'|t}}</th>
       </tr>
     </thead>
     <tbody>
       <tr *ngFor="let order of customerOrders">
         <td>{{ order.id }}</td>
         <td><img src="{{ order.thumbnailUrl }}" class="img-thumbnail"/></td>
-        <td>{{ order.createdAt | date: 'dd.MM.yyyy HH:mm:ss'}}</td>
+        <td>{{order.createdAt|trdate}}</td>
         <td>{{ order.productName }}</td>
         <td>{{ order.price | trcurrency}}</td>
         <td>
@@ -26,18 +26,18 @@
             <button class="btn btn-outline-secondary" type="button"
                     (click)="changeQuantity(order, order.quantity - 1)"
                     [disabled]="order.quantity <= 1 || updatingOrderIds.has(order.id)"
-                    aria-label="Decrease quantity">−</button>
+                    [attr.aria-label]="'decreaseQuantity'|t">−</button>
             <input type="number" class="form-control text-center" min="1" max="99"
                    [value]="order.quantity" (change)="quantityInput(order, $event)"
-                   [disabled]="updatingOrderIds.has(order.id)" aria-label="Order quantity">
+                   [disabled]="updatingOrderIds.has(order.id)" [attr.aria-label]="'orderQuantity'|t">
             <button class="btn btn-outline-secondary" type="button"
                     (click)="changeQuantity(order, order.quantity + 1)"
                     [disabled]="order.quantity >= 99 || updatingOrderIds.has(order.id)"
-                    aria-label="Increase quantity">+</button>
+                    [attr.aria-label]="'increaseQuantity'|t">+</button>
           </div>
         </td>
         <td>{{ order.totalPrice | trcurrency }}</td>
-        <td><button class="btn btn-sm btn-outline-danger" (click)="remove(order)">Remove</button></td>
+        <td><button class="btn btn-sm btn-outline-danger" (click)="remove(order)">{{'remove'|t}}</button></td>
       </tr>
     </tbody>
   </table>
