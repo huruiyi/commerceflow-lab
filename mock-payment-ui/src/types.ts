@@ -16,6 +16,7 @@ export interface Merchant {
   appId: string
   secretMasked: string
   credentialVersion: number
+  signingAlgorithm: 'HMAC_SHA256' | 'RSA_SHA256'
   merchantPublicKey?: string
   notifyUrl?: string
   enabled: boolean

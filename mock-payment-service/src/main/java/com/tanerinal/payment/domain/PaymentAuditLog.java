@@ -17,6 +17,8 @@ public class PaymentAuditLog {
   private String result;
   private String detail;
   private String sourceIp;
+  private String previousHash;
+  private String eventHash;
   private LocalDateTime createdAt;
 
   public Long getId() { return id; }
@@ -37,6 +39,10 @@ public class PaymentAuditLog {
   public void setDetail(String detail) { this.detail = detail; }
   public String getSourceIp() { return sourceIp; }
   public void setSourceIp(String sourceIp) { this.sourceIp = sourceIp; }
+  public String getPreviousHash() { return previousHash; }
+  public void setPreviousHash(String previousHash) { this.previousHash = previousHash; }
+  public String getEventHash() { return eventHash; }
+  public void setEventHash(String eventHash) { this.eventHash = eventHash; }
   public LocalDateTime getCreatedAt() { return createdAt; }
   public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

@@ -1,6 +1,8 @@
 package com.tanerinal.payment.web;
 
 import com.tanerinal.payment.service.ChannelTransactionService;
+import com.tanerinal.payment.security.SignedRequestContext;
+import jakarta.servlet.http.HttpServletRequest;
 import com.tanerinal.payment.web.dto.ChannelTransactionResponse;
 import com.tanerinal.payment.web.dto.CreateChannelTransactionRequest;
 import jakarta.validation.Valid;
@@ -8,7 +10,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -23,22 +24,24 @@ public class ChannelTransactionController {
   }
 
   @PostMapping
-  public ChannelTransactionResponse create(@RequestHeader("X-App-Id") String appId,
-      @RequestHeader("X-Demo-App-Secret") String appSecret,
+  public ChannelTransactionResponse create(HttpServletRequest servletRequest,
       @Valid @RequestBody CreateChannelTransactionRequest request) {
-    return transactions.create(appId, appSecret, request);
+    return transactions.create(signed(servletRequest), request);
   }
 
   @GetMapping
-  public ChannelTransactionResponse query(@RequestHeader("X-App-Id") String appId,
-      @RequestHeader("X-Demo-App-Secret") String appSecret,
+  public ChannelTransactionResponse query(HttpServletRequest servletRequest,
       @RequestParam String merchantRequestNo) {
-    return transactions.query(appId, appSecret, merchantRequestNo);
+    return transactions.query(signed(servletRequest), merchantRequestNo);
   }
 
   @PostMapping("/{transactionNo}/close")
-  public ChannelTransactionResponse close(@RequestHeader("X-App-Id") String appId,
-      @RequestHeader("X-Demo-App-Secret") String appSecret, @PathVariable String transactionNo) {
-    return transactions.closeByMerchant(appId, appSecret, transactionNo);
+  public ChannelTransactionResponse close(HttpServletRequest servletRequest,
+      @PathVariable String transactionNo) {
+    return transactions.closeByMerchant(signed(servletRequest), transactionNo);
+  }
+
+  private static SignedRequestContext signed(HttpServletRequest request) {
+    return (SignedRequestContext) request.getAttribute(SignedRequestContext.ATTRIBUTE);
   }
 }

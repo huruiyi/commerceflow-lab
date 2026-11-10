@@ -54,3 +54,6 @@ payment-platform:
     lock-duration: ${PAYMENT_LOGIN_LOCK_DURATION:15m}
     rate-limit-window: ${PAYMENT_LOGIN_RATE_WINDOW:5m}
     rate-limit-attempts: ${PAYMENT_LOGIN_RATE_ATTEMPTS:15}
+  signature:
+    allowed-skew: ${PAYMENT_SIGNATURE_ALLOWED_SKEW:5m}
+    requests-per-minute: ${PAYMENT_SIGNATURE_REQUESTS_PER_MINUTE:120}

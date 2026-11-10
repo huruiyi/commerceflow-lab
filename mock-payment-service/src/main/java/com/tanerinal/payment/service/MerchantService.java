@@ -14,10 +14,7 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.List;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -28,21 +25,24 @@ public class MerchantService {
   private final PaymentMerchantMapper merchants;
   private final PaymentAdminUserMapper users;
   private final CredentialCipher cipher;
-  private final PasswordEncoder passwordEncoder;
+  private final MfaService mfa;
   private final AuditService audit;
 
   public MerchantService(PaymentMerchantMapper merchants, PaymentAdminUserMapper users,
-      CredentialCipher cipher, PasswordEncoder passwordEncoder, AuditService audit) {
+      CredentialCipher cipher, MfaService mfa, AuditService audit) {
     this.merchants = merchants;
     this.users = users;
     this.cipher = cipher;
-    this.passwordEncoder = passwordEncoder;
+    this.mfa = mfa;
     this.audit = audit;
   }
 
-  public List<MerchantResponse> list() {
-    return merchants.selectList(new LambdaQueryWrapper<PaymentMerchant>().orderByDesc(PaymentMerchant::getId))
+  public List<MerchantResponse> list(PaymentAdminPrincipal actor, HttpServletRequest request) {
+    List<MerchantResponse> result = merchants.selectList(new LambdaQueryWrapper<PaymentMerchant>().orderByDesc(PaymentMerchant::getId))
         .stream().map(MerchantService::response).toList();
+    audit.record(actor, "VIEW_MERCHANT_CREDENTIALS", "MERCHANT", null, "SUCCESS",
+        "查看商户凭据元数据（敏感密钥保持遮蔽）", request);
+    return result;
   }
 
   @Transactional
@@ -56,6 +56,15 @@ public class MerchantService {
     merchant.setSecretCipher(cipher.encrypt(secret));
     merchant.setSecretLastFour(secret.substring(secret.length() - 4));
     merchant.setCredentialVersion(1);
+    String algorithm = request.signingAlgorithm() == null || request.signingAlgorithm().isBlank()
+        ? "HMAC_SHA256" : request.signingAlgorithm().trim().toUpperCase();
+    if (!List.of("HMAC_SHA256", "RSA_SHA256").contains(algorithm)) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "签名算法必须是 HMAC_SHA256 或 RSA_SHA256");
+    }
+    if ("RSA_SHA256".equals(algorithm) && blankToNull(request.merchantPublicKey()) == null) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "RSA_SHA256 商户必须提供 RSA 公钥");
+    }
+    merchant.setSigningAlgorithm(algorithm);
     merchant.setMerchantPublicKey(blankToNull(request.merchantPublicKey()));
     merchant.setNotifyUrl(blankToNull(request.notifyUrl()));
     merchant.setEnabled(true);
@@ -64,6 +73,7 @@ public class MerchantService {
     merchant.setCreatedAt(LocalDateTime.now());
     merchant.setUpdatedAt(LocalDateTime.now());
     merchants.insert(merchant);
+    if (merchant.getNotifyUrl() != null) merchants.insertCallbackEndpoint(merchant.getId(), merchant.getNotifyUrl());
     users.insertMerchantAccess(actor.getUserId(), merchant.getId(), "ADMIN", actor.getUserId());
     audit.record(actor, "CREATE_MERCHANT", "MERCHANT", merchant.getId(), "SUCCESS",
         "创建模拟支付商户并签发第 1 版凭据", servletRequest);
@@ -72,9 +82,9 @@ public class MerchantService {
   }
 
   @Transactional
-  public IssuedCredentialResponse rotate(long merchantId, String password, PaymentAdminPrincipal actor,
+  public IssuedCredentialResponse rotate(long merchantId, String stepUpToken, PaymentAdminPrincipal actor,
       HttpServletRequest servletRequest) {
-    reauthenticate(actor, password);
+    mfa.consumeStepUp(actor, stepUpToken);
     PaymentMerchant merchant = requireMerchant(merchantId);
     String secret = randomSecret(32);
     merchant.setSecretCipher(cipher.encrypt(secret));
@@ -89,9 +99,9 @@ public class MerchantService {
   }
 
   @Transactional
-  public MerchantResponse setEnabled(long merchantId, boolean enabled, String password,
+  public MerchantResponse setEnabled(long merchantId, boolean enabled, String stepUpToken,
       PaymentAdminPrincipal actor, HttpServletRequest servletRequest) {
-    reauthenticate(actor, password);
+    mfa.consumeStepUp(actor, stepUpToken);
     PaymentMerchant merchant = requireMerchant(merchantId);
     merchant.setEnabled(enabled);
     merchant.setUpdatedBy(actor.getUserId());
@@ -111,15 +121,14 @@ public class MerchantService {
     return merchant;
   }
 
-  public PaymentMerchant authenticate(String appId, String suppliedSecret) {
-    PaymentMerchant merchant = requireByAppId(appId);
-    String expected = cipher.decrypt(merchant.getSecretCipher());
-    if (suppliedSecret == null || !MessageDigest.isEqual(expected.getBytes(StandardCharsets.UTF_8),
-        suppliedSecret.getBytes(StandardCharsets.UTF_8))) {
-      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "App ID 或 App Secret 无效");
+  public PaymentMerchant requireByAppIdForSignature(String appId) {
+    try { return requireByAppId(appId); }
+    catch (ResponseStatusException exception) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "商户身份或签名无效");
     }
-    return merchant;
   }
+
+  public String decryptSecret(PaymentMerchant merchant) { return cipher.decrypt(merchant.getSecretCipher()); }
 
   private PaymentMerchant requireMerchant(long id) {
     PaymentMerchant merchant = merchants.selectById(id);
@@ -127,16 +136,9 @@ public class MerchantService {
     return merchant;
   }
 
-  private void reauthenticate(PaymentAdminPrincipal actor, String password) {
-    PaymentAdminUser user = users.selectById(actor.getUserId());
-    if (user == null || !passwordEncoder.matches(password, user.getPasswordHash())) {
-      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "当前账户密码验证失败");
-    }
-  }
-
   private static MerchantResponse response(PaymentMerchant value) {
     return new MerchantResponse(value.getId(), value.getMerchantNo(), value.getDisplayName(), value.getAppId(),
-        "****" + value.getSecretLastFour(), value.getCredentialVersion(), value.getMerchantPublicKey(),
+        "****" + value.getSecretLastFour(), value.getCredentialVersion(), value.getSigningAlgorithm(), value.getMerchantPublicKey(),
         value.getNotifyUrl(), value.isEnabled(), value.getCreatedBy(), value.getCreatedAt());
   }
 

@@ -8,6 +8,7 @@ import TransactionView from './views/TransactionView.vue'
 import UserView from './views/UserView.vue'
 import AuditView from './views/AuditView.vue'
 import CashierView from './views/CashierView.vue'
+import SecurityView from './views/SecurityView.vue'
 import type { Session } from './types'
 import { api } from './api'
 import './style.css'
@@ -23,7 +24,8 @@ const router = createRouter({
     { path: '/merchants', component: MerchantView, meta: { authority: 'MERCHANT_MANAGE' } },
     { path: '/transactions', component: TransactionView, meta: { authority: 'TRANSACTION_READ' } },
     { path: '/users', component: UserView, meta: { authority: 'ADMIN_USER_MANAGE' } },
-    { path: '/audit', component: AuditView, meta: { authority: 'AUDIT_READ' } }
+    { path: '/audit', component: AuditView, meta: { authority: 'AUDIT_READ' } },
+    { path: '/security', component: SecurityView }
   ]
 })
 

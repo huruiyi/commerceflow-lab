@@ -6,6 +6,7 @@ import com.tanerinal.payment.domain.PaymentMerchant;
 import com.tanerinal.payment.mapper.ChannelTransactionMapper;
 import com.tanerinal.payment.mapper.PaymentAdminUserMapper;
 import com.tanerinal.payment.security.PaymentAdminPrincipal;
+import com.tanerinal.payment.security.SignedRequestContext;
 import com.tanerinal.payment.web.dto.ChannelTransactionResponse;
 import com.tanerinal.payment.web.dto.CreateChannelTransactionRequest;
 import jakarta.servlet.http.HttpServletRequest;
@@ -46,9 +47,9 @@ public class ChannelTransactionService {
   }
 
   @Transactional
-  public ChannelTransactionResponse create(String appId, String appSecret,
+  public ChannelTransactionResponse create(SignedRequestContext signed,
       CreateChannelTransactionRequest request) {
-    PaymentMerchant merchant = merchants.authenticate(appId, appSecret);
+    PaymentMerchant merchant = signed.merchant();
     if ("CREATE_FAILURE".equals(request.faultScenario())) {
       throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "教学故障：渠道创建交易失败");
     }
@@ -85,8 +86,8 @@ public class ChannelTransactionService {
     return response(value);
   }
 
-  public ChannelTransactionResponse query(String appId, String appSecret, String merchantRequestNo) {
-    PaymentMerchant merchant = merchants.authenticate(appId, appSecret);
+  public ChannelTransactionResponse query(SignedRequestContext signed, String merchantRequestNo) {
+    PaymentMerchant merchant = signed.merchant();
     ChannelTransaction value = transactions.selectOne(new LambdaQueryWrapper<ChannelTransaction>()
         .eq(ChannelTransaction::getMerchantId, merchant.getId())
         .eq(ChannelTransaction::getMerchantRequestNo, merchantRequestNo));
@@ -94,8 +95,8 @@ public class ChannelTransactionService {
   }
 
   @Transactional
-  public ChannelTransactionResponse closeByMerchant(String appId, String appSecret, String transactionNo) {
-    PaymentMerchant merchant = merchants.authenticate(appId, appSecret);
+  public ChannelTransactionResponse closeByMerchant(SignedRequestContext signed, String transactionNo) {
+    PaymentMerchant merchant = signed.merchant();
     ChannelTransaction value = transactions.selectOne(new LambdaQueryWrapper<ChannelTransaction>()
         .eq(ChannelTransaction::getChannelTransactionNo, transactionNo)
         .eq(ChannelTransaction::getMerchantId, merchant.getId()));

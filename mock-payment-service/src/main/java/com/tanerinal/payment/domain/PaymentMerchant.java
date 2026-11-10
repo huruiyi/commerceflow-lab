@@ -15,6 +15,7 @@ public class PaymentMerchant {
   private String secretCipher;
   private String secretLastFour;
   private int credentialVersion;
+  private String signingAlgorithm;
   private String merchantPublicKey;
   private String notifyUrl;
   private boolean enabled;
@@ -37,6 +38,8 @@ public class PaymentMerchant {
   public void setSecretLastFour(String secretLastFour) { this.secretLastFour = secretLastFour; }
   public int getCredentialVersion() { return credentialVersion; }
   public void setCredentialVersion(int credentialVersion) { this.credentialVersion = credentialVersion; }
+  public String getSigningAlgorithm() { return signingAlgorithm; }
+  public void setSigningAlgorithm(String signingAlgorithm) { this.signingAlgorithm = signingAlgorithm; }
   public String getMerchantPublicKey() { return merchantPublicKey; }
   public void setMerchantPublicKey(String merchantPublicKey) { this.merchantPublicKey = merchantPublicKey; }
   public String getNotifyUrl() { return notifyUrl; }

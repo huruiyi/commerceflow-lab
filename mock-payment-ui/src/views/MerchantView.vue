@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { api } from '../api'
+import { api, takeStepUpToken } from '../api'
 import type { IssuedCredential, Merchant } from '../types'
 
 const merchants = ref<Merchant[]>([])
 const showCreate = ref(false)
 const issued = ref<IssuedCredential | null>(null)
 const error = ref('')
-const form = ref({ displayName: 'Education Store', notifyUrl: 'http://backend:8080/api/payment/notifications', merchantPublicKey: '' })
+const form = ref({ displayName: 'Education Store', notifyUrl: 'http://backend:8080/api/payment/notifications', signingAlgorithm: 'HMAC_SHA256', merchantPublicKey: '' })
 const load = async () => merchants.value = await api('/api/admin/merchants')
 onMounted(load)
 
@@ -17,15 +17,15 @@ async function create() {
   catch (e) { error.value = e instanceof Error ? e.message : '创建失败' }
 }
 async function rotate(item: Merchant) {
-  const password = window.prompt('敏感操作：请输入当前支付后台密码')
-  if (!password) return
-  try { issued.value = await api(`/api/admin/merchants/${item.id}/rotate-secret`, { method: 'POST', body: JSON.stringify({ password }) }); await load() }
+  const token = takeStepUpToken()
+  if (!token) { error.value = '请先在安全中心完成二次认证，再立即执行此操作。'; return }
+  try { issued.value = await api(`/api/admin/merchants/${item.id}/rotate-secret`, { method: 'POST', headers: { 'X-Step-Up-Token': token } }); await load() }
   catch (e) { error.value = e instanceof Error ? e.message : '轮换失败' }
 }
 async function toggle(item: Merchant) {
-  const password = window.prompt(`确认${item.enabled ? '禁用' : '启用'}商户，请输入当前密码`)
-  if (!password) return
-  try { await api(`/api/admin/merchants/${item.id}/enabled/${!item.enabled}`, { method: 'POST', body: JSON.stringify({ password }) }); await load() }
+  const token = takeStepUpToken()
+  if (!token) { error.value = '请先在安全中心完成二次认证，再立即执行此操作。'; return }
+  try { await api(`/api/admin/merchants/${item.id}/enabled/${!item.enabled}`, { method: 'POST', headers: { 'X-Step-Up-Token': token } }); await load() }
   catch (e) { error.value = e instanceof Error ? e.message : '操作失败' }
 }
 async function downloadPublicKey() {
@@ -46,10 +46,10 @@ async function copySecret() {
     <article v-for="item in merchants" :key="item.id" class="card merchant-card">
       <div class="card-head"><div class="merchant-icon">{{ item.displayName.slice(0, 1) }}</div><span :class="['badge', item.enabled ? 'success' : 'closed']">{{ item.enabled ? 'ENABLED' : 'DISABLED' }}</span></div>
       <h3>{{ item.displayName }}</h3><p class="mono">{{ item.merchantNo }}</p>
-      <dl><dt>App ID</dt><dd class="mono">{{ item.appId }}</dd><dt>App Secret</dt><dd>{{ item.secretMasked }} · v{{ item.credentialVersion }}</dd><dt>通知地址</dt><dd>{{ item.notifyUrl || '未配置' }}</dd><dt>商户公钥</dt><dd>{{ item.merchantPublicKey ? '已登记' : '待登记（05A-3 验签前补充）' }}</dd></dl>
+      <dl><dt>App ID</dt><dd class="mono">{{ item.appId }}</dd><dt>签名算法</dt><dd><span class="badge pending">{{ item.signingAlgorithm }}</span></dd><dt>App Secret</dt><dd>{{ item.secretMasked }} · v{{ item.credentialVersion }}</dd><dt>回调白名单</dt><dd>{{ item.notifyUrl || '未配置' }}</dd><dt>商户公钥</dt><dd>{{ item.merchantPublicKey ? '已登记（RSA 验签）' : '不适用（HMAC）' }}</dd></dl>
       <div class="card-actions"><button class="secondary" @click="rotate(item)">轮换 Secret</button><button class="danger-link" @click="toggle(item)">{{ item.enabled ? '禁用' : '启用' }}</button></div>
     </article>
     <div v-if="!merchants.length" class="empty card">还没有商户。创建后 App Secret 只会显示一次。</div>
   </div>
-  <div v-if="showCreate" class="modal-backdrop"><form class="modal" @submit.prevent="create"><div class="card-head"><div><span class="eyebrow">NEW MERCHANT</span><h2>创建模拟商户</h2></div><button type="button" class="ghost" @click="showCreate = false">✕</button></div><label>显示名称<input v-model="form.displayName" required /></label><label>异步通知地址<input v-model="form.notifyUrl" /></label><label>商户 RSA 公钥（可在 05A-3 前补充）<textarea v-model="form.merchantPublicKey" rows="5" placeholder="-----BEGIN PUBLIC KEY-----"></textarea></label><div class="notice">系统会生成商户号、App ID 和高强度 App Secret；Secret 使用 AES-256-GCM 加密保存。</div><button class="primary full">签发商户凭据</button></form></div>
+  <div v-if="showCreate" class="modal-backdrop"><form class="modal" @submit.prevent="create"><div class="card-head"><div><span class="eyebrow">NEW MERCHANT</span><h2>创建模拟商户</h2></div><button type="button" class="ghost" @click="showCreate = false">✕</button></div><label>显示名称<input v-model="form.displayName" required /></label><label>异步通知地址（服务端白名单）<input v-model="form.notifyUrl" /></label><label>请求签名算法<select v-model="form.signingAlgorithm"><option value="HMAC_SHA256">HMAC-SHA256（入门）</option><option value="RSA_SHA256">RSA-SHA256（生产形态）</option></select></label><label v-if="form.signingAlgorithm === 'RSA_SHA256'">商户 RSA 公钥（X.509 PEM）<textarea v-model="form.merchantPublicKey" rows="6" required placeholder="-----BEGIN PUBLIC KEY-----"></textarea></label><div class="notice">密钥只在创建时显示；回调地址由商户后台配置，不接受交易请求临时覆盖。</div><button class="primary full">签发商户凭据</button></form></div>
 </template>

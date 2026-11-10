@@ -6,7 +6,6 @@ import com.tanerinal.payment.service.PlatformKeyService;
 import com.tanerinal.payment.web.dto.CreateMerchantRequest;
 import com.tanerinal.payment.web.dto.IssuedCredentialResponse;
 import com.tanerinal.payment.web.dto.MerchantResponse;
-import com.tanerinal.payment.web.dto.SensitiveActionRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -20,6 +19,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -36,7 +36,8 @@ public class MerchantController {
   }
 
   @GetMapping
-  public List<MerchantResponse> list() { return merchants.list(); }
+  public List<MerchantResponse> list(@AuthenticationPrincipal PaymentAdminPrincipal actor,
+      HttpServletRequest request) { return merchants.list(actor, request); }
 
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
@@ -47,16 +48,16 @@ public class MerchantController {
 
   @PostMapping("/{id}/rotate-secret")
   public IssuedCredentialResponse rotate(@PathVariable long id,
-      @Valid @RequestBody SensitiveActionRequest body,
+      @RequestHeader("X-Step-Up-Token") String stepUpToken,
       @AuthenticationPrincipal PaymentAdminPrincipal actor, HttpServletRequest request) {
-    return merchants.rotate(id, body.password(), actor, request);
+    return merchants.rotate(id, stepUpToken, actor, request);
   }
 
   @PostMapping("/{id}/enabled/{enabled}")
   public MerchantResponse enabled(@PathVariable long id, @PathVariable boolean enabled,
-      @Valid @RequestBody SensitiveActionRequest body,
+      @RequestHeader("X-Step-Up-Token") String stepUpToken,
       @AuthenticationPrincipal PaymentAdminPrincipal actor, HttpServletRequest request) {
-    return merchants.setEnabled(id, enabled, body.password(), actor, request);
+    return merchants.setEnabled(id, enabled, stepUpToken, actor, request);
   }
 
   @GetMapping(value = "/platform-public-key", produces = MediaType.TEXT_PLAIN_VALUE)

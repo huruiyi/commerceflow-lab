@@ -3,6 +3,8 @@ package com.tanerinal.payment.web;
 import com.tanerinal.payment.security.PaymentAdminPrincipal;
 import com.tanerinal.payment.service.AuditService;
 import com.tanerinal.payment.service.LoginProtectionService;
+import com.tanerinal.payment.mapper.PaymentAdminUserMapper;
+import com.tanerinal.payment.domain.PaymentAdminUser;
 import com.tanerinal.payment.web.dto.LoginRequest;
 import com.tanerinal.payment.web.dto.SessionResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -36,14 +38,17 @@ public class AuthController {
   private final SessionAuthenticationStrategy sessionStrategy;
   private final LoginProtectionService protection;
   private final AuditService audit;
+  private final PaymentAdminUserMapper users;
 
   public AuthController(AuthenticationManager authenticationManager, SecurityContextRepository contextRepository,
-      SessionAuthenticationStrategy sessionStrategy, LoginProtectionService protection, AuditService audit) {
+      SessionAuthenticationStrategy sessionStrategy, LoginProtectionService protection, AuditService audit,
+      PaymentAdminUserMapper users) {
     this.authenticationManager = authenticationManager;
     this.contextRepository = contextRepository;
     this.sessionStrategy = sessionStrategy;
     this.protection = protection;
     this.audit = audit;
+    this.users = users;
   }
 
   @GetMapping("/csrf")
@@ -81,7 +86,11 @@ public class AuthController {
     if (authentication == null || !(authentication.getPrincipal() instanceof PaymentAdminPrincipal principal)) {
       throw new BadCredentialsException("未登录");
     }
-    return session(principal);
+    PaymentAdminUser user = users.selectById(principal.getUserId());
+    List<String> authorities = principal.getAuthorities().stream().map(value -> value.getAuthority()).sorted().toList();
+    return new SessionResponse(principal.getUserId(), principal.getUsername(), principal.getDisplayName(),
+        principal.getEmail(), authorities, user.isPasswordChangeRequired(), user.isMfaRequired(),
+        user.isMfaEnabled());
   }
 
   private static SessionResponse session(PaymentAdminPrincipal principal) {

@@ -29,6 +29,7 @@ async function logout() {
         <router-link v-if="can('TRANSACTION_READ')" to="/transactions">⇄ 渠道交易</router-link>
         <router-link v-if="can('ADMIN_USER_MANAGE')" to="/users">♙ 后台账号</router-link>
         <router-link v-if="can('AUDIT_READ')" to="/audit">⌕ 审计日志</router-link>
+        <router-link to="/security">◈ 安全中心</router-link>
       </nav>
       <div class="security-card"><span class="pulse"></span><div><strong>安全模式</strong><small>Redis Session · CSRF · BCrypt</small></div></div>
     </aside>
@@ -38,7 +39,7 @@ async function logout() {
         <div class="account"><div class="avatar">{{ authState.session?.displayName.slice(0, 1) }}</div><div><strong>{{ authState.session?.displayName }}</strong><small>{{ authState.session?.username }}</small></div><button class="ghost" @click="logout">退出</button></div>
       </header>
       <div v-if="authState.session?.mfaRequired && !authState.session?.mfaEnabled" class="notice warn">
-        此账号被标记为必须启用 MFA。05A-2 已保存策略和状态，TOTP 绑定与恢复码将在 05A-3 安全章节启用。
+        此账号必须启用 MFA。请进入「安全中心」绑定 TOTP，否则无法执行密钥轮换、禁用商户和权限变更。
       </div>
       <section class="page"><router-view /></section>
     </main>
