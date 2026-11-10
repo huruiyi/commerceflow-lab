@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: education-backend
+  datasource:
+    url: ${DATABASE_URL:jdbc:mysql://localhost:3306/education_demo?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${DATABASE_USERNAME:education}
+    password: ${DATABASE_PASSWORD:education-password}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    properties:
+      hibernate:
+        format_sql: true
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: 8080
+  servlet:
+    session:
+      timeout: 30m
+      cookie:
+        http-only: true
+        same-site: lax
+        secure: ${SESSION_COOKIE_SECURE:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+demo:
+  user:
+    email: ${DEMO_USER_EMAIL:demo@example.com}
+    password: ${DEMO_USER_PASSWORD:demo-password}

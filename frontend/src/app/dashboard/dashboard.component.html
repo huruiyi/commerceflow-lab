@@ -1,0 +1,58 @@
+<h2>Product List</h2>
+<div class="row mt-3" *ngIf="products" >
+    <div *ngFor="let item of products; let i = index" class="card col-sm-4 mb-4">
+        <img src="{{ item.imageUrl }}" class="card-img-top" alt="{{ item.name }}">
+        <span class="position-absolute top-0 start-50 translate-middle badge bg-danger p-2"> {{ item.price }}₺ </span>
+        <div class="card-body">
+          <h5 class="card-title"> {{ item.name }} </h5>
+          <p class="card-text"> {{ item.brief }} </p>
+          <a (click)="fncSelectDetail(i)" data-bs-toggle="modal" data-bs-target="#exampleModal" class="btn btn-primary position-absolute bottom-0 end-0 m-1 ">Product Detail</a>
+        </div>
+    </div>
+</div>
+
+
+<div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="exampleModalLabel"> {{ selectedProduct?.name }} </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" *ngIf="selectedProduct">
+          <div class="container">
+            <div class="row">
+                <div class="col-sm-6">
+                    <img src="{{ bigImage }}" class="img-fluid" />
+                    <div class="mt-2">
+                        <img src="{{ selectedProduct.thumbnailUrl }}" (click)="fncSelectBigImage(selectedProduct.imageUrl)" role="button" class="img-thumbnail m-1">
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <h3>{{ selectedProduct.name }} <span class="badge bg-secondary">{{ selectedProduct.price }}</span></h3>
+                    <div>{{ selectedProduct.description }}</div>
+                    <label for="productQuantity" class="form-label mt-4">Quantity</label>
+                    <div class="input-group" style="max-width: 180px">
+                      <button class="btn btn-outline-secondary" type="button"
+                              (click)="changeSelectedQuantity(selectedQuantity - 1)"
+                              [disabled]="selectedQuantity <= 1" aria-label="Decrease quantity">−</button>
+                      <input id="productQuantity" type="number" class="form-control text-center"
+                             min="1" max="99" [value]="selectedQuantity" (change)="quantityInput($event)"
+                             aria-label="Product quantity">
+                      <button class="btn btn-outline-secondary" type="button"
+                              (click)="changeSelectedQuantity(selectedQuantity + 1)"
+                              [disabled]="selectedQuantity >= 99" aria-label="Increase quantity">+</button>
+                    </div>
+                    <div class="mt-2">Subtotal: {{ selectedProduct.price * selectedQuantity | trcurrency }}</div>
+                </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <img *ngIf="showLoader" src="../../assets/loading.gif" width="50" height="50"/>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="bi bi-x-circle"></i> Close</button>
+          <button *ngIf="selectedProduct" type="button" class="btn btn-success" (click)="fncAddBasket(selectedProduct.id)"><i class="bi bi-cart-plus-fill"></i> Add {{ selectedQuantity }} to Basket</button>
+        </div>
+      </div>
+    </div>
+  </div>

@@ -1,0 +1,42 @@
+<h2 appApptitle>Orders</h2>
+<div *ngIf="customerOrders && customerOrders.length>0">
+<table class="table table-hover">
+    <thead>
+      <tr>
+        <th scope="col">Order Id</th>
+        <th scope="col">Product Image</th>
+        <th scope="col">Order Date</th>
+        <th scope="col">Product Name</th>
+        <th scope="col">Unit Price</th>
+        <th scope="col">Quantity</th>
+        <th scope="col">Subtotal</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let order of customerOrders">
+        <td>{{ order.id }}</td>
+        <td><img src="{{ order.thumbnailUrl }}" class="img-thumbnail"/></td>
+        <td>{{ order.createdAt | date: 'dd.MM.yyyy HH:mm:ss'}}</td>
+        <td>{{ order.productName }}</td>
+        <td>{{ order.price | trcurrency}}</td>
+        <td>
+          <div class="input-group input-group-sm" style="width: 145px">
+            <button class="btn btn-outline-secondary" type="button"
+                    (click)="changeQuantity(order, order.quantity - 1)"
+                    [disabled]="order.quantity <= 1 || updatingOrderIds.has(order.id)"
+                    aria-label="Decrease quantity">−</button>
+            <input type="number" class="form-control text-center" min="1" max="99"
+                   [value]="order.quantity" (change)="quantityInput(order, $event)"
+                   [disabled]="updatingOrderIds.has(order.id)" aria-label="Order quantity">
+            <button class="btn btn-outline-secondary" type="button"
+                    (click)="changeQuantity(order, order.quantity + 1)"
+                    [disabled]="order.quantity >= 99 || updatingOrderIds.has(order.id)"
+                    aria-label="Increase quantity">+</button>
+          </div>
+        </td>
+        <td>{{ order.totalPrice | trcurrency }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+<div *ngIf="customerOrders && customerOrders.length === 0" class="alert alert-danger" role="alert">No orders yet!</div>

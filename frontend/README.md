@@ -1,0 +1,54 @@
+# Angular frontend
+
+## 功能与路由
+
+| 路径 | 页面 | 功能 |
+| --- | --- | --- |
+| `/` | 登录 | Reactive Forms 校验、记住用户界面状态 |
+| `/dashboard` | 商品 | 商品列表、详情、选择 1–99 数量并创建订单 |
+| `/order` | 订单 | 当前用户订单、数量调整、单价和小计 |
+| `/users` | 用户 | 后端演示用户列表和前端搜索 |
+| 其他 | 404 | 错误页 |
+
+前端调用同源 `/api` 接口。Docker 环境中由 Nginx 反向代理至 `backend:8080`；本地 `npm start` 由 `proxy.conf.json` 代理至 `localhost:8080`。
+
+## 本地开发
+
+先确保后端在 `localhost:8080` 运行，再执行：
+
+```powershell
+npm ci
+npm start
+```
+
+访问 `http://localhost:4200`，使用 `demo@example.com / demo-password` 登录。
+
+## Docker 运行
+
+推荐在项目根目录一次启动完整环境：
+
+```powershell
+docker compose up --build -d --wait
+```
+
+前端镜像由 Node.js 生产构建阶段和 Nginx 运行阶段组成，包含 SPA 路由回退和 `/api` 反向代理。
+
+## 验证
+
+```powershell
+npm run build -- --configuration production
+npm test -- --watch=false --browsers=ChromeHeadless
+npm audit
+```
+
+## 代码阅读顺序
+
+1. `src/app/app-routing.module.ts`：页面入口与路由保护。
+2. `src/app/login/login.component.ts`：登录表单。
+3. `src/app/services/account.service.ts`：CSRF、登录、注销与前端用户状态。
+4. `src/app/services/api.service.ts`：商品、订单和用户 API。
+5. `src/app/dashboard/`、`order/`、`users/`：业务页面。
+
+## 安全边界
+
+`AuthGuard` 和浏览器中的用户资料只负责界面导航；真实认证与授权由 Spring Security 会话完成。“记住我”仅决定非敏感用户资料放入 `localStorage` 还是 `sessionStorage`，不会将密码或会话令牌写入 Web Storage。
