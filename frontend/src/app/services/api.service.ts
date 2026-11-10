@@ -49,4 +49,7 @@ export class ApiService {
   payOrder(id:number, idempotencyKey:string, simulateFailure=false, channel:PaymentChannel='ALIPAY'): Observable<PurchaseOrder> {
     return this.http.post<PurchaseOrder>(`/api/purchase-orders/${id}/payments`, {idempotencyKey, simulateFailure, channel});
   }
+  merchantOrders():Observable<PurchaseOrder[]>{return this.http.get<PurchaseOrder[]>('/api/merchant/orders');}
+  confirmMerchantOrder(id:number):Observable<PurchaseOrder>{return this.http.post<PurchaseOrder>(`/api/merchant/orders/${id}/confirm`,{});}
+  shipMerchantOrder(id:number,carrier:string,trackingNumber:string):Observable<PurchaseOrder>{return this.http.post<PurchaseOrder>(`/api/merchant/orders/${id}/ship`,{carrier,trackingNumber});}
 }

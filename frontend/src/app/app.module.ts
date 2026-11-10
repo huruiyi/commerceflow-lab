@@ -18,6 +18,7 @@ import { GlobalErrorHandler } from './services/GlobalErrorHandler';
 import { UseritemComponent } from './inc/useritem/useritem.component';
 import { AddressesComponent } from './addresses/addresses.component';
 import { PurchaseOrdersComponent } from './purchase-orders/purchase-orders.component';
+import { MerchantOrdersComponent } from './merchant-orders/merchant-orders.component';
 
 @NgModule({
   declarations: [
@@ -33,7 +34,8 @@ import { PurchaseOrdersComponent } from './purchase-orders/purchase-orders.compo
     ApptitleDirective,
     UseritemComponent,
     AddressesComponent,
-    PurchaseOrdersComponent
+    PurchaseOrdersComponent,
+    MerchantOrdersComponent
   ],
   imports: [
     BrowserModule,

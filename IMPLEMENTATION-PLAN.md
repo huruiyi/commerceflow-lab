@@ -229,12 +229,12 @@ review, persistent_login
 - 验收：新用户克隆后可依据文档完成三渠道支付及故障实验。
 - 计划提交：`docs: complete advanced payment learning guide`
 
-### 第 06 章：商家确认与发货
+### 第 06 章：商家确认与发货（已完成）
 
-- [ ] 商家只看到包含自己商品的待处理订单。
-- [ ] 实现确认订单、填写承运商和物流单号、发货。
-- [ ] 严格执行 `PAID -> CONFIRMED -> SHIPPED` 状态机。
-- [ ] 每次操作写入订单事件，前端展示状态时间线。
+- [x] 商家只看到包含自己商品的订单。
+- [x] 实现确认订单、填写承运商和物流单号、发货。
+- [x] 严格执行 `PAID -> CONFIRMED -> SHIPPED` 状态机。
+- [x] 每次操作写入订单事件，前端展示履约状态。
 - 验收：客户不能调用商家接口；商家不能处理其他商家的订单；非法跳转被拒绝。
 - 计划提交：`feat: add merchant fulfillment workflow`
 
