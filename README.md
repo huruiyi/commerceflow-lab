@@ -32,11 +32,12 @@ docker compose ps
 - 前端健康检查：`http://localhost:14200/healthz`
 - 后端健康检查：`http://localhost:18081/actuator/health`
 
-教学账号：
+教学账号（密码均为 `demo-password`）：
 
 ```text
-邮箱：demo@example.com
-密码：demo-password
+客户：demo@example.com
+商家：merchant@example.com
+管理员：admin@example.com
 ```
 
 ### 如何登录
@@ -46,7 +47,7 @@ docker compose ps
 3. 输入 `demo@example.com` 和 `demo-password`。
 4. 点击登录后进入商品页，可继续查看订单和用户列表。
 
-本项目**没有 Spring Boot 启动时随机生成的默认密码**。`demo@example.com` 是应用首次连接空数据库时创建的 MySQL 演示用户，密码以 BCrypt 哈希保存，数据库中不保存明文。Spring Security 的 `User` 是认证时从该数据库记录转换出来的运行时对象，不是另一个内置账号。
+本项目**没有 Spring Boot 启动时随机生成的默认密码**。三个演示账号由 Flyway 创建，密码以 BCrypt 哈希保存。Spring Security 的 `User` 是认证时从数据库记录转换出来的运行时对象，不是另一个内置账号。
 
 演示账号、禁用的用户列表资料和商品由 Flyway 的 `V1__baseline_schema_and_demo_data.sql` 创建。为了让公开教学仓库克隆后直接运行，演示账号的 BCrypt 哈希随迁移脚本提交；数据库中仍不保存明文密码。如需从零重建本地演示数据，可执行：
 
@@ -67,7 +68,8 @@ docker compose down
 
 ## 已实现功能
 
-- Spring Security 邮箱密码登录、BCrypt 密码哈希、服务端 Session 和注销。
+- Spring Security 邮箱密码登录、BCrypt、CUSTOMER/MERCHANT/ADMIN 权限和注销。
+- Redis 服务端 Session、14 天持久化 Remember-Me、注销撤销令牌和五分钟登录失败限流。
 - `HttpOnly` 会话 Cookie，以及 Angular 兼容的 `XSRF-TOKEN` Cookie / `X-XSRF-TOKEN` Header 防护。
 - 商品查询、按数量创建订单、订单数量调整、单价/小计计算、当前用户订单查询和用户列表。
 - MyBatis-Plus 数据访问、Flyway 版本化结构/演示数据初始化。

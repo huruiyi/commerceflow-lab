@@ -7,6 +7,7 @@ import com.tanerinal.education.web.dto.OrderRequest;
 import com.tanerinal.education.web.dto.OrderResponse;
 import com.tanerinal.education.web.dto.QuantityUpdateRequest;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -20,6 +21,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/orders")
+@PreAuthorize("hasRole('CUSTOMER')")
 public class OrderController {
   private final CurrentUserService currentUsers;
   private final OrderService orders;

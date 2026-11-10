@@ -15,7 +15,7 @@ export class AccountService {
 
   login(email: string, password: string, remember: boolean): Observable<UserProfile> {
     return this.ensureCsrf().pipe(
-      switchMap(() => this.http.post<LoginResponse>('/api/auth/login', { email, password })),
+      switchMap(() => this.http.post<LoginResponse>('/api/auth/login', { email, password, remember })),
       tap(response => this.saveUserProfile(response.user, remember)),
       map(response => response.user)
     );

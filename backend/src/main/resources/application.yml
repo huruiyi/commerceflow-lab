@@ -13,6 +13,10 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       timeout: 2s
+  session:
+    store-type: redis
+    redis:
+      namespace: education:session
   jackson:
     serialization:
       write-dates-as-timestamps: false
@@ -40,3 +44,8 @@ management:
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
+
+security:
+  remember-me:
+    key: ${REMEMBER_ME_KEY:education-demo-remember-me-key-change-in-production}
+    validity-seconds: ${REMEMBER_ME_VALIDITY_SECONDS:1209600}

@@ -9,9 +9,16 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.session.MapSessionRepository;
+
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.security.test.context.support.WithMockUser;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -21,7 +28,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@Import(EducationBackendIntegrationTest.InMemorySessionConfiguration.class)
 class EducationBackendIntegrationTest {
+  @TestConfiguration
+  static class InMemorySessionConfiguration {
+    @Bean
+    MapSessionRepository sessionRepository() {
+      return new MapSessionRepository(new ConcurrentHashMap<>());
+    }
+  }
   @Autowired
   MockMvc mvc;
 
@@ -41,9 +56,11 @@ class EducationBackendIntegrationTest {
     mvc.perform(post("/api/auth/login")
             .session(csrf.session()).cookie(csrf.cookie()).header("X-XSRF-TOKEN", csrf.token())
             .contentType("application/json")
-            .content("{\"email\":\"demo@example.com\",\"password\":\"demo-password\"}"))
+            .content("{\"email\":\"demo@example.com\",\"password\":\"demo-password\",\"remember\":true}"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.user.email").value("demo@example.com"));
+        .andExpect(jsonPath("$.user.email").value("demo@example.com"))
+        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie()
+            .exists("EDUCATION_REMEMBER_ME"));
 
     mvc.perform(get("/api/products").session(csrf.session()))
         .andExpect(status().isOk())
@@ -81,8 +98,7 @@ class EducationBackendIntegrationTest {
         .andExpect(status().isBadRequest());
 
     mvc.perform(get("/api/users").session(csrf.session()))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$[0].email").isNotEmpty());
+        .andExpect(status().isForbidden());
 
     mvc.perform(post("/api/auth/logout").session(csrf.session()).cookie(csrf.cookie())
             .header("X-XSRF-TOKEN", csrf.token()))
@@ -90,6 +106,14 @@ class EducationBackendIntegrationTest {
 
     mvc.perform(get("/api/products").session(csrf.session()))
         .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  @WithMockUser(username = "admin@example.com", roles = "ADMIN")
+  void adminCanListUsers() throws Exception {
+    mvc.perform(get("/api/users"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].email").isNotEmpty());
   }
 
   @Test

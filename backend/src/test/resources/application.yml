@@ -11,7 +11,14 @@ spring:
     redis:
       repositories:
         enabled: false
+  session:
+    store-type: none
 
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
+
+security:
+  remember-me:
+    key: education-test-remember-me-key
+    validity-seconds: 1209600

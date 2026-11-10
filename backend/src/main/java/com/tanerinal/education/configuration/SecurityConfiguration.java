@@ -22,6 +22,12 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
+import org.springframework.security.web.authentication.RememberMeServices;
+import org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl;
+import org.springframework.security.web.authentication.rememberme.PersistentTokenBasedRememberMeServices;
+import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
+
+import javax.sql.DataSource;
 
 import java.util.Map;
 
@@ -40,9 +46,10 @@ public class SecurityConfiguration {
       if (user == null) {
         throw new org.springframework.security.core.userdetails.UsernameNotFoundException("User not found");
       }
+      String[] roles = users.selectRoleCodes(user.getId()).toArray(String[]::new);
       return User.withUsername(user.getEmail())
             .password(user.getPasswordHash())
-            .roles(user.getRole())
+            .roles(roles)
             .disabled(!user.isEnabled())
             .build();
     };
@@ -64,7 +71,30 @@ public class SecurityConfiguration {
   }
 
   @Bean
-  SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper) throws Exception {
+  PersistentTokenRepository persistentTokenRepository(DataSource dataSource) {
+    JdbcTokenRepositoryImpl repository = new JdbcTokenRepositoryImpl();
+    repository.setDataSource(dataSource);
+    return repository;
+  }
+
+  @Bean
+  RememberMeServices rememberMeServices(UserDetailsService userDetailsService,
+                                        PersistentTokenRepository tokenRepository,
+                                        @org.springframework.beans.factory.annotation.Value("${security.remember-me.key}") String key,
+                                        @org.springframework.beans.factory.annotation.Value("${security.remember-me.validity-seconds}") int validitySeconds,
+                                        @org.springframework.beans.factory.annotation.Value("${server.servlet.session.cookie.secure:false}") boolean secureCookie) {
+    PersistentTokenBasedRememberMeServices services =
+        new PersistentTokenBasedRememberMeServices(key, userDetailsService, tokenRepository);
+    services.setTokenValiditySeconds(validitySeconds);
+    services.setCookieName("EDUCATION_REMEMBER_ME");
+    services.setUseSecureCookie(secureCookie);
+    services.setAlwaysRemember(true);
+    return services;
+  }
+
+  @Bean
+  SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper,
+                                          RememberMeServices rememberMeServices) throws Exception {
     CookieCsrfTokenRepository csrfRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
     csrfRepository.setCookiePath("/");
     csrfRepository.setHeaderName("X-XSRF-TOKEN");
@@ -76,6 +106,7 @@ public class SecurityConfiguration {
             .csrfTokenRepository(csrfRepository)
             .csrfTokenRequestHandler(csrfRequestHandler))
         .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
+        .rememberMe(remember -> remember.rememberMeServices(rememberMeServices))
         .authorizeHttpRequests(authorize -> authorize
             .requestMatchers("/api/auth/login", "/api/auth/csrf", "/actuator/health", "/actuator/info").permitAll()
             .anyRequest().authenticated())
@@ -94,7 +125,7 @@ public class SecurityConfiguration {
             .logoutUrl("/api/auth/logout")
             .invalidateHttpSession(true)
             .clearAuthentication(true)
-            .deleteCookies("JSESSIONID", "XSRF-TOKEN")
+            .deleteCookies("SESSION", "JSESSIONID", "XSRF-TOKEN", "EDUCATION_REMEMBER_ME")
             .logoutSuccessHandler((request, response, authentication) -> response.setStatus(204)))
         .httpBasic(basic -> basic.disable())
         .formLogin(form -> form.disable());

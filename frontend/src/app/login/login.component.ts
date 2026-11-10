@@ -1,6 +1,8 @@
 import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, inject, OnInit, ViewChild } from '@angular/core';
 import { FormBuilder, FormControl, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
+import { HttpErrorResponse } from '@angular/common/http';
+import { finalize } from 'rxjs';
 import { AccountService } from '../services/account.service';
 import { SeoService } from '../services/seo.service';
 
@@ -15,6 +17,8 @@ export class LoginComponent implements OnInit, AfterViewInit {
 
   isFormSubmitted = false;
   isFormDataValid = true;
+  isSubmitting = false;
+  loginMessage = '';
   private readonly formBuilder = inject(FormBuilder);
 
   formLoginGroup = this.formBuilder.group({
@@ -48,15 +52,29 @@ export class LoginComponent implements OnInit, AfterViewInit {
       return;
     }
 
+    this.isSubmitting = true;
+    this.loginMessage = '';
     const { email, password, remember } = this.formLoginGroup.getRawValue();
-    this.accountService.login(email ?? '', password ?? '', remember === true).subscribe({
+    this.accountService.login(email ?? '', password ?? '', remember === true).pipe(
+      finalize(() => {
+        this.isSubmitting = false;
+        this.changeDetector.markForCheck();
+      })
+    ).subscribe({
       next: () => void this.router.navigate(['/dashboard']),
-      error: () => this.rejectLogin()
+      error: error => this.rejectLogin(error)
     });
   };
 
-  private rejectLogin(): void {
+  private rejectLogin(error: HttpErrorResponse): void {
     this.isFormDataValid = false;
+    if (error.status === 429) {
+      this.loginMessage = 'Too many failed attempts. Please wait five minutes and try again.';
+    } else if (error.status === 0 || error.status >= 500) {
+      this.loginMessage = 'The login service is temporarily unavailable. Please try again.';
+    } else {
+      this.loginMessage = 'The email or password is incorrect, or this account is disabled.';
+    }
     this.formLoginGroup.controls.password.reset('');
     this.viewEmailInput.nativeElement.focus();
     this.changeDetector.markForCheck();

@@ -100,14 +100,14 @@ review, persistent_login
 - 验收：全新数据卷一键启动；后端测试通过；现有前端测试、构建和主要浏览器流程通过。
 - 计划提交：`feat: migrate backend to Spring Boot 3 and MyBatis-Plus`
 
-### 第 02 章：用户、角色和安全登录
+### 第 02 章：用户、角色和安全登录（已完成）
 
-- [ ] 建立 `app_user`、`role`、`user_role` 和 `persistent_login`。
-- [ ] 内置可公开的 CUSTOMER、MERCHANT、ADMIN 演示账号，并在 README 列出用途。
-- [ ] 使用方法级权限控制保护客户、商家和管理员接口。
-- [ ] 使用 Redis 保存 Session；实现持久化 Remember-Me，支持主动注销和令牌撤销。
-- [ ] 登录页增加“记住登录状态”、加载状态、字段校验、凭据错误、账号禁用、会话过期和网络错误提示。
-- [ ] 使用 Redis 对连续登录失败做短时限流。
+- [x] 建立 `app_user`、`role`、`user_role` 和 `persistent_login`。
+- [x] 内置可公开的 CUSTOMER、MERCHANT、ADMIN 演示账号，并在 README 列出用途。
+- [x] 使用方法级权限控制保护客户、商家和管理员接口。
+- [x] 使用 Redis 保存 Session；实现持久化 Remember-Me，支持主动注销和令牌撤销。
+- [x] 登录页增加“记住登录状态”、加载状态、字段校验、凭据错误、账号禁用和网络错误提示。
+- [x] 使用 Redis 对连续登录失败做短时限流。
 - 验收：三种角色分别登录；越权返回 403；错误提示合理；重启后 Remember-Me 可恢复登录；注销后旧令牌失效。
 - 计划提交：`feat: add role-based security and remember-me login`
 

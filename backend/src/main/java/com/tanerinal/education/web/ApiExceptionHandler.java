@@ -1,6 +1,7 @@
 package com.tanerinal.education.web;
 
 import com.tanerinal.education.service.ResourceNotFoundException;
+import com.tanerinal.education.service.LoginRateLimitException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.AuthenticationException;
@@ -16,6 +17,11 @@ public class ApiExceptionHandler {
   @ExceptionHandler(AuthenticationException.class)
   ResponseEntity<Map<String, Object>> authentication(AuthenticationException exception) {
     return response(HttpStatus.UNAUTHORIZED, "Invalid email or password");
+  }
+
+  @ExceptionHandler(LoginRateLimitException.class)
+  ResponseEntity<Map<String, Object>> rateLimited(LoginRateLimitException exception) {
+    return response(HttpStatus.TOO_MANY_REQUESTS, exception.getMessage());
   }
 
   @ExceptionHandler(MethodArgumentNotValidException.class)

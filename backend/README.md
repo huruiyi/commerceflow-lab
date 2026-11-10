@@ -12,12 +12,11 @@
 
 ## 当前用户与密码
 
-```text
-用户名（邮箱）：demo@example.com
-密码：demo-password
-角色：ROLE_USER
-状态：启用
-```
+| 邮箱 | 密码 | 角色 | 当前用途 |
+| --- | --- | --- | --- |
+| `demo@example.com` | `demo-password` | CUSTOMER | 商品和订单 |
+| `merchant@example.com` | `demo-password` | MERCHANT | 后续章节的确认与发货 |
+| `admin@example.com` | `demo-password` | ADMIN | 用户列表与管理 |
 
 项目还初始化 `ada@example.com`、`grace@example.com`、`alan@example.com` 三条用户资料，用于用户列表展示；它们均处于禁用状态，不能登录。
 
@@ -42,8 +41,10 @@ MySQL app_users
 2. Angular 调用 `POST /api/auth/login`，并发送 `X-XSRF-TOKEN` Header。
 3. `AuthenticationManager` 通过 `UserDetailsService` 和 `AppUserMapper` 查询用户。
 4. BCrypt 校验密码成功后更换 Session ID，防止 Session Fixation。
-5. 认证结果写入 HTTP Session，浏览器收到 `HttpOnly` 的 `JSESSIONID`。
+5. 认证结果写入 Redis Session，浏览器收到 `HttpOnly` 的 `SESSION` Cookie。
 6. 后续业务请求同时校验会话和 CSRF Token。
+
+勾选“Keep me signed in”时，后端额外签发随机 Remember-Me Cookie，服务端只保存可撤销令牌。浏览器不会保存明文密码；注销会同时删除 Session、Cookie 和服务端令牌。连续五次失败会对该邮箱限流五分钟。
 
 直接只向登录接口发送邮箱和密码会因缺少 CSRF Token 返回 HTTP 403；从页面登录时 Angular 会自动完成取 Token 的步骤。
 
@@ -59,7 +60,7 @@ MySQL app_users
 | GET | `/api/orders` | 是 | 当前用户订单 |
 | POST | `/api/orders` | 是 | 创建订单，`quantity` 范围 1–99 |
 | PUT | `/api/orders/{orderId}/quantity` | 是 | 调整当前用户订单数量 |
-| GET | `/api/users` | 是 | 演示用户列表 |
+| GET | `/api/users` | ADMIN | 演示用户列表 |
 | GET | `/actuator/health` | 否 | MySQL、Redis 与应用健康检查 |
 
 ## 数据访问和迁移
