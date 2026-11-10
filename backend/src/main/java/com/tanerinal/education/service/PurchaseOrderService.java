@@ -15,8 +15,8 @@ import java.util.*;
 
 @Service
 public class PurchaseOrderService {
-  private final ShopOrderMapper orders; private final CartMapper carts;private final PaymentGatewayClient gateway;
-  public PurchaseOrderService(ShopOrderMapper orders, CartMapper carts,PaymentGatewayClient gateway){this.orders=orders;this.carts=carts;this.gateway=gateway;}
+  private final ShopOrderMapper orders; private final CartMapper carts;private final PaymentGatewayClient gateway;private final RedisIdempotencyService redisIdempotency;
+  public PurchaseOrderService(ShopOrderMapper orders, CartMapper carts,PaymentGatewayClient gateway,RedisIdempotencyService redisIdempotency){this.orders=orders;this.carts=carts;this.gateway=gateway;this.redisIdempotency=redisIdempotency;}
 
   @Transactional
   public ShopOrderResponse checkout(AppUser user) {
@@ -54,6 +54,7 @@ public class PurchaseOrderService {
           || !fingerprint.equals(payment.getRequestFingerprint())) {
         throw new BusinessRuleException("Idempotency key was already used with different payment parameters");
       }
+      redisIdempotency.rememberPayment(request.idempotencyKey(),payment.getPaymentNumber());
       return assemble(orders.find(user.getId(),id).orElseThrow(),existing.get());
     }
     if(!"PENDING_PAYMENT".equals(order.getStatus())) throw new BusinessRuleException("Only pending orders can be paid");
@@ -67,6 +68,7 @@ public class PurchaseOrderService {
     PaymentView payment=orders.paymentByKey(request.idempotencyKey()).orElseThrow();
     orders.updateCheckout(payment.getId(),remote.checkoutUrl(),remote.actionType(),remote.qrPayload());
     orders.insertPaymentEvent(payment.getId(),UUID.randomUUID().toString(),"PAYMENT_PENDING","CREATED",status,"Waiting for signed asynchronous notification");
+    redisIdempotency.rememberPayment(request.idempotencyKey(),payment.getPaymentNumber());
     return assemble(orders.find(user.getId(),id).orElseThrow(),orders.paymentByKey(request.idempotencyKey()).orElseThrow());
   }
 

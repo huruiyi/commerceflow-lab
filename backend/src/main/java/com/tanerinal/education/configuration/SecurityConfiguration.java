@@ -109,7 +109,7 @@ public class SecurityConfiguration {
         .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
         .rememberMe(remember -> remember.rememberMeServices(rememberMeServices))
         .authorizeHttpRequests(authorize -> authorize
-            .requestMatchers("/api/auth/login", "/api/auth/csrf", "/api/payment-notifications/**", "/actuator/health", "/actuator/info", "/actuator/prometheus").permitAll()
+            .requestMatchers("/api/auth/login", "/api/auth/csrf", "/api/products/**", "/api/payment-notifications/**", "/actuator/health", "/actuator/info", "/actuator/prometheus").permitAll()
             .anyRequest().authenticated())
         .exceptionHandling(errors -> errors
             .authenticationEntryPoint((request, response, exception) -> {

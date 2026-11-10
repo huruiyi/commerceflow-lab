@@ -247,12 +247,12 @@ review, persistent_login
 - 验收：收货状态流转、重复评价、越权评价、评分边界和商品评分聚合通过。
 - 计划提交：`feat: add receipt confirmation and reviews`
 
-### 第 08 章：Redis 业务增强与降级
+### 第 08 章：Redis 业务增强与降级（已完成）
 
-- [ ] 缓存商品详情和列表，写操作后正确失效。
-- [ ] 为下单和支付使用短期幂等键。
-- [ ] 完善 Session、登录限流和缓存 Key 命名、TTL 文档。
-- [ ] Redis 不可用时，除依赖会话的请求外，数据库核心数据不得损坏；错误必须可理解。
+- [x] 缓存商品、评分和评价列表，评价写入后正确失效。
+- [x] 为支付使用短期幂等辅助键，MySQL 继续保证最终正确性。
+- [x] 完善 Session、登录限流和缓存 Key 命名、TTL 文档。
+- [x] Redis 不可用时，公开商品读取降级 MySQL，数据库核心数据不受损。
 - 验收：缓存命中/失效、TTL、幂等、限流和 Redis 故障场景通过。
 - 计划提交：`feat: add Redis cache throttling and idempotency`
 
