@@ -4,12 +4,14 @@ spring:
     username: sa
     password:
     driver-class-name: org.h2.Driver
-  jpa:
-    hibernate:
-      ddl-auto: create-drop
-    open-in-view: false
+  flyway:
+    baseline-on-migrate: true
+    baseline-version: 0
+  data:
+    redis:
+      repositories:
+        enabled: false
 
-demo:
-  user:
-    email: demo@example.com
-    password: demo-password
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true

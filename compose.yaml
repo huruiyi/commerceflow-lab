@@ -17,6 +17,18 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -24,12 +36,14 @@ services:
       DATABASE_URL: jdbc:mysql://mysql:3306/education_demo?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       DATABASE_USERNAME: education
       DATABASE_PASSWORD: education-password
-      DEMO_USER_EMAIL: demo@example.com
-      DEMO_USER_PASSWORD: demo-password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     ports:
       - "18081:8080"
     depends_on:
       mysql:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
@@ -57,3 +71,4 @@ services:
 
 volumes:
   mysql-data:
+  redis-data:

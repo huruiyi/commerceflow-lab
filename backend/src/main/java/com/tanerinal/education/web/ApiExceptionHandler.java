@@ -1,5 +1,6 @@
 package com.tanerinal.education.web;
 
+import com.tanerinal.education.service.ResourceNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.AuthenticationException;
@@ -7,7 +8,6 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import javax.persistence.EntityNotFoundException;
 import java.time.Instant;
 import java.util.Map;
 
@@ -27,8 +27,8 @@ public class ApiExceptionHandler {
     return response(HttpStatus.BAD_REQUEST, message);
   }
 
-  @ExceptionHandler(EntityNotFoundException.class)
-  ResponseEntity<Map<String, Object>> notFound(EntityNotFoundException exception) {
+  @ExceptionHandler(ResourceNotFoundException.class)
+  ResponseEntity<Map<String, Object>> notFound(ResourceNotFoundException exception) {
     return response(HttpStatus.NOT_FOUND, exception.getMessage());
   }
 

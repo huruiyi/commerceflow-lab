@@ -2,17 +2,15 @@
 
 ## 技术栈
 
-- Java 17
-- Spring Boot 2.6.15
-- Spring Web / Spring Security / Spring Data JPA / Validation / Actuator
+- Java 21
+- Spring Boot 3.5.16 / Spring Security 6
+- MyBatis-Plus 3.5.18
+- Flyway 数据库迁移
 - MySQL 8.4（Docker 运行）
+- Redis 7.4（本章先提供连接、持久化和健康检查，后续用于 Session、缓存和限流）
 - H2 MySQL 兼容模式（自动化测试）
 
-## 认证模型
-
-登录后认证状态保存在服务端 HTTP Session 中，浏览器仅保留 `HttpOnly` 的 `JSESSIONID`。密码使用 BCrypt 保存。所有改变状态的请求均启用 CSRF 保护，Angular 从 `XSRF-TOKEN` Cookie 取值并发送 `X-XSRF-TOKEN` Header。
-
-### 当前用户与密码
+## 当前用户与密码
 
 ```text
 用户名（邮箱）：demo@example.com
@@ -21,53 +19,33 @@
 状态：启用
 ```
 
-这个账号由 `DemoDataConfiguration` 在 `app_users` 表为空时创建。邮箱和初始密码分别读取 `DEMO_USER_EMAIL`、`DEMO_USER_PASSWORD`；密码经 `BCryptPasswordEncoder` 编码后才写入 MySQL。
+项目还初始化 `ada@example.com`、`grace@example.com`、`alan@example.com` 三条用户资料，用于用户列表展示；它们均处于禁用状态，不能登录。
 
-项目另会初始化 `ada@example.com`、`grace@example.com`、`alan@example.com` 三个用于用户列表展示的资料，但这三个账号均为禁用状态，且密码是启动时随机值，不能用于登录。
+账号和商品由 Flyway 迁移 `src/main/resources/db/migration/V1__baseline_schema_and_demo_data.sql` 初始化。为了保证公开教学仓库克隆后可直接运行，演示账号的 BCrypt 哈希随代码提交；数据库中没有明文密码，也不会使用 Spring Boot 随机生成的默认 `user` 密码。
 
 ### Spring Security `User` 的作用
 
-当前并不使用 Spring Boot 默认的 `user` 账号，因此启动日志中不会生成一个另外的随机密码。认证转换关系为：
-
 ```text
-MySQL app_users 中的 AppUser
-    → UserDetailsService 按邮箱查询
+MySQL app_users
+    → AppUserMapper 按邮箱查询
     → org.springframework.security.core.userdetails.User
     → Authentication
     → SecurityContext
     → HTTP Session
 ```
 
-`AppUser` 负责 JPA 持久化及订单关联；Spring Security `User` 只是每次认证时构建的 `UserDetails` 对象。两者表示同一个登录身份，不是两套用户或两个密码。
+`AppUser` 是 MyBatis-Plus 映射的数据库对象；Spring Security `User` 是认证过程中构造的 `UserDetails`。两者表示同一身份，不是两个账号。
 
-### 登录请求流程
+## 登录请求流程
 
-1. Angular 先调用 `GET /api/auth/csrf`，后端签发 `XSRF-TOKEN` Cookie。
-2. Angular 调用 `POST /api/auth/login`，同时发送 `X-XSRF-TOKEN` Header。
-3. `AuthenticationManager` 调用 `UserDetailsService`，从 MySQL 按邮箱查找用户。
-4. BCrypt 校验成功后更换 Session ID，防止 Session Fixation。
-5. 认证结果写入服务端 Session，浏览器收到 `HttpOnly` 的 `JSESSIONID`。
-6. 后续 `/api/products`、`/api/orders`、`/api/users` 请求都由 Spring Security 校验会话。
+1. Angular 调用 `GET /api/auth/csrf`，后端签发 `XSRF-TOKEN` Cookie。
+2. Angular 调用 `POST /api/auth/login`，并发送 `X-XSRF-TOKEN` Header。
+3. `AuthenticationManager` 通过 `UserDetailsService` 和 `AppUserMapper` 查询用户。
+4. BCrypt 校验密码成功后更换 Session ID，防止 Session Fixation。
+5. 认证结果写入 HTTP Session，浏览器收到 `HttpOnly` 的 `JSESSIONID`。
+6. 后续业务请求同时校验会话和 CSRF Token。
 
-因此直接只向 `/api/auth/login` 发送邮箱和密码会因缺少 CSRF Token 而返回 HTTP 403；从页面登录时 Angular 会自动完成该流程。
-
-### 修改演示账号
-
-Compose 中的当前配置为：
-
-```yaml
-DEMO_USER_EMAIL: demo@example.com
-DEMO_USER_PASSWORD: demo-password
-```
-
-只有在 `app_users` 表为空时，该配置才会创建用户。已初始化数据库后修改环境变量不会重置密码。学习环境如需使用新的初始账号，可先修改 Compose，再执行：
-
-```powershell
-docker compose down --volumes
-docker compose up --build -d --wait
-```
-
-此操作会永久删除该 Demo 数据卷中的用户、商品及订单，然后重新初始化。
+直接只向登录接口发送邮箱和密码会因缺少 CSRF Token 返回 HTTP 403；从页面登录时 Angular 会自动完成取 Token 的步骤。
 
 ## API
 
@@ -79,36 +57,73 @@ docker compose up --build -d --wait
 | POST | `/api/auth/logout` | 是 | 注销并失效 Session |
 | GET | `/api/products` | 是 | 商品列表 |
 | GET | `/api/orders` | 是 | 当前用户订单 |
-| POST | `/api/orders` | 是 | 为当前用户创建订单，`quantity` 范围 1–99 |
-| PUT | `/api/orders/{orderId}/quantity` | 是 | 调整当前用户订单数量，返回新小计 |
+| POST | `/api/orders` | 是 | 创建订单，`quantity` 范围 1–99 |
+| PUT | `/api/orders/{orderId}/quantity` | 是 | 调整当前用户订单数量 |
 | GET | `/api/users` | 是 | 演示用户列表 |
-| GET | `/actuator/health` | 否 | 健康检查 |
+| GET | `/actuator/health` | 否 | MySQL、Redis 与应用健康检查 |
+
+## 数据访问和迁移
+
+- `mapper/` 中的接口继承 MyBatis-Plus `BaseMapper`；联表查询使用显式 SQL，便于学习实际执行逻辑。
+- `mybatis-plus.configuration.map-underscore-to-camel-case=true` 负责下划线列名到 Java 属性的映射。
+- Flyway 是唯一的数据库结构和固定演示数据来源。
+- 对旧的 Hibernate 数据卷，`baseline-on-migrate` 会先登记版本 0，再执行可重复兼容的 V1 迁移。
+- 发布后不要修改 V1；结构变化应新增 `V2__...sql`、`V3__...sql`。
+
+当前数据模型：
+
+- `app_users`：用户、BCrypt 密码哈希、角色和启用状态。
+- `products`：商品名称、价格、描述和图片 URL。
+- `customer_orders`：所属用户、商品、数量、备注和创建时间。
+
+购物车和正式订单会在后续章节拆分，当前表用于兼容基线功能。
+
+## 通过 Docker 运行
+
+推荐在项目根目录运行完整环境：
+
+```powershell
+docker compose up --build -d --wait
+docker compose ps
+```
+
+后端直接地址为 `http://localhost:18081`，浏览器正常使用 Nginx 入口 `http://localhost:14200`。
+
+如需重建全部教学数据：
+
+```powershell
+docker compose down --volumes
+docker compose up --build -d --wait
+```
+
+`--volumes` 会删除 MySQL 和 Redis 的本地数据，只应在确认教学数据可丢弃时使用。
 
 ## 本地运行
 
-需要 Java 17、Maven 和已启动的 MySQL：
+需要 Java 21、Maven、MySQL 和 Redis：
 
 ```powershell
 $env:DATABASE_URL = 'jdbc:mysql://localhost:3306/education_demo?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC'
 $env:DATABASE_USERNAME = 'education'
 $env:DATABASE_PASSWORD = 'education-password'
+$env:REDIS_HOST = 'localhost'
+$env:REDIS_PORT = '6379'
 mvn spring-boot:run
 ```
 
-可选配置：`DEMO_USER_EMAIL` 和 `DEMO_USER_PASSWORD`。默认为 `demo@example.com / demo-password`。
-
 ## 测试
 
+本机有 Maven 时执行：
+
 ```powershell
-mvn test
+mvn clean test
 ```
 
-集成测试覆盖未登录拒绝、真实 CSRF Cookie/Header、正确与错误密码、商品查询、创建/查询订单、用户列表和注销后会话失效。
+只有 Docker 时执行：
 
-## 数据模型
+```powershell
+docker run --rm -v "${PWD}:/workspace" -w /workspace `
+  maven:3.9.11-eclipse-temurin-21-alpine mvn -q clean test
+```
 
-- `app_users`：用户、BCrypt 密码哈希、角色和启用状态。
-- `products`：商品名称、价格、描述和图片 URL。
-- `customer_orders`：订单所属用户、商品、数量、备注和创建时间；小计由后端按商品单价×数量计算。
-
-启动时会补全教学用户和商品。当前使用 Hibernate `ddl-auto=update` 便于 Demo 学习，生产系统应改为 Flyway/Liquibase 等可审计迁移。
+集成测试使用 H2 和真实 Flyway 脚本，覆盖 CSRF、正确与错误密码、商品查询、创建/调整/查询订单、用户列表和注销。

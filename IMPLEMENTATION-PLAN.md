@@ -89,14 +89,14 @@ review, persistent_login
 - [x] 后端测试、前端构建与测试、Docker 和浏览器验证。
 - 提交：`6a2394d feat: add Dockerized full-stack education demo`
 
-### 第 01 章：升级基础平台和数据访问层
+### 第 01 章：升级基础平台和数据访问层（已完成）
 
-- [ ] 后端升级到 Java 21、Spring Boot 3.5.16 和 Spring Security 6。
-- [ ] 完成 `javax.*` 到 `jakarta.*` 的迁移。
-- [ ] 移除 Spring Data JPA，使用 MyBatis-Plus 3.5.18。
-- [ ] 引入 Flyway，所有结构和演示数据通过版本化脚本初始化。
-- [ ] Compose 增加 Redis 7.4，并为 MySQL、Redis、后端和前端配置健康检查。
-- [ ] 保持现有登录、商品、用户和数量功能不回退。
+- [x] 后端升级到 Java 21、Spring Boot 3.5.16 和 Spring Security 6。
+- [x] 完成 `javax.*` 到 `jakarta.*` 的迁移。
+- [x] 移除 Spring Data JPA，使用 MyBatis-Plus 3.5.18。
+- [x] 引入 Flyway，所有结构和演示数据通过版本化脚本初始化。
+- [x] Compose 增加 Redis 7.4，并为 MySQL、Redis、后端和前端配置健康检查。
+- [x] 保持现有登录、商品、用户和数量功能不回退。
 - 验收：全新数据卷一键启动；后端测试通过；现有前端测试、构建和主要浏览器流程通过。
 - 计划提交：`feat: migrate backend to Spring Boot 3 and MyBatis-Plus`
 

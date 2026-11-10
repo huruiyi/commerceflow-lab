@@ -1,8 +1,10 @@
 package com.tanerinal.education;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.tanerinal.education.repository.ProductRepository;
-import javax.servlet.http.Cookie;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.tanerinal.education.domain.Product;
+import com.tanerinal.education.mapper.ProductMapper;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -24,7 +26,7 @@ class EducationBackendIntegrationTest {
   MockMvc mvc;
 
   @Autowired
-  ProductRepository products;
+  ProductMapper products;
 
   @Autowired
   ObjectMapper objectMapper;
@@ -47,7 +49,8 @@ class EducationBackendIntegrationTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].name").isNotEmpty());
 
-    Long productId = products.findAll().get(0).getId();
+    Long productId = products.selectList(new LambdaQueryWrapper<Product>().orderByAsc(Product::getId))
+        .get(0).getId();
     MvcResult createdOrder = mvc.perform(post("/api/orders").session(csrf.session()).cookie(csrf.cookie())
             .header("X-XSRF-TOKEN", csrf.token())
             .contentType("application/json")

@@ -1,8 +1,9 @@
 package com.tanerinal.education.web;
 
-import com.tanerinal.education.repository.AppUserRepository;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.tanerinal.education.domain.AppUser;
+import com.tanerinal.education.mapper.AppUserMapper;
 import com.tanerinal.education.web.dto.UserSummaryResponse;
-import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -12,15 +13,16 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
-  private final AppUserRepository users;
+  private final AppUserMapper users;
 
-  public UserController(AppUserRepository users) {
+  public UserController(AppUserMapper users) {
     this.users = users;
   }
 
   @GetMapping
   List<UserSummaryResponse> list() {
-    return users.findAll(Sort.by("firstName", "lastName")).stream()
+    return users.selectList(new LambdaQueryWrapper<AppUser>()
+            .orderByAsc(AppUser::getFirstName, AppUser::getLastName)).stream()
         .map(UserSummaryResponse::from)
         .toList();
   }

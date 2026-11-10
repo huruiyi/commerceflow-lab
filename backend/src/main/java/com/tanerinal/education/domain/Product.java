@@ -1,36 +1,19 @@
 package com.tanerinal.education.domain;
 
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.Table;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import java.math.BigDecimal;
 
-@Entity
-@Table(name = "products")
+@TableName("products")
 public class Product {
-  @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @TableId(type = IdType.AUTO)
   private Long id;
-
-  @Column(nullable = false, length = 160)
   private String name;
-
-  @Column(nullable = false, length = 300)
   private String brief;
-
-  @Column(nullable = false, length = 2000)
   private String description;
-
-  @Column(nullable = false, precision = 12, scale = 2)
   private BigDecimal price;
-
-  @Column(nullable = false, length = 500)
   private String imageUrl;
-
-  @Column(nullable = false, length = 500)
   private String thumbnailUrl;
 
   protected Product() {

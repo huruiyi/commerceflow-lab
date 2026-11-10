@@ -5,13 +5,14 @@ spring:
     url: ${DATABASE_URL:jdbc:mysql://localhost:3306/education_demo?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
     username: ${DATABASE_USERNAME:education}
     password: ${DATABASE_PASSWORD:education-password}
-  jpa:
-    open-in-view: false
-    hibernate:
-      ddl-auto: ${JPA_DDL_AUTO:update}
-    properties:
-      hibernate:
-        format_sql: true
+  flyway:
+    baseline-on-migrate: true
+    baseline-version: 0
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
   jackson:
     serialization:
       write-dates-as-timestamps: false
@@ -36,7 +37,6 @@ management:
       probes:
         enabled: true
 
-demo:
-  user:
-    email: ${DEMO_USER_EMAIL:demo@example.com}
-    password: ${DEMO_USER_PASSWORD:demo-password}
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true

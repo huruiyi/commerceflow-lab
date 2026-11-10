@@ -1,38 +1,20 @@
 package com.tanerinal.education.domain;
 
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.Table;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 
-@Entity
-@Table(name = "app_users")
+@TableName("app_users")
 public class AppUser {
-  @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @TableId(type = IdType.AUTO)
   private Long id;
 
-  @Column(nullable = false, unique = true, length = 190)
   private String email;
-
-  @Column(nullable = false, length = 100)
   private String passwordHash;
-
-  @Column(nullable = false, length = 80)
   private String firstName;
-
-  @Column(nullable = false, length = 80)
   private String lastName;
-
-  @Column(nullable = false, length = 40)
   private String phone;
-
-  @Column(nullable = false, length = 30)
   private String role;
-
-  @Column(nullable = false)
   private boolean enabled;
 
   protected AppUser() {

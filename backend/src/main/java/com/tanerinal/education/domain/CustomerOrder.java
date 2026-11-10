@@ -1,54 +1,34 @@
 package com.tanerinal.education.domain;
 
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.FetchType;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.JoinColumn;
-import javax.persistence.ManyToOne;
-import javax.persistence.Table;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.Instant;
 
-@Entity
-@Table(name = "customer_orders")
+@TableName("customer_orders")
 public class CustomerOrder {
-  @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @TableId(type = IdType.AUTO)
   private Long id;
-
-  @ManyToOne(fetch = FetchType.LAZY, optional = false)
-  @JoinColumn(name = "user_id", nullable = false)
-  private AppUser user;
-
-  @ManyToOne(fetch = FetchType.LAZY, optional = false)
-  @JoinColumn(name = "product_id", nullable = false)
-  private Product product;
-
-  @Column(nullable = false)
+  private Long userId;
+  private Long productId;
   private Instant createdAt;
-
-  @Column(nullable = false, length = 500)
   private String note;
-
-  @Column(nullable = false, columnDefinition = "integer default 1")
   private int quantity = 1;
 
   protected CustomerOrder() {
   }
 
-  public CustomerOrder(AppUser user, Product product, Instant createdAt, String note, int quantity) {
-    this.user = user;
-    this.product = product;
+  public CustomerOrder(Long userId, Long productId, Instant createdAt, String note, int quantity) {
+    this.userId = userId;
+    this.productId = productId;
     this.createdAt = createdAt;
     this.note = note;
     this.quantity = quantity;
   }
 
   public Long getId() { return id; }
-  public AppUser getUser() { return user; }
-  public Product getProduct() { return product; }
+  public Long getUserId() { return userId; }
+  public Long getProductId() { return productId; }
   public Instant getCreatedAt() { return createdAt; }
   public String getNote() { return note; }
   public int getQuantity() { return quantity; }

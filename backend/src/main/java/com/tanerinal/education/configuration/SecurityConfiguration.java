@@ -1,7 +1,9 @@
 package com.tanerinal.education.configuration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.tanerinal.education.repository.AppUserRepository;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.tanerinal.education.domain.AppUser;
+import com.tanerinal.education.mapper.AppUserMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
@@ -17,6 +19,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 
@@ -30,14 +33,19 @@ public class SecurityConfiguration {
   }
 
   @Bean
-  UserDetailsService userDetailsService(AppUserRepository users) {
-    return email -> users.findByEmailIgnoreCase(email)
-        .map(user -> User.withUsername(user.getEmail())
+  UserDetailsService userDetailsService(AppUserMapper users) {
+    return email -> {
+      AppUser user = users.selectOne(new LambdaQueryWrapper<AppUser>()
+          .eq(AppUser::getEmail, email.toLowerCase()));
+      if (user == null) {
+        throw new org.springframework.security.core.userdetails.UsernameNotFoundException("User not found");
+      }
+      return User.withUsername(user.getEmail())
             .password(user.getPasswordHash())
             .roles(user.getRole())
             .disabled(!user.isEnabled())
-            .build())
-        .orElseThrow(() -> new org.springframework.security.core.userdetails.UsernameNotFoundException("User not found"));
+            .build();
+    };
   }
 
   @Bean
@@ -60,12 +68,16 @@ public class SecurityConfiguration {
     CookieCsrfTokenRepository csrfRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
     csrfRepository.setCookiePath("/");
     csrfRepository.setHeaderName("X-XSRF-TOKEN");
+    CsrfTokenRequestAttributeHandler csrfRequestHandler = new CsrfTokenRequestAttributeHandler();
+    csrfRequestHandler.setCsrfRequestAttributeName(null);
 
     http
-        .csrf(csrf -> csrf.csrfTokenRepository(csrfRepository))
+        .csrf(csrf -> csrf
+            .csrfTokenRepository(csrfRepository)
+            .csrfTokenRequestHandler(csrfRequestHandler))
         .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
-        .authorizeRequests(authorize -> authorize
-            .antMatchers("/api/auth/login", "/api/auth/csrf", "/actuator/health", "/actuator/info").permitAll()
+        .authorizeHttpRequests(authorize -> authorize
+            .requestMatchers("/api/auth/login", "/api/auth/csrf", "/actuator/health", "/actuator/info").permitAll()
             .anyRequest().authenticated())
         .exceptionHandling(errors -> errors
             .authenticationEntryPoint((request, response, exception) -> {
@@ -84,8 +96,8 @@ public class SecurityConfiguration {
             .clearAuthentication(true)
             .deleteCookies("JSESSIONID", "XSRF-TOKEN")
             .logoutSuccessHandler((request, response, authentication) -> response.setStatus(204)))
-        .httpBasic().disable()
-        .formLogin().disable();
+        .httpBasic(basic -> basic.disable())
+        .formLogin(form -> form.disable());
     return http.build();
   }
 }
