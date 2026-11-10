@@ -52,4 +52,6 @@ export class ApiService {
   merchantOrders():Observable<PurchaseOrder[]>{return this.http.get<PurchaseOrder[]>('/api/merchant/orders');}
   confirmMerchantOrder(id:number):Observable<PurchaseOrder>{return this.http.post<PurchaseOrder>(`/api/merchant/orders/${id}/confirm`,{});}
   shipMerchantOrder(id:number,carrier:string,trackingNumber:string):Observable<PurchaseOrder>{return this.http.post<PurchaseOrder>(`/api/merchant/orders/${id}/ship`,{carrier,trackingNumber});}
+  receiveOrder(id:number):Observable<PurchaseOrder>{return this.http.post<PurchaseOrder>(`/api/purchase-orders/${id}/receive`,{});}
+  reviewOrderItem(id:number,rating:number,comment:string):Observable<unknown>{return this.http.post(`/api/order-items/${id}/reviews`,{rating,comment});}
 }

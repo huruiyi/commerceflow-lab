@@ -19,6 +19,7 @@ export class PurchaseOrdersComponent implements OnInit {
   ];
   orders:PurchaseOrder[]=[]; paying=new Set<number>(); selectedChannels:Record<number,PaymentChannel>={};
   draftKeys:Record<number,string>={}; lastAttempts:Record<number,PaymentAttempt>={}; notices:Record<number,Notice>={};
+  ratings:Record<number,number>={}; reviewComments:Record<number,string>={}; reviewed=new Set<number>();
   constructor(private api:ApiService,private changeDetector:ChangeDetectorRef){}
   ngOnInit():void{this.reload();}
   reload():void{this.api.purchaseOrders().subscribe(orders=>{this.orders=orders;orders.forEach(order=>this.initializeOrder(order));this.changeDetector.markForCheck();});}
@@ -31,6 +32,8 @@ export class PurchaseOrdersComponent implements OnInit {
   trackOrder(_index:number,order:PurchaseOrder):number{return order.id;}
   refresh(order:PurchaseOrder):void{this.api.purchaseOrder(order.id).subscribe(updated=>{this.orders=this.orders.map(item=>item.id===updated.id?updated:item);this.notices[order.id]={type:updated.status==='PAID'?'success':'info',text:updated.status==='PAID'?'Signed callback received. The order is paid.':'Still waiting for the asynchronous provider callback.'};this.changeDetector.markForCheck();});}
   openCheckout(order:PurchaseOrder):void{const url=order.payment?.checkoutUrl;if(url){window.open(url,'payment-checkout','width=1040,height=760');this.notices[order.id]={type:'info',text:'Cashier opened. Complete or cancel there, then refresh payment status.'};}}
+  receive(order:PurchaseOrder):void{this.api.receiveOrder(order.id).subscribe(updated=>{this.orders=this.orders.map(o=>o.id===updated.id?updated:o);this.notices[order.id]={type:'success',text:'Receipt confirmed. You can now review each purchased item.'};});}
+  review(order:PurchaseOrder,itemId:number):void{this.api.reviewOrderItem(itemId,this.ratings[itemId]||5,this.reviewComments[itemId]||'').subscribe(()=>{this.reviewed.add(itemId);this.notices[order.id]={type:'success',text:'Review submitted. Thank you.'};});}
   private execute(order:PurchaseOrder,attempt:PaymentAttempt,replay:boolean):void{
     this.paying.add(order.id);this.notices[order.id]={type:'info',text:replay?'Replaying the stored idempotent request…':'Submitting the payment request…'};
     this.api.payOrder(order.id,attempt.key,attempt.simulateFailure,attempt.channel).pipe(finalize(()=>{this.paying.delete(order.id);this.changeDetector.markForCheck();})).subscribe({

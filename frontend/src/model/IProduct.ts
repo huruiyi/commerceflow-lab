@@ -6,4 +6,7 @@ export interface Product {
   price: number;
   imageUrl: string;
   thumbnailUrl: string;
+  averageRating: number;
+  reviewCount: number;
+  reviews: {id:number;rating:number;comment:string;reviewerName:string;createdAt:string}[];
 }
