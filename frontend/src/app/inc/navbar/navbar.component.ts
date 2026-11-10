@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { AccountService } from 'src/app/services/account.service';
 import { UserProfile } from 'src/model/IUserLogin';
+import { I18nService } from '../../services/i18n.service';
 
 @Component({
   standalone: false,
@@ -18,7 +19,7 @@ export class NavbarComponent implements OnInit {
     role: ''
   }
 
-  constructor(private accountService :AccountService) {
+  constructor(private accountService :AccountService,public i18n:I18nService) {
     const userInfo = this.accountService.loginControl()
 
     if (userInfo) {

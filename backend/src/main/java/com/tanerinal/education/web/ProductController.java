@@ -5,6 +5,8 @@ import com.tanerinal.education.web.dto.ProductResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
@@ -18,7 +20,7 @@ public class ProductController {
   }
 
   @GetMapping
-  List<ProductResponse> list() {
-    return catalog.list();
+  List<ProductResponse> list(@RequestParam(required=false)String lang,@RequestHeader(value="Accept-Language",required=false)String acceptLanguage) {
+    return catalog.list(lang!=null?lang:acceptLanguage);
   }
 }

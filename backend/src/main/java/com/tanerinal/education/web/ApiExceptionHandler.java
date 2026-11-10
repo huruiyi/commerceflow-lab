@@ -17,17 +17,17 @@ import java.util.Map;
 public class ApiExceptionHandler {
   @ExceptionHandler(AuthenticationException.class)
   ResponseEntity<Map<String, Object>> authentication(AuthenticationException exception) {
-    return response(HttpStatus.UNAUTHORIZED, "Invalid email or password");
+    return response(HttpStatus.UNAUTHORIZED, "AUTH_INVALID", "Invalid email or password");
   }
 
   @ExceptionHandler(LoginRateLimitException.class)
   ResponseEntity<Map<String, Object>> rateLimited(LoginRateLimitException exception) {
-    return response(HttpStatus.TOO_MANY_REQUESTS, exception.getMessage());
+    return response(HttpStatus.TOO_MANY_REQUESTS, "AUTH_RATE_LIMITED", exception.getMessage());
   }
 
   @ExceptionHandler(BusinessRuleException.class)
   ResponseEntity<Map<String, Object>> businessRule(BusinessRuleException exception) {
-    return response(HttpStatus.CONFLICT, exception.getMessage());
+    return response(HttpStatus.CONFLICT, "BUSINESS_RULE", exception.getMessage());
   }
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -36,18 +36,19 @@ public class ApiExceptionHandler {
         .findFirst()
         .map(error -> error.getField() + " " + error.getDefaultMessage())
         .orElse("Request validation failed");
-    return response(HttpStatus.BAD_REQUEST, message);
+    return response(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", message);
   }
 
   @ExceptionHandler(ResourceNotFoundException.class)
   ResponseEntity<Map<String, Object>> notFound(ResourceNotFoundException exception) {
-    return response(HttpStatus.NOT_FOUND, exception.getMessage());
+    return response(HttpStatus.NOT_FOUND, "NOT_FOUND", exception.getMessage());
   }
 
-  private ResponseEntity<Map<String, Object>> response(HttpStatus status, String message) {
+  private ResponseEntity<Map<String, Object>> response(HttpStatus status, String code, String message) {
     return ResponseEntity.status(status).body(Map.of(
         "timestamp", Instant.now().toString(),
         "status", status.value(),
+        "code", code,
         "message", message));
   }
 }

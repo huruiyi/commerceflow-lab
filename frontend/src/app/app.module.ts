@@ -19,6 +19,7 @@ import { UseritemComponent } from './inc/useritem/useritem.component';
 import { AddressesComponent } from './addresses/addresses.component';
 import { PurchaseOrdersComponent } from './purchase-orders/purchase-orders.component';
 import { MerchantOrdersComponent } from './merchant-orders/merchant-orders.component';
+import { TranslatePipe } from './pipes/translate.pipe';
 
 @NgModule({
   declarations: [
@@ -35,7 +36,8 @@ import { MerchantOrdersComponent } from './merchant-orders/merchant-orders.compo
     UseritemComponent,
     AddressesComponent,
     PurchaseOrdersComponent,
-    MerchantOrdersComponent
+    MerchantOrdersComponent,
+    TranslatePipe
   ],
   imports: [
     BrowserModule,

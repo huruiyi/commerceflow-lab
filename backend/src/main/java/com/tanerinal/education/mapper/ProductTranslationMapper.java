@@ -1,0 +1,1 @@
+package com.tanerinal.education.mapper;import com.tanerinal.education.domain.ProductTranslation;import org.apache.ibatis.annotations.*;public interface ProductTranslationMapper{@Select("SELECT * FROM product_translations WHERE product_id=#{productId} AND locale=#{locale}")ProductTranslation find(@Param("productId")Long productId,@Param("locale")String locale);}

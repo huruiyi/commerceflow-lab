@@ -1,13 +1,1 @@
-import { Pipe, PipeTransform } from '@angular/core';
-
-@Pipe({
-  standalone: false,
-  name: 'trcurrency'
-})
-export class TrcurrencyPipe implements PipeTransform {
-
-  transform(value: string | number, ...args: unknown[]): string {
-    return value + "₺";
-  }
-
-}
+import{Pipe,PipeTransform}from'@angular/core';import{I18nService}from'../services/i18n.service';@Pipe({standalone:false,name:'trcurrency',pure:false})export class TrcurrencyPipe implements PipeTransform{constructor(private i18n:I18nService){}transform(value:string|number):string{return new Intl.NumberFormat(this.i18n.locale(),{style:'currency',currency:'CNY'}).format(Number(value));}}

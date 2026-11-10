@@ -5,6 +5,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { finalize } from 'rxjs';
 import { AccountService } from '../services/account.service';
 import { SeoService } from '../services/seo.service';
+import { I18nService } from '../services/i18n.service';
 
 @Component({
   standalone: false,
@@ -30,7 +31,7 @@ export class LoginComponent implements OnInit, AfterViewInit {
   constructor(private accountService: AccountService,
               private router: Router,
               private seoService: SeoService,
-              private changeDetector: ChangeDetectorRef) {
+              private changeDetector: ChangeDetectorRef,public i18n:I18nService) {
     this.seoService.setTitle('User Login');
     this.seoService.setMeta('Login Page Detail');
   }

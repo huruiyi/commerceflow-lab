@@ -1,4 +1,4 @@
-<h2>Shipping Addresses</h2>
+<h2>{{'shippingAddresses'|t}}</h2>
 <div *ngIf="message" class="alert alert-success">{{message}}</div>
 <form #addressForm="ngForm" (ngSubmit)="save()" class="row g-2 mb-4">
   <div class="col-md-4"><label class="form-label">Label / 标签</label><input class="form-control" name="label" [(ngModel)]="draft.label" required maxlength="40"></div>

@@ -1,10 +1,10 @@
 <div class="row">
   <div class="col-sm-4"></div>
   <div class="col-sm-4">
-    <h2>User Login</h2>
+    <div class="d-flex justify-content-between"><h2>{{'loginTitle'|t}}</h2><button class="btn btn-outline-secondary" (click)="i18n.switch()">{{'language'|t}}</button></div>
     <div *ngIf="isFormSubmitted && !formLoginGroup.valid">
         <div class="alert alert-danger" role="alert">
-           Enter a valid email address and password.
+           {{'invalidLogin'|t}}
         </div>
     </div>
     <div *ngIf="isFormSubmitted && !isFormDataValid">
@@ -14,24 +14,24 @@
     </div>
     <form [formGroup]="formLoginGroup" (submit)="formOnSubmit()">
         <div class="mb-3">
-            <label for="exampleInputEmail1" class="form-label">Email address</label>
+            <label for="exampleInputEmail1" class="form-label">{{'email'|t}}</label>
             <input #refEmail type="email" class="form-control" id="exampleInputEmail1" aria-describedby="emailHelp" formControlName="email">
             <div id="emailHelp" class="form-text">We'll never share your email with anyone else.</div>
         </div>
         <div class="mb-3">
-            <label for="exampleInputPassword1" class="form-label">Password</label>
+            <label for="exampleInputPassword1" class="form-label">{{'password'|t}}</label>
             <input #refPassword type="password" class="form-control" id="exampleInputPassword1" formControlName="password">
         </div>
         <div class="mb-3 form-check">
             <input type="checkbox" class="form-check-input" id="exampleCheck1" formControlName="remember">
-            <label class="form-check-label" for="exampleCheck1">Keep me signed in for 14 days</label>
+            <label class="form-check-label" for="exampleCheck1">{{'remember'|t}}</label>
         </div>
         <button type="submit" class="btn btn-primary" [disabled]="isSubmitting">
-          {{ isSubmitting ? 'Signing in...' : 'Sign in' }}
+          {{ isSubmitting ? ('signingIn'|t) : ('signIn'|t) }}
         </button>
     </form>
     <div class="alert alert-info mt-3" role="note">
-      <strong>Demo accounts</strong><br>
+      <strong>{{'demoAccounts'|t}}</strong><br>
       Customer: demo@example.com<br>
       Merchant: merchant@example.com<br>
       Admin: admin@example.com<br>

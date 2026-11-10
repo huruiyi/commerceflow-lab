@@ -14,7 +14,7 @@ export class ApiService {
   }
 
   allProducts(): Observable<Product[]> {
-    return this.http.get<Product[]>('/api/products');
+    return this.http.get<Product[]>(`/api/products?lang=${encodeURIComponent(localStorage.getItem('education-locale')||'en')}`);
   }
 
   addOrder(productId: number, quantity: number): Observable<OrderList> {
