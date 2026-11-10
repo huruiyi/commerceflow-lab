@@ -45,6 +45,7 @@ export class ApiService {
   deleteAddress(id: number): Observable<void> { return this.http.delete<void>(`/api/addresses/${id}`); }
   checkout(): Observable<PurchaseOrder> { return this.http.post<PurchaseOrder>('/api/purchase-orders/checkout', {}); }
   purchaseOrders(): Observable<PurchaseOrder[]> { return this.http.get<PurchaseOrder[]>('/api/purchase-orders'); }
+  purchaseOrder(id:number): Observable<PurchaseOrder> { return this.http.get<PurchaseOrder>(`/api/purchase-orders/${id}`); }
   payOrder(id:number, idempotencyKey:string, simulateFailure=false, channel:PaymentChannel='ALIPAY'): Observable<PurchaseOrder> {
     return this.http.post<PurchaseOrder>(`/api/purchase-orders/${id}/payments`, {idempotencyKey, simulateFailure, channel});
   }
