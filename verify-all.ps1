@@ -28,6 +28,7 @@ foreach ($service in $expected) {
 }
 
 Invoke-ChapterVerification 'verify-i18n.ps1'
+Invoke-ChapterVerification 'verify-authorization.ps1'
 Invoke-ChapterVerification 'verify-payment-outcomes.ps1'
 Invoke-ChapterVerification 'verify-kafka-payment.ps1'
 Invoke-ChapterVerification 'verify-receipt-reviews.ps1'

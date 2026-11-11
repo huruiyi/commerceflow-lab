@@ -93,7 +93,7 @@ docker compose ps
 ./verify-all.ps1
 ```
 
-统一脚本会在 Docker 内构建并测试各应用，启动完整环境，验证认证与国际化、支付结果、Kafka、商家履约、收货评价、Redis 缓存及降级。支付平台的三渠道签名、重复 Nonce、金额篡改、TOTP、Step-up 和哈希链专项实验可单独执行 `./verify-payment.ps1`。
+统一脚本会在 Docker 内构建并测试各应用，启动完整环境，验证认证、CSRF、CUSTOMER/MERCHANT/ADMIN 权限边界、国际化、支付结果、Kafka、商家履约、收货评价、Redis 缓存及降级。权限矩阵可单独执行 `./verify-authorization.ps1`；支付平台的三渠道签名、重复 Nonce、金额篡改、TOTP、Step-up 和哈希链专项实验可单独执行 `./verify-payment.ps1`。
 
 本项目**没有 Spring Boot 启动时随机生成的默认密码**。三个演示账号由 Flyway 创建，密码以 BCrypt 哈希保存。Spring Security 的 `User` 是认证时从数据库记录转换出来的运行时对象，不是另一个内置账号。
 

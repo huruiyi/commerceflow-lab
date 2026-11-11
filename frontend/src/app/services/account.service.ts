@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, signal } from '@angular/core';
-import { finalize, map, Observable, switchMap, tap } from 'rxjs';
+import { catchError, finalize, map, Observable, of, switchMap, tap } from 'rxjs';
 import { LoginResponse, UserProfile } from '../../model/IUserLogin';
 
 const STORAGE_KEY = 'demo-user-profile';
@@ -43,6 +43,17 @@ export class AccountService {
     return this.loginControl() !== null;
   }
 
+  validateSession(): Observable<UserProfile | null> {
+    return this.http.get<UserProfile>('/api/auth/me').pipe(
+      tap(profile => this.saveValidatedProfile(profile)),
+      map(profile => profile as UserProfile | null),
+      catchError(() => {
+        this.clearLocalState();
+        return of(null);
+      })
+    );
+  }
+
   logout(): void {
     this.ensureCsrf().pipe(
       switchMap(() => this.http.post<void>('/api/auth/logout', {})),
@@ -66,6 +77,11 @@ export class AccountService {
       sessionStorage.setItem(STORAGE_KEY, serialized);
     }
     this.profileState.set(user);
+  }
+
+  private saveValidatedProfile(user: UserProfile): void {
+    const persistent = localStorage.getItem(STORAGE_KEY) !== null;
+    this.saveUserProfile(user, persistent);
   }
 
   private clearLocalState(): void {

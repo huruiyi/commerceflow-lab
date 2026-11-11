@@ -10,6 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.session.MapSessionRepository;
 import org.springframework.test.context.ActiveProfiles;
@@ -44,6 +45,7 @@ class EducationBackendIntegrationTest {
 
   @Autowired MockMvc mvc;
   @Autowired ObjectMapper json;
+  @Autowired JdbcTemplate jdbc;
 
   @Test
   void publicCatalogSupportsLocalesAndAuthenticationReturnsStableErrors() throws Exception {
@@ -95,6 +97,35 @@ class EducationBackendIntegrationTest {
     CsrfContext csrf = login("admin@example.com", false);
     mvc.perform(get("/api/users").session(csrf.session())).andExpect(status().isOk())
         .andExpect(jsonPath("$[0].email").isNotEmpty());
+  }
+
+  @Test
+  void customerCannotAccessAnotherCustomersCartAddressOrOrder() throws Exception {
+    Long ownerId = jdbc.queryForObject("SELECT id FROM app_users WHERE email='customer2@example.com'", Long.class);
+    jdbc.update("MERGE INTO carts(user_id,created_at,updated_at) KEY(user_id) VALUES(?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", ownerId);
+    Long cartId = jdbc.queryForObject("SELECT id FROM carts WHERE user_id=?", Long.class, ownerId);
+    jdbc.update("MERGE INTO cart_items(cart_id,product_id,quantity,created_at,updated_at) KEY(cart_id,product_id) VALUES(?,1,3,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", cartId);
+    Long cartItemId = jdbc.queryForObject("SELECT id FROM cart_items WHERE cart_id=? AND product_id=1", Long.class, cartId);
+    jdbc.update("INSERT INTO shipping_addresses(user_id,recipient_name,phone,country_code,state_province,city,district,address_line1,address_line2,postal_code,label,is_default,created_at,updated_at) VALUES(?,'Owner','13800000000','CN','Shanghai','Shanghai','Pudong','Owner Road','','200000','Home',TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", ownerId);
+    Long addressId = jdbc.queryForObject("SELECT MAX(id) FROM shipping_addresses WHERE user_id=?", Long.class, ownerId);
+    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,created_at,updated_at) VALUES('OWNER-ORDER',?,'PENDING_PAYMENT',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", ownerId);
+    Long orderId = jdbc.queryForObject("SELECT MAX(id) FROM shop_orders WHERE customer_id=?", Long.class, ownerId);
+
+    CsrfContext other = login("demo@example.com", false);
+    mvc.perform(put("/api/cart/items/{id}", cartItemId).session(other.session()).cookie(other.cookie())
+            .header("X-XSRF-TOKEN", other.token()).contentType("application/json").content("{\"quantity\":9}"))
+        .andExpect(status().isNotFound());
+    mvc.perform(put("/api/addresses/{id}", addressId).session(other.session()).cookie(other.cookie())
+            .header("X-XSRF-TOKEN", other.token()).contentType("application/json")
+            .content("{\"recipientName\":\"Attacker\",\"phone\":\"13900000000\",\"countryCode\":\"CN\",\"stateProvince\":\"Beijing\",\"city\":\"Beijing\",\"district\":\"Haidian\",\"addressLine1\":\"Changed\",\"addressLine2\":\"\",\"postalCode\":\"100000\",\"label\":\"Other\",\"isDefault\":false}"))
+        .andExpect(status().isNotFound());
+    mvc.perform(get("/api/purchase-orders/{id}", orderId).session(other.session()))
+        .andExpect(status().isNotFound());
+
+    org.junit.jupiter.api.Assertions.assertEquals(3,
+        jdbc.queryForObject("SELECT quantity FROM cart_items WHERE id=?", Integer.class, cartItemId));
+    org.junit.jupiter.api.Assertions.assertEquals("Owner",
+        jdbc.queryForObject("SELECT recipient_name FROM shipping_addresses WHERE id=?", String.class, addressId));
   }
 
   private CsrfContext login(String email, boolean rememberMe) throws Exception {

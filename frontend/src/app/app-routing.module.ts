@@ -13,11 +13,11 @@ import { MerchantOrdersComponent } from './merchant-orders/merchant-orders.compo
 const routes: Routes = [
   {path: '', component: LoginComponent},  //LoginGuard
   {path: 'dashboard', component: DashboardComponent, canActivate: [AuthGuard]},
-  {path: 'cart', component: OrderComponent, canActivate: [AuthGuard]},
-  {path: 'addresses', component: AddressesComponent, canActivate: [AuthGuard]},
-  {path: 'orders', component: PurchaseOrdersComponent, canActivate: [AuthGuard]},
-  {path: 'merchant/orders', component: MerchantOrdersComponent, canActivate: [AuthGuard]},
-  {path: 'users', component: UsersComponent, canActivate: [AuthGuard]},
+  {path: 'cart', component: OrderComponent, canActivate: [AuthGuard], data: {roles: ['CUSTOMER']}},
+  {path: 'addresses', component: AddressesComponent, canActivate: [AuthGuard], data: {roles: ['CUSTOMER']}},
+  {path: 'orders', component: PurchaseOrdersComponent, canActivate: [AuthGuard], data: {roles: ['CUSTOMER']}},
+  {path: 'merchant/orders', component: MerchantOrdersComponent, canActivate: [AuthGuard], data: {roles: ['MERCHANT']}},
+  {path: 'users', component: UsersComponent, canActivate: [AuthGuard], data: {roles: ['ADMIN']}},
   {path: '**', component: ErrorpageComponent}
 ];
 
