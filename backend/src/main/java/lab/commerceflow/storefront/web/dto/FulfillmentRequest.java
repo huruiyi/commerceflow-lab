@@ -1,0 +1,1 @@
+package lab.commerceflow.storefront.web.dto;import jakarta.validation.constraints.*;public record FulfillmentRequest(@NotBlank @Size(max=100)String carrier,@NotBlank @Size(max=120)String trackingNumber){}

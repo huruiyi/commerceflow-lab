@@ -47,5 +47,5 @@ export class PurchaseOrdersComponent implements OnInit {
     this.selectedChannels[order.id]=(order.payment?.channel as PaymentChannel)??'ALIPAY';this.draftKeys[order.id]=crypto.randomUUID();
   }
   private persist(orderId:number,attempt:PaymentAttempt):void{sessionStorage.setItem(this.storageKey(orderId),JSON.stringify(attempt));}
-  private storageKey(orderId:number):string{return `education-payment-attempt-${orderId}`;}
+  private storageKey(orderId:number):string{return `commerceflow-payment-attempt-${orderId}`;}
 }

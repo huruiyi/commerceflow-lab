@@ -1,4 +1,4 @@
-# education-angular-2022 分章节实施计划
+# CommerceFlow Lab / 全栈商城与支付流程实验室分章节实施计划
 
 ## 1. 项目定位
 
@@ -87,7 +87,7 @@ review, persistent_login
 - [x] Angular 前端、Spring Boot 2.6.15 后端、MySQL Docker 化。
 - [x] 基础登录、商品展示、数量调整和订单列表。
 - [x] 后端测试、前端构建与测试、Docker 和浏览器验证。
-- 提交：`6a2394d feat: add Dockerized full-stack education demo`
+- 历史提交：`6a2394d feat: add Dockerized full-stack demo`
 
 ### 第 01 章：升级基础平台和数据访问层（已完成）
 

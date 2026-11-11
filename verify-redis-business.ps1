@@ -1,7 +1,7 @@
 param([string]$BaseUrl='http://localhost:14200')
-$ErrorActionPreference='Stop';$key='education:catalog:products:v1:en';docker compose exec -T redis redis-cli DEL $key|Out-Null
+$ErrorActionPreference='Stop';$key='commerceflow:catalog:products:v1:en';docker compose exec -T redis redis-cli DEL $key|Out-Null
 $first=Invoke-RestMethod "$BaseUrl/api/products";if(-not$first){throw 'Product database fallback returned no data'};$exists=docker compose exec -T redis redis-cli EXISTS $key;$ttl=[int](docker compose exec -T redis redis-cli TTL $key);if($exists-ne'1'-or$ttl-lt1-or$ttl-gt300){throw "Product cache missing or TTL invalid: exists=$exists ttl=$ttl"}
-& "$PSScriptRoot/verify-payment-notifications.ps1" -BaseUrl $BaseUrl;if(-not$?){throw 'Payment flow failed'};$idem=[int](docker compose exec -T redis redis-cli --scan --pattern 'education:idempotency:payment:*'|Measure-Object).Count;if($idem-lt1){throw 'Payment idempotency acceleration key missing'}
+& "$PSScriptRoot/verify-payment-notifications.ps1" -BaseUrl $BaseUrl;if(-not$?){throw 'Payment flow failed'};$idem=[int](docker compose exec -T redis redis-cli --scan --pattern 'commerceflow:idempotency:payment:*'|Measure-Object).Count;if($idem-lt1){throw 'Payment idempotency acceleration key missing'}
 try{docker compose stop redis|Out-Null;$fallback=Invoke-RestMethod "$BaseUrl/api/products" -TimeoutSec 15;if(-not$fallback){throw 'Product fallback failed while Redis was down'}}finally{docker compose start redis|Out-Null}
 $deadline=(Get-Date).AddSeconds(30);do{Start-Sleep 1;$ping=docker compose exec -T redis redis-cli ping 2>$null}while($ping-ne'PONG'-and(Get-Date)-lt$deadline);if($ping-ne'PONG'){throw 'Redis did not recover'}
 Write-Host "Chapter 08 verification passed: cache TTL=$ttl, idempotency keys=$idem, MySQL fallback during Redis outage=true" -ForegroundColor Green

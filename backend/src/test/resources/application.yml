@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:education;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    url: jdbc:h2:mem:commerceflow;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     username: sa
     password:
     driver-class-name: org.h2.Driver
@@ -23,10 +23,10 @@ mybatis-plus:
 
 security:
   remember-me:
-    key: education-test-remember-me-key
+    key: commerceflow-test-remember-me-key
     validity-seconds: 1209600
 
-education:
+commerceflow:
   outbox:
     initial-delay: 3600000
   reconciliation:

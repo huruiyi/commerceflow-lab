@@ -7,8 +7,8 @@ foreach ($required in @('payment-events','order-events','payment-callback-events
 }
 $deadline = (Get-Date).AddSeconds(40)
 do {
-  $row = docker compose exec -T mysql mysql -N -ueducation -peducation-password education_demo -e "SELECT CONCAT(status,':',attempts) FROM payment_outbox ORDER BY id DESC LIMIT 1" 2>$null
-  $consumed = docker compose exec -T mysql mysql -N -ueducation -peducation-password education_demo -e "SELECT COUNT(*) FROM kafka_consumed_event" 2>$null
+  $row = docker compose exec -T mysql mysql -N -ucommerceflow -pcommerceflow-password commerceflow -e "SELECT CONCAT(status,':',attempts) FROM payment_outbox ORDER BY id DESC LIMIT 1" 2>$null
+  $consumed = docker compose exec -T mysql mysql -N -ucommerceflow -pcommerceflow-password commerceflow -e "SELECT COUNT(*) FROM kafka_consumed_event" 2>$null
   if ($row -match '^PUBLISHED:' -and [int]$consumed -gt 0) { break }
   Start-Sleep -Seconds 2
 } while ((Get-Date) -lt $deadline)

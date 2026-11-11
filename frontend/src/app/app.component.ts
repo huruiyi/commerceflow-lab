@@ -8,7 +8,7 @@ import { AccountService } from './services/account.service';
   styleUrls: ['./app.component.css']
 })
 export class AppComponent {
-  title = 'project';
+  title = 'CommerceFlow Lab';
   private readonly accountService = inject(AccountService);
   readonly userProfile = this.accountService.userProfile;
 }

@@ -20,9 +20,9 @@ describe('AppComponent', () => {
     expect(app).toBeTruthy();
   });
 
-  it(`should have as title 'project'`, () => {
+  it(`should have CommerceFlow Lab as title`, () => {
     const fixture = TestBed.createComponent(AppComponent);
     const app = fixture.componentInstance;
-    expect(app.title).toEqual('project');
+    expect(app.title).toEqual('CommerceFlow Lab');
   });
 });

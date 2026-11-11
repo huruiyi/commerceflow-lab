@@ -1,11 +1,11 @@
-name: tanerinal-angular-education
+name: commerceflow
 services:
   mysql:
     image: mysql:8.4
     environment:
-      MYSQL_DATABASE: education_demo
-      MYSQL_USER: ${DATABASE_USERNAME:-education}
-      MYSQL_PASSWORD: ${DATABASE_PASSWORD:-education-password}
+      MYSQL_DATABASE: commerceflow
+      MYSQL_USER: ${DATABASE_USERNAME:-commerceflow}
+      MYSQL_PASSWORD: ${DATABASE_PASSWORD:-commerceflow-password}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
     volumes:
       - mysql-data:/var/lib/mysql
@@ -56,7 +56,7 @@ services:
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     environment:
-      KAFKA_CLUSTERS_0_NAME: education
+      KAFKA_CLUSTERS_0_NAME: commerceflow
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
     ports:
       - "14202:8080"
@@ -81,7 +81,7 @@ services:
     ports: ["13000:3000"]
     environment:
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: education-grafana
+      GF_SECURITY_ADMIN_PASSWORD: commerceflow-grafana
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on: [prometheus]
@@ -155,10 +155,10 @@ services:
     build:
       context: ./backend
     environment:
-      DATABASE_URL: jdbc:mysql://mysql:3306/education_demo?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      DATABASE_USERNAME: ${DATABASE_USERNAME:-education}
-      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-education-password}
-      REMEMBER_ME_KEY: ${REMEMBER_ME_KEY:-education-demo-remember-me-key-change-in-production}
+      DATABASE_URL: jdbc:mysql://mysql:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-commerceflow}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-commerceflow-password}
+      REMEMBER_ME_KEY: ${REMEMBER_ME_KEY:-commerceflow-demo-remember-me-key-change-in-production}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       PAYMENT_PLATFORM_BASE_URL: http://mock-payment-service:8080

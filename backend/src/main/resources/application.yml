@@ -1,10 +1,10 @@
 spring:
   application:
-    name: education-backend
+    name: commerceflow-backend
   datasource:
-    url: ${DATABASE_URL:jdbc:mysql://localhost:3306/education_demo?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
-    username: ${DATABASE_USERNAME:education}
-    password: ${DATABASE_PASSWORD:education-password}
+    url: ${DATABASE_URL:jdbc:mysql://localhost:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${DATABASE_USERNAME:commerceflow}
+    password: ${DATABASE_PASSWORD:commerceflow-password}
   flyway:
     baseline-on-migrate: true
     baseline-version: 0
@@ -16,7 +16,7 @@ spring:
   session:
     store-type: redis
     redis:
-      namespace: education:session
+      namespace: commerceflow:session
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
@@ -55,10 +55,10 @@ mybatis-plus:
 
 security:
   remember-me:
-    key: ${REMEMBER_ME_KEY:education-demo-remember-me-key-change-in-production}
+    key: ${REMEMBER_ME_KEY:commerceflow-demo-remember-me-key-change-in-production}
     validity-seconds: ${REMEMBER_ME_VALIDITY_SECONDS:1209600}
 
-education:
+commerceflow:
   payment-platform:
     base-url: ${PAYMENT_PLATFORM_BASE_URL:http://localhost:18082}
     callback-secret: ${PAYMENT_CALLBACK_SECRET:demo-platform-callback-secret}

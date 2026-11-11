@@ -22,7 +22,7 @@ async function logout() {
   <router-view v-if="publicPage" />
   <div v-else class="app-shell">
     <aside class="sidebar">
-      <div class="brand"><span class="brand-mark">M</span><div><strong>MockPay</strong><small>支付平台实验室</small></div></div>
+      <div class="brand"><span class="brand-mark">C</span><div><strong>CommerceFlow Pay</strong><small>商流支付实验室</small></div></div>
       <nav>
         <router-link to="/">◈ 控制台</router-link>
         <router-link v-if="can('MERCHANT_MANAGE')" to="/merchants">▣ 商户与凭据</router-link>

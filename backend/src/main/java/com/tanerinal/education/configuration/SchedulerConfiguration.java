@@ -1,3 +1,0 @@
-package com.tanerinal.education.configuration;
-import javax.sql.DataSource;import net.javacrumbs.shedlock.core.LockProvider;import net.javacrumbs.shedlock.provider.jdbctemplate.JdbcTemplateLockProvider;import net.javacrumbs.shedlock.spring.annotation.EnableSchedulerLock;import org.springframework.context.annotation.*;import org.springframework.jdbc.core.JdbcTemplate;
-@Configuration @EnableSchedulerLock(defaultLockAtMostFor="PT5M") public class SchedulerConfiguration{@Bean LockProvider lockProvider(DataSource dataSource){return new JdbcTemplateLockProvider(JdbcTemplateLockProvider.Configuration.builder().withJdbcTemplate(new JdbcTemplate(dataSource)).usingDbTime().build());}}

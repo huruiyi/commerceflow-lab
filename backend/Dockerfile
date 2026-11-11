@@ -1,9 +1,8 @@
 FROM maven:3.9.11-eclipse-temurin-21-alpine AS build
 WORKDIR /workspace
 COPY pom.xml ./
-RUN mvn -q -DskipTests dependency:go-offline
 COPY src src
-RUN mvn -q package
+RUN --mount=type=cache,target=/root/.m2 mvn package
 
 FROM eclipse-temurin:21-jre-alpine
 RUN addgroup -S spring && adduser -S spring -G spring

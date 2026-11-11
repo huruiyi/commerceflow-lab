@@ -3,7 +3,7 @@ import { Injectable, signal } from '@angular/core';
 export type Locale = 'en' | 'zh-CN';
 
 const en: Record<string, string> = {
-  brand: 'Education Store', products: 'Products', cart: 'Cart', addresses: 'Addresses', orders: 'My Orders',
+  brand: 'CommerceFlow Lab', products: 'Products', cart: 'Cart', addresses: 'Addresses', orders: 'My Orders',
   fulfillment: 'Fulfillment', users: 'Users', logout: 'Logout', account: 'Account', search: 'Search',
   language: '中文', toggleNavigation: 'Toggle navigation', searchProducts: 'Search products', searchResults: '{count} matching products', noSearchResults: 'No products match your search.', clearSearch: 'Clear search',
   loginTitle: 'User Login', email: 'Email address', password: 'Password', emailPrivacy: "We'll never share your email with anyone else.",
@@ -50,7 +50,7 @@ const en: Record<string, string> = {
 };
 
 const zh: Record<string, string> = {
-  brand: '教学商城', products: '商品', cart: '购物车', addresses: '收货地址', orders: '我的订单', fulfillment: '商家履约', users: '用户',
+  brand: '商流实验室', products: '商品', cart: '购物车', addresses: '收货地址', orders: '我的订单', fulfillment: '商家履约', users: '用户',
   logout: '退出登录', account: '账户', search: '搜索', language: 'English', toggleNavigation: '展开或收起导航', searchProducts: '搜索商品', searchResults: '找到 {count} 件商品', noSearchResults: '没有找到匹配的商品。', clearSearch: '清除搜索',
   loginTitle: '用户登录', email: '邮箱', password: '密码', emailPrivacy: '我们不会向任何人泄露你的邮箱。', remember: '记住登录 14 天',
   signIn: '登录', signingIn: '正在登录…', invalidLogin: '请输入有效的邮箱和密码。', loginRateLimited: '失败次数过多，请等待五分钟后重试。',
@@ -88,7 +88,7 @@ const zh: Record<string, string> = {
 
 @Injectable({ providedIn: 'root' })
 export class I18nService {
-  private state = signal<Locale>((localStorage.getItem('education-locale') as Locale) || 'en');
+  private state = signal<Locale>((localStorage.getItem('commerceflow-locale') as Locale) || 'en');
   readonly locale = this.state.asReadonly();
 
   t(key: string, params?: Record<string, string | number>): string {
@@ -99,7 +99,7 @@ export class I18nService {
 
   switch(): void {
     const next = this.state() === 'en' ? 'zh-CN' : 'en';
-    localStorage.setItem('education-locale', next);
+    localStorage.setItem('commerceflow-locale', next);
     this.state.set(next);
     window.location.reload();
   }

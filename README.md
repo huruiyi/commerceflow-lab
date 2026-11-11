@@ -1,6 +1,17 @@
-# education-angular-2022
+# CommerceFlow Lab / 全栈商城与支付流程实验室
 
 这是一个可独立运行的前后端分离教学项目，已将原 Angular Demo 中的登录、商品、订单和用户功能改为本地 Spring Boot + MySQL 实现，不再依赖外部 JsonBulut API。
+
+## 项目标识 / Project identity
+
+| 用途 | 标识 |
+|---|---|
+| 英文标题 | `CommerceFlow Lab` |
+| 中文标题 | `全栈商城与支付流程实验室` |
+| GitHub 仓库 | `commerceflow-lab` |
+| Docker Compose 项目前缀 | `commerceflow` |
+| 商城后端 Maven artifactId | `commerceflow-backend` |
+| Java 命名空间 | `lab.commerceflow.storefront` / `lab.commerceflow.payment` |
 
 ## 技术架构
 

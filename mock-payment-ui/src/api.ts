@@ -25,10 +25,10 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   return body as T
 }
 
-export function saveStepUpToken(token: string) { sessionStorage.setItem('mockpay-step-up', token) }
+export function saveStepUpToken(token: string) { sessionStorage.setItem('commerceflow-pay-step-up', token) }
 export function takeStepUpToken() {
-  const token = sessionStorage.getItem('mockpay-step-up') || ''
-  sessionStorage.removeItem('mockpay-step-up')
+  const token = sessionStorage.getItem('commerceflow-pay-step-up') || ''
+  sessionStorage.removeItem('commerceflow-pay-step-up')
   return token
 }
 

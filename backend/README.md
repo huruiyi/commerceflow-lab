@@ -123,9 +123,9 @@ docker compose up --build -d --wait
 需要 Java 21、Maven、MySQL 和 Redis：
 
 ```powershell
-$env:DATABASE_URL = 'jdbc:mysql://localhost:3306/education_demo?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC'
-$env:DATABASE_USERNAME = 'education'
-$env:DATABASE_PASSWORD = 'education-password'
+$env:DATABASE_URL = 'jdbc:mysql://localhost:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC'
+$env:DATABASE_USERNAME = 'commerceflow'
+$env:DATABASE_PASSWORD = 'commerceflow-password'
 $env:REDIS_HOST = 'localhost'
 $env:REDIS_PORT = '6379'
 mvn spring-boot:run

@@ -7,7 +7,7 @@ const merchants = ref<Merchant[]>([])
 const showCreate = ref(false)
 const issued = ref<IssuedCredential | null>(null)
 const error = ref('')
-const form = ref({ displayName: 'Education Store', notifyUrl: 'http://backend:8080/api/payment/notifications', signingAlgorithm: 'HMAC_SHA256', merchantPublicKey: '' })
+const form = ref({ displayName: 'CommerceFlow Lab', notifyUrl: 'http://backend:8080/api/payment/notifications', signingAlgorithm: 'HMAC_SHA256', merchantPublicKey: '' })
 const load = async () => merchants.value = await api('/api/admin/merchants')
 onMounted(load)
 
@@ -31,7 +31,7 @@ async function toggle(item: Merchant) {
 async function downloadPublicKey() {
   const text = await api<string>('/api/admin/merchants/platform-public-key')
   const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }))
-  const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'mockpay-platform-public.pem'; anchor.click(); URL.revokeObjectURL(url)
+  const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'commerceflow-pay-platform-public.pem'; anchor.click(); URL.revokeObjectURL(url)
 }
 async function copySecret() {
   if (issued.value) await window.navigator.clipboard.writeText(issued.value.appSecret)

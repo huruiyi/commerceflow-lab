@@ -1,0 +1,1 @@
+package lab.commerceflow.storefront.web.dto;import lab.commerceflow.storefront.domain.*;import java.math.BigDecimal;import java.time.Instant;import java.util.List;public record MerchantOrderResponse(Long id,String orderNumber,String status,BigDecimal totalAmount,String currency,Instant createdAt,List<ShopOrderResponse.Item> items,ShopOrderResponse.Address address){}

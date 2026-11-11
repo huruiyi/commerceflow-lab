@@ -26,7 +26,7 @@ docker compose ps
 docker compose --profile observability up --build -d --wait
 ```
 
-Prometheus 为 `http://localhost:19090`，Grafana 为 `http://localhost:13000`，Grafana 演示账号 `admin` / `education-grafana`。
+Prometheus 为 `http://localhost:19090`，Grafana 为 `http://localhost:13000`，Grafana 演示账号 `admin` / `commerceflow-grafana`。
 
 ## 三节点 Kafka 与双后端实验
 
@@ -49,7 +49,7 @@ docker compose -f compose.yaml -f compose.ha.yaml --profile observability up --b
 ## 可观测与故障处理
 
 - `/actuator/prometheus` 提供 JVM、HTTP、Resilience4j 和对账指标。
-- `education_payment_reconciliation_detected_total` 记录发现的超时异常，`education_payment_reconciliation_open` 表示未处理数量。
+- `commerceflow_payment_reconciliation_detected_total` 记录发现的超时异常，`commerceflow_payment_reconciliation_open` 表示未处理数量。
 - 支付平台暂时不可用时，有限重试后熔断，调用者得到明确错误；不要无限重试同一非幂等请求。
 - Kafka 不可用时，回调事务仍保存 Outbox；发布器定时重试，数据库仍是事实来源。
 - 定时对账由数据库 ShedLock 互斥，多后端实例不会重复执行同一轮任务。

@@ -33,7 +33,7 @@ function useAccount(value: string) { username.value = value; password.value = 'd
 <template>
   <div class="login-page">
     <section class="login-story">
-      <div class="brand light"><span class="brand-mark">M</span><div><strong>MockPay</strong><small>PAYMENT INFRASTRUCTURE LAB</small></div></div>
+      <div class="brand light"><span class="brand-mark">C</span><div><strong>CommerceFlow Pay</strong><small>商流支付基础设施实验室</small></div></div>
       <div class="story-copy"><span class="eyebrow">05A-2 · 独立支付平台</span><h1>看懂一笔支付，<br><em>从凭据到渠道交易。</em></h1><p>独立数据库、Redis Session、三渠道适配器与最小权限后台。所有操作仅发生在本地教学环境。</p></div>
       <div class="story-grid"><div><b>3</b><span>模拟渠道</span></div><div><b>AES-GCM</b><span>凭据加密</span></div><div><b>RBAC</b><span>最小权限</span></div></div>
     </section>

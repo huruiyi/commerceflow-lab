@@ -17,9 +17,9 @@ CREATE TABLE payment_merchant_accounts (
 INSERT INTO payment_merchant_accounts
   (channel, merchant_no, app_id, display_name, signing_algorithm, api_secret)
 VALUES
-  ('ALIPAY', 'ALIPAY_MERCHANT_10001', '2026111000000001', 'Education Alipay Merchant', 'RSA_SHA256', 'demo-alipay-api-secret-not-for-production'),
-  ('WECHAT_PAY', '1900001001', 'wx202611100001', 'Education WeChat Pay Merchant', 'HMAC_SHA256', 'demo-wechat-api-secret-not-for-production'),
-  ('UNION_PAY', '898310000000001', 'UP202611100001', 'Education UnionPay Merchant', 'RSA_SHA256', 'demo-unionpay-api-secret-not-for-production');
+  ('ALIPAY', 'ALIPAY_MERCHANT_10001', '2026111000000001', 'CommerceFlow Alipay Merchant', 'RSA_SHA256', 'demo-alipay-api-secret-not-for-production'),
+  ('WECHAT_PAY', '1900001001', 'wx202611100001', 'CommerceFlow WeChat Pay Merchant', 'HMAC_SHA256', 'demo-wechat-api-secret-not-for-production'),
+  ('UNION_PAY', '898310000000001', 'UP202611100001', 'CommerceFlow UnionPay Merchant', 'RSA_SHA256', 'demo-unionpay-api-secret-not-for-production');
 
 ALTER TABLE payment_records ADD COLUMN merchant_account_id BIGINT NULL;
 ALTER TABLE payment_records ADD COLUMN channel VARCHAR(30) NOT NULL DEFAULT 'LEGACY_SIMULATED';
