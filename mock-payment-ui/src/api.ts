@@ -1,9 +1,11 @@
+import { t } from './i18n'
+
 let csrfToken = ''
 let csrfHeader = 'X-PAYMENT-XSRF-TOKEN'
 
 export async function initializeCsrf() {
   const response = await fetch('/api/auth/csrf', { credentials: 'include' })
-  if (!response.ok) throw new Error('无法初始化安全令牌')
+  if (!response.ok) throw new Error(t('csrfInitFailed'))
   const value = await response.json()
   csrfToken = value.token
   csrfHeader = value.headerName
@@ -21,7 +23,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   if (response.status === 204) return undefined as T
   const contentType = response.headers.get('content-type') || ''
   const body = contentType.includes('json') ? await response.json() : await response.text()
-  if (!response.ok) throw new Error(body?.message || body || `请求失败 (${response.status})`)
+  if (!response.ok) throw new Error(body?.message || body || t('requestFailed', { status: response.status }))
   return body as T
 }
 

@@ -12,6 +12,7 @@ import SecurityView from './views/SecurityView.vue'
 import type { Session } from './types'
 import { api } from './api'
 import './style.css'
+import './responsive.css'
 
 export const authState = reactive<{ session: Session | null; checked: boolean }>({ session: null, checked: false })
 

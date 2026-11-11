@@ -16,7 +16,7 @@
 </form>
 <div class="row g-3">
   <div class="col-md-6" *ngFor="let a of addresses"><div class="card h-100"><div class="card-body">
-    <h5>{{a.label}} <span *ngIf="a.isDefault" class="badge bg-primary">{{'default'|t}}</span> <span *ngIf="selectedAddressId===a.id" class="badge bg-success">{{'selected'|t}}</span></h5>
+    <h5 class="d-flex align-items-center flex-wrap gap-2"><span>{{a.label}}</span><span *ngIf="a.isDefault" class="badge bg-primary">{{'default'|t}}</span><span *ngIf="selectedAddressId===a.id" class="badge bg-success">{{'selected'|t}}</span></h5>
     <p>{{a.recipientName}} · {{a.phone}}<br>{{a.addressLine1}} {{a.addressLine2}}<br>{{a.district}}, {{a.city}}, {{a.stateProvince}}, {{a.countryCode}} {{a.postalCode}}</p>
     <button class="btn btn-sm btn-outline-primary me-1" (click)="edit(a)">{{'edit'|t}}</button><button class="btn btn-sm btn-outline-secondary me-1" (click)="makeDefault(a.id)" [disabled]="a.isDefault">{{'setDefault'|t}}</button><button class="btn btn-sm btn-outline-success me-1" (click)="select(a.id)">{{'useForCheckout'|t}}</button><button class="btn btn-sm btn-outline-danger" (click)="remove(a.id)">{{'delete'|t}}</button>
   </div></div></div>
