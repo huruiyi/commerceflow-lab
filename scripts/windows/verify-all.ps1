@@ -32,6 +32,7 @@ Invoke-ChapterVerification 'verify-i18n.ps1'
 Invoke-ChapterVerification 'verify-authorization.ps1'
 Invoke-ChapterVerification 'verify-payment-outcomes.ps1'
 Invoke-ChapterVerification 'verify-kafka-payment.ps1'
+Invoke-ChapterVerification 'verify-refunds.ps1'
 Invoke-ChapterVerification 'verify-receipt-reviews.ps1'
 Invoke-ChapterVerification 'verify-redis-business.ps1'
 
@@ -49,4 +50,4 @@ do {
 } while (-not $healthy -and (Get-Date) -lt $deadline)
 if (-not $healthy) { throw 'Final health check did not recover within 60 seconds' }
 
-Write-Host "`nComplete Docker acceptance passed: build, startup, auth, i18n, payment outcomes, Kafka, fulfillment, reviews, Redis fallback and health." -ForegroundColor Green
+Write-Host "`nComplete Docker acceptance passed: build, startup, auth, i18n, payment outcomes, Kafka, refunds, fulfillment, reviews, Redis fallback and health." -ForegroundColor Green

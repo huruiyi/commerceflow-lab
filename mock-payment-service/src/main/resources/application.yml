@@ -49,6 +49,7 @@ mybatis-plus:
 payment-platform:
   checkout-base-url: ${PAYMENT_CHECKOUT_BASE_URL:http://localhost:14201}
   callback-url: ${PAYMENT_CALLBACK_URL:http://localhost:18081/api/payment-notifications/callback}
+  refund-callback-url: ${REFUND_CALLBACK_URL:http://localhost:18081/api/refund-notifications/callback}
   callback-secret: ${PAYMENT_CALLBACK_SECRET:demo-platform-callback-secret}
   credential-master-key: ${PAYMENT_CREDENTIAL_MASTER_KEY:bG9jYWwtZGVtby1rZXktMTIzNDU2Nzg5MC1hYmNkZWY=}
   login:

@@ -28,6 +28,7 @@ async function logout() {
         <router-link to="/">◈ {{ t('dashboard') }}</router-link>
         <router-link v-if="can('MERCHANT_MANAGE')" to="/merchants">▣ {{ t('merchants') }}</router-link>
         <router-link v-if="can('TRANSACTION_READ')" to="/transactions">⇄ {{ t('transactions') }}</router-link>
+        <router-link v-if="can('REFUND_READ')" to="/refunds">↩ {{ t('refunds') }}</router-link>
         <router-link v-if="can('ADMIN_USER_MANAGE')" to="/users">♙ {{ t('users') }}</router-link>
         <router-link v-if="can('AUDIT_READ')" to="/audit">⌕ {{ t('audit') }}</router-link>
         <router-link to="/security">◈ {{ t('security') }}</router-link>

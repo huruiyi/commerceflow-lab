@@ -44,6 +44,22 @@ export interface Transaction {
   createdAt: string
 }
 
+export interface Refund {
+  channelRefundNo: string
+  merchantRefundNo: string
+  channelTransactionNo: string
+  channel: string
+  amount: number
+  currency: string
+  reasonCode: string
+  status: string
+  faultScenario: string
+  failureReason: string
+  succeededAt?: string
+  failedAt?: string
+  createdAt: string
+}
+
 export interface AdminUser {
   id: number
   username: string

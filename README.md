@@ -45,7 +45,7 @@
 5. 阅读支付 Outbox、Kafka 发布/消费和补偿任务，再进入独立的 `mock-payment-service`。
 6. 最后使用 `scripts/windows/` 或 `scripts/linux/` 中的验收脚本做成功、失败、幂等、越权和故障实验。
 
-分章目标和提交边界见 [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md)，接口索引见 [docs/API.md](docs/API.md)。
+文档统一从 [docs/README.md](docs/README.md) 进入：[已实现现状](docs/IMPLEMENTED.md) 只记录可验证事实，[统一代办](docs/TODO.md) 是订单生命周期、超时策略、模拟物流和页面补齐的唯一未实现清单，接口索引见 [docs/API.md](docs/API.md)。分章历史见 [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md)。
 
 ## 一键启动
 
@@ -158,6 +158,7 @@ bash ./scripts/linux/verify-all.sh --skip-build
 | `verify-payment-notifications` | 创建订单、发起待支付交易、模拟签名回调并拒绝伪造回调 | 商城 `14200` |
 | `verify-kafka-payment` | 支付回调、Kafka Topic、Outbox 发布和消费记录 | 商城 `14200` |
 | `verify-payment-outcomes` | 失败、余额不足、取消和超时四类支付结果 | 商城 `14200` |
+| `verify-refunds` | 全额退款、资金账一致性、请求/通知幂等、重复申请和伪造通知拒绝 | 商城 `14200` |
 | `verify-merchant-fulfillment` | 已支付订单的商家确认、发货及客户越权拒绝 | 商城 `14200` |
 | `verify-receipt-reviews` | 收货、一次性评价、评分校验及商品评分聚合 | 商城 `14200` |
 | `verify-redis-business` | 商品缓存 TTL、支付幂等键、Redis 停机时 MySQL 降级及恢复 | 商城 `14200` |
@@ -208,6 +209,7 @@ docker compose down
 - 客户收货地址 CRUD、唯一默认地址、中英文地址字段和结算地址选择。
 - 多商品结算、商品与地址快照、订单历史，以及支付宝/微信支付/银联选择、幂等键管理、请求重放和支付回执 UI。
 - 商家确认与发货、客户确认收货、一次性商品评价和评分聚合。
+- 未发货已支付订单原路全额退款：独立退款单、签名渠道退款、异步通知、请求/通知幂等、退款事件、Outbox、对账补偿，以及客户/商家/支付后台三端展示。
 - MyBatis-Plus 数据访问、Flyway 版本化结构/演示数据初始化。
 - Redis Session、登录限流、商品/评分缓存、支付幂等辅助键、MySQL 降级和健康检查。
 - 中英文运行时切换、商品翻译、稳定错误码和本地语言偏好。
@@ -232,7 +234,7 @@ Compose 中的数据库密码、商户号、App ID/Secret、RSA/HMAC 密钥和�
 详见 [前端说明](frontend/README.md) 和 [后端说明](backend/README.md)。
 
 高级三渠道模拟支付、Kafka、幂等、安全和高可用实验的设计与分章计划见
-[高级模拟支付实现方案](docs/ADVANCED-PAYMENT-PLAN.md)。
+[高级模拟支付架构与实现记录](docs/reference/ADVANCED-PAYMENT.md)。
 
 05A-5～05A-8 的 Kafka、三渠道收银台、HA、监控和故障实验见
-[可靠支付交付指南](docs/CHAPTER-05A-5-TO-8.md)。
+[可靠支付交付指南](docs/learning/CHAPTER-05A-5-TO-8.md)。

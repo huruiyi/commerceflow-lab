@@ -1,0 +1,23 @@
+CREATE TABLE channel_refund (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  channel_refund_no VARCHAR(100) NOT NULL,
+  merchant_id BIGINT NOT NULL,
+  merchant_refund_no VARCHAR(100) NOT NULL,
+  channel_transaction_no VARCHAR(80) NOT NULL,
+  amount DECIMAL(19,2) NOT NULL,
+  currency VARCHAR(3) NOT NULL,
+  reason_code VARCHAR(50) NOT NULL,
+  status VARCHAR(30) NOT NULL,
+  fault_scenario VARCHAR(40) NOT NULL DEFAULT 'NONE',
+  failure_reason VARCHAR(300) NOT NULL DEFAULT '',
+  succeeded_at TIMESTAMP(6) NULL,
+  failed_at TIMESTAMP(6) NULL,
+  created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (id),
+  CONSTRAINT uk_channel_refund_no UNIQUE (channel_refund_no),
+  CONSTRAINT uk_merchant_refund_no UNIQUE (merchant_id, merchant_refund_no),
+  CONSTRAINT fk_channel_refund_merchant FOREIGN KEY (merchant_id) REFERENCES payment_merchant(id),
+  CONSTRAINT fk_channel_refund_transaction FOREIGN KEY (channel_transaction_no) REFERENCES channel_transaction(channel_transaction_no),
+  CONSTRAINT chk_channel_refund_amount CHECK (amount > 0)
+);

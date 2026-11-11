@@ -27,10 +27,10 @@ for service in mysql redis kafka payment-mysql mock-payment-service payment-ui b
   grep -Fxq "$service" <<<"$services" || { echo "Required service is not running: $service" >&2; exit 1; }
 done
 
-for script in verify-i18n.sh verify-authorization.sh verify-payment-outcomes.sh verify-kafka-payment.sh verify-receipt-reviews.sh verify-redis-business.sh; do
+for script in verify-i18n.sh verify-authorization.sh verify-payment-outcomes.sh verify-kafka-payment.sh verify-refunds.sh verify-receipt-reviews.sh verify-redis-business.sh; do
   echo
   echo "==> $script"
-  "$SCRIPT_DIR/$script" "$BASE_URL"
+  bash "$SCRIPT_DIR/$script" "$BASE_URL"
 done
 
 deadline=$((SECONDS + 60)); healthy=false
@@ -44,4 +44,4 @@ while ((SECONDS < deadline)); do
 done
 [[ "$healthy" == true ]] || { echo 'Final health check did not recover within 60 seconds' >&2; exit 1; }
 echo
-echo 'Complete Docker acceptance passed: build, startup, auth, i18n, payment outcomes, Kafka, fulfillment, reviews, Redis fallback and health.'
+echo 'Complete Docker acceptance passed: build, startup, auth, i18n, payment outcomes, Kafka, refunds, fulfillment, reviews, Redis fallback and health.'

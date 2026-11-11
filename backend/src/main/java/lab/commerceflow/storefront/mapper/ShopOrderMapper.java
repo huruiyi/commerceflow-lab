@@ -36,6 +36,7 @@ public interface ShopOrderMapper {
   @Select("SELECT * FROM shop_orders WHERE id=#{id} AND customer_id=#{customerId} FOR UPDATE") Optional<ShopOrderView> lock(@Param("customerId")Long customerId,@Param("id")Long id);
   @Select("SELECT * FROM order_items WHERE order_id=#{orderId} ORDER BY id") List<OrderItemView> items(Long orderId);
   @Select("SELECT * FROM order_shipping_addresses WHERE order_id=#{orderId}") OrderAddressView address(Long orderId);
+  @Select("SELECT id,event_type,from_status,to_status,detail,created_at FROM order_events WHERE order_id=#{orderId} ORDER BY created_at,id") List<OrderEventView> events(Long orderId);
 
   @Select("SELECT * FROM payment_merchant_accounts WHERE channel=#{channel} AND enabled=TRUE")
   Optional<PaymentMerchantAccount> merchantAccount(PaymentChannel channel);

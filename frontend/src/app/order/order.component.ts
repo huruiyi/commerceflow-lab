@@ -1,4 +1,5 @@
-import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { OrderList } from 'src/model/IOrderList';
 import { ApiService } from '../services/api.service';
 import { SeoService } from '../services/seo.service';
@@ -21,11 +22,18 @@ export class OrderComponent implements OnInit {
 
 
   constructor(private api: ApiService, private seoService: SeoService, private router: Router,
-              private changeDetector: ChangeDetectorRef, private i18n: I18nService) {
+              private changeDetector: ChangeDetectorRef, private i18n: I18nService, private destroyRef: DestroyRef) {
     seoService.setTitle(i18n.t('shoppingCart'))
     seoService.setMeta(i18n.t('shoppingCart'))
+  }
 
-    forkJoin({orders: api.getOrders(), products: api.allProducts()}).subscribe({
+  ngOnInit(): void {
+    this.loadCart()
+    this.i18n.localeChanged.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.loadCart())
+  }
+
+  private loadCart(): void {
+    forkJoin({orders: this.api.getOrders(), products: this.api.allProducts()}).subscribe({
         next: ({orders, products}) => {
           const names = new Map(products.map(product => [product.id, product.name]))
           this.customerOrders = orders.map(order => ({...order, productName: names.get(order.productId) ?? order.productName}))
@@ -35,9 +43,6 @@ export class OrderComponent implements OnInit {
           console.log(err)
         },
       })
-  }
-
-  ngOnInit(): void {
   }
 
   changeQuantity(order: OrderList, quantity: number): void {

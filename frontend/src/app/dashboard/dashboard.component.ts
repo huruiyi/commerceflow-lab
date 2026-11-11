@@ -1,4 +1,5 @@
-import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Product } from 'src/model/IProduct';
 import { ApiService } from '../services/api.service';
@@ -21,23 +22,14 @@ export class DashboardComponent implements OnInit {
   selectedQuantity = 1
 
   constructor(private api: ApiService, private router: Router, private route: ActivatedRoute, private seoService: SeoService,
-              private changeDetector: ChangeDetectorRef, public i18n: I18nService) {
+              private changeDetector: ChangeDetectorRef, public i18n: I18nService, private destroyRef: DestroyRef) {
     seoService.setTitle("Product List")
     seoService.setMeta("The page that lists products...")
-
-    api.allProducts().subscribe({
-      next: value => {
-        this.allProducts = value
-        this.applySearch()
-        this.changeDetector.markForCheck()
-      },
-      error: err => {
-        console.log(err)
-      },
-    })
   }
 
   ngOnInit(): void {
+    this.loadProducts()
+    this.i18n.localeChanged.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.loadProducts())
     this.route.queryParamMap.subscribe(params => {
       this.searchQuery = (params.get('q') || '').trim()
       this.applySearch()
@@ -46,6 +38,17 @@ export class DashboardComponent implements OnInit {
   }
 
   clearSearch(): void { void this.router.navigate(['/dashboard']) }
+
+  private loadProducts(): void {
+    this.api.allProducts().subscribe({
+      next: value => {
+        this.allProducts = value
+        this.applySearch()
+        this.changeDetector.markForCheck()
+      },
+      error: err => console.log(err),
+    })
+  }
 
   private applySearch(): void {
     const query = this.searchQuery.toLocaleLowerCase()

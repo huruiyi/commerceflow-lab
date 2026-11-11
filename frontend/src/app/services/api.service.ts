@@ -6,7 +6,7 @@ import { OrderList } from 'src/model/IOrderList';
 import { Product } from 'src/model/IProduct';
 import { IUser } from 'src/model/IUser';
 import { ShippingAddress, ShippingAddressRequest } from 'src/model/IShippingAddress';
-import { PaymentChannel, PurchaseOrder } from 'src/model/IPurchaseOrder';
+import { OrderRefund, PaymentChannel, PurchaseOrder } from 'src/model/IPurchaseOrder';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -52,6 +52,8 @@ export class ApiService {
   merchantOrders():Observable<PurchaseOrder[]>{return this.http.get<PurchaseOrder[]>('/api/merchant/orders');}
   confirmMerchantOrder(id:number):Observable<PurchaseOrder>{return this.http.post<PurchaseOrder>(`/api/merchant/orders/${id}/confirm`,{});}
   shipMerchantOrder(id:number,carrier:string,trackingNumber:string):Observable<PurchaseOrder>{return this.http.post<PurchaseOrder>(`/api/merchant/orders/${id}/ship`,{carrier,trackingNumber});}
+  updateMerchantShipment(id:number,carrier:string,trackingNumber:string):Observable<PurchaseOrder>{return this.http.put<PurchaseOrder>(`/api/merchant/orders/${id}/shipment`,{carrier,trackingNumber});}
   receiveOrder(id:number):Observable<PurchaseOrder>{return this.http.post<PurchaseOrder>(`/api/purchase-orders/${id}/receive`,{});}
   reviewOrderItem(id:number,rating:number,comment:string):Observable<unknown>{return this.http.post(`/api/order-items/${id}/reviews`,{rating,comment});}
+  requestRefund(id:number,idempotencyKey:string,reasonCode:string,reasonDetail:string):Observable<OrderRefund>{return this.http.post<OrderRefund>(`/api/purchase-orders/${id}/refunds`,{idempotencyKey,reasonCode,reasonDetail});}
 }

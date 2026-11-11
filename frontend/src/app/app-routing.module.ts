@@ -9,6 +9,7 @@ import { UsersComponent } from './users/users.component';
 import { AddressesComponent } from './addresses/addresses.component';
 import { PurchaseOrdersComponent } from './purchase-orders/purchase-orders.component';
 import { MerchantOrdersComponent } from './merchant-orders/merchant-orders.component';
+import { ProfileComponent } from './profile/profile.component';
 
 const routes: Routes = [
   {path: '', component: LoginComponent},  //LoginGuard
@@ -17,6 +18,7 @@ const routes: Routes = [
   {path: 'addresses', component: AddressesComponent, canActivate: [AuthGuard], data: {roles: ['CUSTOMER']}},
   {path: 'orders', component: PurchaseOrdersComponent, canActivate: [AuthGuard], data: {roles: ['CUSTOMER']}},
   {path: 'merchant/orders', component: MerchantOrdersComponent, canActivate: [AuthGuard], data: {roles: ['MERCHANT']}},
+  {path: 'profile', component: ProfileComponent, canActivate: [AuthGuard]},
   {path: 'users', component: UsersComponent, canActivate: [AuthGuard], data: {roles: ['ADMIN']}},
   {path: '**', component: ErrorpageComponent}
 ];

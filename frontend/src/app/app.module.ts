@@ -19,6 +19,7 @@ import { UseritemComponent } from './inc/useritem/useritem.component';
 import { AddressesComponent } from './addresses/addresses.component';
 import { PurchaseOrdersComponent } from './purchase-orders/purchase-orders.component';
 import { MerchantOrdersComponent } from './merchant-orders/merchant-orders.component';
+import { ProfileComponent } from './profile/profile.component';
 import { TranslatePipe } from './pipes/translate.pipe';
 
 @NgModule({
@@ -37,6 +38,7 @@ import { TranslatePipe } from './pipes/translate.pipe';
     AddressesComponent,
     PurchaseOrdersComponent,
     MerchantOrdersComponent,
+    ProfileComponent,
     TranslatePipe
   ],
   imports: [

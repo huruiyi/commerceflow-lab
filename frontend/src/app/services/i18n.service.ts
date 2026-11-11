@@ -1,10 +1,14 @@
 import { Injectable, signal } from '@angular/core';
+import { Subject } from 'rxjs';
 
 export type Locale = 'en' | 'zh-CN';
 
 const en: Record<string, string> = {
   brand: 'CommerceFlow Lab', products: 'Products', cart: 'Cart', addresses: 'Addresses', orders: 'My Orders',
-  fulfillment: 'Fulfillment', users: 'Users', logout: 'Logout', account: 'Account', search: 'Search',
+  fulfillment: 'Fulfillment', users: 'Users', logout: 'Logout', account: 'Account', profile: 'Profile', search: 'Search',
+  accountOverview: 'Account overview', profileIntro: 'Review the identity and role used in this learning environment.', fullName: 'Full name', role: 'Role',
+  demoCustomerName: 'Demo Customer', demoMerchantName: 'Demo Merchant', demoAdminName: 'Demo Administrator',
+  CUSTOMER: 'Customer', MERCHANT: 'Merchant', ADMIN: 'Administrator', profileSecurity: 'This page is read-only because profile editing is not exposed by the demo backend.',
   language: '中文', toggleNavigation: 'Toggle navigation', searchProducts: 'Search products', searchResults: '{count} matching products', noSearchResults: 'No products match your search.', clearSearch: 'Clear search',
   loginTitle: 'User Login', email: 'Email address', password: 'Password', emailPrivacy: "We'll never share your email with anyone else.",
   learningEnvironment: 'LOCAL LEARNING ENVIRONMENT', loginWelcome: 'Learn the complete commerce flow', loginDescription: 'Explore authentication, catalog, checkout, payment, fulfillment, and reviews in one local lab.', secureLogin: 'Secure access', emailPlaceholder: 'name@example.com', passwordPlaceholder: 'Enter your password',
@@ -44,7 +48,9 @@ const en: Record<string, string> = {
   userList: 'User List', userDetails: 'Go to details', detailClicked: 'Detail clicked for user {id}',
   orderFulfillment: 'Order Fulfillment', fulfillmentChapter: 'CHAPTER 06 · MERCHANT', fulfillmentHelp: 'Confirm paid orders and record auditable shipment details.',
   confirmOrder: 'Confirm order', carrier: 'Carrier', tracking: 'Tracking number', markShipped: 'Mark shipped', noMerchantOrders: 'No merchant orders yet.', shipTo: 'Ship to',
-  orderConfirmed: 'Order {order} confirmed.', orderShipped: 'Order {order} shipped.',
+  orderConfirmed: 'Order {order} confirmed.', orderShipped: 'Order {order} shipped.', shipmentUpdated: 'Shipment for order {order} updated.', orderCopied: 'Order number {order} copied.', viewDetails: 'View details', hideDetails: 'Hide details', copyOrderNumber: 'Copy order number', prepareShipment: 'Enter shipping details', updateShipment: 'Edit shipment', saveShipment: 'Save shipment', fulfillmentTimeline: 'Order timeline', fulfillmentActions: 'Order actions',
+  ORDER_CREATED: 'Order created', PAYMENT_SUCCEEDED: 'Payment completed', MERCHANT_CONFIRMED: 'Merchant confirmed', ORDER_SHIPPED: 'Order shipped', SHIPMENT_UPDATED: 'Shipment updated', ORDER_RECEIVED: 'Order received',
+  requestRefund: 'Cancel and refund', refundConfirmTitle: 'Request a full refund?', refundConfirmHelp: 'Only unshipped paid orders can be refunded. Shipping is blocked while the signed channel result is pending.', refundReasonDetail: 'Additional reason (optional)', confirmRefund: 'Confirm refund', submittingRefund: 'Submitting…', refundProcessing: 'Refund {refund} is processing.', refundSucceeded: 'Refund {refund} completed.', refundFailed: 'Refund request failed.', latestRefund: 'LATEST REFUND', refundNumber: 'Refund number', channelRefundNumber: 'Channel refund number', refundReason: 'Reason', requestedAt: 'Requested', CUSTOMER_CANCELLED: 'Customer cancelled', ORDER_ERROR: 'Order information error', OTHER: 'Other', REQUESTED: 'Requested', PROCESSING: 'Processing', SUCCEEDED: 'Refunded', REFUNDING: 'Refunding', REFUNDED: 'Refunded', REFUND_REQUESTED: 'Refund requested', REFUND_SUCCEEDED: 'Refund succeeded', REFUND_FAILED: 'Refund failed', ORDER_REFUND_REQUESTED: 'Order refund requested', ORDER_REFUNDED: 'Order refunded', ORDER_REFUND_FAILED: 'Order refund failed',
   pageNotFound: 'Page not found', pageNotFoundDetail: 'The page you are looking for does not exist.', goHome: 'Go home',
   PENDING_PAYMENT: 'Pending payment', PAID: 'Paid', CONFIRMED: 'Confirmed', SHIPPED: 'Shipped', RECEIVED: 'Received',
   simulatedDecline: 'Simulated decline', PENDING: 'Pending', SUCCESS: 'Success', FAILED: 'Failed', CLOSED: 'Closed', EXPIRED: 'Expired'
@@ -52,7 +58,9 @@ const en: Record<string, string> = {
 
 const zh: Record<string, string> = {
   brand: '商流实验室', products: '商品', cart: '购物车', addresses: '收货地址', orders: '我的订单', fulfillment: '商家履约', users: '用户',
-  logout: '退出登录', account: '账户', search: '搜索', language: 'English', toggleNavigation: '展开或收起导航', searchProducts: '搜索商品', searchResults: '找到 {count} 件商品', noSearchResults: '没有找到匹配的商品。', clearSearch: '清除搜索',
+  logout: '退出登录', account: '账户', profile: '个人中心', search: '搜索', language: 'English', toggleNavigation: '展开或收起导航', searchProducts: '搜索商品', searchResults: '找到 {count} 件商品', noSearchResults: '没有找到匹配的商品。', clearSearch: '清除搜索',
+  accountOverview: '账户概览', profileIntro: '查看当前学习环境中使用的身份与角色。', fullName: '姓名', role: '角色',
+  demoCustomerName: '演示客户', demoMerchantName: '演示商家', demoAdminName: '演示管理员', CUSTOMER: '客户', MERCHANT: '商家', ADMIN: '管理员', profileSecurity: '当前演示后端未提供资料修改接口，因此个人中心暂为只读。',
   loginTitle: '用户登录', email: '邮箱', password: '密码', emailPrivacy: '我们不会向任何人泄露你的邮箱。', remember: '记住登录 14 天',
   learningEnvironment: '本地学习环境', loginWelcome: '学习完整商城业务流程', loginDescription: '在一个本地实验室中体验认证、商品、结算、支付、履约和评价。', secureLogin: '安全登录', emailPlaceholder: 'name@example.com', passwordPlaceholder: '输入密码',
   signIn: '登录', signingIn: '正在登录…', invalidLogin: '请输入有效的邮箱和密码。', loginRateLimited: '失败次数过多，请等待五分钟后重试。',
@@ -82,7 +90,9 @@ const zh: Record<string, string> = {
   alipay: '支付宝', wechatPay: '微信支付', unionPay: '银联支付', alipayDescription: '使用 RSA 签名商户请求的应用支付。', wechatDescription: '使用演示 API 密钥的二维码支付。', unionPayDescription: '使用模拟银联证书的网关支付。',
   userList: '用户列表', userDetails: '查看详情', detailClicked: '已点击用户 {id} 的详情', orderFulfillment: '订单履约', fulfillmentChapter: '第 06 章 · 商家',
   fulfillmentHelp: '确认已支付订单并记录可审计的物流信息。', confirmOrder: '确认订单', carrier: '承运商', tracking: '物流单号', markShipped: '确认发货',
-  noMerchantOrders: '暂无商家订单。', shipTo: '收货地址', orderConfirmed: '订单 {order} 已确认。', orderShipped: '订单 {order} 已发货。',
+  noMerchantOrders: '暂无商家订单。', shipTo: '收货地址', orderConfirmed: '订单 {order} 已确认。', orderShipped: '订单 {order} 已发货。', shipmentUpdated: '订单 {order} 的物流信息已更新。', orderCopied: '已复制订单号 {order}。', viewDetails: '查看详情', hideDetails: '收起详情', copyOrderNumber: '复制订单号', prepareShipment: '填写物流', updateShipment: '修改物流', saveShipment: '保存物流', fulfillmentTimeline: '订单进度', fulfillmentActions: '订单操作',
+  ORDER_CREATED: '订单已创建', PAYMENT_SUCCEEDED: '支付已完成', MERCHANT_CONFIRMED: '商家已确认', ORDER_SHIPPED: '订单已发货', SHIPMENT_UPDATED: '物流已修改', ORDER_RECEIVED: '订单已收货',
+  requestRefund: '取消并退款', refundConfirmTitle: '确认申请全额退款？', refundConfirmHelp: '仅未发货的已支付订单可以退款；等待支付渠道签名结果期间将禁止发货。', refundReasonDetail: '补充退款原因（选填）', confirmRefund: '确认退款', submittingRefund: '正在提交…', refundProcessing: '退款单 {refund} 正在处理中。', refundSucceeded: '退款单 {refund} 已完成。', refundFailed: '退款申请失败。', latestRefund: '最近退款', refundNumber: '退款单号', channelRefundNumber: '渠道退款号', refundReason: '退款原因', requestedAt: '申请时间', CUSTOMER_CANCELLED: '客户取消', ORDER_ERROR: '订单信息有误', OTHER: '其他原因', REQUESTED: '已申请', PROCESSING: '处理中', SUCCEEDED: '退款成功', REFUNDING: '退款处理中', REFUNDED: '已退款', REFUND_REQUESTED: '退款已申请', REFUND_SUCCEEDED: '退款成功', REFUND_FAILED: '退款失败', ORDER_REFUND_REQUESTED: '订单申请退款', ORDER_REFUNDED: '订单已退款', ORDER_REFUND_FAILED: '订单退款失败',
   pageNotFound: '页面不存在', pageNotFoundDetail: '你访问的页面不存在。', goHome: '返回首页',
   PENDING_PAYMENT: '待支付', PAID: '已支付', CONFIRMED: '已确认', SHIPPED: '已发货', RECEIVED: '已收货',
   simulatedDecline: '模拟支付被拒绝', PENDING: '处理中', SUCCESS: '成功', FAILED: '失败', CLOSED: '已关闭', EXPIRED: '已过期'
@@ -91,7 +101,13 @@ const zh: Record<string, string> = {
 @Injectable({ providedIn: 'root' })
 export class I18nService {
   private state = signal<Locale>((localStorage.getItem('commerceflow-locale') as Locale) || 'en');
+  private readonly changes = new Subject<Locale>();
   readonly locale = this.state.asReadonly();
+  readonly localeChanged = this.changes.asObservable();
+
+  constructor() {
+    document.documentElement.lang = this.state();
+  }
 
   t(key: string, params?: Record<string, string | number>): string {
     let value = (this.state() === 'zh-CN' ? zh : en)[key] || key;
@@ -103,6 +119,7 @@ export class I18nService {
     const next = this.state() === 'en' ? 'zh-CN' : 'en';
     localStorage.setItem('commerceflow-locale', next);
     this.state.set(next);
-    window.location.reload();
+    document.documentElement.lang = next;
+    this.changes.next(next);
   }
 }

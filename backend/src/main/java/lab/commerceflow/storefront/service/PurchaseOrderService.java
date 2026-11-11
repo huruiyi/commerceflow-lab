@@ -3,6 +3,7 @@ package lab.commerceflow.storefront.service;
 import lab.commerceflow.storefront.domain.*;
 import lab.commerceflow.storefront.mapper.CartMapper;
 import lab.commerceflow.storefront.mapper.ShopOrderMapper;
+import lab.commerceflow.storefront.mapper.RefundMapper;
 import lab.commerceflow.storefront.web.dto.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,8 +16,8 @@ import java.util.*;
 
 @Service
 public class PurchaseOrderService {
-  private final ShopOrderMapper orders; private final CartMapper carts;private final PaymentGatewayClient gateway;private final RedisIdempotencyService redisIdempotency;
-  public PurchaseOrderService(ShopOrderMapper orders, CartMapper carts,PaymentGatewayClient gateway,RedisIdempotencyService redisIdempotency){this.orders=orders;this.carts=carts;this.gateway=gateway;this.redisIdempotency=redisIdempotency;}
+  private final ShopOrderMapper orders; private final CartMapper carts;private final PaymentGatewayClient gateway;private final RedisIdempotencyService redisIdempotency;private final RefundMapper refunds;
+  public PurchaseOrderService(ShopOrderMapper orders, CartMapper carts,PaymentGatewayClient gateway,RedisIdempotencyService redisIdempotency,RefundMapper refunds){this.orders=orders;this.carts=carts;this.gateway=gateway;this.redisIdempotency=redisIdempotency;this.refunds=refunds;}
 
   @Transactional
   public ShopOrderResponse checkout(AppUser user) {
@@ -75,7 +76,8 @@ public class PurchaseOrderService {
   private ShopOrderResponse assemble(ShopOrderView o,PaymentView payment){
     List<ShopOrderResponse.Item> items=orders.items(o.getId()).stream().map(ShopOrderResponse.Item::from).toList();
     PaymentView resolved=payment!=null?payment:orders.latestPayment(o.getId()).orElse(null);
-    return new ShopOrderResponse(o.getId(),o.getOrderNumber(),o.getStatus(),o.getTotalAmount(),o.getCurrency(),o.getCreatedAt(),items,ShopOrderResponse.Address.from(orders.address(o.getId())),ShopOrderResponse.Payment.from(resolved));
+    RefundResponse refund=refunds.byOrder(o.getId()).map(value->RefundResponse.from(value,refunds.events(value.getId()))).orElse(null);
+    return new ShopOrderResponse(o.getId(),o.getOrderNumber(),o.getStatus(),o.getTotalAmount(),o.getCurrency(),o.getCreatedAt(),items,ShopOrderResponse.Address.from(orders.address(o.getId())),ShopOrderResponse.Payment.from(resolved),refund);
   }
   private String number(String prefix){return prefix+"-"+UUID.randomUUID().toString().replace("-","").substring(0,16).toUpperCase();}
 

@@ -229,6 +229,19 @@ review, persistent_login
 - 验收：新用户克隆后可依据文档完成三渠道支付及故障实验。
 - 计划提交：`docs: complete advanced payment learning guide`
 
+### 第 05B 章：已支付订单取消与退款（首版已完成）
+
+- [x] 核实当前 `REFUND` 只是支付后台权限名称，尚不存在退款业务模型。
+- [x] 定义未发货订单原路全额退款的首版范围、状态机、数据边界和完成标准。
+- [x] 新增独立退款单、退款事件、退款通知和渠道退款模型；原支付成功记录不可改写。
+- [x] 实现签名渠道退款、异步通知、幂等、Outbox 和通知补偿对账。
+- [x] 实现客户退款申请、商家只读退款进度和支付后台退款运营页面。
+- [x] Angular 与 Vue 同步完成中英文状态、原因、错误和时间线。
+- [x] 提供 Windows 与 Bash 同名验收脚本；Windows Docker 验收已通过，Bash 待 Linux/WSL 环境复验。
+- 安全边界：只修改订单状态不构成退款；`CANCELLED` 支付结果不能冒充已支付退款；已发货订单进入后续售后/逆向物流范围。
+- 详细设计与实施记录：[已支付订单取消与退款实现说明](docs/reference/REFUND.md)。
+- 计划提交：`feat: add idempotent asynchronous refund workflow`
+
 ### 第 06 章：商家确认与发货（已完成）
 
 - [x] 商家只看到包含自己商品的订单。
@@ -275,6 +288,21 @@ review, persistent_login
 - [x] 说明模拟支付与生产支付、演示密钥与生产密钥的边界。
 - 验收：干净克隆、空数据卷、无本机 Maven/Node 环境时仍可通过 Docker 完成主要业务流程。
 - 计划提交：`docs: complete learning and Docker delivery guide`
+
+### 第 11 章：订单生命周期、可插拔定时策略与模拟物流（规划中）
+
+- [ ] 补齐 `CANCELLING`、`CANCELLED`、`COMPLETED` 和关键时间字段。
+- [ ] 实现客户主动取消、订单支付截止和超时自动取消。
+- [ ] 实现统一定时任务、策略快照、原子抢占、租约和 Database 对账。
+- [ ] 支持 Database、RabbitMQ、RocketMQ 三种主触发器与六种完整组合。
+- [ ] 提供任务类型/商户/实例级管理员策略配置和审计。
+- [ ] 接入独立模拟物流服务、签名回调、轨迹和客户物流查询。
+- [ ] 实现自动收货、`RECEIVED -> COMPLETED` 和完成后评价。
+- [ ] 客户订单页继续展开显示物流、支付、退款、时间线和允许动作，视觉重构后置。
+- [ ] 提供三种主要 Docker Profile、Windows/Bash 脚本和故障实验。
+- 唯一执行清单：[统一未实现代办](docs/TODO.md)。
+- 策略配置参考：[通用定时任务触发策略与数据库补偿](docs/reference/SCHEDULED-TASK-STRATEGIES.md)。
+- 计划提交：按 `11-0` 至 `11-10` 独立提交，禁止合并成不可审查的大提交。
 
 ## 7. 完成定义
 

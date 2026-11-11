@@ -119,6 +119,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       PAYMENT_CALLBACK_URL: http://backend:8080/api/payment-notifications/callback
+      REFUND_CALLBACK_URL: http://backend:8080/api/refund-notifications/callback
       PAYMENT_CALLBACK_SECRET: ${PAYMENT_CALLBACK_SECRET:-demo-platform-callback-secret}
     ports:
       - "18082:8080"

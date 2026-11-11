@@ -44,9 +44,9 @@ public class PaymentAdminUserDetailsService implements UserDetailsService {
   private static List<String> authoritiesFor(String role) {
     return switch (role) {
       case "PAYMENT_ADMIN" -> List.of("ADMIN_USER_MANAGE", "MERCHANT_MANAGE", "TRANSACTION_READ",
-          "TRANSACTION_CLOSE", "AUDIT_READ");
-      case "PAYMENT_OPERATOR" -> List.of("TRANSACTION_READ", "TRANSACTION_CLOSE");
-      case "PAYMENT_AUDITOR" -> List.of("TRANSACTION_READ", "AUDIT_READ");
+          "TRANSACTION_CLOSE", "REFUND_READ", "REFUND_OPERATE", "AUDIT_READ");
+      case "PAYMENT_OPERATOR" -> List.of("TRANSACTION_READ", "TRANSACTION_CLOSE", "REFUND_READ", "REFUND_OPERATE");
+      case "PAYMENT_AUDITOR" -> List.of("TRANSACTION_READ", "REFUND_READ", "AUDIT_READ");
       default -> List.of();
     };
   }

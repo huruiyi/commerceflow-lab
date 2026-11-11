@@ -15,6 +15,7 @@ public class PaymentView {
   private String requestFingerprint;
   private String channelTransactionNo;
   private BigDecimal amount;
+  private BigDecimal refundedAmount;
   private String status;
   private String failureReason;
   private Instant createdAt;
@@ -35,6 +36,7 @@ public class PaymentView {
   public String getRequestFingerprint() { return requestFingerprint; }
   public String getChannelTransactionNo() { return channelTransactionNo; }
   public BigDecimal getAmount() { return amount; }
+  public BigDecimal getRefundedAmount() { return refundedAmount; }
   public String getStatus() { return status; }
   public String getFailureReason() { return failureReason; }
   public Instant getCreatedAt() { return createdAt; }

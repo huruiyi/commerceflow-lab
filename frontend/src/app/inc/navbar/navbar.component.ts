@@ -38,6 +38,15 @@ export class NavbarComponent implements OnInit {
 
   get isProductPage(): boolean { return this.router.url.startsWith('/dashboard') }
 
+  get accountDisplayName(): string {
+    if (this.bilgiler.email.endsWith('@example.com') && this.bilgiler.firstName.toLowerCase() === 'demo') {
+      return this.i18n.t(this.bilgiler.role === 'CUSTOMER' ? 'demoCustomerName' : this.bilgiler.role === 'MERCHANT' ? 'demoMerchantName' : 'demoAdminName')
+    }
+    return [this.bilgiler.firstName, this.bilgiler.lastName].filter(Boolean).join(' ') || this.bilgiler.email || this.i18n.t('account')
+  }
+
+  get accountInitial(): string { return this.accountDisplayName.trim().slice(0, 1).toUpperCase() || '?' }
+
   search(): void {
     const query = this.searchText.trim()
     void this.router.navigate(['/dashboard'], {queryParams: query ? {q: query} : {}})

@@ -12,9 +12,24 @@
 | 地址 | `GET/POST /api/addresses`、`PUT/DELETE /api/addresses/{id}`、`PUT /api/addresses/{id}/default|select` | CUSTOMER |
 | 订单 | `POST /api/purchase-orders/checkout`、`GET /api/purchase-orders`、`GET /api/purchase-orders/{id}` | CUSTOMER |
 | 支付 | `POST /api/purchase-orders/{id}/payments` | CUSTOMER |
+| 退款 | `POST/GET /api/purchase-orders/{id}/refunds`、`GET /api/refunds/{refundNumber}` | CUSTOMER，仅本人订单 |
 | 收货评价 | `POST /api/purchase-orders/{id}/receive`、`POST /api/order-items/{id}/reviews` | CUSTOMER |
 | 商家履约 | `GET /api/merchant/orders`、`POST /api/merchant/orders/{id}/confirm|ship` | MERCHANT |
 | 用户管理 | `GET /api/users` | ADMIN |
+
+## 退款 API
+
+已支付订单退款使用独立退款单、渠道退款、签名异步通知、幂等、Outbox 和对账补偿。原支付记录继续保持 `SUCCESS`，成功退款金额写入 `refundedAmount`。
+
+| 领域 | 接口 | 权限 |
+| --- | --- | --- |
+| 客户退款 | `POST /api/purchase-orders/{id}/refunds`、`GET /api/purchase-orders/{id}/refunds` | CUSTOMER，仅本人订单 |
+| 退款查询 | `GET /api/refunds/{refundNumber}` | CUSTOMER，仅本人退款 |
+| 商家查看 | `GET /api/merchant/orders/{id}/refunds` | MERCHANT，只读且限所属商品 |
+| 渠道退款 | `POST /api/channel/refunds`、`GET /api/channel/refunds?merchantRefundNo=...`、`POST /api/channel/refunds/{merchantRefundNo}/notify` | 商户签名请求 |
+| 支付后台 | `GET /api/admin/refunds`、`POST /api/admin/refunds/{channelRefundNo}/notify` | `REFUND_READ` / `REFUND_OPERATE` |
+
+首版仅支持 `PAID` 或 `CONFIRMED` 且尚未发货订单的原路全额退款。请求体包含 `idempotencyKey`、`reasonCode`（`CUSTOMER_CANCELLED`、`ORDER_ERROR` 或 `OTHER`）和可选 `reasonDetail`；同一请求安全重放返回原退款，不同的第二次申请返回冲突。详细设计见 [退款实现说明](reference/REFUND.md)。
 
 登录请求示例：
 
@@ -50,7 +65,7 @@
 | 渠道交易 | `POST/GET /api/channel/transactions`、关闭交易 | 商户签名请求 |
 | 收银台 | `GET /api/checkout/{token}`、`POST /api/checkout/{token}/complete` | 模拟收银台 |
 
-商城后端调用渠道交易接口时使用 App ID、时间戳、Nonce、请求体摘要和 RSA/HMAC 签名。完整协议、安全实验和生产边界见 [高级模拟支付实现方案](ADVANCED-PAYMENT-PLAN.md)。
+商城后端调用渠道交易接口时使用 App ID、时间戳、Nonce、请求体摘要和 RSA/HMAC 签名。完整协议、安全实验和生产边界见 [高级模拟支付](reference/ADVANCED-PAYMENT.md)。
 
 ## 错误响应
 
