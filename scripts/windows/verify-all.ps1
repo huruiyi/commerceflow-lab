@@ -2,6 +2,7 @@ param(
   [string]$BaseUrl = 'http://localhost:14200',
   [switch]$SkipBuild
 )
+$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 
 $ErrorActionPreference = 'Stop'
 
@@ -13,16 +14,16 @@ function Invoke-ChapterVerification([string]$Script) {
 
 if (-not $SkipBuild) {
   Write-Host '==> Building images and running image-build tests' -ForegroundColor Cyan
-  docker compose build
+  docker compose --project-directory $ProjectRoot build
   if ($LASTEXITCODE -ne 0) { throw 'Docker image build failed' }
 }
 
 Write-Host '==> Starting the complete stack' -ForegroundColor Cyan
-docker compose up -d --wait
+docker compose --project-directory $ProjectRoot up -d --wait
 if ($LASTEXITCODE -ne 0) { throw 'Docker Compose startup failed' }
 
 $expected = @('mysql', 'redis', 'kafka', 'payment-mysql', 'mock-payment-service', 'payment-ui', 'backend', 'web')
-$services = docker compose ps --services --filter status=running
+$services = docker compose --project-directory $ProjectRoot ps --services --filter status=running
 foreach ($service in $expected) {
   if ($services -notcontains $service) { throw "Required service is not running: $service" }
 }

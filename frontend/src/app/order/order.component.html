@@ -1,4 +1,4 @@
-<div class="d-flex justify-content-between align-items-center"><h2 appApptitle>{{'shoppingCart'|t}}</h2><button *ngIf="customerOrders.length" class="btn btn-outline-danger" (click)="clearCart()">{{'clearCart'|t}}</button></div>
+<div class="d-flex justify-content-between align-items-center"><h2>{{'shoppingCart'|t}}</h2><button *ngIf="customerOrders.length" class="btn btn-outline-danger" (click)="clearCart()">{{'clearCart'|t}}</button></div>
 <div *ngIf="customerOrders && customerOrders.length>0">
 <div *ngIf="checkoutError" class="alert alert-danger">{{checkoutError}} <a routerLink="/addresses">{{'manageAddresses'|t}}</a></div>
 <table class="table table-hover">

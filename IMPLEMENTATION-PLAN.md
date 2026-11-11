@@ -271,7 +271,7 @@ review, persistent_login
 - [x] 补齐后端集成测试、权限测试和关键业务 API 验收脚本，应用镜像构建时自动执行测试。
 - [x] README 提供学习路线、代码阅读顺序、账号矩阵、API 说明和常见故障处理。
 - [x] 提供 `.env.example`，所有默认值可直接运行且明确标注仅供演示。
-- [x] 提供 `verify-all.ps1`，覆盖构建、启动、认证、支付、Kafka、履约、评价、Redis 降级与健康状态。
+- [x] 提供 `scripts/windows/verify-all.ps1` 和 `scripts/linux/verify-all.sh`，覆盖构建、启动、认证、支付、Kafka、履约、评价、Redis 降级与健康状态。
 - [x] 说明模拟支付与生产支付、演示密钥与生产密钥的边界。
 - 验收：干净克隆、空数据卷、无本机 Maven/Node 环境时仍可通过 Docker 完成主要业务流程。
 - 计划提交：`docs: complete learning and Docker delivery guide`

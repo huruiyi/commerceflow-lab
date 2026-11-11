@@ -43,7 +43,7 @@
 3. 阅读购物车、下单、支付、履约、收货评价对应的 Controller、Service、Mapper。
 4. 按版本查看 `backend/src/main/resources/db/migration`，把业务模型与数据库约束对应起来。
 5. 阅读支付 Outbox、Kafka 发布/消费和补偿任务，再进入独立的 `mock-payment-service`。
-6. 最后使用根目录 `verify-*.ps1` 做成功、失败、幂等、越权和故障实验。
+6. 最后使用 `scripts/windows/` 或 `scripts/linux/` 中的验收脚本做成功、失败、幂等、越权和故障实验。
 
 分章目标和提交边界见 [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md)，接口索引见 [docs/API.md](docs/API.md)。
 
@@ -98,13 +98,87 @@ docker compose ps
 4. 在“渠道交易”使用 Web Crypto 签名，依次体验支付宝跳转、微信二维码和银联网关。
 5. 密钥轮换、商户启停、创建后台用户和权限变更前，需在安全中心生成一次性 Step-up 令牌。
 
-完整自动验收：
+## 验收脚本
 
-```powershell
-./verify-all.ps1
+根目录不再放置平台脚本。两套脚本的验收范围与文件名一一对应：
+
+- `scripts/windows/*.ps1`：Windows 上使用 PowerShell 7（`pwsh`）运行。
+- `scripts/linux/*.sh`：Linux、WSL 或 Git Bash 使用，不依赖 PowerShell；`_common.sh` 是各脚本共用的内部函数库，不需要单独运行。
+
+脚本会自行定位项目根目录，所以既可以在项目根目录执行，也可以从其他目录使用绝对路径执行。运行前需要安装并启动 Docker（含 Compose v2）；Bash 版还需要 `curl`、`jq`、`openssl`，支付安全脚本额外使用 GNU `base32`、`xxd` 和 `od`。
+
+Debian/Ubuntu 可安装 Bash 版依赖：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y curl jq openssl coreutils xxd
 ```
 
-统一脚本会在 Docker 内构建并测试各应用，启动完整环境，验证认证、CSRF、CUSTOMER/MERCHANT/ADMIN 权限边界、国际化、支付结果、Kafka、商家履约、收货评价、Redis 缓存及降级。权限矩阵可单独执行 `./verify-authorization.ps1`；支付平台的三渠道签名、重复 Nonce、金额篡改、TOTP、Step-up 和哈希链专项实验可单独执行 `./verify-payment.ps1`。
+Fedora/RHEL 可使用：
+
+```bash
+sudo dnf install -y curl jq openssl coreutils vim-common
+```
+
+Windows 若选择 `.ps1`，请先安装 PowerShell 7；若使用 Git Bash，则仍需额外安装或放入 `PATH` 的 `jq`。
+
+### 完整自动验收
+
+Windows：
+
+```powershell
+./scripts/windows/verify-all.ps1
+```
+
+Bash：
+
+```bash
+bash ./scripts/linux/verify-all.sh
+```
+
+完整验收会先构建镜像并运行镜像内测试，再启动完整环境，最后验证认证、CSRF、CUSTOMER/MERCHANT/ADMIN 权限边界、国际化、支付结果、Kafka、商家履约、收货评价、Redis 缓存、MySQL 降级与健康状态。已有最新镜像时可跳过构建：
+
+```powershell
+./scripts/windows/verify-all.ps1 -SkipBuild
+```
+
+```bash
+bash ./scripts/linux/verify-all.sh --skip-build
+```
+
+需要验证非默认商城地址时，Windows 使用 `-BaseUrl http://host:port`，Bash 使用 `--base-url http://host:port`。
+
+### 单项脚本及作用
+
+| Windows / Bash 同名脚本 | 作用 | 默认地址 |
+| --- | --- | --- |
+| `verify-all` | 构建、启动并串联主要验收，最后检查三个健康端点 | 商城 `14200` |
+| `verify-authorization` | 匿名访问、登录、禁用账号、CSRF 和三种角色权限矩阵 | 商城 `14200` |
+| `verify-i18n` | 中英文商品、按语言隔离的 Redis 缓存、稳定错误码和前端入口 | 商城 `14200` |
+| `verify-payment-notifications` | 创建订单、发起待支付交易、模拟签名回调并拒绝伪造回调 | 商城 `14200` |
+| `verify-kafka-payment` | 支付回调、Kafka Topic、Outbox 发布和消费记录 | 商城 `14200` |
+| `verify-payment-outcomes` | 失败、余额不足、取消和超时四类支付结果 | 商城 `14200` |
+| `verify-merchant-fulfillment` | 已支付订单的商家确认、发货及客户越权拒绝 | 商城 `14200` |
+| `verify-receipt-reviews` | 收货、一次性评价、评分校验及商品评分聚合 | 商城 `14200` |
+| `verify-redis-business` | 商品缓存 TTL、支付幂等键、Redis 停机时 MySQL 降级及恢复 | 商城 `14200` |
+| `verify-payment-security` | HMAC/RSA 三渠道签名、Nonce/篡改/过期拒绝、TOTP、Step-up 和审计哈希链 | 支付平台 `14201` |
+| `verify-payment` | `verify-payment-security` 的兼容入口 | 支付平台 `14201` |
+
+Windows 单项脚本通过 `-BaseUrl` 改地址：
+
+```powershell
+./scripts/windows/verify-authorization.ps1 -BaseUrl http://localhost:14200
+./scripts/windows/verify-payment.ps1 -BaseUrl http://localhost:14201
+```
+
+Bash 单项脚本把地址作为第一个位置参数；也可省略并使用表中的默认值：
+
+```bash
+bash ./scripts/linux/verify-authorization.sh http://localhost:14200
+bash ./scripts/linux/verify-payment.sh http://localhost:14201
+```
+
+这些脚本不是纯只读检查：支付、履约、评价脚本会创建演示订单、交易、商户或评价；`verify-redis-business` 会短暂停止再恢复 Redis；完整验收会构建镜像并启动 Compose 服务。建议只在本地学习环境运行。
 
 本项目**没有 Spring Boot 启动时随机生成的默认密码**。三个演示账号由 Flyway 创建，密码以 BCrypt 哈希保存。Spring Security 的 `User` 是认证时从数据库记录转换出来的运行时对象，不是另一个内置账号。
 
@@ -151,7 +225,9 @@ Compose 中的数据库密码、商户号、App ID/Secret、RSA/HMAC 密钥和�
 - 修改源码未生效：执行 `docker compose up -d --build --wait` 重新构建镜像。
 - 演示数据需要重置：确认数据可删除后执行 `docker compose down --volumes`，再重新启动。
 - Redis 暂停时登录 Session 会受影响，但公开商品会降级查询 MySQL；恢复后等待健康检查通过。
-- Windows 脚本执行策略阻止运行时，可使用 `powershell -ExecutionPolicy Bypass -File .\verify-all.ps1`。
+- Windows 脚本执行策略阻止运行时，可使用 `pwsh -ExecutionPolicy Bypass -File .\scripts\windows\verify-all.ps1`。
+- Bash 提示缺少命令时，先安装 `curl`、`jq` 和 `openssl`；运行支付安全专项时还需 `base32`、`xxd`、`od`。
+- Bash 脚本没有可执行权限时，直接使用 `bash ./scripts/linux/verify-all.sh`，或先执行 `chmod +x scripts/linux/*.sh`。
 
 详见 [前端说明](frontend/README.md) 和 [后端说明](backend/README.md)。
 

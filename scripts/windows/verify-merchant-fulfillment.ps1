@@ -1,4 +1,5 @@
 param([string]$BaseUrl='http://localhost:14200')
+$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $ErrorActionPreference='Stop'
 & "$PSScriptRoot/verify-payment-notifications.ps1" -BaseUrl $BaseUrl
 if(-not$?){throw 'Could not create a paid order'}

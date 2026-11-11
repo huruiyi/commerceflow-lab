@@ -101,7 +101,7 @@ payment_admin_user --< payment_admin_user_role >-- payment_admin_role
 ```powershell
 docker compose up --build -d --wait
 docker compose ps
-./verify-payment.ps1
+./scripts/windows/verify-payment.ps1
 ```
 
 访问：
@@ -117,4 +117,4 @@ docker compose ps
 - `payment-operator`
 - `payment-auditor`
 
-`verify-payment.ps1` 会新建隔离商户，执行三渠道创建、收银成功、后台关闭、幂等重放、商户范围授权、越权 403 和审计日志检查。脚本可重复执行，不依赖固定交易号。
+`scripts/windows/verify-payment.ps1`（或 Bash 版 `scripts/linux/verify-payment.sh`）会新建隔离商户并执行当前安全协议的三渠道与安全验收。脚本不依赖固定交易号。

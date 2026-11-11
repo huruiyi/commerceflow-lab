@@ -1,4 +1,5 @@
 param([string]$BaseUrl='http://localhost:14200')
+$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $ErrorActionPreference='Stop';& "$PSScriptRoot/verify-merchant-fulfillment.ps1" -BaseUrl $BaseUrl;if(-not$?){throw 'Could not create shipped order'}
 $session=[Microsoft.PowerShell.Commands.WebRequestSession]::new();$csrf=Invoke-RestMethod "$BaseUrl/api/auth/csrf" -WebSession $session;$headers=@{$csrf.headerName=$csrf.token};Invoke-RestMethod "$BaseUrl/api/auth/login" -Method Post -WebSession $session -Headers $headers -ContentType application/json -Body '{"email":"demo@example.com","password":"demo-password","rememberMe":false}'|Out-Null
 $orders=Invoke-RestMethod "$BaseUrl/api/purchase-orders" -WebSession $session;$shipped=$orders|Where-Object status -eq 'SHIPPED'|Select-Object -First 1;if(-not$shipped){throw 'Customer cannot see shipped order'}

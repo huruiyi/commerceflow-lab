@@ -1,4 +1,4 @@
-<nav class="navbar navbar-expand-lg bg-light">
+<nav class="navbar navbar-expand-lg">
     <div class="container-fluid">
       <a class="navbar-brand" [routerLink]="['/dashboard']">{{'brand'|t}}</a>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" [attr.aria-label]="'toggleNavigation'|t">
@@ -22,24 +22,28 @@
             <a class="nav-link" aria-current="page" role="button" [routerLink]="['/users']" routerLinkActive="active" >{{'users'|t}}</a>
           </li>
           <li class="nav-item" *ngIf="bilgiler.role === 'MERCHANT'"><a class="nav-link" [routerLink]="['/merchant/orders']" routerLinkActive="active">{{'fulfillment'|t}}</a></li>
-          <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              {{'account'|t}}
-            </a>
-            <ul class="dropdown-menu">
-              <li><a class="dropdown-item" (click)="logout()" role="button" routerLinkActive="router-link-active" >{{'logout'|t}}</a></li>
-            </ul>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link disabled">{{ bilgiler.firstName + " " + bilgiler.lastName }}</a>
-          </li>
         </ul>
-        <div class="d-flex align-items-center">
-          <button class="btn btn-outline-secondary me-2" type="button" (click)="i18n.switch()">{{'language'|t}}</button>
-          <form *ngIf="isProductPage" class="d-flex" role="search" (ngSubmit)="search()">
-            <input class="form-control me-2" type="search" name="productSearch" [(ngModel)]="searchText" [placeholder]="'searchProducts'|t" [attr.aria-label]="'searchProducts'|t">
-            <button class="btn btn-outline-success" type="submit">{{'search'|t}}</button>
+        <div class="navbar-tools">
+          <form *ngIf="isProductPage" class="product-search" role="search" (ngSubmit)="search()">
+            <i class="bi bi-search search-leading-icon" aria-hidden="true"></i>
+            <input type="search" name="productSearch" [(ngModel)]="searchText" [placeholder]="'searchProducts'|t" [attr.aria-label]="'searchProducts'|t">
+            <button type="submit" [attr.aria-label]="'search'|t" [title]="'search'|t">
+              <i class="bi bi-arrow-right" aria-hidden="true"></i>
+            </button>
           </form>
+          <button class="language-switch" type="button" (click)="i18n.switch()">
+            <i class="bi bi-globe2" aria-hidden="true"></i>
+            <span>{{'language'|t}}</span>
+          </button>
+          <div class="dropdown account-menu">
+            <button class="account-switch dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-person-circle" aria-hidden="true"></i>
+              <span>{{'account'|t}}</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><button class="dropdown-item" type="button" (click)="logout()">{{'logout'|t}}</button></li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
