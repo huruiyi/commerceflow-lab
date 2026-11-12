@@ -17,10 +17,6 @@ spring:
     store-type: redis
     redis:
       namespace: payment-platform:session
-  jackson:
-    serialization:
-      write-dates-as-timestamps: false
-
 server:
   port: 8080
   servlet:

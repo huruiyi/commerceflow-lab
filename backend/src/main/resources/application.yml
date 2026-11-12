@@ -45,10 +45,6 @@ spring:
           initial-interval: 1s
           multiplier: 2
           max-interval: 10s
-  jackson:
-    serialization:
-      write-dates-as-timestamps: false
-
 server:
   port: 8080
   servlet:
