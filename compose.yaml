@@ -144,12 +144,19 @@ services:
     profiles: [rocketmq]
     environment:
       NAMESRV_ADDR: rocketmq-namesrv:9876
+      ROCKETMQ_TOPIC: ${SCHEDULING_ROCKETMQ_TOPIC:-commerceflow-scheduled-task}
+      ROCKETMQ_CONSUMER_GROUP: ${SCHEDULING_ROCKETMQ_CONSUMER_GROUP:-commerceflow-scheduled-task-consumer}
+      ROCKETMQ_CONSUMER_RETRY_MAX_TIMES: ${ROCKETMQ_CONSUMER_RETRY_MAX_TIMES:-2}
     command:
       - sh
       - -c
       - >-
         sh mqadmin updateTopic -n rocketmq-namesrv:9876 -c DefaultCluster
         -t $${ROCKETMQ_TOPIC:-commerceflow-scheduled-task} -a +message.type=DELAY
+        && sh mqadmin updateSubGroup -n rocketmq-namesrv:9876 -c DefaultCluster
+        -g $${ROCKETMQ_CONSUMER_GROUP:-commerceflow-scheduled-task-consumer}
+        -r $${ROCKETMQ_CONSUMER_RETRY_MAX_TIMES:-2}
+        -p '{"type":"CUSTOMIZED","customizedRetryPolicy":{"next":[1000,2000]}}'
     depends_on:
       rocketmq-broker:
         condition: service_healthy

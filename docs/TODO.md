@@ -224,8 +224,10 @@ PAID
 
 - [x] 主动取消无支付/有待支付订单、重复取消、支付/取消并发；Windows 与容器化 Bash 脚本已覆盖 `PAID/SUCCESS` 和 `CANCELLED/CLOSED` 两种竞态终态。
 - [ ] 单次支付过期仍可重试，整单超时自动关闭。
-- [ ] 六种主触发/对账组合。
-- [ ] MQ 未投递、消费者停机、重复、毒消息和 Database 补偿（RabbitMQ/RocketMQ 未投递与 Database 补偿已通过；两种 MQ 的重复/毒消息专项待补）。
+- [x] 六种主触发/对账组合。
+- [x] RabbitMQ/RocketMQ 未投递与 Database 补偿。
+- [x] RabbitMQ/RocketMQ 重复消息、迟到旧消息和毒消息专项：重放已完成任务消息只增加 ignored 指标，任务领取/完成仍各一次；非法 JSON 分别进入 RabbitMQ Dead Queue 和 RocketMQ `%DLQ%ConsumerGroup`。
+- [ ] 消费者已取得消息但尚未确认时进程退出、恢复后的重新投递专项。
 - [x] 物流推进、暂时/永久回调丢失、重放、迟到可变字段、对账和越权查询；长时间并发乱序压力单列后续。
 - [x] Windows Docker 已验证手动/自动收货、自动 `COMPLETED`，完成后仍可查支付/物流并评价；退款记录保留由现有响应契约覆盖。
 
@@ -336,7 +338,7 @@ PAID
 - 策略：任务保存 `RABBITMQ` 快照；管理员后续修改只影响新任务。开启 Database 对账时只改变本次实际来源，不修改主策略快照。
 - 验证：后端 12 个集成测试、默认/Profile Compose 配置检查及 Windows `verify-all -SkipBuild` 全量 Docker 回归通过；正常链路验证任务 176；Broker 停机产生 4 次失败并在恢复后由任务 178 补发成功；Broker 停机且开启对账时任务 179 由 `DATABASE_RECONCILIATION` 成功兜底。
 - 跨平台边界：Windows 专项脚本已执行；Bash 同语义脚本已提供，但当前 Git Bash 缺少 `jq`，尚未实机执行。
-- 遗留：RabbitMQ 重复/毒消息专项验收、RocketMQ 两种组合、长时间压力测试。
+- 当时遗留：RabbitMQ 重复/毒消息专项验收、RocketMQ 两种组合、长时间压力测试；前两项已由后续 RocketMQ 与 MQ 幂等专项完成。
 - 提交：未提交。
 
 ### 2026-11-12：RocketMQ 5.x 定时任务主触发
@@ -345,7 +347,8 @@ PAID
 - 配置：新增可选 `rocketmq` Profile，启动 NameServer 和带 Proxy 的 Broker，持久化日志/存储卷，并初始化 `message.type=DELAY` Topic。
 - 实现：将 `dueAt` 转为绝对投递时间；发布成功记录 message ID，失败保留未发布状态以待补发；消费端重读数据库并复用统一执行器，早到消息重新投递，异常由 Broker 重试/死信。
 - 验证：后端容器构建通过；默认与 RocketMQ Profile Compose 配置通过；Windows 和容器化 Bash 均完成真实下单、Broker 回执、原生延时投递、原子领取、超时关单和审计链验收（任务 226/227）；Broker 停机时发布失败可观测且 Database 对账成功兜底（任务 228/229）。
-- 遗留：RabbitMQ/RocketMQ 重复/毒消息专项实验。
+- 验证补充：Windows 与容器化 Bash 的 `verify-mq-scheduling-idempotency` 已完成 RabbitMQ/RocketMQ 重复消息、迟到旧消息和毒消息实验（任务 233～236）。
+- 遗留：消费者已取得但尚未 ACK 时退出的重新投递实验，以及长时间故障压力测试。
 - 提交：待本批次提交。
 
 后续记录继续使用以下模板：

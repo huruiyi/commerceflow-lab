@@ -23,6 +23,7 @@
 - [05A-2：独立多渠道模拟支付](learning/CHAPTER-05A-2.md)
 - [05A-3：签名、验签与防重放](learning/CHAPTER-05A-3.md)
 - [05A-5～05A-8：可靠事件、收银台、高可用与验收](learning/CHAPTER-05A-5-TO-8.md)
+- [06：RocketMQ 5.x 延时任务与数据库补偿](learning/CHAPTER-06-ROCKETMQ-SCHEDULING.md)：官方资料阅读顺序、源码映射、正常链路与 Broker 停机实验。
 
 ## 历史归档 `archive/`
 

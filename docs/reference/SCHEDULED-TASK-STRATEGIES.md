@@ -637,7 +637,7 @@ commerceflow:
 
 - 部署和运维成本高于当前项目直接增加 RabbitMQ。
 - Spring Boot 核心自动配置没有 RabbitMQ 那样直接，需要额外生态集成。
-- RocketMQ 5 延时消息支持毫秒级绝对时间，官方文档给出的最大延时范围为 40 天；超过该范围的任务需由数据库或专业调度平台分段承接。
+- RocketMQ 5 延时消息支持毫秒级绝对时间；官方“消息域模型”写最大 40 天，而“延时消息”专题仍写默认 24 小时。长周期任务必须按实际部署版本验证，本项目约七天任务默认继续使用 Database。
 - 没有数据库兜底时仍然存在消息或消费异常导致任务遗漏的风险。
 
 ### 8.4 适用范围
@@ -709,7 +709,7 @@ commerceflow:
 ### 9.3 风险
 
 - 基础设施和客户端集成更复杂。
-- 仍需为超过 RocketMQ 40 天延时上限的任务选择数据库或专业调度平台。
+- 对超过当前部署已验证延时范围的任务，仍需选择数据库或专业调度平台，不能只依赖文档中的理论上限。
 - 必须统一消息幂等、数据库租约、监控和故障审计。
 
 ### 9.4 适用范围
@@ -903,7 +903,7 @@ docker compose --profile expiration-rocket up
 9. 已创建任务始终保留原策略快照。
 10. Outbox 和 Kafka 只在状态实际变化后发布一次业务事件。
 
-组合四和组合六已分别验证 Broker 停止时数据库在宽限期后完成补偿；后续仍需增加“已发布但未消费”的迟到旧消息专项，确认恢复 MQ 后被幂等跳过。
+组合四和组合六已分别验证 Broker 停止时数据库在宽限期后完成补偿。RabbitMQ/RocketMQ 还已分别重放已完成任务的旧消息：消费者收到消息并重读数据库后，统一执行器的条件领取失败，任务领取、成功事件和订单副作用仍各只有一次；非法 JSON 已验证进入两种 DLQ。尚未覆盖消费者已取得消息但未 ACK 时进程退出的重新投递窗口。
 
 ## 16. 业务大流程与任务策略的关系
 
@@ -1059,8 +1059,13 @@ commerceflow.scheduling.task-policies.REVIEW_REMINDER
 
 ## 17. 官方能力参考
 
+- 本项目学习章节：[RocketMQ 5.x 延时任务与数据库补偿](../learning/CHAPTER-06-ROCKETMQ-SCHEDULING.md)
 - [Spring Boot AMQP / RabbitMQ](https://docs.spring.io/spring-boot/reference/messaging/amqp.html)
 - [RabbitMQ TTL](https://www.rabbitmq.com/docs/ttl)
 - [RabbitMQ Dead Letter Exchanges](https://www.rabbitmq.com/docs/dlx)
 - [RocketMQ Delay Message](https://rocketmq.apache.org/docs/featureBehavior/02delaymessage/)
+- [RocketMQ Domain Model](https://rocketmq.apache.org/docs/domainModel/01main/)
+- [RocketMQ Java Client](https://github.com/apache/rocketmq-clients/blob/master/java/README.md)
+- [RocketMQ Sending Retry](https://rocketmq.apache.org/docs/featureBehavior/05sendretrypolicy/)
+- [RocketMQ Consumption Retry and DLQ](https://rocketmq.apache.org/docs/featureBehavior/10consumerretrypolicy/)
 - [Apache Kafka Introduction](https://kafka.apache.org/documentation/)

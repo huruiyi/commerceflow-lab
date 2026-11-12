@@ -172,6 +172,7 @@ bash ./scripts/linux/verify-all.sh --skip-build
 | `verify-rabbitmq-scheduling` | RabbitMQ 延迟任务的确认发布、策略快照、原子领取、审计事件和未支付订单自动关闭；需先启用 RabbitMQ Profile 并使用秒级测试期限 | 商城 `14200`、RabbitMQ `15672` |
 | `verify-rocketmq-scheduling` | RocketMQ 5.x 原生延时消息的 Broker 确认、策略快照、原子领取、审计事件和未支付订单自动关闭；需启用 RocketMQ Profile 和秒级测试期限 | 商城 `14200`、RocketMQ Proxy `18084` |
 | `verify-rocketmq-reconciliation` | 停止 RocketMQ Broker，验证发布失败可观测、Database 对账兜底、策略快照不变，并在结束时恢复 Broker | 商城 `14200`、Docker Compose |
+| `verify-mq-scheduling-idempotency` | 向 RabbitMQ/RocketMQ 重放已完成任务的旧消息并注入非法 JSON，验证只有一次领取/完成及两种 DLQ；需同时启用两个 MQ Profile | 商城 `14200`、后端指标 `18081`、RabbitMQ 管理端 `15672`、RocketMQ |
 | `verify-receipt-reviews` | 收货、一次性评价、评分校验及商品评分聚合 | 商城 `14200` |
 | `verify-redis-business` | 商品缓存 TTL、支付幂等键、Redis 停机时 MySQL 降级及恢复 | 商城 `14200` |
 | `verify-payment-security` | HMAC/RSA 三渠道签名、Nonce/篡改/过期拒绝、TOTP、Step-up 和审计哈希链 | 支付平台 `14201` |
@@ -224,6 +225,25 @@ bash ./scripts/linux/verify-rocketmq-reconciliation.sh http://localhost:14200 45
 ```
 
 故障脚本会短暂停止并恢复 RocketMQ Broker；建议同时把 `SCHEDULING_RECONCILIATION_INITIAL_DELAY`、`SCHEDULING_RECONCILIATION_FIXED_DELAY` 和 `SCHEDULING_ROCKETMQ_REQUEST_TIMEOUT` 调成秒级，避免等待默认生产型周期。
+
+重复、迟到旧消息和毒消息专项会同时启动两种 MQ，但每个任务仍只有一个主策略：
+
+```powershell
+$env:SCHEDULING_RABBITMQ_ENABLED='true'
+$env:SCHEDULING_ROCKETMQ_ENABLED='true'
+$env:ORDER_PAYMENT_TIMEOUT='6s'
+docker compose --profile rabbitmq --profile rocketmq up -d --build --wait rabbitmq rocketmq-init backend web
+./scripts/windows/verify-mq-scheduling-idempotency.ps1 -MaxWaitSeconds 60
+```
+
+```bash
+SCHEDULING_RABBITMQ_ENABLED=true SCHEDULING_ROCKETMQ_ENABLED=true ORDER_PAYMENT_TIMEOUT=6s \
+  docker compose --profile rabbitmq --profile rocketmq up -d --build --wait rabbitmq rocketmq-init backend web
+bash ./scripts/linux/verify-mq-scheduling-idempotency.sh \
+  http://localhost:14200 http://localhost:18081 http://localhost:15672 60
+```
+
+专项脚本要求 RabbitMQ Dead Queue 在开始前为空；验证后会取走本次 RabbitMQ 毒消息。RocketMQ 毒消息使用唯一 Key 查询对应 `%DLQ%ConsumerGroup`，不会清空或覆盖已有消息。
 
 这些脚本不是纯只读检查：支付、履约、评价脚本会创建演示订单、交易、商户或评价；`verify-redis-business` 会短暂停止再恢复 Redis；完整验收会构建镜像并启动 Compose 服务。建议只在本地学习环境运行。
 

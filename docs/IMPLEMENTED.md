@@ -81,6 +81,8 @@ RabbitMQ 实机验收已覆盖：正常延迟关单、Broker 停机时不误执�
 
 RocketMQ 实机验收已通过 Windows 和容器化 Bash 两套脚本：确认 Broker 回执、原生延时投递、策略快照、原子领取、支付超时关单及审计链。Broker 停机专项也已验证发布失败可观测、`DATABASE_RECONCILIATION` 宽限期兜底和恢复 Broker。
 
+MQ 幂等专项已通过 Windows 和容器化 Bash 实机验收：RabbitMQ/RocketMQ 分别重放两条已完成任务的旧消息，ignored 指标按预期增加，而 `TASK_CLAIMED`、`TASK_SUCCEEDED` 和订单取消副作用仍各只有一次；非法 JSON 分别进入 RabbitMQ Dead Queue 与 RocketMQ `%DLQ%commerceflow-scheduled-task-consumer`。RocketMQ 教学 Consumer Group 使用 2 次、1 秒/2 秒的有限重试，避免毒消息无限占用资源。
+
 Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复策略，查看 Handler 可用性、策略来源和版本，并按类型/状态查询任务、查看事件、重试失败任务或取消待执行任务。页面维护的是数据策略，不能上传可执行代码。
 
 ## 8. 订单取消与 Database 超时首个垂直闭环
@@ -111,7 +113,7 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 
 以下不得在 README、页面或演示中标记为已完成：
 
-- RabbitMQ/RocketMQ 重复与毒消息专项实验，以及长时间故障压力验收。
+- 消费者已取得但尚未 ACK 时进程退出的重新投递实验，以及长时间故障压力验收。
 - Prometheus 告警规则、Alertmanager/外部通知接收端，以及长时间并发乱序压力实验。
 - 自动收货/完成的 MQ 专项故障实验和长时间高并发压力测试。
 
