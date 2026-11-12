@@ -2,6 +2,7 @@
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 require_commands curl jq openssl
 BASE_URL="${1:-http://localhost:14200}"
+PAYMENT_BASE_URL="${2:-${PAYMENT_UI_BASE_URL:-http://localhost:14201}}"
 temp_dir="$(new_temp_dir)"; trap 'rm -rf -- "$temp_dir"' EXIT
 jar="$temp_dir/customer.cookies"
 IFS=$'\t' read -r csrf_header csrf_token <<<"$(storefront_login "$BASE_URL" demo@example.com "$jar")"
@@ -17,7 +18,7 @@ payment_body="$(jq -nc --arg key "$(uuid_hex)" '{idempotencyKey:$key,simulateFai
 payment="$(json_request POST "$BASE_URL/api/purchase-orders/$(jq -r .id <<<"$order")/payments" "$jar" "$csrf_header" "$csrf_token" "$payment_body")"
 jq -e '.status == "PENDING_PAYMENT" and .payment.status == "PENDING" and (.payment.checkoutUrl | length > 0)' <<<"$payment" >/dev/null || { echo 'Payment was not left pending for callback' >&2; exit 1; }
 token="$(jq -r '.payment.checkoutUrl | split("/")[-1] | split("?")[0]' <<<"$payment")"
-curl -fsS -X POST "http://localhost:14201/api/checkout/$token/complete?success=true" >/dev/null
+curl -fsS -X POST "$PAYMENT_BASE_URL/api/checkout/$token/complete?success=true" >/dev/null
 resolved="$(json_request GET "$BASE_URL/api/purchase-orders/$(jq -r .id <<<"$order")" "$jar")"
 jq -e '.status == "PAID" and .payment.status == "SUCCESS"' <<<"$resolved" >/dev/null || { echo 'Signed callback did not apply payment' >&2; exit 1; }
 assert_status 'invalid callback signature rejected' 401 "$(http_status POST "$BASE_URL/api/payment-notifications/callback" '' 'X-Callback-Signature' bad '{}')"

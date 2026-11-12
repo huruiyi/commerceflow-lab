@@ -172,6 +172,7 @@ bash ./scripts/linux/verify-all.sh --skip-build
 | `verify-logistics` | 独立物流建单、签名/防重放、`EXCEPTION（异常件） -> RECOVERY（异常恢复）`、六段轨迹和回调投影 | 商城 `14200`、物流 `18083` |
 | `verify-logistics-automation` | 临时启用秒级自动轨迹，验证自动送达与 `AUTO_RECEIVE`，结束后恢复默认关闭 | 商城 `14200`、物流 `18083` |
 | `verify-logistics-reliability` | 验证 backend 停机后的 `RETRY -> PUBLISHED`，以及永久丢失回调由主动对账恢复为 `RECONCILED` | 商城 `14200`、物流 `18083` |
+| `verify-logistics-ordering-stress` | 可配置时长/并发/最少回调数的乱序浸泡，审计状态不倒退、副作用有界和不变字段 | 商城 `14200`、backend `18081`、Docker MySQL |
 | `verify-logistics-callback-governance` | 制造 `DEAD（停止自动重试）`，验证管理员人工重放、审计、权限、幂等和 Prometheus 指标 | 商城 `14200`、物流 `18083` |
 | `verify-auto-lifecycle` | 手动收货取消自动任务、`DELIVERED（已送达） -> RECEIVED（已收货） -> COMPLETED（已完成）`，以及 backend 重启后租约恢复/幂等重放 | 商城 `14200`、物流 `18083` |
 | `verify-rabbitmq-scheduling` | RabbitMQ 延迟任务的确认发布、策略快照、原子领取、审计事件和未支付订单自动关闭；需先启用 RabbitMQ Profile 并使用秒级测试期限 | 商城 `14200`、RabbitMQ `15672` |

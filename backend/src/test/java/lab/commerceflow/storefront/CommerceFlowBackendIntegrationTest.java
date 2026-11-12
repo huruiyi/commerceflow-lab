@@ -734,6 +734,44 @@ class CommerceFlowBackendIntegrationTest {
   }
 
   @Test
+  void outOfOrderAndSameRankLogisticsEventsNeverRepeatProjectionSideEffects() throws Exception {
+    Long customerId = jdbc.queryForObject(
+        "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
+    String suffix = UUID.randomUUID().toString().replace("-", "");
+    String orderNumber = "LOGISTICS-ORDERING-" + suffix;
+    String merchantNo = "MS-ORDERING-" + suffix;
+    String platformNo = "LGS-ORDERING-" + suffix;
+    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,created_at,updated_at) VALUES(?,?,'SHIPPED',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+        orderNumber, customerId);
+    Long orderId = jdbc.queryForObject(
+        "SELECT id FROM shop_orders WHERE order_number=?", Long.class, orderNumber);
+    jdbc.update("INSERT INTO shipment_records(order_id,merchant_shipment_no,platform_shipment_no,carrier,tracking_number,status,shipped_at) VALUES(?,?,?,'Stable Carrier','TRACK-STABLE','OUT_FOR_DELIVERY',CURRENT_TIMESTAMP)",
+        orderId, merchantNo, platformNo);
+
+    acceptLogisticsNotice(merchantNo, platformNo, "PROGRESS", "DELIVERED",
+        "Customer address", "First delivered event");
+    acceptLogisticsNotice(merchantNo, platformNo, "PROGRESS", "DELIVERED",
+        "Customer address", "Same-rank delivered event");
+    acceptLogisticsNotice(merchantNo, platformNo, "PROGRESS", "CREATED",
+        "Origin warehouse", "Late old event");
+
+    org.junit.jupiter.api.Assertions.assertEquals("DELIVERED", jdbc.queryForObject(
+        "SELECT status FROM shipment_records WHERE order_id=?", String.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(3, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM shipment_events WHERE shipment_id=(SELECT id FROM shipment_records WHERE order_id=?)",
+        Integer.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM order_events WHERE order_id=? AND event_type='LOGISTICS_STATUS_UPDATED'",
+        Integer.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM scheduled_tasks WHERE task_type='AUTO_RECEIVE' AND task_key=?",
+        Integer.class, "order:" + orderId));
+    org.junit.jupiter.api.Assertions.assertEquals("Stable Carrier:TRACK-STABLE", jdbc.queryForObject(
+        "SELECT CONCAT(carrier,':',tracking_number) FROM shipment_records WHERE order_id=?",
+        String.class, orderId));
+  }
+
+  @Test
   void customerCannotAccessAnotherCustomersCartAddressOrOrder() throws Exception {
     Long ownerId = jdbc.queryForObject("SELECT id FROM app_users WHERE email='customer2@example.com'", Long.class);
     jdbc.update("MERGE INTO carts(user_id,created_at,updated_at) KEY(user_id) VALUES(?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", ownerId);
@@ -797,10 +835,15 @@ class CommerceFlowBackendIntegrationTest {
 
   private void acceptLogisticsNotice(String eventType, String status, String location,
       String description) throws Exception {
+    acceptLogisticsNotice("MS-EXCEPTION", "LGS-EXCEPTION", eventType, status, location, description);
+  }
+
+  private void acceptLogisticsNotice(String merchantShipmentNo, String platformShipmentNo,
+      String eventType, String status, String location, String description) throws Exception {
     String raw = json.writeValueAsString(Map.of(
         "notificationId", UUID.randomUUID().toString(),
-        "merchantShipmentNo", "MS-EXCEPTION",
-        "platformShipmentNo", "LGS-EXCEPTION",
+        "merchantShipmentNo", merchantShipmentNo,
+        "platformShipmentNo", platformShipmentNo,
         "eventType", eventType,
         "status", status,
         "carrier", "Demo Carrier",

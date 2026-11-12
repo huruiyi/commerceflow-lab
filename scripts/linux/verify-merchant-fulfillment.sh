@@ -2,7 +2,7 @@
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 require_commands curl jq openssl
 BASE_URL="${1:-http://localhost:14200}"
-"$SCRIPT_DIR/verify-payment-notifications.sh" "$BASE_URL"
+"$SCRIPT_DIR/verify-payment-notifications.sh" "$BASE_URL" "${PAYMENT_UI_BASE_URL:-http://localhost:14201}"
 temp_dir="$(new_temp_dir)"; trap 'rm -rf -- "$temp_dir"' EXIT
 
 merchant_jar="$temp_dir/merchant.cookies"

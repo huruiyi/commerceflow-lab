@@ -70,7 +70,7 @@ public class LogisticsNotificationService {
   private boolean shouldApply(String current,String incoming,String eventType){
     if("EXCEPTION".equals(eventType))return "EXCEPTION".equals(incoming)&&!"DELIVERED".equals(current);
     if("RECOVERY".equals(eventType))return "EXCEPTION".equals(current)&&FLOW.contains(incoming)&&!"DELIVERED".equals(incoming);
-    return !"EXCEPTION".equals(current)&&rank(incoming)>=rank(current);
+    return !"EXCEPTION".equals(current)&&rank(incoming)>rank(current);
   }
   private int rank(String status){int value=FLOW.indexOf(status);return value<0?-1:value;}
   private String digest(String value){try{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));}catch(Exception exception){throw new IllegalStateException("SHA-256 is unavailable",exception);}}
