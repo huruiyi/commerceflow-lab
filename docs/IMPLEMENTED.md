@@ -53,6 +53,7 @@
 - 手动或自动收货都会幂等创建 `AUTO_COMPLETE（自动完成订单）`；观察期到期后从 `RECEIVED` 进入 `COMPLETED（已完成）`。
 - `COMPLETED` 仍保留支付记录、物流轨迹和未评商品的评价入口，同时不再提供取消、确认收货或未发货退款动作。
 - 已用两线程同时抢占验证手动收货与 `AUTO_RECEIVE` 只会形成一次有效转换；过期租约可在 backend 重启后恢复，幂等重放不会重复完成订单。
+- `AUTO_RECEIVE/AUTO_COMPLETE` 的 RabbitMQ/RocketMQ 故障实验已通过 Windows 与容器化 Bash 实测：Broker 停机时发布尝试和错误可观测，恢复后由原策略快照执行，`TASK_SUCCEEDED` 与订单状态副作用均只有一次。
 
 自动轨迹默认关闭，避免干扰手动学习实验；回调 Outbox/重试和物流主动对账默认开启。详见 [独立模拟物流](MOCK-LOGISTICS.md)。
 
@@ -125,6 +126,6 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - 全新空卷全链路和旧卷升级后服务/MQ 重启恢复。
 - Windows/Bash 全部主要脚本的参数/语义对齐与默认非破坏性审计。
 - Prometheus 告警规则、Alertmanager/外部通知接收端。
-- 自动收货/完成的 MQ 专项故障实验和长时间高并发压力测试。
+- 自动收货/完成的长时间高并发压力测试。
 
 详细顺序和验收门禁只见 [TODO.md](TODO.md)。
