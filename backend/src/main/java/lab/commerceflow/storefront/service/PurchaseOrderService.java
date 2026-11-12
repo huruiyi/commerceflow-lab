@@ -21,10 +21,11 @@ import java.util.*;
 public class PurchaseOrderService {
   private final ShopOrderMapper orders; private final CartMapper carts;private final PaymentGatewayClient gateway;private final RedisIdempotencyService redisIdempotency;private final RefundMapper refunds;
   private final OrderLifecycleProperties lifecycle; private final ScheduledTaskService scheduledTasks;
-  private final LogisticsService logistics;
+  private final LogisticsService logistics; private final InventoryService inventory;
   public PurchaseOrderService(ShopOrderMapper orders, CartMapper carts,PaymentGatewayClient gateway,
       RedisIdempotencyService redisIdempotency,RefundMapper refunds,
-      OrderLifecycleProperties lifecycle,ScheduledTaskService scheduledTasks,LogisticsService logistics){this.orders=orders;this.carts=carts;this.gateway=gateway;this.redisIdempotency=redisIdempotency;this.refunds=refunds;this.lifecycle=lifecycle;this.scheduledTasks=scheduledTasks;this.logistics=logistics;}
+      OrderLifecycleProperties lifecycle,ScheduledTaskService scheduledTasks,LogisticsService logistics,
+      InventoryService inventory){this.orders=orders;this.carts=carts;this.gateway=gateway;this.redisIdempotency=redisIdempotency;this.refunds=refunds;this.lifecycle=lifecycle;this.scheduledTasks=scheduledTasks;this.logistics=logistics;this.inventory=inventory;}
 
   @Transactional
   public ShopOrderResponse checkout(AppUser user) {
@@ -38,6 +39,7 @@ public class PurchaseOrderService {
     NewShopOrder order=new NewShopOrder(number("ORD"),user.getId(),total,"CNY",paymentDueAt);
     orders.insertOrder(order);
     items.forEach(i->orders.insertItem(order.getId(),i,i.subtotal()));
+    inventory.reserve(order.getId(),items);
     orders.insertAddress(order.getId(),address);
     orders.insertEvent(order.getId(),user.getId(),"ORDER_CREATED","CART","PENDING_PAYMENT","Checkout created from cart");
     scheduledTasks.schedule(ScheduledTaskTypes.PAYMENT_TIMEOUT,"order:"+order.getId(),"ORDER",

@@ -3,6 +3,8 @@ import { AccountService } from 'src/app/services/account.service';
 import { UserProfile } from 'src/model/IUserLogin';
 import { I18nService } from '../../services/i18n.service';
 import { Router } from '@angular/router';
+import { ApiService } from '../../services/api.service';
+import { CustomerNotification } from 'src/model/INotification';
 
 @Component({
   standalone: false,
@@ -12,6 +14,9 @@ import { Router } from '@angular/router';
 })
 export class NavbarComponent implements OnInit {
   searchText = ''
+  notifications: CustomerNotification[] = []
+  unreadNotifications = 0
+  notificationOpen = false
   bilgiler: UserProfile = {
     id: 0,
     firstName: '',
@@ -21,7 +26,8 @@ export class NavbarComponent implements OnInit {
     role: ''
   }
 
-  constructor(private accountService :AccountService,public i18n:I18nService,private router:Router) {
+  constructor(private accountService :AccountService,public i18n:I18nService,private router:Router,
+      private api:ApiService) {
     const userInfo = this.accountService.loginControl()
 
     if (userInfo) {
@@ -30,6 +36,34 @@ export class NavbarComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    if (this.bilgiler.role === 'CUSTOMER') this.loadNotifications()
+  }
+
+  loadNotifications(): void {
+    this.api.notifications().subscribe({next: notifications => {
+      this.notifications = notifications
+      this.unreadNotifications = notifications.filter(item => item.status === 'UNREAD').length
+    }})
+  }
+
+  toggleNotifications(): void {
+    this.notificationOpen = !this.notificationOpen
+    if (this.notificationOpen) this.loadNotifications()
+  }
+
+  markNotificationRead(notification: CustomerNotification): void {
+    if (notification.status === 'READ') return
+    this.api.markNotificationRead(notification.id).subscribe({next: () => {
+      notification.status = 'READ'
+      this.unreadNotifications = Math.max(0, this.unreadNotifications - 1)
+    }})
+  }
+
+  markAllNotificationsRead(): void {
+    this.api.markAllNotificationsRead().subscribe({next: () => {
+      this.notifications.forEach(item => item.status = 'READ')
+      this.unreadNotifications = 0
+    }})
   }
 
   logout(): void {

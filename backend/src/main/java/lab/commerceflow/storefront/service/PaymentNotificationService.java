@@ -25,14 +25,16 @@ public class PaymentNotificationService {
   private final ObjectMapper mapper;
   private final String secret;
   private final PaymentEventPipeline events;
+  private final InventoryService inventory;
 
   public PaymentNotificationService(ShopOrderMapper orders, ObjectMapper mapper,
       @Value("${commerceflow.payment-platform.callback-secret:demo-platform-callback-secret}") String secret,
-      PaymentEventPipeline events) {
+      PaymentEventPipeline events, InventoryService inventory) {
     this.orders = orders;
     this.mapper = mapper;
     this.secret = secret;
     this.events = events;
+    this.inventory = inventory;
   }
 
   @Transactional
@@ -64,7 +66,7 @@ public class PaymentNotificationService {
       if (changed == 1) {
         orders.insertPaymentEvent(payment.getId(), UUID.randomUUID().toString(), "CALLBACK_" + target,
             "PENDING", target, "Signed asynchronous notification");
-        if ("SUCCESS".equals(target)) applySuccessfulPayment(payment.getOrderId());
+        if ("SUCCESS".equals(target)) applySuccessfulPayment(payment.getOrderId(), notice.notificationId());
         events.append(payment.getId().toString(), "PAYMENT_CALLBACK_" + target, raw);
       }
       orders.insertNotification(payment.getId(), notice.channel(), notice.notificationId(),
@@ -80,19 +82,22 @@ public class PaymentNotificationService {
     }
   }
 
-  private void applySuccessfulPayment(Long orderId) {
+  private void applySuccessfulPayment(Long orderId, String notificationId) {
     ShopOrderView order = orders.lockById(orderId).orElseThrow();
     Long customerId = order.getCustomerId();
     if ("PENDING_PAYMENT".equals(order.getStatus())
         && orders.updateStatus(orderId, "PENDING_PAYMENT", "PAID") == 1) {
+      inventory.commit(orderId, notificationId);
       orders.insertEventDetailed(orderId, customerId, "PAYMENT_SUCCEEDED", "PENDING_PAYMENT", "PAID",
           "Signed asynchronous notification applied", "PAYMENT_CALLBACK", null);
     } else if ("CANCELLING".equals(order.getStatus())
         && orders.restorePaidAfterCancellationRace(orderId) == 1) {
+      inventory.commit(orderId, notificationId);
       orders.insertEventDetailed(orderId, customerId, "CANCELLATION_LOST_PAYMENT_RACE", "CANCELLING", "PAID",
           "Payment callback won the cancellation race", "PAYMENT_CALLBACK", null);
     } else if ("CANCELLED".equals(order.getStatus())
         && orders.restorePaidAfterLateSuccess(orderId) == 1) {
+      inventory.commit(orderId, notificationId);
       orders.insertEventDetailed(orderId, customerId, "LATE_PAYMENT_AFTER_CANCELLATION", "CANCELLED", "PAID",
           "Late successful payment restored the order; manual financial review required",
           "PAYMENT_CALLBACK", null);

@@ -9,6 +9,7 @@ import { ShippingAddress, ShippingAddressRequest } from 'src/model/IShippingAddr
 import { OrderLogistics, OrderRefund, PaymentChannel, PurchaseOrder } from 'src/model/IPurchaseOrder';
 import { ScheduledTask, ScheduledTaskEvent, SchedulingPolicy, SchedulingPolicyEvent } from 'src/model/IScheduling';
 import { LogisticsCallbackAuditEvent, LogisticsCallbackOutbox } from 'src/model/ILogisticsCallbackAdmin';
+import { CustomerNotification } from 'src/model/INotification';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -53,6 +54,10 @@ export class ApiService {
     return this.http.post<PurchaseOrder>(`/api/purchase-orders/${id}/payments`, {idempotencyKey, simulateFailure, channel});
   }
   cancelOrder(id:number,reason=''):Observable<PurchaseOrder>{return this.http.post<PurchaseOrder>(`/api/purchase-orders/${id}/cancel`,{reason});}
+  notifications():Observable<CustomerNotification[]>{return this.http.get<CustomerNotification[]>('/api/notifications');}
+  unreadNotificationCount():Observable<{count:number}>{return this.http.get<{count:number}>('/api/notifications/unread-count');}
+  markNotificationRead(id:number):Observable<void>{return this.http.patch<void>(`/api/notifications/${id}/read`,{});}
+  markAllNotificationsRead():Observable<void>{return this.http.patch<void>('/api/notifications/read-all',{});}
   merchantOrders():Observable<PurchaseOrder[]>{return this.http.get<PurchaseOrder[]>('/api/merchant/orders');}
   confirmMerchantOrder(id:number):Observable<PurchaseOrder>{return this.http.post<PurchaseOrder>(`/api/merchant/orders/${id}/confirm`,{});}
   shipMerchantOrder(id:number,carrier:string,trackingNumber:string):Observable<PurchaseOrder>{return this.http.post<PurchaseOrder>(`/api/merchant/orders/${id}/ship`,{carrier,trackingNumber});}

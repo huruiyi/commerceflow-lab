@@ -23,6 +23,7 @@ import lab.commerceflow.storefront.scheduling.ScheduledTaskService;
 import lab.commerceflow.storefront.scheduling.ScheduledTaskTypes;
 import lab.commerceflow.storefront.scheduling.TaskTriggerSource;
 import lab.commerceflow.storefront.service.OrderReceiptLifecycleService;
+import lab.commerceflow.storefront.service.OrderCancellationProjection;
 import lab.commerceflow.storefront.service.LogisticsNotificationService;
 import lab.commerceflow.storefront.service.LogisticsGatewayClient;
 import org.junit.jupiter.api.Test;
@@ -42,6 +43,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -91,6 +93,7 @@ class CommerceFlowBackendIntegrationTest {
   @Autowired AtomicInteger reminderExecutions;
   @Autowired OrderReceiptLifecycleService receiptLifecycle;
   @Autowired LogisticsNotificationService logisticsNotifications;
+  @Autowired OrderCancellationProjection orderCancellationProjection;
 
   @Test
   void publicCatalogSupportsLocalesAndAuthenticationReturnsStableErrors() throws Exception {
@@ -221,6 +224,76 @@ class CommerceFlowBackendIntegrationTest {
     org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
         "SELECT COUNT(*) FROM payment_outbox WHERE aggregate_type='ORDER' AND aggregate_id=? AND event_type='ORDER_CANCELLED'",
         Integer.class, orderId.toString()));
+  }
+
+  @Test
+  void checkoutReservesInventoryAndCancellationEventReleasesItIdempotently() throws Exception {
+    Long customerId = jdbc.queryForObject(
+        "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
+    Long merchantId = jdbc.queryForObject(
+        "SELECT id FROM app_users WHERE email='admin@example.com'", Long.class);
+    jdbc.update("UPDATE products SET merchant_id=? WHERE id=1", merchantId);
+    jdbc.update("MERGE INTO carts(user_id,created_at,updated_at) KEY(user_id) VALUES(?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", customerId);
+    Long cartId = jdbc.queryForObject("SELECT id FROM carts WHERE user_id=?", Long.class, customerId);
+    jdbc.update("DELETE FROM cart_items WHERE cart_id=?", cartId);
+    jdbc.update("INSERT INTO cart_items(cart_id,product_id,quantity,created_at,updated_at) VALUES(?,1,2,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", cartId);
+    jdbc.update("INSERT INTO shipping_addresses(user_id,recipient_name,phone,country_code,state_province,city,district,address_line1,address_line2,postal_code,label,is_default,created_at,updated_at) VALUES(?,'Inventory Customer','13800000000','CN','Shanghai','Shanghai','Pudong','Stock Road','','200000','Inventory',TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", customerId);
+    Long addressId = jdbc.queryForObject("SELECT MAX(id) FROM shipping_addresses WHERE user_id=?", Long.class, customerId);
+    jdbc.update("UPDATE carts SET selected_address_id=? WHERE id=?", addressId, cartId);
+    int availableBefore = jdbc.queryForObject("SELECT stock_available FROM products WHERE id=1", Integer.class);
+
+    CsrfContext customer = login("demo@example.com", false);
+    MvcResult checkout = mvc.perform(post("/api/purchase-orders/checkout")
+            .session(customer.session()).cookie(customer.cookie()).header("X-XSRF-TOKEN", customer.token()))
+        .andExpect(status().isOk()).andReturn();
+    long orderId = json.readTree(checkout.getResponse().getContentAsString()).get("id").asLong();
+    org.junit.jupiter.api.Assertions.assertEquals(availableBefore - 2,
+        jdbc.queryForObject("SELECT stock_available FROM products WHERE id=1", Integer.class));
+    org.junit.jupiter.api.Assertions.assertEquals(2,
+        jdbc.queryForObject("SELECT stock_reserved FROM products WHERE id=1", Integer.class));
+    org.junit.jupiter.api.Assertions.assertEquals("RESERVED", jdbc.queryForObject(
+        "SELECT status FROM inventory_reservations WHERE order_id=? AND product_id=1", String.class, orderId));
+
+    mvc.perform(post("/api/purchase-orders/{id}/cancel", orderId)
+            .session(customer.session()).cookie(customer.cookie()).header("X-XSRF-TOKEN", customer.token())
+            .contentType("application/json").content("{\"reason\":\"Inventory test cancellation\"}"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"));
+    Map<String,Object> outbox = jdbc.queryForMap(
+        "SELECT event_id,event_type,aggregate_id,payload FROM payment_outbox WHERE aggregate_type='ORDER' AND aggregate_id=? AND event_type='ORDER_CANCELLED' ORDER BY id DESC LIMIT 1",
+        Long.toString(orderId));
+    Object payloadValue = outbox.get("PAYLOAD");
+    String payload = payloadValue instanceof byte[] bytes
+        ? new String(bytes, StandardCharsets.UTF_8) : payloadValue.toString();
+    String envelope = json.writeValueAsString(Map.of(
+        "eventId", outbox.get("EVENT_ID"),
+        "eventType", outbox.get("EVENT_TYPE"),
+        "aggregateId", outbox.get("AGGREGATE_ID"),
+        "payload", json.readTree(payload)));
+    orderCancellationProjection.process("order-events", envelope);
+    orderCancellationProjection.process("order-events", envelope);
+
+    org.junit.jupiter.api.Assertions.assertEquals(availableBefore,
+        jdbc.queryForObject("SELECT stock_available FROM products WHERE id=1", Integer.class));
+    org.junit.jupiter.api.Assertions.assertEquals(0,
+        jdbc.queryForObject("SELECT stock_reserved FROM products WHERE id=1", Integer.class));
+    org.junit.jupiter.api.Assertions.assertEquals("RELEASED", jdbc.queryForObject(
+        "SELECT status FROM inventory_reservations WHERE order_id=? AND product_id=1", String.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM inventory_movements WHERE order_id=? AND movement_type='RELEASED'", Integer.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM customer_notifications WHERE order_id=? AND notification_type='ORDER_CANCELLED'", Integer.class, orderId));
+    Long notificationId = jdbc.queryForObject(
+        "SELECT id FROM customer_notifications WHERE order_id=?", Long.class, orderId);
+    mvc.perform(get("/api/notifications").session(customer.session()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[?(@.id == " + notificationId + ")].status").value("UNREAD"));
+    mvc.perform(get("/api/notifications/unread-count").session(customer.session()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.count").value(1));
+    mvc.perform(patch("/api/notifications/{id}/read", notificationId)
+            .session(customer.session()).cookie(customer.cookie()).header("X-XSRF-TOKEN", customer.token()))
+        .andExpect(status().isNoContent());
+    org.junit.jupiter.api.Assertions.assertEquals("READ", jdbc.queryForObject(
+        "SELECT status FROM customer_notifications WHERE id=?", String.class, notificationId));
   }
 
   @Test

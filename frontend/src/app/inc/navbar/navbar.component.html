@@ -41,6 +41,20 @@
             <i class="bi bi-globe2" aria-hidden="true"></i>
             <span>{{'language'|t}}</span>
           </button>
+          <div class="notification-menu" *ngIf="bilgiler.role === 'CUSTOMER'">
+            <button hlmBtn variant="outline" class="notification-switch" type="button" [attr.aria-expanded]="notificationOpen" (click)="toggleNotifications()" [attr.aria-label]="'notifications'|t">
+              <i class="bi bi-bell" aria-hidden="true"></i>
+              <span class="notification-count" *ngIf="unreadNotifications">{{unreadNotifications > 99 ? '99+' : unreadNotifications}}</span>
+            </button>
+            <div class="notification-panel" *ngIf="notificationOpen">
+              <div class="notification-heading"><strong>{{'notifications'|t}}</strong><button type="button" *ngIf="unreadNotifications" (click)="markAllNotificationsRead()">{{'markAllRead'|t}}</button></div>
+              <div class="notification-empty" *ngIf="!notifications.length">{{'noNotifications'|t}}</div>
+              <button type="button" class="notification-item" *ngFor="let notification of notifications" [class.unread]="notification.status === 'UNREAD'" (click)="markNotificationRead(notification)">
+                <span class="notification-dot" aria-hidden="true"></span>
+                <span><strong>{{notification.title}}</strong><small>{{notification.message}}</small><time>{{notification.createdAt|trdate}}</time></span>
+              </button>
+            </div>
+          </div>
           <div class="dropdown account-menu">
             <button hlmBtn variant="outline" class="account-switch dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
               <span class="account-avatar">{{accountInitial}}</span>

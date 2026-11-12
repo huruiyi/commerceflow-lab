@@ -4,7 +4,7 @@ import { Subject } from 'rxjs';
 export type Locale = 'en' | 'zh-CN';
 
 const en: Record<string, string> = {
-  brand: 'CommerceFlow Lab', products: 'Products', cart: 'Cart', addresses: 'Addresses', orders: 'My Orders',
+  brand: 'CommerceFlow Lab', products: 'Products', cart: 'Cart', addresses: 'Addresses', orders: 'My Orders', notifications: 'Notifications', markAllRead: 'Mark all read', noNotifications: 'No notifications yet.',
   fulfillment: 'Fulfillment', users: 'Users', logout: 'Logout', account: 'Account', profile: 'Profile', search: 'Search',
   scheduling: 'Task Scheduling', schedulingChapter: 'ADMIN · SCHEDULED TASKS', schedulingAdmin: 'Scheduling governance', schedulingHelp: 'Maintain task policies and inspect execution without changing executable code.',
   taskPolicies: 'Task policies', taskPolicyHelp: 'Configuration is the baseline. Database overrides affect only newly created tasks.', addPolicy: 'Add policy', handlerReady: 'Handler ready', handlerMissing: 'No handler', enabled: 'Enabled', primaryTrigger: 'Primary trigger', databaseReconciliation: 'Database reconciliation', graceSeconds: 'Grace (seconds)', leaseSeconds: 'Lease (seconds)', maxAttempts: 'Max attempts', retrySeconds: 'Retry delay (seconds)', savePolicy: 'Save override', resetToConfig: 'Reset to config', policyAudit: 'Audit', noAuditEvents: 'No policy changes recorded.', schedulingPolicySaved: 'Policy override saved.', schedulingPolicyReset: 'Policy reset to configuration.',
@@ -64,7 +64,7 @@ const en: Record<string, string> = {
 };
 
 const zh: Record<string, string> = {
-  brand: '商流实验室', products: '商品', cart: '购物车', addresses: '收货地址', orders: '我的订单', fulfillment: '商家履约', users: '用户',
+  brand: '商流实验室', products: '商品', cart: '购物车', addresses: '收货地址', orders: '我的订单', notifications: '通知', markAllRead: '全部已读', noNotifications: '暂无通知。', fulfillment: '商家履约', users: '用户',
   scheduling: '定时任务', schedulingChapter: '管理后台 · 定时任务', schedulingAdmin: '任务调度治理', schedulingHelp: '维护任务策略并查看执行情况，管理页面不能修改或上传可执行代码。',
   taskPolicies: '任务策略', taskPolicyHelp: '配置文件是基线，数据库覆盖只影响新创建的任务。', addPolicy: '添加策略', handlerReady: '处理器可用', handlerMissing: '无处理器', enabled: '启用', primaryTrigger: '主触发策略', databaseReconciliation: '数据库对账补偿', graceSeconds: '宽限期（秒）', leaseSeconds: '执行租约（秒）', maxAttempts: '最大尝试次数', retrySeconds: '重试间隔（秒）', savePolicy: '保存覆盖', resetToConfig: '恢复配置', policyAudit: '审计记录', noAuditEvents: '尚无策略变更记录。', schedulingPolicySaved: '策略覆盖已保存。', schedulingPolicyReset: '策略已恢复为配置文件。',
   scheduledTasks: '定时任务实例', scheduledTasksHelp: '查看策略快照、尝试次数和可审计的执行事件。', taskType: '任务类型', allStatuses: '全部状态', filter: '筛选', businessObject: '业务对象', dueAt: '到期时间', strategySnapshot: '策略快照', status: '状态', events: '事件', retry: '重试', scheduledTaskRetried: '任务已重新安排重试。', scheduledTaskCancelled: '任务已取消。',

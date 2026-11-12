@@ -98,7 +98,7 @@ PAID
 - [x] 锁定订单，执行 `PENDING_PAYMENT -> CANCELLING`，关闭所有 `PENDING` 渠道交易。
 - [x] 全部关闭后执行 `CANCELLING -> CANCELLED`，写入时间、原因和订单事件。
 - [x] 取消终态与 `ORDER_CANCELLED` Outbox 在同一本地事务写入。
-- [ ] 实现订单取消 Outbox 的库存释放、客户通知等下游消费者。
+- [x] 实现订单取消 Outbox 的库存释放、客户通知等下游消费者；Kafka 独立消费组与消费记录保证重复消息不重复释放或通知。
 - [x] 无支付记录或全部已 `FAILED/CLOSED/EXPIRED` 时可直接完成取消。
 - [x] 存在成功支付时普通取消不会覆盖支付事实，订单保持/恢复 `PAID`；前端引导退款待补。
 - [x] 重复请求幂等返回原结果，不重复改变已关闭渠道交易。

@@ -66,6 +66,17 @@ Angular 管理员可从导航栏“定时任务”进入 `/admin/scheduling` 操
 
 取消成功后同一本地事务会写入 `ORDER_CANCELLED` Outbox。订单查询响应包含 `availableActions`，供页面决定显示支付、取消、退款、收货和评价等操作；该字段不代替服务端授权校验。
 
+## 客户通知 API
+
+| 能力 | 方法与路径 | 说明 |
+|---|---|---|
+| 最近通知 | `GET /api/notifications` | 返回当前客户最近 20 条通知 |
+| 未读数量 | `GET /api/notifications/unread-count` | 返回当前客户未读数 |
+| 单条已读 | `PATCH /api/notifications/{id}/read` | 只能更新当前客户自己的通知 |
+| 全部已读 | `PATCH /api/notifications/read-all` | 将当前客户的未读通知批量标记为已读 |
+
+当前通知由 `ORDER_CANCELLED` Kafka 消费者创建。消费记录、库存流水事件 ID 和通知事件 ID 均有唯一约束，重复消息不会重复释放库存或重复通知。
+
 ## 模拟物流 API
 
 | 接口 | 认证 | 说明 |
