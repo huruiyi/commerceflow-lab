@@ -1,8 +1,8 @@
 package lab.commerceflow.storefront.scheduling;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -117,12 +117,12 @@ public class ScheduledTaskService {
 
   JsonNode readPayload(ScheduledTaskView task) {
     try { return objectMapper.readTree(task.getPayloadJson()); }
-    catch (JsonProcessingException exception) { throw new IllegalStateException("Stored task payload is invalid", exception); }
+    catch (JacksonException exception) { throw new IllegalStateException("Stored task payload is invalid", exception); }
   }
 
   private String writePayload(Object payload) {
     try { return objectMapper.writeValueAsString(payload == null ? java.util.Map.of() : payload); }
-    catch (JsonProcessingException exception) { throw new IllegalArgumentException("Task payload cannot be serialized", exception); }
+    catch (JacksonException exception) { throw new IllegalArgumentException("Task payload cannot be serialized", exception); }
   }
 
   private void validateText(String value, String label, int maxLength) {

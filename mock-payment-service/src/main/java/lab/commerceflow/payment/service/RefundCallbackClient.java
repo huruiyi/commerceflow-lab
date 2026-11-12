@@ -1,6 +1,6 @@
 package lab.commerceflow.payment.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import lab.commerceflow.payment.domain.ChannelRefund;
 import java.nio.charset.StandardCharsets;
 import java.util.*;

@@ -1,6 +1,6 @@
 package lab.commerceflow.storefront;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ConcurrentHashMap;

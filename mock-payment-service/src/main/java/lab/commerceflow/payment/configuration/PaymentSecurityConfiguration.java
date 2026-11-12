@@ -1,6 +1,6 @@
 package lab.commerceflow.payment.configuration;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import lab.commerceflow.payment.security.PaymentAdminPrincipal;
 import lab.commerceflow.payment.service.AuditService;
 import java.util.Map;

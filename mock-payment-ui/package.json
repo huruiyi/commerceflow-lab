@@ -3,23 +3,27 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=26.13.1",
+    "npm": ">=11.20.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
     "test": "vitest run"
   },
   "dependencies": {
-    "@vitejs/plugin-vue": "latest",
-    "qrcode": "latest",
-    "vue": "latest",
-    "vue-router": "latest"
+    "@vitejs/plugin-vue": "6.0.10",
+    "qrcode": "1.5.4",
+    "vue": "3.5.45",
+    "vue-router": "5.5.0"
   },
   "devDependencies": {
-    "@types/node": "latest",
-    "@types/qrcode": "latest",
-    "typescript": "latest",
-    "vite": "latest",
-    "vitest": "latest",
-    "vue-tsc": "latest"
+    "@types/node": "26.6.6",
+    "@types/qrcode": "1.5.6",
+    "typescript": "6.0.3",
+    "vite": "8.3.8",
+    "vitest": "5.1.0",
+    "vue-tsc": "3.3.14"
   }
 }

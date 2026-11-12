@@ -1,6 +1,6 @@
 package lab.commerceflow.storefront.configuration;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lab.commerceflow.storefront.domain.AppUser;
 import lab.commerceflow.storefront.mapper.AppUserMapper;

@@ -1,7 +1,7 @@
 package lab.commerceflow.logistics;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -204,7 +204,7 @@ public class ShipmentService {
     try {
       outbox.enqueue(id, eventId, (String) shipment.get("callback_url"),
           mapper.writeValueAsString(payload));
-    } catch (JsonProcessingException exception) {
+    } catch (JacksonException exception) {
       throw new IllegalStateException("Logistics callback payload cannot be serialized", exception);
     }
   }
