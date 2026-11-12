@@ -28,6 +28,7 @@
             <a class="nav-link" role="button" [routerLink]="['/admin/logistics-callbacks']" routerLinkActive="active">{{'callbackGovernance'|t}}</a>
           </li>
           <li class="nav-item" *ngIf="bilgiler.role === 'MERCHANT'"><a class="nav-link" [routerLink]="['/merchant/orders']" routerLinkActive="active">{{'fulfillment'|t}}</a></li>
+          <li class="nav-item" *ngIf="bilgiler.role === 'MERCHANT'"><a class="nav-link" [routerLink]="['/merchant/inventory']" routerLinkActive="active">{{'inventory'|t}}</a></li>
         </ul>
         <div class="navbar-tools">
           <form *ngIf="isProductPage" class="product-search" role="search" (ngSubmit)="search()">

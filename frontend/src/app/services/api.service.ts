@@ -10,6 +10,7 @@ import { OrderLogistics, OrderRefund, PaymentChannel, PurchaseOrder } from 'src/
 import { ScheduledTask, ScheduledTaskEvent, SchedulingPolicy, SchedulingPolicyEvent } from 'src/model/IScheduling';
 import { LogisticsCallbackAuditEvent, LogisticsCallbackOutbox } from 'src/model/ILogisticsCallbackAdmin';
 import { CustomerNotification } from 'src/model/INotification';
+import { InventoryMovement, MerchantInventoryItem } from 'src/model/IInventory';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -59,6 +60,9 @@ export class ApiService {
   markNotificationRead(id:number):Observable<void>{return this.http.patch<void>(`/api/notifications/${id}/read`,{});}
   markAllNotificationsRead():Observable<void>{return this.http.patch<void>('/api/notifications/read-all',{});}
   merchantOrders():Observable<PurchaseOrder[]>{return this.http.get<PurchaseOrder[]>('/api/merchant/orders');}
+  merchantInventory():Observable<MerchantInventoryItem[]>{return this.http.get<MerchantInventoryItem[]>('/api/merchant/inventory');}
+  merchantInventoryMovements(productId:number):Observable<InventoryMovement[]>{return this.http.get<InventoryMovement[]>(`/api/merchant/inventory/${productId}/movements`);}
+  adjustMerchantInventory(productId:number,delta:number,reason:string):Observable<MerchantInventoryItem>{return this.http.post<MerchantInventoryItem>(`/api/merchant/inventory/${productId}/adjustments`,{delta,reason});}
   confirmMerchantOrder(id:number):Observable<PurchaseOrder>{return this.http.post<PurchaseOrder>(`/api/merchant/orders/${id}/confirm`,{});}
   shipMerchantOrder(id:number,carrier:string,trackingNumber:string):Observable<PurchaseOrder>{return this.http.post<PurchaseOrder>(`/api/merchant/orders/${id}/ship`,{carrier,trackingNumber});}
   updateMerchantShipment(id:number,carrier:string,trackingNumber:string):Observable<PurchaseOrder>{return this.http.put<PurchaseOrder>(`/api/merchant/orders/${id}/shipment`,{carrier,trackingNumber});}

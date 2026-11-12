@@ -29,6 +29,7 @@ import { ProfileComponent } from './profile/profile.component';
 import { TranslatePipe } from './pipes/translate.pipe';
 import { SchedulingAdminComponent } from './scheduling-admin/scheduling-admin.component';
 import { LogisticsCallbackAdminComponent } from './logistics-callback-admin/logistics-callback-admin.component';
+import { MerchantInventoryComponent } from './merchant-inventory/merchant-inventory.component';
 
 @NgModule({
   declarations: [
@@ -49,7 +50,8 @@ import { LogisticsCallbackAdminComponent } from './logistics-callback-admin/logi
     ProfileComponent,
     TranslatePipe,
     SchedulingAdminComponent,
-    LogisticsCallbackAdminComponent
+    LogisticsCallbackAdminComponent,
+    MerchantInventoryComponent
   ],
   imports: [
     BrowserModule,

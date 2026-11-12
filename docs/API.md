@@ -77,6 +77,16 @@ Angular 管理员可从导航栏“定时任务”进入 `/admin/scheduling` 操
 
 当前通知由 `ORDER_CANCELLED` Kafka 消费者创建。消费记录、库存流水事件 ID 和通知事件 ID 均有唯一约束，重复消息不会重复释放库存或重复通知。
 
+## 商家库存 API
+
+| 能力 | 方法与路径 | 说明 |
+|---|---|---|
+| 库存列表 | `GET /api/merchant/inventory` | 返回当前商家商品的可售、预占和已售余额 |
+| 库存流水 | `GET /api/merchant/inventory/{productId}/movements` | 返回当前商家指定商品最近 100 条流水 |
+| 人工调整 | `POST /api/merchant/inventory/{productId}/adjustments` | 请求体为 `delta` 与必填 `reason`，只调整可售库存且不能减为负数 |
+
+库存接口只允许 `MERCHANT` 角色访问，并以商品的 `merchant_id` 再做资源归属校验。人工调整和订单库存变化使用同一流水模型。
+
 ## 模拟物流 API
 
 | 接口 | 认证 | 说明 |

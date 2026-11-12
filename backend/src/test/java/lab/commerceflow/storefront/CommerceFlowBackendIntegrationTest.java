@@ -297,6 +297,37 @@ class CommerceFlowBackendIntegrationTest {
   }
 
   @Test
+  void merchantCanAuditAndAdjustOnlyOwnedAvailableInventory() throws Exception {
+    Long merchantId = jdbc.queryForObject(
+        "SELECT id FROM app_users WHERE email='merchant@example.com'", Long.class);
+    jdbc.update("UPDATE products SET merchant_id=?,stock_available=40 WHERE id=1",
+        merchantId);
+    CsrfContext merchant = login("merchant@example.com", false);
+
+    mvc.perform(get("/api/merchant/inventory").session(merchant.session()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[?(@.productId == 1)].stockAvailable").value(40));
+    mvc.perform(post("/api/merchant/inventory/1/adjustments")
+            .session(merchant.session()).cookie(merchant.cookie())
+            .header("X-XSRF-TOKEN", merchant.token()).contentType("application/json")
+            .content("{\"delta\":5,\"reason\":\"Cycle count correction\"}"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.stockAvailable").value(45));
+    mvc.perform(get("/api/merchant/inventory/1/movements").session(merchant.session()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].movementType").value("MANUAL_INCREASE"))
+        .andExpect(jsonPath("$[0].detail").value("Cycle count correction"));
+
+    CsrfContext customer = login("demo@example.com", false);
+    mvc.perform(get("/api/merchant/inventory").session(customer.session()))
+        .andExpect(status().isForbidden());
+    org.junit.jupiter.api.Assertions.assertEquals(45,
+        jdbc.queryForObject("SELECT stock_available FROM products WHERE id=1", Integer.class));
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM inventory_movements WHERE product_id=1 AND movement_type='MANUAL_INCREASE'",
+        Integer.class));
+  }
+
+  @Test
   void automaticReceiptAndCompletionUseSharedScheduledTaskHandlers() {
     Long customerId = jdbc.queryForObject(
         "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
