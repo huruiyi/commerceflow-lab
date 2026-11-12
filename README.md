@@ -159,6 +159,7 @@ bash ./scripts/linux/verify-all.sh --skip-build
 | `verify-authorization` | 匿名访问、登录、禁用账号、CSRF 和三种角色权限矩阵 | 商城 `14200` |
 | `verify-i18n` | 中英文商品、按语言隔离的 Redis 缓存、稳定错误码和前端入口 | 商城 `14200` |
 | `verify-flyway-lifecycle` | 在隔离的临时 MySQL 中验证空库 V1–V23、V16 旧库升级与历史订单截止时间回填，并确认非法任务状态被约束拒绝 | Docker Engine |
+| `verify-fresh-volume-lifecycle` | 使用独立 Compose 项目和全新卷验证三库 Flyway、空订单种子与登录到评价全链路；默认保留临时卷，仅显式 `-RemoveTemporaryVolumes` / `--remove-temporary-volumes` 删除临时项目卷 | Docker Compose；不触碰现有 `commerceflow_*` 卷 |
 | `verify-payment-notifications` | 创建订单、发起待支付交易、模拟签名回调并拒绝伪造回调 | 商城 `14200` |
 | `verify-payment-attempt-deadline` | 验证单次渠道支付过期不关闭整单、到期前可换渠道重试，以及整单截止时先关闭待支付交易再取消订单 | 商城 `14200`、支付平台 `14201` |
 | `verify-payment-cancellation-race` | 交替偏置并加入随机抖动，并发支付完成与客户取消，校验订单/支付/退款一致性 | 商城 `14200`、支付平台 `14201` |

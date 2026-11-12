@@ -110,6 +110,7 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - `verify-payment-cancellation-crash-recovery` 用默认关闭的定点暂停钩子和 backend SIGKILL 覆盖四个窗口：`CANCELLING` 中间态恢复、渠道已关但本地未完成、支付回调事务回滚/重放、迟到成功回调恢复资金事实；Windows 与容器化 Bash 均已通过。
 - 单次渠道交易进入 `EXPIRED` 后不关闭订单；`payment_due_at` 未到时可换渠道发起新支付，到期后创建新支付会被后端拒绝。
 - `verify-payment-attempt-deadline` 的 Windows 与容器化 Bash 真实链路均已通过：整单截止时间到达后，Database 任务先关闭当前待支付渠道，再取消订单，且领取/完成事件各一次。
+- 全新独立数据卷已在 Windows 与容器化 Bash 跑完完整链路：商城/支付/物流 Flyway 分别达到 V23/V3/V4，从 0 订单开始完成登录、下单、支付、履约、物流、收货、完成、重启恢复和评价。
 
 ## 9. 库存预占与商家库存中心
 
@@ -122,7 +123,7 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 
 以下不得在 README、页面或演示中标记为已完成：
 
-- 全新空卷全链路和旧卷升级后服务/MQ 重启恢复。
+- 旧卷升级后服务/MQ 重启恢复。
 - Windows/Bash 全部主要脚本的参数/语义对齐与默认非破坏性审计。
 - Prometheus 告警规则、Alertmanager/外部通知接收端。
 
