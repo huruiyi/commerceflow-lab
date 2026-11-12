@@ -1,5 +1,7 @@
 .catalog-shell { padding: 1rem 0 3rem; }
 .catalog-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 2rem; margin-bottom: 2rem; padding: 1.75rem 0 .5rem; }
+.catalog-eyebrow { display: inline-flex; align-items: center; gap: .65rem; margin: 0 0 .8rem; color: #0f766e; font-size: .76rem; font-weight: 760; letter-spacing: .12em; text-transform: uppercase; }
+.catalog-eyebrow span { width: 1.8rem; height: 2px; border-radius: 999px; background: linear-gradient(90deg, #0f766e, #5eead4); box-shadow: 0 0 0 4px rgb(13 148 136 / 7%); }
 .catalog-header h1 { margin: 0; color: #0f172a; font-size: clamp(2rem, 4vw, 3.5rem); font-weight: 760; letter-spacing: -.055em; }
 .catalog-intro { margin: .65rem 0 0; color: #64748b; font-size: 1rem; }
 .search-summary { display: flex; align-items: center; gap: .8rem; padding: .55rem .65rem .55rem 1rem; border: 1px solid #e2e8f0; border-radius: 14px; background: rgb(255 255 255 / 88%); color: #64748b; box-shadow: 0 12px 30px rgb(15 23 42 / 6%); }

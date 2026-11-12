@@ -34,8 +34,8 @@
           <form *ngIf="isProductPage" class="product-search" role="search" (ngSubmit)="search()">
             <i class="bi bi-search search-leading-icon" aria-hidden="true"></i>
             <input type="search" name="productSearch" [(ngModel)]="searchText" [placeholder]="'searchProducts'|t" [attr.aria-label]="'searchProducts'|t">
-            <button hlmBtn type="submit" [attr.aria-label]="'search'|t" [title]="'search'|t">
-              <i class="bi bi-arrow-right" aria-hidden="true"></i>
+            <button hlmBtn class="search-submit" type="submit" [attr.aria-label]="'search'|t" [title]="'search'|t">
+              <span>{{'search'|t}}</span>
             </button>
           </form>
           <button hlmBtn variant="outline" class="language-switch" type="button" (click)="i18n.switch()">
