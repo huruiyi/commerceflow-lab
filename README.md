@@ -158,6 +158,7 @@ bash ./scripts/linux/verify-all.sh --skip-build
 | `verify-all` | 构建、启动并串联主要验收，最后检查商城/支付/物流健康端点 | 商城 `14200` |
 | `verify-authorization` | 匿名访问、登录、禁用账号、CSRF 和三种角色权限矩阵 | 商城 `14200` |
 | `verify-i18n` | 中英文商品、按语言隔离的 Redis 缓存、稳定错误码和前端入口 | 商城 `14200` |
+| `verify-flyway-lifecycle` | 在隔离的临时 MySQL 中验证空库 V1–V23、V16 旧库升级与历史订单截止时间回填，并确认非法任务状态被约束拒绝 | Docker Engine |
 | `verify-payment-notifications` | 创建订单、发起待支付交易、模拟签名回调并拒绝伪造回调 | 商城 `14200` |
 | `verify-payment-attempt-deadline` | 验证单次渠道支付过期不关闭整单、到期前可换渠道重试，以及整单截止时先关闭待支付交易再取消订单 | 商城 `14200`、支付平台 `14201` |
 | `verify-payment-cancellation-race` | 交替偏置并加入随机抖动，并发支付完成与客户取消，校验订单/支付/退款一致性 | 商城 `14200`、支付平台 `14201` |
@@ -184,6 +185,7 @@ Windows 单项脚本通过 `-BaseUrl` 改地址：
 
 ```powershell
 ./scripts/windows/verify-authorization.ps1 -BaseUrl http://localhost:14200
+./scripts/windows/verify-flyway-lifecycle.ps1
 ./scripts/windows/verify-payment-attempt-deadline.ps1 -BaseUrl http://localhost:14200 -PaymentUrl http://localhost:14201
 ./scripts/windows/verify-payment.ps1 -BaseUrl http://localhost:14201
 ```
@@ -192,6 +194,7 @@ Bash 单项脚本把地址作为第一个位置参数；也可省略并使用表
 
 ```bash
 bash ./scripts/linux/verify-authorization.sh http://localhost:14200
+bash ./scripts/linux/verify-flyway-lifecycle.sh
 bash ./scripts/linux/verify-payment-attempt-deadline.sh http://localhost:14200 http://localhost:14201
 bash ./scripts/linux/verify-payment.sh http://localhost:14201
 ```

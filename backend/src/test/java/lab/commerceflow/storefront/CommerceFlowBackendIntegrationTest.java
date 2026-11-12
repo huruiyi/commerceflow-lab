@@ -301,6 +301,36 @@ class CommerceFlowBackendIntegrationTest {
   }
 
   @Test
+  void illegalOrderStateTransitionsAreRejectedWithoutChangingFacts() {
+    Long customerId = jdbc.queryForObject(
+        "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
+    String suffix = UUID.randomUUID().toString().replace("-", "");
+    String orderNumber = "ORDER-ILLEGAL-" + suffix;
+    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,created_at,updated_at) VALUES(?,?,'PAID',77.00,'CNY',?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+        orderNumber, customerId, java.sql.Timestamp.from(Instant.now().plusSeconds(60)));
+    Long paidOrderId = jdbc.queryForObject(
+        "SELECT id FROM shop_orders WHERE order_number=?", Long.class, orderNumber);
+
+    org.junit.jupiter.api.Assertions.assertThrows(BusinessRuleException.class,
+        () -> purchaseOrders.pay(users.selectById(customerId), paidOrderId,
+            new PaymentRequest("illegal-pay-" + suffix, false, PaymentChannel.ALIPAY)));
+    org.junit.jupiter.api.Assertions.assertThrows(BusinessRuleException.class,
+        () -> orderCancellations.cancelByCustomer(users.selectById(customerId), paidOrderId,
+            "Illegal paid-order cancellation"));
+    org.junit.jupiter.api.Assertions.assertThrows(BusinessRuleException.class,
+        () -> receiptLifecycle.confirmReceipt(customerId, customerId, paidOrderId));
+    receiptLifecycle.autoReceive(paidOrderId, null);
+    receiptLifecycle.autoComplete(paidOrderId, null);
+
+    org.junit.jupiter.api.Assertions.assertEquals("PAID",
+        jdbc.queryForObject("SELECT status FROM shop_orders WHERE id=?", String.class, paidOrderId));
+    org.junit.jupiter.api.Assertions.assertEquals(0, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM payment_records WHERE order_id=?", Integer.class, paidOrderId));
+    org.junit.jupiter.api.Assertions.assertEquals(0, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM order_events WHERE order_id=?", Integer.class, paidOrderId));
+  }
+
+  @Test
   void checkoutReservesInventoryAndCancellationEventReleasesItIdempotently() throws Exception {
     Long customerId = jdbc.queryForObject(
         "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
