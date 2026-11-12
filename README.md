@@ -65,6 +65,8 @@ docker compose ps
 - 前端健康检查：`http://localhost:14200/healthz`
 - 后端健康检查：`http://localhost:18081/actuator/health`
 - 支付服务健康检查：`http://localhost:18082/actuator/health`
+- 模拟物流健康检查：`http://localhost:18083/actuator/health`
+- 物流 MySQL：`localhost:13308`
 - Kafka UI：`http://localhost:14202`
 
 教学账号（密码均为 `demo-password`）：
@@ -136,7 +138,7 @@ Bash：
 bash ./scripts/linux/verify-all.sh
 ```
 
-完整验收会先构建镜像并运行镜像内测试，再启动完整环境，最后验证认证、CSRF、CUSTOMER/MERCHANT/ADMIN 权限边界、国际化、支付结果、Kafka、商家履约、收货评价、Redis 缓存、MySQL 降级与健康状态。已有最新镜像时可跳过构建：
+完整验收会先构建镜像并运行镜像内测试，再启动完整环境，最后验证认证、CSRF、权限边界、国际化、支付结果、Kafka、签名物流和回调轨迹、收货评价、Redis 缓存、MySQL 降级与健康状态。已有最新镜像时可跳过构建：
 
 ```powershell
 ./scripts/windows/verify-all.ps1 -SkipBuild
@@ -152,7 +154,7 @@ bash ./scripts/linux/verify-all.sh --skip-build
 
 | Windows / Bash 同名脚本 | 作用 | 默认地址 |
 | --- | --- | --- |
-| `verify-all` | 构建、启动并串联主要验收，最后检查三个健康端点 | 商城 `14200` |
+| `verify-all` | 构建、启动并串联主要验收，最后检查商城/支付/物流健康端点 | 商城 `14200` |
 | `verify-authorization` | 匿名访问、登录、禁用账号、CSRF 和三种角色权限矩阵 | 商城 `14200` |
 | `verify-i18n` | 中英文商品、按语言隔离的 Redis 缓存、稳定错误码和前端入口 | 商城 `14200` |
 | `verify-payment-notifications` | 创建订单、发起待支付交易、模拟签名回调并拒绝伪造回调 | 商城 `14200` |
@@ -160,6 +162,11 @@ bash ./scripts/linux/verify-all.sh --skip-build
 | `verify-payment-outcomes` | 失败、余额不足、取消和超时四类支付结果 | 商城 `14200` |
 | `verify-refunds` | 全额退款、资金账一致性、请求/通知幂等、重复申请和伪造通知拒绝 | 商城 `14200` |
 | `verify-merchant-fulfillment` | 已支付订单的商家确认、发货及客户越权拒绝 | 商城 `14200` |
+| `verify-logistics` | 独立物流建单、签名/防重放、`EXCEPTION（异常件） -> RECOVERY（异常恢复）`、六段轨迹和回调投影 | 商城 `14200`、物流 `18083` |
+| `verify-logistics-automation` | 临时启用秒级自动轨迹，验证自动送达与 `AUTO_RECEIVE`，结束后恢复默认关闭 | 商城 `14200`、物流 `18083` |
+| `verify-logistics-reliability` | 验证 backend 停机后的 `RETRY -> PUBLISHED`，以及永久丢失回调由主动对账恢复为 `RECONCILED` | 商城 `14200`、物流 `18083` |
+| `verify-logistics-callback-governance` | 制造 `DEAD（停止自动重试）`，验证管理员人工重放、审计、权限、幂等和 Prometheus 指标 | 商城 `14200`、物流 `18083` |
+| `verify-auto-lifecycle` | 手动收货取消自动任务、`DELIVERED（已送达） -> RECEIVED（已收货） -> COMPLETED（已完成）`，以及 backend 重启后租约恢复/幂等重放 | 商城 `14200`、物流 `18083` |
 | `verify-receipt-reviews` | 收货、一次性评价、评分校验及商品评分聚合 | 商城 `14200` |
 | `verify-redis-business` | 商品缓存 TTL、支付幂等键、Redis 停机时 MySQL 降级及恢复 | 商城 `14200` |
 | `verify-payment-security` | HMAC/RSA 三渠道签名、Nonce/篡改/过期拒绝、TOTP、Step-up 和审计哈希链 | 支付平台 `14201` |
@@ -209,6 +216,8 @@ docker compose down
 - 客户收货地址 CRUD、唯一默认地址、中英文地址字段和结算地址选择。
 - 多商品结算、商品与地址快照、订单历史，以及支付宝/微信支付/银联选择、幂等键管理、请求重放和支付回执 UI。
 - 商家确认与发货、客户确认收货、一次性商品评价和评分聚合。
+- 独立模拟物流服务和数据库，支持 HMAC/时间戳/Nonce 防重放、幂等建单、手动/可配置自动六段轨迹、异常件/恢复、回调 Outbox/重试、`DEAD（停止自动重试）` 管理员重放/审计/指标、商城主动对账、投影和客户物流查询。
+- 物流 `DELIVERED（已送达）` 后可通过 `AUTO_RECEIVE（自动确认收货）` 进入 `RECEIVED（已收货）`，再通过 `AUTO_COMPLETE（自动完成订单）` 进入 `COMPLETED（已完成）`；两个观察期可配置。
 - 未发货已支付订单原路全额退款：独立退款单、签名渠道退款、异步通知、请求/通知幂等、退款事件、Outbox、对账补偿，以及客户/商家/支付后台三端展示。
 - MyBatis-Plus 数据访问、Flyway 版本化结构/演示数据初始化。
 - Redis Session、登录限流、商品/评分缓存、支付幂等辅助键、MySQL 降级和健康检查。
@@ -222,7 +231,7 @@ Compose 中的数据库密码、商户号、App ID/Secret、RSA/HMAC 密钥和�
 
 ## 常见故障
 
-- 端口被占用：检查 `14200`、`14201`、`14202`、`18081`、`18082`、`13307`，或修改 Compose 端口映射。
+- 端口被占用：检查 `14200`、`14201`、`14202`、`18081`、`18082`、`18083`、`13307`、`13308`，或修改 Compose 端口映射。
 - 服务一直 `starting`：运行 `docker compose ps` 和 `docker compose logs <service>`，优先查看 MySQL、Kafka 和后端依赖健康状态。
 - 修改源码未生效：执行 `docker compose up -d --build --wait` 重新构建镜像。
 - 演示数据需要重置：确认数据可删除后执行 `docker compose down --volumes`，再重新启动。

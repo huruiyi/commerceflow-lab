@@ -23,11 +23,11 @@ fi
 echo '==> Starting the complete stack'
 compose up -d --wait
 services="$(compose ps --services --filter status=running)"
-for service in mysql redis kafka payment-mysql mock-payment-service payment-ui backend web; do
+for service in mysql redis kafka payment-mysql mock-payment-service payment-ui logistics-mysql mock-logistics-service backend web; do
   grep -Fxq "$service" <<<"$services" || { echo "Required service is not running: $service" >&2; exit 1; }
 done
 
-for script in verify-i18n.sh verify-authorization.sh verify-payment-outcomes.sh verify-kafka-payment.sh verify-refunds.sh verify-receipt-reviews.sh verify-redis-business.sh; do
+for script in verify-i18n.sh verify-authorization.sh verify-scheduling.sh verify-order-cancellation.sh verify-payment-outcomes.sh verify-kafka-payment.sh verify-refunds.sh verify-logistics-automation.sh verify-logistics-reliability.sh verify-logistics-callback-governance.sh verify-auto-lifecycle.sh verify-receipt-reviews.sh verify-redis-business.sh; do
   echo
   echo "==> $script"
   bash "$SCRIPT_DIR/$script" "$BASE_URL"
@@ -37,11 +37,12 @@ deadline=$((SECONDS + 60)); healthy=false
 while ((SECONDS < deadline)); do
   if curl -fsS --max-time 5 "$BASE_URL/healthz" >/dev/null \
     && [[ "$(curl -fsS --max-time 5 http://localhost:18081/actuator/health | jq -r .status)" == UP ]] \
-    && [[ "$(curl -fsS --max-time 5 http://localhost:18082/actuator/health | jq -r .status)" == UP ]]; then
+    && [[ "$(curl -fsS --max-time 5 http://localhost:18082/actuator/health | jq -r .status)" == UP ]] \
+    && [[ "$(curl -fsS --max-time 5 http://localhost:18083/actuator/health | jq -r .status)" == UP ]]; then
     healthy=true; break
   fi
   sleep 2
 done
 [[ "$healthy" == true ]] || { echo 'Final health check did not recover within 60 seconds' >&2; exit 1; }
 echo
-echo 'Complete Docker acceptance passed: build, startup, auth, i18n, payment outcomes, Kafka, refunds, fulfillment, reviews, Redis fallback and health.'
+echo 'Complete Docker acceptance passed: build, startup, auth, scheduling governance, i18n, payment outcomes, Kafka, refunds, signed logistics callbacks, fulfillment, reviews, Redis fallback and health.'

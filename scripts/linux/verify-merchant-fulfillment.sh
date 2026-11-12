@@ -12,15 +12,16 @@ paid_id="$(jq -r '[.[] | select(.status == "PAID")][0].id // empty' <<<"$orders"
 [[ -n "$paid_id" ]] || { echo 'Merchant cannot see the paid order' >&2; exit 1; }
 confirmed="$(json_request POST "$BASE_URL/api/merchant/orders/$paid_id/confirm" "$merchant_jar" "$merchant_header" "$merchant_token" '{}')"
 [[ "$(jq -r .status <<<"$confirmed")" == CONFIRMED ]] || { echo 'Confirm transition failed' >&2; exit 1; }
-shipped="$(json_request POST "$BASE_URL/api/merchant/orders/$paid_id/ship" "$merchant_jar" "$merchant_header" "$merchant_token" '{"carrier":"CommerceFlow Express","trackingNumber":"CFL-2026-0001"}')"
+initial_tracking="CFL-$paid_id-A"; updated_tracking="CFL-$paid_id-B"
+shipped="$(json_request POST "$BASE_URL/api/merchant/orders/$paid_id/ship" "$merchant_jar" "$merchant_header" "$merchant_token" "$(jq -nc --arg tracking "$initial_tracking" '{carrier:"CommerceFlow Express",trackingNumber:$tracking}')")"
 [[ "$(jq -r .status <<<"$shipped")" == SHIPPED ]] || { echo 'Ship transition failed' >&2; exit 1; }
-updated="$(json_request PUT "$BASE_URL/api/merchant/orders/$paid_id/shipment" "$merchant_jar" "$merchant_header" "$merchant_token" '{"carrier":"CommerceFlow Priority","trackingNumber":"CFL-2026-0002"}')"
-[[ "$(jq -r .carrier <<<"$updated")" == 'CommerceFlow Priority' && "$(jq -r .trackingNumber <<<"$updated")" == 'CFL-2026-0002' ]] || { echo 'Shipment update failed' >&2; exit 1; }
+updated="$(json_request PUT "$BASE_URL/api/merchant/orders/$paid_id/shipment" "$merchant_jar" "$merchant_header" "$merchant_token" "$(jq -nc --arg tracking "$updated_tracking" '{carrier:"CommerceFlow Priority",trackingNumber:$tracking}')")"
+[[ "$(jq -r .carrier <<<"$updated")" == 'CommerceFlow Priority' && "$(jq -r .trackingNumber <<<"$updated")" == "$updated_tracking" ]] || { echo 'Shipment update failed' >&2; exit 1; }
 for event_type in MERCHANT_CONFIRMED ORDER_SHIPPED SHIPMENT_UPDATED; do
   jq -e --arg event_type "$event_type" '.events | any(.eventType == $event_type)' <<<"$updated" >/dev/null || { echo "Missing fulfillment event: $event_type" >&2; exit 1; }
 done
 updated_event_count="$(jq '[.events[] | select(.eventType == "SHIPMENT_UPDATED")] | length' <<<"$updated")"
-unchanged="$(json_request PUT "$BASE_URL/api/merchant/orders/$paid_id/shipment" "$merchant_jar" "$merchant_header" "$merchant_token" '{"carrier":" CommerceFlow Priority ","trackingNumber":" CFL-2026-0002 "}')"
+unchanged="$(json_request PUT "$BASE_URL/api/merchant/orders/$paid_id/shipment" "$merchant_jar" "$merchant_header" "$merchant_token" "$(jq -nc --arg tracking " $updated_tracking " '{carrier:" CommerceFlow Priority ",trackingNumber:$tracking}')")"
 [[ "$(jq '[.events[] | select(.eventType == "SHIPMENT_UPDATED")] | length' <<<"$unchanged")" == "$updated_event_count" ]] || { echo 'Unchanged shipment created a duplicate timeline event' >&2; exit 1; }
 
 customer_jar="$temp_dir/customer.cookies"

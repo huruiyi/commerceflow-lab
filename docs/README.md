@@ -15,6 +15,7 @@
 - [高级模拟支付](reference/ADVANCED-PAYMENT.md)：已实现的支付架构、安全与验收记录。
 - [退款实现说明](reference/REFUND.md)：已实现首版退款的状态机、协议和限制。
 - [通用定时任务策略](reference/SCHEDULED-TASK-STRATEGIES.md)：六种触发/补偿组合、任务类型策略、快照和完整配置参考；执行清单以 `TODO.md` 为准。
+- [独立模拟物流](MOCK-LOGISTICS.md)：服务边界、签名协议、运单状态机、投影一致性和验收说明。
 - [Redis 业务边界](reference/REDIS-BUSINESS.md)：Key、降级和数据一致性边界。
 
 ## 学习材料 `learning/`

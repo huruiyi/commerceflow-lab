@@ -28,32 +28,73 @@
 - 商城和支付平台分别建模退款单、事件、通知和对账。
 - 客户申请、商家只读摘要、支付后台台账/通知补发与双前端国际化已实现。
 - Windows Docker 专项验收已记录通过；Linux/WSL 实机复验、部分退款、退货/换货不在首版。
-- 当前退款变更尚未提交 Git，不应与已推送版本混淆。
+- 退款首版已随 `d963e7b` 提交并推送。
 
 详见 [退款实现说明](reference/REFUND.md)。
 
 ## 5. 商家履约、收货与评价
 
 - 商家可查看自己的订单、确认订单、录入承运商/物流单号并发货。
+- 发货和物流更正都经过独立模拟物流平台；平台使用独立 MySQL，不直连商城库。
+- 物流请求支持 HMAC、时间窗口、Nonce 防重放和幂等建单；回调使用独立 HMAC 密钥和通知 ID 去重。
+- 已实现 `CREATED -> PICKED_UP -> IN_TRANSIT -> AT_STATION -> OUT_FOR_DELIVERY -> DELIVERED` 轨迹投影；可人工推进，也可启用可配置的自动推进。
+- 非终态运单可进入 `EXCEPTION（异常件）`，自动推进暂停；明确 `RECOVERY（异常恢复）` 后回到异常前状态继续运输。
+- 每个轨迹事件与 Callback Outbox 在同一本地事务提交；后台投递支持领取租约、HTTP 超时、失败重试、最大次数和进程重启接管。
+- 商城主动签名查询物流平台并补齐永久丢失事件；回调与对账复用事件 ID 和同一投影入口，分别记录 `PROCESSED（回调处理）` 与 `RECONCILED（对账恢复）`。
+- 超过最大投递次数的回调进入 `DEAD（停止自动重试）`；管理员可查询、查看审计并填写原因重放，重放使用原始事件 ID 保持幂等。
+- 物流回调已暴露积压、投递结果、`DEAD`、人工重放和主动对账 Prometheus 指标。
+- 客户可查询本人订单的完整物流轨迹；Angular 订单页在后续状态中保持物流区域展开。
 - 同值物流重复保存不会无限生成时间线事件。
-- 客户可手动确认收货并对订单商品一次性评价。
+- 客户可手动确认收货并对订单商品一次性评价；手动收货会取消未执行的 `AUTO_RECEIVE（自动确认收货）` 任务。
+- 物流首次进入 `DELIVERED（已送达）` 后创建 `AUTO_RECEIVE`；观察期到期且订单仍为 `SHIPPED（已发货）` 时自动进入 `RECEIVED（已收货）`。
+- 手动或自动收货都会幂等创建 `AUTO_COMPLETE（自动完成订单）`；观察期到期后从 `RECEIVED` 进入 `COMPLETED（已完成）`。
+- `COMPLETED` 仍保留支付记录、物流轨迹和未评商品的评价入口，同时不再提供取消、确认收货或未发货退款动作。
+- 已用两线程同时抢占验证手动收货与 `AUTO_RECEIVE` 只会形成一次有效转换；过期租约可在 backend 重启后恢复，幂等重放不会重复完成订单。
 
-当前“物流”仅是商城内手工记录，尚无独立物流服务、轨迹回调、自动收货或 `COMPLETED`。
+自动轨迹默认关闭，避免干扰手动学习实验；回调 Outbox/重试和物流主动对账默认开启。详见 [独立模拟物流](MOCK-LOGISTICS.md)。
 
 ## 6. 基础设施和交付
 
 - MySQL + Flyway、Redis/Spring Session、Kafka/Outbox、ShedLock。
-- Angular/Vue 前端、两个 Spring Boot 服务和 Docker Compose。
+- Angular/Vue 前端、三个 Spring Boot 服务和 Docker Compose。
 - `scripts/windows/` 与 `scripts/linux/` 保留同名验收脚本结构。
 
-## 7. 尚未实现的总边界
+## 7. 通用定时任务底座（阶段 1）
+
+- 建立 `scheduled_tasks`、`scheduled_task_events`、`scheduled_task_policies` 和策略审计表。
+- 内置 10 类任务目录，并允许管理员为新的任务类型保存策略；只有 Java 中注册了 Handler 的类型才能真正创建和执行任务。
+- 配置文件提供系统默认与各任务初始策略，数据库覆盖优先；创建任务时固化主触发、对账、宽限期、租约、重试和策略版本快照。
+- 已实现 Database 主触发、独立 Database 对账、原子领取、执行租约、失败重试、过期租约恢复和 ShedLock 多实例互斥。
+- 管理员 API 支持策略查询/覆盖/恢复、策略审计、任务查询/重试/取消和任务事件查询；客户角色被拒绝访问。
+- Windows 专项脚本及后端集成测试已通过；Bash 同语义脚本已提供。
+
+当前已接入 `PAYMENT_TIMEOUT（支付超时）`、`AUTO_RECEIVE（自动确认收货）` 和 `AUTO_COMPLETE（自动完成订单）` 三个业务 Handler；RabbitMQ/RocketMQ 适配器和其他任务类型 Handler 仍属于待办。
+
+Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复策略，查看 Handler 可用性、策略来源和版本，并按类型/状态查询任务、查看事件、重试失败任务或取消待执行任务。页面维护的是数据策略，不能上传可执行代码。
+
+## 8. 订单取消与 Database 超时首个垂直闭环
+
+- 新订单保存 `payment_due_at`，同时创建带策略快照的 `PAYMENT_TIMEOUT` 任务。
+- 客户可通过 `POST /api/purchase-orders/{id}/cancel` 取消自己的待支付订单；重复取消幂等返回 `CANCELLED`。
+- 订单使用 `PENDING_PAYMENT -> CANCELLING -> CANCELLED`，并保存取消原因、取消时间、触发来源和关联任务 ID。
+- 有待支付交易时先签名调用支付平台关闭渠道交易，再关闭本地支付记录并完成订单取消；进程中断后可从 `CANCELLING` 重试。
+- 支付回调与取消并发时，成功支付可从 `CANCELLING/CANCELLED` 恢复 `PAID` 并记录资金异常事件，支付事实不会被普通取消覆盖。
+- Database 扫描使用同一个 `PaymentTimeoutTaskHandler` 自动关单；客户提前取消会取消尚未执行的超时任务。
+- 取消终态和 `ORDER_CANCELLED` Outbox 使用同一本地事务写入，事件可供后续库存释放和通知消费。
+- 客户订单响应包含后端统一计算的 `availableActions`；Angular 已使用它展示支付、取消、退款、收货和评价操作。
+- 客户页面已接入未支付订单取消表单，取消后保留原因、时间和历史支付信息。
+- Windows 与容器化 Bash 专项验收覆盖动作契约、无支付取消、重复取消、任务快照/取消和待支付渠道关闭。
+
+尚未实现：取消 Outbox 下游消费者、MQ 主触发，以及支付/取消和手动/自动收货的高强度真实竞态实验。
+
+## 9. 尚未实现的总边界
 
 以下不得在 README、页面或演示中标记为已完成：
 
-- 客户取消未支付订单和整单超时关闭。
-- Database/RabbitMQ/RocketMQ 可插拔触发和六种组合。
-- 独立模拟物流、物流轨迹与签名回调。
-- 物流签收后自动收货和 `RECEIVED -> COMPLETED`。
+- 取消 Outbox 的库存/通知消费者及 RabbitMQ/RocketMQ 驱动的整单超时关闭。
+- RabbitMQ/RocketMQ 主触发适配器及六种组合的完整故障验收。
+- Prometheus 告警规则、Alertmanager/外部通知接收端，以及长时间并发乱序压力实验。
+- 自动收货/完成的 RabbitMQ/RocketMQ 主触发适配、长时间高并发压力测试和 MQ 级故障实验。
 - 订单页面的摘要/折叠视觉重构。
 
 详细顺序和验收门禁只见 [TODO.md](TODO.md)。
