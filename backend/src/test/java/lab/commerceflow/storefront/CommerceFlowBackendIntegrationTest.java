@@ -22,10 +22,13 @@ import lab.commerceflow.storefront.scheduling.ScheduledTaskHandler;
 import lab.commerceflow.storefront.scheduling.ScheduledTaskService;
 import lab.commerceflow.storefront.scheduling.ScheduledTaskTypes;
 import lab.commerceflow.storefront.scheduling.TaskTriggerSource;
+import lab.commerceflow.storefront.mapper.AppUserMapper;
+import lab.commerceflow.storefront.service.OrderCancellationService;
 import lab.commerceflow.storefront.service.OrderReceiptLifecycleService;
 import lab.commerceflow.storefront.service.OrderCancellationProjection;
 import lab.commerceflow.storefront.service.LogisticsNotificationService;
 import lab.commerceflow.storefront.service.LogisticsGatewayClient;
+import lab.commerceflow.storefront.service.PaymentGatewayClient;
 import lab.commerceflow.storefront.service.PaymentNotificationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +41,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.session.MapSessionRepository;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -96,6 +100,9 @@ class CommerceFlowBackendIntegrationTest {
   @Autowired LogisticsNotificationService logisticsNotifications;
   @Autowired OrderCancellationProjection orderCancellationProjection;
   @Autowired PaymentNotificationService paymentNotifications;
+  @Autowired OrderCancellationService orderCancellations;
+  @Autowired AppUserMapper users;
+  @MockitoBean PaymentGatewayClient paymentGateway;
 
   @Test
   void publicCatalogSupportsLocalesAndAuthenticationReturnsStableErrors() throws Exception {
@@ -344,6 +351,69 @@ class CommerceFlowBackendIntegrationTest {
         Integer.class, orderId));
     org.junit.jupiter.api.Assertions.assertEquals(0, jdbc.queryForObject(
         "SELECT COUNT(*) FROM inventory_movements WHERE order_id=?", Integer.class, orderId));
+  }
+
+  @Test
+  void successfulPaymentAndCancellationRaceKeepsThePaymentFact() throws Exception {
+    Long customerId = jdbc.queryForObject(
+        "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
+    String suffix = UUID.randomUUID().toString().replace("-", "");
+    String orderNumber = "ORDER-RACE-" + suffix;
+    String transactionNo = "TX-RACE-" + suffix;
+    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,created_at,updated_at) VALUES(?,?,'PENDING_PAYMENT',66.00,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+        orderNumber, customerId);
+    Long orderId = jdbc.queryForObject(
+        "SELECT id FROM shop_orders WHERE order_number=?", Long.class, orderNumber);
+    jdbc.update("INSERT INTO payment_records(order_id,payment_number,idempotency_key,channel,currency,request_fingerprint,channel_transaction_no,amount,status,failure_reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+        orderId, "PAY-RACE-" + suffix.substring(0, 23), "payment-race-" + suffix,
+        "ALIPAY", "CNY", suffix, transactionNo, new java.math.BigDecimal("66.00"), "PENDING");
+
+    CountDownLatch closeStarted = new CountDownLatch(1);
+    CountDownLatch allowClose = new CountDownLatch(1);
+    org.mockito.Mockito.doAnswer(invocation -> {
+      closeStarted.countDown();
+      await(allowClose);
+      return new PaymentGatewayClient.CloseResult(transactionNo, "CLOSED");
+    }).when(paymentGateway).close(org.mockito.ArgumentMatchers.any());
+
+    ExecutorService workers = Executors.newSingleThreadExecutor();
+    try {
+      Future<?> cancellation = workers.submit(() -> orderCancellations.cancelByCustomer(
+          users.selectById(customerId), orderId, "Concurrent cancellation"));
+      org.junit.jupiter.api.Assertions.assertTrue(closeStarted.await(5, TimeUnit.SECONDS));
+
+      String raw = json.writeValueAsString(Map.of(
+          "notificationId", "NOTICE-RACE-" + suffix,
+          "channelTransactionNo", transactionNo,
+          "channel", "ALIPAY",
+          "status", "SUCCESS",
+          "amount", new java.math.BigDecimal("66.00"),
+          "currency", "CNY",
+          "failureReason", ""));
+      Mac mac = Mac.getInstance("HmacSHA256");
+      mac.init(new SecretKeySpec("demo-platform-callback-secret".getBytes(StandardCharsets.UTF_8),
+          "HmacSHA256"));
+      String signature = Base64.getEncoder().encodeToString(
+          mac.doFinal(raw.getBytes(StandardCharsets.UTF_8)));
+      org.junit.jupiter.api.Assertions.assertEquals("PROCESSED",
+          paymentNotifications.accept(raw, signature).result());
+      allowClose.countDown();
+      cancellation.get(10, TimeUnit.SECONDS);
+    } finally {
+      allowClose.countDown();
+      workers.shutdownNow();
+    }
+
+    org.junit.jupiter.api.Assertions.assertEquals("PAID",
+        jdbc.queryForObject("SELECT status FROM shop_orders WHERE id=?", String.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals("SUCCESS",
+        jdbc.queryForObject("SELECT status FROM payment_records WHERE order_id=?", String.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM order_events WHERE order_id=? AND event_type='CANCELLATION_LOST_PAYMENT_RACE'",
+        Integer.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(0, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM order_events WHERE order_id=? AND event_type='ORDER_CANCELLED'",
+        Integer.class, orderId));
   }
 
   @Test
