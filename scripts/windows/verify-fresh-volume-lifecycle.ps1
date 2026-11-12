@@ -13,8 +13,8 @@ if($LASTEXITCODE -ne 0){throw 'Could not inspect the default Compose project'}
 
 function TempCompose([string[]]$Arguments){& docker compose --project-directory $ProjectRoot --project-name $TemporaryProjectName @Arguments;if($LASTEXITCODE -ne 0){throw "Temporary Compose failed: $($Arguments-join' ')"}}
 function Sql([string]$Statement){$v=& docker compose --project-directory $ProjectRoot --project-name $TemporaryProjectName exec -T commerce-db mysql -ucommerceflow -pcommerceflow-password -Nse $Statement commerceflow 2>$null;if($LASTEXITCODE -ne 0){throw 'Fresh-volume SQL failed'};return($v-join"`n").Trim()}
-function PaymentSql([string]$Statement){$v=& docker compose --project-directory $ProjectRoot --project-name $TemporaryProjectName exec -T payment-simulator-db commerce-db -upayment -ppayment-password -Nse $Statement payment_platform 2>$null;if($LASTEXITCODE -ne 0){throw 'Fresh payment SQL failed'};return($v-join"`n").Trim()}
-function LogisticsSql([string]$Statement){$v=& docker compose --project-directory $ProjectRoot --project-name $TemporaryProjectName exec -T logistics-simulator-db commerce-db -ulogistics -plogistics-password -Nse $Statement logistics_platform 2>$null;if($LASTEXITCODE -ne 0){throw 'Fresh logistics SQL failed'};return($v-join"`n").Trim()}
+function PaymentSql([string]$Statement){$v=& docker compose --project-directory $ProjectRoot --project-name $TemporaryProjectName exec -T payment-simulator-db mysql -upayment -ppayment-password -Nse $Statement payment_platform 2>$null;if($LASTEXITCODE -ne 0){throw 'Fresh payment SQL failed'};return($v-join"`n").Trim()}
+function LogisticsSql([string]$Statement){$v=& docker compose --project-directory $ProjectRoot --project-name $TemporaryProjectName exec -T logistics-simulator-db mysql -ulogistics -plogistics-password -Nse $Statement logistics_platform 2>$null;if($LASTEXITCODE -ne 0){throw 'Fresh logistics SQL failed'};return($v-join"`n").Trim()}
 
 $existing=@(docker ps -a --filter "label=com.docker.compose.project=$TemporaryProjectName" --format '{{.ID}}')
 if($existing.Count){throw "Temporary project already exists: $TemporaryProjectName"}

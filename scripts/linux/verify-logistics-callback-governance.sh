@@ -48,7 +48,7 @@ wait_projection() {
 }
 
 logistics_sql() {
-  docker compose --project-directory "$PROJECT_ROOT" exec -T logistics-simulator-db commerce-db --batch --skip-column-names \
+  docker compose --project-directory "$PROJECT_ROOT" exec -T logistics-simulator-db mysql --batch --skip-column-names \
     "-u${LOGISTICS_DATABASE_USERNAME:-logistics}" "-p${LOGISTICS_DATABASE_PASSWORD:-logistics-password}" logistics_platform -e "$1" | tail -n 1 | tr -d '\r'
 }
 

@@ -39,11 +39,11 @@ store_sql() {
 }
 
 payment_sql() {
-  temp_compose exec -T payment-simulator-db commerce-db -upayment -ppayment-password -Nse "$1" payment_platform 2>/dev/null | tail -n1 | tr -d '\r'
+  temp_compose exec -T payment-simulator-db mysql -upayment -ppayment-password -Nse "$1" payment_platform 2>/dev/null | tail -n1 | tr -d '\r'
 }
 
 logistics_sql() {
-  temp_compose exec -T logistics-simulator-db commerce-db -ulogistics -plogistics-password -Nse "$1" logistics_platform 2>/dev/null | tail -n1 | tr -d '\r'
+  temp_compose exec -T logistics-simulator-db mysql -ulogistics -plogistics-password -Nse "$1" logistics_platform 2>/dev/null | tail -n1 | tr -d '\r'
 }
 
 cleanup() {

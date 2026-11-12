@@ -41,7 +41,7 @@ Invoke-ChapterVerification 'verify-logistics-reliability.ps1'
 Invoke-ChapterVerification 'verify-logistics-callback-governance.ps1'
 Invoke-ChapterVerification 'verify-auto-lifecycle.ps1'
 Invoke-ChapterVerification 'verify-receipt-reviews.ps1'
-Invoke-ChapterVerification 'verify-commerce-redis-business.ps1'
+Invoke-ChapterVerification 'verify-redis-business.ps1'
 
 $deadline = (Get-Date).AddSeconds(60)
 do {

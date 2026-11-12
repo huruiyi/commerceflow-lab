@@ -23,7 +23,7 @@ compose up -d --wait
 "$SCRIPT_DIR/verify-payment-cancellation-race.sh" "$BASE_URL" http://localhost:14201 2 0 20261113 0 true
 "$SCRIPT_DIR/verify-refunds.sh" "$BASE_URL" http://localhost:14201
 "$SCRIPT_DIR/verify-auto-lifecycle.sh" "$BASE_URL"
-"$SCRIPT_DIR/verify-commerce-redis-business.sh" "$BASE_URL"
+"$SCRIPT_DIR/verify-redis-business.sh" "$BASE_URL"
 curl -fsS "$BASE_URL/healthz" >/dev/null
 for url in http://localhost:18081/actuator/health http://localhost:18082/actuator/health http://localhost:18083/actuator/health;do
   [[ "$(curl -fsS "$url"|jq -r .status)" == UP ]]||{ echo "Health check failed: $url" >&2;exit 1; }

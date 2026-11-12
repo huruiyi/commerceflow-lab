@@ -19,7 +19,7 @@ function DbScalar([string]$Sql){
   return(($value|Select-Object -Last 1)-as[string]).Trim()
 }
 function ServiceDbScalar([string]$Service,[string]$Database,[string]$User,[string]$Password,[string]$Sql){
-  $value=& docker compose --project-directory $ProjectRoot exec -T $Service commerce-db --batch --skip-column-names "-u$User" "-p$Password" $Database -e $Sql 2>$null
+  $value=& docker compose --project-directory $ProjectRoot exec -T $Service mysql --batch --skip-column-names "-u$User" "-p$Password" $Database -e $Sql 2>$null
   if($LASTEXITCODE-ne0){throw "$Service database query failed"}
   return(($value|Select-Object -Last 1)-as[string]).Trim()
 }

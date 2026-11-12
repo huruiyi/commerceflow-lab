@@ -7,7 +7,7 @@
 | 快照日期 | 2026-11-13 |
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
-| 当前阶段 | M1 全部门禁已通过并冻结；按约定停止新增业务代码，先汇报结果 |
+| 当前阶段 | M1 全部门禁已通过并冻结；M1 后目录/命名与数据访问治理已完成实测 |
 | 下一里程碑 | 后续单独编写“整个开发生命周期的可复测验证体系”文档（本轮未开始） |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -60,4 +60,4 @@ M1 期间只维护当前实现证据和专项学习文档，未提前创建或�
 - 多节点 MySQL/Redis/Kafka/MQ 高可用、跨可用区容灾、多日容量压测和生产合规认证。
 - Prometheus Alert Rule、Alertmanager 及外部告警通知尚未实现；当前只有应用指标。
 - 验证体系总文档尚未开始，待 M1 后编写。
-- 最终命名目标已记录为 Java/Maven `vip.fairy.commerceflow`、Compose `fairy-commerceflow` 和 `services/web/simulators/infrastructure` 目录边界；运行时迁移正作为 M1 后架构治理独立开展，本文档只在实测通过后更新为已完成。
+- Java/Maven 已统一为 `vip.fairy.commerceflow`，Compose 已统一为 `fairy-commerceflow`，目录已按 `services/web/simulators/infrastructure` 责任分组。旧学习卷按用户明确授权精确清理，新空卷 Flyway V23/V3/V4、完整业务链路和快速回归均已通过；M1 标签保留迁移前证据。

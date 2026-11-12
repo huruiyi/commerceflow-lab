@@ -42,7 +42,7 @@ M1 标签 `m1-baseline-2026-11-13` 的实际状态是：
 
 当前源码、Maven、目录和 Compose 展示命名已一次性迁移；M1 标签保留迁移前证据。数据库、MQ 和 Redis 的持久协议标识仍按 4.3 保持不变。
 
-## 4. 推荐迁移顺序
+## 4. 已执行迁移顺序
 
 ### 4.1 第一阶段：只统一 Java/Maven
 
@@ -64,6 +64,8 @@ M1 标签 `m1-baseline-2026-11-13` 的实际状态是：
 ### 4.3 第三阶段：评估持久协议标识
 
 Kafka Topic、RabbitMQ Queue/Exchange、RocketMQ Topic/Consumer Group、Redis Key 和数据库 Schema 不需要为了品牌统一而改名。只有出现实际冲突或跨仓库共享需求时才设计双写、迁移和回滚；否则保留现有 `commerceflow` 协议名称更安全。
+
+迁移后已完成三个 Spring Boot 镜像构建、Windows/Bash 36 组脚本契约审计、Windows 快速回归和隔离空卷全链路验收。旧 `commerceflow` 学习卷已在精确列出后删除，未使用全局 volume prune。
 
 ## 5. 通用格式
 

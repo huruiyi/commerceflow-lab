@@ -91,6 +91,18 @@ MQ 未确认重新投递专项已通过 Windows Docker 与容器化 Bash 实机�
 
 Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复策略，查看 Handler 可用性、策略来源和版本，并按类型/状态查询任务、查看事件、重试失败任务或取消待执行任务。页面维护的是数据策略，不能上传可执行代码。
 
+## 7. 架构命名与代码治理
+
+- 核心商城保持模块化单体，按 `identity/catalog/cart/ordering/inventory/payment/refund/fulfillment/logistics/receipt/review/notification/scheduling/shared` 业务包分界。
+- 目录已分为 `services/`、`web/`、`simulators/`和 `infrastructure/`；Angular 商城门户与未来 Vue 3 门户使用明确的并列边界。
+- Java/Maven 使用 `vip.fairy.commerceflow`；Compose 使用 `fairy-commerceflow` 项目名和“业务归属 + 角色”服务名，不设置固定 `container_name`。
+- 商城、支付模拟器和物流模拟器保留三个独立 MySQL；商城与支付模拟器使用独立 Redis，不共享 Session 或故障边界。
+- 12 个 MyBatis-Plus 持久化实体已增加类/字段业务 JavaDoc；简单 CRUD 优先使用 `BaseMapper`/Wrapper，复杂投影、联表、行锁和原子更新放入 Mapper XML。
+- 三个服务主源码中已无 MyBatis SQL 注解和 Service 内联业务 SQL；仅 ShedLock 官方 `JdbcTemplateLockProvider` 配置保留 `JdbcTemplate`。
+- Java/XML/HTML/TypeScript/POM 已使用 IntelliJ IDEA 2026.3 Formatter 统一格式；已发布 Flyway 迁移与 M1 原文件逐字节一致，未因格式化改变校验和。
+- 新空卷验收已通过：Flyway 商城/支付/物流为 V23/V3/V4，完成登录→下单→支付→履约→物流→收货→完成→评价；Windows 快速回归同时通过。
+- 微服务拆分与 PostgreSQL 评估仅记录在 [architecture/](architecture/README.md)，尚未实施，不与业务 `TODO.md` 混用。
+
 ## 8. 订单取消与 Database 超时首个垂直闭环
 
 - 新订单保存 `payment_due_at`，同时创建带策略快照的 `PAYMENT_TIMEOUT` 任务。
