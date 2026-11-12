@@ -176,6 +176,7 @@ bash ./scripts/linux/verify-all.sh --skip-build
 | `verify-logistics-callback-governance` | 制造 `DEAD（停止自动重试）`，验证管理员人工重放、审计、权限、幂等和 Prometheus 指标 | 商城 `14200`、物流 `18083` |
 | `verify-auto-lifecycle` | 手动收货取消自动任务、`DELIVERED（已送达） -> RECEIVED（已收货） -> COMPLETED（已完成）`，以及 backend 重启后租约恢复/幂等重放 | 商城 `14200`、物流 `18083` |
 | `verify-auto-lifecycle-mq-failures` | 分别停止 RabbitMQ/RocketMQ，验证 `AUTO_RECEIVE/AUTO_COMPLETE` 发布失败可观测、Broker 恢复后按策略快照执行且副作用仅一次 | 商城 `14200`、Docker Compose、RabbitMQ、RocketMQ；不删卷 |
+| `verify-receipt-lifecycle-stress` | 长时间并发客户收货与 RabbitMQ 任务重投，交替覆盖手动/自动收货赢家，审计收货和完成副作用各一次 | 默认 120 秒/12 并发；保留数据卷 |
 | `verify-rabbitmq-scheduling` | RabbitMQ 延迟任务的确认发布、策略快照、原子领取、审计事件和未支付订单自动关闭；需先启用 RabbitMQ Profile 并使用秒级测试期限 | 商城 `14200`、RabbitMQ `15672` |
 | `verify-rocketmq-scheduling` | RocketMQ 5.x 原生延时消息的 Broker 确认、策略快照、原子领取、审计事件和未支付订单自动关闭；需启用 RocketMQ Profile 和秒级测试期限 | 商城 `14200`、RocketMQ Proxy `18084` |
 | `verify-rocketmq-reconciliation` | 停止 RocketMQ Broker，验证发布失败可观测、Database 对账兜底、策略快照不变，并在结束时恢复 Broker | 商城 `14200`、Docker Compose |

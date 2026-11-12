@@ -102,4 +102,4 @@ Angular 只使用这个集合决定是否展示操作。它不是授权凭证；
 
 - 订单取消 Outbox 的库存释放与客户通知消费者、迟到支付自动退款、支付/取消随机化浸泡、锁等待超时和关键事务窗口崩溃恢复专项均已实现并验收。
 - 物流 Outbox 的 `DEAD（停止自动重试）` 管理/人工重放和 Prometheus 基础指标已实现；高并发乱序浸泡已验证状态不倒退和不变字段保护，外部告警管道仍待 M1 后实现。
-- `AUTO_RECEIVE/AUTO_COMPLETE` 的 RabbitMQ/RocketMQ 停机、发布失败和恢复已通过 Windows/容器化 Bash 验收；手动/自动收货的长时间高并发压力实验仍待完成。
+- `AUTO_RECEIVE/AUTO_COMPLETE` 的 RabbitMQ/RocketMQ 停机、发布失败和恢复已通过 Windows/容器化 Bash 验收；手动/自动收货与自动完成的 120 秒/12 并发竞态浸泡也已通过，且没有重复业务副作用。
