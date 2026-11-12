@@ -138,7 +138,7 @@ Windows 若选择 `.ps1`，请先安装 PowerShell 7；若使用 Git Bash，则�
 bash ./scripts/linux/audit-script-contracts.sh
 ```
 
-契约清单与删卷边界见 [Windows/Bash 脚本审计](docs/SCRIPT-AUDIT.md)。
+契约清单与删卷边界见 [Windows/Bash 脚本审计](docs/SCRIPT-AUDIT.md)；改动类型对应的必跑门禁、证据格式和基线冻结检查见 [全开发生命周期可复测验证体系](docs/VERIFICATION-SYSTEM.md)。
 
 ### M1 快速回归
 
@@ -189,7 +189,7 @@ bash ./scripts/linux/verify-all.sh --skip-build
 | `verify-authorization` | 匿名访问、登录、禁用账号、CSRF 和三种角色权限矩阵 | 商城 `14200` |
 | `verify-i18n` | 中英文商品、按语言隔离的 Redis 缓存、稳定错误码和前端入口 | 商城 `14200` |
 | `verify-flyway-lifecycle` | 在隔离的临时 MySQL 中验证空库 V1–V23、V16 旧库升级与历史订单截止时间回填，并确认非法任务状态被约束拒绝 | Docker Engine |
-| `verify-fresh-volume-lifecycle` | 使用独立 Compose 项目和全新卷验证三库 Flyway、空订单种子与登录到评价全链路；默认保留临时卷，仅显式 `-RemoveTemporaryVolumes` / `--remove-temporary-volumes` 删除临时项目卷 | Docker Compose；不触碰现有 `commerceflow_*` 卷 |
+| `verify-fresh-volume-lifecycle` | 使用独立 Compose 项目和全新卷验证三库 Flyway、空订单种子与登录到评价全链路；默认保留临时卷，仅显式 `-RemoveTemporaryVolumes` / `--remove-temporary-volumes` 删除临时项目卷 | Docker Compose；不触碰默认 `fairy-commerceflow_*` 卷 |
 | `verify-upgrade-restart-recovery` | 先做隔离 V16→V23 升级演练，再对当前持久卷重启三库/Redis/Kafka/业务服务/RabbitMQ/RocketMQ，验证两种 MQ 未完成任务恢复一次且历史指纹不变 | Docker Compose 全栈；只重启容器，不删卷 |
 | `verify-payment-notifications` | 创建订单、发起待支付交易、模拟签名回调并拒绝伪造回调 | 商城 `14200` |
 | `verify-payment-attempt-deadline` | 验证单次渠道支付过期不关闭整单、到期前可换渠道重试，以及整单截止时先关闭待支付交易再取消订单 | 商城 `14200`、支付平台 `14201` |

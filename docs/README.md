@@ -13,6 +13,7 @@
 | [SCRIPT-AUDIT.md](SCRIPT-AUDIT.md) | Windows/Bash 主要脚本契约、参数对齐和默认非破坏性证据 | 参数或清理语义变更时同步审计 |
 | [NAMING-CONVENTIONS.md](NAMING-CONVENTIONS.md) | 项目、Java/Maven、Compose、持久资源和迁移命名规范 | 命名目标或兼容标识变更时同步更新 |
 | [CODE-STYLE.md](CODE-STYLE.md) | IDEA 格式、实体注释、MyBatis-Plus 与 Mapper XML 边界 | 数据访问或格式规则变更时同步更新 |
+| [VERIFICATION-SYSTEM.md](VERIFICATION-SYSTEM.md) | 全开发生命周期的分层门禁、改动矩阵、证据和破坏性边界 | 验证入口、基线政策或安全语义变更时更新 |
 | [architecture/](architecture/README.md) | 微服务和数据库演进等架构层待办 | 不与当前业务 `TODO.md` 混用 |
 
 ## 专题参考 `reference/`

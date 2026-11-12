@@ -40,13 +40,13 @@
 
 | 顺序 | 文件 | 关注点 |
 | --- | --- | --- |
-| 1 | [`RocketMqTaskTriggerProperties.java`](../../services/commerce-service/src/main/java/lab/commerceflow/storefront/configuration/RocketMqTaskTriggerProperties.java) | endpoint、Topic、Group、Tag、超时和发布扫描配置 |
-| 2 | [`RocketMqTaskTriggerConfiguration.java`](../../services/commerce-service/src/main/java/lab/commerceflow/storefront/configuration/RocketMqTaskTriggerConfiguration.java) | gRPC 客户端、Producer、PushConsumer 和 Tag 订阅 |
-| 3 | [`RocketMqTaskTriggerPublisher.java`](../../services/commerce-service/src/main/java/lab/commerceflow/storefront/scheduling/RocketMqTaskTriggerPublisher.java) | `dueAt` 转毫秒时间戳、Key、Tag、消息体和 Broker 回执 |
-| 4 | [`RocketMqTaskTriggerDispatcher.java`](../../services/commerce-service/src/main/java/lab/commerceflow/storefront/scheduling/RocketMqTaskTriggerDispatcher.java) | 从数据库扫描未发布任务、发送失败记录和重启补发 |
-| 5 | [`RocketMqTaskTriggerConsumer.java`](../../services/commerce-service/src/main/java/lab/commerceflow/storefront/scheduling/RocketMqTaskTriggerConsumer.java) | 消息校验、数据库重读、早到重投、重试/DLQ 返回值 |
-| 6 | [`ScheduledTaskExecutor.java`](../../services/commerce-service/src/main/java/lab/commerceflow/storefront/scheduling/ScheduledTaskExecutor.java) | 原子领取、租约、统一 Handler、成功/失败审计 |
-| 7 | [`ScheduledTaskMapper.java`](../../services/commerce-service/src/main/java/lab/commerceflow/storefront/mapper/ScheduledTaskMapper.java) | 策略快照、发布状态和只有一个触发者能够成功的条件更新 |
+| 1 | [`RocketMqTaskTriggerProperties.java`](../../services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/scheduling/infrastructure/RocketMqTaskTriggerProperties.java) | endpoint、Topic、Group、Tag、超时和发布扫描配置 |
+| 2 | [`RocketMqTaskTriggerConfiguration.java`](../../services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/scheduling/infrastructure/RocketMqTaskTriggerConfiguration.java) | gRPC 客户端、Producer、PushConsumer 和 Tag 订阅 |
+| 3 | [`RocketMqTaskTriggerPublisher.java`](../../services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/scheduling/application/RocketMqTaskTriggerPublisher.java) | `dueAt` 转毫秒时间戳、Key、Tag、消息体和 Broker 回执 |
+| 4 | [`RocketMqTaskTriggerDispatcher.java`](../../services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/scheduling/application/RocketMqTaskTriggerDispatcher.java) | 从数据库扫描未发布任务、发送失败记录和重启补发 |
+| 5 | [`RocketMqTaskTriggerConsumer.java`](../../services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/scheduling/application/RocketMqTaskTriggerConsumer.java) | 消息校验、数据库重读、早到重投、重试/DLQ 返回值 |
+| 6 | [`ScheduledTaskExecutor.java`](../../services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/scheduling/application/ScheduledTaskExecutor.java) | 原子领取、租约、统一 Handler、成功/失败审计 |
+| 7 | [`ScheduledTaskMapper.java`](../../services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/scheduling/infrastructure/ScheduledTaskMapper.java) | 策略快照、发布状态和只有一个触发者能够成功的条件更新 |
 
 消息只携带 `taskId/taskType/dueAt/strategySnapshot`。消费者不会信任消息中的完整业务快照，而是重新读取数据库中的任务与订单事实。RocketMQ 提供“何时唤醒”，数据库决定“现在是否还能执行”。
 

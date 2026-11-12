@@ -9,7 +9,7 @@
 ## 默认安全语义
 
 - 没有主要脚本默认执行 `docker compose down -v`、`docker volume rm` 或 `docker volume prune`。
-- 全新卷专项默认保留其随机临时项目卷；只有显式 `-RemoveTemporaryVolumes` / `--remove-temporary-volumes` 会执行该临时项目的 `down --volumes`。它不匹配或删除默认 `commerceflow_*` 卷。
+- 全新卷专项默认保留其随机临时项目卷；只有显式 `-RemoveTemporaryVolumes` / `--remove-temporary-volumes` 会执行该临时项目的 `down --volumes`。它不匹配或删除默认 `fairy-commerceflow_*` 卷。
 - Flyway 空库/旧库演练使用随机容器名、独立网络和 `/var/lib/mysql` tmpfs，结束时只删除这两个临时容器和网络，不创建或删除持久数据卷。
 - Bash 的递归删除仅用于 `mktemp/new_temp_dir` 创建的每次运行临时目录；审计入口会拒绝指向 `/`、`~`、`$HOME` 或项目根的递归删除。
 
