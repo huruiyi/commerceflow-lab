@@ -6,7 +6,9 @@ import { OrderList } from 'src/model/IOrderList';
 import { Product } from 'src/model/IProduct';
 import { IUser } from 'src/model/IUser';
 import { ShippingAddress, ShippingAddressRequest } from 'src/model/IShippingAddress';
-import { OrderRefund, PaymentChannel, PurchaseOrder } from 'src/model/IPurchaseOrder';
+import { OrderLogistics, OrderRefund, PaymentChannel, PurchaseOrder } from 'src/model/IPurchaseOrder';
+import { ScheduledTask, ScheduledTaskEvent, SchedulingPolicy, SchedulingPolicyEvent } from 'src/model/IScheduling';
+import { LogisticsCallbackAuditEvent, LogisticsCallbackOutbox } from 'src/model/ILogisticsCallbackAdmin';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -46,9 +48,11 @@ export class ApiService {
   checkout(): Observable<PurchaseOrder> { return this.http.post<PurchaseOrder>('/api/purchase-orders/checkout', {}); }
   purchaseOrders(): Observable<PurchaseOrder[]> { return this.http.get<PurchaseOrder[]>('/api/purchase-orders'); }
   purchaseOrder(id:number): Observable<PurchaseOrder> { return this.http.get<PurchaseOrder>(`/api/purchase-orders/${id}`); }
+  orderLogistics(id:number): Observable<OrderLogistics> { return this.http.get<OrderLogistics>(`/api/purchase-orders/${id}/logistics`); }
   payOrder(id:number, idempotencyKey:string, simulateFailure=false, channel:PaymentChannel='ALIPAY'): Observable<PurchaseOrder> {
     return this.http.post<PurchaseOrder>(`/api/purchase-orders/${id}/payments`, {idempotencyKey, simulateFailure, channel});
   }
+  cancelOrder(id:number,reason=''):Observable<PurchaseOrder>{return this.http.post<PurchaseOrder>(`/api/purchase-orders/${id}/cancel`,{reason});}
   merchantOrders():Observable<PurchaseOrder[]>{return this.http.get<PurchaseOrder[]>('/api/merchant/orders');}
   confirmMerchantOrder(id:number):Observable<PurchaseOrder>{return this.http.post<PurchaseOrder>(`/api/merchant/orders/${id}/confirm`,{});}
   shipMerchantOrder(id:number,carrier:string,trackingNumber:string):Observable<PurchaseOrder>{return this.http.post<PurchaseOrder>(`/api/merchant/orders/${id}/ship`,{carrier,trackingNumber});}
@@ -56,4 +60,15 @@ export class ApiService {
   receiveOrder(id:number):Observable<PurchaseOrder>{return this.http.post<PurchaseOrder>(`/api/purchase-orders/${id}/receive`,{});}
   reviewOrderItem(id:number,rating:number,comment:string):Observable<unknown>{return this.http.post(`/api/order-items/${id}/reviews`,{rating,comment});}
   requestRefund(id:number,idempotencyKey:string,reasonCode:string,reasonDetail:string):Observable<OrderRefund>{return this.http.post<OrderRefund>(`/api/purchase-orders/${id}/refunds`,{idempotencyKey,reasonCode,reasonDetail});}
+  schedulingPolicies():Observable<SchedulingPolicy[]>{return this.http.get<SchedulingPolicy[]>('/api/admin/scheduling/policies');}
+  saveSchedulingPolicy(policy:SchedulingPolicy):Observable<SchedulingPolicy>{return this.http.put<SchedulingPolicy>(`/api/admin/scheduling/policies/${encodeURIComponent(policy.taskType)}`,policy);}
+  resetSchedulingPolicy(taskType:string):Observable<SchedulingPolicy>{return this.http.delete<SchedulingPolicy>(`/api/admin/scheduling/policies/${encodeURIComponent(taskType)}`);}
+  schedulingPolicyEvents(taskType:string):Observable<SchedulingPolicyEvent[]>{return this.http.get<SchedulingPolicyEvent[]>(`/api/admin/scheduling/policies/${encodeURIComponent(taskType)}/events`);}
+  scheduledTasks(taskType='',status=''):Observable<ScheduledTask[]>{const query=new URLSearchParams();if(taskType)query.set('taskType',taskType);if(status)query.set('status',status);query.set('limit','200');return this.http.get<ScheduledTask[]>(`/api/admin/scheduling/tasks?${query}`);}
+  scheduledTaskEvents(id:number):Observable<ScheduledTaskEvent[]>{return this.http.get<ScheduledTaskEvent[]>(`/api/admin/scheduling/tasks/${id}/events`);}
+  retryScheduledTask(id:number):Observable<ScheduledTask>{return this.http.post<ScheduledTask>(`/api/admin/scheduling/tasks/${id}/retry`,{});}
+  cancelScheduledTask(id:number,reason:string):Observable<ScheduledTask>{return this.http.post<ScheduledTask>(`/api/admin/scheduling/tasks/${id}/cancel`,{reason});}
+  logisticsCallbacks(status=''):Observable<LogisticsCallbackOutbox[]>{const query=status?`?status=${encodeURIComponent(status)}`:'';return this.http.get<LogisticsCallbackOutbox[]>(`/api/admin/logistics-callbacks${query}`);}
+  logisticsCallbackEvents(id:number):Observable<LogisticsCallbackAuditEvent[]>{return this.http.get<LogisticsCallbackAuditEvent[]>(`/api/admin/logistics-callbacks/${id}/events`);}
+  replayLogisticsCallback(id:number,reason:string):Observable<LogisticsCallbackOutbox>{return this.http.post<LogisticsCallbackOutbox>(`/api/admin/logistics-callbacks/${id}/replay`,{reason});}
 }

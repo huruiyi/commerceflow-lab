@@ -6,7 +6,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize, forkJoin } from 'rxjs';
-import { PaymentChannel, PurchaseOrder } from 'src/model/IPurchaseOrder';
+import { OrderAction, PaymentChannel, PurchaseOrder } from 'src/model/IPurchaseOrder';
 import { ApiService } from '../services/api.service';
 import { I18nService } from '../services/i18n.service';
 
@@ -80,6 +80,9 @@ export class PurchaseOrdersComponent implements OnInit {
   refundReasons: Record<number, string> = {};
   refundDetails: Record<number, string> = {};
   refundKeys: Record<number, string> = {};
+  cancelForms = new Set<number>();
+  cancelling = new Set<number>();
+  cancellationReasons: Record<number, string> = {};
   constructor(
     private api: ApiService,
     private changeDetector: ChangeDetectorRef,
@@ -151,6 +154,31 @@ export class PurchaseOrdersComponent implements OnInit {
   trackOrder(_index: number, order: PurchaseOrder): number {
     return order.id;
   }
+  hasAction(order: PurchaseOrder, action: OrderAction): boolean {
+    return order.availableActions.includes(action);
+  }
+  toggleCancel(order: PurchaseOrder): void {
+    if (this.cancelForms.has(order.id)) this.cancelForms.delete(order.id);
+    else {
+      this.cancelForms.add(order.id);
+      this.cancellationReasons[order.id] ??= '';
+    }
+  }
+  cancelOrder(order: PurchaseOrder): void {
+    this.cancelling.add(order.id);
+    this.api.cancelOrder(order.id, this.cancellationReasons[order.id] ?? '')
+      .pipe(finalize(() => this.cancelling.delete(order.id)))
+      .subscribe({
+        next: (updated) => {
+          this.orders = this.orders.map((value) => value.id === updated.id ? updated : value);
+          this.cancelForms.delete(order.id);
+          this.notices[order.id] = {type:'success',text:this.i18n.t('orderCancelled')};
+        },
+        error: (error) => this.notices[order.id] = {
+          type:'danger',text:error.error?.message ?? this.i18n.t('orderCancelFailed')
+        }
+      });
+  }
   refresh(order: PurchaseOrder): void {
     this.api.purchaseOrder(order.id).subscribe((updated) => {
       this.orders = this.orders.map((item) =>
@@ -183,6 +211,11 @@ export class PurchaseOrdersComponent implements OnInit {
         text: this.i18n.t('receiptConfirmed'),
       };
     });
+  }
+  async copyTracking(order: PurchaseOrder): Promise<void> {
+    if (!order.logistics?.trackingNumber) return;
+    await navigator.clipboard.writeText(order.logistics.trackingNumber);
+    this.notices[order.id] = {type:'success',text:this.i18n.t('trackingCopied')};
   }
   review(order: PurchaseOrder, itemId: number): void {
     this.api

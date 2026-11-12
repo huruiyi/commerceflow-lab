@@ -132,6 +132,14 @@
   border-radius: 15px;
   background: #f8fbff;
 }
+.logistics-panel {
+  border: 1px solid #ccfbf1;
+}
+.tracking-line { display:flex; justify-content:space-between; }
+.tracking-line small,.tracking-line strong { display:block; }
+.logistics-timeline { padding:0; list-style:none; }
+.logistics-timeline li { display:grid; grid-template-columns:14px 1fr; }
+.timeline-dot { width:12px; height:12px; border-radius:50%; background:#0f766e; }
 .refund-form {
   display: grid;
   gap: 0.7rem;
@@ -142,6 +150,26 @@
   background: #fff7f7;
 }
 .refund-form p { margin: 0; color: #64748b; }
+.cancel-order-form {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #fed7aa;
+  border-radius: 12px;
+  background: #fffaf5;
+}
+.cancel-order-form p { margin: 0; color: #64748b; }
+.cancellation-summary {
+  display: grid;
+  gap: 0.2rem;
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border-left: 4px solid #f97316;
+  border-radius: 8px;
+  background: #fff7ed;
+}
+.cancellation-summary span,.cancellation-summary small { color: #64748b; }
 .refund-receipt {
   margin-top: 1rem;
   padding: 1.25rem;

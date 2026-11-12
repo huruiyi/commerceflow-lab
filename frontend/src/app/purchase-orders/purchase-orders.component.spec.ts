@@ -7,7 +7,7 @@ import { ApiService } from '../services/api.service';
 describe('PurchaseOrdersComponent',()=>{
   let fixture:ComponentFixture<PurchaseOrdersComponent>;
   let api:{purchaseOrders:jasmine.Spy;payOrder:jasmine.Spy};
-  const order:PurchaseOrder={id:42,orderNumber:'ORD-42',status:'PENDING_PAYMENT',totalAmount:99,currency:'CNY',createdAt:'2026-11-10T00:00:00Z',items:[{id:1,productId:1,productName:'Learning Item',thumbnailUrl:'item.png',unitPrice:99,quantity:1,subtotal:99}],address:{recipientName:'Demo',phone:'13800000000',countryCode:'CN',stateProvince:'Shanghai',city:'Shanghai',district:'Pudong',addressLine1:'Learning Road',addressLine2:'',postalCode:'200120',label:'Home'}};
+  const order:PurchaseOrder={id:42,orderNumber:'ORD-42',status:'PENDING_PAYMENT',totalAmount:99,currency:'CNY',createdAt:'2026-11-10T00:00:00Z',availableActions:['PAY','REFRESH_PAYMENT','CANCEL_ORDER'],items:[{id:1,productId:1,productName:'Learning Item',thumbnailUrl:'item.png',unitPrice:99,quantity:1,subtotal:99}],address:{recipientName:'Demo',phone:'13800000000',countryCode:'CN',stateProvince:'Shanghai',city:'Shanghai',district:'Pudong',addressLine1:'Learning Road',addressLine2:'',postalCode:'200120',label:'Home'}};
   beforeEach(async()=>{
     sessionStorage.clear();
     api={purchaseOrders:jasmine.createSpy().and.returnValue(of([order])),payOrder:jasmine.createSpy().and.returnValue(of({...order,payment:{paymentNumber:'PAY-1',merchantNo:'1900001001',channel:'WECHAT_PAY',channelTransactionNo:'MOCK-1',status:'FAILED',failureReason:'Simulated',amount:99,currency:'CNY',createdAt:'2026-11-10T00:00:00Z'}}))};

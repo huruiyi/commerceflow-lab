@@ -21,6 +21,12 @@
           <li class="nav-item" *ngIf="bilgiler.role === 'ADMIN'">
             <a class="nav-link" aria-current="page" role="button" [routerLink]="['/users']" routerLinkActive="active" >{{'users'|t}}</a>
           </li>
+          <li class="nav-item" *ngIf="bilgiler.role === 'ADMIN'">
+            <a class="nav-link" role="button" [routerLink]="['/admin/scheduling']" routerLinkActive="active">{{'scheduling'|t}}</a>
+          </li>
+          <li class="nav-item" *ngIf="bilgiler.role === 'ADMIN'">
+            <a class="nav-link" role="button" [routerLink]="['/admin/logistics-callbacks']" routerLinkActive="active">{{'callbackGovernance'|t}}</a>
+          </li>
           <li class="nav-item" *ngIf="bilgiler.role === 'MERCHANT'"><a class="nav-link" [routerLink]="['/merchant/orders']" routerLinkActive="active">{{'fulfillment'|t}}</a></li>
         </ul>
         <div class="navbar-tools">

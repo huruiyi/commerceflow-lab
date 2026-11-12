@@ -21,6 +21,8 @@ import { PurchaseOrdersComponent } from './purchase-orders/purchase-orders.compo
 import { MerchantOrdersComponent } from './merchant-orders/merchant-orders.component';
 import { ProfileComponent } from './profile/profile.component';
 import { TranslatePipe } from './pipes/translate.pipe';
+import { SchedulingAdminComponent } from './scheduling-admin/scheduling-admin.component';
+import { LogisticsCallbackAdminComponent } from './logistics-callback-admin/logistics-callback-admin.component';
 
 @NgModule({
   declarations: [
@@ -39,7 +41,9 @@ import { TranslatePipe } from './pipes/translate.pipe';
     PurchaseOrdersComponent,
     MerchantOrdersComponent,
     ProfileComponent,
-    TranslatePipe
+    TranslatePipe,
+    SchedulingAdminComponent,
+    LogisticsCallbackAdminComponent
   ],
   imports: [
     BrowserModule,
