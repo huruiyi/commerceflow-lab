@@ -200,6 +200,11 @@ class CommerceFlowBackendIntegrationTest {
             .contentType("application/json")
             .content("{\"enabled\":true,\"primaryTrigger\":\"RABBITMQ\",\"reconciliationEnabled\":true,\"gracePeriodSeconds\":60,\"claimLeaseSeconds\":30,\"maxAttempts\":4,\"retryDelaySeconds\":5}"))
         .andExpect(status().isConflict());
+    mvc.perform(put("/api/admin/scheduling/policies/REVIEW_REMINDER")
+            .session(admin.session()).cookie(admin.cookie()).header("X-XSRF-TOKEN", admin.token())
+            .contentType("application/json")
+            .content("{\"enabled\":true,\"primaryTrigger\":\"ROCKETMQ\",\"reconciliationEnabled\":true,\"gracePeriodSeconds\":60,\"claimLeaseSeconds\":30,\"maxAttempts\":4,\"retryDelaySeconds\":5}"))
+        .andExpect(status().isConflict());
     mvc.perform(delete("/api/admin/scheduling/policies/REVIEW_REMINDER")
             .session(admin.session()).cookie(admin.cookie()).header("X-XSRF-TOKEN", admin.token()))
         .andExpect(status().isOk())

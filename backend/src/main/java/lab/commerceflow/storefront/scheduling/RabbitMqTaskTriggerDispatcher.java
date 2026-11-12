@@ -25,11 +25,12 @@ public class RabbitMqTaskTriggerDispatcher {
       fixedDelayString="${commerceflow.scheduling.rabbitmq.publish-fixed-delay:1s}")
   @SchedulerLock(name="rabbitMqScheduledTaskPublisher",lockAtLeastFor="PT0.1S",lockAtMostFor="PT1M")
   public void run() {
-    for (Long id : mapper.rabbitPublishCandidates(properties.getPublishBatchSize())) {
+    for (Long id : mapper.triggerPublishCandidates(TriggerStrategy.RABBITMQ.name(),
+        properties.getPublishBatchSize())) {
       ScheduledTaskView task=mapper.byId(id).orElse(null); if(task==null) continue;
       try {
         publisher.publish(task);
-        if(mapper.markTriggerPublished(id,Instant.now())==1)
+        if(mapper.markTriggerPublished(id,TriggerStrategy.RABBITMQ.name(),Instant.now())==1)
           mapper.insertEvent(id,"TASK_TRIGGER_PUBLISHED",TaskTriggerSource.RABBITMQ.name(),null,null,"RabbitMQ publisher confirm received");
       } catch(Exception exception) {
         String message=exception.getMessage()==null?exception.getClass().getSimpleName():exception.getMessage();

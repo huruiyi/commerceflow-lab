@@ -10,13 +10,15 @@ import lab.commerceflow.storefront.configuration.SchedulingProperties;
 import lab.commerceflow.storefront.configuration.OrderLifecycleProperties;
 import lab.commerceflow.storefront.configuration.LogisticsReconciliationProperties;
 import lab.commerceflow.storefront.configuration.RabbitMqTaskTriggerProperties;
+import lab.commerceflow.storefront.configuration.RocketMqTaskTriggerProperties;
 
 @SpringBootApplication
 @EnableScheduling
 @MapperScan("lab.commerceflow.storefront.mapper")
 @EnableMethodSecurity
 @EnableConfigurationProperties({SchedulingProperties.class, OrderLifecycleProperties.class,
-    LogisticsReconciliationProperties.class, RabbitMqTaskTriggerProperties.class})
+    LogisticsReconciliationProperties.class, RabbitMqTaskTriggerProperties.class,
+    RocketMqTaskTriggerProperties.class})
 public class CommerceFlowBackendApplication {
   public static void main(String[] args) {
     SpringApplication.run(CommerceFlowBackendApplication.class, args);

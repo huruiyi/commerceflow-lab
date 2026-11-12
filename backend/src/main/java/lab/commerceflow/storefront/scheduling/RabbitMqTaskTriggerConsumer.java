@@ -35,7 +35,8 @@ public class RabbitMqTaskTriggerConsumer {
     ScheduledTaskView task=mapper.byId(message.taskId()).orElse(null);
     if(task==null||!"RABBITMQ".equals(task.getPrimaryTriggerSnapshot())){ignored.increment();return;}
     if(task.getDueAt().isAfter(Instant.now())){
-      mapper.clearTriggerPublished(task.getId(),"RabbitMQ bucket fired before current database due time");
+      mapper.clearTriggerPublished(task.getId(),TriggerStrategy.RABBITMQ.name(),
+          "RabbitMQ bucket fired before current database due time");
       ignored.increment();return;
     }
     consumed.increment();

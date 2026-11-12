@@ -7,7 +7,7 @@
 | 性质 | 全项目唯一的未实现任务清单 |
 | 主线 | 原 `temp.md` 中准备实施的订单闭环方案 |
 | 合并内容 | 订单超时策略、Database/RabbitMQ/RocketMQ 讨论、截图阶段 4～6 和旧实施计划 |
-| 当前状态 | 通用定时任务底座、Database/RabbitMQ 触发、订单取消、模拟物流、回调 Outbox/主动对账、自动确认收货/自动完成已实现；RocketMQ 主触发待实现 |
+| 当前状态 | 通用定时任务底座、Database/RabbitMQ/RocketMQ 主触发、订单取消、模拟物流、回调 Outbox/主动对账、自动确认收货/自动完成已实现；RocketMQ 对账故障实验待补 |
 | UI 边界 | 客户订单中心已改为摘要、当前主操作与可展开详情，支付、退款、物流和时间线保持独立事实展示 |
 | 最后更新 | 2026-11-12 |
 
@@ -29,7 +29,7 @@
 - [x] `CANCELLING`、`CANCELLED`、`COMPLETED` 订单状态。
 - [x] 客户主动取消未支付订单（客户页面入口待阶段 5 接入）。
 - [x] 整单支付截止时间、Database 自动关单及与支付成功的并发状态处理（真实并发压测待补）。
-- [ ] Database、RabbitMQ、RocketMQ 可插拔主触发和可独立开关的 Database 对账补偿（Database、RabbitMQ 已完成，RocketMQ 待实现）。
+- [x] Database、RabbitMQ、RocketMQ 可插拔主触发和可独立开关的 Database 对账补偿。
 - [x] 任务策略快照，保证同一任务不随全局配置中途换策略。
 - [x] 独立模拟物流服务、签名回调、轨迹投影与客户查询。
 - [x] 物流签收后由 `AUTO_RECEIVE（自动确认收货）` 推进收货，再由 `AUTO_COMPLETE（自动完成订单）` 执行 `RECEIVED -> COMPLETED`。
@@ -125,17 +125,17 @@ PAID
 
 - [x] **Database**：ShedLock + 分批领取，支持周期、批次、原子领取、租约恢复和最大尝试次数。
 - [x] **RabbitMQ**：持久化分桶 TTL + DLX、Publisher Confirm/Return、有限退避重试、DLQ、早到重新分桶、数据库原子抢占和重启补发。
-- [ ] **RocketMQ**：5.x 延时消息，处理生产、消费、重试、死信、Broker 时钟偏差和重启恢复。
-- [x] RabbitMQ 消息只携带 `taskId/taskType/dueAt/strategySnapshot`，消费时从数据库重读任务和业务事实；RocketMQ 后续遵循同一契约。
+- [x] **RocketMQ**：5.x gRPC 客户端、原生绝对投递时间、Broker 回执、发布失败重试、消费端重试/死信、早到重投和重启后未发布任务恢复。
+- [x] RabbitMQ/RocketMQ 消息只携带 `taskId/taskType/dueAt/strategySnapshot`，消费时从数据库重读任务和业务事实。
 
 ### 6.5 Database 对账和管理配置
 
 - [x] `reconciliation.enabled` 是独立补偿开关，不是第四种主策略。
 - [x] 只处理超过 `dueAt + gracePeriod` 仍未完成的任务，保留原策略快照和补偿来源。
-- [ ] 通过 `@ConfigurationProperties` 完整绑定并校验全部策略和适配器字段；通用字段与 RabbitMQ 拓扑/分桶/发布字段已绑定并可由环境变量覆盖，RocketMQ 待补。
+- [x] 通过 `@ConfigurationProperties` 完整绑定并校验全部通用策略、RabbitMQ 和 RocketMQ 适配器字段，并支持环境变量覆盖。
 - [x] 管理员改全局默认只影响新任务；旧任务继续使用快照。
 - [x] 管理员 API 与 Angular 管理页可新增/覆盖/恢复策略，查询、重试、取消任务，并查看策略审计与任务事件。
-- [ ] 验证三种主触发 × 对账关/开的六种组合（Database 两种和 RabbitMQ 两种已通过，RocketMQ 两种待实现）。
+- [ ] 验证三种主触发 × 对账关/开的六种组合（Database 两种、RabbitMQ 两种和 RocketMQ 关闭对账已通过；RocketMQ 开启对账的 Broker 停机故障验收待补）。
 
 ### 6.6 阶段门禁
 
@@ -225,14 +225,14 @@ PAID
 - [x] 主动取消无支付/有待支付订单、重复取消、支付/取消并发；Windows 与容器化 Bash 脚本已覆盖 `PAID/SUCCESS` 和 `CANCELLED/CLOSED` 两种竞态终态。
 - [ ] 单次支付过期仍可重试，整单超时自动关闭。
 - [ ] 六种主触发/对账组合。
-- [ ] MQ 未投递、消费者停机、重复、毒消息和 Database 补偿（RabbitMQ 未投递恢复与 Database 补偿已通过；重复/毒消息及 RocketMQ 待补）。
+- [ ] MQ 未投递、消费者停机、重复、毒消息和 Database 补偿（RabbitMQ 未投递恢复与 Database 补偿已通过；RocketMQ 正常投递已通过，故障恢复及两种 MQ 的重复/毒消息待补）。
 - [x] 物流推进、暂时/永久回调丢失、重放、迟到可变字段、对账和越权查询；长时间并发乱序压力单列后续。
 - [x] Windows Docker 已验证手动/自动收货、自动 `COMPLETED`，完成后仍可查支付/物流并评价；退款记录保留由现有响应契约覆盖。
 
 ### 10.2 双平台脚本和 Docker
 
 - [ ] Windows PowerShell 和 Bash 提供同名、同参数、同语义脚本。
-- [ ] 三种主策略提供独立 Compose Profile；RabbitMQ Profile 已实现且 Database 默认模式不强制启动 MQ，RocketMQ Profile 待补。
+- [x] 三种主策略可独立运行；RabbitMQ 和 RocketMQ 提供可选 Compose Profile，Database 默认模式不强制启动 MQ。
 - [ ] 空数据卷从 Flyway 到全链路验收通过。
 - [ ] 旧卷升级、服务/MQ 重启、任务恢复通过。
 - [ ] 脚本默认不清空数据；破坏性重建需显式参数。
@@ -338,6 +338,15 @@ PAID
 - 跨平台边界：Windows 专项脚本已执行；Bash 同语义脚本已提供，但当前 Git Bash 缺少 `jq`，尚未实机执行。
 - 遗留：RabbitMQ 重复/毒消息专项验收、RocketMQ 两种组合、长时间压力测试。
 - 提交：未提交。
+
+### 2026-11-12：RocketMQ 5.x 定时任务主触发
+
+- 依赖：Apache RocketMQ Java gRPC Client `5.2.2`；Docker Profile 使用当前可获取的官方镜像 `apache/rocketmq:5.4.0`。
+- 配置：新增可选 `rocketmq` Profile，启动 NameServer 和带 Proxy 的 Broker，持久化日志/存储卷，并初始化 `message.type=DELAY` Topic。
+- 实现：将 `dueAt` 转为绝对投递时间；发布成功记录 message ID，失败保留未发布状态以待补发；消费端重读数据库并复用统一执行器，早到消息重新投递，异常由 Broker 重试/死信。
+- 验证：后端容器构建通过；默认与 RocketMQ Profile Compose 配置通过；Windows 和容器化 Bash 均完成真实下单、Broker 回执、原生延时投递、原子领取、超时关单和审计链验收（任务 226/227）。
+- 遗留：RocketMQ + Database 对账的 Broker 停机故障验收，以及重复/毒消息专项实验。
+- 提交：待本批次提交。
 
 后续记录继续使用以下模板：
 

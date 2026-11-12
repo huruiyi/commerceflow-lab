@@ -4,16 +4,16 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 当前状态 | 通用任务/策略、Database 与 RabbitMQ 执行底座已实现；RocketMQ 适配器和其余业务 Handler 待实现 |
+| 当前状态 | 通用任务/策略、Database、RabbitMQ 与 RocketMQ 主触发已实现；其余业务 Handler 和部分 MQ 故障验收待实现 |
 | 适用任务 | 所有需要“在某个时间后幂等执行”的业务任务 |
 | 主触发策略 | `DATABASE`、`RABBITMQ`、`ROCKETMQ` |
 | 补偿机制 | 数据库对账，可独立开启或关闭 |
 | 合理组合数 | `3 × 2 = 6` |
 | 最后更新 | 2026-11-12 |
 
-本文定义通用定时任务的可配置触发策略、数据库补偿职责、六种合理组合、策略快照和切换边界。订单支付超时只是第一个完整示例，不是框架边界。当前 `commerceflow.scheduling`、数据库策略覆盖、任务快照、Database 扫描/对账/租约恢复、RabbitMQ 分桶 TTL + DLX 适配器和管理 API 已实现；RocketMQ 与其两种组合仍是待实施设计。
+本文定义通用定时任务的可配置触发策略、数据库补偿职责、六种合理组合、策略快照和切换边界。订单支付超时只是第一个完整示例，不是框架边界。当前 `commerceflow.scheduling`、数据库策略覆盖、任务快照、Database 扫描/对账/租约恢复、RabbitMQ 分桶 TTL + DLX、RocketMQ 5.x 原生延时消息适配器和管理 API 已实现。
 
-> 实现口径：源码中的正式配置根节点是 `commerceflow.scheduling`，订单期限属于 `commerceflow.order-lifecycle`。本文六组合章节中的 `commerceflow.order-expiration` 完整 YAML 是早期便于横向比较的概念配置，不应直接复制到当前应用；当前可执行字段以 `application.yml`、`.env.example` 及下方“当前 RabbitMQ 实现”说明为准。
+> 实现口径：源码中的正式配置根节点是 `commerceflow.scheduling`，订单期限属于 `commerceflow.order-lifecycle`。本文六组合章节中的 `commerceflow.order-expiration` 完整 YAML 是早期便于横向比较的概念配置，不应直接复制到当前应用；当前可执行字段以 `application.yml`、`.env.example` 及下方的当前适配器说明为准。
 
 ### 1.3 当前 RabbitMQ 实现
 
@@ -23,6 +23,14 @@
 - Ready Queue 消费失败启用 3 次有限退避；坏消息或超过重试次数的处理异常进入 Dead Queue。
 - 消费者重新读取数据库任务，检查 `RABBITMQ` 策略快照与 `due_at`；早到消息清除发布标记并重新分桶，到期消息调用统一 `ScheduledTaskExecutor` 原子领取。
 - `reconciliation-enabled=true` 时，Database 只在宽限期后补偿遗漏任务，`primaryTriggerSnapshot` 仍保持 `RABBITMQ`，实际来源记录为 `DATABASE_RECONCILIATION`。
+
+### 1.4 当前 RocketMQ 实现
+
+- `commerceflow.scheduling.rocketmq.enabled=false` 默认关闭；使用 `docker compose --profile rocketmq` 启动 NameServer、Broker/Proxy 和 Topic 初始化，并设置 `SCHEDULING_ROCKETMQ_ENABLED=true` 才启动生产/消费端。
+- Java gRPC Client 直接向 5.x Proxy 发送，将任务 `dueAt` 设为毫秒级绝对投递时间；Topic 初始化为 `message.type=DELAY`。
+- 发布成功后保存 Broker message ID 和审计事件；异常保留未发布标记并由扫描器重试。
+- 消费者重读数据库，检查 `ROCKETMQ` 快照后调用统一 `ScheduledTaskExecutor`；时钟偏差导致的早到消息会清除发布标记后重新投递，格式/执行异常返回失败交由 Broker 重试和死信。
+- 连接端点、Topic、Consumer Group、Tag、请求超时、发布扫描和批次均可通过环境变量覆盖。
 
 ### 1.1 首批与可扩展任务场景
 
@@ -205,13 +213,15 @@ commerceflow:
 | 字段 | 默认值 | 含义 |
 | --- | --- | --- |
 | `rocketmq` | 无 | RocketMQ 延迟触发适配器的连接、Topic、生产和消费配置节点。未被选为主策略时不生效。 |
-| `rocketmq.name-server` | `localhost:9876` | RocketMQ NameServer 地址；部署环境可通过环境变量覆盖。 |
-| `rocketmq.topic` | `order-expiration-delay` | 延迟任务 Topic，必须按 RocketMQ 版本要求声明为延迟消息类型。 |
-| `rocketmq.producer-group` | `commerceflow-order-expiration-producer` | 订单超时延迟消息生产者组。 |
-| `rocketmq.consumer-group` | `commerceflow-order-expiration-consumer` | 订单超时消息消费者组，同组实例共同分担任务。 |
-| `rocketmq.send-timeout` | `5s` | 发送延迟消息等待 Broker 结果的最长时间。超时按未知结果处理并由 Outbox 重试。 |
-| `rocketmq.consumer-concurrency` | `2` | 延迟消息消费并发数。原子抢占仍是业务唯一执行保护。 |
-| `rocketmq.max-reconsume-times` | `5` | 消费失败后的最大重新消费次数，超过后进入死信或人工处理。 |
+| `rocketmq.enabled` | `false` | 是否创建 RocketMQ 客户端并允许保存 `ROCKETMQ` 策略。 |
+| `rocketmq.endpoints` | `localhost:8081` | RocketMQ 5.x Proxy gRPC 端点；Compose 内默认为 `rocketmq-broker:8081`。 |
+| `rocketmq.topic` | `commerceflow-scheduled-task` | 延时任务 Topic，必须声明为 `message.type=DELAY`。 |
+| `rocketmq.consumer-group` | `commerceflow-scheduled-task-consumer` | 定时任务消费者组，同组实例共同分担任务。 |
+| `rocketmq.tag` | `SCHEDULED_TASK` | 生产和订阅时使用的消息 Tag。 |
+| `rocketmq.request-timeout` | `5s` | 发送延时消息等待 Broker 结果的最长时间。 |
+| `rocketmq.publish-initial-delay` | `2s` | 应用启动后首次扫描未发布任务的延时。 |
+| `rocketmq.publish-fixed-delay` | `1s` | 未发布任务扫描间隔。 |
+| `rocketmq.publish-batch-size` | `100` | 每轮最多发布的任务数。 |
 
 这些字段只在 `primary-trigger=ROCKETMQ` 时生效。订单 `payment_due_at` 会转换成消息的绝对投递时间戳。
 
@@ -627,7 +637,7 @@ commerceflow:
 
 - 部署和运维成本高于当前项目直接增加 RabbitMQ。
 - Spring Boot 核心自动配置没有 RabbitMQ 那样直接，需要额外生态集成。
-- RocketMQ 5 延迟消息默认最大范围为二十四小时，不适合直接承担七天自动收货或自动完成任务。
+- RocketMQ 5 延时消息支持毫秒级绝对时间，官方文档给出的最大延时范围为 40 天；超过该范围的任务需由数据库或专业调度平台分段承接。
 - 没有数据库兜底时仍然存在消息或消费异常导致任务遗漏的风险。
 
 ### 8.4 适用范围
@@ -699,7 +709,7 @@ commerceflow:
 ### 9.3 风险
 
 - 基础设施和客户端集成更复杂。
-- 仍需为超过二十四小时的任务选择数据库或专业调度平台。
+- 仍需为超过 RocketMQ 40 天延时上限的任务选择数据库或专业调度平台。
 - 必须统一消息幂等、数据库租约、监控和故障审计。
 
 ### 9.4 适用范围

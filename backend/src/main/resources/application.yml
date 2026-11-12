@@ -144,6 +144,16 @@ commerceflow:
       ready-routing-key: ${SCHEDULING_RABBITMQ_READY_ROUTING_KEY:scheduled-task.ready}
       dead-routing-key: ${SCHEDULING_RABBITMQ_DEAD_ROUTING_KEY:scheduled-task.dead}
       delay-buckets: ${SCHEDULING_RABBITMQ_DELAY_BUCKETS:1s,5s,30s,5m,30m,2h,1d}
+    rocketmq:
+      enabled: ${SCHEDULING_ROCKETMQ_ENABLED:false}
+      endpoints: ${SCHEDULING_ROCKETMQ_ENDPOINTS:localhost:8081}
+      topic: ${SCHEDULING_ROCKETMQ_TOPIC:commerceflow-scheduled-task}
+      consumer-group: ${SCHEDULING_ROCKETMQ_CONSUMER_GROUP:commerceflow-scheduled-task-consumer}
+      tag: ${SCHEDULING_ROCKETMQ_TAG:SCHEDULED_TASK}
+      request-timeout: ${SCHEDULING_ROCKETMQ_REQUEST_TIMEOUT:5s}
+      publish-initial-delay: ${SCHEDULING_ROCKETMQ_PUBLISH_INITIAL_DELAY:2s}
+      publish-fixed-delay: ${SCHEDULING_ROCKETMQ_PUBLISH_FIXED_DELAY:1s}
+      publish-batch-size: ${SCHEDULING_ROCKETMQ_PUBLISH_BATCH_SIZE:100}
 resilience4j:
   retry:
     instances:

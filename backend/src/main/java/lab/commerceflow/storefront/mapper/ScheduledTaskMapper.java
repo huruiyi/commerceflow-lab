@@ -96,21 +96,23 @@ public interface ScheduledTaskMapper {
 
   @Select("""
       SELECT id FROM scheduled_tasks
-      WHERE primary_trigger_snapshot='RABBITMQ'
+      WHERE primary_trigger_snapshot=#{strategy}
         AND status IN ('SCHEDULED','FAILED') AND attempts<max_attempts
         AND trigger_published_at IS NULL
       ORDER BY due_at,id LIMIT #{limit}
       """)
-  List<Long> rabbitPublishCandidates(@Param("limit") int limit);
+  List<Long> triggerPublishCandidates(@Param("strategy") String strategy,
+                                      @Param("limit") int limit);
 
   @Update("""
       UPDATE scheduled_tasks SET trigger_published_at=#{publishedAt},
         trigger_publish_attempts=trigger_publish_attempts+1,trigger_last_error=NULL,
         updated_at=CURRENT_TIMESTAMP(6)
-      WHERE id=#{id} AND primary_trigger_snapshot='RABBITMQ'
+      WHERE id=#{id} AND primary_trigger_snapshot=#{strategy}
         AND status IN ('SCHEDULED','FAILED') AND trigger_published_at IS NULL
       """)
-  int markTriggerPublished(@Param("id") Long id, @Param("publishedAt") Instant publishedAt);
+  int markTriggerPublished(@Param("id") Long id, @Param("strategy") String strategy,
+                           @Param("publishedAt") Instant publishedAt);
 
   @Update("""
       UPDATE scheduled_tasks SET trigger_publish_attempts=trigger_publish_attempts+1,
@@ -122,10 +124,11 @@ public interface ScheduledTaskMapper {
   @Update("""
       UPDATE scheduled_tasks SET trigger_published_at=NULL,trigger_last_error=#{reason},
         updated_at=CURRENT_TIMESTAMP(6)
-      WHERE id=#{id} AND primary_trigger_snapshot='RABBITMQ'
+      WHERE id=#{id} AND primary_trigger_snapshot=#{strategy}
         AND status IN ('SCHEDULED','FAILED')
       """)
-  int clearTriggerPublished(@Param("id") Long id, @Param("reason") String reason);
+  int clearTriggerPublished(@Param("id") Long id, @Param("strategy") String strategy,
+                            @Param("reason") String reason);
 
   @Select("""
       SELECT id FROM scheduled_tasks

@@ -7,6 +7,7 @@ import java.util.Locale;
 import java.util.Set;
 import lab.commerceflow.storefront.configuration.SchedulingProperties;
 import lab.commerceflow.storefront.configuration.RabbitMqTaskTriggerProperties;
+import lab.commerceflow.storefront.configuration.RocketMqTaskTriggerProperties;
 import lab.commerceflow.storefront.domain.ScheduledTaskPolicyView;
 import lab.commerceflow.storefront.domain.ScheduledTaskPolicyEventView;
 import lab.commerceflow.storefront.mapper.ScheduledTaskMapper;
@@ -19,14 +20,17 @@ public class ScheduledTaskPolicyService {
   private final SchedulingProperties properties;
   private final ScheduledTaskHandlerRegistry handlers;
   private final RabbitMqTaskTriggerProperties rabbitMq;
+  private final RocketMqTaskTriggerProperties rocketMq;
 
   public ScheduledTaskPolicyService(ScheduledTaskMapper mapper, SchedulingProperties properties,
                                     ScheduledTaskHandlerRegistry handlers,
-                                    RabbitMqTaskTriggerProperties rabbitMq) {
+                                    RabbitMqTaskTriggerProperties rabbitMq,
+                                    RocketMqTaskTriggerProperties rocketMq) {
     this.mapper = mapper;
     this.properties = properties;
     this.handlers = handlers;
     this.rabbitMq = rabbitMq;
+    this.rocketMq = rocketMq;
   }
 
   public ResolvedTaskPolicy resolve(String rawTaskType) {
@@ -56,8 +60,8 @@ public class ScheduledTaskPolicyService {
     if (enabled && trigger == TriggerStrategy.RABBITMQ && !rabbitMq.isEnabled()) {
       throw new IllegalStateException("The RABBITMQ trigger adapter is not enabled");
     }
-    if (enabled && trigger == TriggerStrategy.ROCKETMQ) {
-      throw new IllegalStateException("The " + trigger + " trigger adapter is not installed yet");
+    if (enabled && trigger == TriggerStrategy.ROCKETMQ && !rocketMq.isEnabled()) {
+      throw new IllegalStateException("The ROCKETMQ trigger adapter is not enabled");
     }
     mapper.upsertPolicy(taskType, enabled, trigger.name(), reconciliationEnabled,
         gracePeriod.toSeconds(), claimLease.toSeconds(), maxAttempts, retryDelay.toSeconds(), updatedBy);
@@ -83,8 +87,8 @@ public class ScheduledTaskPolicyService {
     if (policy.primaryTrigger() == TriggerStrategy.RABBITMQ && !rabbitMq.isEnabled()) {
       throw new IllegalStateException("The RABBITMQ trigger adapter is not enabled");
     }
-    if (policy.primaryTrigger() == TriggerStrategy.ROCKETMQ) {
-      throw new IllegalStateException("The ROCKETMQ trigger adapter is not installed yet");
+    if (policy.primaryTrigger() == TriggerStrategy.ROCKETMQ && !rocketMq.isEnabled()) {
+      throw new IllegalStateException("The ROCKETMQ trigger adapter is not enabled");
     }
   }
 
