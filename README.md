@@ -162,6 +162,7 @@ bash ./scripts/linux/verify-all.sh --skip-build
 | `verify-payment-notifications` | 创建订单、发起待支付交易、模拟签名回调并拒绝伪造回调 | 商城 `14200` |
 | `verify-payment-attempt-deadline` | 验证单次渠道支付过期不关闭整单、到期前可换渠道重试，以及整单截止时先关闭待支付交易再取消订单 | 商城 `14200`、支付平台 `14201` |
 | `verify-payment-cancellation-race` | 交替偏置并加入随机抖动，并发支付完成与客户取消，校验订单/支付/退款一致性 | 商城 `14200`、支付平台 `14201` |
+| `verify-payment-cancellation-stress` | 可配置时长、最少轮数、随机种子和节流的竞态浸泡测试；自动准备库存并对本轮订单做 MySQL 矛盾记录审计 | 商城 `14200`、支付平台 `14201`、Docker MySQL |
 | `verify-kafka-payment` | 支付回调、Kafka Topic、Outbox 发布和消费记录 | 商城 `14200` |
 | `verify-payment-outcomes` | 失败、余额不足、取消和超时四类支付结果 | 商城 `14200` |
 | `verify-refunds` | 全额退款、资金账一致性、请求/通知幂等、重复申请和伪造通知拒绝 | 商城 `14200` |
@@ -187,6 +188,7 @@ Windows 单项脚本通过 `-BaseUrl` 改地址：
 ./scripts/windows/verify-authorization.ps1 -BaseUrl http://localhost:14200
 ./scripts/windows/verify-flyway-lifecycle.ps1
 ./scripts/windows/verify-payment-attempt-deadline.ps1 -BaseUrl http://localhost:14200 -PaymentUrl http://localhost:14201
+./scripts/windows/verify-payment-cancellation-stress.ps1 -DurationSeconds 300 -MinimumIterations 30
 ./scripts/windows/verify-payment.ps1 -BaseUrl http://localhost:14201
 ```
 
@@ -196,6 +198,7 @@ Bash 单项脚本把地址作为第一个位置参数；也可省略并使用表
 bash ./scripts/linux/verify-authorization.sh http://localhost:14200
 bash ./scripts/linux/verify-flyway-lifecycle.sh
 bash ./scripts/linux/verify-payment-attempt-deadline.sh http://localhost:14200 http://localhost:14201
+bash ./scripts/linux/verify-payment-cancellation-stress.sh http://localhost:14200 http://localhost:14201 300 30
 bash ./scripts/linux/verify-payment.sh http://localhost:14201
 ```
 

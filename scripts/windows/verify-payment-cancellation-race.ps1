@@ -1,7 +1,11 @@
 param(
   [string]$BaseUrl = 'http://localhost:14200',
   [string]$PaymentBaseUrl = 'http://localhost:14201',
-  [ValidateRange(1, 100)][int]$Iterations = 12
+  [ValidateRange(1, 10000)][int]$Iterations = 12,
+  [ValidateRange(0, 86400)][int]$DurationSeconds = 0,
+  [int]$Seed = 0,
+  [ValidateRange(0, 60000)][int]$InterIterationDelayMilliseconds = 0,
+  [switch]$AuditDockerDatabase
 )
 $ErrorActionPreference = 'Stop'
 
@@ -13,6 +17,20 @@ function New-CustomerSession {
     -Headers $headers -ContentType application/json `
     -Body '{"email":"demo@example.com","password":"demo-password","rememberMe":false}' | Out-Null
   return @{ Session = $session; Headers = $headers }
+}
+
+function New-PendingPayment($Customer, [long]$OrderId, [string]$Body) {
+  for ($attempt = 1; $attempt -le 15; $attempt++) {
+    try {
+      return Invoke-RestMethod "$BaseUrl/api/purchase-orders/$OrderId/payments" -Method Post `
+        -WebSession $Customer.Session -Headers $Customer.Headers -ContentType application/json -Body $Body
+    } catch {
+      $detail = "$($_.ErrorDetails.Message) $($_.Exception.Message)"
+      if ($detail -notmatch '429 Too Many Requests|\u9891\u7387\u8fc7\u9ad8' -or $attempt -eq 15) { throw }
+      Write-Warning "Payment platform rate limit reached; retrying payment creation in 5 seconds ($attempt/15)."
+      Start-Sleep -Seconds 5
+    }
+  }
 }
 
 $customer = New-CustomerSession
@@ -27,20 +45,34 @@ if (-not $selected.addressId) {
 }
 
 $outcomes = @{}
-for ($iteration = 1; $iteration -le $Iterations; $iteration++) {
+$orderIds = [System.Collections.Generic.List[long]]::new()
+$startedAt = [datetimeoffset]::UtcNow
+if ($Seed -ne 0) { Get-Random -SetSeed $Seed | Out-Null }
+$iteration = 0
+do {
+  $iteration++
   Invoke-RestMethod "$BaseUrl/api/cart/items" -Method Post -WebSession $customer.Session `
     -Headers $customer.Headers -ContentType application/json `
     -Body '{"productId":1,"quantity":1,"note":"payment-cancellation-race"}' | Out-Null
   $order = Invoke-RestMethod "$BaseUrl/api/purchase-orders/checkout" -Method Post `
     -WebSession $customer.Session -Headers $customer.Headers -ContentType application/json -Body '{}'
+  $orderIds.Add([long]$order.id)
   $paymentBody = @{
     idempotencyKey = [guid]::NewGuid().ToString()
     simulateFailure = $false
     channel = 'ALIPAY'
   } | ConvertTo-Json -Compress
-  $pending = Invoke-RestMethod "$BaseUrl/api/purchase-orders/$($order.id)/payments" -Method Post `
-    -WebSession $customer.Session -Headers $customer.Headers -ContentType application/json `
-    -Body $paymentBody
+  try {
+    $pending = New-PendingPayment $customer $order.id $paymentBody
+  } catch {
+    $paymentFailure = $_
+    try {
+      Invoke-RestMethod "$BaseUrl/api/purchase-orders/$($order.id)/cancel" -Method Post `
+        -WebSession $customer.Session -Headers $customer.Headers -ContentType application/json `
+        -Body '{"reason":"Clean up failed stress-test payment setup"}' | Out-Null
+    } catch { Write-Warning "Could not cancel failed stress setup order $($order.orderNumber): $($_.Exception.Message)" }
+    throw $paymentFailure
+  }
   if ($pending.payment.status -ne 'PENDING') { throw "Iteration $iteration did not create a pending payment" }
   $checkoutToken = $pending.payment.checkoutUrl.Split('/')[-1].Split('?')[0]
 
@@ -119,8 +151,32 @@ for ($iteration = 1; $iteration -le $Iterations; $iteration++) {
   }
   $key = "$($resolved.status)/$paymentStatus"
   $outcomes[$key] = [int]$outcomes[$key] + 1
-  Write-Host "[$iteration/$Iterations] order=$($resolved.orderNumber) outcome=$key delays=${cancelDelay}ms/${paymentDelay}ms"
+  $progress = if ($DurationSeconds -gt 0) { "$iteration / $([math]::Floor(([datetimeoffset]::UtcNow-$startedAt).TotalSeconds))s" } else { "$iteration/$Iterations" }
+  Write-Host "[$progress] order=$($resolved.orderNumber) outcome=$key delays=${cancelDelay}ms/${paymentDelay}ms"
+  if ($InterIterationDelayMilliseconds -gt 0) { Start-Sleep -Milliseconds $InterIterationDelayMilliseconds }
+} while ($iteration -lt $Iterations -or
+    ($DurationSeconds -gt 0 -and ([datetimeoffset]::UtcNow-$startedAt).TotalSeconds -lt $DurationSeconds))
+
+if ($DurationSeconds -gt 0 -and $outcomes.Count -lt 2) {
+  throw "Stress run did not observe both payment-wins and cancellation-wins terminal families"
+}
+
+if ($AuditDockerDatabase) {
+  $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+  $databaseUser = if ($env:DATABASE_USERNAME) { $env:DATABASE_USERNAME } else { 'commerceflow' }
+  $databasePassword = if ($env:DATABASE_PASSWORD) { $env:DATABASE_PASSWORD } else { 'commerceflow-password' }
+  $ids = $orderIds -join ','
+  $query = "SELECT COUNT(DISTINCT o.id),COUNT(p.id),SUM(CASE WHEN (o.status='CANCELLED' AND p.status='CLOSED') OR (o.status IN ('PAID','REFUNDING','REFUNDED') AND p.status='SUCCESS') THEN 0 ELSE 1 END) FROM shop_orders o LEFT JOIN payment_records p ON p.order_id=o.id WHERE o.id IN ($ids);"
+  $audit = & docker compose --project-directory $projectRoot exec -T mysql mysql -N `
+    "-u$databaseUser" "-p$databasePassword" commerceflow -e $query
+  if ($LASTEXITCODE -ne 0) { throw 'Docker MySQL consistency audit failed to execute' }
+  $values = (($audit | Select-Object -Last 1) -split '\s+')
+  if ($values.Count -lt 3 -or [int]$values[0] -ne $iteration -or
+      [int]$values[1] -ne $iteration -or [int]$values[2] -ne 0) {
+    throw "Docker MySQL consistency audit failed: $($values -join '/')"
+  }
 }
 
 $summary = ($outcomes.GetEnumerator() | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ', '
-Write-Host "Payment/cancellation race verification passed: iterations=$Iterations; $summary" -ForegroundColor Green
+$elapsed = [math]::Round(([datetimeoffset]::UtcNow-$startedAt).TotalSeconds, 1)
+Write-Host "Payment/cancellation race verification passed: iterations=$iteration; elapsed=${elapsed}s; seed=$Seed; pacing=${InterIterationDelayMilliseconds}ms; databaseAudit=$AuditDockerDatabase; $summary" -ForegroundColor Green
