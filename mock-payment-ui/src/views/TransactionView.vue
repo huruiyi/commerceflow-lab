@@ -28,7 +28,7 @@ async function close(item: Transaction) {
 
 <template>
   <div class="page-title"><div><span class="eyebrow">{{ t('signedApiLab') }} · 05A-3</span><h1>{{ t('transactionTitle') }}</h1><p>{{ t('transactionDescription') }}</p></div><span class="badge success">{{ t('signedRequests') }}</span></div>
-  <div v-if="error" class="notice error">{{ error }}</div>
+  <a-alert v-if="error" type="error" show-icon :message="error" />
   <div class="content-grid transaction-layout">
     <form class="card" @submit.prevent="create">
       <div class="card-head"><div><span class="eyebrow">{{ t('merchantSdkSimulator') }}</span><h3>{{ t('createSignedTransaction') }}</h3></div><span class="badge pending">05A-3</span></div>
@@ -40,12 +40,18 @@ async function close(item: Transaction) {
       <label>{{ t('subject') }}<input v-model="form.subject" required /></label>
       <div class="form-row"><label>{{ t('channel') }}<select v-model="form.channel"><option value="ALIPAY">{{ enumLabel('ALIPAY') }}</option><option value="WECHAT_PAY">{{ enumLabel('WECHAT_PAY') }}</option><option value="UNION_PAY">{{ enumLabel('UNION_PAY') }}</option></select></label><label>{{ t('amount') }}<input v-model.number="form.amount" type="number" min="0.01" step="0.01" /></label></div>
       <label>{{ t('faultScenario') }}<select v-model="form.faultScenario"><option value="NONE">{{ enumLabel('NONE') }}</option><option value="CREATE_FAILURE">{{ enumLabel('CREATE_FAILURE') }}</option><option value="DELAYED_SUCCESS">{{ enumLabel('DELAYED_SUCCESS') }}</option><option value="NOTIFY_LOST">{{ enumLabel('NOTIFY_LOST') }}</option></select></label>
-      <button class="primary full">{{ t('sendSigned') }}</button><p class="muted small">{{ t('signatureHint') }}</p>
+      <a-button type="primary" html-type="submit" block>{{ t('sendSigned') }}</a-button><p class="muted small">{{ t('signatureHint') }}</p>
     </form>
     <article class="card span-2">
-      <div class="card-head"><div><span class="eyebrow">{{ t('liveLedger') }}</span><h3>{{ t('channelLedger') }}</h3></div><button class="secondary" @click="load">{{ t('refresh') }}</button></div>
-      <div v-if="!transactions.length" class="empty">{{ t('noLedgerTransactions') }}</div>
-      <div v-else class="table-scroll"><table><thead><tr><th>{{ t('channelTransactionNo') }}</th><th>{{ t('channelAndSubject') }}</th><th>{{ t('amount') }}</th><th>{{ t('fault') }}</th><th>{{ t('status') }}</th><th></th></tr></thead><tbody><tr v-for="item in transactions" :key="item.channelTransactionNo"><td class="mono">{{ item.channelTransactionNo.slice(0, 18) }}…<small>{{ item.merchantRequestNo }}</small></td><td><b>{{ enumLabel(item.channel) }}</b><small>{{ item.subject }}</small></td><td>¥{{ item.amount }}</td><td>{{ enumLabel(item.faultScenario) }}</td><td><span :class="['badge', item.status.toLowerCase()]">{{ enumLabel(item.status) }}</span></td><td><button v-if="item.status === 'PENDING'" class="danger-link" @click="close(item)">{{ t('close') }}</button></td></tr></tbody></table></div>
+      <div class="card-head"><div><span class="eyebrow">{{ t('liveLedger') }}</span><h3>{{ t('channelLedger') }}</h3></div><a-button @click="load">{{ t('refresh') }}</a-button></div>
+      <vxe-table :data="transactions" border stripe show-overflow height="520" :empty-text="t('noLedgerTransactions')">
+        <vxe-column field="channelTransactionNo" :title="t('channelTransactionNo')" width="220"><template #default="{ row }"><span class="mono">{{ row.channelTransactionNo.slice(0, 18) }}…</span><small>{{ row.merchantRequestNo }}</small></template></vxe-column>
+        <vxe-column field="channel" :title="t('channelAndSubject')" min-width="190"><template #default="{ row }"><b>{{ enumLabel(row.channel) }}</b><small>{{ row.subject }}</small></template></vxe-column>
+        <vxe-column field="amount" :title="t('amount')" width="110"><template #default="{ row }">¥{{ row.amount }}</template></vxe-column>
+        <vxe-column field="faultScenario" :title="t('fault')" width="160"><template #default="{ row }">{{ enumLabel(row.faultScenario) }}</template></vxe-column>
+        <vxe-column field="status" :title="t('status')" width="130"><template #default="{ row }"><a-tag :color="row.status === 'SUCCESS' ? 'success' : row.status === 'FAILED' ? 'error' : 'processing'">{{ enumLabel(row.status) }}</a-tag></template></vxe-column>
+        <vxe-column width="100" fixed="right"><template #default="{ row }"><a-button v-if="row.status === 'PENDING'" danger type="link" @click="close(row)">{{ t('close') }}</a-button></template></vxe-column>
+      </vxe-table>
     </article>
   </div>
   <section class="card" style="margin-top:18px"><span class="eyebrow">{{ t('securityPipeline') }}</span><h3>{{ t('verificationOrder') }}</h3><div class="stat-grid"><div class="stat"><span>01</span><strong>{{ t('timeWindow') }}</strong><small>{{ t('fiveMinutes') }}</small></div><div class="stat"><span>02</span><strong>{{ t('digest') }}</strong><small>{{ t('detectTampering') }}</small></div><div class="stat"><span>03</span><strong>HMAC / RSA</strong><small>{{ t('constantTime') }}</small></div><div class="stat"><span>04</span><strong>{{ t('redisNonce') }}</strong><small>{{ t('atomicTtl') }}</small></div><div class="stat"><span>05</span><strong>{{ t('mysqlConstraint') }}</strong><small>{{ t('finalReplayProtection') }}</small></div></div></section>

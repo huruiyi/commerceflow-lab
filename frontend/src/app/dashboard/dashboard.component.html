@@ -1,17 +1,19 @@
-<div class="d-flex justify-content-between align-items-center"><h2>{{'productList'|t}}</h2><div *ngIf="searchQuery" class="d-flex align-items-center gap-2"><span class="text-muted">{{i18n.t('searchResults',{count:products.length})}}</span><button class="btn btn-sm btn-outline-secondary" (click)="clearSearch()">{{'clearSearch'|t}}</button></div></div>
+<div class="d-flex justify-content-between align-items-center"><h2>{{'productList'|t}}</h2><div *ngIf="searchQuery" class="d-flex align-items-center gap-2"><span class="text-muted">{{i18n.t('searchResults',{count:products.length})}}</span><button nz-button nzType="default" nzSize="small" (click)="clearSearch()">{{'clearSearch'|t}}</button></div></div>
 <div class="row mt-3" *ngIf="products" >
-    <div *ngFor="let item of products; let i = index" class="card col-sm-4 mb-4">
-        <img src="{{ item.imageUrl }}" class="card-img-top" alt="{{ item.name }}">
-        <span class="position-absolute top-0 start-50 translate-middle badge bg-danger p-2">{{item.price|trcurrency}}</span>
-        <div class="card-body">
-          <h5 class="card-title"> {{ item.name }} </h5>
+    <div *ngFor="let item of products; let i = index" class="col-sm-4 mb-4">
+      <nz-card class="product-card" [nzCover]="productCover">
+        <ng-template #productCover><img src="{{ item.imageUrl }}" alt="{{ item.name }}"></ng-template>
+        <nz-tag nzColor="red" class="price-tag">{{item.price|trcurrency}}</nz-tag>
+        <div>
+          <h5> {{ item.name }} </h5>
           <div class="text-warning">★ {{item.averageRating|number:'1.1-1'}} <small class="text-muted">({{item.reviewCount}} {{'reviews'|t}})</small></div>
-          <p class="card-text"> {{ item.brief }} </p>
-          <a (click)="fncSelectDetail(i)" data-bs-toggle="modal" data-bs-target="#exampleModal" class="btn btn-primary position-absolute bottom-0 end-0 m-1 ">{{'details'|t}}</a>
+          <p> {{ item.brief }} </p>
+          <button nz-button nzType="primary" (click)="fncSelectDetail(i)" data-bs-toggle="modal" data-bs-target="#exampleModal">{{'details'|t}}</button>
         </div>
+      </nz-card>
     </div>
 </div>
-<div *ngIf="searchQuery && products.length===0" class="alert alert-info">{{'noSearchResults'|t}}</div>
+<nz-alert *ngIf="searchQuery && products.length===0" nzType="info" [nzMessage]="i18n.t('noSearchResults')" nzShowIcon></nz-alert>
 
 
 <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
@@ -52,7 +54,7 @@
           </div>
         </div>
         <div class="modal-footer">
-          <img *ngIf="showLoader" src="../../assets/loading.gif" width="50" height="50"/>
+          <nz-spin *ngIf="showLoader" nzSimple></nz-spin>
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="bi bi-x-circle"></i> {{'close'|t}}</button>
           <button *ngIf="selectedProduct" type="button" class="btn btn-success" (click)="fncAddBasket(selectedProduct.id)"><i class="bi bi-cart-plus-fill"></i> {{'addBasket'|t}} ({{selectedQuantity}})</button>
         </div>

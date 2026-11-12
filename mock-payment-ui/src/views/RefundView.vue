@@ -19,10 +19,18 @@ async function redeliver(item: Refund) {
 </script>
 
 <template>
-  <div class="page-title"><div><span class="eyebrow">05B · {{ t('refundLedger') }}</span><h1>{{ t('refundTitle') }}</h1><p>{{ t('refundDescription') }}</p></div><button class="secondary" @click="load">{{ t('refresh') }}</button></div>
-  <div v-if="error" class="notice error">{{ error }}</div>
+  <div class="page-title"><div><span class="eyebrow">05B · {{ t('refundLedger') }}</span><h1>{{ t('refundTitle') }}</h1><p>{{ t('refundDescription') }}</p></div><a-button @click="load">{{ t('refresh') }}</a-button></div>
+  <a-alert v-if="error" type="error" show-icon :message="error" />
   <article class="card">
-    <div v-if="!refunds.length" class="empty">{{ t('noRefunds') }}</div>
-    <div v-else class="table-scroll"><table><thead><tr><th>{{ t('refundNumber') }}</th><th>{{ t('originalTransaction') }}</th><th>{{ t('channel') }}</th><th>{{ t('amount') }}</th><th>{{ t('reason') }}</th><th>{{ t('status') }}</th><th>{{ t('time') }}</th><th></th></tr></thead><tbody><tr v-for="item in refunds" :key="item.channelRefundNo"><td class="mono">{{ item.channelRefundNo }}<small>{{ item.merchantRefundNo }}</small></td><td class="mono">{{ item.channelTransactionNo }}</td><td>{{ enumLabel(item.channel) }}</td><td>¥{{ item.amount }}</td><td>{{ enumLabel(item.reasonCode) }}</td><td><span :class="['badge', item.status.toLowerCase()]">{{ enumLabel(item.status) }}</span><small v-if="item.failureReason">{{ item.failureReason }}</small></td><td>{{ formatDate(item.createdAt) }}</td><td><button v-if="authState.session?.authorities.includes('REFUND_OPERATE')" class="secondary" @click="redeliver(item)">{{ t('redeliverNotification') }}</button></td></tr></tbody></table></div>
+    <vxe-table :data="refunds" border stripe show-overflow :empty-text="t('noRefunds')">
+      <vxe-column field="channelRefundNo" :title="t('refundNumber')" width="230"><template #default="{ row }"><span class="mono">{{ row.channelRefundNo }}</span><small>{{ row.merchantRefundNo }}</small></template></vxe-column>
+      <vxe-column field="channelTransactionNo" :title="t('originalTransaction')" width="220"><template #default="{ row }"><span class="mono">{{ row.channelTransactionNo }}</span></template></vxe-column>
+      <vxe-column field="channel" :title="t('channel')" width="130"><template #default="{ row }">{{ enumLabel(row.channel) }}</template></vxe-column>
+      <vxe-column field="amount" :title="t('amount')" width="110"><template #default="{ row }">¥{{ row.amount }}</template></vxe-column>
+      <vxe-column field="reasonCode" :title="t('reason')" width="170"><template #default="{ row }">{{ enumLabel(row.reasonCode) }}</template></vxe-column>
+      <vxe-column field="status" :title="t('status')" width="150"><template #default="{ row }"><a-tag :color="row.status === 'SUCCEEDED' ? 'success' : row.status === 'FAILED' ? 'error' : 'processing'">{{ enumLabel(row.status) }}</a-tag><small v-if="row.failureReason">{{ row.failureReason }}</small></template></vxe-column>
+      <vxe-column field="createdAt" :title="t('time')" width="190"><template #default="{ row }">{{ formatDate(row.createdAt) }}</template></vxe-column>
+      <vxe-column width="170" fixed="right"><template #default="{ row }"><a-button v-if="authState.session?.authorities.includes('REFUND_OPERATE')" size="small" @click="redeliver(row)">{{ t('redeliverNotification') }}</a-button></template></vxe-column>
+    </vxe-table>
   </article>
 </template>

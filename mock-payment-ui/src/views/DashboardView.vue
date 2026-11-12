@@ -25,8 +25,12 @@ const pending = computed(() => transactions.value.filter(t => t.status === 'PEND
   </div>
   <div class="content-grid">
     <article class="card span-2"><div class="card-head"><div><span class="eyebrow">{{ t('recentFlow') }}</span><h3>{{ t('recentTransactions') }}</h3></div><router-link to="/transactions">{{ t('viewAll') }}</router-link></div>
-      <div v-if="!transactions.length" class="empty">{{ t('noVisibleTransactions') }}</div>
-      <table v-else><thead><tr><th>{{ t('transactionNo') }}</th><th>{{ t('channel') }}</th><th>{{ t('amount') }}</th><th>{{ t('status') }}</th></tr></thead><tbody><tr v-for="item in transactions.slice(0, 5)" :key="item.channelTransactionNo"><td class="mono">{{ item.channelTransactionNo.slice(0, 16) }}…</td><td>{{ enumLabel(item.channel) }}</td><td>¥{{ item.amount }}</td><td><span :class="['badge', item.status.toLowerCase()]">{{ enumLabel(item.status) }}</span></td></tr></tbody></table>
+      <vxe-table :data="transactions.slice(0, 5)" stripe show-overflow :empty-text="t('noVisibleTransactions')">
+        <vxe-column field="channelTransactionNo" :title="t('transactionNo')" min-width="210"><template #default="{ row }"><span class="mono">{{ row.channelTransactionNo.slice(0, 16) }}…</span></template></vxe-column>
+        <vxe-column field="channel" :title="t('channel')" width="150"><template #default="{ row }">{{ enumLabel(row.channel) }}</template></vxe-column>
+        <vxe-column field="amount" :title="t('amount')" width="120"><template #default="{ row }">¥{{ row.amount }}</template></vxe-column>
+        <vxe-column field="status" :title="t('status')" width="130"><template #default="{ row }"><a-tag :color="row.status === 'SUCCESS' ? 'success' : row.status === 'FAILED' ? 'error' : 'processing'">{{ enumLabel(row.status) }}</a-tag></template></vxe-column>
+      </vxe-table>
     </article>
     <article class="card"><span class="eyebrow">{{ t('securityPosture') }}</span><h3>{{ t('currentSecurityBoundary') }}</h3><ul class="check-list"><li>{{ t('sessionIsolation') }}</li><li>{{ t('secretOnce') }}</li><li>{{ t('stepUpAuth') }}</li><li>{{ t('dualAuthorization') }}</li><li class="future">{{ t('signatureLab') }}</li></ul></article>
   </div>
