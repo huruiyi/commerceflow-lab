@@ -6,9 +6,9 @@ $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 
 $ErrorActionPreference = 'Stop'
 
-function Invoke-ChapterVerification([string]$Script) {
+function Invoke-ChapterVerification([string]$Script, [object[]]$Arguments = @()) {
   Write-Host "`n==> $Script" -ForegroundColor Cyan
-  & (Join-Path $PSScriptRoot $Script) -BaseUrl $BaseUrl
+  & (Join-Path $PSScriptRoot $Script) -BaseUrl $BaseUrl @Arguments
   if (-not $?) { throw "$Script failed" }
 }
 
@@ -32,6 +32,7 @@ Invoke-ChapterVerification 'verify-i18n.ps1'
 Invoke-ChapterVerification 'verify-authorization.ps1'
 Invoke-ChapterVerification 'verify-scheduling.ps1'
 Invoke-ChapterVerification 'verify-order-cancellation.ps1'
+Invoke-ChapterVerification 'verify-payment-cancellation-race.ps1' -Arguments @('-Iterations', 6)
 Invoke-ChapterVerification 'verify-payment-outcomes.ps1'
 Invoke-ChapterVerification 'verify-kafka-payment.ps1'
 Invoke-ChapterVerification 'verify-refunds.ps1'

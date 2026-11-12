@@ -27,7 +27,7 @@ for service in mysql redis kafka payment-mysql mock-payment-service payment-ui l
   grep -Fxq "$service" <<<"$services" || { echo "Required service is not running: $service" >&2; exit 1; }
 done
 
-for script in verify-i18n.sh verify-authorization.sh verify-scheduling.sh verify-order-cancellation.sh verify-payment-outcomes.sh verify-kafka-payment.sh verify-refunds.sh verify-logistics-automation.sh verify-logistics-reliability.sh verify-logistics-callback-governance.sh verify-auto-lifecycle.sh verify-receipt-reviews.sh verify-redis-business.sh; do
+for script in verify-i18n.sh verify-authorization.sh verify-scheduling.sh verify-order-cancellation.sh verify-payment-cancellation-race.sh verify-payment-outcomes.sh verify-kafka-payment.sh verify-refunds.sh verify-logistics-automation.sh verify-logistics-reliability.sh verify-logistics-callback-governance.sh verify-auto-lifecycle.sh verify-receipt-reviews.sh verify-redis-business.sh; do
   echo
   echo "==> $script"
   bash "$SCRIPT_DIR/$script" "$BASE_URL"

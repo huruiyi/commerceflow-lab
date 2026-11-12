@@ -139,7 +139,7 @@ Bash：
 bash ./scripts/linux/verify-all.sh
 ```
 
-完整验收会先构建镜像并运行镜像内测试，再启动完整环境，最后验证认证、CSRF、权限边界、国际化、支付结果、Kafka、签名物流和回调轨迹、收货评价、Redis 缓存、MySQL 降级与健康状态。已有最新镜像时可跳过构建：
+完整验收会先构建镜像并运行镜像内测试，再启动完整环境，最后验证认证、CSRF、权限边界、国际化、支付/取消竞态、支付结果、Kafka、签名物流和回调轨迹、收货评价、Redis 缓存、MySQL 降级与健康状态。已有最新镜像时可跳过构建：
 
 ```powershell
 ./scripts/windows/verify-all.ps1 -SkipBuild
@@ -159,6 +159,7 @@ bash ./scripts/linux/verify-all.sh --skip-build
 | `verify-authorization` | 匿名访问、登录、禁用账号、CSRF 和三种角色权限矩阵 | 商城 `14200` |
 | `verify-i18n` | 中英文商品、按语言隔离的 Redis 缓存、稳定错误码和前端入口 | 商城 `14200` |
 | `verify-payment-notifications` | 创建订单、发起待支付交易、模拟签名回调并拒绝伪造回调 | 商城 `14200` |
+| `verify-payment-cancellation-race` | 交替偏置并加入随机抖动，并发支付完成与客户取消，校验订单/支付/退款一致性 | 商城 `14200`、支付平台 `14201` |
 | `verify-kafka-payment` | 支付回调、Kafka Topic、Outbox 发布和消费记录 | 商城 `14200` |
 | `verify-payment-outcomes` | 失败、余额不足、取消和超时四类支付结果 | 商城 `14200` |
 | `verify-refunds` | 全额退款、资金账一致性、请求/通知幂等、重复申请和伪造通知拒绝 | 商城 `14200` |
