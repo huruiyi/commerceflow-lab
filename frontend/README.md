@@ -1,5 +1,7 @@
 # Angular frontend
 
+当前基线为 Angular 22.2.6、TypeScript 6.0.3、NG-ZORRO 22.2.0 和 Bootstrap 5.3.9。新增界面优先使用 NG-ZORRO，原有 Bootstrap 界面保留并改为本地 npm 依赖，不再从 CDN 加载。
+
 ## 功能与路由
 
 | 路径 | 页面 | 功能 |
@@ -17,6 +19,8 @@
 ## 本地开发
 
 先确保后端在 `localhost:8080` 运行，再执行：
+
+本地建议使用 Node.js 26.13+ 和 npm 11.20+。
 
 ```powershell
 npm ci

@@ -10,8 +10,8 @@
 
 | 层次 | 目标方案 |
 | --- | --- |
-| 前端 | Angular 22、Bootstrap、运行时中英文切换 |
-| 后端 | Java 21、Spring Boot 3.5.16、Spring Security 6 |
+| 前端 | Angular 22.2.6、NG-ZORRO 22.2.0、Bootstrap 5.3.9、运行时中英文切换 |
+| 后端 | Java 25 LTS、Spring Boot 4.1.2、Spring Security 7 |
 | 数据访问 | MyBatis-Plus 3.5.18、Flyway |
 | 数据库 | MySQL 8.4 |
 | 缓存与会话 | Redis 7.4、Spring Session Data Redis |
@@ -91,7 +91,7 @@ review, persistent_login
 
 ### 第 01 章：升级基础平台和数据访问层（已完成）
 
-- [x] 后端升级到 Java 21、Spring Boot 3.5.16 和 Spring Security 6。
+- [x] 后端已继续升级到 Java 25 LTS、Spring Boot 4.1.2 和 Spring Security 7。
 - [x] 完成 `javax.*` 到 `jakarta.*` 的迁移。
 - [x] 移除 Spring Data JPA，使用 MyBatis-Plus 3.5.18。
 - [x] 引入 Flyway，所有结构和演示数据通过版本化脚本初始化。

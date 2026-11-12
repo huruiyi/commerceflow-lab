@@ -19,19 +19,20 @@
 浏览器
   └─ http://localhost:14200
        └─ Nginx
-            ├─ Angular 22 静态页面
-            └─ /api/* → Spring Boot 3.5.16 → MyBatis-Plus → MySQL 8.4
+            ├─ Angular 22.2.6 + NG-ZORRO 22.2.0 静态页面
+            └─ /api/* → Spring Boot 4.1.2 → MyBatis-Plus → MySQL 8.4
                                       └────→ Redis 7.4
 
 支付平台浏览器 http://localhost:14201
-  └─ Vue 3 + Nginx → 独立 Spring Boot 支付服务 → 独立 MySQL
+  └─ Vue 3.5.45 + Ant Design Vue Next + VXE-Table + Nginx
+                  → 独立 Spring Boot 支付服务 → 独立 MySQL
                                       └────────────→ 独立 Redis Session 命名空间
 ```
 
-- `frontend/`：Angular 前端、Nginx 配置和前端 Dockerfile。
-- `backend/`：Java 21、Spring Boot 3.5.16、Spring Security 6、MyBatis-Plus、Flyway 和后端 Dockerfile。
+- `frontend/`：Angular 22.2.6、NG-ZORRO 22.2.0、Bootstrap 5.3.9、Nginx 配置和前端 Dockerfile。
+- `backend/`：Java 25 LTS、Spring Boot 4.1.2、Spring Security 7、MyBatis-Plus、Flyway 和后端 Dockerfile。
 - `mock-payment-service/`：独立支付数据库、后台安全、商户凭据和三渠道交易服务。
-- `mock-payment-ui/`：Vue 3 支付管理后台与支付宝/微信/银联模拟收银台。
+- `mock-payment-ui/`：Vue 3.5.45、Ant Design Vue Next 和 VXE-Table 支付管理后台与模拟收银台。
 - `compose.yaml`：一键启动 MySQL、Redis、后端和前端。
 
 ## 学习路线与代码阅读顺序

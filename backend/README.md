@@ -2,8 +2,8 @@
 
 ## 技术栈
 
-- Java 21
-- Spring Boot 3.5.16 / Spring Security 6
+- Java 25 LTS
+- Spring Boot 4.1.2 / Spring Security 7
 - MyBatis-Plus 3.5.18
 - Flyway 数据库迁移
 - MySQL 8.4（Docker 运行）
@@ -120,7 +120,7 @@ docker compose up --build -d --wait
 
 ## 本地运行
 
-需要 Java 21、Maven、MySQL 和 Redis：
+需要 Java 25、Maven、MySQL 和 Redis：
 
 ```powershell
 $env:DATABASE_URL = 'jdbc:mysql://localhost:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC'

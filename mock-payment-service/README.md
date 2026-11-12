@@ -1,6 +1,6 @@
 # mock-payment-service
 
-05A-2/05A-3 的独立 Spring Boot 3.5.16 模拟支付平台。它使用自己的 MySQL schema、后台账号与 Redis Session，不读写商城数据库。
+05A-2/05A-3 的独立 Java 25 / Spring Boot 4.1.2 模拟支付平台。它使用自己的 MySQL schema、后台账号与 Redis Session，不读写商城数据库。
 
 核心边界：
 
