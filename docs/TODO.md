@@ -140,8 +140,8 @@ PAID
 ### 6.6 阶段门禁
 
 - [ ] 主动取消无支付、有待支付、重复请求均通过。
-- [ ] 单次支付过期后，整单未超时时仍可重试。
-- [ ] 整单超时时必须先关闭待支付交易，再进入 `CANCELLED`。
+- [x] 单次支付过期后，整单未超时时仍可重试。
+- [x] 整单超时时必须先关闭待支付交易，再进入 `CANCELLED`。
 - [ ] 支付/取消竞态、锁超时、进程崩溃和消息重复不造成错账。
 
 ## 7. 阶段 3：独立模拟物流
@@ -223,7 +223,7 @@ PAID
 ### 10.1 业务与故障验收
 
 - [x] 主动取消无支付/有待支付订单、重复取消、支付/取消并发；Windows 与容器化 Bash 脚本已覆盖 `PAID/SUCCESS` 和 `CANCELLED/CLOSED` 两种竞态终态。
-- [ ] 单次支付过期仍可重试，整单超时自动关闭。
+- [x] 单次支付过期仍可重试，整单超时自动关闭；Windows 与容器化 Bash 已验证换渠道重试、渠道关闭和 Database 任务单次执行。
 - [x] 六种主触发/对账组合。
 - [x] RabbitMQ/RocketMQ 未投递与 Database 补偿。
 - [x] RabbitMQ/RocketMQ 重复消息、迟到旧消息和毒消息专项：重放已完成任务消息只增加 ignored 指标，任务领取/完成仍各一次；非法 JSON 分别进入 RabbitMQ Dead Queue 和 RocketMQ `%DLQ%ConsumerGroup`。
@@ -350,6 +350,15 @@ PAID
 - 验证补充：Windows 与容器化 Bash 的 `verify-mq-scheduling-idempotency` 已完成 RabbitMQ/RocketMQ 重复消息、迟到旧消息和毒消息实验（任务 233～236）。
 - 验证补充：Windows Docker 与容器化 Bash 的 `verify-mq-scheduling-redelivery` 均已在 RabbitMQ/RocketMQ 消费窗口中强制终止 backend，任务 `239/240`、`241/242` 恢复后均只领取/完成一次。
 - 遗留：长时间故障压力测试。
+- 提交：待本批次提交。
+
+### 2026-11-12：支付尝试过期与整单截止时间
+
+- 实现：创建新支付时使用订单 `payment_due_at` 做领域门禁；已有幂等请求先返回原结果，截止时间后拒绝产生新渠道交易。
+- 语义：单次 `expires_at` 只终止当前渠道尝试；整单 `payment_due_at` 到期后，`PAYMENT_TIMEOUT` 统一执行器先关闭尚在 `PENDING` 的重试交易，再将订单转为 `CANCELLED`。
+- 自动验证：后端 17 个测试通过，新集成测试同时覆盖截止时间前换渠道和截止时间后拒绝新支付。
+- 实机验证：Windows 订单 `ORD-46AF0F1B96954117`/任务 `244`，容器化 Bash 订单 `ORD-370124308FED4BC0`/任务 `245`，均通过 `ALIPAY EXPIRED -> WECHAT_PAY PENDING -> CLOSED -> order CANCELLED`，任务领取与完成各一次。
+- 环境恢复：两个脚本都会恢复 `PAYMENT_TIMEOUT` 策略和原环境变量，并重建商城/支付页代理以避免 Nginx 缓存旧容器地址。
 - 提交：待本批次提交。
 
 后续记录继续使用以下模板：

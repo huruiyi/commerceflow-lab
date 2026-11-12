@@ -71,6 +71,9 @@ public class PurchaseOrderService {
       return assemble(orders.find(user.getId(),id).orElseThrow(),existing.get());
     }
     if(!"PENDING_PAYMENT".equals(order.getStatus())) throw new BusinessRuleException("Only pending orders can be paid");
+    if(!order.getPaymentDueAt().isAfter(Instant.now())) {
+      throw new BusinessRuleException("Order payment deadline has expired");
+    }
     String status="PENDING";
     String reason="";
     Instant now=Instant.now();

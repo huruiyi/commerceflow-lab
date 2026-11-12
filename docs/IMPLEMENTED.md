@@ -101,6 +101,8 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - Windows 与容器化 Bash 专项验收覆盖动作契约、无支付取消、重复取消、任务快照/取消和待支付渠道关闭。
 - 受控双线程集成测试已固定复现支付回调赢得取消竞态的时序，验证资金事实优先、单一订单事件且不误写取消终态。
 - Windows PowerShell 与容器化 Bash 的 `verify-payment-cancellation-race` 使用交替偏置和随机抖动并发调用真实商城/支付平台，已验证 `PAID/SUCCESS` 与 `CANCELLED/CLOSED` 都不会产生矛盾账务状态。
+- 单次渠道交易进入 `EXPIRED` 后不关闭订单；`payment_due_at` 未到时可换渠道发起新支付，到期后创建新支付会被后端拒绝。
+- `verify-payment-attempt-deadline` 的 Windows 与容器化 Bash 真实链路均已通过：整单截止时间到达后，Database 任务先关闭当前待支付渠道，再取消订单，且领取/完成事件各一次。
 
 尚未实现：支付/取消和手动/自动收货的高强度真实竞态实验。
 

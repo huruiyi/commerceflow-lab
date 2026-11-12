@@ -31,10 +31,27 @@ PAID / CONFIRMED
 ## 3. 支付超时与取消
 
 - 单次支付尝试的 `expires_at` 只代表该渠道交易过期，整单 `payment_due_at` 未到时仍可换渠道重试。
+- 创建新支付会重读订单截止时间；`payment_due_at` 已到时立即拒绝，不等待下一次定时扫描。同一幂等键的重放仍先返回既有支付，不会重复创建。
 - 客户取消和 `PAYMENT_TIMEOUT` 任务共用 `OrderCancellationService`，不允许用批量 SQL 直接改终态。
 - 流程先锁定订单进入 `CANCELLING`，逐个签名关闭待支付渠道交易，再进入 `CANCELLED`。
 - 取消成功在同一本地事务中写入订单事件和 `ORDER_CANCELLED` Outbox。
 - 支付成功与取消并发时，资金事实优先；若订单已进入 `CANCELLED`，回调事务会同时创建幂等自动退款单，订单转入 `REFUNDING`。
+
+### 3.1 学习实验：两层超时
+
+```text
+支付尝试 expires_at 到期
+    -> 当前渠道 EXPIRED
+    -> 订单仍是 PENDING_PAYMENT
+    -> payment_due_at 未到：可换渠道重试
+
+订单 payment_due_at 到期
+    -> PAYMENT_TIMEOUT 原子领取任务
+    -> 关闭所有 PENDING 渠道交易
+    -> 订单 CANCELLED
+```
+
+可分别运行 `scripts/windows/verify-payment-attempt-deadline.ps1` 和 `scripts/linux/verify-payment-attempt-deadline.sh`。阅读时重点对比“渠道交易的技术 TTL”与“订单允许支付的业务截止时间”：前者允许用户换渠道恢复，后者是库存释放和订单终止的统一边界。
 
 ## 4. `availableActions`
 
@@ -83,7 +100,6 @@ Angular 只使用这个集合决定是否展示操作。它不是授权凭证；
 
 ## 8. 待实现流程
 
-- RabbitMQ/RocketMQ 主触发适配器及六种组合故障验收。
 - 订单取消 Outbox 的库存释放与客户通知消费者、迟到支付自动退款已实现；后续继续补齐高强度竞态验收。
 - 物流 Outbox 的 `DEAD（停止自动重试）` 管理/人工重放、指标告警和长时间并发乱序压力。
 - 手动/自动收货的长时间高并发压力实验。

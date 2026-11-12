@@ -30,6 +30,10 @@ import lab.commerceflow.storefront.service.LogisticsNotificationService;
 import lab.commerceflow.storefront.service.LogisticsGatewayClient;
 import lab.commerceflow.storefront.service.PaymentGatewayClient;
 import lab.commerceflow.storefront.service.PaymentNotificationService;
+import lab.commerceflow.storefront.service.PurchaseOrderService;
+import lab.commerceflow.storefront.service.BusinessRuleException;
+import lab.commerceflow.storefront.domain.PaymentChannel;
+import lab.commerceflow.storefront.web.dto.PaymentRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -101,6 +105,7 @@ class CommerceFlowBackendIntegrationTest {
   @Autowired OrderCancellationProjection orderCancellationProjection;
   @Autowired PaymentNotificationService paymentNotifications;
   @Autowired OrderCancellationService orderCancellations;
+  @Autowired PurchaseOrderService purchaseOrders;
   @Autowired AppUserMapper users;
   @MockitoBean PaymentGatewayClient paymentGateway;
 
@@ -238,6 +243,61 @@ class CommerceFlowBackendIntegrationTest {
     org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
         "SELECT COUNT(*) FROM payment_outbox WHERE aggregate_type='ORDER' AND aggregate_id=? AND event_type='ORDER_CANCELLED'",
         Integer.class, orderId.toString()));
+  }
+
+  @Test
+  void expiredPaymentAttemptAllowsNewChannelBeforeButNotAfterOrderDeadline() throws Exception {
+    Long customerId = jdbc.queryForObject(
+        "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
+    String suffix = UUID.randomUUID().toString().replace("-", "");
+    jdbc.update("MERGE INTO payment_merchant_accounts(channel,merchant_no,enabled) KEY(channel) VALUES('WECHAT_PAY','WECHAT-DEADLINE-TEST',TRUE)");
+    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,created_at,updated_at) VALUES(?,?,'PENDING_PAYMENT',88.00,'CNY',?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+        "ORDER-ATTEMPT-" + suffix, customerId, java.sql.Timestamp.from(Instant.now().plusSeconds(60)));
+    Long orderId = jdbc.queryForObject(
+        "SELECT id FROM shop_orders WHERE order_number=?", Long.class, "ORDER-ATTEMPT-" + suffix);
+    String expiredTransaction = "TX-EXPIRED-" + suffix;
+    jdbc.update("INSERT INTO payment_records(order_id,payment_number,idempotency_key,channel,currency,request_fingerprint,channel_transaction_no,amount,status,failure_reason,expires_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+        orderId, "PAY-EXPIRED-" + suffix.substring(0, 20), "expired-" + suffix,
+        "ALIPAY", "CNY", suffix, expiredTransaction, new java.math.BigDecimal("88.00"), "PENDING");
+
+    String raw = json.writeValueAsString(Map.of(
+        "notificationId", "NOTICE-EXPIRED-" + suffix,
+        "channelTransactionNo", expiredTransaction,
+        "channel", "ALIPAY", "status", "EXPIRED",
+        "amount", new java.math.BigDecimal("88.00"), "currency", "CNY", "failureReason", "Attempt expired"));
+    Mac mac = Mac.getInstance("HmacSHA256");
+    mac.init(new SecretKeySpec("demo-platform-callback-secret".getBytes(StandardCharsets.UTF_8),
+        "HmacSHA256"));
+    org.junit.jupiter.api.Assertions.assertEquals("PROCESSED", paymentNotifications.accept(raw,
+        Base64.getEncoder().encodeToString(mac.doFinal(raw.getBytes(StandardCharsets.UTF_8)))).result());
+    org.junit.jupiter.api.Assertions.assertEquals("PENDING_PAYMENT",
+        jdbc.queryForObject("SELECT status FROM shop_orders WHERE id=?", String.class, orderId));
+
+    org.mockito.Mockito.doReturn(new PaymentGatewayClient.Result(
+        "TX-RETRY-" + suffix, "PENDING", "QR_CODE", null, "retry-qr",
+        java.time.LocalDateTime.now(java.time.Clock.systemUTC()).plusMinutes(5)))
+        .when(paymentGateway).create(org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.eq(PaymentChannel.WECHAT_PAY),
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.eq("CNY"), org.mockito.ArgumentMatchers.eq("NONE"));
+    var retry = purchaseOrders.pay(users.selectById(customerId), orderId,
+        new PaymentRequest("retry-" + suffix, false, PaymentChannel.WECHAT_PAY));
+    org.junit.jupiter.api.Assertions.assertEquals("PENDING_PAYMENT", retry.status());
+    org.junit.jupiter.api.Assertions.assertEquals("PENDING", retry.payment().status());
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM payment_records WHERE order_id=? AND status='EXPIRED'", Integer.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM payment_records WHERE order_id=? AND status='PENDING'", Integer.class, orderId));
+
+    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,created_at,updated_at) VALUES(?,?,'PENDING_PAYMENT',66.00,'CNY',?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+        "ORDER-DEADLINE-" + suffix, customerId, java.sql.Timestamp.from(Instant.now().minusSeconds(1)));
+    Long expiredOrderId = jdbc.queryForObject(
+        "SELECT id FROM shop_orders WHERE order_number=?", Long.class, "ORDER-DEADLINE-" + suffix);
+    org.junit.jupiter.api.Assertions.assertThrows(BusinessRuleException.class,
+        () -> purchaseOrders.pay(users.selectById(customerId), expiredOrderId,
+            new PaymentRequest("after-deadline-" + suffix, false, PaymentChannel.WECHAT_PAY)));
+    org.junit.jupiter.api.Assertions.assertEquals(0, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM payment_records WHERE order_id=?", Integer.class, expiredOrderId));
   }
 
   @Test
