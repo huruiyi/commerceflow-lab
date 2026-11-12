@@ -4,10 +4,10 @@ require_commands curl jq
 BASE_URL="${1:-http://localhost:14200}"
 PAYMENT_BASE_URL="${2:-http://localhost:14201}"
 ITERATIONS="${3:-12}"
-AUDIT_DATABASE="${4:-false}"
-DURATION_SECONDS="${5:-0}"
-SEED="${6:-0}"
-PACING_MILLISECONDS="${7:-0}"
+DURATION_SECONDS="${4:-0}"
+SEED="${5:-0}"
+PACING_MILLISECONDS="${6:-0}"
+AUDIT_DATABASE="${7:-false}"
 [[ "$ITERATIONS" =~ ^[0-9]+$ ]] && (( ITERATIONS >= 1 && ITERATIONS <= 10000 )) || {
   echo 'Iterations must be between 1 and 10000' >&2; exit 1;
 }

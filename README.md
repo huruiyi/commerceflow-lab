@@ -125,6 +125,18 @@ sudo dnf install -y curl jq openssl coreutils vim-common
 
 Windows 若选择 `.ps1`，请先安装 PowerShell 7；若使用 Git Bash，则仍需额外安装或放入 `PATH` 的 `jq`。
 
+脚本文件名、有序参数契约和默认非破坏性可单独复核：
+
+```powershell
+./scripts/windows/audit-script-contracts.ps1
+```
+
+```bash
+bash ./scripts/linux/audit-script-contracts.sh
+```
+
+契约清单与删卷边界见 [Windows/Bash 脚本审计](docs/SCRIPT-AUDIT.md)。
+
 ### 完整自动验收
 
 Windows：
@@ -257,7 +269,8 @@ docker compose --profile rabbitmq --profile rocketmq up -d --build --wait rabbit
 SCHEDULING_RABBITMQ_ENABLED=true SCHEDULING_ROCKETMQ_ENABLED=true ORDER_PAYMENT_TIMEOUT=6s \
   docker compose --profile rabbitmq --profile rocketmq up -d --build --wait rabbitmq rocketmq-init backend web
 bash ./scripts/linux/verify-mq-scheduling-idempotency.sh \
-  http://localhost:14200 http://localhost:18081 http://localhost:15672 60
+  http://localhost:14200 http://localhost:18081 http://localhost:15672 \
+  commerceflow commerceflow-password 60
 ```
 
 专项脚本要求 RabbitMQ Dead Queue 在开始前为空；验证后会取走本次 RabbitMQ 毒消息。RocketMQ 毒消息使用唯一 Key 查询对应 `%DLQ%ConsumerGroup`，不会清空或覆盖已有消息。

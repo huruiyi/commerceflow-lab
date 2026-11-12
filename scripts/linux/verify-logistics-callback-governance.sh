@@ -3,7 +3,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 require_commands curl jq openssl docker
 
 BASE_URL="${1:-http://localhost:14200}"
-LOGISTICS_URL="${LOGISTICS_URL:-http://localhost:18083}"
+LOGISTICS_URL="${2:-${LOGISTICS_URL:-http://localhost:18083}}"
 APP_ID='commerceflow-storefront'
 SECRET='demo-logistics-request-secret'
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"

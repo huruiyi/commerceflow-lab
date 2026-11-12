@@ -10,6 +10,7 @@
 | [IMPLEMENTED.md](IMPLEMENTED.md) | 已实现能力、验证边界和已知限制 | 只写有代码和验证证据的事实 |
 | [TODO.md](TODO.md) | 唯一进度勾选表、未实现代办和实施顺序 | 已完成保留证据，未完成项只在这里排序 |
 | [API.md](API.md) | 已有 API 学习索引 | 接口落地后再加入 |
+| [SCRIPT-AUDIT.md](SCRIPT-AUDIT.md) | Windows/Bash 主要脚本契约、参数对齐和默认非破坏性证据 | 参数或清理语义变更时同步审计 |
 
 ## 专题参考 `reference/`
 

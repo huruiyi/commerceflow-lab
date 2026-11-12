@@ -124,7 +124,6 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 
 以下不得在 README、页面或演示中标记为已完成：
 
-- Windows/Bash 全部主要脚本的参数/语义对齐与默认非破坏性审计。
 - Prometheus 告警规则、Alertmanager/外部通知接收端。
 
 详细顺序和验收门禁只见 [TODO.md](TODO.md)。

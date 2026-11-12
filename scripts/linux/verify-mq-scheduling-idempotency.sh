@@ -3,9 +3,9 @@ set -euo pipefail
 BASE_URL="${1:-http://localhost:14200}"
 METRICS_URL="${2:-http://localhost:18081}"
 RABBIT_URL="${3:-http://localhost:15672}"
-MAX_WAIT="${4:-60}"
-RABBIT_USER="${RABBITMQ_USERNAME:-commerceflow}"
-RABBIT_PASSWORD="${RABBITMQ_PASSWORD:-commerceflow-password}"
+RABBIT_USER="${4:-${RABBITMQ_USERNAME:-commerceflow}}"
+RABBIT_PASSWORD="${5:-${RABBITMQ_PASSWORD:-commerceflow-password}}"
+MAX_WAIT="${6:-60}"
 tmp="$(mktemp -d)"
 
 login() {

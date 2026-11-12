@@ -26,6 +26,7 @@ function Wait-MySql([string]$Container) {
 
 function Start-MySql([string]$Container) {
   Invoke-Docker run -d --name $Container --network $network `
+    --tmpfs /var/lib/mysql `
     -e "MYSQL_ROOT_PASSWORD=$password" -e MYSQL_DATABASE=commerceflow `
     --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -p$password --silent" `
     --health-interval 1s --health-timeout 3s --health-retries 60 mysql:8.4 | Out-Null
