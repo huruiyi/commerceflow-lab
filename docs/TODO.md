@@ -7,7 +7,7 @@
 | 性质 | 全项目唯一的未实现任务清单 |
 | 主线 | 原 `temp.md` 中准备实施的订单闭环方案 |
 | 合并内容 | 订单超时策略、Database/RabbitMQ/RocketMQ 讨论、截图阶段 4～6 和旧实施计划 |
-| 当前状态 | 通用定时任务底座、Database/RabbitMQ/RocketMQ 主触发、订单取消、模拟物流、回调 Outbox/主动对账、自动确认收货/自动完成已实现；RocketMQ 对账故障实验待补 |
+| 当前状态 | 通用定时任务底座、Database/RabbitMQ/RocketMQ 主触发与 Database 对账、订单取消、模拟物流、回调 Outbox/主动对账、自动确认收货/自动完成已实现 |
 | UI 边界 | 客户订单中心已改为摘要、当前主操作与可展开详情，支付、退款、物流和时间线保持独立事实展示 |
 | 最后更新 | 2026-11-12 |
 
@@ -135,7 +135,7 @@ PAID
 - [x] 通过 `@ConfigurationProperties` 完整绑定并校验全部通用策略、RabbitMQ 和 RocketMQ 适配器字段，并支持环境变量覆盖。
 - [x] 管理员改全局默认只影响新任务；旧任务继续使用快照。
 - [x] 管理员 API 与 Angular 管理页可新增/覆盖/恢复策略，查询、重试、取消任务，并查看策略审计与任务事件。
-- [ ] 验证三种主触发 × 对账关/开的六种组合（Database 两种、RabbitMQ 两种和 RocketMQ 关闭对账已通过；RocketMQ 开启对账的 Broker 停机故障验收待补）。
+- [x] 验证三种主触发 × 对账关/开的六种组合；RocketMQ 开启对账时已实测 Broker 停机、发布失败记录和 `DATABASE_RECONCILIATION` 兜底。
 
 ### 6.6 阶段门禁
 
@@ -225,7 +225,7 @@ PAID
 - [x] 主动取消无支付/有待支付订单、重复取消、支付/取消并发；Windows 与容器化 Bash 脚本已覆盖 `PAID/SUCCESS` 和 `CANCELLED/CLOSED` 两种竞态终态。
 - [ ] 单次支付过期仍可重试，整单超时自动关闭。
 - [ ] 六种主触发/对账组合。
-- [ ] MQ 未投递、消费者停机、重复、毒消息和 Database 补偿（RabbitMQ 未投递恢复与 Database 补偿已通过；RocketMQ 正常投递已通过，故障恢复及两种 MQ 的重复/毒消息待补）。
+- [ ] MQ 未投递、消费者停机、重复、毒消息和 Database 补偿（RabbitMQ/RocketMQ 未投递与 Database 补偿已通过；两种 MQ 的重复/毒消息专项待补）。
 - [x] 物流推进、暂时/永久回调丢失、重放、迟到可变字段、对账和越权查询；长时间并发乱序压力单列后续。
 - [x] Windows Docker 已验证手动/自动收货、自动 `COMPLETED`，完成后仍可查支付/物流并评价；退款记录保留由现有响应契约覆盖。
 
@@ -344,8 +344,8 @@ PAID
 - 依赖：Apache RocketMQ Java gRPC Client `5.2.2`；Docker Profile 使用当前可获取的官方镜像 `apache/rocketmq:5.4.0`。
 - 配置：新增可选 `rocketmq` Profile，启动 NameServer 和带 Proxy 的 Broker，持久化日志/存储卷，并初始化 `message.type=DELAY` Topic。
 - 实现：将 `dueAt` 转为绝对投递时间；发布成功记录 message ID，失败保留未发布状态以待补发；消费端重读数据库并复用统一执行器，早到消息重新投递，异常由 Broker 重试/死信。
-- 验证：后端容器构建通过；默认与 RocketMQ Profile Compose 配置通过；Windows 和容器化 Bash 均完成真实下单、Broker 回执、原生延时投递、原子领取、超时关单和审计链验收（任务 226/227）。
-- 遗留：RocketMQ + Database 对账的 Broker 停机故障验收，以及重复/毒消息专项实验。
+- 验证：后端容器构建通过；默认与 RocketMQ Profile Compose 配置通过；Windows 和容器化 Bash 均完成真实下单、Broker 回执、原生延时投递、原子领取、超时关单和审计链验收（任务 226/227）；Broker 停机时发布失败可观测且 Database 对账成功兜底（任务 228/229）。
+- 遗留：RabbitMQ/RocketMQ 重复/毒消息专项实验。
 - 提交：待本批次提交。
 
 后续记录继续使用以下模板：

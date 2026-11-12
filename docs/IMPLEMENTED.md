@@ -79,7 +79,7 @@
 
 RabbitMQ 实机验收已覆盖：正常延迟关单、Broker 停机时不误执行、发布失败可观测、恢复后补发，以及开启 Database 对账时由 `DATABASE_RECONCILIATION` 兜底。Windows 脚本已执行通过；Bash 同语义脚本已提供，本机 Git Bash 因缺少 `jq` 未完成实机复验。
 
-RocketMQ 实机验收已通过 Windows 和容器化 Bash 两套脚本：确认 Broker 回执、原生延时投递、策略快照、原子领取、支付超时关单及审计链。RocketMQ + Database 对账的 Broker 停机兜底尚未做专项故障验收。
+RocketMQ 实机验收已通过 Windows 和容器化 Bash 两套脚本：确认 Broker 回执、原生延时投递、策略快照、原子领取、支付超时关单及审计链。Broker 停机专项也已验证发布失败可观测、`DATABASE_RECONCILIATION` 宽限期兜底和恢复 Broker。
 
 Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复策略，查看 Handler 可用性、策略来源和版本，并按类型/状态查询任务、查看事件、重试失败任务或取消待执行任务。页面维护的是数据策略，不能上传可执行代码。
 
@@ -111,7 +111,7 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 
 以下不得在 README、页面或演示中标记为已完成：
 
-- RocketMQ + Database 对账的 Broker 停机兜底、重复/毒消息专项实验，以及六种组合的完整故障验收。
+- RabbitMQ/RocketMQ 重复与毒消息专项实验，以及长时间故障压力验收。
 - Prometheus 告警规则、Alertmanager/外部通知接收端，以及长时间并发乱序压力实验。
 - 自动收货/完成的 MQ 专项故障实验和长时间高并发压力测试。
 
