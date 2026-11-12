@@ -167,6 +167,7 @@ bash ./scripts/linux/verify-all.sh --skip-build
 | `verify-logistics-reliability` | 验证 backend 停机后的 `RETRY -> PUBLISHED`，以及永久丢失回调由主动对账恢复为 `RECONCILED` | 商城 `14200`、物流 `18083` |
 | `verify-logistics-callback-governance` | 制造 `DEAD（停止自动重试）`，验证管理员人工重放、审计、权限、幂等和 Prometheus 指标 | 商城 `14200`、物流 `18083` |
 | `verify-auto-lifecycle` | 手动收货取消自动任务、`DELIVERED（已送达） -> RECEIVED（已收货） -> COMPLETED（已完成）`，以及 backend 重启后租约恢复/幂等重放 | 商城 `14200`、物流 `18083` |
+| `verify-rabbitmq-scheduling` | RabbitMQ 延迟任务的确认发布、策略快照、原子领取、审计事件和未支付订单自动关闭；需先启用 RabbitMQ Profile 并使用秒级测试期限 | 商城 `14200`、RabbitMQ `15672` |
 | `verify-receipt-reviews` | 收货、一次性评价、评分校验及商品评分聚合 | 商城 `14200` |
 | `verify-redis-business` | 商品缓存 TTL、支付幂等键、Redis 停机时 MySQL 降级及恢复 | 商城 `14200` |
 | `verify-payment-security` | HMAC/RSA 三渠道签名、Nonce/篡改/过期拒绝、TOTP、Step-up 和审计哈希链 | 支付平台 `14201` |
@@ -184,6 +185,21 @@ Bash 单项脚本把地址作为第一个位置参数；也可省略并使用表
 ```bash
 bash ./scripts/linux/verify-authorization.sh http://localhost:14200
 bash ./scripts/linux/verify-payment.sh http://localhost:14201
+```
+
+RabbitMQ 调度专项验收需要显式启用可选适配器；默认 `docker compose up` 仍只使用 Database，不依赖 RabbitMQ：
+
+```powershell
+$env:SCHEDULING_RABBITMQ_ENABLED='true'
+$env:ORDER_PAYMENT_TIMEOUT='5s'
+docker compose --profile rabbitmq up -d --build --wait rabbitmq backend web
+./scripts/windows/verify-rabbitmq-scheduling.ps1 -MaxWaitSeconds 30
+```
+
+```bash
+SCHEDULING_RABBITMQ_ENABLED=true ORDER_PAYMENT_TIMEOUT=5s \
+  docker compose --profile rabbitmq up -d --build --wait rabbitmq backend web
+bash ./scripts/linux/verify-rabbitmq-scheduling.sh http://localhost:14200 30
 ```
 
 这些脚本不是纯只读检查：支付、履约、评价脚本会创建演示订单、交易、商户或评价；`verify-redis-business` 会短暂停止再恢复 Redis；完整验收会构建镜像并启动 Compose 服务。建议只在本地学习环境运行。

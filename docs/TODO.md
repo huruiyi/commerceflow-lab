@@ -7,7 +7,7 @@
 | 性质 | 全项目唯一的未实现任务清单 |
 | 主线 | 原 `temp.md` 中准备实施的订单闭环方案 |
 | 合并内容 | 订单超时策略、Database/RabbitMQ/RocketMQ 讨论、截图阶段 4～6 和旧实施计划 |
-| 当前状态 | 通用定时任务底座、Database 触发、订单取消、模拟物流、回调 Outbox/主动对账、自动确认收货/自动完成已实现；MQ 主触发待实现 |
+| 当前状态 | 通用定时任务底座、Database/RabbitMQ 触发、订单取消、模拟物流、回调 Outbox/主动对账、自动确认收货/自动完成已实现；RocketMQ 主触发待实现 |
 | UI 边界 | 先补功能与数据，订单信息继续全部展开，暂不做摘要、折叠和整体美化 |
 | 最后更新 | 2026-11-12 |
 
@@ -29,8 +29,8 @@
 - [x] `CANCELLING`、`CANCELLED`、`COMPLETED` 订单状态。
 - [x] 客户主动取消未支付订单（客户页面入口待阶段 5 接入）。
 - [x] 整单支付截止时间、Database 自动关单及与支付成功的并发状态处理（真实并发压测待补）。
-- [ ] Database、RabbitMQ、RocketMQ 可插拔主触发和可独立开关的 Database 对账补偿。
-- [ ] 任务策略快照，保证同一任务不随全局配置中途换策略。
+- [ ] Database、RabbitMQ、RocketMQ 可插拔主触发和可独立开关的 Database 对账补偿（Database、RabbitMQ 已完成，RocketMQ 待实现）。
+- [x] 任务策略快照，保证同一任务不随全局配置中途换策略。
 - [x] 独立模拟物流服务、签名回调、轨迹投影与客户查询。
 - [x] 物流签收后由 `AUTO_RECEIVE（自动确认收货）` 推进收货，再由 `AUTO_COMPLETE（自动完成订单）` 执行 `RECEIVED -> COMPLETED`。
 - [x] 订单响应新增 `availableActions`，客户页面已接入未支付取消；物流等完整信息随后续阶段补齐。
@@ -125,18 +125,18 @@ PAID
 ### 6.4 三种主触发
 
 - [x] **Database**：ShedLock + 分批领取，支持周期、批次、原子领取、租约恢复和最大尝试次数。
-- [ ] **RabbitMQ**：TTL + DLX（或经评审的延迟插件），处理 ACK/NACK、重试、DLQ、重复、早到、晚到和重启。
+- [x] **RabbitMQ**：持久化分桶 TTL + DLX、Publisher Confirm/Return、有限退避重试、DLQ、早到重新分桶、数据库原子抢占和重启补发。
 - [ ] **RocketMQ**：5.x 延时消息，处理生产、消费、重试、死信、Broker 时钟偏差和重启恢复。
-- [ ] MQ 消息只携带 `taskId/taskType/dueAt/strategySnapshot`，业务事实从数据库重读。
+- [x] RabbitMQ 消息只携带 `taskId/taskType/dueAt/strategySnapshot`，消费时从数据库重读任务和业务事实；RocketMQ 后续遵循同一契约。
 
 ### 6.5 Database 对账和管理配置
 
 - [x] `reconciliation.enabled` 是独立补偿开关，不是第四种主策略。
 - [x] 只处理超过 `dueAt + gracePeriod` 仍未完成的任务，保留原策略快照和补偿来源。
-- [ ] 通过 `@ConfigurationProperties` 完整绑定并校验全部策略和适配器字段；通用 Duration/批次/租约/次数已绑定，RabbitMQ/RocketMQ 字段待适配器阶段补齐。
+- [ ] 通过 `@ConfigurationProperties` 完整绑定并校验全部策略和适配器字段；通用字段与 RabbitMQ 拓扑/分桶/发布字段已绑定并可由环境变量覆盖，RocketMQ 待补。
 - [x] 管理员改全局默认只影响新任务；旧任务继续使用快照。
 - [x] 管理员 API 与 Angular 管理页可新增/覆盖/恢复策略，查询、重试、取消任务，并查看策略审计与任务事件。
-- [ ] 验证三种主触发 × 对账关/开的六种组合。
+- [ ] 验证三种主触发 × 对账关/开的六种组合（Database 两种和 RabbitMQ 两种已通过，RocketMQ 两种待实现）。
 
 ### 6.6 阶段门禁
 
@@ -226,14 +226,14 @@ PAID
 - [ ] 主动取消无支付/有待支付订单、重复取消、支付/取消并发。
 - [ ] 单次支付过期仍可重试，整单超时自动关闭。
 - [ ] 六种主触发/对账组合。
-- [ ] MQ 未投递、消费者停机、重复、毒消息和 Database 补偿。
+- [ ] MQ 未投递、消费者停机、重复、毒消息和 Database 补偿（RabbitMQ 未投递恢复与 Database 补偿已通过；重复/毒消息及 RocketMQ 待补）。
 - [x] 物流推进、暂时/永久回调丢失、重放、迟到可变字段、对账和越权查询；长时间并发乱序压力单列后续。
 - [x] Windows Docker 已验证手动/自动收货、自动 `COMPLETED`，完成后仍可查支付/物流并评价；退款记录保留由现有响应契约覆盖。
 
 ### 10.2 双平台脚本和 Docker
 
 - [ ] Windows PowerShell 和 Bash 提供同名、同参数、同语义脚本。
-- [ ] 三种主策略提供独立 Compose Profile；Database 模式不强制启动 MQ。
+- [ ] 三种主策略提供独立 Compose Profile；RabbitMQ Profile 已实现且 Database 默认模式不强制启动 MQ，RocketMQ Profile 待补。
 - [ ] 空数据卷从 Flyway 到全链路验收通过。
 - [ ] 旧卷升级、服务/MQ 重启、任务恢复通过。
 - [ ] 脚本默认不清空数据；破坏性重建需显式参数。
@@ -326,7 +326,18 @@ PAID
 - 验证：后端 10 个集成测试通过，含手动/自动收货的两线程竞态与过期租约重试；Angular 生产构建通过；Windows Docker 专项脚本完整验证手动取消任务、自动收货、自动完成、支付/物流保留和完成后评价。
 - 故障验收：将已执行的 `AUTO_COMPLETE` 伪造为工作进程在确认前崩溃，停止并重启 backend；`LEASE_RECOVERY（租约恢复）` 将其重新领取并成功结束，`ORDER_AUTO_COMPLETED（订单自动完成）` 事件仍只有一条。
 - 跨平台边界：Bash 同语义脚本已提供并通过语法检查；当前 Git Bash 缺少 `jq`，未执行真实 Bash 业务链路。
-- 遗留：长时间高并发压力测试、RabbitMQ/RocketMQ 主触发适配器及 MQ 级故障实验。
+- 当时遗留：长时间高并发压力测试、RabbitMQ/RocketMQ 主触发适配器及 MQ 级故障实验；RabbitMQ 主路径与数据库兜底已由后续阶段完成。
+- 提交：未提交。
+
+### 2026-11-12：RabbitMQ 定时任务主触发
+
+- 迁移：`V21__rabbitmq_scheduled_task_trigger.sql`，记录发布时间、尝试次数和最后发布错误，并为待发布扫描建立索引。
+- 配置：新增可选 `rabbitmq` Compose Profile；连接/心跳、Publisher Confirm、发布扫描、交换机/队列/路由键、TTL 分桶、Database 扫描、租约恢复和对账周期均可由环境变量覆盖。
+- 实现：持久化 TTL 分桶 + DLX、Confirm/Return、未确认任务补发、Ready/DLQ、有限退避消费重试、早到重新分桶、数据库重读和统一执行器原子抢占。
+- 策略：任务保存 `RABBITMQ` 快照；管理员后续修改只影响新任务。开启 Database 对账时只改变本次实际来源，不修改主策略快照。
+- 验证：后端 12 个集成测试、默认/Profile Compose 配置检查及 Windows `verify-all -SkipBuild` 全量 Docker 回归通过；正常链路验证任务 176；Broker 停机产生 4 次失败并在恢复后由任务 178 补发成功；Broker 停机且开启对账时任务 179 由 `DATABASE_RECONCILIATION` 成功兜底。
+- 跨平台边界：Windows 专项脚本已执行；Bash 同语义脚本已提供，但当前 Git Bash 缺少 `jq`，尚未实机执行。
+- 遗留：RabbitMQ 重复/毒消息专项验收、RocketMQ 两种组合、长时间压力测试。
 - 提交：未提交。
 
 后续记录继续使用以下模板：

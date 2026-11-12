@@ -61,6 +61,7 @@ public class ScheduledTaskService {
     if (handlers.find(normalizedType).isEmpty()) {
       throw new IllegalStateException("No handler is registered for scheduled task type: " + normalizedType);
     }
+    policies.requireTriggerAdapter(policy);
     ScheduledTaskView task = new ScheduledTaskView();
     task.setTaskType(normalizedType);
     task.setTaskKey(taskKey.trim());

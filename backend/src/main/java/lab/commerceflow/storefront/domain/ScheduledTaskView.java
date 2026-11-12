@@ -22,6 +22,9 @@ public class ScheduledTaskView {
   private Instant leaseUntil;
   private String claimedBy;
   private String lastTriggerSource;
+  private Instant triggerPublishedAt;
+  private int triggerPublishAttempts;
+  private String triggerLastError;
   private String lastError;
   private Instant completedAt;
   private Instant cancelledAt;
@@ -67,6 +70,12 @@ public class ScheduledTaskView {
   public void setClaimedBy(String claimedBy) { this.claimedBy = claimedBy; }
   public String getLastTriggerSource() { return lastTriggerSource; }
   public void setLastTriggerSource(String value) { this.lastTriggerSource = value; }
+  public Instant getTriggerPublishedAt() { return triggerPublishedAt; }
+  public void setTriggerPublishedAt(Instant value) { this.triggerPublishedAt = value; }
+  public int getTriggerPublishAttempts() { return triggerPublishAttempts; }
+  public void setTriggerPublishAttempts(int value) { this.triggerPublishAttempts = value; }
+  public String getTriggerLastError() { return triggerLastError; }
+  public void setTriggerLastError(String value) { this.triggerLastError = value; }
   public String getLastError() { return lastError; }
   public void setLastError(String lastError) { this.lastError = lastError; }
   public Instant getCompletedAt() { return completedAt; }

@@ -9,13 +9,14 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import lab.commerceflow.storefront.configuration.SchedulingProperties;
 import lab.commerceflow.storefront.configuration.OrderLifecycleProperties;
 import lab.commerceflow.storefront.configuration.LogisticsReconciliationProperties;
+import lab.commerceflow.storefront.configuration.RabbitMqTaskTriggerProperties;
 
 @SpringBootApplication
 @EnableScheduling
 @MapperScan("lab.commerceflow.storefront.mapper")
 @EnableMethodSecurity
 @EnableConfigurationProperties({SchedulingProperties.class, OrderLifecycleProperties.class,
-    LogisticsReconciliationProperties.class})
+    LogisticsReconciliationProperties.class, RabbitMqTaskTriggerProperties.class})
 public class CommerceFlowBackendApplication {
   public static void main(String[] args) {
     SpringApplication.run(CommerceFlowBackendApplication.class, args);

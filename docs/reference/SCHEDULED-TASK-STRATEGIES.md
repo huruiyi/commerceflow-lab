@@ -4,14 +4,25 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 当前状态 | 通用任务/策略/Database 执行底座已实现；MQ 适配器和业务 Handler 待实现 |
+| 当前状态 | 通用任务/策略、Database 与 RabbitMQ 执行底座已实现；RocketMQ 适配器和其余业务 Handler 待实现 |
 | 适用任务 | 所有需要“在某个时间后幂等执行”的业务任务 |
 | 主触发策略 | `DATABASE`、`RABBITMQ`、`ROCKETMQ` |
 | 补偿机制 | 数据库对账，可独立开启或关闭 |
 | 合理组合数 | `3 × 2 = 6` |
 | 最后更新 | 2026-11-12 |
 
-本文定义通用定时任务的可配置触发策略、数据库补偿职责、六种合理组合、策略快照和切换边界。订单支付超时只是本文的第一个完整配置示例，不是框架边界。当前 `commerceflow.scheduling`、数据库策略覆盖、任务快照、Database 扫描/对账/租约恢复和管理 API 已实现；本文后续 RabbitMQ、RocketMQ 拓扑和六组合示例仍是待实施设计，不能视为已经可用。
+本文定义通用定时任务的可配置触发策略、数据库补偿职责、六种合理组合、策略快照和切换边界。订单支付超时只是第一个完整示例，不是框架边界。当前 `commerceflow.scheduling`、数据库策略覆盖、任务快照、Database 扫描/对账/租约恢复、RabbitMQ 分桶 TTL + DLX 适配器和管理 API 已实现；RocketMQ 与其两种组合仍是待实施设计。
+
+> 实现口径：源码中的正式配置根节点是 `commerceflow.scheduling`，订单期限属于 `commerceflow.order-lifecycle`。本文六组合章节中的 `commerceflow.order-expiration` 完整 YAML 是早期便于横向比较的概念配置，不应直接复制到当前应用；当前可执行字段以 `application.yml`、`.env.example` 及下方“当前 RabbitMQ 实现”说明为准。
+
+### 1.3 当前 RabbitMQ 实现
+
+- `commerceflow.scheduling.rabbitmq.enabled=false` 默认关闭；使用 `docker compose --profile rabbitmq` 启动 Broker，并设置 `SCHEDULING_RABBITMQ_ENABLED=true` 才声明拓扑和启动消费者。
+- 延迟采用多个持久化 TTL 队列，默认分桶为 `1s,5s,30s,5m,30m,2h,1d`；消息到期后通过 DLX 进入统一 Ready Queue。
+- 发布成功必须收到 Publisher Confirm 且消息未被 Return；失败会保留 `trigger_published_at=NULL`、累计尝试次数和最后错误，后续扫描继续补发。
+- Ready Queue 消费失败启用 3 次有限退避；坏消息或超过重试次数的处理异常进入 Dead Queue。
+- 消费者重新读取数据库任务，检查 `RABBITMQ` 策略快照与 `due_at`；早到消息清除发布标记并重新分桶，到期消息调用统一 `ScheduledTaskExecutor` 原子领取。
+- `reconciliation-enabled=true` 时，Database 只在宽限期后补偿遗漏任务，`primaryTriggerSnapshot` 仍保持 `RABBITMQ`，实际来源记录为 `DATABASE_RECONCILIATION`。
 
 ### 1.1 首批与可扩展任务场景
 

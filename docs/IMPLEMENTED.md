@@ -55,7 +55,7 @@
 
 ## 6. 基础设施和交付
 
-- MySQL + Flyway、Redis/Spring Session、Kafka/Outbox、ShedLock。
+- MySQL + Flyway、Redis/Spring Session、Kafka/Outbox、RabbitMQ 延迟任务 Profile、ShedLock。
 - Angular/Vue 前端、三个 Spring Boot 服务和 Docker Compose。
 - `scripts/windows/` 与 `scripts/linux/` 保留同名验收脚本结构。
 
@@ -64,11 +64,16 @@
 - 建立 `scheduled_tasks`、`scheduled_task_events`、`scheduled_task_policies` 和策略审计表。
 - 内置 10 类任务目录，并允许管理员为新的任务类型保存策略；只有 Java 中注册了 Handler 的类型才能真正创建和执行任务。
 - 配置文件提供系统默认与各任务初始策略，数据库覆盖优先；创建任务时固化主触发、对账、宽限期、租约、重试和策略版本快照。
-- 已实现 Database 主触发、独立 Database 对账、原子领取、执行租约、失败重试、过期租约恢复和 ShedLock 多实例互斥。
+- 已实现 Database 与 RabbitMQ 两种主触发、独立 Database 对账、原子领取、执行租约、失败重试、过期租约恢复和 ShedLock 多实例互斥。
+- RabbitMQ 适配器使用持久化分桶 TTL 队列和 DLX：发布端启用 Confirm/Return，失败保留未发布任务并重试；消费端重读数据库并复用统一执行器，格式错误进入 DLQ，基础设施异常有限退避后进入 DLQ。
+- RabbitMQ 消息只携带 `taskId/taskType/dueAt/strategySnapshot`；数据库任务快照仍是唯一执行依据，重复消息和 Database 对账通过同一条件更新竞争，只有一方能够领取。
+- RabbitMQ 是可选 Compose Profile，默认 Database 模式不启动 Broker；连接、心跳、发布扫描、拓扑、延迟分桶、Database 扫描、租约恢复和对账周期都支持环境变量覆盖。
 - 管理员 API 支持策略查询/覆盖/恢复、策略审计、任务查询/重试/取消和任务事件查询；客户角色被拒绝访问。
 - Windows 专项脚本及后端集成测试已通过；Bash 同语义脚本已提供。
 
-当前已接入 `PAYMENT_TIMEOUT（支付超时）`、`AUTO_RECEIVE（自动确认收货）` 和 `AUTO_COMPLETE（自动完成订单）` 三个业务 Handler；RabbitMQ/RocketMQ 适配器和其他任务类型 Handler 仍属于待办。
+当前已接入 `PAYMENT_TIMEOUT（支付超时）`、`AUTO_RECEIVE（自动确认收货）` 和 `AUTO_COMPLETE（自动完成订单）` 三个业务 Handler；RocketMQ 适配器和其他任务类型 Handler 仍属于待办。
+
+RabbitMQ 实机验收已覆盖：正常延迟关单、Broker 停机时不误执行、发布失败可观测、恢复后补发，以及开启 Database 对账时由 `DATABASE_RECONCILIATION` 兜底。Windows 脚本已执行通过；Bash 同语义脚本已提供，本机 Git Bash 因缺少 `jq` 未完成实机复验。
 
 Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复策略，查看 Handler 可用性、策略来源和版本，并按类型/状态查询任务、查看事件、重试失败任务或取消待执行任务。页面维护的是数据策略，不能上传可执行代码。
 
@@ -85,16 +90,16 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - 客户页面已接入未支付订单取消表单，取消后保留原因、时间和历史支付信息。
 - Windows 与容器化 Bash 专项验收覆盖动作契约、无支付取消、重复取消、任务快照/取消和待支付渠道关闭。
 
-尚未实现：取消 Outbox 下游消费者、MQ 主触发，以及支付/取消和手动/自动收货的高强度真实竞态实验。
+尚未实现：取消 Outbox 下游消费者、RocketMQ 主触发，以及支付/取消和手动/自动收货的高强度真实竞态实验。
 
 ## 9. 尚未实现的总边界
 
 以下不得在 README、页面或演示中标记为已完成：
 
-- 取消 Outbox 的库存/通知消费者及 RabbitMQ/RocketMQ 驱动的整单超时关闭。
-- RabbitMQ/RocketMQ 主触发适配器及六种组合的完整故障验收。
+- 取消 Outbox 的库存/通知消费者及 RocketMQ 驱动的整单超时关闭。
+- RocketMQ 主触发适配器、RabbitMQ 重复/毒消息专项实验及六种组合的完整故障验收。
 - Prometheus 告警规则、Alertmanager/外部通知接收端，以及长时间并发乱序压力实验。
-- 自动收货/完成的 RabbitMQ/RocketMQ 主触发适配、长时间高并发压力测试和 MQ 级故障实验。
+- 自动收货/完成的 MQ 专项故障实验、长时间高并发压力测试和 RocketMQ 适配。
 - 订单页面的摘要/折叠视觉重构。
 
 详细顺序和验收门禁只见 [TODO.md](TODO.md)。

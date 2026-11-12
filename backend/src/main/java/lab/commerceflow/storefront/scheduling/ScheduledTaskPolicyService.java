@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import lab.commerceflow.storefront.configuration.SchedulingProperties;
+import lab.commerceflow.storefront.configuration.RabbitMqTaskTriggerProperties;
 import lab.commerceflow.storefront.domain.ScheduledTaskPolicyView;
 import lab.commerceflow.storefront.domain.ScheduledTaskPolicyEventView;
 import lab.commerceflow.storefront.mapper.ScheduledTaskMapper;
@@ -17,12 +18,15 @@ public class ScheduledTaskPolicyService {
   private final ScheduledTaskMapper mapper;
   private final SchedulingProperties properties;
   private final ScheduledTaskHandlerRegistry handlers;
+  private final RabbitMqTaskTriggerProperties rabbitMq;
 
   public ScheduledTaskPolicyService(ScheduledTaskMapper mapper, SchedulingProperties properties,
-                                    ScheduledTaskHandlerRegistry handlers) {
+                                    ScheduledTaskHandlerRegistry handlers,
+                                    RabbitMqTaskTriggerProperties rabbitMq) {
     this.mapper = mapper;
     this.properties = properties;
     this.handlers = handlers;
+    this.rabbitMq = rabbitMq;
   }
 
   public ResolvedTaskPolicy resolve(String rawTaskType) {
@@ -49,7 +53,10 @@ public class ScheduledTaskPolicyService {
     if (enabled && handlers.find(taskType).isEmpty()) {
       throw new IllegalStateException("Cannot enable a scheduled task type without a registered handler: " + taskType);
     }
-    if (enabled && trigger != TriggerStrategy.DATABASE) {
+    if (enabled && trigger == TriggerStrategy.RABBITMQ && !rabbitMq.isEnabled()) {
+      throw new IllegalStateException("The RABBITMQ trigger adapter is not enabled");
+    }
+    if (enabled && trigger == TriggerStrategy.ROCKETMQ) {
       throw new IllegalStateException("The " + trigger + " trigger adapter is not installed yet");
     }
     mapper.upsertPolicy(taskType, enabled, trigger.name(), reconciliationEnabled,
@@ -70,6 +77,15 @@ public class ScheduledTaskPolicyService {
 
   public List<ScheduledTaskPolicyEventView> events(String rawTaskType) {
     return mapper.policyEvents(ScheduledTaskTypes.normalize(rawTaskType));
+  }
+
+  public void requireTriggerAdapter(ResolvedTaskPolicy policy) {
+    if (policy.primaryTrigger() == TriggerStrategy.RABBITMQ && !rabbitMq.isEnabled()) {
+      throw new IllegalStateException("The RABBITMQ trigger adapter is not enabled");
+    }
+    if (policy.primaryTrigger() == TriggerStrategy.ROCKETMQ) {
+      throw new IllegalStateException("The ROCKETMQ trigger adapter is not installed yet");
+    }
   }
 
   private void audit(String action, ResolvedTaskPolicy policy, String operatedBy) {

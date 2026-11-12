@@ -96,6 +96,39 @@ public interface ScheduledTaskMapper {
 
   @Select("""
       SELECT id FROM scheduled_tasks
+      WHERE primary_trigger_snapshot='RABBITMQ'
+        AND status IN ('SCHEDULED','FAILED') AND attempts<max_attempts
+        AND trigger_published_at IS NULL
+      ORDER BY due_at,id LIMIT #{limit}
+      """)
+  List<Long> rabbitPublishCandidates(@Param("limit") int limit);
+
+  @Update("""
+      UPDATE scheduled_tasks SET trigger_published_at=#{publishedAt},
+        trigger_publish_attempts=trigger_publish_attempts+1,trigger_last_error=NULL,
+        updated_at=CURRENT_TIMESTAMP(6)
+      WHERE id=#{id} AND primary_trigger_snapshot='RABBITMQ'
+        AND status IN ('SCHEDULED','FAILED') AND trigger_published_at IS NULL
+      """)
+  int markTriggerPublished(@Param("id") Long id, @Param("publishedAt") Instant publishedAt);
+
+  @Update("""
+      UPDATE scheduled_tasks SET trigger_publish_attempts=trigger_publish_attempts+1,
+        trigger_last_error=#{error},updated_at=CURRENT_TIMESTAMP(6)
+      WHERE id=#{id} AND status IN ('SCHEDULED','FAILED') AND trigger_published_at IS NULL
+      """)
+  int markTriggerPublishFailure(@Param("id") Long id, @Param("error") String error);
+
+  @Update("""
+      UPDATE scheduled_tasks SET trigger_published_at=NULL,trigger_last_error=#{reason},
+        updated_at=CURRENT_TIMESTAMP(6)
+      WHERE id=#{id} AND primary_trigger_snapshot='RABBITMQ'
+        AND status IN ('SCHEDULED','FAILED')
+      """)
+  int clearTriggerPublished(@Param("id") Long id, @Param("reason") String reason);
+
+  @Select("""
+      SELECT id FROM scheduled_tasks
       WHERE reconciliation_enabled_snapshot=TRUE
         AND status IN ('SCHEDULED','FAILED')
         AND due_at<=#{now} AND attempts<max_attempts
@@ -125,7 +158,7 @@ public interface ScheduledTaskMapper {
 
   @Update("""
       UPDATE scheduled_tasks SET status='FAILED',due_at=#{retryAt},lease_until=NULL,claimed_by=NULL,
-        last_error=#{error},version=version+1,updated_at=CURRENT_TIMESTAMP(6)
+        last_error=#{error},trigger_published_at=NULL,version=version+1,updated_at=CURRENT_TIMESTAMP(6)
       WHERE id=#{id} AND status='PROCESSING' AND claimed_by=#{owner}
       """)
   int fail(@Param("id") Long id, @Param("owner") String owner,
@@ -135,7 +168,7 @@ public interface ScheduledTaskMapper {
   List<Long> expiredLeaseIds(@Param("now") Instant now, @Param("limit") int limit);
 
   @Update("""
-      UPDATE scheduled_tasks SET status='FAILED',lease_until=NULL,claimed_by=NULL,
+      UPDATE scheduled_tasks SET status='FAILED',lease_until=NULL,claimed_by=NULL,trigger_published_at=NULL,
         last_error='Execution lease expired',version=version+1,updated_at=CURRENT_TIMESTAMP(6)
       WHERE id=#{id} AND status='PROCESSING' AND lease_until<#{now}
       """)
@@ -150,7 +183,8 @@ public interface ScheduledTaskMapper {
 
   @Update("""
       UPDATE scheduled_tasks SET status='SCHEDULED',due_at=CURRENT_TIMESTAMP(6),lease_until=NULL,
-        claimed_by=NULL,last_error=NULL,attempts=0,version=version+1,updated_at=CURRENT_TIMESTAMP(6)
+        claimed_by=NULL,last_error=NULL,trigger_published_at=NULL,attempts=0,version=version+1,
+        updated_at=CURRENT_TIMESTAMP(6)
       WHERE id=#{id} AND status='FAILED'
       """)
   int retry(Long id);
