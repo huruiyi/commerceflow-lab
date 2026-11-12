@@ -26,6 +26,7 @@ import lab.commerceflow.storefront.service.OrderReceiptLifecycleService;
 import lab.commerceflow.storefront.service.OrderCancellationProjection;
 import lab.commerceflow.storefront.service.LogisticsNotificationService;
 import lab.commerceflow.storefront.service.LogisticsGatewayClient;
+import lab.commerceflow.storefront.service.PaymentNotificationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -94,6 +95,7 @@ class CommerceFlowBackendIntegrationTest {
   @Autowired OrderReceiptLifecycleService receiptLifecycle;
   @Autowired LogisticsNotificationService logisticsNotifications;
   @Autowired OrderCancellationProjection orderCancellationProjection;
+  @Autowired PaymentNotificationService paymentNotifications;
 
   @Test
   void publicCatalogSupportsLocalesAndAuthenticationReturnsStableErrors() throws Exception {
@@ -294,6 +296,54 @@ class CommerceFlowBackendIntegrationTest {
         .andExpect(status().isNoContent());
     org.junit.jupiter.api.Assertions.assertEquals("READ", jdbc.queryForObject(
         "SELECT status FROM customer_notifications WHERE id=?", String.class, notificationId));
+  }
+
+  @Test
+  void lateSuccessfulPaymentAfterCancellationQueuesOneAutomaticRefund() throws Exception {
+    Long customerId = jdbc.queryForObject(
+        "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
+    String suffix = UUID.randomUUID().toString().replace("-", "");
+    String transactionNo = "TX-LATE-" + suffix;
+    String notificationId = "NOTICE-LATE-" + suffix;
+    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,cancelled_at,cancel_reason,created_at,updated_at) VALUES(?,?,'CANCELLED',88.00,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'Customer cancelled',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+        "ORDER-LATE-" + suffix, customerId);
+    Long orderId = jdbc.queryForObject(
+        "SELECT id FROM shop_orders WHERE order_number=?", Long.class, "ORDER-LATE-" + suffix);
+    jdbc.update("INSERT INTO payment_records(order_id,payment_number,idempotency_key,channel,currency,request_fingerprint,channel_transaction_no,amount,status,failure_reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+        orderId, "PAY-LATE-" + suffix.substring(0, 24), "payment-late-" + suffix, "ALIPAY", "CNY",
+        suffix, transactionNo, new java.math.BigDecimal("88.00"), "PENDING");
+
+    String raw = json.writeValueAsString(Map.of(
+        "notificationId", notificationId,
+        "channelTransactionNo", transactionNo,
+        "channel", "ALIPAY",
+        "status", "SUCCESS",
+        "amount", new java.math.BigDecimal("88.00"),
+        "currency", "CNY",
+        "failureReason", ""));
+    Mac mac = Mac.getInstance("HmacSHA256");
+    mac.init(new SecretKeySpec("demo-platform-callback-secret".getBytes(StandardCharsets.UTF_8),
+        "HmacSHA256"));
+    String signature = Base64.getEncoder().encodeToString(
+        mac.doFinal(raw.getBytes(StandardCharsets.UTF_8)));
+
+    org.junit.jupiter.api.Assertions.assertEquals("PROCESSED",
+        paymentNotifications.accept(raw, signature).result());
+    org.junit.jupiter.api.Assertions.assertEquals("ACKNOWLEDGED",
+        paymentNotifications.accept(raw, signature).result());
+    org.junit.jupiter.api.Assertions.assertEquals("REFUNDING",
+        jdbc.queryForObject("SELECT status FROM shop_orders WHERE id=?", String.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM refund_records WHERE order_id=? AND idempotency_key=? AND reason_code='CUSTOMER_CANCELLED' AND status='PROCESSING'",
+        Integer.class, orderId, "late-payment:" + notificationId));
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM order_events WHERE order_id=? AND event_type='LATE_PAYMENT_AFTER_CANCELLATION'",
+        Integer.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM order_events WHERE order_id=? AND event_type='ORDER_AUTO_REFUND_REQUESTED'",
+        Integer.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(0, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM inventory_movements WHERE order_id=?", Integer.class, orderId));
   }
 
   @Test

@@ -70,6 +70,19 @@ public class InventoryService {
     }
   }
 
+  @Transactional
+  public void refund(Long orderId, String eventId) {
+    for (InventoryReservation reservation : inventory.lockByOrder(orderId)) {
+      if (!"COMMITTED".equals(reservation.getStatus())) continue;
+      requireChanged(inventory.refund(reservation.getProductId(), reservation.getQuantity()),
+          "Sold stock is inconsistent");
+      requireChanged(inventory.markRefunded(reservation.getId()),
+          "Inventory reservation changed concurrently");
+      movement(eventId + ":refund:" + reservation.getId(), orderId, reservation.getProductId(),
+          "REFUNDED", reservation.getQuantity(), "Successful refund returned sold stock");
+    }
+  }
+
   private void movement(String eventId, Long orderId, Long productId, String type,
                         int quantity, String detail) {
     ProductInventory balance = inventory.inventory(productId);

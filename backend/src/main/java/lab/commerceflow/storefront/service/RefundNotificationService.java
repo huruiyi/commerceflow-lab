@@ -20,8 +20,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class RefundNotificationService {
-  private final RefundMapper refunds; private final ShopOrderMapper orders; private final ObjectMapper mapper; private final String secret; private final PaymentEventPipeline events;
-  public RefundNotificationService(RefundMapper refunds,ShopOrderMapper orders,ObjectMapper mapper,@Value("${commerceflow.payment-platform.callback-secret:demo-platform-callback-secret}")String secret,PaymentEventPipeline events){this.refunds=refunds;this.orders=orders;this.mapper=mapper;this.secret=secret;this.events=events;}
+  private final RefundMapper refunds; private final ShopOrderMapper orders; private final ObjectMapper mapper; private final String secret; private final PaymentEventPipeline events; private final InventoryService inventory;
+  public RefundNotificationService(RefundMapper refunds,ShopOrderMapper orders,ObjectMapper mapper,@Value("${commerceflow.payment-platform.callback-secret:demo-platform-callback-secret}")String secret,PaymentEventPipeline events,InventoryService inventory){this.refunds=refunds;this.orders=orders;this.mapper=mapper;this.secret=secret;this.events=events;this.inventory=inventory;}
   @Transactional public Result accept(String raw,String signature){
     if(!valid(raw,signature))throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"INVALID_CALLBACK_SIGNATURE");
     try{
@@ -31,7 +31,7 @@ public class RefundNotificationService {
       int changed;
       if("SUCCEEDED".equals(notice.status())){
         changed=refunds.succeed(refund.getId(),notice.channelRefundNo());
-        if(changed==1){if(refunds.addRefundedAmount(refund.getPaymentId(),refund.getAmount())!=1)throw new IllegalStateException("Refund amount exceeds payment amount");if(orders.updateStatus(refund.getOrderId(),"REFUNDING","REFUNDED")!=1)throw new IllegalStateException("Order is not refunding");refunds.insertEvent(refund.getId(),UUID.randomUUID().toString(),"REFUND_SUCCEEDED","PROCESSING","SUCCEEDED","Signed refund notification");orders.insertEvent(refund.getOrderId(),refund.getCustomerId(),"ORDER_REFUNDED","REFUNDING","REFUNDED","Refund "+refund.getRefundNumber()+" succeeded");events.append(refund.getId().toString(),"REFUND_SUCCEEDED",raw);}
+        if(changed==1){if(refunds.addRefundedAmount(refund.getPaymentId(),refund.getAmount())!=1)throw new IllegalStateException("Refund amount exceeds payment amount");if(orders.updateStatus(refund.getOrderId(),"REFUNDING","REFUNDED")!=1)throw new IllegalStateException("Order is not refunding");inventory.refund(refund.getOrderId(),notice.notificationId());refunds.insertEvent(refund.getId(),UUID.randomUUID().toString(),"REFUND_SUCCEEDED","PROCESSING","SUCCEEDED","Signed refund notification");orders.insertEvent(refund.getOrderId(),refund.getCustomerId(),"ORDER_REFUNDED","REFUNDING","REFUNDED","Refund "+refund.getRefundNumber()+" succeeded");events.append(refund.getId().toString(),"REFUND_SUCCEEDED",raw);}
       }else if("FAILED".equals(notice.status())){
         changed=refunds.fail(refund.getId(),notice.channelRefundNo(),notice.failureReason()==null?"":notice.failureReason());
         if(changed==1){orders.updateStatus(refund.getOrderId(),"REFUNDING",refund.getOrderStatusBeforeRefund());refunds.insertEvent(refund.getId(),UUID.randomUUID().toString(),"REFUND_FAILED","PROCESSING","FAILED",notice.failureReason()==null?"":notice.failureReason());orders.insertEvent(refund.getOrderId(),refund.getCustomerId(),"ORDER_REFUND_FAILED","REFUNDING",refund.getOrderStatusBeforeRefund(),"Refund failed");events.append(refund.getId().toString(),"REFUND_FAILED",raw);}

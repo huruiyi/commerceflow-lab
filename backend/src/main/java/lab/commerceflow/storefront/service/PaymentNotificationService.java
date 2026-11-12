@@ -26,15 +26,17 @@ public class PaymentNotificationService {
   private final String secret;
   private final PaymentEventPipeline events;
   private final InventoryService inventory;
+  private final RefundService refunds;
 
   public PaymentNotificationService(ShopOrderMapper orders, ObjectMapper mapper,
       @Value("${commerceflow.payment-platform.callback-secret:demo-platform-callback-secret}") String secret,
-      PaymentEventPipeline events, InventoryService inventory) {
+      PaymentEventPipeline events, InventoryService inventory, RefundService refunds) {
     this.orders = orders;
     this.mapper = mapper;
     this.secret = secret;
     this.events = events;
     this.inventory = inventory;
+    this.refunds = refunds;
   }
 
   @Transactional
@@ -97,10 +99,10 @@ public class PaymentNotificationService {
           "Payment callback won the cancellation race", "PAYMENT_CALLBACK", null);
     } else if ("CANCELLED".equals(order.getStatus())
         && orders.restorePaidAfterLateSuccess(orderId) == 1) {
-      inventory.commit(orderId, notificationId);
       orders.insertEventDetailed(orderId, customerId, "LATE_PAYMENT_AFTER_CANCELLATION", "CANCELLED", "PAID",
-          "Late successful payment restored the order; manual financial review required",
+          "Late successful payment restored the order and queued an automatic refund",
           "PAYMENT_CALLBACK", null);
+      refunds.queueAutomatic(orderId, notificationId);
     }
   }
 

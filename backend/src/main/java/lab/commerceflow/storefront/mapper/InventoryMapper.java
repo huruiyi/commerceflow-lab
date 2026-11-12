@@ -48,6 +48,13 @@ public interface InventoryMapper {
   int release(@Param("productId") Long productId, @Param("quantity") int quantity);
 
   @Update("""
+      UPDATE products
+      SET stock_available=stock_available+#{quantity},stock_sold=stock_sold-#{quantity}
+      WHERE id=#{productId} AND stock_sold>=#{quantity}
+      """)
+  int refund(@Param("productId") Long productId, @Param("quantity") int quantity);
+
+  @Update("""
       UPDATE inventory_reservations
       SET status='COMMITTED',committed_at=CURRENT_TIMESTAMP,
         released_at=CASE WHEN #{fromStatus}='RELEASED' THEN NULL ELSE released_at END,
@@ -62,6 +69,13 @@ public interface InventoryMapper {
       WHERE id=#{id} AND status='RESERVED'
       """)
   int markReleased(Long id);
+
+  @Update("""
+      UPDATE inventory_reservations
+      SET status='REFUNDED',version=version+1
+      WHERE id=#{id} AND status='COMMITTED'
+      """)
+  int markRefunded(Long id);
 
   @Select("SELECT id,stock_available,stock_reserved,stock_sold FROM products WHERE id=#{productId}")
   ProductInventory inventory(Long productId);

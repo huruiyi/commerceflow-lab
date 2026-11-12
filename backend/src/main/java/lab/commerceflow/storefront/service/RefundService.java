@@ -1,77 +1,182 @@
 package lab.commerceflow.storefront.service;
 
-import lab.commerceflow.storefront.domain.*;
-import lab.commerceflow.storefront.mapper.*;
-import lab.commerceflow.storefront.web.dto.*;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
+import lab.commerceflow.storefront.domain.AppUser;
+import lab.commerceflow.storefront.domain.PaymentView;
+import lab.commerceflow.storefront.domain.RefundView;
+import lab.commerceflow.storefront.domain.ShopOrderView;
+import lab.commerceflow.storefront.mapper.RefundMapper;
+import lab.commerceflow.storefront.mapper.ShopOrderMapper;
+import lab.commerceflow.storefront.web.dto.RefundRequest;
+import lab.commerceflow.storefront.web.dto.RefundResponse;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class RefundService {
-  private final ShopOrderMapper orders; private final RefundMapper refunds; private final RefundGatewayClient gateway;
-  private final PaymentEventPipeline events; private final TransactionTemplate transactions;
-  public RefundService(ShopOrderMapper orders,RefundMapper refunds,RefundGatewayClient gateway,PaymentEventPipeline events,PlatformTransactionManager manager){this.orders=orders;this.refunds=refunds;this.gateway=gateway;this.events=events;this.transactions=new TransactionTemplate(manager);}
+  private static final String AUTO_REASON = "Automatic refund for late payment after cancellation";
 
-  public RefundResponse request(AppUser user,Long orderId,RefundRequest request){
-    Prepared prepared=transactions.execute(status->prepare(user,orderId,request));
-    if(prepared==null)throw new IllegalStateException("Refund transaction did not return a result");
-    if(!prepared.created())return response(prepared.refund());
-    try{
-      RefundGatewayClient.Result remote=gateway.create(prepared.refund(),prepared.payment());
-      transactions.executeWithoutResult(status->refunds.attachChannel(prepared.refund().getId(),remote.channelRefundNo()));
-      return get(user,prepared.refund().getRefundNumber());
-    }catch(BusinessRuleException uncertain){
-      // 请求可能已经被渠道受理。保留 PROCESSING，由相同退款号的对账补偿确认最终结果。
-      return response(refunds.byPayment(prepared.payment().getId()).orElse(prepared.refund()));
+  private final ShopOrderMapper orders;
+  private final RefundMapper refunds;
+  private final RefundGatewayClient gateway;
+  private final PaymentEventPipeline events;
+  private final TransactionTemplate transactions;
+  private final TransactionTemplate requiresNew;
+
+  public RefundService(ShopOrderMapper orders, RefundMapper refunds, RefundGatewayClient gateway,
+      PaymentEventPipeline events, PlatformTransactionManager manager) {
+    this.orders = orders;
+    this.refunds = refunds;
+    this.gateway = gateway;
+    this.events = events;
+    this.transactions = new TransactionTemplate(manager);
+    this.requiresNew = new TransactionTemplate(manager);
+    this.requiresNew.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+  }
+
+  public RefundResponse request(AppUser user, Long orderId, RefundRequest request) {
+    Prepared prepared = transactions.execute(status -> prepare(user, orderId, request));
+    if (prepared == null) throw new IllegalStateException("Refund transaction did not return a result");
+    if (!prepared.created()) return response(prepared.refund());
+    dispatch(prepared);
+    return get(user, prepared.refund().getRefundNumber());
+  }
+
+  public void queueAutomatic(Long orderId, String paymentNotificationId) {
+    if (!TransactionSynchronizationManager.isActualTransactionActive()) {
+      throw new IllegalStateException("Automatic refund must be queued in the payment transaction");
     }
+    Prepared prepared = prepareAutomatic(orderId, paymentNotificationId);
+    if (!prepared.created()) return;
+    TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+      @Override public void afterCommit() {
+        try {
+          dispatch(prepared);
+        } catch (RuntimeException ignored) {
+          // The PROCESSING refund remains durable and the existing reconciler retries it.
+        }
+      }
+    });
   }
 
-  public List<RefundResponse> forOrder(AppUser user,Long orderId){
-    orders.find(user.getId(),orderId).orElseThrow(()->new ResourceNotFoundException("Order not found"));
-    return refunds.byCustomerOrder(user.getId(),orderId).map(value->List.of(response(value))).orElseGet(List::of);
+  public List<RefundResponse> forOrder(AppUser user, Long orderId) {
+    orders.find(user.getId(), orderId)
+        .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+    return refunds.byCustomerOrder(user.getId(), orderId)
+        .map(value -> List.of(response(value))).orElseGet(List::of);
   }
 
-  public RefundResponse get(AppUser user,String refundNumber){return response(refunds.byCustomerNumber(user.getId(),refundNumber).orElseThrow(()->new ResourceNotFoundException("Refund not found")));}
+  public RefundResponse get(AppUser user, String refundNumber) {
+    return response(refunds.byCustomerNumber(user.getId(), refundNumber)
+        .orElseThrow(() -> new ResourceNotFoundException("Refund not found")));
+  }
 
-  public RefundResponse forMerchantOrder(AppUser merchant,Long orderId){
-    orders.items(orderId).stream().filter(item->merchant.getId().equals(item.getMerchantId())).findAny().orElseThrow(()->new ResourceNotFoundException("Merchant order not found"));
+  public RefundResponse forMerchantOrder(AppUser merchant, Long orderId) {
+    orders.items(orderId).stream()
+        .filter(item -> merchant.getId().equals(item.getMerchantId())).findAny()
+        .orElseThrow(() -> new ResourceNotFoundException("Merchant order not found"));
     return refunds.byOrder(orderId).map(this::response).orElse(null);
   }
 
-  private Prepared prepare(AppUser user,Long orderId,RefundRequest request){
-    ShopOrderView order=orders.lock(user.getId(),orderId).orElseThrow(()->new ResourceNotFoundException("Order not found"));
-    PaymentView payment=refunds.lockSuccessfulPayment(orderId).orElseThrow(()->new BusinessRuleException("Successful payment not found"));
-    String fingerprint=fingerprint(user.getId(),order,payment,request);
-    var existing=refunds.byPayment(payment.getId());
-    if(existing.isPresent()){
-      RefundView value=existing.get();
-      if(!value.getIdempotencyKey().equals(request.idempotencyKey())||!value.getRequestFingerprint().equals(fingerprint))throw new BusinessRuleException("This payment already has a different refund request");
-      return new Prepared(value,payment,false);
-    }
-    if(!List.of("PAID","CONFIRMED").contains(order.getStatus()))throw new BusinessRuleException("Only paid or confirmed orders can be refunded before shipment");
-    if(orders.updateStatus(orderId,order.getStatus(),"REFUNDING")!=1)throw new BusinessRuleException("Order status changed while requesting refund");
-    String number=number(); String detail=request.reasonDetail()==null?"":request.reasonDetail().trim();
-    try{refunds.insert(number,orderId,payment.getId(),user.getId(),request.idempotencyKey(),fingerprint,payment.getAmount(),payment.getCurrency(),request.reasonCode(),detail,order.getStatus());}
-    catch(DuplicateKeyException exception){RefundView concurrent=refunds.byPayment(payment.getId()).orElseThrow(()->exception);return new Prepared(concurrent,payment,false);}
-    RefundView refund=refunds.byPayment(payment.getId()).orElseThrow();
-    refunds.insertEvent(refund.getId(),UUID.randomUUID().toString(),"REFUND_REQUESTED","REQUESTED","PROCESSING",request.reasonCode());
-    orders.insertEvent(orderId,user.getId(),"ORDER_REFUND_REQUESTED",order.getStatus(),"REFUNDING",request.reasonCode());
-    events.append(refund.getId().toString(),"REFUND_REQUESTED","{\"refundNumber\":\""+number+"\"}");
-    return new Prepared(refund,payment,true);
+  private Prepared prepare(AppUser user, Long orderId, RefundRequest request) {
+    ShopOrderView order = orders.lock(user.getId(), orderId)
+        .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+    PaymentView payment = refunds.lockSuccessfulPayment(orderId)
+        .orElseThrow(() -> new BusinessRuleException("Successful payment not found"));
+    return prepare(order, payment, request, false);
   }
 
-  private RefundResponse response(RefundView value){return RefundResponse.from(value,refunds.events(value.getId()));}
-  private String number(){return "REF-"+UUID.randomUUID().toString().replace("-","").substring(0,16).toUpperCase();}
-  private String fingerprint(Long customerId,ShopOrderView order,PaymentView payment,RefundRequest request){
-    try{String value=customerId+"|"+order.getId()+"|"+payment.getId()+"|"+payment.getAmount().stripTrailingZeros().toPlainString()+"|"+payment.getCurrency()+"|"+request.reasonCode()+"|"+(request.reasonDetail()==null?"":request.reasonDetail().trim());return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));}
-    catch(Exception exception){throw new IllegalStateException(exception);}
+  private Prepared prepareAutomatic(Long orderId, String notificationId) {
+    ShopOrderView order = orders.lockById(orderId)
+        .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+    PaymentView payment = refunds.lockSuccessfulPayment(orderId)
+        .orElseThrow(() -> new BusinessRuleException("Successful payment not found"));
+    RefundRequest request = new RefundRequest("late-payment:" + notificationId,
+        "CUSTOMER_CANCELLED", AUTO_REASON);
+    return prepare(order, payment, request, true);
   }
-  private record Prepared(RefundView refund,PaymentView payment,boolean created){}
+
+  private Prepared prepare(ShopOrderView order, PaymentView payment, RefundRequest request,
+      boolean automatic) {
+    String fingerprint = fingerprint(order.getCustomerId(), order, payment, request);
+    var existing = refunds.byPayment(payment.getId());
+    if (existing.isPresent()) {
+      RefundView value = existing.get();
+      if (!value.getIdempotencyKey().equals(request.idempotencyKey())
+          || !value.getRequestFingerprint().equals(fingerprint)) {
+        throw new BusinessRuleException("This payment already has a different refund request");
+      }
+      return new Prepared(value, payment, false);
+    }
+    if (!List.of("PAID", "CONFIRMED").contains(order.getStatus())) {
+      throw new BusinessRuleException("Only paid or confirmed orders can be refunded before shipment");
+    }
+    if (orders.updateStatus(order.getId(), order.getStatus(), "REFUNDING") != 1) {
+      throw new BusinessRuleException("Order status changed while requesting refund");
+    }
+    String number = number();
+    String detail = request.reasonDetail() == null ? "" : request.reasonDetail().trim();
+    try {
+      refunds.insert(number, order.getId(), payment.getId(), order.getCustomerId(),
+          request.idempotencyKey(), fingerprint, payment.getAmount(), payment.getCurrency(),
+          request.reasonCode(), detail, order.getStatus());
+    } catch (DuplicateKeyException exception) {
+      RefundView concurrent = refunds.byPayment(payment.getId()).orElseThrow(() -> exception);
+      return new Prepared(concurrent, payment, false);
+    }
+    RefundView refund = refunds.byPayment(payment.getId()).orElseThrow();
+    String eventType = automatic ? "AUTO_REFUND_REQUESTED" : "REFUND_REQUESTED";
+    refunds.insertEvent(refund.getId(), UUID.randomUUID().toString(), eventType,
+        "REQUESTED", "PROCESSING", request.reasonCode());
+    orders.insertEvent(order.getId(), order.getCustomerId(),
+        automatic ? "ORDER_AUTO_REFUND_REQUESTED" : "ORDER_REFUND_REQUESTED",
+        order.getStatus(), "REFUNDING", automatic ? AUTO_REASON : request.reasonCode());
+    events.append(refund.getId().toString(), eventType,
+        "{\"refundNumber\":\"" + number + "\"}");
+    return new Prepared(refund, payment, true);
+  }
+
+  private void dispatch(Prepared prepared) {
+    try {
+      RefundGatewayClient.Result remote = gateway.create(prepared.refund(), prepared.payment());
+      requiresNew.executeWithoutResult(status ->
+          refunds.attachChannel(prepared.refund().getId(), remote.channelRefundNo()));
+    } catch (BusinessRuleException uncertain) {
+      // The request may already be accepted. Reconciliation uses the durable merchant refund number.
+    }
+  }
+
+  private RefundResponse response(RefundView value) {
+    return RefundResponse.from(value, refunds.events(value.getId()));
+  }
+
+  private String number() {
+    return "REF-" + UUID.randomUUID().toString().replace("-", "")
+        .substring(0, 16).toUpperCase();
+  }
+
+  private String fingerprint(Long customerId, ShopOrderView order, PaymentView payment,
+      RefundRequest request) {
+    try {
+      String value = customerId + "|" + order.getId() + "|" + payment.getId() + "|"
+          + payment.getAmount().stripTrailingZeros().toPlainString() + "|"
+          + payment.getCurrency() + "|" + request.reasonCode() + "|"
+          + (request.reasonDetail() == null ? "" : request.reasonDetail().trim());
+      return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+          .digest(value.getBytes(StandardCharsets.UTF_8)));
+    } catch (Exception exception) {
+      throw new IllegalStateException(exception);
+    }
+  }
+
+  private record Prepared(RefundView refund, PaymentView payment, boolean created) {}
 }
