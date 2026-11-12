@@ -1,0 +1,23 @@
+CREATE TABLE callback_outbox (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  shipment_id BIGINT NOT NULL,
+  event_id VARCHAR(36) NOT NULL,
+  callback_url VARCHAR(500) NOT NULL,
+  payload JSON NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'NEW',
+  attempts INT NOT NULL DEFAULT 0,
+  max_attempts INT NOT NULL,
+  next_attempt_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  lease_until TIMESTAMP(6) NULL,
+  claimed_by VARCHAR(100) NULL,
+  last_error VARCHAR(1000) NULL,
+  created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  published_at TIMESTAMP(6) NULL,
+  updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY(id),
+  UNIQUE KEY uk_callback_outbox_event(event_id),
+  KEY idx_callback_outbox_dispatch(status,next_attempt_at,lease_until,id),
+  CONSTRAINT fk_callback_outbox_shipment FOREIGN KEY(shipment_id) REFERENCES shipment_records(id),
+  CONSTRAINT fk_callback_outbox_event FOREIGN KEY(event_id) REFERENCES shipment_events(event_id),
+  CONSTRAINT chk_callback_outbox_attempts CHECK(attempts >= 0 AND max_attempts > 0)
+);

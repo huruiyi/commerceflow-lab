@@ -6,7 +6,9 @@ import java.time.Instant;
 import java.util.List;
 
 public record ShopOrderResponse(Long id, String orderNumber, String status, BigDecimal totalAmount,
-    String currency, Instant createdAt, List<Item> items, Address address, Payment payment,RefundResponse refund) {
+    String currency, Instant createdAt, Instant paymentDueAt, Instant cancelledAt, String cancelReason,
+    Instant receivedAt, Instant completedAt, Instant logisticsDeliveredAt,
+    List<String> availableActions, List<Item> items, Address address, Payment payment,LogisticsResponse logistics,RefundResponse refund) {
   public record Item(Long id,Long productId,String productName,String thumbnailUrl,BigDecimal unitPrice,int quantity,BigDecimal subtotal) {
     public static Item from(OrderItemView i){return new Item(i.getId(),i.getProductId(),i.getProductName(),i.getThumbnailUrl(),i.getUnitPrice(),i.getQuantity(),i.getSubtotal());}
   }

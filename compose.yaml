@@ -152,6 +152,63 @@ services:
       start_period: 5s
     restart: unless-stopped
 
+  logistics-mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: logistics_platform
+      MYSQL_USER: ${LOGISTICS_DATABASE_USERNAME:-logistics}
+      MYSQL_PASSWORD: ${LOGISTICS_DATABASE_PASSWORD:-logistics-password}
+      MYSQL_ROOT_PASSWORD: ${LOGISTICS_MYSQL_ROOT_PASSWORD:-local-logistics-root-password}
+    ports:
+      - "13308:3306"
+    volumes:
+      - logistics-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
+  mock-logistics-service:
+    build:
+      context: ./mock-logistics-service
+    environment:
+      LOGISTICS_DATABASE_URL: jdbc:mysql://logistics-mysql:3306/logistics_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      LOGISTICS_DATABASE_USERNAME: ${LOGISTICS_DATABASE_USERNAME:-logistics}
+      LOGISTICS_DATABASE_PASSWORD: ${LOGISTICS_DATABASE_PASSWORD:-logistics-password}
+      LOGISTICS_APP_ID: ${LOGISTICS_APP_ID:-commerceflow-storefront}
+      LOGISTICS_REQUEST_SECRET: ${LOGISTICS_REQUEST_SECRET:-demo-logistics-request-secret}
+      LOGISTICS_CALLBACK_SECRET: ${LOGISTICS_CALLBACK_SECRET:-demo-logistics-callback-secret}
+      LOGISTICS_CALLBACK_URL: http://backend:8080/api/logistics-notifications/callback
+      LOGISTICS_CALLBACK_DELIVERY_ENABLED: ${LOGISTICS_CALLBACK_DELIVERY_ENABLED:-true}
+      LOGISTICS_CALLBACK_DELIVERY_INITIAL_DELAY: ${LOGISTICS_CALLBACK_DELIVERY_INITIAL_DELAY:-2s}
+      LOGISTICS_CALLBACK_DELIVERY_SCAN_INTERVAL: ${LOGISTICS_CALLBACK_DELIVERY_SCAN_INTERVAL:-1s}
+      LOGISTICS_CALLBACK_DELIVERY_RETRY_DELAY: ${LOGISTICS_CALLBACK_DELIVERY_RETRY_DELAY:-2s}
+      LOGISTICS_CALLBACK_DELIVERY_CLAIM_LEASE: ${LOGISTICS_CALLBACK_DELIVERY_CLAIM_LEASE:-30s}
+      LOGISTICS_CALLBACK_DELIVERY_CONNECT_TIMEOUT: ${LOGISTICS_CALLBACK_DELIVERY_CONNECT_TIMEOUT:-2s}
+      LOGISTICS_CALLBACK_DELIVERY_READ_TIMEOUT: ${LOGISTICS_CALLBACK_DELIVERY_READ_TIMEOUT:-3s}
+      LOGISTICS_CALLBACK_DELIVERY_BATCH_SIZE: ${LOGISTICS_CALLBACK_DELIVERY_BATCH_SIZE:-50}
+      LOGISTICS_CALLBACK_DELIVERY_MAX_ATTEMPTS: ${LOGISTICS_CALLBACK_DELIVERY_MAX_ATTEMPTS:-10}
+      LOGISTICS_AUTO_PROGRESS_ENABLED: ${LOGISTICS_AUTO_PROGRESS_ENABLED:-false}
+      LOGISTICS_AUTO_PROGRESS_INITIAL_DELAY: ${LOGISTICS_AUTO_PROGRESS_INITIAL_DELAY:-10s}
+      LOGISTICS_AUTO_PROGRESS_SCAN_INTERVAL: ${LOGISTICS_AUTO_PROGRESS_SCAN_INTERVAL:-5s}
+      LOGISTICS_AUTO_PROGRESS_STEP_INTERVAL: ${LOGISTICS_AUTO_PROGRESS_STEP_INTERVAL:-5m}
+      LOGISTICS_AUTO_PROGRESS_BATCH_SIZE: ${LOGISTICS_AUTO_PROGRESS_BATCH_SIZE:-100}
+    ports:
+      - "18083:8080"
+    depends_on:
+      logistics-mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 25s
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -164,6 +221,16 @@ services:
       REDIS_PORT: 6379
       PAYMENT_PLATFORM_BASE_URL: http://mock-payment-service:8080
       PAYMENT_CALLBACK_SECRET: ${PAYMENT_CALLBACK_SECRET:-demo-platform-callback-secret}
+      LOGISTICS_PLATFORM_BASE_URL: http://mock-logistics-service:8080
+      LOGISTICS_APP_ID: ${LOGISTICS_APP_ID:-commerceflow-storefront}
+      LOGISTICS_REQUEST_SECRET: ${LOGISTICS_REQUEST_SECRET:-demo-logistics-request-secret}
+      LOGISTICS_CALLBACK_SECRET: ${LOGISTICS_CALLBACK_SECRET:-demo-logistics-callback-secret}
+      LOGISTICS_CALLBACK_URL: http://backend:8080/api/logistics-notifications/callback
+      LOGISTICS_RECONCILIATION_ENABLED: ${LOGISTICS_RECONCILIATION_ENABLED:-true}
+      LOGISTICS_RECONCILIATION_INITIAL_DELAY: ${LOGISTICS_RECONCILIATION_INITIAL_DELAY:-30s}
+      LOGISTICS_RECONCILIATION_SCAN_INTERVAL: ${LOGISTICS_RECONCILIATION_SCAN_INTERVAL:-1m}
+      LOGISTICS_RECONCILIATION_STALE_AFTER: ${LOGISTICS_RECONCILIATION_STALE_AFTER:-5m}
+      LOGISTICS_RECONCILIATION_BATCH_SIZE: ${LOGISTICS_RECONCILIATION_BATCH_SIZE:-100}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
       - "18081:8080"
@@ -173,6 +240,8 @@ services:
       redis:
         condition: service_healthy
       mock-payment-service:
+        condition: service_healthy
+      mock-logistics-service:
         condition: service_healthy
       kafka:
         condition: service_healthy
@@ -204,4 +273,5 @@ volumes:
   mysql-data:
   redis-data:
   payment-mysql-data:
+  logistics-mysql-data:
   kafka-data:

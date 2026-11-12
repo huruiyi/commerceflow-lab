@@ -5,6 +5,9 @@ import lab.commerceflow.storefront.mapper.CartMapper;
 import lab.commerceflow.storefront.mapper.ShopOrderMapper;
 import lab.commerceflow.storefront.mapper.RefundMapper;
 import lab.commerceflow.storefront.web.dto.*;
+import lab.commerceflow.storefront.configuration.OrderLifecycleProperties;
+import lab.commerceflow.storefront.scheduling.ScheduledTaskService;
+import lab.commerceflow.storefront.scheduling.ScheduledTaskTypes;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
@@ -17,7 +20,11 @@ import java.util.*;
 @Service
 public class PurchaseOrderService {
   private final ShopOrderMapper orders; private final CartMapper carts;private final PaymentGatewayClient gateway;private final RedisIdempotencyService redisIdempotency;private final RefundMapper refunds;
-  public PurchaseOrderService(ShopOrderMapper orders, CartMapper carts,PaymentGatewayClient gateway,RedisIdempotencyService redisIdempotency,RefundMapper refunds){this.orders=orders;this.carts=carts;this.gateway=gateway;this.redisIdempotency=redisIdempotency;this.refunds=refunds;}
+  private final OrderLifecycleProperties lifecycle; private final ScheduledTaskService scheduledTasks;
+  private final LogisticsService logistics;
+  public PurchaseOrderService(ShopOrderMapper orders, CartMapper carts,PaymentGatewayClient gateway,
+      RedisIdempotencyService redisIdempotency,RefundMapper refunds,
+      OrderLifecycleProperties lifecycle,ScheduledTaskService scheduledTasks,LogisticsService logistics){this.orders=orders;this.carts=carts;this.gateway=gateway;this.redisIdempotency=redisIdempotency;this.refunds=refunds;this.lifecycle=lifecycle;this.scheduledTasks=scheduledTasks;this.logistics=logistics;}
 
   @Transactional
   public ShopOrderResponse checkout(AppUser user) {
@@ -27,11 +34,14 @@ public class PurchaseOrderService {
     if(address==null) throw new BusinessRuleException("Select a valid shipping address before checkout");
     if(items.stream().anyMatch(i->i.getMerchantId()==null)) throw new BusinessRuleException("A cart product has no merchant");
     BigDecimal total=items.stream().map(CheckoutCartItem::subtotal).reduce(BigDecimal.ZERO,BigDecimal::add);
-    NewShopOrder order=new NewShopOrder(number("ORD"),user.getId(),total,"CNY");
+    Instant paymentDueAt=Instant.now().plus(lifecycle.getPaymentTimeout());
+    NewShopOrder order=new NewShopOrder(number("ORD"),user.getId(),total,"CNY",paymentDueAt);
     orders.insertOrder(order);
     items.forEach(i->orders.insertItem(order.getId(),i,i.subtotal()));
     orders.insertAddress(order.getId(),address);
     orders.insertEvent(order.getId(),user.getId(),"ORDER_CREATED","CART","PENDING_PAYMENT","Checkout created from cart");
+    scheduledTasks.schedule(ScheduledTaskTypes.PAYMENT_TIMEOUT,"order:"+order.getId(),"ORDER",
+        order.getId().toString(),paymentDueAt,Map.of("orderId",order.getId()));
     carts.clear(user.getId());
     return require(user,order.getId());
   }
@@ -77,7 +87,36 @@ public class PurchaseOrderService {
     List<ShopOrderResponse.Item> items=orders.items(o.getId()).stream().map(ShopOrderResponse.Item::from).toList();
     PaymentView resolved=payment!=null?payment:orders.latestPayment(o.getId()).orElse(null);
     RefundResponse refund=refunds.byOrder(o.getId()).map(value->RefundResponse.from(value,refunds.events(value.getId()))).orElse(null);
-    return new ShopOrderResponse(o.getId(),o.getOrderNumber(),o.getStatus(),o.getTotalAmount(),o.getCurrency(),o.getCreatedAt(),items,ShopOrderResponse.Address.from(orders.address(o.getId())),ShopOrderResponse.Payment.from(resolved),refund);
+    return new ShopOrderResponse(o.getId(),o.getOrderNumber(),o.getStatus(),o.getTotalAmount(),o.getCurrency(),
+        o.getCreatedAt(),o.getPaymentDueAt(),o.getCancelledAt(),o.getCancelReason(),o.getReceivedAt(),
+        o.getCompletedAt(),o.getLogisticsDeliveredAt(),availableActions(o,resolved,refund),items,ShopOrderResponse.Address.from(orders.address(o.getId())),
+        ShopOrderResponse.Payment.from(resolved),logistics.find(o.getId()),refund);
+  }
+
+  private List<String> availableActions(ShopOrderView order,PaymentView payment,RefundResponse refund){
+    LinkedHashSet<String> actions=new LinkedHashSet<>();
+    switch(order.getStatus()){
+      case "PENDING_PAYMENT" -> {
+        actions.add("PAY");
+        actions.add("REFRESH_PAYMENT");
+        actions.add("CANCEL_ORDER");
+      }
+      case "PAID","CONFIRMED" -> actions.add("REQUEST_REFUND");
+      case "SHIPPED" -> {
+        actions.add("VIEW_LOGISTICS");
+        actions.add("COPY_TRACKING_NUMBER");
+        actions.add("CONFIRM_RECEIPT");
+      }
+      case "RECEIVED","COMPLETED" -> {
+        actions.add("VIEW_LOGISTICS");
+        actions.add("COPY_TRACKING_NUMBER");
+        actions.add("REVIEW_ITEM");
+      }
+      default -> { }
+    }
+    if(payment!=null) actions.add("VIEW_PAYMENT");
+    if(refund!=null) actions.add("VIEW_REFUND");
+    return List.copyOf(actions);
   }
   private String number(String prefix){return prefix+"-"+UUID.randomUUID().toString().replace("-","").substring(0,16).toUpperCase();}
 

@@ -44,6 +44,16 @@ public class ApiExceptionHandler {
     return response(HttpStatus.NOT_FOUND, "NOT_FOUND", exception.getMessage());
   }
 
+  @ExceptionHandler(IllegalArgumentException.class)
+  ResponseEntity<Map<String, Object>> illegalArgument(IllegalArgumentException exception) {
+    return response(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", exception.getMessage());
+  }
+
+  @ExceptionHandler(IllegalStateException.class)
+  ResponseEntity<Map<String, Object>> illegalState(IllegalStateException exception) {
+    return response(HttpStatus.CONFLICT, "BUSINESS_RULE", exception.getMessage());
+  }
+
   private ResponseEntity<Map<String, Object>> response(HttpStatus status, String code, String message) {
     return ResponseEntity.status(status).body(Map.of(
         "timestamp", Instant.now().toString(),

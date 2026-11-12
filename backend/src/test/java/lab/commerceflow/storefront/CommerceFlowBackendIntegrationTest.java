@@ -2,7 +2,29 @@ package lab.commerceflow.storefront;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.time.Instant;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import lab.commerceflow.storefront.scheduling.ScheduledTaskExecutor;
+import lab.commerceflow.storefront.scheduling.ScheduledTaskHandler;
+import lab.commerceflow.storefront.scheduling.ScheduledTaskService;
+import lab.commerceflow.storefront.scheduling.ScheduledTaskTypes;
+import lab.commerceflow.storefront.scheduling.TaskTriggerSource;
+import lab.commerceflow.storefront.service.OrderReceiptLifecycleService;
+import lab.commerceflow.storefront.service.LogisticsNotificationService;
+import lab.commerceflow.storefront.service.LogisticsGatewayClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -29,7 +51,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = {
     "spring.kafka.listener.auto-startup=false",
     "commerceflow.outbox.delay=3600000",
-    "commerceflow.reconciliation.delay=3600000"
+    "commerceflow.reconciliation.delay=3600000",
+    "commerceflow.scheduling.database-scan.initial-delay=1h",
+    "commerceflow.scheduling.lease-recovery.initial-delay=1h",
+    "commerceflow.scheduling.reconciliation.initial-delay=1h"
 })
 @AutoConfigureMockMvc
 @Import(CommerceFlowBackendIntegrationTest.TestSessions.class)
@@ -41,11 +66,31 @@ class CommerceFlowBackendIntegrationTest {
     MapSessionRepository sessionRepository() {
       return new MapSessionRepository(new ConcurrentHashMap<>());
     }
+
+    @Bean
+    AtomicInteger reminderExecutions() {
+      return new AtomicInteger();
+    }
+
+    @Bean
+    ScheduledTaskHandler reminderTestHandler(AtomicInteger reminderExecutions) {
+      return new ScheduledTaskHandler() {
+        @Override public String taskType() { return ScheduledTaskTypes.REVIEW_REMINDER; }
+        @Override public void execute(lab.commerceflow.storefront.scheduling.ScheduledTaskExecution task) {
+          reminderExecutions.incrementAndGet();
+        }
+      };
+    }
   }
 
   @Autowired MockMvc mvc;
   @Autowired ObjectMapper json;
   @Autowired JdbcTemplate jdbc;
+  @Autowired ScheduledTaskService scheduledTasks;
+  @Autowired ScheduledTaskExecutor scheduledTaskExecutor;
+  @Autowired AtomicInteger reminderExecutions;
+  @Autowired OrderReceiptLifecycleService receiptLifecycle;
+  @Autowired LogisticsNotificationService logisticsNotifications;
 
   @Test
   void publicCatalogSupportsLocalesAndAuthenticationReturnsStableErrors() throws Exception {
@@ -100,6 +145,276 @@ class CommerceFlowBackendIntegrationTest {
   }
 
   @Test
+  void genericSchedulingUsesPolicySnapshotAndAdminCanMaintainPolicies() throws Exception {
+    scheduledTasks.schedule(ScheduledTaskTypes.REVIEW_REMINDER, "review-reminder-test", "ORDER", "1",
+        Instant.now().minusSeconds(1), Map.of("orderId", 1));
+    org.junit.jupiter.api.Assertions.assertEquals(1, scheduledTaskExecutor.executeDatabaseBatch(10));
+    org.junit.jupiter.api.Assertions.assertEquals(1, reminderExecutions.get());
+    org.junit.jupiter.api.Assertions.assertEquals("SUCCEEDED",
+        jdbc.queryForObject("SELECT status FROM scheduled_tasks WHERE task_key='review-reminder-test'", String.class));
+    Long taskId = jdbc.queryForObject(
+        "SELECT id FROM scheduled_tasks WHERE task_key='review-reminder-test'", Long.class);
+
+    CsrfContext customer = login("demo@example.com", false);
+    mvc.perform(get("/api/admin/scheduling/policies").session(customer.session()))
+        .andExpect(status().isForbidden());
+
+    CsrfContext admin = login("admin@example.com", false);
+    mvc.perform(get("/api/admin/scheduling/policies").session(admin.session()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[?(@.taskType == 'REVIEW_REMINDER')].handlerAvailable").value(true));
+    mvc.perform(put("/api/admin/scheduling/policies/REVIEW_REMINDER")
+            .session(admin.session()).cookie(admin.cookie()).header("X-XSRF-TOKEN", admin.token())
+            .contentType("application/json")
+            .content("{\"enabled\":true,\"primaryTrigger\":\"DATABASE\",\"reconciliationEnabled\":true,\"gracePeriodSeconds\":60,\"claimLeaseSeconds\":30,\"maxAttempts\":4,\"retryDelaySeconds\":5}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.source").value("DATABASE_OVERRIDE"))
+        .andExpect(jsonPath("$.maxAttempts").value(4));
+    mvc.perform(get("/api/admin/scheduling/policies/REVIEW_REMINDER/events").session(admin.session()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].action").value("UPSERT"))
+        .andExpect(jsonPath("$[0].operatedBy").value("admin@example.com"));
+    mvc.perform(get("/api/admin/scheduling/tasks/{id}/events", taskId).session(admin.session()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].eventType").value("TASK_SCHEDULED"))
+        .andExpect(jsonPath("$[2].eventType").value("TASK_SUCCEEDED"));
+    mvc.perform(put("/api/admin/scheduling/policies/UNREGISTERED_TASK")
+            .session(admin.session()).cookie(admin.cookie()).header("X-XSRF-TOKEN", admin.token())
+            .contentType("application/json")
+            .content("{\"enabled\":true,\"primaryTrigger\":\"DATABASE\",\"reconciliationEnabled\":true,\"gracePeriodSeconds\":60,\"claimLeaseSeconds\":30,\"maxAttempts\":4,\"retryDelaySeconds\":5}"))
+        .andExpect(status().isConflict());
+    mvc.perform(put("/api/admin/scheduling/policies/REVIEW_REMINDER")
+            .session(admin.session()).cookie(admin.cookie()).header("X-XSRF-TOKEN", admin.token())
+            .contentType("application/json")
+            .content("{\"enabled\":true,\"primaryTrigger\":\"RABBITMQ\",\"reconciliationEnabled\":true,\"gracePeriodSeconds\":60,\"claimLeaseSeconds\":30,\"maxAttempts\":4,\"retryDelaySeconds\":5}"))
+        .andExpect(status().isConflict());
+    mvc.perform(delete("/api/admin/scheduling/policies/REVIEW_REMINDER")
+            .session(admin.session()).cookie(admin.cookie()).header("X-XSRF-TOKEN", admin.token()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.source").value("CONFIG_TASK_POLICY"));
+  }
+
+  @Test
+  void paymentTimeoutTaskUsesTheSharedCancellationHandler() throws Exception {
+    Long customerId = jdbc.queryForObject(
+        "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
+    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,created_at,updated_at) VALUES('TIMEOUT-ORDER',?,'PENDING_PAYMENT',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", customerId);
+    Long orderId = jdbc.queryForObject(
+        "SELECT id FROM shop_orders WHERE order_number='TIMEOUT-ORDER'", Long.class);
+    var task = scheduledTasks.schedule(ScheduledTaskTypes.PAYMENT_TIMEOUT, "order:" + orderId,
+        "ORDER", orderId.toString(), Instant.now().minusSeconds(1), Map.of("orderId", orderId));
+
+    CsrfContext customer = login("demo@example.com", false);
+    mvc.perform(get("/api/purchase-orders/{id}", orderId).session(customer.session()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.availableActions").isArray())
+        .andExpect(jsonPath("$.availableActions[?(@ == 'PAY')]").exists())
+        .andExpect(jsonPath("$.availableActions[?(@ == 'CANCEL_ORDER')]").exists());
+
+    org.junit.jupiter.api.Assertions.assertTrue(
+        scheduledTaskExecutor.execute(task.getId(), TaskTriggerSource.DATABASE_SCAN));
+    org.junit.jupiter.api.Assertions.assertEquals("CANCELLED",
+        jdbc.queryForObject("SELECT status FROM shop_orders WHERE id=?", String.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM order_events WHERE order_id=? AND event_type='ORDER_CANCELLED' AND trigger_source='SCHEDULED_TASK' AND scheduled_task_id=?",
+        Integer.class, orderId, task.getId()));
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM payment_outbox WHERE aggregate_type='ORDER' AND aggregate_id=? AND event_type='ORDER_CANCELLED'",
+        Integer.class, orderId.toString()));
+  }
+
+  @Test
+  void automaticReceiptAndCompletionUseSharedScheduledTaskHandlers() {
+    Long customerId = jdbc.queryForObject(
+        "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
+    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,logistics_delivered_at,created_at,updated_at) VALUES('AUTO-LIFECYCLE-ORDER',?,'SHIPPED',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", customerId);
+    Long orderId = jdbc.queryForObject(
+        "SELECT id FROM shop_orders WHERE order_number='AUTO-LIFECYCLE-ORDER'", Long.class);
+
+    receiptLifecycle.scheduleAutoReceive(orderId, Instant.now().minusSeconds(2));
+    Long receiveTaskId = jdbc.queryForObject(
+        "SELECT id FROM scheduled_tasks WHERE task_type='AUTO_RECEIVE' AND task_key=?",
+        Long.class, "order:" + orderId);
+    org.junit.jupiter.api.Assertions.assertTrue(
+        scheduledTaskExecutor.execute(receiveTaskId, TaskTriggerSource.DATABASE_SCAN));
+    org.junit.jupiter.api.Assertions.assertEquals("RECEIVED",
+        jdbc.queryForObject("SELECT status FROM shop_orders WHERE id=?", String.class, orderId));
+    org.junit.jupiter.api.Assertions.assertNotNull(
+        jdbc.queryForObject("SELECT received_at FROM shop_orders WHERE id=?", java.sql.Timestamp.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM order_events WHERE order_id=? AND event_type='ORDER_AUTO_RECEIVED' AND scheduled_task_id=?",
+        Integer.class, orderId, receiveTaskId));
+
+    Long completeTaskId = jdbc.queryForObject(
+        "SELECT id FROM scheduled_tasks WHERE task_type='AUTO_COMPLETE' AND task_key=?",
+        Long.class, "order:" + orderId);
+    jdbc.update("UPDATE scheduled_tasks SET due_at=? WHERE id=?", java.sql.Timestamp.from(Instant.now().minusSeconds(1)), completeTaskId);
+    org.junit.jupiter.api.Assertions.assertTrue(
+        scheduledTaskExecutor.execute(completeTaskId, TaskTriggerSource.DATABASE_SCAN));
+    org.junit.jupiter.api.Assertions.assertEquals("COMPLETED",
+        jdbc.queryForObject("SELECT status FROM shop_orders WHERE id=?", String.class, orderId));
+    org.junit.jupiter.api.Assertions.assertNotNull(
+        jdbc.queryForObject("SELECT completed_at FROM shop_orders WHERE id=?", java.sql.Timestamp.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM order_events WHERE order_id=? AND event_type='ORDER_AUTO_COMPLETED' AND scheduled_task_id=?",
+        Integer.class, orderId, completeTaskId));
+
+    receiptLifecycle.autoReceive(orderId, receiveTaskId);
+    receiptLifecycle.autoComplete(orderId, completeTaskId);
+    org.junit.jupiter.api.Assertions.assertEquals(2, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM order_events WHERE order_id=? AND event_type IN ('ORDER_AUTO_RECEIVED','ORDER_AUTO_COMPLETED')",
+        Integer.class, orderId));
+  }
+
+  @Test
+  void manualReceiptCancelsAutoReceiveAndCreatesOneAutoCompleteTask() {
+    Long customerId = jdbc.queryForObject(
+        "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
+    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,logistics_delivered_at,created_at,updated_at) VALUES('MANUAL-RECEIPT-ORDER',?,'SHIPPED',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", customerId);
+    Long orderId = jdbc.queryForObject(
+        "SELECT id FROM shop_orders WHERE order_number='MANUAL-RECEIPT-ORDER'", Long.class);
+    receiptLifecycle.scheduleAutoReceive(orderId, Instant.now().plusSeconds(3600));
+
+    receiptLifecycle.confirmReceipt(customerId, customerId, orderId);
+    receiptLifecycle.confirmReceipt(customerId, customerId, orderId);
+
+    org.junit.jupiter.api.Assertions.assertEquals("RECEIVED",
+        jdbc.queryForObject("SELECT status FROM shop_orders WHERE id=?", String.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals("CANCELLED", jdbc.queryForObject(
+        "SELECT status FROM scheduled_tasks WHERE task_type='AUTO_RECEIVE' AND task_key=?",
+        String.class, "order:" + orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM scheduled_tasks WHERE task_type='AUTO_COMPLETE' AND task_key=?",
+        Integer.class, "order:" + orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM order_events WHERE order_id=? AND event_type='ORDER_RECEIVED'",
+        Integer.class, orderId));
+  }
+
+  @Test
+  void manualAndAutomaticReceiptRaceProducesOneTransitionAndOneCompletionTask() throws Exception {
+    Long customerId = jdbc.queryForObject(
+        "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
+    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,logistics_delivered_at,created_at,updated_at) VALUES('RECEIPT-RACE-ORDER',?,'SHIPPED',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", customerId);
+    Long orderId = jdbc.queryForObject(
+        "SELECT id FROM shop_orders WHERE order_number='RECEIPT-RACE-ORDER'", Long.class);
+    receiptLifecycle.scheduleAutoReceive(orderId, Instant.now().minusSeconds(2));
+    Long receiveTaskId = jdbc.queryForObject(
+        "SELECT id FROM scheduled_tasks WHERE task_type='AUTO_RECEIVE' AND task_key=?",
+        Long.class, "order:" + orderId);
+
+    CountDownLatch start = new CountDownLatch(1);
+    ExecutorService workers = Executors.newFixedThreadPool(2);
+    try {
+      Future<?> manual = workers.submit(() -> {
+        await(start);
+        receiptLifecycle.confirmReceipt(customerId, customerId, orderId);
+      });
+      Future<Boolean> automatic = workers.submit(() -> {
+        await(start);
+        return scheduledTaskExecutor.execute(receiveTaskId, TaskTriggerSource.DATABASE_SCAN);
+      });
+      start.countDown();
+      manual.get(10, TimeUnit.SECONDS);
+      automatic.get(10, TimeUnit.SECONDS);
+    } finally {
+      workers.shutdownNow();
+    }
+
+    org.junit.jupiter.api.Assertions.assertEquals("RECEIVED",
+        jdbc.queryForObject("SELECT status FROM shop_orders WHERE id=?", String.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM order_events WHERE order_id=? AND event_type IN ('ORDER_RECEIVED','ORDER_AUTO_RECEIVED')",
+        Integer.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM scheduled_tasks WHERE task_type='AUTO_COMPLETE' AND task_key=?",
+        Integer.class, "order:" + orderId));
+    String receiveTaskStatus = jdbc.queryForObject(
+        "SELECT status FROM scheduled_tasks WHERE id=?", String.class, receiveTaskId);
+    org.junit.jupiter.api.Assertions.assertTrue(
+        "CANCELLED".equals(receiveTaskStatus) || "SUCCEEDED".equals(receiveTaskStatus));
+  }
+
+  @Test
+  void expiredProcessingLeaseIsRecoveredAndSafelyRetried() {
+    int executionsBefore = reminderExecutions.get();
+    var task = scheduledTasks.schedule(ScheduledTaskTypes.REVIEW_REMINDER,
+        "lease-recovery-test", "ORDER", "1", Instant.now().minusSeconds(5), Map.of("orderId", 1));
+    jdbc.update("UPDATE scheduled_tasks SET status='PROCESSING',attempts=1,claimed_by='crashed-worker',lease_until=? WHERE id=?",
+        java.sql.Timestamp.from(Instant.now().minusSeconds(2)), task.getId());
+
+    org.junit.jupiter.api.Assertions.assertEquals(1, scheduledTaskExecutor.recoverExpiredLeases(10));
+    org.junit.jupiter.api.Assertions.assertEquals("FAILED",
+        jdbc.queryForObject("SELECT status FROM scheduled_tasks WHERE id=?", String.class, task.getId()));
+    org.junit.jupiter.api.Assertions.assertTrue(
+        scheduledTaskExecutor.execute(task.getId(), TaskTriggerSource.DATABASE_SCAN));
+    org.junit.jupiter.api.Assertions.assertEquals("SUCCEEDED",
+        jdbc.queryForObject("SELECT status FROM scheduled_tasks WHERE id=?", String.class, task.getId()));
+    org.junit.jupiter.api.Assertions.assertEquals(executionsBefore + 1, reminderExecutions.get());
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM scheduled_task_events WHERE task_id=? AND event_type='TASK_LEASE_EXPIRED'",
+        Integer.class, task.getId()));
+  }
+
+  @Test
+  void logisticsExceptionRequiresExplicitRecoveryAndDoesNotScheduleReceipt() throws Exception {
+    Long customerId = jdbc.queryForObject(
+        "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
+    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,created_at,updated_at) VALUES('LOGISTICS-EXCEPTION-ORDER',?,'SHIPPED',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", customerId);
+    Long orderId = jdbc.queryForObject(
+        "SELECT id FROM shop_orders WHERE order_number='LOGISTICS-EXCEPTION-ORDER'", Long.class);
+    jdbc.update("INSERT INTO shipment_records(order_id,merchant_shipment_no,platform_shipment_no,carrier,tracking_number,status,shipped_at) VALUES(?,'MS-EXCEPTION','LGS-EXCEPTION','Demo Carrier','TRACK-EXCEPTION','IN_TRANSIT',CURRENT_TIMESTAMP)", orderId);
+
+    acceptLogisticsNotice("EXCEPTION", "EXCEPTION", "Exception center", "Parcel held for review");
+    org.junit.jupiter.api.Assertions.assertEquals("EXCEPTION", jdbc.queryForObject(
+        "SELECT status FROM shipment_records WHERE order_id=?", String.class, orderId));
+
+    acceptLogisticsNotice("PROGRESS", "AT_STATION", "Destination station", "Late progress callback");
+    org.junit.jupiter.api.Assertions.assertEquals("EXCEPTION", jdbc.queryForObject(
+        "SELECT status FROM shipment_records WHERE order_id=?", String.class, orderId));
+
+    acceptLogisticsNotice("RECOVERY", "IN_TRANSIT", "Regional sorting center", "Transport resumed");
+    org.junit.jupiter.api.Assertions.assertEquals("IN_TRANSIT", jdbc.queryForObject(
+        "SELECT status FROM shipment_records WHERE order_id=?", String.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(0, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM scheduled_tasks WHERE task_type='AUTO_RECEIVE' AND task_key=?",
+        Integer.class, "order:" + orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(3, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM shipment_events WHERE shipment_id=(SELECT id FROM shipment_records WHERE order_id=?)",
+        Integer.class, orderId));
+  }
+
+  @Test
+  void logisticsReconciliationBackfillsMissingEventsIdempotently() {
+    Long customerId = jdbc.queryForObject(
+        "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
+    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,created_at,updated_at) VALUES('LOGISTICS-RECONCILIATION-ORDER',?,'SHIPPED',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", customerId);
+    Long orderId = jdbc.queryForObject(
+        "SELECT id FROM shop_orders WHERE order_number='LOGISTICS-RECONCILIATION-ORDER'", Long.class);
+    jdbc.update("INSERT INTO shipment_records(order_id,merchant_shipment_no,platform_shipment_no,carrier,tracking_number,status,shipped_at) VALUES(?,'MS-RECONCILE','LGS-RECONCILE','Current Carrier','TRACK-RECONCILE','REQUESTED',CURRENT_TIMESTAMP)", orderId);
+    Instant createdAt = Instant.now().minusSeconds(10);
+    LogisticsGatewayClient.Result authoritative = new LogisticsGatewayClient.Result(
+        1L, "MS-RECONCILE", "LGS-RECONCILE", "LOGISTICS-RECONCILIATION-ORDER",
+        "Current Carrier", "TRACK-RECONCILE", "PICKED_UP", "http://callback",
+        createdAt, createdAt.plusSeconds(5), List.of(
+            new LogisticsGatewayClient.Event("RECONCILE-CREATED", "PROGRESS", "CREATED",
+                "Warehouse", "Shipment created", createdAt),
+            new LogisticsGatewayClient.Event("RECONCILE-PICKED", "PROGRESS", "PICKED_UP",
+                "Origin", "Carrier picked up parcel", createdAt.plusSeconds(5))));
+
+    var first = logisticsNotifications.reconcile(authoritative);
+    var replay = logisticsNotifications.reconcile(authoritative);
+
+    org.junit.jupiter.api.Assertions.assertEquals(2, first.processed());
+    org.junit.jupiter.api.Assertions.assertEquals(2, replay.duplicates());
+    org.junit.jupiter.api.Assertions.assertEquals("PICKED_UP", jdbc.queryForObject(
+        "SELECT status FROM shipment_records WHERE order_id=?", String.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(2, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM shipment_notifications WHERE shipment_id=(SELECT id FROM shipment_records WHERE order_id=?) AND processing_status='RECONCILED'",
+        Integer.class, orderId));
+  }
+
+  @Test
   void customerCannotAccessAnotherCustomersCartAddressOrOrder() throws Exception {
     Long ownerId = jdbc.queryForObject("SELECT id FROM app_users WHERE email='customer2@example.com'", Long.class);
     jdbc.update("MERGE INTO carts(user_id,created_at,updated_at) KEY(user_id) VALUES(?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", ownerId);
@@ -108,7 +423,7 @@ class CommerceFlowBackendIntegrationTest {
     Long cartItemId = jdbc.queryForObject("SELECT id FROM cart_items WHERE cart_id=? AND product_id=1", Long.class, cartId);
     jdbc.update("INSERT INTO shipping_addresses(user_id,recipient_name,phone,country_code,state_province,city,district,address_line1,address_line2,postal_code,label,is_default,created_at,updated_at) VALUES(?,'Owner','13800000000','CN','Shanghai','Shanghai','Pudong','Owner Road','','200000','Home',TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", ownerId);
     Long addressId = jdbc.queryForObject("SELECT MAX(id) FROM shipping_addresses WHERE user_id=?", Long.class, ownerId);
-    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,created_at,updated_at) VALUES('OWNER-ORDER',?,'PENDING_PAYMENT',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", ownerId);
+    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,created_at,updated_at) VALUES('OWNER-ORDER',?,'PENDING_PAYMENT',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", ownerId);
     Long orderId = jdbc.queryForObject("SELECT MAX(id) FROM shop_orders WHERE customer_id=?", Long.class, ownerId);
 
     CsrfContext other = login("demo@example.com", false);
@@ -148,6 +463,37 @@ class CommerceFlowBackendIntegrationTest {
     Cookie cookie = result.getResponse().getCookie("XSRF-TOKEN");
     if (cookie == null) throw new IllegalStateException("XSRF-TOKEN cookie was not issued");
     return new CsrfContext(session, cookie, token);
+  }
+
+  private static void await(CountDownLatch latch) {
+    try {
+      if (!latch.await(5, TimeUnit.SECONDS)) {
+        throw new IllegalStateException("Concurrent test start latch timed out");
+      }
+    } catch (InterruptedException exception) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException("Concurrent test was interrupted", exception);
+    }
+  }
+
+  private void acceptLogisticsNotice(String eventType, String status, String location,
+      String description) throws Exception {
+    String raw = json.writeValueAsString(Map.of(
+        "notificationId", UUID.randomUUID().toString(),
+        "merchantShipmentNo", "MS-EXCEPTION",
+        "platformShipmentNo", "LGS-EXCEPTION",
+        "eventType", eventType,
+        "status", status,
+        "carrier", "Demo Carrier",
+        "trackingNumber", "TRACK-EXCEPTION",
+        "location", location,
+        "description", description,
+        "occurredAt", Instant.now().toString()));
+    Mac mac = Mac.getInstance("HmacSHA256");
+    mac.init(new SecretKeySpec("demo-logistics-callback-secret".getBytes(StandardCharsets.UTF_8),
+        "HmacSHA256"));
+    logisticsNotifications.accept(raw,
+        Base64.getEncoder().encodeToString(mac.doFinal(raw.getBytes(StandardCharsets.UTF_8))));
   }
 
   private record CsrfContext(MockHttpSession session, Cookie cookie, String token) {}

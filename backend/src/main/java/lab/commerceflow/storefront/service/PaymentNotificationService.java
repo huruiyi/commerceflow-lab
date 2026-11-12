@@ -1,3 +1,116 @@
 package lab.commerceflow.storefront.service;
-import com.fasterxml.jackson.databind.ObjectMapper;import lab.commerceflow.storefront.domain.PaymentView;import lab.commerceflow.storefront.mapper.ShopOrderMapper;import java.math.BigDecimal;import java.nio.charset.StandardCharsets;import java.security.MessageDigest;import java.util.*;import javax.crypto.Mac;import javax.crypto.spec.SecretKeySpec;import org.springframework.beans.factory.annotation.Value;import org.springframework.dao.DuplicateKeyException;import org.springframework.http.HttpStatus;import org.springframework.stereotype.Service;import org.springframework.transaction.annotation.Transactional;import org.springframework.web.server.ResponseStatusException;
-@Service public class PaymentNotificationService{private final ShopOrderMapper orders;private final ObjectMapper mapper;private final String secret;private final PaymentEventPipeline events;public PaymentNotificationService(ShopOrderMapper o,ObjectMapper m,@Value("${commerceflow.payment-platform.callback-secret:demo-platform-callback-secret}")String s,PaymentEventPipeline e){orders=o;mapper=m;secret=s;events=e;}@Transactional public Result accept(String raw,String sig){if(!valid(raw,sig))throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"INVALID_CALLBACK_SIGNATURE");try{Notice n=mapper.readValue(raw,Notice.class);PaymentView p=orders.lockPaymentByTransaction(n.channelTransactionNo()).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"PAYMENT_NOT_FOUND"));String d=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(raw.getBytes(StandardCharsets.UTF_8)));if(p.getAmount().compareTo(n.amount())!=0||!p.getCurrency().equals(n.currency())){orders.insertNotification(p.getId(),n.channel(),n.notificationId(),n.channelTransactionNo(),"REJECTED",d,"Amount or currency mismatch",n.status());return new Result("REJECTED");}String target=switch(n.status()){case "SUCCESS"->"SUCCESS";case "FAILED","CLOSED","EXPIRED"->n.status();default->"PENDING";};if("PENDING".equals(target))return new Result("IGNORED");int changed=orders.finishPayment(p.getId(),target,n.failureReason()==null?"":n.failureReason());if(changed==1){orders.insertPaymentEvent(p.getId(),UUID.randomUUID().toString(),"CALLBACK_"+target,"PENDING",target,"Signed asynchronous notification");if("SUCCESS".equals(target)&&orders.updateStatus(p.getOrderId(),"PENDING_PAYMENT","PAID")==1)orders.insertEvent(p.getOrderId(),orders.orderCustomerId(p.getOrderId()),"PAYMENT_SUCCEEDED","PENDING_PAYMENT","PAID","Signed asynchronous notification applied");events.append(p.getId().toString(),"PAYMENT_CALLBACK_"+target,raw);}orders.insertNotification(p.getId(),n.channel(),n.notificationId(),n.channelTransactionNo(),changed==1?"PROCESSED":"DUPLICATE_OR_FINAL",d,"",n.status());return new Result(changed==1?"PROCESSED":"ACKNOWLEDGED");}catch(DuplicateKeyException e){return new Result("ACKNOWLEDGED");}catch(ResponseStatusException e){throw e;}catch(Exception e){throw new IllegalStateException(e);}}private boolean valid(String raw,String sig){try{Mac m=Mac.getInstance("HmacSHA256");m.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8),"HmacSHA256"));return sig!=null&&MessageDigest.isEqual(m.doFinal(raw.getBytes(StandardCharsets.UTF_8)),Base64.getDecoder().decode(sig));}catch(Exception e){return false;}}public record Notice(String notificationId,String channelTransactionNo,String channel,String status,BigDecimal amount,String currency,String failureReason){}public record Result(String result){}}
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Base64;
+import java.util.HexFormat;
+import java.util.UUID;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import lab.commerceflow.storefront.domain.PaymentView;
+import lab.commerceflow.storefront.domain.ShopOrderView;
+import lab.commerceflow.storefront.mapper.ShopOrderMapper;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+@Service
+public class PaymentNotificationService {
+  private final ShopOrderMapper orders;
+  private final ObjectMapper mapper;
+  private final String secret;
+  private final PaymentEventPipeline events;
+
+  public PaymentNotificationService(ShopOrderMapper orders, ObjectMapper mapper,
+      @Value("${commerceflow.payment-platform.callback-secret:demo-platform-callback-secret}") String secret,
+      PaymentEventPipeline events) {
+    this.orders = orders;
+    this.mapper = mapper;
+    this.secret = secret;
+    this.events = events;
+  }
+
+  @Transactional
+  public Result accept(String raw, String signature) {
+    if (!valid(raw, signature)) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "INVALID_CALLBACK_SIGNATURE");
+    }
+    try {
+      Notice notice = mapper.readValue(raw, Notice.class);
+      PaymentView payment = orders.lockPaymentByTransaction(notice.channelTransactionNo())
+          .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND"));
+      String digest = HexFormat.of().formatHex(
+          MessageDigest.getInstance("SHA-256").digest(raw.getBytes(StandardCharsets.UTF_8)));
+      if (payment.getAmount().compareTo(notice.amount()) != 0
+          || !payment.getCurrency().equals(notice.currency())) {
+        orders.insertNotification(payment.getId(), notice.channel(), notice.notificationId(),
+            notice.channelTransactionNo(), "REJECTED", digest, "Amount or currency mismatch", notice.status());
+        return new Result("REJECTED");
+      }
+      String target = switch (notice.status()) {
+        case "SUCCESS" -> "SUCCESS";
+        case "FAILED", "CLOSED", "EXPIRED" -> notice.status();
+        default -> "PENDING";
+      };
+      if ("PENDING".equals(target)) return new Result("IGNORED");
+
+      int changed = orders.finishPayment(payment.getId(), target,
+          notice.failureReason() == null ? "" : notice.failureReason());
+      if (changed == 1) {
+        orders.insertPaymentEvent(payment.getId(), UUID.randomUUID().toString(), "CALLBACK_" + target,
+            "PENDING", target, "Signed asynchronous notification");
+        if ("SUCCESS".equals(target)) applySuccessfulPayment(payment.getOrderId());
+        events.append(payment.getId().toString(), "PAYMENT_CALLBACK_" + target, raw);
+      }
+      orders.insertNotification(payment.getId(), notice.channel(), notice.notificationId(),
+          notice.channelTransactionNo(), changed == 1 ? "PROCESSED" : "DUPLICATE_OR_FINAL", digest, "",
+          notice.status());
+      return new Result(changed == 1 ? "PROCESSED" : "ACKNOWLEDGED");
+    } catch (DuplicateKeyException exception) {
+      return new Result("ACKNOWLEDGED");
+    } catch (ResponseStatusException exception) {
+      throw exception;
+    } catch (Exception exception) {
+      throw new IllegalStateException(exception);
+    }
+  }
+
+  private void applySuccessfulPayment(Long orderId) {
+    ShopOrderView order = orders.lockById(orderId).orElseThrow();
+    Long customerId = order.getCustomerId();
+    if ("PENDING_PAYMENT".equals(order.getStatus())
+        && orders.updateStatus(orderId, "PENDING_PAYMENT", "PAID") == 1) {
+      orders.insertEventDetailed(orderId, customerId, "PAYMENT_SUCCEEDED", "PENDING_PAYMENT", "PAID",
+          "Signed asynchronous notification applied", "PAYMENT_CALLBACK", null);
+    } else if ("CANCELLING".equals(order.getStatus())
+        && orders.restorePaidAfterCancellationRace(orderId) == 1) {
+      orders.insertEventDetailed(orderId, customerId, "CANCELLATION_LOST_PAYMENT_RACE", "CANCELLING", "PAID",
+          "Payment callback won the cancellation race", "PAYMENT_CALLBACK", null);
+    } else if ("CANCELLED".equals(order.getStatus())
+        && orders.restorePaidAfterLateSuccess(orderId) == 1) {
+      orders.insertEventDetailed(orderId, customerId, "LATE_PAYMENT_AFTER_CANCELLATION", "CANCELLED", "PAID",
+          "Late successful payment restored the order; manual financial review required",
+          "PAYMENT_CALLBACK", null);
+    }
+  }
+
+  private boolean valid(String raw, String signature) {
+    try {
+      Mac mac = Mac.getInstance("HmacSHA256");
+      mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+      return signature != null && MessageDigest.isEqual(mac.doFinal(raw.getBytes(StandardCharsets.UTF_8)),
+          Base64.getDecoder().decode(signature));
+    } catch (Exception exception) {
+      return false;
+    }
+  }
+
+  public record Notice(String notificationId, String channelTransactionNo, String channel,
+                       String status, BigDecimal amount, String currency, String failureReason) {}
+  public record Result(String result) {}
+}

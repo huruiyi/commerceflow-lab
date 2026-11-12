@@ -59,9 +59,58 @@ security:
     validity-seconds: ${REMEMBER_ME_VALIDITY_SECONDS:1209600}
 
 commerceflow:
+  logistics-platform:
+    base-url: ${LOGISTICS_PLATFORM_BASE_URL:http://localhost:18083}
+    app-id: ${LOGISTICS_APP_ID:commerceflow-storefront}
+    request-secret: ${LOGISTICS_REQUEST_SECRET:demo-logistics-request-secret}
+    callback-secret: ${LOGISTICS_CALLBACK_SECRET:demo-logistics-callback-secret}
+    callback-url: ${LOGISTICS_CALLBACK_URL:http://localhost:18081/api/logistics-notifications/callback}
+    reconciliation:
+      enabled: ${LOGISTICS_RECONCILIATION_ENABLED:true}
+      initial-delay: ${LOGISTICS_RECONCILIATION_INITIAL_DELAY:30s}
+      scan-interval: ${LOGISTICS_RECONCILIATION_SCAN_INTERVAL:1m}
+      stale-after: ${LOGISTICS_RECONCILIATION_STALE_AFTER:5m}
+      batch-size: ${LOGISTICS_RECONCILIATION_BATCH_SIZE:100}
+  order-lifecycle:
+    payment-timeout: 30m
+    auto-receive-after-delivery: ${ORDER_AUTO_RECEIVE_AFTER_DELIVERY:7d}
+    auto-complete-after-receipt: ${ORDER_AUTO_COMPLETE_AFTER_RECEIPT:7d}
   payment-platform:
     base-url: ${PAYMENT_PLATFORM_BASE_URL:http://localhost:18082}
     callback-secret: ${PAYMENT_CALLBACK_SECRET:demo-platform-callback-secret}
+  scheduling:
+    enabled: true
+    default-policy:
+      enabled: false
+      primary-trigger: DATABASE
+      reconciliation-enabled: true
+      grace-period: 2m
+      claim-lease: 2m
+      max-attempts: 5
+      retry-delay: 30s
+    task-policies:
+      PAYMENT_TIMEOUT: {enabled: true, primary-trigger: DATABASE, reconciliation-enabled: true, grace-period: 2m, claim-lease: 2m, max-attempts: 5, retry-delay: 30s}
+      AUTO_RECEIVE: {enabled: true, primary-trigger: DATABASE, reconciliation-enabled: true, grace-period: 5m, claim-lease: 2m, max-attempts: 5, retry-delay: 1m}
+      AUTO_COMPLETE: {enabled: true, primary-trigger: DATABASE, reconciliation-enabled: true, grace-period: 5m, claim-lease: 2m, max-attempts: 5, retry-delay: 1m}
+      REFUND_RECONCILIATION: {enabled: false, primary-trigger: DATABASE, reconciliation-enabled: true, grace-period: 30s, claim-lease: 2m, max-attempts: 10, retry-delay: 30s}
+      PAYMENT_RECONCILIATION: {enabled: false, primary-trigger: DATABASE, reconciliation-enabled: true, grace-period: 30s, claim-lease: 2m, max-attempts: 10, retry-delay: 30s}
+      LOGISTICS_RECONCILIATION: {enabled: false, primary-trigger: DATABASE, reconciliation-enabled: true, grace-period: 5m, claim-lease: 2m, max-attempts: 10, retry-delay: 1m}
+      NOTIFICATION_RETRY: {enabled: false, primary-trigger: DATABASE, reconciliation-enabled: true, grace-period: 30s, claim-lease: 1m, max-attempts: 10, retry-delay: 30s}
+      REVIEW_REMINDER: {enabled: false, primary-trigger: DATABASE, reconciliation-enabled: false, grace-period: 5m, claim-lease: 1m, max-attempts: 3, retry-delay: 5m}
+      INVENTORY_RELEASE: {enabled: false, primary-trigger: DATABASE, reconciliation-enabled: true, grace-period: 30s, claim-lease: 1m, max-attempts: 5, retry-delay: 30s}
+      AFTER_SALE_DEADLINE: {enabled: false, primary-trigger: DATABASE, reconciliation-enabled: true, grace-period: 5m, claim-lease: 2m, max-attempts: 5, retry-delay: 1m}
+    database-scan:
+      initial-delay: 10s
+      fixed-delay: 15s
+      batch-size: 100
+    lease-recovery:
+      initial-delay: 30s
+      fixed-delay: 30s
+      batch-size: 100
+    reconciliation:
+      initial-delay: 30s
+      fixed-delay: 5m
+      batch-size: 100
 resilience4j:
   retry:
     instances:

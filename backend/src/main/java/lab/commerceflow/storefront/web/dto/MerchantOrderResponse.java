@@ -20,9 +20,12 @@ public record MerchantOrderResponse(
     ShopOrderResponse.Address address,
     List<Event> events,
     RefundResponse refund) {
-  public record Event(Long id,String eventType,String fromStatus,String toStatus,String detail,Instant createdAt) {
+  public record Event(Long id,Long actorId,String eventType,String fromStatus,String toStatus,String detail,
+                      String triggerSource,Long scheduledTaskId,Instant createdAt) {
     public static Event from(OrderEventView value) {
-      return new Event(value.getId(),value.getEventType(),value.getFromStatus(),value.getToStatus(),value.getDetail(),value.getCreatedAt());
+      return new Event(value.getId(),value.getActorId(),value.getEventType(),value.getFromStatus(),
+          value.getToStatus(),value.getDetail(),value.getTriggerSource(),value.getScheduledTaskId(),
+          value.getCreatedAt());
     }
   }
 }

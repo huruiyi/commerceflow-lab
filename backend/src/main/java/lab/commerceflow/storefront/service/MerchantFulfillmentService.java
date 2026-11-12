@@ -1,8 +1,8 @@
 package lab.commerceflow.storefront.service;
-import lab.commerceflow.storefront.domain.*;import lab.commerceflow.storefront.mapper.*;import lab.commerceflow.storefront.web.dto.*;import java.util.*;import org.springframework.stereotype.Service;import org.springframework.transaction.annotation.Transactional;
+import lab.commerceflow.storefront.domain.*;import lab.commerceflow.storefront.mapper.*;import lab.commerceflow.storefront.web.dto.*;import java.util.*;import org.springframework.stereotype.Service;import org.springframework.transaction.annotation.Transactional;import org.springframework.transaction.support.TransactionTemplate;import org.springframework.transaction.PlatformTransactionManager;
 @Service public class MerchantFulfillmentService{
- private final MerchantOrderMapper merchants;private final ShopOrderMapper orders;private final RefundMapper refunds;
- public MerchantFulfillmentService(MerchantOrderMapper merchants,ShopOrderMapper orders,RefundMapper refunds){this.merchants=merchants;this.orders=orders;this.refunds=refunds;}
+ private final MerchantOrderMapper merchants;private final ShopOrderMapper orders;private final RefundMapper refunds;private final ShipmentMapper shipments;private final LogisticsGatewayClient logistics;private final TransactionTemplate transactions;
+ public MerchantFulfillmentService(MerchantOrderMapper merchants,ShopOrderMapper orders,RefundMapper refunds,ShipmentMapper shipments,LogisticsGatewayClient logistics,PlatformTransactionManager manager){this.merchants=merchants;this.orders=orders;this.refunds=refunds;this.shipments=shipments;this.logistics=logistics;this.transactions=new TransactionTemplate(manager);}
  public List<MerchantOrderResponse> list(AppUser merchant){return merchants.list(merchant.getId()).stream().map(this::response).toList();}
  @Transactional public MerchantOrderResponse confirm(AppUser merchant,Long id){
   require(merchant,id);
@@ -10,19 +10,20 @@ import lab.commerceflow.storefront.domain.*;import lab.commerceflow.storefront.m
   orders.insertEvent(id,merchant.getId(),"MERCHANT_CONFIRMED","PAID","CONFIRMED","Merchant accepted the order");
   return current(merchant,id);
  }
- @Transactional public MerchantOrderResponse ship(AppUser merchant,Long id,FulfillmentRequest request){
-  require(merchant,id);
+ public MerchantOrderResponse ship(AppUser merchant,Long id,FulfillmentRequest request){
   String carrier=request.carrier().trim();String tracking=request.trackingNumber().trim();
-  if(merchants.ship(id,carrier,tracking)!=1)throw new BusinessRuleException("Only confirmed orders can be shipped");
-  orders.insertEvent(id,merchant.getId(),"ORDER_SHIPPED","CONFIRMED","SHIPPED",carrier+" / "+tracking);
+  ShopOrderView prepared=transactions.execute(status->{ShopOrderView order=require(merchant,id);if("SHIPPED".equals(order.getStatus()))return order;if(!"CONFIRMED".equals(order.getStatus()))throw new BusinessRuleException("Only confirmed orders can be shipped");shipments.prepare(id,"CFL-ORDER-"+id,carrier,tracking);return order;});
+  LogisticsGatewayClient.Result remote=logistics.create(id,prepared.getOrderNumber(),carrier,tracking);
+  transactions.executeWithoutResult(status->{ShopOrderView order=require(merchant,id);ShipmentRecordView shipment=shipments.byOrder(id).orElseThrow();shipments.attach(shipment.getId(),remote.platformShipmentNo(),remote.carrier(),remote.trackingNumber(),remote.status());if("CONFIRMED".equals(order.getStatus())){if(merchants.ship(id,carrier,tracking)!=1)throw new BusinessRuleException("Order status changed while shipping");orders.insertEvent(id,merchant.getId(),"ORDER_SHIPPED","CONFIRMED","SHIPPED",carrier+" / "+tracking);}});
   return current(merchant,id);
  }
- @Transactional public MerchantOrderResponse updateShipment(AppUser merchant,Long id,FulfillmentRequest request){
+ public MerchantOrderResponse updateShipment(AppUser merchant,Long id,FulfillmentRequest request){
   ShopOrderView current=require(merchant,id);
   if(!"SHIPPED".equals(current.getStatus()))throw new BusinessRuleException("Only shipped orders can update shipment details");
   String carrier=request.carrier().trim();String tracking=request.trackingNumber().trim();
   if(Objects.equals(current.getCarrier(),carrier)&&Objects.equals(current.getTrackingNumber(),tracking))return response(current);
-  if(merchants.updateShipment(id,carrier,tracking)!=1)throw new BusinessRuleException("Only shipped orders can update shipment details");
+  logistics.update(id,carrier,tracking);
+  transactions.executeWithoutResult(status->{if(merchants.updateShipment(id,carrier,tracking)!=1)throw new BusinessRuleException("Only shipped orders can update shipment details");shipments.updateDetails(id,carrier,tracking);});
   String before=shipmentDetail(current.getCarrier(),current.getTrackingNumber());
   String after=shipmentDetail(carrier,tracking);
   orders.insertEvent(id,merchant.getId(),"SHIPMENT_UPDATED","SHIPPED","SHIPPED",before+" -> "+after);

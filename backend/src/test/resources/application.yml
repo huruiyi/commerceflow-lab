@@ -27,7 +27,61 @@ security:
     validity-seconds: 1209600
 
 commerceflow:
+  logistics-platform:
+    reconciliation:
+      enabled: false
+      initial-delay: 1h
+      scan-interval: 1h
+      stale-after: 5m
+      batch-size: 100
+  order-lifecycle:
+    payment-timeout: 30m
+    auto-receive-after-delivery: 1s
+    auto-complete-after-receipt: 1s
   outbox:
     initial-delay: 3600000
   reconciliation:
     initial-delay: 3600000
+  scheduling:
+    database-scan:
+      initial-delay: 1h
+      fixed-delay: 1h
+    lease-recovery:
+      initial-delay: 1h
+      fixed-delay: 1h
+    reconciliation:
+      initial-delay: 1h
+      fixed-delay: 1h
+    task-policies:
+      PAYMENT_TIMEOUT:
+        enabled: true
+        primary-trigger: DATABASE
+        reconciliation-enabled: true
+        grace-period: 0s
+        claim-lease: 30s
+        max-attempts: 3
+        retry-delay: 1s
+      AUTO_RECEIVE:
+        enabled: true
+        primary-trigger: DATABASE
+        reconciliation-enabled: true
+        grace-period: 0s
+        claim-lease: 30s
+        max-attempts: 3
+        retry-delay: 1s
+      AUTO_COMPLETE:
+        enabled: true
+        primary-trigger: DATABASE
+        reconciliation-enabled: true
+        grace-period: 0s
+        claim-lease: 30s
+        max-attempts: 3
+        retry-delay: 1s
+      REVIEW_REMINDER:
+        enabled: true
+        primary-trigger: DATABASE
+        reconciliation-enabled: true
+        grace-period: 0s
+        claim-lease: 30s
+        max-attempts: 3
+        retry-delay: 1s
