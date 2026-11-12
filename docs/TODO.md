@@ -227,7 +227,7 @@ PAID
 - [x] 六种主触发/对账组合。
 - [x] RabbitMQ/RocketMQ 未投递与 Database 补偿。
 - [x] RabbitMQ/RocketMQ 重复消息、迟到旧消息和毒消息专项：重放已完成任务消息只增加 ignored 指标，任务领取/完成仍各一次；非法 JSON 分别进入 RabbitMQ Dead Queue 和 RocketMQ `%DLQ%ConsumerGroup`。
-- [ ] 消费者已取得消息但尚未确认时进程退出、恢复后的重新投递专项。
+- [x] 消费者已取得消息但尚未确认时进程退出、恢复后的重新投递专项：Windows Docker 与容器化 Bash 已分别验证 RabbitMQ/RocketMQ 任务 `239/240` 和 `241/242`，崩溃前后无新增发布，且领取/完成各一次。
 - [x] 物流推进、暂时/永久回调丢失、重放、迟到可变字段、对账和越权查询；长时间并发乱序压力单列后续。
 - [x] Windows Docker 已验证手动/自动收货、自动 `COMPLETED`，完成后仍可查支付/物流并评价；退款记录保留由现有响应契约覆盖。
 
@@ -348,7 +348,8 @@ PAID
 - 实现：将 `dueAt` 转为绝对投递时间；发布成功记录 message ID，失败保留未发布状态以待补发；消费端重读数据库并复用统一执行器，早到消息重新投递，异常由 Broker 重试/死信。
 - 验证：后端容器构建通过；默认与 RocketMQ Profile Compose 配置通过；Windows 和容器化 Bash 均完成真实下单、Broker 回执、原生延时投递、原子领取、超时关单和审计链验收（任务 226/227）；Broker 停机时发布失败可观测且 Database 对账成功兜底（任务 228/229）。
 - 验证补充：Windows 与容器化 Bash 的 `verify-mq-scheduling-idempotency` 已完成 RabbitMQ/RocketMQ 重复消息、迟到旧消息和毒消息实验（任务 233～236）。
-- 遗留：消费者已取得但尚未 ACK 时退出的重新投递实验，以及长时间故障压力测试。
+- 验证补充：Windows Docker 与容器化 Bash 的 `verify-mq-scheduling-redelivery` 均已在 RabbitMQ/RocketMQ 消费窗口中强制终止 backend，任务 `239/240`、`241/242` 恢复后均只领取/完成一次。
+- 遗留：长时间故障压力测试。
 - 提交：待本批次提交。
 
 后续记录继续使用以下模板：

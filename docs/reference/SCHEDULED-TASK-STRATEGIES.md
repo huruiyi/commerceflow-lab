@@ -903,7 +903,7 @@ docker compose --profile expiration-rocket up
 9. 已创建任务始终保留原策略快照。
 10. Outbox 和 Kafka 只在状态实际变化后发布一次业务事件。
 
-组合四和组合六已分别验证 Broker 停止时数据库在宽限期后完成补偿。RabbitMQ/RocketMQ 还已分别重放已完成任务的旧消息：消费者收到消息并重读数据库后，统一执行器的条件领取失败，任务领取、成功事件和订单副作用仍各只有一次；非法 JSON 已验证进入两种 DLQ。尚未覆盖消费者已取得消息但未 ACK 时进程退出的重新投递窗口。
+组合四和组合六已分别验证 Broker 停止时数据库在宽限期后完成补偿。RabbitMQ/RocketMQ 还已分别重放已完成任务的旧消息：消费者收到消息并重读数据库后，统一执行器的条件领取失败，任务领取、成功事件和订单副作用仍各只有一次；非法 JSON 已验证进入两种 DLQ。消费者已取消息但未 ACK 时进程退出的窄窗口也已用 `TASK_DELIVERY_PAUSED_BEFORE_ACK` 故障注入完成两种 Broker 的重新投递验收；详见 [MQ 未确认消息与重新投递](../learning/CHAPTER-06A-MQ-UNACKED-REDELIVERY.md)。
 
 ## 16. 业务大流程与任务策略的关系
 

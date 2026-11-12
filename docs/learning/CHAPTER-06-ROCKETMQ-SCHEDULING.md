@@ -115,7 +115,7 @@ bash ./scripts/linux/verify-rocketmq-reconciliation.sh http://localhost:14200 45
 - RocketMQ 保证的是至少一次投递，不是业务恰好一次。重复消息、Database 对账和迟到消息都调用同一个 `ScheduledTaskExecutor`，最终由数据库条件更新竞争领取。
 - 格式错误或无法解析的消息不能返回成功掩盖问题；本项目返回失败，使其进入重试和 DLQ 路径。
 - `verify-mq-scheduling-idempotency` 会重放已完成任务的旧消息并注入非法 JSON：旧消息只增加 ignored 指标，任务仍只领取/完成一次；毒消息经 2 次有限重试后进入 `%DLQ%commerceflow-scheduled-task-consumer`。
-- 尚未验收的更窄窗口是消费者已经取得消息、业务处理尚未 ACK 时进程退出；该场景仍保留在 `TODO.md`。
+- 消费者已取得消息、业务尚未 ACK 时进程退出的窄窗口已完成 RabbitMQ/RocketMQ 实机验收；详见 [06A：MQ 未确认消息与重新投递](CHAPTER-06A-MQ-UNACKED-REDELIVERY.md)。
 
 专项实验：
 

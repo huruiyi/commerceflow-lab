@@ -173,6 +173,7 @@ bash ./scripts/linux/verify-all.sh --skip-build
 | `verify-rocketmq-scheduling` | RocketMQ 5.x 原生延时消息的 Broker 确认、策略快照、原子领取、审计事件和未支付订单自动关闭；需启用 RocketMQ Profile 和秒级测试期限 | 商城 `14200`、RocketMQ Proxy `18084` |
 | `verify-rocketmq-reconciliation` | 停止 RocketMQ Broker，验证发布失败可观测、Database 对账兜底、策略快照不变，并在结束时恢复 Broker | 商城 `14200`、Docker Compose |
 | `verify-mq-scheduling-idempotency` | 向 RabbitMQ/RocketMQ 重放已完成任务的旧消息并注入非法 JSON，验证只有一次领取/完成及两种 DLQ；需同时启用两个 MQ Profile | 商城 `14200`、后端指标 `18081`、RabbitMQ 管理端 `15672`、RocketMQ |
+| `verify-mq-scheduling-redelivery` | 在消费者已取到消息但未确认时强制终止 backend，验证 RabbitMQ/RocketMQ 重新投递且业务只执行一次 | 商城 `14200`、Docker Compose、RabbitMQ、RocketMQ |
 | `verify-receipt-reviews` | 收货、一次性评价、评分校验及商品评分聚合 | 商城 `14200` |
 | `verify-redis-business` | 商品缓存 TTL、支付幂等键、Redis 停机时 MySQL 降级及恢复 | 商城 `14200` |
 | `verify-payment-security` | HMAC/RSA 三渠道签名、Nonce/篡改/过期拒绝、TOTP、Step-up 和审计哈希链 | 支付平台 `14201` |
@@ -244,6 +245,18 @@ bash ./scripts/linux/verify-mq-scheduling-idempotency.sh \
 ```
 
 专项脚本要求 RabbitMQ Dead Queue 在开始前为空；验证后会取走本次 RabbitMQ 毒消息。RocketMQ 毒消息使用唯一 Key 查询对应 `%DLQ%ConsumerGroup`，不会清空或覆盖已有消息。
+
+未确认重新投递专项会自动启动两种 Broker、两次以零秒宽限停止 backend，并在结束时恢复策略与环境变量：
+
+```powershell
+./scripts/windows/verify-mq-scheduling-redelivery.ps1 -MaxWaitSeconds 120
+```
+
+```bash
+bash ./scripts/linux/verify-mq-scheduling-redelivery.sh http://localhost:14200 120
+```
+
+详细确认边界、实验证据和官方学习资料见 [MQ 未确认消息与重新投递](docs/learning/CHAPTER-06A-MQ-UNACKED-REDELIVERY.md)。
 
 这些脚本不是纯只读检查：支付、履约、评价脚本会创建演示订单、交易、商户或评价；`verify-redis-business` 会短暂停止再恢复 Redis；完整验收会构建镜像并启动 Compose 服务。建议只在本地学习环境运行。
 

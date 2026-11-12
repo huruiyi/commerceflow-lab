@@ -16,9 +16,10 @@ import org.springframework.stereotype.Service;
 @ConditionalOnProperty(prefix = "commerceflow.scheduling.rabbitmq", name = "enabled", havingValue = "true")
 public class RabbitMqTaskTriggerConsumer {
   private final ObjectMapper objectMapper; private final ScheduledTaskMapper mapper;
-  private final ScheduledTaskExecutor executor; private final Counter consumed,ignored,malformed;
+  private final ScheduledTaskExecutor executor; private final MqConsumerCrashLab crashLab;
+  private final Counter consumed,ignored,malformed;
   public RabbitMqTaskTriggerConsumer(ObjectMapper objectMapper,ScheduledTaskMapper mapper,
-      ScheduledTaskExecutor executor,MeterRegistry registry){this.objectMapper=objectMapper;this.mapper=mapper;this.executor=executor;
+      ScheduledTaskExecutor executor,MqConsumerCrashLab crashLab,MeterRegistry registry){this.objectMapper=objectMapper;this.mapper=mapper;this.executor=executor;this.crashLab=crashLab;
     consumed=registry.counter("commerceflow.scheduled.tasks.rabbitmq.consumed");
     ignored=registry.counter("commerceflow.scheduled.tasks.rabbitmq.ignored");
     malformed=registry.counter("commerceflow.scheduled.tasks.rabbitmq.malformed");}
@@ -40,6 +41,7 @@ public class RabbitMqTaskTriggerConsumer {
       ignored.increment();return;
     }
     consumed.increment();
+    crashLab.pauseAfterDelivery(task,TaskTriggerSource.RABBITMQ);
     if(!executor.execute(task.getId(),TaskTriggerSource.RABBITMQ))ignored.increment();
   }
 }

@@ -20,15 +20,17 @@ public class RocketMqTaskTriggerConsumer {
   private final ObjectMapper objectMapper;
   private final ScheduledTaskMapper mapper;
   private final ScheduledTaskExecutor executor;
+  private final MqConsumerCrashLab crashLab;
   private final Counter consumed;
   private final Counter ignored;
   private final Counter malformed;
 
   public RocketMqTaskTriggerConsumer(ObjectMapper objectMapper, ScheduledTaskMapper mapper,
-      ScheduledTaskExecutor executor, MeterRegistry registry) {
+      ScheduledTaskExecutor executor, MqConsumerCrashLab crashLab, MeterRegistry registry) {
     this.objectMapper = objectMapper;
     this.mapper = mapper;
     this.executor = executor;
+    this.crashLab = crashLab;
     this.consumed = registry.counter("commerceflow.scheduled.tasks.rocketmq.consumed");
     this.ignored = registry.counter("commerceflow.scheduled.tasks.rocketmq.ignored");
     this.malformed = registry.counter("commerceflow.scheduled.tasks.rocketmq.malformed");
@@ -56,6 +58,7 @@ public class RocketMqTaskTriggerConsumer {
         return ConsumeResult.SUCCESS;
       }
       consumed.increment();
+      crashLab.pauseAfterDelivery(task, TaskTriggerSource.ROCKETMQ);
       if (!executor.execute(task.getId(), TaskTriggerSource.ROCKETMQ)) ignored.increment();
       return ConsumeResult.SUCCESS;
     } catch (IllegalArgumentException exception) {

@@ -24,6 +24,7 @@
 - [05A-3：签名、验签与防重放](learning/CHAPTER-05A-3.md)
 - [05A-5～05A-8：可靠事件、收银台、高可用与验收](learning/CHAPTER-05A-5-TO-8.md)
 - [06：RocketMQ 5.x 延时任务与数据库补偿](learning/CHAPTER-06-ROCKETMQ-SCHEDULING.md)：官方资料阅读顺序、源码映射、正常链路与 Broker 停机实验。
+- [06A：MQ 未确认消息与重新投递](learning/CHAPTER-06A-MQ-UNACKED-REDELIVERY.md)：RabbitMQ/RocketMQ 在消费者已取消息、未确认时退出的故障注入、重投和业务幂等。
 
 ## 历史归档 `archive/`
 

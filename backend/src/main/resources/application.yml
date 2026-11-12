@@ -99,6 +99,10 @@ commerceflow:
     callback-secret: ${PAYMENT_CALLBACK_SECRET:demo-platform-callback-secret}
   scheduling:
     enabled: true
+    mq-crash-lab:
+      enabled: ${SCHEDULING_MQ_CRASH_LAB_ENABLED:false}
+      task-id: ${SCHEDULING_MQ_CRASH_LAB_TASK_ID:1}
+      pause: ${SCHEDULING_MQ_CRASH_LAB_PAUSE:5m}
     default-policy:
       enabled: false
       primary-trigger: DATABASE
