@@ -46,7 +46,7 @@
 5. 阅读支付 Outbox、Kafka 发布/消费和补偿任务，再进入独立的 `mock-payment-service`。
 6. 最后使用 `scripts/windows/` 或 `scripts/linux/` 中的验收脚本做成功、失败、幂等、越权和故障实验。
 
-文档统一从 [docs/README.md](docs/README.md) 进入：[已实现现状](docs/IMPLEMENTED.md) 只记录可验证事实，[统一代办](docs/TODO.md) 是订单生命周期、超时策略、模拟物流和页面补齐的唯一未实现清单，接口索引见 [docs/API.md](docs/API.md)。分章历史见 [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md)。
+文档统一从 [docs/README.md](docs/README.md) 进入：[当前项目进度](docs/PROJECT-STATUS.md) 给出快照和下一里程碑，[已实现现状](docs/IMPLEMENTED.md) 只记录可验证事实，[统一进度与代办](docs/TODO.md) 是勾选状态和未实现顺序的唯一清单，接口索引见 [docs/API.md](docs/API.md)。分章历史见 [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md)。
 
 ## 一键启动
 
@@ -103,7 +103,7 @@ docker compose ps
 
 ## 验收脚本
 
-根目录不再放置平台脚本。两套脚本的验收范围与文件名一一对应：
+根目录不再放置平台脚本。主要业务专项尽量提供 Windows/Bash 成对入口；当前已提供的脚本见下表，全量文件名、参数和语义对齐仍以 [统一进度与代办](docs/TODO.md) 的 M1 门禁为准：
 
 - `scripts/windows/*.ps1`：Windows 上使用 PowerShell 7（`pwsh`）运行。
 - `scripts/linux/*.sh`：Linux、WSL 或 Git Bash 使用，不依赖 PowerShell；`_common.sh` 是各脚本共用的内部函数库，不需要单独运行。
@@ -153,7 +153,7 @@ bash ./scripts/linux/verify-all.sh --skip-build
 
 ### 单项脚本及作用
 
-| Windows / Bash 同名脚本 | 作用 | 默认地址 |
+| Windows / Bash 主要成对脚本 | 作用 | 默认地址 |
 | --- | --- | --- |
 | `verify-all` | 构建、启动并串联主要验收，最后检查商城/支付/物流健康端点 | 商城 `14200` |
 | `verify-authorization` | 匿名访问、登录、禁用账号、CSRF 和三种角色权限矩阵 | 商城 `14200` |
