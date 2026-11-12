@@ -19,6 +19,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import lab.commerceflow.storefront.configuration.PaymentCancellationCrashLabProperties.Phase;
 
 @Service
 public class PaymentNotificationService {
@@ -28,16 +29,19 @@ public class PaymentNotificationService {
   private final PaymentEventPipeline events;
   private final InventoryService inventory;
   private final RefundService refunds;
+  private final PaymentCancellationCrashLab crashLab;
 
   public PaymentNotificationService(ShopOrderMapper orders, ObjectMapper mapper,
       @Value("${commerceflow.payment-platform.callback-secret:demo-platform-callback-secret}") String secret,
-      PaymentEventPipeline events, InventoryService inventory, RefundService refunds) {
+      PaymentEventPipeline events, InventoryService inventory, RefundService refunds,
+      PaymentCancellationCrashLab crashLab) {
     this.orders = orders;
     this.mapper = mapper;
     this.secret = secret;
     this.events = events;
     this.inventory = inventory;
     this.refunds = refunds;
+    this.crashLab = crashLab;
   }
 
   @Transactional
@@ -69,6 +73,7 @@ public class PaymentNotificationService {
       if (changed == 1) {
         orders.insertPaymentEvent(payment.getId(), UUID.randomUUID().toString(), "CALLBACK_" + target,
             "PENDING", target, "Signed asynchronous notification");
+        crashLab.pause(payment.getOrderId(), Phase.AFTER_PAYMENT_RECORD);
         if ("SUCCESS".equals(target)) applySuccessfulPayment(payment.getOrderId(), notice.notificationId());
         events.append(payment.getId().toString(), "PAYMENT_CALLBACK_" + target, raw);
       }

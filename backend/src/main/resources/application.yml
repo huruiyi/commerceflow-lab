@@ -97,6 +97,11 @@ commerceflow:
   payment-platform:
     base-url: ${PAYMENT_PLATFORM_BASE_URL:http://localhost:18082}
     callback-secret: ${PAYMENT_CALLBACK_SECRET:demo-platform-callback-secret}
+  payment-cancellation-crash-lab:
+    enabled: ${PAYMENT_CANCELLATION_CRASH_LAB_ENABLED:false}
+    order-id: ${PAYMENT_CANCELLATION_CRASH_LAB_ORDER_ID:1}
+    phase: ${PAYMENT_CANCELLATION_CRASH_LAB_PHASE:AFTER_CANCELLATION_BEGIN}
+    pause: ${PAYMENT_CANCELLATION_CRASH_LAB_PAUSE:5m}
   scheduling:
     enabled: true
     mq-crash-lab:

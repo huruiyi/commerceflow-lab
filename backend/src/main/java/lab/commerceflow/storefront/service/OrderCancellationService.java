@@ -9,6 +9,7 @@ import lab.commerceflow.storefront.domain.ShopOrderView;
 import lab.commerceflow.storefront.mapper.ShopOrderMapper;
 import lab.commerceflow.storefront.mapper.ScheduledTaskMapper;
 import lab.commerceflow.storefront.scheduling.ScheduledTaskTypes;
+import lab.commerceflow.storefront.configuration.PaymentCancellationCrashLabProperties.Phase;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -19,15 +20,17 @@ public class OrderCancellationService {
   private final TransactionTemplate transactions;
   private final ScheduledTaskMapper scheduledTasks;
   private final PaymentEventPipeline events;
+  private final PaymentCancellationCrashLab crashLab;
 
   public OrderCancellationService(ShopOrderMapper orders, PaymentGatewayClient gateway,
                                   TransactionTemplate transactions, ScheduledTaskMapper scheduledTasks,
-                                  PaymentEventPipeline events) {
+                                  PaymentEventPipeline events, PaymentCancellationCrashLab crashLab) {
     this.orders = orders;
     this.gateway = gateway;
     this.transactions = transactions;
     this.scheduledTasks = scheduledTasks;
     this.events = events;
+    this.crashLab = crashLab;
   }
 
   public void cancelByCustomer(AppUser customer, Long orderId, String reason) {
@@ -45,7 +48,11 @@ public class OrderCancellationService {
         scheduledTaskId, customerRequest));
     if (begin == null || begin.done()) return;
 
+    crashLab.pause(orderId, Phase.AFTER_CANCELLATION_BEGIN);
+
     for (PaymentView payment : begin.pendingPayments()) gateway.close(payment);
+
+    crashLab.pause(orderId, Phase.AFTER_CHANNEL_CLOSE);
 
     transactions.executeWithoutResult(status -> finish(orderId, begin.pendingPayments(), actorId,
         reason, triggerSource, scheduledTaskId, customerRequest));
