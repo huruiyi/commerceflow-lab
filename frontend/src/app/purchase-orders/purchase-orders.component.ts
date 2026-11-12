@@ -6,7 +6,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize, forkJoin } from 'rxjs';
-import { OrderAction, PaymentChannel, PurchaseOrder } from 'src/model/IPurchaseOrder';
+import { OrderAction, OrderEvent, PaymentChannel, PurchaseOrder } from 'src/model/IPurchaseOrder';
 import { ApiService } from '../services/api.service';
 import { I18nService } from '../services/i18n.service';
 
@@ -83,6 +83,11 @@ export class PurchaseOrdersComponent implements OnInit {
   cancelForms = new Set<number>();
   cancelling = new Set<number>();
   cancellationReasons: Record<number, string> = {};
+  expandedOrders = new Set<number>();
+  loading = true;
+  loadError = '';
+  private loadVersion = 0;
+  private expansionInitialized = false;
   constructor(
     private api: ApiService,
     private changeDetector: ChangeDetectorRef,
@@ -96,22 +101,39 @@ export class PurchaseOrdersComponent implements OnInit {
       .subscribe(() => this.reload());
   }
   reload(): void {
+    const version = ++this.loadVersion;
+    this.loading = true;
+    this.loadError = '';
     forkJoin({
       orders: this.api.purchaseOrders(),
       products: this.api.allProducts(),
-    }).subscribe(({ orders, products }) => {
-      const names = new Map(
-        products.map((product) => [product.id, product.name]),
-      );
-      this.orders = orders.map((order) => ({
-        ...order,
-        items: order.items.map((item) => ({
-          ...item,
-          productName: names.get(item.productId) ?? item.productName,
-        })),
-      }));
-      this.orders.forEach((order) => this.initializeOrder(order));
-      this.changeDetector.markForCheck();
+    }).subscribe({
+      next: ({ orders, products }) => {
+        if (version !== this.loadVersion) return;
+        const names = new Map(
+          products.map((product) => [product.id, product.name]),
+        );
+        this.orders = orders.map((order) => ({
+          ...order,
+          items: order.items.map((item) => ({
+            ...item,
+            productName: names.get(item.productId) ?? item.productName,
+          })),
+        }));
+        this.orders.forEach((order) => this.initializeOrder(order));
+        if (!this.expansionInitialized && this.orders.length) {
+          this.expandedOrders.add(this.orders[0].id);
+          this.expansionInitialized = true;
+        }
+        this.loading = false;
+        this.changeDetector.markForCheck();
+      },
+      error: () => {
+        if (version !== this.loadVersion) return;
+        this.loading = false;
+        this.loadError = this.i18n.t('ordersLoadFailed');
+        this.changeDetector.markForCheck();
+      },
     });
   }
   selectChannel(order: PurchaseOrder, channel: PaymentChannel): void {
@@ -156,6 +178,27 @@ export class PurchaseOrdersComponent implements OnInit {
   }
   hasAction(order: PurchaseOrder, action: OrderAction): boolean {
     return order.availableActions.includes(action);
+  }
+  toggleDetails(order: PurchaseOrder): void {
+    if (this.expandedOrders.has(order.id)) this.expandedOrders.delete(order.id);
+    else this.expandedOrders.add(order.id);
+  }
+  showPayment(order: PurchaseOrder): void {
+    this.expandedOrders.add(order.id);
+  }
+  showRefund(order: PurchaseOrder): void {
+    this.expandedOrders.add(order.id);
+    this.toggleRefund(order);
+  }
+  visibleOrderEvents(order: PurchaseOrder): OrderEvent[] {
+    const eventIds = new Set<number>();
+    return (order.events ?? []).filter((event) => {
+      if (eventIds.has(event.id)) return false;
+      eventIds.add(event.id);
+      if (event.eventType !== 'SHIPMENT_UPDATED' || !event.detail) return true;
+      const change = event.detail.split(' -> ', 2);
+      return change.length !== 2 || change[0].trim() !== change[1].trim();
+    });
   }
   toggleCancel(order: PurchaseOrder): void {
     if (this.cancelForms.has(order.id)) this.cancelForms.delete(order.id);
