@@ -3,15 +3,18 @@ import { of, throwError } from 'rxjs';
 import { PurchaseOrder } from 'src/model/IPurchaseOrder';
 import { PurchaseOrdersComponent } from './purchase-orders.component';
 import { ApiService } from '../services/api.service';
+import { TranslatePipe } from '../pipes/translate.pipe';
+import { TrdatePipe } from '../pipes/trdate.pipe';
+import { TrcurrencyPipe } from '../pipes/trcurrency.pipe';
 
 describe('PurchaseOrdersComponent',()=>{
   let fixture:ComponentFixture<PurchaseOrdersComponent>;
-  let api:{purchaseOrders:jasmine.Spy;payOrder:jasmine.Spy};
+  let api:{purchaseOrders:jasmine.Spy;allProducts:jasmine.Spy;payOrder:jasmine.Spy};
   const order:PurchaseOrder={id:42,orderNumber:'ORD-42',status:'PENDING_PAYMENT',totalAmount:99,currency:'CNY',createdAt:'2026-11-10T00:00:00Z',availableActions:['PAY','REFRESH_PAYMENT','CANCEL_ORDER'],items:[{id:1,productId:1,productName:'Learning Item',thumbnailUrl:'item.png',unitPrice:99,quantity:1,subtotal:99}],address:{recipientName:'Demo',phone:'13800000000',countryCode:'CN',stateProvince:'Shanghai',city:'Shanghai',district:'Pudong',addressLine1:'Learning Road',addressLine2:'',postalCode:'200120',label:'Home'}};
   beforeEach(async()=>{
     sessionStorage.clear();
-    api={purchaseOrders:jasmine.createSpy().and.returnValue(of([order])),payOrder:jasmine.createSpy().and.returnValue(of({...order,payment:{paymentNumber:'PAY-1',merchantNo:'1900001001',channel:'WECHAT_PAY',channelTransactionNo:'MOCK-1',status:'FAILED',failureReason:'Simulated',amount:99,currency:'CNY',createdAt:'2026-11-10T00:00:00Z'}}))};
-    await TestBed.configureTestingModule({declarations:[PurchaseOrdersComponent],providers:[{provide:ApiService,useValue:api}]}).compileComponents();
+    api={purchaseOrders:jasmine.createSpy().and.returnValue(of([order])),allProducts:jasmine.createSpy().and.returnValue(of([])),payOrder:jasmine.createSpy().and.returnValue(of({...order,payment:{paymentNumber:'PAY-1',merchantNo:'1900001001',channel:'WECHAT_PAY',channelTransactionNo:'MOCK-1',status:'FAILED',failureReason:'Simulated',amount:99,currency:'CNY',createdAt:'2026-11-10T00:00:00Z'}}))};
+    await TestBed.configureTestingModule({declarations:[PurchaseOrdersComponent,TranslatePipe,TrdatePipe,TrcurrencyPipe],providers:[{provide:ApiService,useValue:api}]}).compileComponents();
     fixture=TestBed.createComponent(PurchaseOrdersComponent);fixture.detectChanges();
   });
   it('loads orders and creates a browser-session idempotency key',()=>{expect(fixture.componentInstance.orders.length).toBe(1);expect(fixture.componentInstance.draftKeys[42]).toBeTruthy();});
