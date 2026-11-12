@@ -25,7 +25,7 @@ RunBase 'verify-order-cancellation.ps1'
 if(-not$?){throw 'verify-payment-cancellation-race.ps1 failed'}
 RunBase 'verify-refunds.ps1'
 RunBase 'verify-auto-lifecycle.ps1'
-RunBase 'verify-redis-business.ps1'
+RunBase 'verify-commerce-redis-business.ps1'
 
 foreach($url in @("$BaseUrl/healthz",'http://localhost:18081/actuator/health','http://localhost:18082/actuator/health','http://localhost:18083/actuator/health')){
   $health=Invoke-RestMethod $url

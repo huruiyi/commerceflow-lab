@@ -9,7 +9,7 @@ Angular 商城（已有）                  Vue 3 支付平台（本章）
         |                                      |
         |                              Redis Session + CSRF
         |                                      |
-        +---------- 后续签名请求 ----------> mock-payment-service
+        +---------- 后续签名请求 ----------> payment-simulator-service
                                                |
                           +--------------------+--------------------+
                           |                    |                    |

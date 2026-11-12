@@ -1,6 +1,6 @@
 # CommerceFlow Lab agent guide
 
-本文件适用于整个仓库。除非用户明确要求一次完整的命名迁移，否则任何修改都必须同时遵守“最终命名目标”和“当前兼容边界”。
+本文件适用于整个仓库。M1 旧实现保留在 Git 标签中；当前开发基线使用本文件定义的正式命名。
 
 ## 1. 项目标识
 
@@ -21,21 +21,14 @@
 
 ## 2. 当前兼容边界
 
-M1 已在 Git 标签 `m1-baseline-2026-11-13` 冻结。当前源码和持久环境仍使用：
+M1 已在 Git 标签 `m1-baseline-2026-11-13` 冻结，该标签仍保留 `lab.commerceflow` 包名、`commerceflow` Compose 项目名和旧目录。当前开发基线已统一为：
 
-- Java/Maven：`lab.commerceflow.*` / `lab.commerceflow`
-- Compose 项目名：`commerceflow`
-- 持久卷：`commerceflow_*`
-- 数据库、Topic、Queue、Consumer Group 和 Redis Key 中已有的 `commerceflow` 标识
+- Java/Maven：`vip.fairy.commerceflow.*` / `vip.fairy.commerceflow`
+- Compose 项目名：`fairy-commerceflow`
+- 源码边界：`services/`、`web/`、`simulators/`、`infrastructure/`
+- 应用卷：由 Compose 以 `fairy-commerceflow_*` 形式生成
 
-在用户明确启动“命名迁移”之前：
-
-1. Java 新代码继续放在现有 `lab.commerceflow.*` 下，不得并行引入 `vip.fairy.commerceflow.*`。
-2. Compose 继续使用 `name: commerceflow`，不得仅修改项目名后启动环境。
-3. 不得重命名、复制、删除或重建现有 `commerceflow_*` 卷。
-4. 不得为了视觉统一修改已经落库或进入 MQ 的协议标识。
-
-最终目标不是允许两套名称长期共存。命名迁移必须作为独立、原子、可回滚的阶段完成。
+数据库 Schema、Topic、Queue、Consumer Group、Spring 配置键和 Redis Key 中的 `commerceflow` 是持久协议标识，本次展示命名迁移不改它们。后续新代码不得重新引入 `lab.commerceflow.*`或旧根目录。
 
 ## 3. Java 与 Maven 命名
 
@@ -85,7 +78,7 @@ fairy-commerceflow-rabbitmq-broker-1
 
 1. 修改前检查 `git status`、当前分支和最近提交，不覆盖无关变更。
 2. 当前源码、迁移、脚本和实际验证结果高于文档；冲突时同步修正文档。
-3. 不清空现有数据卷。临时空卷实验只能使用隔离 Compose 项目和显式清理参数。
+3. 默认不清空数据卷。只有用户明确允许丢弃学习数据时，才可在列出精确 Compose 项目和卷后执行带 `--volumes`的破坏性重建；不得使用全局 volume prune。
 4. 普通改动至少运行相关测试；跨模块或命名改动运行 Windows/Bash 脚本契约审计和快速回归。
 5. 命名迁移必须同时更新源码目录、package/import、Maven、Spring 扫描、Docker/Compose、脚本、文档和测试，不能提交半迁移状态。
 6. M1 后“整个开发生命周期的可复测验证体系”文档、UI 收尾和生产级告警仍按项目状态文档中的顺序推进，不因命名治理提前新增业务功能。

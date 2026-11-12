@@ -12,9 +12,9 @@ $defaultRunning=@(docker compose --project-directory $ProjectRoot ps --services 
 if($LASTEXITCODE -ne 0){throw 'Could not inspect the default Compose project'}
 
 function TempCompose([string[]]$Arguments){& docker compose --project-directory $ProjectRoot --project-name $TemporaryProjectName @Arguments;if($LASTEXITCODE -ne 0){throw "Temporary Compose failed: $($Arguments-join' ')"}}
-function Sql([string]$Statement){$v=& docker compose --project-directory $ProjectRoot --project-name $TemporaryProjectName exec -T mysql mysql -ucommerceflow -pcommerceflow-password -Nse $Statement commerceflow 2>$null;if($LASTEXITCODE -ne 0){throw 'Fresh-volume SQL failed'};return($v-join"`n").Trim()}
-function PaymentSql([string]$Statement){$v=& docker compose --project-directory $ProjectRoot --project-name $TemporaryProjectName exec -T payment-mysql mysql -upayment -ppayment-password -Nse $Statement payment_platform 2>$null;if($LASTEXITCODE -ne 0){throw 'Fresh payment SQL failed'};return($v-join"`n").Trim()}
-function LogisticsSql([string]$Statement){$v=& docker compose --project-directory $ProjectRoot --project-name $TemporaryProjectName exec -T logistics-mysql mysql -ulogistics -plogistics-password -Nse $Statement logistics_platform 2>$null;if($LASTEXITCODE -ne 0){throw 'Fresh logistics SQL failed'};return($v-join"`n").Trim()}
+function Sql([string]$Statement){$v=& docker compose --project-directory $ProjectRoot --project-name $TemporaryProjectName exec -T commerce-db mysql -ucommerceflow -pcommerceflow-password -Nse $Statement commerceflow 2>$null;if($LASTEXITCODE -ne 0){throw 'Fresh-volume SQL failed'};return($v-join"`n").Trim()}
+function PaymentSql([string]$Statement){$v=& docker compose --project-directory $ProjectRoot --project-name $TemporaryProjectName exec -T payment-simulator-db commerce-db -upayment -ppayment-password -Nse $Statement payment_platform 2>$null;if($LASTEXITCODE -ne 0){throw 'Fresh payment SQL failed'};return($v-join"`n").Trim()}
+function LogisticsSql([string]$Statement){$v=& docker compose --project-directory $ProjectRoot --project-name $TemporaryProjectName exec -T logistics-simulator-db commerce-db -ulogistics -plogistics-password -Nse $Statement logistics_platform 2>$null;if($LASTEXITCODE -ne 0){throw 'Fresh logistics SQL failed'};return($v-join"`n").Trim()}
 
 $existing=@(docker ps -a --filter "label=com.docker.compose.project=$TemporaryProjectName" --format '{{.ID}}')
 if($existing.Count){throw "Temporary project already exists: $TemporaryProjectName"}
@@ -50,7 +50,7 @@ try{
   $passed=$true
   Write-Host "Fresh-volume lifecycle passed: project=$TemporaryProjectName, Flyway storefront/payment/logistics=V23/V3/V4, empty seed order set, login -> checkout -> payment -> fulfillment -> logistics -> receipt -> completion -> review, audit=$businessAudit." -ForegroundColor Green
 }finally{
-  if(-not $passed){& docker compose --project-directory $ProjectRoot --project-name $TemporaryProjectName logs --no-color --tail 200 mock-payment-service payment-mysql backend mock-logistics-service}
+  if(-not $passed){& docker compose --project-directory $ProjectRoot --project-name $TemporaryProjectName logs --no-color --tail 200 payment-simulator-service payment-simulator-db commerce-service logistics-simulator-service}
   try{if($RemoveTemporaryVolumes){TempCompose @('down','--volumes','--remove-orphans')}else{TempCompose @('down','--remove-orphans')}}catch{Write-Warning "Temporary project cleanup failed: $_"}
   if($null -eq $savedProject){Remove-Item Env:COMPOSE_PROJECT_NAME -ErrorAction SilentlyContinue}else{$env:COMPOSE_PROJECT_NAME=$savedProject}
   if($defaultRunning.Count){

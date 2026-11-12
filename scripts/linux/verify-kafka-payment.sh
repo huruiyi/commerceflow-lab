@@ -4,14 +4,14 @@ require_commands curl jq openssl
 BASE_URL="${1:-http://localhost:14200}"
 "$SCRIPT_DIR/verify-payment-notifications.sh" "$BASE_URL"
 
-topics="$(compose exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list)"
+topics="$(compose exec -T kafka-broker /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka-broker:9092 --list)"
 for required in payment-events order-events payment-callback-events payment-reconciliation-events merchant-notification-events payment-events-dlq; do
   grep -Fxq "$required" <<<"$topics" || { echo "Kafka topic missing: $required" >&2; exit 1; }
 done
 deadline=$((SECONDS + 40)); row=''; consumed=0
 while ((SECONDS < deadline)); do
-  row="$(compose exec -T mysql mysql -N -ucommerceflow -pcommerceflow-password commerceflow -e "SELECT CONCAT(status,':',attempts) FROM payment_outbox ORDER BY id DESC LIMIT 1" 2>/dev/null | tr -d '\r')"
-  consumed="$(compose exec -T mysql mysql -N -ucommerceflow -pcommerceflow-password commerceflow -e 'SELECT COUNT(*) FROM kafka_consumed_event' 2>/dev/null | tr -d '\r')"
+  row="$(compose exec -T commerce-db mysql -N -ucommerceflow -pcommerceflow-password commerceflow -e "SELECT CONCAT(status,':',attempts) FROM payment_outbox ORDER BY id DESC LIMIT 1" 2>/dev/null | tr -d '\r')"
+  consumed="$(compose exec -T commerce-db mysql -N -ucommerceflow -pcommerceflow-password commerceflow -e 'SELECT COUNT(*) FROM kafka_consumed_event' 2>/dev/null | tr -d '\r')"
   [[ "$row" == PUBLISHED:* && "$consumed" =~ ^[0-9]+$ && "$consumed" -gt 0 ]] && break
   sleep 2
 done

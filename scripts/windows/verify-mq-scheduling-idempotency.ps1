@@ -62,7 +62,7 @@ function New-ExpiredOrderTask($Admin, $Customer, [string]$Strategy) {
   $order = Invoke-RestMethod "$BaseUrl/api/purchase-orders/checkout" -Method Post `
     -WebSession $Customer.Session -Headers $Customer.Headers -ContentType application/json -Body '{}'
   $secondsUntilDue = ([datetimeoffset]$order.paymentDueAt - [datetimeoffset]::UtcNow).TotalSeconds
-  if ($secondsUntilDue -gt ($MaxWaitSeconds - 10)) { throw 'Start backend with a short ORDER_PAYMENT_TIMEOUT' }
+  if ($secondsUntilDue -gt ($MaxWaitSeconds - 10)) { throw 'Start commerce-service with a short ORDER_PAYMENT_TIMEOUT' }
   $deadline = [datetimeoffset]::UtcNow.AddSeconds($MaxWaitSeconds)
   do {
     Start-Sleep -Milliseconds 500
@@ -161,7 +161,7 @@ try {
   } | ConvertTo-Json -Compress
   1..2 | ForEach-Object {
     $key = "rocket-duplicate-$($rocketCase.Task.id)-$_-$([guid]::NewGuid().ToString('N'))"
-    docker compose exec -T rocketmq-broker sh mqadmin sendMessage -n rocketmq-namesrv:9876 `
+    docker compose exec -T rocketmq-broker sh mqadmin sendMessage -n rocketmq-nameserver:9876 `
       -t commerceflow-scheduled-task -c SCHEDULED_TASK -k $key -p $rocketPayload | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Could not inject a RocketMQ duplicate message' }
   }
@@ -169,19 +169,19 @@ try {
   Assert-SingleExecution $admin $rocketCase
 
   $groupConfig = docker compose exec -T rocketmq-broker sh mqadmin getConsumerConfig `
-    -n rocketmq-namesrv:9876 -g commerceflow-scheduled-task-consumer 2>&1 | Out-String
+    -n rocketmq-nameserver:9876 -g commerceflow-scheduled-task-consumer 2>&1 | Out-String
   if ($groupConfig -notmatch 'retryMaxTimes\s*=\s*2') {
     throw 'RocketMQ acceptance consumer group must use retryMaxTimes=2'
   }
   $rocketPoison = "rocket-poison-$([guid]::NewGuid().ToString('N'))"
-  docker compose exec -T rocketmq-broker sh mqadmin sendMessage -n rocketmq-namesrv:9876 `
+  docker compose exec -T rocketmq-broker sh mqadmin sendMessage -n rocketmq-nameserver:9876 `
     -t commerceflow-scheduled-task -c SCHEDULED_TASK -k $rocketPoison -p "{invalid-json-$rocketPoison" | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'Could not inject a RocketMQ poison message' }
   $deadline = [datetimeoffset]::UtcNow.AddSeconds(30)
   $query = ''
   do {
     Start-Sleep -Seconds 1
-    $query = docker compose exec -T rocketmq-broker sh mqadmin queryMsgByKey -n rocketmq-namesrv:9876 `
+    $query = docker compose exec -T rocketmq-broker sh mqadmin queryMsgByKey -n rocketmq-nameserver:9876 `
       -t '%DLQ%commerceflow-scheduled-task-consumer' -k $rocketPoison 2>&1 | Out-String
   } while ($query -notmatch [regex]::Escape($rocketPoison) -and [datetimeoffset]::UtcNow -lt $deadline)
   if ($query -notmatch [regex]::Escape($rocketPoison)) { throw 'RocketMQ poison message did not enter the DLQ' }

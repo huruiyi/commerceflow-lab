@@ -14,12 +14,12 @@ foreach($name in $managedVariables){$savedEnvironment[$name]=[Environment]::GetE
 
 function Compose { & docker compose --project-directory $ProjectRoot --profile rabbitmq --profile rocketmq @args; if($LASTEXITCODE-ne0){throw "docker compose failed: $($args-join' ')"} }
 function DbScalar([string]$Sql){
-  $value=& docker compose --project-directory $ProjectRoot exec -T mysql mysql --batch --skip-column-names "-u$dbUser" "-p$dbPassword" commerceflow -e $Sql 2>$null
+  $value=& docker compose --project-directory $ProjectRoot exec -T commerce-db mysql --batch --skip-column-names "-u$dbUser" "-p$dbPassword" commerceflow -e $Sql 2>$null
   if($LASTEXITCODE-ne0){throw 'Storefront database query failed'}
   return(($value|Select-Object -Last 1)-as[string]).Trim()
 }
 function ServiceDbScalar([string]$Service,[string]$Database,[string]$User,[string]$Password,[string]$Sql){
-  $value=& docker compose --project-directory $ProjectRoot exec -T $Service mysql --batch --skip-column-names "-u$User" "-p$Password" $Database -e $Sql 2>$null
+  $value=& docker compose --project-directory $ProjectRoot exec -T $Service commerce-db --batch --skip-column-names "-u$User" "-p$Password" $Database -e $Sql 2>$null
   if($LASTEXITCODE-ne0){throw "$Service database query failed"}
   return(($value|Select-Object -Last 1)-as[string]).Trim()
 }
@@ -47,25 +47,25 @@ $rabbitTask=0L;$rocketTask=0L;$passed=$false
 try{
   if(-not$SkipMigrationRehearsal){& "$PSScriptRoot/verify-flyway-lifecycle.ps1";if(-not$?){throw 'Legacy migration rehearsal failed'}}
 
-  Compose up -d --wait mysql payment-mysql logistics-mysql redis kafka mock-payment-service mock-logistics-service rabbitmq rocketmq-namesrv rocketmq-broker backend web payment-ui kafka-ui
-  $versions="$(DbScalar "SELECT CONCAT(MAX(CAST(version AS UNSIGNED)),'|',SUM(success=0)) FROM flyway_schema_history WHERE version IS NOT NULL")|$(ServiceDbScalar payment-mysql payment_platform payment payment-password "SELECT CONCAT(MAX(CAST(version AS UNSIGNED)),'|',SUM(success=0)) FROM flyway_schema_history WHERE version IS NOT NULL")|$(ServiceDbScalar logistics-mysql logistics_platform logistics logistics-password "SELECT CONCAT(MAX(CAST(version AS UNSIGNED)),'|',SUM(success=0)) FROM flyway_schema_history WHERE version IS NOT NULL")"
+  Compose up -d --wait commerce-db payment-simulator-db logistics-simulator-db commerce-redis payment-simulator-redis kafka-broker payment-simulator-service logistics-simulator-service rabbitmq-broker rocketmq-nameserver rocketmq-broker commerce-service commerce-portal-angular payment-simulator-web kafka-console
+  $versions="$(DbScalar "SELECT CONCAT(MAX(CAST(version AS UNSIGNED)),'|',SUM(success=0)) FROM flyway_schema_history WHERE version IS NOT NULL")|$(ServiceDbScalar payment-simulator-db payment_platform payment payment-password "SELECT CONCAT(MAX(CAST(version AS UNSIGNED)),'|',SUM(success=0)) FROM flyway_schema_history WHERE version IS NOT NULL")|$(ServiceDbScalar logistics-simulator-db logistics_platform logistics logistics-password "SELECT CONCAT(MAX(CAST(version AS UNSIGNED)),'|',SUM(success=0)) FROM flyway_schema_history WHERE version IS NOT NULL")"
   if($versions-ne'23|0|3|0|4|0'){throw "Unexpected persisted-volume Flyway state: $versions"}
   $before=HistoricalFingerprint
   if(-not$before){throw 'Historical fingerprint is empty'}
   $sourceTask=DbScalar "SELECT id FROM scheduled_tasks WHERE task_type='AUTO_COMPLETE' AND status='SUCCEEDED' ORDER BY id DESC LIMIT 1"
   if(-not$sourceTask){throw 'A completed AUTO_COMPLETE task is required as the recovery fixture'}
-  Compose stop backend web payment-ui kafka-ui
+  Compose stop commerce-service commerce-portal-angular payment-simulator-web kafka-console
   $rabbitTask=[long](DbScalar "INSERT INTO scheduled_tasks(task_key,task_type,aggregate_type,aggregate_id,payload_json,status,due_at,primary_trigger_snapshot,reconciliation_enabled_snapshot,grace_period_seconds_snapshot,claim_lease_seconds_snapshot,max_attempts,retry_delay_seconds_snapshot,policy_version_snapshot,attempts,lease_until,claimed_by,version,created_at,updated_at) SELECT 'm1-restart-rabbit-$suffix',task_type,aggregate_type,aggregate_id,payload_json,'PROCESSING',DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 5 SECOND),'RABBITMQ',FALSE,0,2,5,1,policy_version_snapshot,0,DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND),'crashed-rabbit-worker',0,UTC_TIMESTAMP(6),UTC_TIMESTAMP(6) FROM scheduled_tasks WHERE id=$sourceTask; SELECT LAST_INSERT_ID();")
   $rocketTask=[long](DbScalar "INSERT INTO scheduled_tasks(task_key,task_type,aggregate_type,aggregate_id,payload_json,status,due_at,primary_trigger_snapshot,reconciliation_enabled_snapshot,grace_period_seconds_snapshot,claim_lease_seconds_snapshot,max_attempts,retry_delay_seconds_snapshot,policy_version_snapshot,attempts,lease_until,claimed_by,version,created_at,updated_at) SELECT 'm1-restart-rocket-$suffix',task_type,aggregate_type,aggregate_id,payload_json,'PROCESSING',DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 5 SECOND),'ROCKETMQ',FALSE,0,2,5,1,policy_version_snapshot,0,DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND),'crashed-rocket-worker',0,UTC_TIMESTAMP(6),UTC_TIMESTAMP(6) FROM scheduled_tasks WHERE id=$sourceTask; SELECT LAST_INSERT_ID();")
 
-  Compose restart mysql payment-mysql logistics-mysql redis kafka rabbitmq rocketmq-namesrv rocketmq-broker
-  Compose up -d --wait mysql payment-mysql logistics-mysql redis kafka rabbitmq rocketmq-namesrv rocketmq-broker
-  Compose restart mock-payment-service mock-logistics-service
-  Compose up -d --wait mock-payment-service mock-logistics-service
+  Compose restart commerce-db payment-simulator-db logistics-simulator-db commerce-redis payment-simulator-redis kafka-broker rabbitmq-broker rocketmq-nameserver rocketmq-broker
+  Compose up -d --wait commerce-db payment-simulator-db logistics-simulator-db commerce-redis payment-simulator-redis kafka-broker rabbitmq-broker rocketmq-nameserver rocketmq-broker
+  Compose restart payment-simulator-service logistics-simulator-service
+  Compose up -d --wait payment-simulator-service logistics-simulator-service
   $env:SCHEDULING_RABBITMQ_ENABLED='true';$env:SCHEDULING_ROCKETMQ_ENABLED='true'
   $env:SCHEDULING_LEASE_RECOVERY_INITIAL_DELAY='1s';$env:SCHEDULING_LEASE_RECOVERY_FIXED_DELAY='1s'
   $env:SCHEDULING_DATABASE_INITIAL_DELAY='1s';$env:SCHEDULING_DATABASE_FIXED_DELAY='2s'
-  Compose up -d --wait --force-recreate backend web payment-ui kafka-ui
+  Compose up -d --wait --force-recreate commerce-service commerce-portal-angular payment-simulator-web kafka-console
 
   WaitTask $rabbitTask;WaitTask $rocketTask
   foreach($task in @($rabbitTask,$rocketTask)){
@@ -82,6 +82,6 @@ try{
   Write-Host "Upgrade/restart recovery passed: $migrationEvidence, persisted Flyway storefront/payment/logistics=V23/V3/V4, full service+MQ restart, RabbitMQ task=$rabbitTask and RocketMQ task=$rocketTask recovered exactly once, history=$after." -ForegroundColor Green
 }finally{
   RestoreEnvironment
-  & docker compose --project-directory $ProjectRoot up -d --wait --force-recreate backend web payment-ui kafka-ui 2>$null|Out-Null
-  if(-not$passed){& docker compose --project-directory $ProjectRoot --profile rabbitmq --profile rocketmq logs --no-color --tail 150 backend rabbitmq rocketmq-broker 2>$null}
+  & docker compose --project-directory $ProjectRoot up -d --wait --force-recreate commerce-service commerce-portal-angular payment-simulator-web kafka-console 2>$null|Out-Null
+  if(-not$passed){& docker compose --project-directory $ProjectRoot --profile rabbitmq --profile rocketmq logs --no-color --tail 150 commerce-service rabbitmq-broker rocketmq-broker 2>$null}
 }

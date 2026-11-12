@@ -12,7 +12,7 @@ $ProjectRoot=(Resolve-Path(Join-Path $PSScriptRoot '../..')).Path
 $savedRabbit=[Environment]::GetEnvironmentVariable('SCHEDULING_RABBITMQ_ENABLED')
 
 function Compose([string[]]$Arguments){& docker compose --project-directory $ProjectRoot @Arguments;if($LASTEXITCODE-ne0){throw "Compose failed: $($Arguments-join' ')"}}
-function Sql([string]$Statement){$v=& docker compose --project-directory $ProjectRoot exec -T mysql mysql -ucommerceflow -pcommerceflow-password -Nse $Statement commerceflow 2>$null;if($LASTEXITCODE-ne0){throw 'SQL failed'};return($v-join"`n").Trim()}
+function Sql([string]$Statement){$v=& docker compose --project-directory $ProjectRoot exec -T commerce-db mysql -ucommerceflow -pcommerceflow-password -Nse $Statement commerceflow 2>$null;if($LASTEXITCODE-ne0){throw 'SQL failed'};return($v-join"`n").Trim()}
 function New-Session([string]$Email){$s=[Microsoft.PowerShell.Commands.WebRequestSession]::new();$c=Invoke-RestMethod "$BaseUrl/api/auth/csrf" -WebSession $s;$h=@{};$h[$c.headerName]=$c.token;Invoke-RestMethod "$BaseUrl/api/auth/login" -Method Post -WebSession $s -Headers $h -ContentType application/json -Body (@{email=$Email;password='demo-password';rememberMe=$false}|ConvertTo-Json -Compress)|Out-Null;return @{Session=$s;Headers=$h;HeaderName=$c.headerName;Token=$c.token}}
 function Wait-Sql([string]$Query,[scriptblock]$Accept,[string]$Label){$end=(Get-Date).AddSeconds($MaxWaitSeconds);do{$value=Sql $Query;if(&$Accept $value){return $value};Start-Sleep -Milliseconds 200}while((Get-Date)-lt$end);throw "$Label timed out (last=$value)"}
 function Set-Policy($Admin,[string]$Type,$Original=$null){if($Original){$body=@{enabled=[bool]$Original.enabled;primaryTrigger=[string]$Original.primaryTrigger;reconciliationEnabled=[bool]$Original.reconciliationEnabled;gracePeriodSeconds=[int]$Original.gracePeriodSeconds;claimLeaseSeconds=[int]$Original.claimLeaseSeconds;maxAttempts=[int]$Original.maxAttempts;retryDelaySeconds=[int]$Original.retryDelaySeconds}|ConvertTo-Json -Compress}else{$body=@{enabled=$true;primaryTrigger='RABBITMQ';reconciliationEnabled=$false;gracePeriodSeconds=0;claimLeaseSeconds=30;maxAttempts=8;retryDelaySeconds=1}|ConvertTo-Json -Compress};Invoke-RestMethod "$BaseUrl/api/admin/scheduling/policies/$Type" -Method Put -WebSession $Admin.Session -Headers $Admin.Headers -ContentType application/json -Body $body|Out-Null}
@@ -55,8 +55,8 @@ function Invoke-Race([long]$OrderId,[long]$TaskId,[string]$TaskType,[string]$Bia
 
 $admin=$null;$original=@{};$totalRequests=0;$rounds=0;$manualWins=0;$autoWins=0
 try{
-  Compose @('--profile','rabbitmq','up','-d','--wait','rabbitmq')
-  $env:SCHEDULING_RABBITMQ_ENABLED='true';Compose @('--profile','rabbitmq','up','-d','--no-deps','--force-recreate','backend','web')
+  Compose @('--profile','rabbitmq','up','-d','--wait','rabbitmq-broker')
+  $env:SCHEDULING_RABBITMQ_ENABLED='true';Compose @('--profile','rabbitmq','up','-d','--no-deps','--force-recreate','commerce-service','commerce-portal-angular')
   Wait-Sql "SELECT 1" {param($v) $v -eq '1'} 'database readiness'|Out-Null
   $admin=New-Session 'admin@example.com';$customer=New-Session 'demo@example.com'
   $policies=Invoke-RestMethod "$BaseUrl/api/admin/scheduling/policies" -WebSession $admin.Session
@@ -83,5 +83,5 @@ try{
 }finally{
   try{if($admin){foreach($type in @('AUTO_RECEIVE','AUTO_COMPLETE')){if($original[$type].source -eq 'DATABASE_OVERRIDE'){Set-Policy $admin $type $original[$type]}else{Invoke-RestMethod "$BaseUrl/api/admin/scheduling/policies/$type" -Method Delete -WebSession $admin.Session -Headers $admin.Headers|Out-Null}}}}catch{Write-Warning "Policy restore failed: $_"}
   if($null -eq $savedRabbit){Remove-Item Env:SCHEDULING_RABBITMQ_ENABLED -ErrorAction SilentlyContinue}else{$env:SCHEDULING_RABBITMQ_ENABLED=$savedRabbit}
-  try{Compose @('up','-d','--no-deps','--force-recreate','backend','web')}catch{Write-Warning "Backend restore failed: $_"}
+  try{Compose @('up','-d','--no-deps','--force-recreate','commerce-service','commerce-portal-angular')}catch{Write-Warning "Backend restore failed: $_"}
 }

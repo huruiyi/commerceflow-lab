@@ -1,0 +1,33 @@
+{
+  "name": "payment-simulator-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=26.13.0",
+    "npm": ">=11.20.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@ant-design/icons-vue": "7.0.1",
+    "@vitejs/plugin-vue": "6.0.10",
+    "ant-design-vue": "4.0.0-rc.6",
+    "qrcode": "1.5.4",
+    "vue": "3.5.45",
+    "vue-router": "5.5.0",
+    "vxe-pc-ui": "4.20.41",
+    "vxe-table": "4.23.18"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "@types/qrcode": "1.5.6",
+    "typescript": "6.0.3",
+    "vite": "8.3.8",
+    "vitest": "5.1.0",
+    "vue-tsc": "3.3.14"
+  }
+}

@@ -39,14 +39,14 @@ cleanup(){
   for name in "${environment_names[@]}";do
     if [[ "${original_set[$name]}" == 1 ]];then printf -v "$name" '%s' "${original_values[$name]}";export "$name";else unset "$name";fi
   done
-  compose up -d --wait --force-recreate backend web payment-ui >/dev/null
+  compose up -d --wait --force-recreate commerce-service commerce-portal-angular payment-simulator-web >/dev/null
   rm -rf -- "$tmp";exit "$status"
 }
 trap cleanup EXIT
 
 export ORDER_PAYMENT_TIMEOUT=18s SCHEDULING_DATABASE_INITIAL_DELAY=1s
 export SCHEDULING_DATABASE_FIXED_DELAY=1s SCHEDULING_RECONCILIATION_INITIAL_DELAY=1h
-compose up -d --wait --force-recreate backend web payment-ui >/dev/null
+compose up -d --wait --force-recreate commerce-service commerce-portal-angular payment-simulator-web >/dev/null
 login admin@example.com "$tmp/admin.cookie" "$tmp/admin.header"
 login demo@example.com "$tmp/customer.cookie" "$tmp/customer.header"
 curl -fsS -b "$tmp/admin.cookie" "$BASE_URL/api/admin/scheduling/policies"|jq -c '.[]|select(.taskType=="PAYMENT_TIMEOUT")'>"$tmp/original-policy.json"

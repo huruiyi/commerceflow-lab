@@ -113,7 +113,7 @@ if [[ "$AUDIT_DATABASE" == true ]];then
   ids="$(IFS=,;echo "${order_ids[*]}")"
   database_user="${DATABASE_USERNAME:-commerceflow}";database_password="${DATABASE_PASSWORD:-commerceflow-password}"
   query="SELECT COUNT(DISTINCT o.id),COUNT(p.id),SUM(CASE WHEN (o.status='CANCELLED' AND p.status='CLOSED') OR (o.status IN ('PAID','REFUNDING','REFUNDED') AND p.status='SUCCESS') THEN 0 ELSE 1 END) FROM shop_orders o LEFT JOIN payment_records p ON p.order_id=o.id WHERE o.id IN ($ids);"
-  audit="$(docker compose --project-directory "$PROJECT_ROOT" exec -T mysql mysql -N "-u$database_user" "-p$database_password" commerceflow -e "$query" 2>/dev/null)"
+  audit="$(docker compose --project-directory "$PROJECT_ROOT" exec -T commerce-db mysql -N "-u$database_user" "-p$database_password" commerceflow -e "$query" 2>/dev/null)"
   read -r orders_count payments_count contradictions <<<"$audit"
   [[ "$orders_count" == "$iteration" && "$payments_count" == "$iteration" && "$contradictions" == 0 ]]||{
     echo "Docker MySQL consistency audit failed: $orders_count/$payments_count/$contradictions" >&2;exit 1;

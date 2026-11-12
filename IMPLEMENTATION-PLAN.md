@@ -162,7 +162,7 @@ review, persistent_login
 
 ### 第 05A-2 章：独立多渠道模拟支付服务（已完成）
 
-- [x] 新建独立 Spring Boot `mock-payment-service`，使用独立数据库边界。
+- [x] 新建独立 Spring Boot `payment-simulator-service`，使用独立数据库边界。
 - [x] 新建 Vue 3 + TypeScript 支付收银台和支付平台管理 UI。
 - [x] 实现支付后台登录、注销、Redis Session、CSRF、登录限流、账号锁定和角色权限。
 - [x] 提供 `PAYMENT_ADMIN`、`PAYMENT_OPERATOR`、`PAYMENT_AUDITOR` 三类演示账号及最小权限菜单。

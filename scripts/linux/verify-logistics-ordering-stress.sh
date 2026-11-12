@@ -4,7 +4,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)";source "$SCRIPT
 BASE_URL="${1:-http://localhost:14200}";CALLBACK_BASE_URL="${2:-http://localhost:18081}";DURATION_SECONDS="${3:-120}";MINIMUM_CALLBACKS="${4:-300}";CONCURRENCY="${5:-12}";DELAY_MILLISECONDS="${6:-500}";SEED="${7:-20261113}"
 ((DURATION_SECONDS>=10&&MINIMUM_CALLBACKS>=30&&CONCURRENCY>=2&&CONCURRENCY<=64))||{ echo 'Invalid soak parameters'>&2;exit 1; }
 tmp="$(new_temp_dir)";trap 'rm -rf -- "$tmp"' EXIT
-sql(){ compose exec -T mysql mysql -ucommerceflow -pcommerceflow-password -Nse "$1" commerceflow 2>/dev/null|tr -d '\r'; }
+sql(){ compose exec -T commerce-db mysql -ucommerceflow -pcommerceflow-password -Nse "$1" commerceflow 2>/dev/null|tr -d '\r'; }
 "$SCRIPT_DIR/verify-merchant-fulfillment.sh" "$BASE_URL"
 jar="$tmp/customer.cookies";storefront_login "$BASE_URL" demo@example.com "$jar">/dev/null
 order="$(json_request GET "$BASE_URL/api/purchase-orders" "$jar"|jq -c '[.[]|select(.status=="SHIPPED" and .logistics!=null)]|sort_by(.createdAt)|reverse|.[0]')";order_id="$(jq -r '.id//empty'<<<"$order")";[[ -n "$order_id" ]]||{ echo 'No shipped order available'>&2;exit 1; }

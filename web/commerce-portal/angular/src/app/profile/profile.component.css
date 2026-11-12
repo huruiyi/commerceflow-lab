@@ -1,0 +1,128 @@
+:host {
+  display: block
+}
+
+.profile-page {
+  max-width: 900px;
+  margin: 1rem auto
+}
+
+.profile-hero {
+  display: grid;
+  grid-template-columns:auto 1fr auto;
+  gap: 1.25rem;
+  align-items: center;
+  padding: 2rem;
+  border-radius: 20px;
+  background: linear-gradient(125deg, #172554, #0f766e);
+  color: #fff;
+  box-shadow: 0 16px 36px #0f172a1c
+}
+
+.profile-avatar {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  border: 1px solid #ffffff4d;
+  border-radius: 22px;
+  background: #ffffff17;
+  font-size: 2rem;
+  font-weight: 800
+}
+
+.profile-hero span {
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .1em
+}
+
+.profile-hero h1 {
+  margin: .25rem 0;
+  font-size: 2rem
+}
+
+.profile-hero p {
+  margin: 0;
+  color: #dbeafe
+}
+
+.role-badge {
+  padding: .5rem .8rem;
+  border: 1px solid #ffffff48;
+  border-radius: 999px;
+  background: #ffffff18;
+  letter-spacing: 0 !important
+}
+
+.profile-card {
+  display: grid;
+  grid-template-columns:repeat(2, 1fr);
+  gap: 1px;
+  margin-top: 1.25rem;
+  overflow: hidden;
+  border: 1px solid #dbe3ee;
+  border-radius: 16px;
+  background: #dbe3ee
+}
+
+.profile-field {
+  display: grid;
+  grid-template-columns:36px 1fr;
+  align-items: center;
+  padding: 1.25rem;
+  background: #fff
+}
+
+.profile-field i {
+  grid-row: 1/3;
+  color: #0f766e;
+  font-size: 1.15rem
+}
+
+.profile-field span {
+  color: #64748b;
+  font-size: .76rem
+}
+
+.profile-field strong {
+  color: #172033;
+  overflow-wrap: anywhere
+}
+
+.profile-note {
+  display: flex;
+  gap: .55rem;
+  align-items: flex-start;
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: .84rem
+}
+
+@media (max-width: 640px) {
+  .profile-hero {
+    grid-template-columns:auto 1fr;
+    padding: 1.3rem
+  }
+
+  .profile-avatar {
+    width: 58px;
+    height: 58px
+  }
+
+  .profile-hero h1 {
+    font-size: 1.45rem
+  }
+
+  .role-badge {
+    grid-column: 1/-1;
+    justify-self: start
+  }
+
+  .profile-card {
+    grid-template-columns:1fr
+  }
+}

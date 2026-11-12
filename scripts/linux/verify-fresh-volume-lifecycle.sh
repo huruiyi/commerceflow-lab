@@ -35,21 +35,21 @@ temp_compose() {
 }
 
 store_sql() {
-  temp_compose exec -T mysql mysql -ucommerceflow -pcommerceflow-password -Nse "$1" commerceflow 2>/dev/null | tail -n1 | tr -d '\r'
+  temp_compose exec -T commerce-db mysql -ucommerceflow -pcommerceflow-password -Nse "$1" commerceflow 2>/dev/null | tail -n1 | tr -d '\r'
 }
 
 payment_sql() {
-  temp_compose exec -T payment-mysql mysql -upayment -ppayment-password -Nse "$1" payment_platform 2>/dev/null | tail -n1 | tr -d '\r'
+  temp_compose exec -T payment-simulator-db commerce-db -upayment -ppayment-password -Nse "$1" payment_platform 2>/dev/null | tail -n1 | tr -d '\r'
 }
 
 logistics_sql() {
-  temp_compose exec -T logistics-mysql mysql -ulogistics -plogistics-password -Nse "$1" logistics_platform 2>/dev/null | tail -n1 | tr -d '\r'
+  temp_compose exec -T logistics-simulator-db commerce-db -ulogistics -plogistics-password -Nse "$1" logistics_platform 2>/dev/null | tail -n1 | tr -d '\r'
 }
 
 cleanup() {
   local status=$?
   set +e
-  if [[ "$passed" != true ]]; then temp_compose logs --no-color --tail 200 mock-payment-service payment-mysql backend mock-logistics-service; fi
+  if [[ "$passed" != true ]]; then temp_compose logs --no-color --tail 200 payment-simulator-service payment-simulator-db commerce-service logistics-simulator-service; fi
   if [[ "$REMOVE_TEMPORARY_VOLUMES" == true ]]; then temp_compose down --volumes --remove-orphans; else temp_compose down --remove-orphans; fi
   if [[ "$saved_project_present" == true ]]; then export COMPOSE_PROJECT_NAME="$saved_project"; else unset COMPOSE_PROJECT_NAME; fi
   if ((${#default_running[@]})); then compose --profile rabbitmq --profile rocketmq up -d --wait "${default_running[@]}"; fi

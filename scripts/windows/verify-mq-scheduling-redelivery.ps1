@@ -87,7 +87,7 @@ function Invoke-RedeliveryCase($Admin, $Customer, [string]$Strategy) {
 
   $env:SCHEDULING_MQ_CRASH_LAB_ENABLED = 'true'
   $env:SCHEDULING_MQ_CRASH_LAB_TASK_ID = [string]$task.id
-  Compose up -d --wait --force-recreate backend web
+  Compose up -d --wait --force-recreate commerce-service commerce-portal-angular
   $Admin = New-Session 'admin@example.com'
   $Customer = New-Session 'demo@example.com'
   Wait-Until {
@@ -98,16 +98,16 @@ function Invoke-RedeliveryCase($Admin, $Customer, [string]$Strategy) {
   $publishedBeforeCrash = @($eventsBeforeCrash | Where-Object eventType -eq 'TASK_TRIGGER_PUBLISHED').Count
   if ($publishedBeforeCrash -lt 1) { throw "$Strategy has no broker publish acknowledgement" }
 
-  Compose stop -t 0 backend
+  Compose stop -t 0 commerce-service
   $env:SCHEDULING_MQ_CRASH_LAB_ENABLED = 'false'
-  Compose up -d --wait --force-recreate backend web
+  Compose up -d --wait --force-recreate commerce-service commerce-portal-angular
   $Admin = New-Session 'admin@example.com'
   $Customer = New-Session 'demo@example.com'
 
   $completed = Wait-Until {
     $candidate = Get-Task $Admin $order.id
     if ($candidate.status -eq 'SUCCEEDED') { $candidate } else { $null }
-  } "$Strategy did not redeliver and complete the task after backend restart"
+  } "$Strategy did not redeliver and complete the task after commerce-service restart"
   $current = Invoke-RestMethod "$BaseUrl/api/purchase-orders/$($order.id)" -WebSession $Customer.Session
   $events = Invoke-RestMethod "$BaseUrl/api/admin/scheduling/tasks/$($task.id)/events" -WebSession $Admin.Session
   foreach ($eventType in @('TASK_DELIVERY_PAUSED_BEFORE_ACK', 'TASK_CLAIMED', 'TASK_SUCCEEDED')) {
@@ -133,8 +133,8 @@ try {
   $env:SCHEDULING_MQ_CRASH_LAB_PAUSE = '5m'
   $env:SCHEDULING_DATABASE_INITIAL_DELAY = '1h'
   $env:SCHEDULING_RECONCILIATION_INITIAL_DELAY = '1h'
-  Compose up -d --wait rabbitmq rocketmq-init
-  Compose up -d --wait --force-recreate backend web
+  Compose up -d --wait rabbitmq-broker rocketmq-topic-init
+  Compose up -d --wait --force-recreate commerce-service commerce-portal-angular
 
   $admin = New-Session 'admin@example.com'
   $customer = New-Session 'demo@example.com'
@@ -145,7 +145,7 @@ try {
 
   $rabbit = Invoke-RedeliveryCase $admin $customer 'RABBITMQ'
   $rocket = Invoke-RedeliveryCase $admin $customer 'ROCKETMQ'
-  Write-Host "MQ unacked redelivery verification passed: RabbitMQ and RocketMQ redelivered after backend termination; each task was published, claimed and completed exactly once (tasks $($rabbit.Task.id)/$($rocket.Task.id))." -ForegroundColor Green
+  Write-Host "MQ unacked redelivery verification passed: RabbitMQ and RocketMQ redelivered after commerce-service termination; each task was published, claimed and completed exactly once (tasks $($rabbit.Task.id)/$($rocket.Task.id))." -ForegroundColor Green
 } finally {
   if ($admin -and $originalPolicy) {
     try {
@@ -160,5 +160,5 @@ try {
   foreach ($name in $environmentNames) {
     [Environment]::SetEnvironmentVariable($name, $originalEnvironment[$name], 'Process')
   }
-  try { Compose up -d --wait --force-recreate backend web } catch { Write-Warning $_.Exception.Message }
+  try { Compose up -d --wait --force-recreate commerce-service commerce-portal-angular } catch { Write-Warning $_.Exception.Message }
 }

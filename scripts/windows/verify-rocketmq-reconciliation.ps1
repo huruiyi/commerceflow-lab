@@ -63,7 +63,7 @@ try {
     -WebSession $customer.Session -Headers $customer.Headers -ContentType application/json -Body '{}'
   $secondsUntilDue = ([datetimeoffset]$order.paymentDueAt - [datetimeoffset]::UtcNow).TotalSeconds
   if ($secondsUntilDue -gt ($MaxWaitSeconds - 5)) {
-    throw 'Start backend with a short ORDER_PAYMENT_TIMEOUT before running this fault experiment'
+    throw 'Start commerce-service with a short ORDER_PAYMENT_TIMEOUT before running this fault experiment'
   }
 
   $deadline = [datetimeoffset]::UtcNow.AddSeconds($MaxWaitSeconds)

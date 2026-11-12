@@ -27,20 +27,20 @@
 | `web/commerce-portal/vue/` | `commerce-portal-vue` | 不适用 |
 | `simulators/payment-platform/web/` | `payment-simulator-web` | 不适用 |
 
-`backend/frontend/mock-*` 只能表达技术形态，无法表达核心商城、外部平台模拟器和双前端实现。因此目录按 `services/web/simulators/infrastructure` 责任分组。
+旧目录 `backend`、`frontend` 和 `mock-*` 只能表达技术形态，无法表达核心商城、外部平台模拟器和双前端实现。因此当前目录已按 `services/web/simulators/infrastructure` 责任分组。
 
-## 3. 当前状态与目标差异
+## 3. M1 历史状态与当前基线
 
 M1 标签 `m1-baseline-2026-11-13` 的实际状态是：
 
-| 范围 | 当前值 | 最终值 |
+| 范围 | M1 标签值 | 当前基线 |
 | --- | --- | --- |
 | Java 根包 | `lab.commerceflow` | `vip.fairy.commerceflow` |
 | Maven groupId | `lab.commerceflow` | `vip.fairy.commerceflow` |
 | Compose 项目名 | `commerceflow` | `fairy-commerceflow` |
 | Compose 命名卷 | `commerceflow_*` | 最终资源族为 `fairy-commerceflow_*` |
 
-这些差异不应通过零散提交逐个消除。Java 包和 Compose 项目名分别影响约 620 处源码引用以及现有持久卷识别，必须单独验收。
+当前源码、Maven、目录和 Compose 展示命名已一次性迁移；M1 标签保留迁移前证据。数据库、MQ 和 Redis 的持久协议标识仍按 4.3 保持不变。
 
 ## 4. 推荐迁移顺序
 
@@ -69,7 +69,7 @@ Kafka Topic、RabbitMQ Queue/Exchange、RocketMQ Topic/Consumer Group、Redis Ke
 
 | 对象 | 格式 | 示例 |
 | --- | --- | --- |
-| Git 仓库、目录、artifactId、Compose 服务/Profile | kebab-case | `mock-payment-service` |
+| Git 仓库、目录、artifactId、Compose 服务/Profile | kebab-case | `payment-simulator-service` |
 | Java package | 全小写点分层 | `vip.fairy.commerceflow.payment.security` |
 | Java 类型 | PascalCase | `ScheduledTaskExecutor` |
 | Java 方法/字段、JSON 字段 | camelCase | `primaryTriggerSnapshot` |

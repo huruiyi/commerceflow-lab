@@ -9,7 +9,7 @@ param(
 )
 $ErrorActionPreference='Stop'
 $projectRoot=(Resolve-Path(Join-Path $PSScriptRoot '../..')).Path
-function Sql([string]$Statement){$v=& docker compose --project-directory $projectRoot exec -T mysql mysql -ucommerceflow -pcommerceflow-password -Nse $Statement commerceflow 2>$null;if($LASTEXITCODE-ne0){throw 'Storefront SQL failed'};return($v-join"`n").Trim()}
+function Sql([string]$Statement){$v=& docker compose --project-directory $projectRoot exec -T commerce-db mysql -ucommerceflow -pcommerceflow-password -Nse $Statement commerceflow 2>$null;if($LASTEXITCODE-ne0){throw 'Storefront SQL failed'};return($v-join"`n").Trim()}
 function New-Customer{$s=[Microsoft.PowerShell.Commands.WebRequestSession]::new();$c=Invoke-RestMethod "$BaseUrl/api/auth/csrf" -WebSession $s;$h=@{};$h[$c.headerName]=$c.token;Invoke-RestMethod "$BaseUrl/api/auth/login" -Method Post -WebSession $s -Headers $h -ContentType application/json -Body '{"email":"demo@example.com","password":"demo-password","rememberMe":false}'|Out-Null;return $s}
 
 & "$PSScriptRoot/verify-merchant-fulfillment.ps1" -BaseUrl $BaseUrl

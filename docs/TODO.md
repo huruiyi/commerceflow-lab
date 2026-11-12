@@ -151,7 +151,7 @@ PAID
 
 ### 7.1 服务、数据与状态
 
-- [x] 新建独立 `mock-logistics-service`、数据库和 Docker 服务；首版不做物流管理 UI。
+- [x] 新建独立 `logistics-simulator-service`、数据库和 Docker 服务；首版不做物流管理 UI。
 - [x] 物流平台保存渠道运单号、商城请求号、承运商、单号、状态、轨迹、节点时间、回调和幂等信息。
 - [x] 商城保存 `shipment_records`、`shipment_events`、当前投影、发货/签收时间、通知 ID 和回调摘要。
 - [x] 模拟物流不得直接连接商城数据库。
@@ -303,7 +303,7 @@ M1 完成后，先编写可复测验证体系文档；然后再开始“退款�
 ### 2026-11-12：独立模拟物流最小完整闭环
 
 - 迁移：商城 `V18__logistics_projection.sql`；物流平台 `V1__logistics_platform.sql`。
-- 组件：新增 `logistics-mysql` 和 `mock-logistics-service`，物流平台不直连商城数据库。
+- 组件：新增 `logistics-mysql` 和 `logistics-simulator-service`，物流平台不直连商城数据库。
 - 实现：幂等建单、运单更正、六段轨迹状态机、请求 HMAC/时间戳/Nonce 防重放、签名回调、回调去重/防倒退、客户归属查询和 Angular 展开轨迹。
 - 验证：物流服务构建通过；后端 6 项集成测试通过；Angular 生产构建通过；Docker 旧卷升级后全服务健康；Windows 专项验证签名建单、重放 `409`、伪造签名 `401`、`CREATED -> DELIVERED` 及商城投影；Windows `verify-all -SkipBuild` 全量回归通过。
 - 跨平台边界：Bash 同语义脚本已提供；当前 Git Bash 缺少 `jq`，本轮未实机执行 Bash 专项。
@@ -326,7 +326,7 @@ M1 完成后，先编写可复测验证体系文档；然后再开始“退款�
 - 主路径：轨迹与不可变回调正文同事务落库；投递器使用 `NEW/PROCESSING/RETRY/PUBLISHED/DEAD`、领取租约、连接/读取超时、最大次数和稳定事件 ID。
 - 兜底：商城定期签名查询权威运单，缺失事件复用同一投影入口，通知审计记为 `RECONCILED（已对账恢复）`。
 - 乱序修正：承运商和快递单号是可更正字段，迟到回调不再用旧快照拒绝；签名、商城运单号和不变平台运单号负责身份校验。
-- 验证：真实停止 backend 后看到 `RETRY -> PUBLISHED` 且尝试次数增加；关闭投递器制造永久丢失后，主动对账补齐 `IN_TRANSIT`；专项结束恢复默认配置。
+- 验证：真实停止 commerce-service 后看到 `RETRY -> PUBLISHED` 且尝试次数增加；关闭投递器制造永久丢失后，主动对账补齐 `IN_TRANSIT`；专项结束恢复默认配置。
 - 跨平台边界：Windows Docker 专项已运行；Bash 同语义脚本已提供，待具备 `jq` 的 Bash 环境实机执行。
 - 遗留：Prometheus 告警规则和外部告警接收端、长时间并发乱序压力。
 
@@ -346,7 +346,7 @@ M1 完成后，先编写可复测验证体系文档；然后再开始“退款�
 - 实现：`DELIVERED（已送达）` 创建 `AUTO_RECEIVE（自动确认收货）`；手动收货取消该任务；手动或自动收货后创建 `AUTO_COMPLETE（自动完成订单）`；最终执行 `RECEIVED（已收货） -> COMPLETED（已完成）`。
 - 一致性：所有路径共用行锁、条件更新、稳定任务键和统一 Handler；任务执行时重读订单状态，迟到或重复触发安全结束。
 - 验证：后端 10 个集成测试通过，含手动/自动收货的两线程竞态与过期租约重试；Angular 生产构建通过；Windows Docker 专项脚本完整验证手动取消任务、自动收货、自动完成、支付/物流保留和完成后评价。
-- 故障验收：将已执行的 `AUTO_COMPLETE` 伪造为工作进程在确认前崩溃，停止并重启 backend；`LEASE_RECOVERY（租约恢复）` 将其重新领取并成功结束，`ORDER_AUTO_COMPLETED（订单自动完成）` 事件仍只有一条。
+- 故障验收：将已执行的 `AUTO_COMPLETE` 伪造为工作进程在确认前崩溃，停止并重启 commerce-service；`LEASE_RECOVERY（租约恢复）` 将其重新领取并成功结束，`ORDER_AUTO_COMPLETED（订单自动完成）` 事件仍只有一条。
 - 跨平台边界：Bash 同语义脚本已提供并通过语法检查；当前 Git Bash 缺少 `jq`，未执行真实 Bash 业务链路。
 - 当时遗留：长时间高并发压力测试、RabbitMQ/RocketMQ 主触发适配器及 MQ 级故障实验；RabbitMQ 主路径与数据库兜底已由后续阶段完成。
 - 提交：未提交。
@@ -369,7 +369,7 @@ M1 完成后，先编写可复测验证体系文档；然后再开始“退款�
 - 实现：将 `dueAt` 转为绝对投递时间；发布成功记录 message ID，失败保留未发布状态以待补发；消费端重读数据库并复用统一执行器，早到消息重新投递，异常由 Broker 重试/死信。
 - 验证：后端容器构建通过；默认与 RocketMQ Profile Compose 配置通过；Windows 和容器化 Bash 均完成真实下单、Broker 回执、原生延时投递、原子领取、超时关单和审计链验收（任务 226/227）；Broker 停机时发布失败可观测且 Database 对账成功兜底（任务 228/229）。
 - 验证补充：Windows 与容器化 Bash 的 `verify-mq-scheduling-idempotency` 已完成 RabbitMQ/RocketMQ 重复消息、迟到旧消息和毒消息实验（任务 233～236）。
-- 验证补充：Windows Docker 与容器化 Bash 的 `verify-mq-scheduling-redelivery` 均已在 RabbitMQ/RocketMQ 消费窗口中强制终止 backend，任务 `239/240`、`241/242` 恢复后均只领取/完成一次。
+- 验证补充：Windows Docker 与容器化 Bash 的 `verify-mq-scheduling-redelivery` 均已在 RabbitMQ/RocketMQ 消费窗口中强制终止 commerce-service，任务 `239/240`、`241/242` 恢复后均只领取/完成一次。
 - 遗留：长时间故障压力测试。
 - 提交：待本批次提交。
 
@@ -404,7 +404,7 @@ M1 完成后，先编写可复测验证体系文档；然后再开始“退款�
 
 ### 2026-11-13：支付/取消锁等待超时专项
 
-- 配置：backend MySQL 连接使用可配置的 `innodb_lock_wait_timeout`，Compose 默认 5 秒；专项脚本临时压缩为 2 秒并在结束时恢复 backend，不删除数据卷。
+- 配置：commerce-service MySQL 连接使用可配置的 `innodb_lock_wait_timeout`，Compose 默认 5 秒；专项脚本临时压缩为 2 秒并在结束时恢复 commerce-service，不删除数据卷。
 - 契约：Spring 短暂数据访问异常统一返回 HTTP `503`、`DATABASE_CONCURRENCY_RETRY` 与 `Retry-After: 1`；支付回调不再把这类异常包装成不可区分的通用异常。
 - 验证：Windows 和容器化 Bash 同名脚本分别持有订单行与支付行锁；首次取消/回调超时后订单、支付、通知和事件仍为原始事实，释放锁后重试分别达到 `CANCELLED` 与 `PAID/SUCCESS`。
 - 自动测试：Docker Maven 构建通过 19 个测试，其中新增错误契约单元测试。
@@ -413,7 +413,7 @@ M1 完成后，先编写可复测验证体系文档；然后再开始“退款�
 
 ### 2026-11-13：支付/取消关键事务窗口进程崩溃恢复
 
-- 故障注入：新增默认关闭、必须同时指定订单 ID 和阶段的实验暂停点；脚本观测到精确窗口后对 backend 发送 SIGKILL，结束后恢复默认关闭。
+- 故障注入：新增默认关闭、必须同时指定订单 ID 和阶段的实验暂停点；脚本观测到精确窗口后对 commerce-service 发送 SIGKILL，结束后恢复默认关闭。
 - 取消窗口：已验证 `PENDING_PAYMENT -> CANCELLING` 提交后崩溃可重试完成；渠道已持久化 `CLOSED`、本地仍为 `CANCELLING/PENDING` 时崩溃，重试不重复业务事实且只写一次 `ORDER_CANCELLED`。
 - 回调窗口：支付记录已改为 `SUCCESS` 但回调事务未提交时崩溃，MySQL 完整回滚订单、支付、通知和事件；重放相同回调后只提交一份 `PAID/SUCCESS` 事实。
 - 迟到回调：订单留在 `CANCELLING`、渠道成功回调稍后到达时，资金事实优先，订单恢复为 `PAID`。
@@ -435,7 +435,7 @@ M1 完成后，先编写可复测验证体系文档；然后再开始“退款�
 - 环境：保留现有数据卷，临时开启 RabbitMQ/RocketMQ 适配器和 1 秒发布扫描；任务关闭 Database 对账，确保故障恢复由原 MQ 完成。
 - 场景：对 RabbitMQ/RocketMQ 各自验证 `AUTO_RECEIVE` 和 `AUTO_COMPLETE`；Broker 停机后创建任务，确认发布次数/错误落库，将到期时间压缩后恢复 Broker。
 - 结果：Windows 任务 `588/592/594/598` 和容器化 Bash 任务 `601/605/607/611` 均按 `primary_trigger_snapshot` 由对应 MQ 执行，`TASK_SUCCEEDED` 与订单转换均只有一次。
-- 恢复：两套脚本都在 `finally/trap` 中恢复策略、Broker、环境变量和默认 backend/web，不删除或清空任何数据卷。
+- 恢复：两套脚本都在 `finally/trap` 中恢复策略、Broker、环境变量和默认 services/commerce-service/web，不删除或清空任何数据卷。
 - 边界：本阶段是单机 Docker Broker 停机/恢复实验，不等同于 MQ 集群多节点灾备。
 - 提交：本阶段独立提交（见 Git 历史）。
 
@@ -454,7 +454,7 @@ M1 完成后，先编写可复测验证体系文档；然后再开始“退款�
 - 环境：使用随机 Compose 项目名和独立新卷；暂停后恢复默认项目，不删除或清空现有 `commerceflow_*` 卷。
 - 发现与修复：空卷首次启动暴露 Spring Boot 4 下支付/物流服务仅引入 `flyway-core` 未激活自动迁移；改用 `spring-boot-starter-flyway` 后完成 V1–V3/V1–V4。
 - 验证：商城/支付/物流 Flyway 分别为 V23/V3/V4，无失败迁移；初始数据为 6 用户、6 商品、0 订单。
-- 链路：Windows 和容器化 Bash 均跑完登录、下单、签名支付回调、商家履约、物流、手动/自动收货、自动完成、backend 重启租约恢复和评价，业务审计为 `1|1|2|1|1`。
+- 链路：Windows 和容器化 Bash 均跑完登录、下单、签名支付回调、商家履约、物流、手动/自动收货、自动完成、commerce-service 重启租约恢复和评价，业务审计为 `1|1|2|1|1`。
 - 破坏性边界：默认保留临时卷以便排查；只有显式 `-RemoveTemporaryVolumes` / `--remove-temporary-volumes` 才删除本次临时项目卷。
 - 提交：本阶段独立提交（见 Git 历史）。
 
@@ -462,7 +462,7 @@ M1 完成后，先编写可复测验证体系文档；然后再开始“退款�
 
 - 升级边界：在隔离 MySQL 中重放 V1–V16，插入历史订单后升级到 V23，验证 30 分钟支付截止时间回填和当前约束；这是可重放旧库演练，不冒充生产备份升级。
 - 持久卷：现有商城/支付/物流数据保持在 V23/V3/V4，无失败迁移；本阶段未删除任何现有卷。
-- 重启范围：三个 MySQL、Redis、Kafka、支付/物流服务、backend/web/UI、RabbitMQ 和 RocketMQ 均实际重启并恢复健康。
+- 重启范围：三个 MySQL、Redis、Kafka、支付/物流服务、services/commerce-service/web/UI、RabbitMQ 和 RocketMQ 均实际重启并恢复健康。
 - 未完成任务：注入已领取但租约过期的 `AUTO_COMPLETE` 任务；Windows 任务 `1391/1392`、容器化 Bash 任务 `1393/1394` 分别由 RabbitMQ/RocketMQ 恢复，`TASK_LEASE_EXPIRED/TASK_CLAIMED/TASK_SUCCEEDED` 均各一次。
 - 历史一致性：终态订单、支付、已送达物流和评价的计数+行 CRC 聚合指纹在重启前后均为 `300:3562683193|559:1055010103|83:1695107719|21:1066884382`。
 - 提交：本阶段独立提交（见 Git 历史）。
@@ -479,7 +479,7 @@ M1 完成后，先编写可复测验证体系文档；然后再开始“退款�
 ### 2026-11-13：快速回归入口与 M1 基线冻结
 
 - 入口：新增 `verify-quick.ps1/.sh`，默认构建当前源码镜像，支持 `-SkipBuild` / `--skip-build`；不删除或清空数据卷。
-- 覆盖：36 组脚本契约、Compose 配置/健康、权限/i18n、订单取消、支付/取消竞态、全额退款、物流、手动/自动收货、自动完成、评价、backend 租约恢复和 Redis 降级。
+- 覆盖：36 组脚本契约、Compose 配置/健康、权限/i18n、订单取消、支付/取消竞态、全额退款、物流、手动/自动收货、自动完成、评价、commerce-service 租约恢复和 Redis 降级。
 - 验证：Windows `-SkipBuild`、容器化 Bash `--skip-build` 和 Windows 默认构建模式均通过；默认构建模式使用当前源码重建五个应用镜像。
 - 边界：快速回归不代替两分钟浸泡、Broker 停机、空卷全链路或旧卷重启专项；这些已在前置阶段独立验收。
 - 冻结：本阶段提交以注释标签 `m1-baseline-2026-11-13` 冻结并推送。M1 后停止新增业务代码；“整个开发生命周期的可复测验证体系”文档本轮未开始。

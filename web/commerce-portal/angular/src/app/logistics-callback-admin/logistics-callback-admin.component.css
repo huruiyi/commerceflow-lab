@@ -1,0 +1,147 @@
+.callback-page {
+  max-width: 1500px;
+  padding: 32px 24px 64px
+}
+
+.page-heading, .toolbar, .toolbar form, .replay-row form {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px
+}
+
+.page-heading {
+  padding: 28px 32px;
+  border-radius: 20px;
+  background: linear-gradient(120deg, #142b5f, #087f73);
+  color: #fff;
+  margin-bottom: 24px
+}
+
+.page-heading p {
+  margin: 0;
+  font-size: .8rem;
+  letter-spacing: .16em
+}
+
+.page-heading h1 {
+  margin: 4px 0
+}
+
+.page-heading span {
+  opacity: .85
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid #dfe7f1;
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: 0 14px 35px rgba(25, 46, 80, .06)
+}
+
+.toolbar {
+  align-items: flex-end;
+  margin-bottom: 18px
+}
+
+.toolbar h2, .toolbar p {
+  margin: 0
+}
+
+.toolbar p {
+  color: #66758a;
+  margin-top: 4px
+}
+
+.toolbar select, .replay-row input {
+  border: 1px solid #cbd6e4;
+  border-radius: 8px;
+  padding: 8px 10px
+}
+
+.status {
+  display: inline-block;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #edf3f9;
+  font-size: .78rem
+}
+
+.status[data-status=DEAD] {
+  background: #fee2e2;
+  color: #991b1b
+}
+
+.status[data-status=RETRY] {
+  background: #fff1d6;
+  color: #92400e
+}
+
+.status[data-status=PUBLISHED] {
+  background: #dcfce7;
+  color: #166534
+}
+
+td small {
+  display: block;
+  color: #718096
+}
+
+.error-cell {
+  max-width: 320px;
+  white-space: normal
+}
+
+.replay-row td, .audit-row td {
+  background: #f8fafc
+}
+
+.replay-row form {
+  justify-content: flex-start
+}
+
+.replay-row input {
+  min-width: 360px
+}
+
+.audit-row ol {
+  margin: 0;
+  padding-left: 24px
+}
+
+.audit-row li {
+  display: grid;
+  grid-template-columns:160px 200px 160px 1fr;
+  gap: 10px;
+  padding: 7px 0
+}
+
+.empty {
+  text-align: center;
+  color: #718096
+}
+
+@media (max-width: 800px) {
+  .page-heading, .toolbar {
+    align-items: stretch;
+    flex-direction: column
+  }
+
+  .callback-page {
+    padding: 18px 12px
+  }
+
+  .panel {
+    padding: 14px
+  }
+
+  .audit-row li {
+    grid-template-columns:1fr
+  }
+
+  .replay-row input {
+    min-width: 0;
+    width: 100%
+  }
+}

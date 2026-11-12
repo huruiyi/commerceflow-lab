@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.notification.infrastructure.CustomerNotificationMapper">
+
+  <select id="list" resultType="vip.fairy.commerceflow.commerce.notification.domain.CustomerNotification">
+    <![CDATA[
+      SELECT id,order_id,notification_type,title,message,status,read_at,created_at
+    FROM customer_notifications
+    WHERE customer_id=#{customerId}
+    ORDER BY created_at DESC,id DESC
+    LIMIT 20
+    ]]>
+  </select>
+
+  <select id="unreadCount" resultType="java.lang.Integer">
+    <![CDATA[
+      SELECT COUNT(*) FROM customer_notifications WHERE customer_id=#{customerId} AND status='UNREAD'
+    ]]>
+  </select>
+
+  <update id="markRead">
+    <![CDATA[
+      UPDATE customer_notifications SET status='READ',read_at=CURRENT_TIMESTAMP
+    WHERE id=#{id} AND customer_id=#{customerId} AND status='UNREAD'
+    ]]>
+  </update>
+
+  <update id="markAllRead">
+    <![CDATA[
+      UPDATE customer_notifications SET status='READ',read_at=CURRENT_TIMESTAMP
+    WHERE customer_id=#{customerId} AND status='UNREAD'
+    ]]>
+  </update>
+</mapper>

@@ -2,7 +2,7 @@
 set -euo pipefail
 MAX_WAIT="${1:-90}"
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-MIGRATION_DIR="$PROJECT_ROOT/backend/src/main/resources/db/migration"
+MIGRATION_DIR="$PROJECT_ROOT/services/commerce-service/src/main/resources/db/migration"
 suffix="$(date +%s)-$$-$RANDOM"
 network="commerceflow-flyway-$suffix"
 empty_db="commerceflow-flyway-empty-$suffix"
@@ -29,7 +29,7 @@ wait_mysql(){
 }
 start_mysql(){
   local container="$1"
-  docker run -d --name "$container" --network "$network" --tmpfs /var/lib/mysql \
+  docker run -d --name "$container" --network "$network" --tmpfs /var/lib/commerce-db \
     -e "MYSQL_ROOT_PASSWORD=$password" -e MYSQL_DATABASE=commerceflow \
     --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -p$password --silent" \
     --health-interval 1s --health-timeout 3s --health-retries 60 mysql:8.4 >/dev/null
@@ -47,7 +47,7 @@ migrate(){
     "-url=jdbc:mysql://$container:3306/commerceflow?allowPublicKeyRetrieval=true&useSSL=false" \
     -user=root "-password=$password" -connectRetries=60 "-locations=$location" "${args[@]}" migrate
 }
-sql(){ docker exec "$1" mysql -N -uroot "-p$password" commerceflow -e "$2" 2>/dev/null; }
+sql(){ docker exec "$1" commerce-db -N -uroot "-p$password" commerceflow -e "$2" 2>/dev/null; }
 
 docker network create "$network" >/dev/null
 start_mysql "$empty_db"

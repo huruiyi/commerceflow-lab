@@ -59,7 +59,7 @@ function Wait-Projection([long]$OrderId, [string]$Status, [int]$Seconds = 40) {
 function Logistics-Sql([string]$Sql) {
   $user = if ($env:LOGISTICS_DATABASE_USERNAME) { $env:LOGISTICS_DATABASE_USERNAME } else { 'logistics' }
   $password = if ($env:LOGISTICS_DATABASE_PASSWORD) { $env:LOGISTICS_DATABASE_PASSWORD } else { 'logistics-password' }
-  $result = docker compose --project-directory $ProjectRoot exec -T logistics-mysql mysql --batch --skip-column-names "-u$user" "-p$password" logistics_platform -e $Sql
+  $result = docker compose --project-directory $ProjectRoot exec -T logistics-simulator-db commerce-db --batch --skip-column-names "-u$user" "-p$password" logistics_platform -e $Sql
   if ($LASTEXITCODE -ne 0) { throw 'Logistics database query failed' }
   return (($result | Select-Object -Last 1) -as [string]).Trim()
 }
@@ -67,7 +67,7 @@ function Logistics-Sql([string]$Sql) {
 function Storefront-Sql([string]$Sql) {
   $user = if ($env:DATABASE_USERNAME) { $env:DATABASE_USERNAME } else { 'commerceflow' }
   $password = if ($env:DATABASE_PASSWORD) { $env:DATABASE_PASSWORD } else { 'commerceflow-password' }
-  $result = docker compose --project-directory $ProjectRoot exec -T mysql mysql --batch --skip-column-names "-u$user" "-p$password" commerceflow -e $Sql
+  $result = docker compose --project-directory $ProjectRoot exec -T commerce-db mysql --batch --skip-column-names "-u$user" "-p$password" commerceflow -e $Sql
   if ($LASTEXITCODE -ne 0) { throw 'Storefront database query failed' }
   return (($result | Select-Object -Last 1) -as [string]).Trim()
 }
@@ -82,10 +82,10 @@ try {
   $merchantNo = $order.logistics.merchantShipmentNo
   $null = Wait-Projection $order.id 'CREATED'
 
-  docker compose --project-directory $ProjectRoot stop backend | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw 'Could not stop backend for callback retry experiment' }
+  docker compose --project-directory $ProjectRoot stop commerce-service | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw 'Could not stop commerce-service for callback retry experiment' }
   $advanced = Invoke-RestMethod "$LogisticsUrl/api/channel/shipments/$merchantNo/advance" -Method Post -Headers (New-SignedHeaders)
-  if ($advanced.status -ne 'PICKED_UP') { throw 'Shipment did not advance while backend was stopped' }
+  if ($advanced.status -ne 'PICKED_UP') { throw 'Shipment did not advance while commerce-service was stopped' }
   $retryDeadline = (Get-Date).AddSeconds(10)
   do {
     Start-Sleep -Milliseconds 500
@@ -93,8 +93,8 @@ try {
   } while ($retryState -notmatch '^RETRY:' -and (Get-Date) -lt $retryDeadline)
   if ($retryState -notmatch '^RETRY:[1-9][0-9]*$') { throw "Callback did not enter RETRY: $retryState" }
 
-  docker compose --project-directory $ProjectRoot up -d --wait backend web | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw 'Could not restart backend' }
+  docker compose --project-directory $ProjectRoot up -d --wait commerce-service commerce-portal-angular | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw 'Could not restart commerce-service' }
   $script:Customer = New-CustomerSession
   $null = Wait-Projection $order.id 'PICKED_UP'
   $publishedState = Logistics-Sql "SELECT CONCAT(status,':',attempts) FROM callback_outbox WHERE event_id='$($advanced.events[-1].eventId)'"
@@ -106,7 +106,7 @@ try {
   $env:LOGISTICS_RECONCILIATION_SCAN_INTERVAL = '1s'
   $env:LOGISTICS_RECONCILIATION_STALE_AFTER = '0s'
   $env:LOGISTICS_RECONCILIATION_BATCH_SIZE = '1000'
-  docker compose --project-directory $ProjectRoot up -d --wait --force-recreate mock-logistics-service backend web | Out-Null
+  docker compose --project-directory $ProjectRoot up -d --wait --force-recreate logistics-simulator-service commerce-service commerce-portal-angular | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'Could not enable reconciliation fault experiment' }
   $script:Customer = New-CustomerSession
 
@@ -119,9 +119,9 @@ try {
   $auditState = Storefront-Sql "SELECT processing_status FROM shipment_notifications WHERE notification_id='$($lost.events[-1].eventId)'"
   if ($auditState -ne 'RECONCILED') { throw "Lost callback was not recovered by reconciliation: $auditState" }
 
-  Write-Host "Logistics reliability verification passed: callback RETRY -> PUBLISHED after backend recovery; permanently lost callback recovered as RECONCILED (order=$($order.orderNumber))" -ForegroundColor Green
+  Write-Host "Logistics reliability verification passed: callback RETRY -> PUBLISHED after commerce-service recovery; permanently lost callback recovered as RECONCILED (order=$($order.orderNumber))" -ForegroundColor Green
 } finally {
   Restore-Environment
-  docker compose --project-directory $ProjectRoot up -d --wait --force-recreate mock-logistics-service backend web | Out-Null
+  docker compose --project-directory $ProjectRoot up -d --wait --force-recreate logistics-simulator-service commerce-service commerce-portal-angular | Out-Null
   if ($LASTEXITCODE -ne 0) { Write-Warning 'Could not restore default logistics reliability configuration' }
 }

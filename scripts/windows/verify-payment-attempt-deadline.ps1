@@ -60,7 +60,7 @@ try {
   $env:SCHEDULING_DATABASE_INITIAL_DELAY='1s'
   $env:SCHEDULING_DATABASE_FIXED_DELAY='1s'
   $env:SCHEDULING_RECONCILIATION_INITIAL_DELAY='1h'
-  Compose up -d --wait --force-recreate backend web payment-ui
+  Compose up -d --wait --force-recreate commerce-service commerce-portal-angular payment-simulator-web
 
   $admin=New-Session 'admin@example.com'
   $customer=New-Session 'demo@example.com'
@@ -122,5 +122,5 @@ try {
     }catch{Write-Warning "Could not restore PAYMENT_TIMEOUT policy: $($_.Exception.Message)"}
   }
   foreach($name in $environmentNames){[Environment]::SetEnvironmentVariable($name,$originalEnvironment[$name],'Process')}
-  try{Compose up -d --wait --force-recreate backend web payment-ui}catch{Write-Warning $_.Exception.Message}
+  try{Compose up -d --wait --force-recreate commerce-service commerce-portal-angular payment-simulator-web}catch{Write-Warning $_.Exception.Message}
 }

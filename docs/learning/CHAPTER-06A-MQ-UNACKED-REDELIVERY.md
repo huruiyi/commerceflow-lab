@@ -32,14 +32,14 @@ SCHEDULING_MQ_CRASH_LAB_PAUSE=5m
 Windows：
 
 ```powershell
-docker compose build backend
+docker compose build commerce-service
 ./scripts/windows/verify-mq-scheduling-redelivery.ps1 -MaxWaitSeconds 120
 ```
 
 Linux/Bash：
 
 ```bash
-docker compose build backend
+docker compose build commerce-service
 bash ./scripts/linux/verify-mq-scheduling-redelivery.sh http://localhost:14200 120
 ```
 
@@ -47,8 +47,8 @@ bash ./scripts/linux/verify-mq-scheduling-redelivery.sh http://localhost:14200 1
 
 1. 创建带对应策略快照的 `PAYMENT_TIMEOUT` 任务，并等待 Broker 确认发布。
 2. 针对该任务开启故障注入，等待 `TASK_DELIVERY_PAUSED_BEFORE_ACK` 审计事件。
-3. 使用零秒宽限停止 backend，制造消费者进程退出。
-4. 关闭故障注入并重建 backend，等待同一消息由 Broker 重新投递。
+3. 使用零秒宽限停止 commerce-service，制造消费者进程退出。
+4. 关闭故障注入并重建 commerce-service，等待同一消息由 Broker 重新投递。
 5. 断言发布事件数量在崩溃前后不变，且 `TASK_CLAIMED`、`TASK_SUCCEEDED` 和订单取消各只有一次。
 6. 恢复原策略和原环境配置；脚本不清空数据卷。
 
@@ -58,8 +58,8 @@ RabbitMQ 分桶 TTL 可能在精确 `dueAt` 前触发，因此同一任务在真
 
 2026-11-12 Windows Docker 实机结果：
 
-- RabbitMQ 任务 `239`：暂停后终止 backend，恢复后由 `RABBITMQ` 领取并成功，领取/成功各一次。
-- RocketMQ 任务 `240`：暂停后终止 backend，经过 Broker 的 Inflight 超时/重试窗口后由 `ROCKETMQ` 领取并成功，领取/成功各一次。
+- RabbitMQ 任务 `239`：暂停后终止 commerce-service，恢复后由 `RABBITMQ` 领取并成功，领取/成功各一次。
+- RocketMQ 任务 `240`：暂停后终止 commerce-service，经过 Broker 的 Inflight 超时/重试窗口后由 `ROCKETMQ` 领取并成功，领取/成功各一次。
 - 两条订单都只进入一次 `CANCELLED`，任务 `attempts=1`。
 - 容器化 Bash 脚本也已实机通过，对应 RabbitMQ/RocketMQ 任务为 `241/242`，断言与 Windows 版本一致。
 

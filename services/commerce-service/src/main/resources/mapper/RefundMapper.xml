@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.refund.infrastructure.RefundMapper">
+
+  <select id="lockSuccessfulPayment" resultType="vip.fairy.commerceflow.commerce.payment.domain.PaymentView">
+    <![CDATA[
+      SELECT p.*,m.merchant_no FROM payment_records p LEFT JOIN payment_merchant_accounts m ON m.id=p.merchant_account_id WHERE p.order_id=#{orderId} AND p.status='SUCCESS' ORDER BY p.id DESC LIMIT 1 FOR UPDATE
+    ]]>
+  </select>
+
+  <select id="byPayment" resultType="vip.fairy.commerceflow.commerce.refund.domain.RefundView">
+    <![CDATA[
+      SELECT * FROM refund_records WHERE payment_id=#{paymentId}
+    ]]>
+  </select>
+
+  <select id="byKey" resultType="vip.fairy.commerceflow.commerce.refund.domain.RefundView">
+    <![CDATA[
+      SELECT * FROM refund_records WHERE payment_id=#{paymentId} AND idempotency_key=#{key}
+    ]]>
+  </select>
+
+  <select id="byCustomerOrder" resultType="vip.fairy.commerceflow.commerce.refund.domain.RefundView">
+    <![CDATA[
+      SELECT * FROM refund_records WHERE order_id=#{orderId} AND customer_id=#{customerId} ORDER BY id DESC LIMIT 1
+    ]]>
+  </select>
+
+  <select id="byCustomerNumber" resultType="vip.fairy.commerceflow.commerce.refund.domain.RefundView">
+    <![CDATA[
+      SELECT * FROM refund_records WHERE refund_number=#{number} AND customer_id=#{customerId}
+    ]]>
+  </select>
+
+  <select id="pendingReconciliation" resultType="vip.fairy.commerceflow.commerce.refund.domain.RefundView">
+    <![CDATA[
+      SELECT * FROM refund_records WHERE status='PROCESSING' AND requested_at<DATE_SUB(CURRENT_TIMESTAMP,INTERVAL 30 SECOND) ORDER BY id LIMIT 50
+    ]]>
+  </select>
+
+  <select id="byOrder" resultType="vip.fairy.commerceflow.commerce.refund.domain.RefundView">
+    <![CDATA[
+      SELECT * FROM refund_records WHERE order_id=#{orderId} ORDER BY id DESC LIMIT 1
+    ]]>
+  </select>
+
+  <select id="lockByChannelRefundNo" resultType="vip.fairy.commerceflow.commerce.refund.domain.RefundView">
+    <![CDATA[
+      SELECT * FROM refund_records WHERE channel_refund_no=#{channelRefundNo} FOR UPDATE
+    ]]>
+  </select>
+
+  <select id="byOrderNumberForUpdate" resultType="vip.fairy.commerceflow.commerce.refund.domain.RefundView">
+    <![CDATA[
+      SELECT * FROM refund_records WHERE refund_number=#{refundNumber} FOR UPDATE
+    ]]>
+  </select>
+
+  <select id="paymentById" resultType="vip.fairy.commerceflow.commerce.payment.domain.PaymentView">
+    <![CDATA[
+      SELECT p.*,m.merchant_no FROM payment_records p LEFT JOIN payment_merchant_accounts m ON m.id=p.merchant_account_id WHERE p.id=#{paymentId}
+    ]]>
+  </select>
+
+  <insert id="insert">
+    <![CDATA[
+      INSERT INTO refund_records(refund_number,order_id,payment_id,customer_id,idempotency_key,request_fingerprint,amount,currency,reason_code,reason_detail,status,order_status_before_refund) VALUES(#{number},#{orderId},#{paymentId},#{customerId},#{key},#{fingerprint},#{amount},#{currency},#{reasonCode},#{reasonDetail},'PROCESSING',#{previousStatus})
+    ]]>
+  </insert>
+
+  <update id="attachChannel">
+    <![CDATA[
+      UPDATE refund_records SET channel_refund_no=#{channelRefundNo},updated_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=#{id} AND status='PROCESSING' AND channel_refund_no IS NULL
+    ]]>
+  </update>
+
+  <update id="succeed">
+    <![CDATA[
+      UPDATE refund_records SET status='SUCCEEDED',channel_refund_no=#{channelRefundNo},failure_reason='',succeeded_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=#{id} AND status='PROCESSING'
+    ]]>
+  </update>
+
+  <update id="fail">
+    <![CDATA[
+      UPDATE refund_records SET status='FAILED',channel_refund_no=#{channelRefundNo},failure_reason=#{reason},failed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=#{id} AND status='PROCESSING'
+    ]]>
+  </update>
+
+  <update id="addRefundedAmount">
+    <![CDATA[
+      UPDATE payment_records SET refunded_amount=refunded_amount+#{amount},updated_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=#{paymentId} AND status='SUCCESS' AND refunded_amount+#{amount}<=amount
+    ]]>
+  </update>
+
+  <insert id="insertEvent">
+    <![CDATA[
+      INSERT INTO refund_events(refund_id,event_id,event_type,from_status,to_status,detail) VALUES(#{refundId},#{eventId},#{type},#{fromStatus},#{toStatus},#{detail})
+    ]]>
+  </insert>
+
+  <select id="events" resultType="vip.fairy.commerceflow.commerce.refund.domain.RefundEventView">
+    <![CDATA[
+      SELECT id,event_type,from_status,to_status,detail,created_at FROM refund_events WHERE refund_id=#{refundId} ORDER BY created_at,id
+    ]]>
+  </select>
+
+  <insert id="insertNotification">
+    <![CDATA[
+      INSERT INTO refund_notifications(refund_id,channel,notification_id,channel_refund_no,signature_valid,processing_status,payload_digest,failure_reason,processed_at) VALUES(#{refundId},#{channel},#{notificationId},#{channelRefundNo},TRUE,#{processingStatus},#{digest},#{reason},CURRENT_TIMESTAMP)
+    ]]>
+  </insert>
+</mapper>

@@ -57,7 +57,7 @@ cleanup() {
     else unset "$name"
     fi
   done
-  compose up -d --wait --force-recreate backend web >/dev/null
+  compose up -d --wait --force-recreate commerce-service commerce-portal-angular >/dev/null
   rm -rf -- "$tmp"
   exit "$status"
 }
@@ -112,7 +112,7 @@ run_case() {
   task_id="$(jq -r .id <<<"$task")"
 
   export SCHEDULING_MQ_CRASH_LAB_ENABLED=true SCHEDULING_MQ_CRASH_LAB_TASK_ID="$task_id"
-  compose up -d --wait --force-recreate backend web >/dev/null
+  compose up -d --wait --force-recreate commerce-service commerce-portal-angular >/dev/null
   login admin@example.com "$tmp/admin.cookie" "$tmp/admin.header"
   login demo@example.com "$tmp/customer.cookie" "$tmp/customer.header"
   wait_for_pause_event "$task_id" "$strategy"
@@ -120,12 +120,12 @@ run_case() {
   published_before_crash="$(jq '[.[] | select(.eventType=="TASK_TRIGGER_PUBLISHED")] | length' <<<"$events")"
   (( published_before_crash >= 1 )) || { echo "$strategy has no broker publish acknowledgement" >&2; return 1; }
 
-  compose stop -t 0 backend >/dev/null
+  compose stop -t 0 commerce-service >/dev/null
   export SCHEDULING_MQ_CRASH_LAB_ENABLED=false
-  compose up -d --wait --force-recreate backend web >/dev/null
+  compose up -d --wait --force-recreate commerce-service commerce-portal-angular >/dev/null
   login admin@example.com "$tmp/admin.cookie" "$tmp/admin.header"
   login demo@example.com "$tmp/customer.cookie" "$tmp/customer.header"
-  completed="$(wait_for_task_field "$order_id" '.status=="SUCCEEDED"' "$strategy did not redeliver and complete the task after backend restart")"
+  completed="$(wait_for_task_field "$order_id" '.status=="SUCCEEDED"' "$strategy did not redeliver and complete the task after commerce-service restart")"
   current="$(curl -fsS -b "$tmp/customer.cookie" "$BASE_URL/api/purchase-orders/$order_id")"
   events="$(curl -fsS -b "$tmp/admin.cookie" "$BASE_URL/api/admin/scheduling/tasks/$task_id/events")"
   for event_type in TASK_DELIVERY_PAUSED_BEFORE_ACK TASK_CLAIMED TASK_SUCCEEDED; do
@@ -144,8 +144,8 @@ run_case() {
 export ORDER_PAYMENT_TIMEOUT=20s SCHEDULING_RABBITMQ_ENABLED=true SCHEDULING_ROCKETMQ_ENABLED=true
 export SCHEDULING_MQ_CRASH_LAB_ENABLED=false SCHEDULING_MQ_CRASH_LAB_PAUSE=5m
 export SCHEDULING_DATABASE_INITIAL_DELAY=1h SCHEDULING_RECONCILIATION_INITIAL_DELAY=1h
-compose up -d --wait rabbitmq rocketmq-init >/dev/null
-compose up -d --wait --force-recreate backend web >/dev/null
+compose up -d --wait rabbitmq-broker rocketmq-topic-init >/dev/null
+compose up -d --wait --force-recreate commerce-service commerce-portal-angular >/dev/null
 login admin@example.com "$tmp/admin.cookie" "$tmp/admin.header"
 login demo@example.com "$tmp/customer.cookie" "$tmp/customer.header"
 ensure_address
@@ -155,4 +155,4 @@ curl -fsS -b "$tmp/admin.cookie" "$BASE_URL/api/admin/scheduling/policies" |
 
 rabbit="$(run_case RABBITMQ)"
 rocket="$(run_case ROCKETMQ)"
-echo "MQ unacked redelivery verification passed: RabbitMQ and RocketMQ redelivered after backend termination; each task was published, claimed and completed exactly once (tasks $(jq -r .task.id <<<"$rabbit")/$(jq -r .task.id <<<"$rocket"))."
+echo "MQ unacked redelivery verification passed: RabbitMQ and RocketMQ redelivered after commerce-service termination; each task was published, claimed and completed exactly once (tasks $(jq -r .task.id <<<"$rabbit")/$(jq -r .task.id <<<"$rocket"))."

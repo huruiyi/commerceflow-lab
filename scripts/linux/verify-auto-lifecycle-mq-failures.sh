@@ -22,7 +22,7 @@ for name in "${env_names[@]}"; do
 done
 
 sql() {
-  compose exec -T mysql mysql -ucommerceflow -pcommerceflow-password --batch --skip-column-names commerceflow -e "$1" 2>/dev/null | tail -n1 | tr -d '\r'
+  compose exec -T commerce-db mysql -ucommerceflow -pcommerceflow-password --batch --skip-column-names commerceflow -e "$1" 2>/dev/null | tail -n1 | tr -d '\r'
 }
 
 wait_sql_nonempty() {
@@ -64,7 +64,7 @@ restore_policy() {
 
 broker() {
   local trigger="$1" action="$2" profile service
-  if [[ "$trigger" == RABBITMQ ]]; then profile=rabbitmq; service=rabbitmq; else profile=rocketmq; service=rocketmq-broker; fi
+  if [[ "$trigger" == RABBITMQ ]]; then profile=rabbitmq; service=rabbitmq-broker; else profile=rocketmq; service=rocketmq-broker; fi
   if [[ "$action" == stop ]]; then compose --profile "$profile" stop "$service"; else compose --profile "$profile" up -d --wait "$service"; fi
 }
 
@@ -108,19 +108,19 @@ cleanup() {
   for name in "${env_names[@]}"; do
     if [[ "${saved_present[$name]}" == true ]]; then printf -v "$name" '%s' "${saved_values[$name]}"; export "$name"; else unset "$name"; fi
   done
-  compose --profile rabbitmq --profile rocketmq up -d --wait rabbitmq rocketmq-broker >/dev/null
-  compose up -d --no-deps --force-recreate backend web >/dev/null
+  compose --profile rabbitmq --profile rocketmq up -d --wait rabbitmq-broker rocketmq-broker >/dev/null
+  compose up -d --no-deps --force-recreate commerce-service commerce-portal-angular >/dev/null
   rm -rf -- "$temp_dir"
   exit "$status"
 }
 trap cleanup EXIT
 
-compose --profile rabbitmq --profile rocketmq up -d --wait rabbitmq rocketmq-broker
+compose --profile rabbitmq --profile rocketmq up -d --wait rabbitmq-broker rocketmq-broker
 export SCHEDULING_RABBITMQ_ENABLED=true
 export SCHEDULING_ROCKETMQ_ENABLED=true
 export SCHEDULING_RABBITMQ_PUBLISH_FIXED_DELAY=1s
 export SCHEDULING_ROCKETMQ_PUBLISH_FIXED_DELAY=1s
-compose --profile rabbitmq --profile rocketmq up -d --no-deps --force-recreate backend web
+compose --profile rabbitmq --profile rocketmq up -d --no-deps --force-recreate commerce-service commerce-portal-angular
 
 deadline=$((SECONDS + 60))
 until curl -fsS "$BASE_URL/api/products" >/dev/null; do

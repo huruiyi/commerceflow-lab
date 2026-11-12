@@ -23,7 +23,7 @@ $env:LOGISTICS_AUTO_PROGRESS_SCAN_INTERVAL='1s'
 $env:LOGISTICS_AUTO_PROGRESS_STEP_INTERVAL='1s'
 $env:LOGISTICS_AUTO_PROGRESS_BATCH_SIZE='100'
 try{
-  docker compose --project-directory $ProjectRoot up -d --force-recreate --wait mock-logistics-service|Out-Null
+  docker compose --project-directory $ProjectRoot up -d --force-recreate --wait logistics-simulator-service|Out-Null
   if($LASTEXITCODE-ne0){throw 'Could not enable automatic logistics progression'}
   & "$PSScriptRoot/verify-merchant-fulfillment.ps1" -BaseUrl $BaseUrl
   if(-not$?){throw 'Could not create shipment for automatic progression'}
@@ -39,11 +39,11 @@ try{
   if(@($delivered.logistics.events).Count-ne6-or@($delivered.logistics.events|Where-Object{$_.eventType-ne'PROGRESS'}).Count-ne0){throw 'Automatic logistics timeline is incomplete'}
   $dbUser=if($env:DATABASE_USERNAME){$env:DATABASE_USERNAME}else{'commerceflow'}
   $dbPassword=if($env:DATABASE_PASSWORD){$env:DATABASE_PASSWORD}else{'commerceflow-password'}
-  $taskStatus=docker compose --project-directory $ProjectRoot exec -T mysql mysql --batch --skip-column-names "-u$dbUser" "-p$dbPassword" commerceflow -e "SELECT status FROM scheduled_tasks WHERE task_type='AUTO_RECEIVE' AND task_key='order:$($candidate.id)'"
+  $taskStatus=docker compose --project-directory $ProjectRoot exec -T commerce-db mysql --batch --skip-column-names "-u$dbUser" "-p$dbPassword" commerceflow -e "SELECT status FROM scheduled_tasks WHERE task_type='AUTO_RECEIVE' AND task_key='order:$($candidate.id)'"
   if($LASTEXITCODE-ne0-or(($taskStatus|Select-Object -Last 1)-as[string]).Trim()-ne'SCHEDULED'){throw 'Automatic DELIVERED callback did not schedule AUTO_RECEIVE'}
   Write-Host "Automatic logistics verification passed: configuration-driven CREATED -> DELIVERED and AUTO_RECEIVE scheduling (order=$($candidate.orderNumber))" -ForegroundColor Green
 }finally{
   Restore-AutomationEnvironment
-  docker compose --project-directory $ProjectRoot up -d --force-recreate --wait mock-logistics-service|Out-Null
+  docker compose --project-directory $ProjectRoot up -d --force-recreate --wait logistics-simulator-service|Out-Null
   if($LASTEXITCODE-ne0){Write-Warning 'Could not restore mock logistics service with default automation configuration'}
 }

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.review.infrastructure.ReviewMapper">
+
+  <select id="reviewable" resultType="vip.fairy.commerceflow.commerce.review.domain.ReviewableItem">
+    <![CDATA[
+      SELECT i.id order_item_id,i.product_id FROM order_items i JOIN shop_orders o ON o.id=i.order_id WHERE i.id=#{itemId} AND o.customer_id=#{customerId} AND o.status IN ('RECEIVED','COMPLETED')
+    ]]>
+  </select>
+
+  <insert id="insert">
+    <![CDATA[
+      INSERT INTO product_reviews(order_item_id,product_id,customer_id,rating,comment) VALUES(#{itemId},#{productId},#{customerId},#{rating},#{comment})
+    ]]>
+  </insert>
+
+  <select id="byItem" resultType="vip.fairy.commerceflow.commerce.review.domain.ProductReviewView">
+    <![CDATA[
+      SELECT r.*,CONCAT(u.first_name,' ',u.last_name) reviewer_name FROM product_reviews r JOIN app_users u ON u.id=r.customer_id WHERE r.order_item_id=#{itemId}
+    ]]>
+  </select>
+
+  <select id="reviews" resultType="vip.fairy.commerceflow.commerce.review.domain.ProductReviewView">
+    <![CDATA[
+      SELECT r.*,CONCAT(u.first_name,' ',u.last_name) reviewer_name FROM product_reviews r JOIN app_users u ON u.id=r.customer_id WHERE r.product_id=#{productId} ORDER BY r.created_at DESC
+    ]]>
+  </select>
+
+  <select id="average" resultType="java.math.BigDecimal">
+    <![CDATA[
+      SELECT COALESCE(AVG(rating),0) FROM product_reviews WHERE product_id=#{productId}
+    ]]>
+  </select>
+
+  <select id="count" resultType="java.lang.Integer">
+    <![CDATA[
+      SELECT COUNT(*) FROM product_reviews WHERE product_id=#{productId}
+    ]]>
+  </select>
+</mapper>

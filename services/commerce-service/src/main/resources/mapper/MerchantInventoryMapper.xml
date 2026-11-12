@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.inventory.infrastructure.MerchantInventoryMapper">
+
+  <select id="list" resultType="vip.fairy.commerceflow.commerce.inventory.domain.MerchantInventoryItem">
+    <![CDATA[
+      SELECT p.id AS product_id,p.name AS product_name,p.thumbnail_url,p.price,
+      p.stock_available,p.stock_reserved,p.stock_sold
+    FROM products p WHERE p.merchant_id=#{merchantId} ORDER BY p.id
+    ]]>
+  </select>
+
+  <select id="find" resultType="vip.fairy.commerceflow.commerce.inventory.domain.MerchantInventoryItem">
+    <![CDATA[
+      SELECT p.id AS product_id,p.name AS product_name,p.thumbnail_url,p.price,
+      p.stock_available,p.stock_reserved,p.stock_sold
+    FROM products p WHERE p.id=#{productId} AND p.merchant_id=#{merchantId}
+    ]]>
+  </select>
+
+  <update id="adjust">
+    <![CDATA[
+      UPDATE products SET stock_available=stock_available+#{delta}
+    WHERE id=#{productId} AND merchant_id=#{merchantId} AND stock_available+#{delta}>=0
+    ]]>
+  </update>
+
+  <select id="movements" resultType="vip.fairy.commerceflow.commerce.inventory.domain.InventoryMovementView">
+    <![CDATA[
+      SELECT m.id,m.order_id,m.product_id,m.movement_type,m.quantity,m.available_after,
+      m.reserved_after,m.sold_after,m.detail,m.created_at
+    FROM inventory_movements m JOIN products p ON p.id=m.product_id
+    WHERE m.product_id=#{productId} AND p.merchant_id=#{merchantId}
+    ORDER BY m.created_at DESC,m.id DESC LIMIT 100
+    ]]>
+  </select>
+</mapper>

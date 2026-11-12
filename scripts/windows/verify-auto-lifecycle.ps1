@@ -6,7 +6,7 @@ $dbUser=if($env:DATABASE_USERNAME){$env:DATABASE_USERNAME}else{'commerceflow'}
 $dbPassword=if($env:DATABASE_PASSWORD){$env:DATABASE_PASSWORD}else{'commerceflow-password'}
 
 function Invoke-DbScalar([string]$Sql){
-  $value=docker compose --project-directory $ProjectRoot exec -T mysql mysql --batch --skip-column-names "-u$dbUser" "-p$dbPassword" commerceflow -e $Sql
+  $value=docker compose --project-directory $ProjectRoot exec -T commerce-db mysql --batch --skip-column-names "-u$dbUser" "-p$dbPassword" commerceflow -e $Sql
   if($LASTEXITCODE-ne0){throw 'Database verification command failed'}
   return (($value|Select-Object -Last 1)-as[string]).Trim()
 }
@@ -60,15 +60,15 @@ $review=Invoke-RestMethod "$BaseUrl/api/order-items/$($item.id)/reviews" -Method
 if($review.rating-ne5){throw 'COMPLETED order could not be reviewed'}
 
 # Simulate the narrow crash window after the handler committed COMPLETED but before the worker
-# acknowledged AUTO_COMPLETE. The restarted backend must recover the expired lease, replay the
+# acknowledged AUTO_COMPLETE. The restarted commerce-service must recover the expired lease, replay the
 # idempotent handler, and finish the task without a second order transition event.
 $completeTaskId=[long](Invoke-DbScalar "SELECT id FROM scheduled_tasks WHERE task_type='AUTO_COMPLETE' AND task_key='order:$($automatic.id)'")
-docker compose --project-directory $ProjectRoot stop backend|Out-Null
-if($LASTEXITCODE-ne0){throw 'Could not stop backend for lease recovery verification'}
+docker compose --project-directory $ProjectRoot stop commerce-service|Out-Null
+if($LASTEXITCODE-ne0){throw 'Could not stop commerce-service for lease recovery verification'}
 try{
   Invoke-DbScalar "UPDATE scheduled_tasks SET status='PROCESSING',completed_at=NULL,due_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 2 SECOND),lease_until=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND),claimed_by='simulated-crashed-worker',last_error=NULL WHERE id=$completeTaskId"|Out-Null
 }finally{
-  docker compose --project-directory $ProjectRoot up -d --wait backend|Out-Null
+  docker compose --project-directory $ProjectRoot up -d --wait commerce-service|Out-Null
   if($LASTEXITCODE-ne0){throw 'Backend did not restart after lease recovery setup'}
 }
 Wait-TaskStatus $completeTaskId 'SUCCEEDED' 90
@@ -76,4 +76,4 @@ $leaseEvents=[int](Invoke-DbScalar "SELECT COUNT(*) FROM scheduled_task_events W
 $completionEvents=[int](Invoke-DbScalar "SELECT COUNT(*) FROM order_events WHERE order_id=$($automatic.id) AND event_type='ORDER_AUTO_COMPLETED'")
 if($leaseEvents-lt1-or$completionEvents-ne1){throw "Crash recovery was not idempotent (leaseEvents=$leaseEvents, completionEvents=$completionEvents)"}
 
-Write-Host "Automatic lifecycle verification passed: manual receipt cancels AUTO_RECEIVE; DELIVERED -> AUTO_RECEIVE -> RECEIVED -> AUTO_COMPLETE -> COMPLETED; expired lease recovered after backend restart without duplicate completion; payment/logistics/review remain available (order=$($completed.orderNumber))" -ForegroundColor Green
+Write-Host "Automatic lifecycle verification passed: manual receipt cancels AUTO_RECEIVE; DELIVERED -> AUTO_RECEIVE -> RECEIVED -> AUTO_COMPLETE -> COMPLETED; expired lease recovered after commerce-service restart without duplicate completion; payment/logistics/review remain available (order=$($completed.orderNumber))" -ForegroundColor Green

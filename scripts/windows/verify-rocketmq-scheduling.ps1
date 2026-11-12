@@ -59,7 +59,7 @@ try {
   if ($order.status -ne 'PENDING_PAYMENT') { throw 'Checkout did not create a pending-payment order' }
   $secondsUntilDue = ([datetimeoffset]$order.paymentDueAt - [datetimeoffset]::UtcNow).TotalSeconds
   if ($secondsUntilDue -gt $MaxWaitSeconds) {
-    throw "Payment deadline is too far away ($([math]::Round($secondsUntilDue))s); start backend with ORDER_PAYMENT_TIMEOUT shorter than MaxWaitSeconds"
+    throw "Payment deadline is too far away ($([math]::Round($secondsUntilDue))s); start commerce-service with ORDER_PAYMENT_TIMEOUT shorter than MaxWaitSeconds"
   }
 
   $deadline = [datetimeoffset]::UtcNow.AddSeconds($MaxWaitSeconds)

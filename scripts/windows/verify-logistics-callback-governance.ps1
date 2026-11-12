@@ -72,7 +72,7 @@ function Wait-Projection([long]$OrderId, [string]$Status, $Session, [int]$Second
 function Logistics-Sql([string]$Sql) {
   $user = if ($env:LOGISTICS_DATABASE_USERNAME) { $env:LOGISTICS_DATABASE_USERNAME } else { 'logistics' }
   $password = if ($env:LOGISTICS_DATABASE_PASSWORD) { $env:LOGISTICS_DATABASE_PASSWORD } else { 'logistics-password' }
-  $result = docker compose --project-directory $ProjectRoot exec -T logistics-mysql mysql --batch --skip-column-names "-u$user" "-p$password" logistics_platform -e $Sql
+  $result = docker compose --project-directory $ProjectRoot exec -T logistics-simulator-db commerce-db --batch --skip-column-names "-u$user" "-p$password" logistics_platform -e $Sql
   if ($LASTEXITCODE -ne 0) { throw 'Logistics database query failed' }
   return (($result | Select-Object -Last 1) -as [string]).Trim()
 }
@@ -80,7 +80,7 @@ function Logistics-Sql([string]$Sql) {
 function Storefront-Sql([string]$Sql) {
   $user = if ($env:DATABASE_USERNAME) { $env:DATABASE_USERNAME } else { 'commerceflow' }
   $password = if ($env:DATABASE_PASSWORD) { $env:DATABASE_PASSWORD } else { 'commerceflow-password' }
-  $result = docker compose --project-directory $ProjectRoot exec -T mysql mysql --batch --skip-column-names "-u$user" "-p$password" commerceflow -e $Sql
+  $result = docker compose --project-directory $ProjectRoot exec -T commerce-db mysql --batch --skip-column-names "-u$user" "-p$password" commerceflow -e $Sql
   if ($LASTEXITCODE -ne 0) { throw 'Storefront database query failed' }
   return (($result | Select-Object -Last 1) -as [string]).Trim()
 }
@@ -92,7 +92,7 @@ try {
   $env:LOGISTICS_CALLBACK_DELIVERY_RETRY_DELAY = '1s'
   $env:LOGISTICS_CALLBACK_DELIVERY_MAX_ATTEMPTS = '1'
   $env:LOGISTICS_RECONCILIATION_ENABLED = 'false'
-  docker compose --project-directory $ProjectRoot up -d --wait --force-recreate mock-logistics-service backend web | Out-Null
+  docker compose --project-directory $ProjectRoot up -d --wait --force-recreate logistics-simulator-service commerce-service commerce-portal-angular | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'Could not start callback governance experiment' }
 
   & "$PSScriptRoot/verify-merchant-fulfillment.ps1" -BaseUrl $BaseUrl
@@ -103,8 +103,8 @@ try {
   if (-not $order) { throw 'Created shipment is not visible' }
   $merchantNo = $order.logistics.merchantShipmentNo
 
-  docker compose --project-directory $ProjectRoot stop backend | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw 'Could not stop backend for DEAD callback experiment' }
+  docker compose --project-directory $ProjectRoot stop commerce-service | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw 'Could not stop commerce-service for DEAD callback experiment' }
   $advanced = Invoke-RestMethod "$LogisticsUrl/api/channel/shipments/$merchantNo/advance" -Method Post -Headers (New-SignedHeaders)
   $eventId = $advanced.events[-1].eventId
   $deadline = (Get-Date).AddSeconds(15)
@@ -115,8 +115,8 @@ try {
   if ($deadState -notmatch '^(\d+):DEAD:1$') { throw "Callback did not enter DEAD: $deadState" }
   $outboxId = [long]$Matches[1]
 
-  docker compose --project-directory $ProjectRoot up -d --wait backend web | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw 'Could not restart backend' }
+  docker compose --project-directory $ProjectRoot up -d --wait commerce-service commerce-portal-angular | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw 'Could not restart commerce-service' }
   $customer = New-AuthenticatedSession 'demo@example.com'
   $admin = New-AuthenticatedSession 'admin@example.com'
   $customerStatus = Invoke-Status "$BaseUrl/api/admin/logistics-callbacks?status=DEAD" -Session $customer.Session
@@ -160,6 +160,6 @@ try {
   Write-Host "Logistics callback governance verification passed: DEAD (stopped retry) -> administrator replay -> PUBLISHED (published), with RBAC, audit, idempotency and metrics (order=$($order.orderNumber))" -ForegroundColor Green
 } finally {
   Restore-Environment
-  docker compose --project-directory $ProjectRoot up -d --wait --force-recreate mock-logistics-service backend web | Out-Null
+  docker compose --project-directory $ProjectRoot up -d --wait --force-recreate logistics-simulator-service commerce-service commerce-portal-angular | Out-Null
   if ($LASTEXITCODE -ne 0) { Write-Warning 'Could not restore default callback delivery configuration' }
 }

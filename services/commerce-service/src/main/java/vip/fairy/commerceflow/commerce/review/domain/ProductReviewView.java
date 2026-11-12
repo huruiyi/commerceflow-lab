@@ -1,0 +1,37 @@
+package vip.fairy.commerceflow.commerce.review.domain;
+
+import java.time.Instant;
+
+public class ProductReviewView {
+  private Long id;
+  private Long productId;
+  private Long customerId;
+  private int rating;
+  private String comment;
+  private Instant createdAt;
+  private String reviewerName;
+
+  public Long getId() {
+    return id;
+  }
+
+  public Long getProductId() {
+    return productId;
+  }
+
+  public int getRating() {
+    return rating;
+  }
+
+  public String getComment() {
+    return comment;
+  }
+
+  public Instant getCreatedAt() {
+    return createdAt;
+  }
+
+  public String getReviewerName() {
+    return reviewerName;
+  }
+}

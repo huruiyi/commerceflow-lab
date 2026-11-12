@@ -86,7 +86,7 @@ function Get-Totp([string]$Secret) {
 
 $admin = New-AuthenticatedSession
 $suffix = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-$merchantBody = @{ displayName = "05A-3 Security Merchant $suffix"; notifyUrl = 'http://backend:8080/api/payment/notifications'; signingAlgorithm = 'HMAC_SHA256'; merchantPublicKey = '' } | ConvertTo-Json -Compress
+$merchantBody = @{ displayName = "05A-3 Security Merchant $suffix"; notifyUrl = 'http://commerce-service:8080/api/payment/notifications'; signingAlgorithm = 'HMAC_SHA256'; merchantPublicKey = '' } | ConvertTo-Json -Compress
 $issued = Invoke-RestMethod "$BaseUrl/api/admin/merchants" -Method Post -WebSession $admin.Session `
   -Headers $admin.Headers -ContentType 'application/json' -Body $merchantBody
 Assert-Equal 'HMAC_SHA256' $issued.merchant.signingAlgorithm 'Merchant signing algorithm'
@@ -105,7 +105,7 @@ Assert-Equal 'GATEWAY' $created[2].actionType 'UnionPay action'
 
 $rsa = [Security.Cryptography.RSA]::Create(2048)
 try {
-  $rsaMerchantBody = @{ displayName = "05A-3 RSA Merchant $suffix"; notifyUrl = 'http://backend:8080/api/payment/notifications'; signingAlgorithm = 'RSA_SHA256'; merchantPublicKey = $rsa.ExportSubjectPublicKeyInfoPem() } | ConvertTo-Json -Compress
+  $rsaMerchantBody = @{ displayName = "05A-3 RSA Merchant $suffix"; notifyUrl = 'http://commerce-service:8080/api/payment/notifications'; signingAlgorithm = 'RSA_SHA256'; merchantPublicKey = $rsa.ExportSubjectPublicKeyInfoPem() } | ConvertTo-Json -Compress
   $rsaIssued = Invoke-RestMethod "$BaseUrl/api/admin/merchants" -Method Post -WebSession $admin.Session `
     -Headers $admin.Headers -ContentType 'application/json' -Body $rsaMerchantBody
   $rsaBody = @{ merchantRequestNo = "SECURE-RSA-$suffix"; channel = 'UNION_PAY'; subject = '05A-3 RSA verification'; amount = 23.45; currency = 'CNY'; faultScenario = 'NONE' } | ConvertTo-Json -Compress

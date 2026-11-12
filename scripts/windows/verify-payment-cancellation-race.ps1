@@ -167,7 +167,7 @@ if ($AuditDockerDatabase) {
   $databasePassword = if ($env:DATABASE_PASSWORD) { $env:DATABASE_PASSWORD } else { 'commerceflow-password' }
   $ids = $orderIds -join ','
   $query = "SELECT COUNT(DISTINCT o.id),COUNT(p.id),SUM(CASE WHEN (o.status='CANCELLED' AND p.status='CLOSED') OR (o.status IN ('PAID','REFUNDING','REFUNDED') AND p.status='SUCCESS') THEN 0 ELSE 1 END) FROM shop_orders o LEFT JOIN payment_records p ON p.order_id=o.id WHERE o.id IN ($ids);"
-  $audit = & docker compose --project-directory $projectRoot exec -T mysql mysql -N `
+  $audit = & docker compose --project-directory $projectRoot exec -T commerce-db mysql -N `
     "-u$databaseUser" "-p$databasePassword" commerceflow -e $query
   if ($LASTEXITCODE -ne 0) { throw 'Docker MySQL consistency audit failed to execute' }
   $values = (($audit | Select-Object -Last 1) -split '\s+')

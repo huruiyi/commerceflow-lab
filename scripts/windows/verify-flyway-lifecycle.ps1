@@ -1,7 +1,7 @@
 param([int]$MaxWaitSeconds = 90)
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$MigrationDir = Join-Path $ProjectRoot 'backend\src\main\resources\db\migration'
+$MigrationDir = Join-Path $ProjectRoot 'commerce-service\src\main\resources\db\migration'
 $suffix = [guid]::NewGuid().ToString('N').Substring(0, 10)
 $network = "commerceflow-flyway-$suffix"
 $emptyDb = "commerceflow-flyway-empty-$suffix"
@@ -26,7 +26,7 @@ function Wait-MySql([string]$Container) {
 
 function Start-MySql([string]$Container) {
   Invoke-Docker run -d --name $Container --network $network `
-    --tmpfs /var/lib/mysql `
+    --tmpfs /var/lib/commerce-db `
     -e "MYSQL_ROOT_PASSWORD=$password" -e MYSQL_DATABASE=commerceflow `
     --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -p$password --silent" `
     --health-interval 1s --health-timeout 3s --health-retries 60 mysql:8.4 | Out-Null
@@ -43,7 +43,7 @@ function Migrate([string]$Container, [string]$Target = '') {
 }
 
 function Sql([string]$Container, [string]$Query) {
-  $value = & docker exec $Container mysql -N -uroot "-p$password" commerceflow -e $Query
+  $value = & docker exec $Container commerce-db -N -uroot "-p$password" commerceflow -e $Query
   if ($LASTEXITCODE -ne 0) { throw "SQL failed on $Container" }
   return ($value | Out-String).Trim()
 }
@@ -74,7 +74,7 @@ try {
     throw 'Legacy upgrade is missing current lifecycle tables'
   }
 
-  & docker exec $upgradeDb mysql -N -uroot "-p$password" commerceflow -e "INSERT INTO scheduled_tasks(task_key,task_type,aggregate_type,aggregate_id,payload_json,status,due_at,primary_trigger_snapshot,reconciliation_enabled_snapshot,grace_period_seconds_snapshot,claim_lease_seconds_snapshot,max_attempts,retry_delay_seconds_snapshot,policy_version_snapshot) VALUES('invalid-status','PAYMENT_TIMEOUT','ORDER','1','{}','CORRUPTED',CURRENT_TIMESTAMP,'DATABASE',FALSE,0,30,3,1,1);" 2>$null
+  & docker exec $upgradeDb commerce-db -N -uroot "-p$password" commerceflow -e "INSERT INTO scheduled_tasks(task_key,task_type,aggregate_type,aggregate_id,payload_json,status,due_at,primary_trigger_snapshot,reconciliation_enabled_snapshot,grace_period_seconds_snapshot,claim_lease_seconds_snapshot,max_attempts,retry_delay_seconds_snapshot,policy_version_snapshot) VALUES('invalid-status','PAYMENT_TIMEOUT','ORDER','1','{}','CORRUPTED',CURRENT_TIMESTAMP,'DATABASE',FALSE,0,30,3,1,1);" 2>$null
   if ($LASTEXITCODE -eq 0) { throw 'Database accepted an illegal scheduled-task status' }
 
   Write-Host "Flyway lifecycle verification passed: empty V1-V23, legacy V1-V16 -> V23 with deadline backfill, and illegal status rejected." -ForegroundColor Green

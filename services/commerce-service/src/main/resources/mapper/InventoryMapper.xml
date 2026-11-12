@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.inventory.infrastructure.InventoryMapper">
+
+  <update id="reserve">
+    <![CDATA[
+      UPDATE products
+    SET stock_available=stock_available-#{quantity},stock_reserved=stock_reserved+#{quantity}
+    WHERE id=#{productId} AND stock_available>=#{quantity}
+    ]]>
+  </update>
+
+  <insert id="insertReservation">
+    <![CDATA[
+      INSERT INTO inventory_reservations(order_id,product_id,quantity,status)
+    VALUES(#{orderId},#{productId},#{quantity},'RESERVED')
+    ]]>
+  </insert>
+
+  <select id="lockByOrder" resultType="vip.fairy.commerceflow.commerce.inventory.domain.InventoryReservation">
+    <![CDATA[
+      SELECT * FROM inventory_reservations WHERE order_id=#{orderId} ORDER BY id FOR UPDATE
+    ]]>
+  </select>
+
+  <update id="commitReserved">
+    <![CDATA[
+      UPDATE products
+    SET stock_reserved=stock_reserved-#{quantity},stock_sold=stock_sold+#{quantity}
+    WHERE id=#{productId} AND stock_reserved>=#{quantity}
+    ]]>
+  </update>
+
+  <update id="commitReleased">
+    <![CDATA[
+      UPDATE products
+    SET stock_available=stock_available-#{quantity},stock_sold=stock_sold+#{quantity}
+    WHERE id=#{productId} AND stock_available>=#{quantity}
+    ]]>
+  </update>
+
+  <update id="release">
+    <![CDATA[
+      UPDATE products
+    SET stock_available=stock_available+#{quantity},stock_reserved=stock_reserved-#{quantity}
+    WHERE id=#{productId} AND stock_reserved>=#{quantity}
+    ]]>
+  </update>
+
+  <update id="refund">
+    <![CDATA[
+      UPDATE products
+    SET stock_available=stock_available+#{quantity},stock_sold=stock_sold-#{quantity}
+    WHERE id=#{productId} AND stock_sold>=#{quantity}
+    ]]>
+  </update>
+
+  <update id="markCommitted">
+    <![CDATA[
+      UPDATE inventory_reservations
+    SET status='COMMITTED',committed_at=CURRENT_TIMESTAMP,
+      released_at=CASE WHEN #{fromStatus}='RELEASED' THEN NULL ELSE released_at END,
+      version=version+1
+    WHERE id=#{id} AND status=#{fromStatus}
+    ]]>
+  </update>
+
+  <update id="markReleased">
+    <![CDATA[
+      UPDATE inventory_reservations
+    SET status='RELEASED',released_at=CURRENT_TIMESTAMP,version=version+1
+    WHERE id=#{id} AND status='RESERVED'
+    ]]>
+  </update>
+
+  <update id="markRefunded">
+    <![CDATA[
+      UPDATE inventory_reservations
+    SET status='REFUNDED',version=version+1
+    WHERE id=#{id} AND status='COMMITTED'
+    ]]>
+  </update>
+
+  <select id="inventory" resultType="vip.fairy.commerceflow.commerce.inventory.domain.ProductInventory">
+    <![CDATA[
+      SELECT id,stock_available,stock_reserved,stock_sold FROM products WHERE id=#{productId}
+    ]]>
+  </select>
+
+  <insert id="insertMovement">
+    <![CDATA[
+      INSERT INTO inventory_movements(event_id,order_id,product_id,movement_type,quantity,
+      available_after,reserved_after,sold_after,detail)
+    VALUES(#{eventId},#{orderId},#{productId},#{movementType},#{quantity},
+      #{inventory.stockAvailable},#{inventory.stockReserved},#{inventory.stockSold},#{detail})
+    ]]>
+  </insert>
+
+  <select id="customerId" resultType="java.lang.Long">
+    <![CDATA[
+      SELECT customer_id FROM shop_orders WHERE id=#{orderId}
+    ]]>
+  </select>
+
+  <insert id="insertNotification">
+    <![CDATA[
+      INSERT INTO customer_notifications(event_id,customer_id,order_id,notification_type,title,message)
+    VALUES(#{eventId},#{customerId},#{orderId},#{type},#{title},#{message})
+    ]]>
+  </insert>
+</mapper>

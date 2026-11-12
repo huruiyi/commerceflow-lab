@@ -23,7 +23,7 @@ restore_environment() {
   for name in "${names[@]}"; do
     if [[ "${was_set[$name]}" == 1 ]]; then export "$name=${previous[$name]}"; else unset "$name"; fi
   done
-  docker compose --project-directory "$PROJECT_ROOT" up -d --wait --force-recreate mock-logistics-service backend web >/dev/null || true
+  docker compose --project-directory "$PROJECT_ROOT" up -d --wait --force-recreate logistics-simulator-service commerce-service commerce-portal-angular >/dev/null || true
   restored=true
 }
 trap 'restore_environment; rm -rf -- "$temp_dir"' EXIT
@@ -48,19 +48,19 @@ wait_projection() {
 }
 
 logistics_sql() {
-  docker compose --project-directory "$PROJECT_ROOT" exec -T logistics-mysql mysql --batch --skip-column-names \
+  docker compose --project-directory "$PROJECT_ROOT" exec -T logistics-simulator-db commerce-db --batch --skip-column-names \
     "-u${LOGISTICS_DATABASE_USERNAME:-logistics}" "-p${LOGISTICS_DATABASE_PASSWORD:-logistics-password}" logistics_platform -e "$1" | tail -n 1 | tr -d '\r'
 }
 
 storefront_sql() {
-  docker compose --project-directory "$PROJECT_ROOT" exec -T mysql mysql --batch --skip-column-names \
+  docker compose --project-directory "$PROJECT_ROOT" exec -T commerce-db mysql --batch --skip-column-names \
     "-u${DATABASE_USERNAME:-commerceflow}" "-p${DATABASE_PASSWORD:-commerceflow-password}" commerceflow -e "$1" | tail -n 1 | tr -d '\r'
 }
 
 export LOGISTICS_CALLBACK_DELIVERY_ENABLED=true LOGISTICS_CALLBACK_DELIVERY_INITIAL_DELAY=1s
 export LOGISTICS_CALLBACK_DELIVERY_SCAN_INTERVAL=500ms LOGISTICS_CALLBACK_DELIVERY_RETRY_DELAY=1s
 export LOGISTICS_CALLBACK_DELIVERY_MAX_ATTEMPTS=1 LOGISTICS_RECONCILIATION_ENABLED=false
-docker compose --project-directory "$PROJECT_ROOT" up -d --wait --force-recreate mock-logistics-service backend web >/dev/null
+docker compose --project-directory "$PROJECT_ROOT" up -d --wait --force-recreate logistics-simulator-service commerce-service commerce-portal-angular >/dev/null
 
 "$SCRIPT_DIR/verify-merchant-fulfillment.sh" "$BASE_URL"
 IFS=$'\t' read -r _ _ <<<"$(storefront_login "$BASE_URL" demo@example.com "$customer_jar")"
@@ -69,7 +69,7 @@ order="$(jq -c '[.[] | select(.status=="SHIPPED" and .logistics!=null)] | sort_b
 order_id="$(jq -r '.id // empty' <<<"$order")"; merchant_no="$(jq -r '.logistics.merchantShipmentNo // empty' <<<"$order")"
 [[ -n "$order_id" && -n "$merchant_no" ]] || { echo 'Created shipment is not visible' >&2; exit 1; }
 
-docker compose --project-directory "$PROJECT_ROOT" stop backend >/dev/null
+docker compose --project-directory "$PROJECT_ROOT" stop commerce-service >/dev/null
 IFS=$'\t' read -r app_id timestamp nonce signature <<<"$(signed_headers)"
 advanced="$(curl -fsS -X POST -H "X-App-Id: $app_id" -H "X-Timestamp: $timestamp" -H "X-Nonce: $nonce" -H "X-Signature: $signature" "$LOGISTICS_URL/api/channel/shipments/$merchant_no/advance")"
 event_id="$(jq -r '.events[-1].eventId' <<<"$advanced")"
@@ -78,7 +78,7 @@ for ((i=0; i<30; i++)); do dead_state="$(logistics_sql "SELECT CONCAT(id,':',sta
 [[ "$dead_state" =~ ^([0-9]+):DEAD:1$ ]] || { echo "Callback did not enter DEAD: $dead_state" >&2; exit 1; }
 outbox_id="${BASH_REMATCH[1]}"
 
-docker compose --project-directory "$PROJECT_ROOT" up -d --wait backend web >/dev/null
+docker compose --project-directory "$PROJECT_ROOT" up -d --wait commerce-service commerce-portal-angular >/dev/null
 IFS=$'\t' read -r _ _ <<<"$(storefront_login "$BASE_URL" demo@example.com "$customer_jar")"
 IFS=$'\t' read -r csrf_header csrf_token <<<"$(storefront_login "$BASE_URL" admin@example.com "$admin_jar")"
 assert_status 'customer callback governance rejected' 403 "$(http_status GET "$BASE_URL/api/admin/logistics-callbacks?status=DEAD" "$customer_jar")"

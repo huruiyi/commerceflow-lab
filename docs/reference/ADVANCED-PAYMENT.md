@@ -13,16 +13,16 @@ Angular 商城
     |
     | 创建支付单、查询状态
     v
-商城 backend ------------------------+
+商城 commerce-service ------------------------+
     |                                |
     | 签名支付请求                    | MySQL 业务事务
     v                                | payment/order/event/outbox
-mock-payment-service                 |
+payment-simulator-service                 |
     |                                |
     | 模拟收银台                      +----> Outbox Publisher
     | 支付宝 / 微信 / 银联                         |
     |                                             v
-    +---- 签名异步通知 ----> 商城 backend -----> Kafka
+    +---- 签名异步通知 ----> 商城 commerce-service -----> Kafka
                                                    |
                               +--------------------+------------------+
                               v                    v                  v

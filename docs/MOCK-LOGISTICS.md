@@ -22,9 +22,9 @@
 
 | 组件 | 端口/存储 | 职责 |
 | --- | --- | --- |
-| `mock-logistics-service` | `18083` | 验签、防重放、运单幂等、轨迹状态机、回调 Outbox、重试、人工重放与指标 |
+| `logistics-simulator-service` | `18083` | 验签、防重放、运单幂等、轨迹状态机、回调 Outbox、重试、人工重放与指标 |
 | `logistics-mysql` | 宿主机 `13308` | 物流平台运单、轨迹、已用 Nonce 和 `callback_outbox` |
-| `backend` | `18081` | 商城运单投影、回调去重、主动对账、归属校验和客户查询 |
+| `commerce-service` | `18081` | 商城运单投影、回调去重、主动对账、归属校验和客户查询 |
 | 商城 MySQL | Compose 内部 | `shipment_records/events/notifications` 读模型 |
 
 模拟物流不连接商城数据库。两边不使用跨库事务：商城先持久化可恢复的 `REQUESTED` 投影，远程建单成功后才将订单改为 `SHIPPED`。
@@ -180,4 +180,4 @@ bash ./scripts/linux/verify-logistics-callback-governance.sh
 bash ./scripts/linux/verify-auto-lifecycle.sh
 ```
 
-该脚本额外验证手动收货取消 `AUTO_RECEIVE`，以及 `DELIVERED -> AUTO_RECEIVE -> RECEIVED -> AUTO_COMPLETE -> COMPLETED` 的真实 Docker 链路，并确认支付、物流和评价能力在订单完成后仍保留。脚本还会伪造“Handler 已提交但任务确认前崩溃”，重启 backend 后验证 `LEASE_RECOVERY（租约恢复）` 与幂等重放。
+该脚本额外验证手动收货取消 `AUTO_RECEIVE`，以及 `DELIVERED -> AUTO_RECEIVE -> RECEIVED -> AUTO_COMPLETE -> COMPLETED` 的真实 Docker 链路，并确认支付、物流和评价能力在订单完成后仍保留。脚本还会伪造“Handler 已提交但任务确认前崩溃”，重启 commerce-service 后验证 `LEASE_RECOVERY（租约恢复）` 与幂等重放。

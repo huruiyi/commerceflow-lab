@@ -40,13 +40,13 @@
 
 | 顺序 | 文件 | 关注点 |
 | --- | --- | --- |
-| 1 | [`RocketMqTaskTriggerProperties.java`](../../backend/src/main/java/lab/commerceflow/storefront/configuration/RocketMqTaskTriggerProperties.java) | endpoint、Topic、Group、Tag、超时和发布扫描配置 |
-| 2 | [`RocketMqTaskTriggerConfiguration.java`](../../backend/src/main/java/lab/commerceflow/storefront/configuration/RocketMqTaskTriggerConfiguration.java) | gRPC 客户端、Producer、PushConsumer 和 Tag 订阅 |
-| 3 | [`RocketMqTaskTriggerPublisher.java`](../../backend/src/main/java/lab/commerceflow/storefront/scheduling/RocketMqTaskTriggerPublisher.java) | `dueAt` 转毫秒时间戳、Key、Tag、消息体和 Broker 回执 |
-| 4 | [`RocketMqTaskTriggerDispatcher.java`](../../backend/src/main/java/lab/commerceflow/storefront/scheduling/RocketMqTaskTriggerDispatcher.java) | 从数据库扫描未发布任务、发送失败记录和重启补发 |
-| 5 | [`RocketMqTaskTriggerConsumer.java`](../../backend/src/main/java/lab/commerceflow/storefront/scheduling/RocketMqTaskTriggerConsumer.java) | 消息校验、数据库重读、早到重投、重试/DLQ 返回值 |
-| 6 | [`ScheduledTaskExecutor.java`](../../backend/src/main/java/lab/commerceflow/storefront/scheduling/ScheduledTaskExecutor.java) | 原子领取、租约、统一 Handler、成功/失败审计 |
-| 7 | [`ScheduledTaskMapper.java`](../../backend/src/main/java/lab/commerceflow/storefront/mapper/ScheduledTaskMapper.java) | 策略快照、发布状态和只有一个触发者能够成功的条件更新 |
+| 1 | [`RocketMqTaskTriggerProperties.java`](../../services/commerce-service/src/main/java/lab/commerceflow/storefront/configuration/RocketMqTaskTriggerProperties.java) | endpoint、Topic、Group、Tag、超时和发布扫描配置 |
+| 2 | [`RocketMqTaskTriggerConfiguration.java`](../../services/commerce-service/src/main/java/lab/commerceflow/storefront/configuration/RocketMqTaskTriggerConfiguration.java) | gRPC 客户端、Producer、PushConsumer 和 Tag 订阅 |
+| 3 | [`RocketMqTaskTriggerPublisher.java`](../../services/commerce-service/src/main/java/lab/commerceflow/storefront/scheduling/RocketMqTaskTriggerPublisher.java) | `dueAt` 转毫秒时间戳、Key、Tag、消息体和 Broker 回执 |
+| 4 | [`RocketMqTaskTriggerDispatcher.java`](../../services/commerce-service/src/main/java/lab/commerceflow/storefront/scheduling/RocketMqTaskTriggerDispatcher.java) | 从数据库扫描未发布任务、发送失败记录和重启补发 |
+| 5 | [`RocketMqTaskTriggerConsumer.java`](../../services/commerce-service/src/main/java/lab/commerceflow/storefront/scheduling/RocketMqTaskTriggerConsumer.java) | 消息校验、数据库重读、早到重投、重试/DLQ 返回值 |
+| 6 | [`ScheduledTaskExecutor.java`](../../services/commerce-service/src/main/java/lab/commerceflow/storefront/scheduling/ScheduledTaskExecutor.java) | 原子领取、租约、统一 Handler、成功/失败审计 |
+| 7 | [`ScheduledTaskMapper.java`](../../services/commerce-service/src/main/java/lab/commerceflow/storefront/mapper/ScheduledTaskMapper.java) | 策略快照、发布状态和只有一个触发者能够成功的条件更新 |
 
 消息只携带 `taskId/taskType/dueAt/strategySnapshot`。消费者不会信任消息中的完整业务快照，而是重新读取数据库中的任务与订单事实。RocketMQ 提供“何时唤醒”，数据库决定“现在是否还能执行”。
 
@@ -57,7 +57,7 @@ PowerShell：
 ```powershell
 $env:SCHEDULING_ROCKETMQ_ENABLED='true'
 $env:ORDER_PAYMENT_TIMEOUT='6s'
-docker compose --profile rocketmq up -d --build --wait rocketmq-init backend web
+docker compose --profile rocketmq up -d --build --wait rocketmq-topic-init commerce-service commerce-portal-angular
 ./scripts/windows/verify-rocketmq-scheduling.ps1 -MaxWaitSeconds 40
 ```
 
@@ -65,7 +65,7 @@ Bash：
 
 ```bash
 SCHEDULING_ROCKETMQ_ENABLED=true ORDER_PAYMENT_TIMEOUT=6s \
-  docker compose --profile rocketmq up -d --build --wait rocketmq-init backend web
+  docker compose --profile rocketmq up -d --build --wait rocketmq-topic-init commerce-service commerce-portal-angular
 bash ./scripts/linux/verify-rocketmq-scheduling.sh http://localhost:14200 40
 ```
 
@@ -87,7 +87,7 @@ $env:SCHEDULING_ROCKETMQ_REQUEST_TIMEOUT='1s'
 $env:SCHEDULING_RECONCILIATION_INITIAL_DELAY='1s'
 $env:SCHEDULING_RECONCILIATION_FIXED_DELAY='1s'
 $env:ORDER_PAYMENT_TIMEOUT='6s'
-docker compose --profile rocketmq up -d --build --wait rocketmq-init backend web
+docker compose --profile rocketmq up -d --build --wait rocketmq-topic-init commerce-service commerce-portal-angular
 ./scripts/windows/verify-rocketmq-reconciliation.ps1 -MaxWaitSeconds 45
 ```
 
@@ -97,7 +97,7 @@ SCHEDULING_ROCKETMQ_REQUEST_TIMEOUT=1s \
 SCHEDULING_RECONCILIATION_INITIAL_DELAY=1s \
 SCHEDULING_RECONCILIATION_FIXED_DELAY=1s \
 ORDER_PAYMENT_TIMEOUT=6s \
-  docker compose --profile rocketmq up -d --build --wait rocketmq-init backend web
+  docker compose --profile rocketmq up -d --build --wait rocketmq-topic-init commerce-service commerce-portal-angular
 bash ./scripts/linux/verify-rocketmq-reconciliation.sh http://localhost:14200 45
 ```
 
@@ -123,7 +123,7 @@ bash ./scripts/linux/verify-rocketmq-reconciliation.sh http://localhost:14200 45
 $env:SCHEDULING_RABBITMQ_ENABLED='true'
 $env:SCHEDULING_ROCKETMQ_ENABLED='true'
 $env:ORDER_PAYMENT_TIMEOUT='6s'
-docker compose --profile rabbitmq --profile rocketmq up -d --build --wait rabbitmq rocketmq-init backend web
+docker compose --profile rabbitmq --profile rocketmq up -d --build --wait rabbitmq-broker rocketmq-topic-init commerce-service commerce-portal-angular
 ./scripts/windows/verify-mq-scheduling-idempotency.ps1 -MaxWaitSeconds 60
 ```
 

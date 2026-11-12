@@ -22,7 +22,7 @@ Write-Host '==> Starting the complete stack' -ForegroundColor Cyan
 docker compose --project-directory $ProjectRoot up -d --wait
 if ($LASTEXITCODE -ne 0) { throw 'Docker Compose startup failed' }
 
-$expected = @('mysql', 'redis', 'kafka', 'payment-mysql', 'mock-payment-service', 'payment-ui', 'logistics-mysql', 'mock-logistics-service', 'backend', 'web')
+$expected = @('commerce-db', 'commerce-redis', 'kafka-broker', 'payment-simulator-db', 'payment-simulator-redis', 'payment-simulator-service', 'payment-simulator-web', 'logistics-simulator-db', 'logistics-simulator-service', 'commerce-service', 'commerce-portal-angular')
 $services = docker compose --project-directory $ProjectRoot ps --services --filter status=running
 foreach ($service in $expected) {
   if ($services -notcontains $service) { throw "Required service is not running: $service" }
@@ -41,7 +41,7 @@ Invoke-ChapterVerification 'verify-logistics-reliability.ps1'
 Invoke-ChapterVerification 'verify-logistics-callback-governance.ps1'
 Invoke-ChapterVerification 'verify-auto-lifecycle.ps1'
 Invoke-ChapterVerification 'verify-receipt-reviews.ps1'
-Invoke-ChapterVerification 'verify-redis-business.ps1'
+Invoke-ChapterVerification 'verify-commerce-redis-business.ps1'
 
 $deadline = (Get-Date).AddSeconds(60)
 do {

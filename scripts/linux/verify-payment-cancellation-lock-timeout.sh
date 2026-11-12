@@ -14,16 +14,16 @@ previous_timeout="${DATABASE_LOCK_WAIT_TIMEOUT_SECONDS-}"
 restore() {
   rm -rf -- "$temp_dir"
   if [[ -n "$previous_timeout" ]]; then export DATABASE_LOCK_WAIT_TIMEOUT_SECONDS="$previous_timeout"; else unset DATABASE_LOCK_WAIT_TIMEOUT_SECONDS; fi
-  compose up -d --no-deps --force-recreate backend >/dev/null
+  compose up -d --no-deps --force-recreate commerce-service >/dev/null
 }
 trap restore EXIT
 
 mysql_value() {
-  compose exec -T mysql mysql -ucommerceflow -pcommerceflow-password -Nse "$1" commerceflow 2>/dev/null | tr -d '\r'
+  compose exec -T commerce-db mysql -ucommerceflow -pcommerceflow-password -Nse "$1" commerceflow 2>/dev/null | tr -d '\r'
 }
 hold_row() {
   local table="$1" id="$2"
-  compose exec -T mysql mysql -ucommerceflow -pcommerceflow-password -Nse \
+  compose exec -T commerce-db mysql -ucommerceflow -pcommerceflow-password -Nse \
     "START TRANSACTION; SELECT id FROM $table WHERE id=$id FOR UPDATE; DO SLEEP($LOCK_HOLD_SECONDS); COMMIT;" commerceflow \
     >/dev/null 2>&1 &
   LOCK_PID=$!
@@ -42,7 +42,7 @@ assert_retryable() {
 }
 
 export DATABASE_LOCK_WAIT_TIMEOUT_SECONDS="$LOCK_WAIT_SECONDS"
-compose up -d --no-deps --force-recreate backend >/dev/null
+compose up -d --no-deps --force-recreate commerce-service >/dev/null
 for _ in $(seq 1 30); do curl -fsS "$BASE_URL/actuator/health" >/dev/null 2>&1 && break; sleep 1; done
 
 customer_jar="$temp_dir/customer.cookies"; merchant_jar="$temp_dir/merchant.cookies"

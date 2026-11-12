@@ -19,7 +19,7 @@ original_complete=''
 if [[ -v SCHEDULING_RABBITMQ_ENABLED ]]; then saved_rabbit_present=true; saved_rabbit="$SCHEDULING_RABBITMQ_ENABLED"; else saved_rabbit_present=false; saved_rabbit=''; fi
 
 sql() {
-  compose exec -T mysql mysql -ucommerceflow -pcommerceflow-password -Nse "$1" commerceflow 2>/dev/null | tail -n1 | tr -d '\r'
+  compose exec -T commerce-db mysql -ucommerceflow -pcommerceflow-password -Nse "$1" commerceflow 2>/dev/null | tail -n1 | tr -d '\r'
 }
 
 wait_sql_nonempty() {
@@ -54,7 +54,7 @@ cleanup() {
   set +e
   if [[ -n "${admin_header:-}" ]]; then restore_policy AUTO_RECEIVE "$original_receive"; restore_policy AUTO_COMPLETE "$original_complete"; fi
   if [[ "$saved_rabbit_present" == true ]]; then export SCHEDULING_RABBITMQ_ENABLED="$saved_rabbit"; else unset SCHEDULING_RABBITMQ_ENABLED; fi
-  compose up -d --no-deps --force-recreate backend web >/dev/null
+  compose up -d --no-deps --force-recreate commerce-service commerce-portal-angular >/dev/null
   rm -rf -- "$temp_dir"
   exit "$status"
 }
@@ -109,9 +109,9 @@ invoke_race() {
   wc -l <"$output" | tr -d ' '
 }
 
-compose --profile rabbitmq up -d --wait rabbitmq
+compose --profile rabbitmq up -d --wait rabbitmq-broker
 export SCHEDULING_RABBITMQ_ENABLED=true
-compose --profile rabbitmq up -d --no-deps --force-recreate backend web
+compose --profile rabbitmq up -d --no-deps --force-recreate commerce-service commerce-portal-angular
 deadline_ready=$((SECONDS + 60))
 until curl -fsS "$BASE_URL/api/products" >/dev/null; do (( SECONDS < deadline_ready )) || { echo 'Storefront did not become ready' >&2; exit 1; }; sleep 1; done
 

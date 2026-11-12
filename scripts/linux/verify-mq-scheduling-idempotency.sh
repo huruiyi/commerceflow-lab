@@ -135,21 +135,21 @@ rocket_before="$(metric commerceflow_scheduled_tasks_rocketmq_ignored_total)"
 rocket_payload="$(jq -c '{taskId:.id,taskType:.taskType,dueAt:.dueAt,strategySnapshot:"ROCKETMQ"}' <<<"$rocket_task")"
 for number in 1 2; do
   key="rocket-duplicate-$(jq -r .id <<<"$rocket_task")-$number-$(date +%s%N)"
-  docker compose exec -T rocketmq-broker sh mqadmin sendMessage -n rocketmq-namesrv:9876 \
+  docker compose exec -T rocketmq-broker sh mqadmin sendMessage -n rocketmq-nameserver:9876 \
     -t commerceflow-scheduled-task -c SCHEDULED_TASK -k "$key" -p "$rocket_payload" >/dev/null
 done
 wait_metric_increase commerceflow_scheduled_tasks_rocketmq_ignored_total "$rocket_before" 2
 assert_single_execution "$(jq -r .id <<<"$rocket_task")"
 
-group_config="$(docker compose exec -T rocketmq-broker sh mqadmin getConsumerConfig -n rocketmq-namesrv:9876 -g commerceflow-scheduled-task-consumer)"
+group_config="$(docker compose exec -T rocketmq-broker sh mqadmin getConsumerConfig -n rocketmq-nameserver:9876 -g commerceflow-scheduled-task-consumer)"
 grep -Eq 'retryMaxTimes[[:space:]]*=[[:space:]]*2' <<<"$group_config" || { echo 'RocketMQ acceptance consumer group must use retryMaxTimes=2' >&2; exit 1; }
 rocket_poison="rocket-poison-$(date +%s%N)"
-docker compose exec -T rocketmq-broker sh mqadmin sendMessage -n rocketmq-namesrv:9876 \
+docker compose exec -T rocketmq-broker sh mqadmin sendMessage -n rocketmq-nameserver:9876 \
   -t commerceflow-scheduled-task -c SCHEDULED_TASK -k "$rocket_poison" -p "{invalid-json-$rocket_poison" >/dev/null
 deadline=$((SECONDS + 30)); query=''
 while (( SECONDS < deadline )); do
   sleep 1
-  query="$(docker compose exec -T rocketmq-broker sh mqadmin queryMsgByKey -n rocketmq-namesrv:9876 -t '%DLQ%commerceflow-scheduled-task-consumer' -k "$rocket_poison" 2>&1 || true)"
+  query="$(docker compose exec -T rocketmq-broker sh mqadmin queryMsgByKey -n rocketmq-nameserver:9876 -t '%DLQ%commerceflow-scheduled-task-consumer' -k "$rocket_poison" 2>&1 || true)"
   grep -Fq "$rocket_poison" <<<"$query" && break
 done
 grep -Fq "$rocket_poison" <<<"$query" || { echo 'RocketMQ poison message did not enter the DLQ' >&2; exit 1; }

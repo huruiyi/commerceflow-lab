@@ -166,7 +166,7 @@ shipment_notifications
 
 ### 5.4 模拟物流平台迁移
 
-独立 `mock-logistics-service` 使用独立数据库和 Flyway `V1`，至少包含：
+独立 `logistics-simulator-service` 使用独立数据库和 Flyway `V1`，至少包含：
 
 ```text
 logistics_merchants
@@ -274,7 +274,7 @@ callback_attempts
 
 ### 11-7：独立模拟物流服务
 
-- [ ] 新建 `mock-logistics-service`、独立数据库、Dockerfile 和健康检查。
+- [ ] 新建 `logistics-simulator-service`、独立数据库、Dockerfile 和健康检查。
 - [ ] 实现签名创建运单、查询运单、推进状态和通知补发 API。
 - [ ] 物流状态支持 `CREATED/PICKED_UP/IN_TRANSIT/AT_STATION/OUT_FOR_DELIVERY/DELIVERED/EXCEPTION`。
 - [ ] 使用商户运单号保证创建幂等。

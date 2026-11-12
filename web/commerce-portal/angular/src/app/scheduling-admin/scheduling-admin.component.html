@@ -1,0 +1,123 @@
+<main class="scheduling-page container-fluid">
+  <header class="page-heading">
+    <div><p>{{ 'schedulingChapter'|t }}</p>
+      <h1>{{ 'schedulingAdmin'|t }}</h1><span>{{ 'schedulingHelp'|t }}</span></div>
+    <button type="button" class="btn btn-outline-secondary" (click)="reload()">{{ 'refreshStatus'|t }}</button>
+  </header>
+  <div *ngIf="message" class="alert alert-success">{{ message|t }}</div>
+  <div *ngIf="error" class="alert alert-danger">{{ error }}</div>
+
+  <section class="panel">
+    <div class="section-title">
+      <div><h2>{{ 'taskPolicies'|t }}</h2>
+        <p>{{ 'taskPolicyHelp'|t }}</p></div>
+      <form class="add-policy" (ngSubmit)="addPolicy()"><input name="newTaskType" [(ngModel)]="newTaskType"
+                                                               placeholder="CUSTOM_TASK">
+        <button class="btn btn-dark" type="submit">{{ 'addPolicy'|t }}</button>
+      </form>
+    </div>
+    <div class="policy-grid">
+      <article class="policy-card" *ngFor="let policy of policies">
+        <div class="policy-head">
+          <div><strong>{{ policy.taskType }}</strong><small>{{ policy.source }} · v{{ policy.version }}</small></div>
+          <span
+            [class.ready]="policy.handlerAvailable">{{ (policy.handlerAvailable ? 'handlerReady' : 'handlerMissing')|t }}</span>
+        </div>
+        <label><input type="checkbox" [(ngModel)]="policy.enabled"
+                      [disabled]="!policy.handlerAvailable"> {{ 'enabled'|t }}</label>
+        <label>{{ 'primaryTrigger'|t }}<select [(ngModel)]="policy.primaryTrigger">
+          <option>DATABASE</option>
+          <option>RABBITMQ</option>
+          <option>ROCKETMQ</option>
+        </select></label>
+        <label><input type="checkbox"
+                      [(ngModel)]="policy.reconciliationEnabled"> {{ 'databaseReconciliation'|t }}</label>
+        <div class="numeric-grid">
+          <label>{{ 'graceSeconds'|t }}<input type="number" min="0" [(ngModel)]="policy.gracePeriodSeconds"></label>
+          <label>{{ 'leaseSeconds'|t }}<input type="number" min="1" [(ngModel)]="policy.claimLeaseSeconds"></label>
+          <label>{{ 'maxAttempts'|t }}<input type="number" min="1" max="100" [(ngModel)]="policy.maxAttempts"></label>
+          <label>{{ 'retrySeconds'|t }}<input type="number" min="0" [(ngModel)]="policy.retryDelaySeconds"></label>
+        </div>
+        <div class="actions">
+          <button class="btn btn-primary" [disabled]="busy" (click)="save(policy)">{{ 'savePolicy'|t }}</button>
+          <button class="btn btn-outline-secondary" [disabled]="busy" (click)="reset(policy)">{{ 'resetToConfig'|t }}
+          </button>
+          <button class="btn btn-outline-secondary" (click)="togglePolicyEvents(policy)">{{ 'policyAudit'|t }}</button>
+        </div>
+        <ol *ngIf="policyEvents[policy.taskType]" class="policy-audit">
+          <li *ngFor="let event of policyEvents[policy.taskType]">
+            <strong>{{ event.action }}</strong><span>{{ event.primaryTrigger }}
+            · v{{ event.configVersion }}</span><small>{{ event.operatedBy }} · {{ event.createdAt|trdate }}</small></li>
+          <li *ngIf="policyEvents[policy.taskType].length===0">{{ 'noAuditEvents'|t }}</li>
+        </ol>
+      </article>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="section-title">
+      <div><h2>{{ 'scheduledTasks'|t }}</h2>
+        <p>{{ 'scheduledTasksHelp'|t }}</p></div>
+      <form class="filters" (ngSubmit)="loadTasks()"><input name="taskTypeFilter" [(ngModel)]="taskTypeFilter"
+                                                            [placeholder]="'taskType'|t"><select name="statusFilter"
+                                                                                                 [(ngModel)]="statusFilter">
+        <option value="">{{ 'allStatuses'|t }}</option>
+        <option>SCHEDULED</option>
+        <option>PROCESSING</option>
+        <option>FAILED</option>
+        <option>SUCCEEDED</option>
+        <option>CANCELLED</option>
+      </select>
+        <button class="btn btn-dark">{{ 'filter'|t }}</button>
+      </form>
+    </div>
+    <div class="table-responsive">
+      <table class="table align-middle">
+        <thead>
+        <tr>
+          <th>ID</th>
+          <th>{{ 'taskType'|t }}</th>
+          <th>{{ 'businessObject'|t }}</th>
+          <th>{{ 'dueAt'|t }}</th>
+          <th>{{ 'strategySnapshot'|t }}</th>
+          <th>{{ 'status'|t }}</th>
+          <th>{{ 'action'|t }}</th>
+        </tr>
+        </thead>
+        <tbody>
+        <ng-container *ngFor="let task of tasks">
+          <tr>
+            <td>{{ task.id }}</td>
+            <td><strong>{{ task.taskType }}</strong><small>{{ task.taskKey }}</small></td>
+            <td>{{ task.aggregateType }} #{{ task.aggregateId }}</td>
+            <td>{{ task.dueAt|trdate }}</td>
+            <td>{{ task.primaryTriggerSnapshot }}
+              <small>{{ task.reconciliationEnabledSnapshot ? 'DB reconcile' : '' }}</small></td>
+            <td><span class="status">{{ task.status|t }}</span><small>{{ task.attempts }}/{{ task.maxAttempts }}</small>
+            </td>
+            <td class="task-actions">
+              <button class="btn btn-sm btn-outline-secondary" (click)="toggleEvents(task)">{{ 'events'|t }}</button>
+              <button *ngIf="task.status==='FAILED'" class="btn btn-sm btn-outline-primary"
+                      (click)="retry(task)">{{ 'retry'|t }}
+              </button>
+              <button *ngIf="task.status==='SCHEDULED'||task.status==='FAILED'" class="btn btn-sm btn-outline-danger"
+                      (click)="cancel(task)">{{ 'cancel'|t }}
+              </button>
+            </td>
+          </tr>
+          <tr *ngIf="events[task.id]" class="event-row">
+            <td colspan="7">
+              <ol>
+                <li *ngFor="let event of events[task.id]">
+                  <time>{{ event.createdAt|trdate }}</time>
+                  <strong>{{ event.eventType }}</strong><span>{{ event.fromStatus }}
+                  → {{ event.toStatus }}</span><small>{{ event.triggerSource }} · {{ event.detail }}</small></li>
+              </ol>
+            </td>
+          </tr>
+        </ng-container>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>

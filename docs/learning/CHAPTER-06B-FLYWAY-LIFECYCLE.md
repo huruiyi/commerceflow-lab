@@ -41,10 +41,10 @@ Linux/Bash：
 bash ./scripts/linux/verify-flyway-lifecycle.sh
 ```
 
-领域层非法转换由 `CommerceFlowBackendIntegrationTest.illegalOrderStateTransitionsAreRejectedWithoutChangingFacts` 覆盖，可通过构建后端执行：
+领域层非法转换由 `CommerceFlowIntegrationTest.illegalOrderStateTransitionsAreRejectedWithoutChangingFacts` 覆盖，可通过构建后端执行：
 
 ```powershell
-docker compose build backend
+docker compose build commerce-service
 ```
 
 ## 4. 为什么要同时测数据库和领域层

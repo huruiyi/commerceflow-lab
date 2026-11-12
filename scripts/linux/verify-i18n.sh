@@ -7,7 +7,7 @@ en="$(curl -fsS "$BASE_URL/api/products?lang=en")"
 zh="$(curl -fsS "$BASE_URL/api/products?lang=zh-CN")"
 [[ "$(jq -r '.[0].name' <<<"$en")" != "$(jq -r '.[0].name' <<<"$zh")" ]] || { echo 'Product translation was not selected by locale' >&2; exit 1; }
 jq -e '.[0].name | contains("学习")' <<<"$zh" >/dev/null || { echo 'Chinese product translation is missing' >&2; exit 1; }
-keys="$(compose exec -T redis redis-cli --scan --pattern 'commerceflow:catalog:products:v1:*')"
+keys="$(compose exec -T commerce-redis redis-cli --scan --pattern 'commerceflow:catalog:products:v1:*')"
 grep -Fxq 'commerceflow:catalog:products:v1:en' <<<"$keys"
 grep -Fxq 'commerceflow:catalog:products:v1:zh-CN' <<<"$keys"
 

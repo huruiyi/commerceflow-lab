@@ -1,0 +1,457 @@
+<section class="payment-hero">
+  <div>
+    <span class="chapter-label">{{ "paymentChapter" | t }}</span>
+    <h2>{{ "paymentLab" | t }}</h2>
+    <p>{{ "paymentIntro" | t }}</p>
+  </div>
+  <div class="hero-note">
+    <strong>{{ "realisticFlow" | t }}</strong
+    ><span>{{ "realisticFlowDetail" | t }}</span>
+  </div>
+</section>
+<section *ngIf="loading" class="orders-loading" aria-live="polite">
+  <div class="skeleton-card" *ngFor="let placeholder of [1, 2, 3]">
+    <span></span><strong></strong>
+    <p></p>
+  </div>
+</section>
+<section *ngIf="loadError && !loading" hlmAlert class="orders-error" role="alert">
+  <h3 hlmAlertTitle>{{ "ordersLoadFailedTitle" | t }}</h3>
+  <p hlmAlertDescription>{{ loadError }}</p>
+  <button hlmBtn variant="outline" type="button" (click)="reload()">{{ "retry" | t }}</button>
+</section>
+<article *ngFor="let order of orders; trackBy: trackOrder" hlmCard class="order-card">
+  <header class="order-header">
+    <div class="order-identity">
+      <span class="eyebrow">{{ "order" | t }}</span>
+      <h3>{{ order.orderNumber }}</h3>
+      <small>{{ "orderedAt" | t }} {{ order.createdAt | trdate }}</small>
+    </div>
+    <div class="order-summary">
+      <span>{{ order.items.length }} {{ "itemsCount" | t }}</span>
+      <span>{{ order.address.recipientName }}</span>
+    </div>
+    <div class="order-total">
+      <span hlmBadge class="status" [class.paid]="order.status === 'PAID' || order.status === 'COMPLETED'">{{
+          order.status | t
+        }}</span
+      ><strong>{{ order.totalAmount | trcurrency }}</strong>
+    </div>
+    <div class="summary-actions">
+      <button hlmBtn *ngIf="hasAction(order, 'PAY')" type="button" (click)="showPayment(order)">{{ "payNow" | t }}
+      </button>
+      <button hlmBtn *ngIf="hasAction(order, 'CONFIRM_RECEIPT')" type="button"
+              (click)="receive(order)">{{ "confirmReceipt" | t }}
+      </button>
+      <button hlmBtn variant="outline" *ngIf="hasAction(order, 'REQUEST_REFUND')" type="button"
+              (click)="showRefund(order)">{{ "requestRefund" | t }}
+      </button>
+      <button hlmBtn variant="ghost" type="button" (click)="toggleDetails(order)"
+              [attr.aria-expanded]="expandedOrders.has(order.id)">
+        {{ (expandedOrders.has(order.id) ? "collapseDetails" : "expandDetails") | t }}
+        <i class="bi" [class.bi-chevron-up]="expandedOrders.has(order.id)"
+           [class.bi-chevron-down]="!expandedOrders.has(order.id)" aria-hidden="true"></i>
+      </button>
+    </div>
+  </header>
+  <div class="milestone-strip">
+    <div>
+      <small>{{ "paymentDueAt" | t }}</small><strong>{{ order.paymentDueAt ? (order.paymentDueAt | trdate) : "—" }}</strong>
+    </div>
+    <div *ngIf="order.confirmedAt">
+      <small>{{ "confirmedAt" | t }}</small><strong>{{ order.confirmedAt | trdate }}</strong></div>
+    <div *ngIf="order.shippedAt"><small>{{ "shippedAt" | t }}</small><strong>{{ order.shippedAt | trdate }}</strong>
+    </div>
+    <div *ngIf="order.logisticsDeliveredAt">
+      <small>{{ "deliveredAt" | t }}</small><strong>{{ order.logisticsDeliveredAt | trdate }}</strong></div>
+    <div *ngIf="order.receivedAt"><small>{{ "receivedAt" | t }}</small><strong>{{ order.receivedAt | trdate }}</strong>
+    </div>
+    <div *ngIf="order.completedAt">
+      <small>{{ "completedAt" | t }}</small><strong>{{ order.completedAt | trdate }}</strong></div>
+    <div *ngIf="order.cancelledAt">
+      <small>{{ "cancelledAt" | t }}</small><strong>{{ order.cancelledAt | trdate }}</strong></div>
+  </div>
+  <div *ngIf="notices[order.id] as notice" class="summary-notice alert"
+       [ngClass]="'alert-' + notice.type">{{ notice.text }}
+  </div>
+  <div class="order-content" *ngIf="expandedOrders.has(order.id)">
+    <section class="items-panel">
+      <div *ngFor="let item of order.items" class="item-row">
+        <img [src]="item.thumbnailUrl" [alt]="item.productName"/>
+        <div>
+          <strong>{{ item.productName }}</strong
+          ><small
+        >{{ item.unitPrice | trcurrency }} × {{ item.quantity }}</small
+        >
+          <form
+            *ngIf="hasAction(order, 'REVIEW_ITEM') && !reviewed.has(item.id)"
+            (ngSubmit)="review(order, item.id)"
+            class="review-form"
+          >
+            <select name="rating{{ item.id }}" [(ngModel)]="ratings[item.id]">
+              <option [ngValue]="5">5 ★</option>
+              <option [ngValue]="4">4 ★</option>
+              <option [ngValue]="3">3 ★</option>
+              <option [ngValue]="2">2 ★</option>
+              <option [ngValue]="1">1 ★</option>
+            </select
+            ><input
+            name="comment{{ item.id }}"
+            [(ngModel)]="reviewComments[item.id]"
+            [placeholder]="'yourReview' | t"
+            required
+          />
+            <button class="btn btn-sm btn-outline-success">
+              {{ "submitReview" | t }}
+            </button>
+          </form>
+          <small *ngIf="reviewed.has(item.id)" class="text-success">{{
+              "reviewed" | t
+            }}</small>
+        </div>
+        <b>{{ item.subtotal | trcurrency }}</b>
+      </div>
+      <div class="address">
+        <span>{{ "shipTo" | t }} · {{ order.address.label }}</span
+        ><strong
+      >{{ order.address.recipientName }} · {{ order.address.phone }}</strong
+      >
+        <p>
+          {{ order.address.addressLine1 }} {{ order.address.addressLine2 }},
+          {{ order.address.district }}, {{ order.address.city }},
+          {{ order.address.stateProvince }}, {{ order.address.countryCode }}
+          {{ order.address.postalCode }}
+        </p>
+      </div>
+      <div *ngIf="order.status === 'CANCELLING' || order.status === 'CANCELLED'" class="cancellation-summary">
+        <strong>{{ (order.status === 'CANCELLING' ? 'orderCancelling' : 'orderCancelled') | t }}</strong>
+        <span *ngIf="order.cancelReason">{{ order.cancelReason }}</span>
+        <small *ngIf="order.cancelledAt">{{ order.cancelledAt | trdate }}</small>
+      </div>
+      <button
+        *ngIf="hasAction(order, 'CONFIRM_RECEIPT')"
+        class="btn btn-success mt-3"
+        (click)="receive(order)"
+      >
+        {{ "confirmReceipt" | t }}
+      </button>
+      <button
+        *ngIf="hasAction(order, 'REQUEST_REFUND')"
+        class="btn btn-outline-danger mt-3 ms-2"
+        (click)="toggleRefund(order)"
+      >
+        {{ "requestRefund" | t }}
+      </button>
+      <form
+        *ngIf="refundForms.has(order.id)"
+        class="refund-form"
+        (ngSubmit)="requestRefund(order)"
+      >
+        <strong>{{ "refundConfirmTitle" | t }}</strong>
+        <p>{{ "refundConfirmHelp" | t }}</p>
+        <select
+          class="form-select"
+          name="refundReason{{ order.id }}"
+          [(ngModel)]="refundReasons[order.id]"
+        >
+          <option value="CUSTOMER_CANCELLED">{{ "CUSTOMER_CANCELLED" | t }}</option>
+          <option value="ORDER_ERROR">{{ "ORDER_ERROR" | t }}</option>
+          <option value="OTHER">{{ "OTHER" | t }}</option>
+        </select>
+        <input
+          class="form-control"
+          name="refundDetail{{ order.id }}"
+          [(ngModel)]="refundDetails[order.id]"
+          [placeholder]="'refundReasonDetail' | t"
+        />
+        <div>
+          <button class="btn btn-danger" [disabled]="refunding.has(order.id)">
+            {{ (refunding.has(order.id) ? "submittingRefund" : "confirmRefund") | t }}
+          </button>
+          <button type="button" class="btn btn-link" (click)="toggleRefund(order)">
+            {{ "cancel" | t }}
+          </button>
+        </div>
+      </form>
+    </section>
+    <section class="logistics-panel" *ngIf="hasAction(order, 'VIEW_LOGISTICS') && order.logistics as logistics">
+      <div class="section-heading">
+        <div><span class="eyebrow">{{ "logisticsDetails" | t }}</span><h4>{{ logistics.status | t }}</h4></div>
+        <span class="status">{{ logistics.carrier }}</span>
+      </div>
+      <div class="tracking-line">
+        <div><small>{{ "tracking" | t }}</small><strong>{{ logistics.trackingNumber }}</strong></div>
+        <button type="button" class="btn btn-sm btn-outline-primary" *ngIf="hasAction(order, 'COPY_TRACKING_NUMBER')"
+                (click)="copyTracking(order)">{{ "copyTracking" | t }}
+        </button>
+      </div>
+      <ol class="logistics-timeline">
+        <li *ngFor="let event of logistics.events">
+          <span class="timeline-dot"></span>
+          <div><strong>{{ event.status | t }}</strong><small>{{ event.location }}
+            · {{ event.occurredAt | trdate }}</small>
+            <p>{{ event.description }}</p></div>
+        </li>
+      </ol>
+    </section>
+    <section class="payment-panel" *ngIf="hasAction(order, 'PAY')">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">{{ "paymentChannel" | t }}</span>
+          <h4>{{ "selectProvider" | t }}</h4>
+        </div>
+        <span class="secure-pill">{{ "serverCredentials" | t }}</span>
+      </div>
+      <div class="channel-grid">
+        <button
+          *ngFor="let option of channels"
+          type="button"
+          class="channel-card"
+          [class.selected]="selectedChannels[order.id] === option.code"
+          (click)="selectChannel(order, option.code)"
+        >
+          <span class="channel-logo">{{ option.badge }}</span
+          ><span
+        ><strong>{{ option.nameKey | t }}</strong
+        ><small>{{ option.protocol }}</small></span
+        ><span class="check">✓</span>
+        </button>
+      </div>
+      <div class="merchant-card">
+        <div>
+          <span>{{ "merchantNumber" | t }}</span
+          ><code>{{ channel(order).merchantNo }}</code>
+        </div>
+        <div>
+          <span>{{ "applicationId" | t }}</span
+          ><code>{{ channel(order).appId }}</code>
+        </div>
+        <div>
+          <span>{{ "protocol" | t }}</span
+          ><strong>{{ channel(order).protocol }}</strong>
+        </div>
+        <p>
+          {{ channel(order).descriptionKey | t }} {{ "secretsBackend" | t }}
+        </p>
+      </div>
+      <div class="idempotency-box">
+        <div>
+          <span class="eyebrow">{{ "idempotencyKey" | t }}</span
+          ><code>{{ draftKeys[order.id] }}</code
+        ><small>{{ "idempotencyHint" | t }}</small>
+        </div>
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-secondary"
+          (click)="newAttempt(order)"
+          [disabled]="paying.has(order.id)"
+        >
+          {{ "generateKey" | t }}
+        </button>
+      </div>
+      <div
+        *ngIf="notices[order.id] as notice"
+        class="alert mb-3"
+        [ngClass]="'alert-' + notice.type"
+      >
+        {{ notice.text }}
+      </div>
+      <div class="payment-actions">
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="pay(order, false)"
+          [disabled]="paying.has(order.id)"
+        >
+          {{ (paying.has(order.id) ? "creating" : "createPayment") | t }}
+        </button>
+        <button
+          type="button"
+          class="btn btn-outline-danger"
+          *ngIf="hasAction(order, 'CANCEL_ORDER')"
+          (click)="toggleCancel(order)"
+          [disabled]="cancelling.has(order.id)"
+        >
+          {{ "cancelOrder" | t }}
+        </button>
+      </div>
+      <form *ngIf="cancelForms.has(order.id)" class="cancel-order-form" (ngSubmit)="cancelOrder(order)">
+        <strong>{{ "cancelOrderTitle" | t }}</strong>
+        <p>{{ "cancelOrderHelp" | t }}</p>
+        <input class="form-control" name="cancelReason{{ order.id }}" [(ngModel)]="cancellationReasons[order.id]"
+               [placeholder]="'cancelReason' | t" maxlength="300"/>
+        <div>
+          <button class="btn btn-danger"
+                  [disabled]="cancelling.has(order.id)">{{ (cancelling.has(order.id) ? "cancellingOrder" : "confirmCancelOrder") | t }}
+          </button>
+          <button type="button" class="btn btn-link" (click)="toggleCancel(order)">{{ "cancel" | t }}</button>
+        </div>
+      </form>
+      <details class="experiment" *ngIf="lastAttempts[order.id]">
+        <summary>{{ "advancedExperiments" | t }}</summary>
+        <p>{{ "replayExplanation" | t }}</p>
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-primary me-2"
+          (click)="replayLast(order)"
+          [disabled]="paying.has(order.id)"
+        >
+          {{ "replayExact" | t }}
+        </button
+        >
+        <button
+          *ngIf="hasAction(order, 'REFRESH_PAYMENT')"
+          type="button"
+          class="btn btn-sm btn-outline-danger"
+          (click)="replayOnAnotherChannel(order)"
+          [disabled]="paying.has(order.id)"
+        >
+          {{ "reuseAnotherChannel" | t }}
+        </button>
+      </details>
+    </section>
+    <section class="payment-receipt" *ngIf="order.payment as payment">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">{{ "latestPayment" | t }}</span>
+          <h4>{{ payment.status | t }}</h4>
+        </div>
+        <span class="status" [class.paid]="payment.status === 'SUCCESS'">{{
+            payment.channel
+          }}</span>
+      </div>
+      <dl>
+        <div>
+          <dt>{{ "paymentNumber" | t }}</dt>
+          <dd>{{ payment.paymentNumber }}</dd>
+        </div>
+        <div>
+          <dt>{{ "channelTransaction" | t }}</dt>
+          <dd>{{ payment.channelTransactionNo }}</dd>
+        </div>
+        <div>
+          <dt>{{ "merchant" | t }}</dt>
+          <dd>{{ payment.merchantNo }}</dd>
+        </div>
+        <div>
+          <dt>{{ "amount" | t }}</dt>
+          <dd>{{ payment.amount | trcurrency }}</dd>
+        </div>
+        <div>
+          <dt>{{ "created" | t }}</dt>
+          <dd>{{ payment.createdAt | trdate }}</dd>
+        </div>
+        <div *ngIf="payment.paidAt">
+          <dt>{{ "paid" | t }}</dt>
+          <dd>{{ payment.paidAt | trdate }}</dd>
+        </div>
+      </dl>
+      <p *ngIf="payment.failureReason" class="failure-reason">
+        {{
+          payment.failureReason === "Simulated decline"
+            ? ("simulatedDecline" | t)
+            : payment.failureReason
+        }}
+      </p>
+      <div class="cashier-actions" *ngIf="payment.status === 'PENDING'">
+        <div *ngIf="payment.qrPayload" class="qr-payload">
+          <strong>{{ "qrPayload" | t }}</strong
+          ><code>{{ payment.qrPayload }}</code>
+        </div>
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="openCheckout(order)"
+        >
+          {{ "openCashier" | t }}
+        </button
+        >
+        <button
+          type="button"
+          class="btn btn-outline-primary"
+          (click)="refresh(order)"
+        >
+          {{ "refreshStatus" | t }}
+        </button>
+      </div>
+      <ol class="payment-timeline">
+        <li class="done">{{ "requestCreated" | t }}</li>
+        <li [class.done]="payment.status !== 'PENDING'">
+          {{ "providerResult" | t }}
+        </li>
+        <li [class.done]="order.status === 'PAID'">
+          {{ "orderPaidEvent" | t }}
+        </li>
+      </ol>
+      <div
+        *ngIf="
+          !hasAction(order, 'PAY') && notices[order.id] as notice
+        "
+        class="alert mt-3 mb-0"
+        [ngClass]="'alert-' + notice.type"
+      >
+        {{ notice.text }}
+      </div>
+      <details class="experiment" *ngIf="lastAttempts[order.id]">
+        <summary>{{ "replayLast" | t }}</summary>
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-primary mt-2"
+          (click)="replayLast(order)"
+          [disabled]="paying.has(order.id)"
+        >
+          {{ "replayExact" | t }}
+        </button>
+      </details>
+    </section>
+    <section class="refund-receipt" *ngIf="order.refund as refund">
+      <div class="section-heading">
+        <div><span class="eyebrow">{{ "latestRefund" | t }}</span><h4>{{ refund.status | t }}</h4></div>
+        <strong>{{ refund.amount | trcurrency }}</strong>
+      </div>
+      <dl>
+        <div>
+          <dt>{{ "refundNumber" | t }}</dt>
+          <dd>{{ refund.refundNumber }}</dd>
+        </div>
+        <div>
+          <dt>{{ "channelRefundNumber" | t }}</dt>
+          <dd>{{ refund.channelRefundNo || "—" }}</dd>
+        </div>
+        <div>
+          <dt>{{ "refundReason" | t }}</dt>
+          <dd>{{ refund.reasonCode | t }}</dd>
+        </div>
+        <div>
+          <dt>{{ "requestedAt" | t }}</dt>
+          <dd>{{ refund.requestedAt | trdate }}</dd>
+        </div>
+      </dl>
+      <ol class="refund-timeline">
+        <li *ngFor="let event of refund.events">
+          <strong>{{ event.eventType | t }}</strong><small>{{ event.createdAt | trdate }}</small><span>{{ event.fromStatus | t }}
+          → {{ event.toStatus | t }}</span></li>
+      </ol>
+    </section>
+    <section class="order-history" *ngIf="visibleOrderEvents(order) as events">
+      <div class="section-heading" *ngIf="events.length">
+        <div><span class="eyebrow">{{ "orderHistory" | t }}</span><h4>{{ "orderTimeline" | t }}</h4></div>
+        <span hlmBadge variant="secondary">{{ events.length }}</span>
+      </div>
+      <ol *ngIf="events.length" class="order-timeline">
+        <li *ngFor="let event of events">
+          <span class="timeline-dot" aria-hidden="true"></span>
+          <div>
+            <strong>{{ event.eventType | t }}</strong>
+            <small>{{ event.createdAt | trdate }}</small>
+            <span *ngIf="event.fromStatus && event.toStatus">{{ event.fromStatus | t }}→ {{ event.toStatus | t }}</span>
+          </div>
+        </li>
+      </ol>
+    </section>
+  </div>
+</article>
+<div *ngIf="!loading && !loadError && orders.length === 0" class="empty-state">
+  <h3>{{ "noOrders" | t }}</h3>
+  <p>{{ "noOrdersHint" | t }}</p>
+</div>

@@ -13,7 +13,7 @@ restore_automation(){
   for name in "${variables[@]}";do
     if [[ "${previous_set[$name]}" == true ]];then export "$name=${previous_values[$name]}";else unset "$name";fi
   done
-  compose up -d --force-recreate --wait mock-logistics-service >/dev/null
+  compose up -d --force-recreate --wait logistics-simulator-service >/dev/null
 }
 trap restore_automation EXIT
 
@@ -22,7 +22,7 @@ export LOGISTICS_AUTO_PROGRESS_INITIAL_DELAY=2s
 export LOGISTICS_AUTO_PROGRESS_SCAN_INTERVAL=1s
 export LOGISTICS_AUTO_PROGRESS_STEP_INTERVAL=1s
 export LOGISTICS_AUTO_PROGRESS_BATCH_SIZE=100
-compose up -d --force-recreate --wait mock-logistics-service >/dev/null
+compose up -d --force-recreate --wait logistics-simulator-service >/dev/null
 
 "$SCRIPT_DIR/verify-merchant-fulfillment.sh" "$BASE_URL"
 temp_dir="$(new_temp_dir)"
@@ -40,6 +40,6 @@ while ((SECONDS<deadline));do
 done
 jq -e '.logistics.status=="DELIVERED" and (.logistics.events|length)==6 and ([.logistics.events[]|select(.eventType!="PROGRESS")]|length)==0'<<<"$delivered">/dev/null||{ echo 'Automatic logistics timeline is incomplete'>&2;exit 1; }
 db_user="${DATABASE_USERNAME:-commerceflow}";db_password="${DATABASE_PASSWORD:-commerceflow-password}"
-task_status="$(compose exec -T mysql mysql --batch --skip-column-names "-u$db_user" "-p$db_password" commerceflow -e "SELECT status FROM scheduled_tasks WHERE task_type='AUTO_RECEIVE' AND task_key='order:$order_id'"|tail -n1|tr -d '\r')"
+task_status="$(compose exec -T commerce-db mysql --batch --skip-column-names "-u$db_user" "-p$db_password" commerceflow -e "SELECT status FROM scheduled_tasks WHERE task_type='AUTO_RECEIVE' AND task_key='order:$order_id'"|tail -n1|tr -d '\r')"
 [[ "$task_status" == SCHEDULED ]]||{ echo 'Automatic DELIVERED callback did not schedule AUTO_RECEIVE'>&2;exit 1; }
 echo "Automatic logistics verification passed: configuration-driven CREATED -> DELIVERED and AUTO_RECEIVE scheduling (order=$(jq -r .orderNumber<<<"$candidate"))"

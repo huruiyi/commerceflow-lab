@@ -6,7 +6,7 @@ BASE_URL="${1:-http://localhost:14200}"
 db_user="${DATABASE_USERNAME:-commerceflow}"
 db_password="${DATABASE_PASSWORD:-commerceflow-password}"
 
-db_scalar(){ compose exec -T mysql mysql --batch --skip-column-names "-u$db_user" "-p$db_password" commerceflow -e "$1" | tail -n 1 | tr -d '\r'; }
+db_scalar(){ compose exec -T commerce-db mysql --batch --skip-column-names "-u$db_user" "-p$db_password" commerceflow -e "$1" | tail -n 1 | tr -d '\r'; }
 wait_order_status(){
   local id="$1" expected="$2" deadline=$((SECONDS+40)) order
   while ((SECONDS<deadline));do
@@ -58,17 +58,17 @@ review="$(json_request POST "$BASE_URL/api/order-items/$item_id/reviews" "$custo
 
 # Recreate the crash window after the order transition committed but before task acknowledgement.
 complete_task_id="$(db_scalar "SELECT id FROM scheduled_tasks WHERE task_type='AUTO_COMPLETE' AND task_key='order:$automatic_id'")"
-compose stop backend >/dev/null
+compose stop commerce-service >/dev/null
 restart_required=true
 restart_backend(){
-  if [[ "${restart_required:-false}" == true ]];then compose up -d --wait backend >/dev/null;fi
+  if [[ "${restart_required:-false}" == true ]];then compose up -d --wait commerce-service >/dev/null;fi
 }
 trap 'restart_backend; rm -rf -- "$temp_dir"' EXIT
 db_scalar "UPDATE scheduled_tasks SET status='PROCESSING',completed_at=NULL,due_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 2 SECOND),lease_until=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND),claimed_by='simulated-crashed-worker',last_error=NULL WHERE id=$complete_task_id" >/dev/null
-compose up -d --wait backend >/dev/null
+compose up -d --wait commerce-service >/dev/null
 restart_required=false
 wait_task_status "$complete_task_id" SUCCEEDED
 lease_events="$(db_scalar "SELECT COUNT(*) FROM scheduled_task_events WHERE task_id=$complete_task_id AND event_type='TASK_LEASE_EXPIRED'")"
 completion_events="$(db_scalar "SELECT COUNT(*) FROM order_events WHERE order_id=$automatic_id AND event_type='ORDER_AUTO_COMPLETED'")"
 ((lease_events>=1&&completion_events==1))||{ echo "Crash recovery was not idempotent (leaseEvents=$lease_events, completionEvents=$completion_events)" >&2;exit 1; }
-echo "Automatic lifecycle verification passed: manual receipt cancels AUTO_RECEIVE; DELIVERED -> AUTO_RECEIVE -> RECEIVED -> AUTO_COMPLETE -> COMPLETED; expired lease recovered after backend restart without duplicate completion; payment/logistics/review remain available (order=$(jq -r .orderNumber<<<"$completed"))"
+echo "Automatic lifecycle verification passed: manual receipt cancels AUTO_RECEIVE; DELIVERED -> AUTO_RECEIVE -> RECEIVED -> AUTO_COMPLETE -> COMPLETED; expired lease recovered after commerce-service restart without duplicate completion; payment/logistics/review remain available (order=$(jq -r .orderNumber<<<"$completed"))"

@@ -52,7 +52,7 @@
 - 物流首次进入 `DELIVERED（已送达）` 后创建 `AUTO_RECEIVE`；观察期到期且订单仍为 `SHIPPED（已发货）` 时自动进入 `RECEIVED（已收货）`。
 - 手动或自动收货都会幂等创建 `AUTO_COMPLETE（自动完成订单）`；观察期到期后从 `RECEIVED` 进入 `COMPLETED（已完成）`。
 - `COMPLETED` 仍保留支付记录、物流轨迹和未评商品的评价入口，同时不再提供取消、确认收货或未发货退款动作。
-- 已用两线程同时抢占验证手动收货与 `AUTO_RECEIVE` 只会形成一次有效转换；过期租约可在 backend 重启后恢复，幂等重放不会重复完成订单。
+- 已用两线程同时抢占验证手动收货与 `AUTO_RECEIVE` 只会形成一次有效转换；过期租约可在 commerce-service 重启后恢复，幂等重放不会重复完成订单。
 - `AUTO_RECEIVE/AUTO_COMPLETE` 的 RabbitMQ/RocketMQ 故障实验已通过 Windows 与容器化 Bash 实测：Broker 停机时发布尝试和错误可观测，恢复后由原策略快照执行，`TASK_SUCCEEDED` 与订单状态副作用均只有一次。
 - 收货/完成竞态浸泡已通过 Windows 120 秒/9 轮/12 并发/864 次操作和容器化 Bash 120 秒/11 轮/12 并发/1056 次操作；交替偏置覆盖手动收货和自动收货两种赢家，每轮只有一次收货转换、一条 `AUTO_COMPLETE` 任务和一次完成事件。
 
@@ -87,7 +87,7 @@ RocketMQ 实机验收已通过 Windows 和容器化 Bash 两套脚本：确认 B
 
 MQ 幂等专项已通过 Windows 和容器化 Bash 实机验收：RabbitMQ/RocketMQ 分别重放两条已完成任务的旧消息，ignored 指标按预期增加，而 `TASK_CLAIMED`、`TASK_SUCCEEDED` 和订单取消副作用仍各只有一次；非法 JSON 分别进入 RabbitMQ Dead Queue 与 RocketMQ `%DLQ%commerceflow-scheduled-task-consumer`。RocketMQ 教学 Consumer Group 使用 2 次、1 秒/2 秒的有限重试，避免毒消息无限占用资源。
 
-MQ 未确认重新投递专项已通过 Windows Docker 与容器化 Bash 实机验收：故障注入点在 Broker 已投递、统一执行器尚未领取且消费者未确认时暂停；零秒宽限停止 backend 后，RabbitMQ/RocketMQ 任务 `239/240`、`241/242` 均由原 Broker 消息重新投递，崩溃前后没有新增发布事件，`TASK_CLAIMED`、`TASK_SUCCEEDED` 和订单取消均只有一次。
+MQ 未确认重新投递专项已通过 Windows Docker 与容器化 Bash 实机验收：故障注入点在 Broker 已投递、统一执行器尚未领取且消费者未确认时暂停；零秒宽限停止 commerce-service 后，RabbitMQ/RocketMQ 任务 `239/240`、`241/242` 均由原 Broker 消息重新投递，崩溃前后没有新增发布事件，`TASK_CLAIMED`、`TASK_SUCCEEDED` 和订单取消均只有一次。
 
 Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复策略，查看 Handler 可用性、策略来源和版本，并按类型/状态查询任务、查看事件、重试失败任务或取消待执行任务。页面维护的是数据策略，不能上传可执行代码。
 
@@ -107,7 +107,7 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - Windows PowerShell 与容器化 Bash 的 `verify-payment-cancellation-race` 使用交替偏置和随机抖动并发调用真实商城/支付平台，已验证 `PAID/SUCCESS` 与 `CANCELLED/CLOSED` 都不会产生矛盾账务状态。
 - `verify-payment-cancellation-stress` 在不关闭支付平台每分钟签名请求限流的前提下增加节流与有限退避，并按本轮订单 ID 直接审计 Docker MySQL。Windows 120.6 秒/95 轮（`55 PAID` + `40 CANCELLED`）、容器化 Bash 121 秒/97 轮（`58 PAID` + `39 CANCELLED`）均为 0 矛盾记录。
 - `verify-payment-cancellation-lock-timeout` 在真实 MySQL 中分别持有订单行和支付行锁；Windows 与容器化 Bash 均验证首次请求返回 `503/DATABASE_CONCURRENCY_RETRY` 与 `Retry-After`，超时事务无中间状态，释放锁后取消和支付回调都可成功重试。
-- `verify-payment-cancellation-crash-recovery` 用默认关闭的定点暂停钩子和 backend SIGKILL 覆盖四个窗口：`CANCELLING` 中间态恢复、渠道已关但本地未完成、支付回调事务回滚/重放、迟到成功回调恢复资金事实；Windows 与容器化 Bash 均已通过。
+- `verify-payment-cancellation-crash-recovery` 用默认关闭的定点暂停钩子和 commerce-service SIGKILL 覆盖四个窗口：`CANCELLING` 中间态恢复、渠道已关但本地未完成、支付回调事务回滚/重放、迟到成功回调恢复资金事实；Windows 与容器化 Bash 均已通过。
 - 单次渠道交易进入 `EXPIRED` 后不关闭订单；`payment_due_at` 未到时可换渠道发起新支付，到期后创建新支付会被后端拒绝。
 - `verify-payment-attempt-deadline` 的 Windows 与容器化 Bash 真实链路均已通过：整单截止时间到达后，Database 任务先关闭当前待支付渠道，再取消订单，且领取/完成事件各一次。
 - 全新独立数据卷已在 Windows 与容器化 Bash 跑完完整链路：商城/支付/物流 Flyway 分别达到 V23/V3/V4，从 0 订单开始完成登录、下单、支付、履约、物流、收货、完成、重启恢复和评价。

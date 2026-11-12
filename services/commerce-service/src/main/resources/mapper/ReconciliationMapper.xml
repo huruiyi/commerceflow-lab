@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.payment.infrastructure.ReconciliationMapper">
+
+  <insert id="detectExpired">
+    <![CDATA[
+      INSERT IGNORE INTO payment_reconciliation_issue(payment_id,issue_type,detail) SELECT id,'PAYMENT_TIMEOUT','Pending payment exceeded provider expiry' FROM payment_records WHERE status='PENDING' AND expires_at<CURRENT_TIMESTAMP
+    ]]>
+  </insert>
+
+  <select id="openIssues" resultType="java.lang.Long">
+    <![CDATA[
+      SELECT COUNT(*) FROM payment_reconciliation_issue WHERE status='OPEN'
+    ]]>
+  </select>
+</mapper>

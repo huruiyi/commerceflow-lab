@@ -1,6 +1,6 @@
-name: commerceflow
+name: fairy-commerceflow
 services:
-  mysql:
+  commerce-db:
     image: mysql:8.4
     environment:
       MYSQL_DATABASE: commerceflow
@@ -8,7 +8,7 @@ services:
       MYSQL_PASSWORD: ${DATABASE_PASSWORD:-commerceflow-password}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
     volumes:
-      - mysql-data:/var/lib/mysql
+      - commerce-db-data:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
       interval: 5s
@@ -17,11 +17,11 @@ services:
       start_period: 20s
     restart: unless-stopped
 
-  redis:
+  commerce-redis:
     image: redis:7.4-alpine
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
-      - redis-data:/data
+      - commerce-redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -29,22 +29,22 @@ services:
       retries: 20
     restart: unless-stopped
 
-  kafka:
+  kafka-broker:
     image: apache/kafka:4.1.1
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-broker:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-broker:9093
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     volumes:
-      - kafka-data:/var/lib/kafka/data
+      - kafka-broker-data:/var/lib/kafka/data
     healthcheck:
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
       interval: 10s
@@ -53,19 +53,19 @@ services:
       start_period: 30s
     restart: unless-stopped
 
-  kafka-ui:
+  kafka-console:
     image: provectuslabs/kafka-ui:latest
     environment:
       KAFKA_CLUSTERS_0_NAME: commerceflow
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-broker:9092
     ports:
       - "14202:8080"
     depends_on:
-      kafka:
+      kafka-broker:
         condition: service_healthy
     restart: unless-stopped
 
-  rabbitmq:
+  rabbitmq-broker:
     image: rabbitmq:4.1-management
     profiles: [rabbitmq]
     environment:
@@ -74,7 +74,7 @@ services:
     ports:
       - "15672:15672"
     volumes:
-      - rabbitmq-data:/var/lib/rabbitmq
+      - rabbitmq-broker-data:/var/lib/rabbitmq
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 5s
@@ -95,17 +95,17 @@ services:
         /home/rocketmq/logs/broker/rocketmqlogs /home/rocketmq/store &&
         chown -R 3000:3000 /home/rocketmq/logs /home/rocketmq/store
     volumes:
-      - rocketmq-namesrv-logs:/home/rocketmq/logs/namesrv
+      - rocketmq-nameserver-logs:/home/rocketmq/logs/namesrv
       - rocketmq-broker-store:/home/rocketmq/store
       - rocketmq-broker-logs:/home/rocketmq/logs/broker
     restart: "no"
 
-  rocketmq-namesrv:
+  rocketmq-nameserver:
     image: apache/rocketmq:5.4.0
     profiles: [rocketmq]
     command: sh mqnamesrv
     volumes:
-      - rocketmq-namesrv-logs:/home/rocketmq/logs
+      - rocketmq-nameserver-logs:/home/rocketmq/logs
     depends_on:
       rocketmq-storage-init:
         condition: service_completed_successfully
@@ -121,29 +121,29 @@ services:
     image: apache/rocketmq:5.4.0
     profiles: [rocketmq]
     environment:
-      NAMESRV_ADDR: rocketmq-namesrv:9876
-    command: sh mqbroker -n rocketmq-namesrv:9876 --enable-proxy
+      NAMESRV_ADDR: rocketmq-nameserver:9876
+    command: sh mqbroker -n rocketmq-nameserver:9876 --enable-proxy
     ports:
       - "18084:8081"
     volumes:
       - rocketmq-broker-store:/home/rocketmq/store
       - rocketmq-broker-logs:/home/rocketmq/logs
     depends_on:
-      rocketmq-namesrv:
+      rocketmq-nameserver:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "sh mqadmin clusterList -n rocketmq-namesrv:9876 2>/dev/null | grep DefaultCluster >/dev/null"]
+      test: ["CMD-SHELL", "sh mqadmin clusterList -n rocketmq-nameserver:9876 2>/dev/null | grep DefaultCluster >/dev/null"]
       interval: 5s
       timeout: 8s
       retries: 40
       start_period: 30s
     restart: unless-stopped
 
-  rocketmq-init:
+  rocketmq-topic-init:
     image: apache/rocketmq:5.4.0
     profiles: [rocketmq]
     environment:
-      NAMESRV_ADDR: rocketmq-namesrv:9876
+      NAMESRV_ADDR: rocketmq-nameserver:9876
       ROCKETMQ_TOPIC: ${SCHEDULING_ROCKETMQ_TOPIC:-commerceflow-scheduled-task}
       ROCKETMQ_CONSUMER_GROUP: ${SCHEDULING_ROCKETMQ_CONSUMER_GROUP:-commerceflow-scheduled-task-consumer}
       ROCKETMQ_CONSUMER_RETRY_MAX_TIMES: ${ROCKETMQ_CONSUMER_RETRY_MAX_TIMES:-2}
@@ -151,9 +151,9 @@ services:
       - sh
       - -c
       - >-
-        sh mqadmin updateTopic -n rocketmq-namesrv:9876 -c DefaultCluster
+        sh mqadmin updateTopic -n rocketmq-nameserver:9876 -c DefaultCluster
         -t $${ROCKETMQ_TOPIC:-commerceflow-scheduled-task} -a +message.type=DELAY
-        && sh mqadmin updateSubGroup -n rocketmq-namesrv:9876 -c DefaultCluster
+        && sh mqadmin updateSubGroup -n rocketmq-nameserver:9876 -c DefaultCluster
         -g $${ROCKETMQ_CONSUMER_GROUP:-commerceflow-scheduled-task-consumer}
         -r $${ROCKETMQ_CONSUMER_RETRY_MAX_TIMES:-2}
         -p '{"type":"CUSTOMIZED","customizedRetryPolicy":{"next":[1000,2000]}}'
@@ -167,9 +167,9 @@ services:
     profiles: [observability]
     ports: ["19090:9090"]
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     depends_on:
-      backend: {condition: service_healthy}
+      commerce-service: {condition: service_healthy}
     restart: unless-stopped
 
   grafana:
@@ -180,11 +180,11 @@ services:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: commerceflow-grafana
     volumes:
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on: [prometheus]
     restart: unless-stopped
 
-  payment-mysql:
+  payment-simulator-db:
     image: mysql:8.4
     command: ["--log-bin-trust-function-creators=1"]
     environment:
@@ -195,7 +195,7 @@ services:
     ports:
       - "13307:3306"
     volumes:
-      - payment-mysql-data:/var/lib/mysql
+      - payment-simulator-db-data:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
       interval: 5s
@@ -204,26 +204,38 @@ services:
       start_period: 20s
     restart: unless-stopped
 
-  mock-payment-service:
+  payment-simulator-redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - payment-simulator-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  payment-simulator-service:
     build:
-      context: ./mock-payment-service
+      context: ./simulators/payment-platform/service
     environment:
-      PAYMENT_DATABASE_URL: jdbc:mysql://payment-mysql:3306/payment_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      PAYMENT_DATABASE_URL: jdbc:mysql://payment-simulator-db:3306/payment_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       PAYMENT_DATABASE_USERNAME: ${PAYMENT_DATABASE_USERNAME:-payment}
       PAYMENT_DATABASE_PASSWORD: ${PAYMENT_DATABASE_PASSWORD:-payment-password}
       PAYMENT_CREDENTIAL_MASTER_KEY: ${PAYMENT_CREDENTIAL_MASTER_KEY:-bG9jYWwtZGVtby1rZXktMTIzNDU2Nzg5MC1hYmNkZWY=}
       PAYMENT_CHECKOUT_BASE_URL: http://localhost:14201
-      REDIS_HOST: redis
+      REDIS_HOST: payment-simulator-redis
       REDIS_PORT: 6379
-      PAYMENT_CALLBACK_URL: http://backend:8080/api/payment-notifications/callback
-      REFUND_CALLBACK_URL: http://backend:8080/api/refund-notifications/callback
+      PAYMENT_CALLBACK_URL: http://commerce-service:8080/api/payment-notifications/callback
+      REFUND_CALLBACK_URL: http://commerce-service:8080/api/refund-notifications/callback
       PAYMENT_CALLBACK_SECRET: ${PAYMENT_CALLBACK_SECRET:-demo-platform-callback-secret}
     ports:
       - "18082:8080"
     depends_on:
-      payment-mysql:
+      payment-simulator-db:
         condition: service_healthy
-      redis:
+      payment-simulator-redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
@@ -233,13 +245,13 @@ services:
       start_period: 25s
     restart: unless-stopped
 
-  payment-ui:
+  payment-simulator-web:
     build:
-      context: ./mock-payment-ui
+      context: ./simulators/payment-platform/web
     ports:
       - "14201:80"
     depends_on:
-      mock-payment-service:
+      payment-simulator-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
@@ -249,7 +261,7 @@ services:
       start_period: 5s
     restart: unless-stopped
 
-  logistics-mysql:
+  logistics-simulator-db:
     image: mysql:8.4
     environment:
       MYSQL_DATABASE: logistics_platform
@@ -259,7 +271,7 @@ services:
     ports:
       - "13308:3306"
     volumes:
-      - logistics-mysql-data:/var/lib/mysql
+      - logistics-simulator-db-data:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
       interval: 5s
@@ -268,17 +280,17 @@ services:
       start_period: 20s
     restart: unless-stopped
 
-  mock-logistics-service:
+  logistics-simulator-service:
     build:
-      context: ./mock-logistics-service
+      context: ./simulators/logistics-platform/service
     environment:
-      LOGISTICS_DATABASE_URL: jdbc:mysql://logistics-mysql:3306/logistics_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      LOGISTICS_DATABASE_URL: jdbc:mysql://logistics-simulator-db:3306/logistics_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       LOGISTICS_DATABASE_USERNAME: ${LOGISTICS_DATABASE_USERNAME:-logistics}
       LOGISTICS_DATABASE_PASSWORD: ${LOGISTICS_DATABASE_PASSWORD:-logistics-password}
       LOGISTICS_APP_ID: ${LOGISTICS_APP_ID:-commerceflow-storefront}
       LOGISTICS_REQUEST_SECRET: ${LOGISTICS_REQUEST_SECRET:-demo-logistics-request-secret}
       LOGISTICS_CALLBACK_SECRET: ${LOGISTICS_CALLBACK_SECRET:-demo-logistics-callback-secret}
-      LOGISTICS_CALLBACK_URL: http://backend:8080/api/logistics-notifications/callback
+      LOGISTICS_CALLBACK_URL: http://commerce-service:8080/api/logistics-notifications/callback
       LOGISTICS_CALLBACK_DELIVERY_ENABLED: ${LOGISTICS_CALLBACK_DELIVERY_ENABLED:-true}
       LOGISTICS_CALLBACK_DELIVERY_INITIAL_DELAY: ${LOGISTICS_CALLBACK_DELIVERY_INITIAL_DELAY:-2s}
       LOGISTICS_CALLBACK_DELIVERY_SCAN_INTERVAL: ${LOGISTICS_CALLBACK_DELIVERY_SCAN_INTERVAL:-1s}
@@ -296,7 +308,7 @@ services:
     ports:
       - "18083:8080"
     depends_on:
-      logistics-mysql:
+      logistics-simulator-db:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
@@ -306,34 +318,34 @@ services:
       start_period: 25s
     restart: unless-stopped
 
-  backend:
+  commerce-service:
     build:
-      context: ./backend
+      context: ./services/commerce-service
     environment:
-      DATABASE_URL: jdbc:mysql://mysql:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&sessionVariables=innodb_lock_wait_timeout=${DATABASE_LOCK_WAIT_TIMEOUT_SECONDS:-5}
+      DATABASE_URL: jdbc:mysql://commerce-db:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&sessionVariables=innodb_lock_wait_timeout=${DATABASE_LOCK_WAIT_TIMEOUT_SECONDS:-5}
       DATABASE_USERNAME: ${DATABASE_USERNAME:-commerceflow}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD:-commerceflow-password}
       REMEMBER_ME_KEY: ${REMEMBER_ME_KEY:-commerceflow-demo-remember-me-key-change-in-production}
-      REDIS_HOST: redis
+      REDIS_HOST: commerce-redis
       REDIS_PORT: 6379
-      PAYMENT_PLATFORM_BASE_URL: http://mock-payment-service:8080
+      PAYMENT_PLATFORM_BASE_URL: http://payment-simulator-service:8080
       PAYMENT_CALLBACK_SECRET: ${PAYMENT_CALLBACK_SECRET:-demo-platform-callback-secret}
       PAYMENT_CANCELLATION_CRASH_LAB_ENABLED: ${PAYMENT_CANCELLATION_CRASH_LAB_ENABLED:-false}
       PAYMENT_CANCELLATION_CRASH_LAB_ORDER_ID: ${PAYMENT_CANCELLATION_CRASH_LAB_ORDER_ID:-1}
       PAYMENT_CANCELLATION_CRASH_LAB_PHASE: ${PAYMENT_CANCELLATION_CRASH_LAB_PHASE:-AFTER_CANCELLATION_BEGIN}
       PAYMENT_CANCELLATION_CRASH_LAB_PAUSE: ${PAYMENT_CANCELLATION_CRASH_LAB_PAUSE:-5m}
-      LOGISTICS_PLATFORM_BASE_URL: http://mock-logistics-service:8080
+      LOGISTICS_PLATFORM_BASE_URL: http://logistics-simulator-service:8080
       LOGISTICS_APP_ID: ${LOGISTICS_APP_ID:-commerceflow-storefront}
       LOGISTICS_REQUEST_SECRET: ${LOGISTICS_REQUEST_SECRET:-demo-logistics-request-secret}
       LOGISTICS_CALLBACK_SECRET: ${LOGISTICS_CALLBACK_SECRET:-demo-logistics-callback-secret}
-      LOGISTICS_CALLBACK_URL: http://backend:8080/api/logistics-notifications/callback
+      LOGISTICS_CALLBACK_URL: http://commerce-service:8080/api/logistics-notifications/callback
       LOGISTICS_RECONCILIATION_ENABLED: ${LOGISTICS_RECONCILIATION_ENABLED:-true}
       LOGISTICS_RECONCILIATION_INITIAL_DELAY: ${LOGISTICS_RECONCILIATION_INITIAL_DELAY:-30s}
       LOGISTICS_RECONCILIATION_SCAN_INTERVAL: ${LOGISTICS_RECONCILIATION_SCAN_INTERVAL:-1m}
       LOGISTICS_RECONCILIATION_STALE_AFTER: ${LOGISTICS_RECONCILIATION_STALE_AFTER:-5m}
       LOGISTICS_RECONCILIATION_BATCH_SIZE: ${LOGISTICS_RECONCILIATION_BATCH_SIZE:-100}
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      KAFKA_BOOTSTRAP_SERVERS: kafka-broker:9092
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq-broker}
       RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
       RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-commerceflow}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-commerceflow-password}
@@ -377,15 +389,15 @@ services:
     ports:
       - "18081:8080"
     depends_on:
-      mysql:
+      commerce-db:
         condition: service_healthy
-      redis:
+      commerce-redis:
         condition: service_healthy
-      mock-payment-service:
+      payment-simulator-service:
         condition: service_healthy
-      mock-logistics-service:
+      logistics-simulator-service:
         condition: service_healthy
-      kafka:
+      kafka-broker:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
@@ -395,13 +407,13 @@ services:
       start_period: 20s
     restart: unless-stopped
 
-  web:
+  commerce-portal-angular:
     build:
-      context: ./frontend
+      context: ./web/commerce-portal/angular
     ports:
       - "14200:80"
     depends_on:
-      backend:
+      commerce-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
@@ -412,12 +424,13 @@ services:
     restart: unless-stopped
 
 volumes:
-  mysql-data:
-  redis-data:
-  payment-mysql-data:
-  logistics-mysql-data:
-  kafka-data:
-  rabbitmq-data:
-  rocketmq-namesrv-logs:
+  commerce-db-data:
+  commerce-redis-data:
+  payment-simulator-db-data:
+  payment-simulator-redis-data:
+  logistics-simulator-db-data:
+  kafka-broker-data:
+  rabbitmq-broker-data:
+  rocketmq-nameserver-logs:
   rocketmq-broker-store:
   rocketmq-broker-logs:

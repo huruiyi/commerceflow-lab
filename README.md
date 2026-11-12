@@ -9,9 +9,9 @@
 | 英文标题 | `CommerceFlow Lab` |
 | 中文标题 | `CommerceFlow 电商全链路实验室` |
 | GitHub 仓库 | `commerceflow-lab` |
-| 最终 Java/Maven 命名空间 | `vip.fairy.commerceflow` |
-| 最终 Docker Compose 项目名 | `fairy-commerceflow` |
-| 当前 M1 兼容标识 | Java `lab.commerceflow.*`；Compose `commerceflow`；卷 `commerceflow_*` |
+| Java/Maven 命名空间 | `vip.fairy.commerceflow` |
+| Docker Compose 项目名 | `fairy-commerceflow` |
+| M1 历史基线 | `m1-baseline-2026-11-13`（保留旧命名与验收证据） |
 | 商城服务 Maven artifactId | `commerce-service` |
 | 命名迁移策略 | 不混用两套名称；按 [命名规范](docs/NAMING-CONVENTIONS.md) 独立迁移 |
 
@@ -31,21 +31,22 @@
                                       └────────────→ 独立 Redis Session 命名空间
 ```
 
-- `frontend/`：Angular 22.2.6、SimUI 1.8.0 / Spartan UI 1.8.0、Tailwind CSS 4.3.5、Bootstrap 5.3.9、Nginx 配置和前端 Dockerfile。
-- `backend/`：Java 25 LTS、Spring Boot 4.1.2、Spring Security 7、MyBatis-Plus、Flyway 和后端 Dockerfile。
-- `mock-payment-service/`：独立支付数据库、后台安全、商户凭据和三渠道交易服务。
-- `mock-payment-ui/`：Vue 3.5.45、Ant Design Vue Next 和 VXE-Table 支付管理后台与模拟收银台。
+- `web/commerce-portal/angular/`：Angular 22.2.6、SimUI 1.8.0 / Spartan UI 1.8.0、Tailwind CSS 4.3.5、Bootstrap 5.3.9、Nginx 配置和前端 Dockerfile。
+- `services/commerce-service/`：Java 25 LTS、Spring Boot 4.1.2、Spring Security 7、MyBatis-Plus、Flyway 和后端 Dockerfile。
+- `simulators/payment-platform/service/`：独立支付数据库、后台安全、商户凭据和三渠道交易服务。
+- `simulators/logistics-platform/service/`：独立物流数据库、运单推进、异常与可靠回调模拟服务。
+- `simulators/payment-platform/web/`：Vue 3.5.45、Ant Design Vue Next 和 VXE-Table 支付管理后台与模拟收银台。
 - `compose.yaml`：一键启动 MySQL、Redis、后端和前端。
 
 ## 学习路线与代码阅读顺序
 
 建议按“界面调用 → 安全边界 → 业务事务 → 数据结构 → 异步可靠性”的顺序阅读：
 
-1. 从 `frontend/src/app` 看登录、商品、购物车、地址、订单和商家页面如何调用 API。
-2. 阅读 `backend/.../configuration/SecurityConfiguration.java` 和认证 Controller，理解 Session、CSRF、Remember-Me 与角色授权。
+1. 从 `web/commerce-portal/angular/src/app` 看登录、商品、购物车、地址、订单和商家页面如何调用 API。
+2. 阅读 `services/commerce-service/.../identity/infrastructure/SecurityConfiguration.java` 和认证 Controller，理解 Session、CSRF、Remember-Me 与角色授权。
 3. 阅读购物车、下单、支付、履约、收货评价对应的 Controller、Service、Mapper。
-4. 按版本查看 `backend/src/main/resources/db/migration`，把业务模型与数据库约束对应起来。
-5. 阅读支付 Outbox、Kafka 发布/消费和补偿任务，再进入独立的 `mock-payment-service`。
+4. 按版本查看 `services/commerce-service/src/main/resources/db/migration`，把业务模型与数据库约束对应起来。
+5. 阅读支付 Outbox、Kafka 发布/消费和补偿任务，再进入独立的 `simulators/payment-platform/service/`。
 6. 最后使用 `scripts/windows/` 或 `scripts/linux/` 中的验收脚本做成功、失败、幂等、越权和故障实验。
 
 文档统一从 [docs/README.md](docs/README.md) 进入：[当前项目进度](docs/PROJECT-STATUS.md) 给出快照和下一里程碑，[已实现现状](docs/IMPLEMENTED.md) 只记录可验证事实，[统一进度与代办](docs/TODO.md) 是勾选状态和未实现顺序的唯一清单，接口索引见 [docs/API.md](docs/API.md)。分章历史见 [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md)。
@@ -151,7 +152,7 @@ bash ./scripts/linux/audit-script-contracts.sh
 bash ./scripts/linux/verify-quick.sh
 ```
 
-已有当前镜像时可使用 `-SkipBuild` / `--skip-build`。快速入口覆盖脚本契约、权限/i18n、取消、支付竞态、退款、物流、收货/完成/评价、backend 租约恢复、Redis 降级和健康检查。它不代替两分钟浸泡、MQ 停机、空卷或旧卷重启专项。
+已有当前镜像时可使用 `-SkipBuild` / `--skip-build`。快速入口覆盖脚本契约、权限/i18n、取消、支付竞态、退款、物流、收货/完成/评价、commerce-service 租约恢复、Redis 降级和健康检查。它不代替两分钟浸泡、MQ 停机、空卷或旧卷重启专项。
 
 ### 完整自动验收
 
@@ -194,25 +195,25 @@ bash ./scripts/linux/verify-all.sh --skip-build
 | `verify-payment-attempt-deadline` | 验证单次渠道支付过期不关闭整单、到期前可换渠道重试，以及整单截止时先关闭待支付交易再取消订单 | 商城 `14200`、支付平台 `14201` |
 | `verify-payment-cancellation-race` | 交替偏置并加入随机抖动，并发支付完成与客户取消，校验订单/支付/退款一致性 | 商城 `14200`、支付平台 `14201` |
 | `verify-payment-cancellation-stress` | 可配置时长、最少轮数、随机种子和节流的竞态浸泡测试；自动准备库存并对本轮订单做 MySQL 矛盾记录审计 | 商城 `14200`、支付平台 `14201`、Docker MySQL |
-| `verify-payment-cancellation-lock-timeout` | 真实持有订单/支付行锁，验证锁等待超时可识别、事务完整回滚且释放锁后可重试 | backend `18081`、Docker MySQL；只重建 backend 容器，不删卷 |
-| `verify-payment-cancellation-crash-recovery` | 定点 SIGKILL 验证取消中间态、渠道已关窗口、回调事务回滚与迟到回调 | backend `18081`、商城/支付 MySQL；钩子默认关闭，不删卷 |
+| `verify-payment-cancellation-lock-timeout` | 真实持有订单/支付行锁，验证锁等待超时可识别、事务完整回滚且释放锁后可重试 | commerce-service `18081`、Docker MySQL；只重建 commerce-service 容器，不删卷 |
+| `verify-payment-cancellation-crash-recovery` | 定点 SIGKILL 验证取消中间态、渠道已关窗口、回调事务回滚与迟到回调 | commerce-service `18081`、商城/支付 MySQL；钩子默认关闭，不删卷 |
 | `verify-kafka-payment` | 支付回调、Kafka Topic、Outbox 发布和消费记录 | 商城 `14200` |
 | `verify-payment-outcomes` | 失败、余额不足、取消和超时四类支付结果 | 商城 `14200` |
 | `verify-refunds` | 全额退款、资金账一致性、请求/通知幂等、重复申请和伪造通知拒绝 | 商城 `14200` |
 | `verify-merchant-fulfillment` | 已支付订单的商家确认、发货及客户越权拒绝 | 商城 `14200` |
 | `verify-logistics` | 独立物流建单、签名/防重放、`EXCEPTION（异常件） -> RECOVERY（异常恢复）`、六段轨迹和回调投影 | 商城 `14200`、物流 `18083` |
 | `verify-logistics-automation` | 临时启用秒级自动轨迹，验证自动送达与 `AUTO_RECEIVE`，结束后恢复默认关闭 | 商城 `14200`、物流 `18083` |
-| `verify-logistics-reliability` | 验证 backend 停机后的 `RETRY -> PUBLISHED`，以及永久丢失回调由主动对账恢复为 `RECONCILED` | 商城 `14200`、物流 `18083` |
-| `verify-logistics-ordering-stress` | 可配置时长/并发/最少回调数的乱序浸泡，审计状态不倒退、副作用有界和不变字段 | 商城 `14200`、backend `18081`、Docker MySQL |
+| `verify-logistics-reliability` | 验证 commerce-service 停机后的 `RETRY -> PUBLISHED`，以及永久丢失回调由主动对账恢复为 `RECONCILED` | 商城 `14200`、物流 `18083` |
+| `verify-logistics-ordering-stress` | 可配置时长/并发/最少回调数的乱序浸泡，审计状态不倒退、副作用有界和不变字段 | 商城 `14200`、commerce-service `18081`、Docker MySQL |
 | `verify-logistics-callback-governance` | 制造 `DEAD（停止自动重试）`，验证管理员人工重放、审计、权限、幂等和 Prometheus 指标 | 商城 `14200`、物流 `18083` |
-| `verify-auto-lifecycle` | 手动收货取消自动任务、`DELIVERED（已送达） -> RECEIVED（已收货） -> COMPLETED（已完成）`，以及 backend 重启后租约恢复/幂等重放 | 商城 `14200`、物流 `18083` |
+| `verify-auto-lifecycle` | 手动收货取消自动任务、`DELIVERED（已送达） -> RECEIVED（已收货） -> COMPLETED（已完成）`，以及 commerce-service 重启后租约恢复/幂等重放 | 商城 `14200`、物流 `18083` |
 | `verify-auto-lifecycle-mq-failures` | 分别停止 RabbitMQ/RocketMQ，验证 `AUTO_RECEIVE/AUTO_COMPLETE` 发布失败可观测、Broker 恢复后按策略快照执行且副作用仅一次 | 商城 `14200`、Docker Compose、RabbitMQ、RocketMQ；不删卷 |
 | `verify-receipt-lifecycle-stress` | 长时间并发客户收货与 RabbitMQ 任务重投，交替覆盖手动/自动收货赢家，审计收货和完成副作用各一次 | 默认 120 秒/12 并发；保留数据卷 |
 | `verify-rabbitmq-scheduling` | RabbitMQ 延迟任务的确认发布、策略快照、原子领取、审计事件和未支付订单自动关闭；需先启用 RabbitMQ Profile 并使用秒级测试期限 | 商城 `14200`、RabbitMQ `15672` |
 | `verify-rocketmq-scheduling` | RocketMQ 5.x 原生延时消息的 Broker 确认、策略快照、原子领取、审计事件和未支付订单自动关闭；需启用 RocketMQ Profile 和秒级测试期限 | 商城 `14200`、RocketMQ Proxy `18084` |
 | `verify-rocketmq-reconciliation` | 停止 RocketMQ Broker，验证发布失败可观测、Database 对账兜底、策略快照不变，并在结束时恢复 Broker | 商城 `14200`、Docker Compose |
 | `verify-mq-scheduling-idempotency` | 向 RabbitMQ/RocketMQ 重放已完成任务的旧消息并注入非法 JSON，验证只有一次领取/完成及两种 DLQ；需同时启用两个 MQ Profile | 商城 `14200`、后端指标 `18081`、RabbitMQ 管理端 `15672`、RocketMQ |
-| `verify-mq-scheduling-redelivery` | 在消费者已取到消息但未确认时强制终止 backend，验证 RabbitMQ/RocketMQ 重新投递且业务只执行一次 | 商城 `14200`、Docker Compose、RabbitMQ、RocketMQ |
+| `verify-mq-scheduling-redelivery` | 在消费者已取到消息但未确认时强制终止 commerce-service，验证 RabbitMQ/RocketMQ 重新投递且业务只执行一次 | 商城 `14200`、Docker Compose、RabbitMQ、RocketMQ |
 | `verify-receipt-reviews` | 收货、一次性评价、评分校验及商品评分聚合 | 商城 `14200` |
 | `verify-redis-business` | 商品缓存 TTL、支付幂等键、Redis 停机时 MySQL 降级及恢复 | 商城 `14200` |
 | `verify-payment-security` | HMAC/RSA 三渠道签名、Nonce/篡改/过期拒绝、TOTP、Step-up 和审计哈希链 | 支付平台 `14201` |
@@ -243,13 +244,13 @@ RabbitMQ 调度专项验收需要显式启用可选适配器；默认 `docker co
 ```powershell
 $env:SCHEDULING_RABBITMQ_ENABLED='true'
 $env:ORDER_PAYMENT_TIMEOUT='5s'
-docker compose --profile rabbitmq up -d --build --wait rabbitmq backend web
+docker compose --profile rabbitmq up -d --build --wait rabbitmq-broker commerce-service commerce-portal-angular
 ./scripts/windows/verify-rabbitmq-scheduling.ps1 -MaxWaitSeconds 30
 ```
 
 ```bash
 SCHEDULING_RABBITMQ_ENABLED=true ORDER_PAYMENT_TIMEOUT=5s \
-  docker compose --profile rabbitmq up -d --build --wait rabbitmq backend web
+  docker compose --profile rabbitmq up -d --build --wait rabbitmq-broker commerce-service commerce-portal-angular
 bash ./scripts/linux/verify-rabbitmq-scheduling.sh http://localhost:14200 30
 ```
 
@@ -258,14 +259,14 @@ RocketMQ 调度使用 5.x gRPC 客户端和原生绝对投递时间；Profile �
 ```powershell
 $env:SCHEDULING_ROCKETMQ_ENABLED='true'
 $env:ORDER_PAYMENT_TIMEOUT='5s'
-docker compose --profile rocketmq up -d --build --wait rocketmq-init backend web
+docker compose --profile rocketmq up -d --build --wait rocketmq-topic-init commerce-service commerce-portal-angular
 ./scripts/windows/verify-rocketmq-scheduling.ps1 -MaxWaitSeconds 30
 ./scripts/windows/verify-rocketmq-reconciliation.ps1 -MaxWaitSeconds 45
 ```
 
 ```bash
 SCHEDULING_ROCKETMQ_ENABLED=true ORDER_PAYMENT_TIMEOUT=5s \
-  docker compose --profile rocketmq up -d --build --wait rocketmq-init backend web
+  docker compose --profile rocketmq up -d --build --wait rocketmq-topic-init commerce-service commerce-portal-angular
 bash ./scripts/linux/verify-rocketmq-scheduling.sh http://localhost:14200 30
 bash ./scripts/linux/verify-rocketmq-reconciliation.sh http://localhost:14200 45
 ```
@@ -278,13 +279,13 @@ bash ./scripts/linux/verify-rocketmq-reconciliation.sh http://localhost:14200 45
 $env:SCHEDULING_RABBITMQ_ENABLED='true'
 $env:SCHEDULING_ROCKETMQ_ENABLED='true'
 $env:ORDER_PAYMENT_TIMEOUT='6s'
-docker compose --profile rabbitmq --profile rocketmq up -d --build --wait rabbitmq rocketmq-init backend web
+docker compose --profile rabbitmq --profile rocketmq up -d --build --wait rabbitmq-broker rocketmq-topic-init commerce-service commerce-portal-angular
 ./scripts/windows/verify-mq-scheduling-idempotency.ps1 -MaxWaitSeconds 60
 ```
 
 ```bash
 SCHEDULING_RABBITMQ_ENABLED=true SCHEDULING_ROCKETMQ_ENABLED=true ORDER_PAYMENT_TIMEOUT=6s \
-  docker compose --profile rabbitmq --profile rocketmq up -d --build --wait rabbitmq rocketmq-init backend web
+  docker compose --profile rabbitmq --profile rocketmq up -d --build --wait rabbitmq-broker rocketmq-topic-init commerce-service commerce-portal-angular
 bash ./scripts/linux/verify-mq-scheduling-idempotency.sh \
   http://localhost:14200 http://localhost:18081 http://localhost:15672 \
   commerceflow commerceflow-password 60
@@ -292,7 +293,7 @@ bash ./scripts/linux/verify-mq-scheduling-idempotency.sh \
 
 专项脚本要求 RabbitMQ Dead Queue 在开始前为空；验证后会取走本次 RabbitMQ 毒消息。RocketMQ 毒消息使用唯一 Key 查询对应 `%DLQ%ConsumerGroup`，不会清空或覆盖已有消息。
 
-未确认重新投递专项会自动启动两种 Broker、两次以零秒宽限停止 backend，并在结束时恢复策略与环境变量：
+未确认重新投递专项会自动启动两种 Broker、两次以零秒宽限停止 commerce-service，并在结束时恢复策略与环境变量：
 
 ```powershell
 ./scripts/windows/verify-mq-scheduling-redelivery.ps1 -MaxWaitSeconds 120
@@ -358,7 +359,7 @@ Compose 中的数据库密码、商户号、App ID/Secret、RSA/HMAC 密钥和�
 - Bash 提示缺少命令时，先安装 `curl`、`jq` 和 `openssl`；运行支付安全专项时还需 `base32`、`xxd`、`od`。
 - Bash 脚本没有可执行权限时，直接使用 `bash ./scripts/linux/verify-all.sh`，或先执行 `chmod +x scripts/linux/*.sh`。
 
-详见 [前端说明](frontend/README.md) 和 [后端说明](backend/README.md)。
+详见 [前端说明](web/commerce-portal/angular/README.md) 和 [后端说明](services/commerce-service/README.md)。
 
 高级三渠道模拟支付、Kafka、幂等、安全和高可用实验的设计与分章计划见
 [高级模拟支付架构与实现记录](docs/reference/ADVANCED-PAYMENT.md)。

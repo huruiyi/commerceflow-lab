@@ -44,7 +44,7 @@ signed_status() {
 }
 
 suffix="$(date +%s%3N)"
-merchant_body="$(jq -nc --arg name "05A-3 Security Merchant $suffix" '{displayName:$name,notifyUrl:"http://backend:8080/api/payment/notifications",signingAlgorithm:"HMAC_SHA256",merchantPublicKey:""}')"
+merchant_body="$(jq -nc --arg name "05A-3 Security Merchant $suffix" '{displayName:$name,notifyUrl:"http://commerce-service:8080/api/payment/notifications",signingAlgorithm:"HMAC_SHA256",merchantPublicKey:""}')"
 issued="$(json_request POST "$BASE_URL/api/admin/merchants" "$jar" "$csrf_header" "$csrf_token" "$merchant_body")"
 assert_json_value "$issued" '.merchant.signingAlgorithm' HMAC_SHA256 'Merchant signing algorithm'
 app_id="$(jq -r .merchant.appId <<<"$issued")"; app_secret="$(jq -r .appSecret <<<"$issued")"; merchant_id="$(jq -r .merchant.id <<<"$issued")"
@@ -61,7 +61,7 @@ done
 private_key="$temp_dir/rsa-private.pem"; public_key="$temp_dir/rsa-public.pem"
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$private_key" >/dev/null 2>&1
 openssl pkey -in "$private_key" -pubout -out "$public_key" >/dev/null 2>&1
-rsa_merchant_body="$(jq -nc --arg name "05A-3 RSA Merchant $suffix" --rawfile key "$public_key" '{displayName:$name,notifyUrl:"http://backend:8080/api/payment/notifications",signingAlgorithm:"RSA_SHA256",merchantPublicKey:$key}')"
+rsa_merchant_body="$(jq -nc --arg name "05A-3 RSA Merchant $suffix" --rawfile key "$public_key" '{displayName:$name,notifyUrl:"http://commerce-service:8080/api/payment/notifications",signingAlgorithm:"RSA_SHA256",merchantPublicKey:$key}')"
 rsa_issued="$(json_request POST "$BASE_URL/api/admin/merchants" "$jar" "$csrf_header" "$csrf_token" "$rsa_merchant_body")"
 rsa_body="$(jq -nc --arg no "SECURE-RSA-$suffix" '{merchantRequestNo:$no,channel:"UNION_PAY",subject:"05A-3 RSA verification",amount:23.45,currency:"CNY",faultScenario:"NONE"}')"
 rsa_signed_headers "$(jq -r .merchant.appId <<<"$rsa_issued")" "$private_key" POST /api/channel/transactions "$rsa_body"

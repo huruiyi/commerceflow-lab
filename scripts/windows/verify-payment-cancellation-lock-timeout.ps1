@@ -13,8 +13,8 @@ function Invoke-Compose([string[]]$Arguments) {
 }
 
 function Invoke-MySql([string]$Sql) {
-  $value = & docker compose --project-directory $projectRoot exec -T mysql `
-    mysql -ucommerceflow -pcommerceflow-password -Nse $Sql commerceflow 2>$null
+  $value = & docker compose --project-directory $projectRoot exec -T commerce-db `
+    commerce-db -ucommerceflow -pcommerceflow-password -Nse $Sql commerceflow 2>$null
   if ($LASTEXITCODE -ne 0) { throw 'MySQL command failed' }
   return ($value -join "`n").Trim()
 }
@@ -23,8 +23,8 @@ function Start-RowLock([string]$Table, [long]$Id) {
   $sql = "START TRANSACTION; SELECT id FROM $Table WHERE id=$Id FOR UPDATE; DO SLEEP($LockHoldSeconds); COMMIT;"
   $job = Start-Job -ScriptBlock {
     param($Root, $Statement)
-    & docker compose --project-directory $Root exec -T mysql `
-      mysql -ucommerceflow -pcommerceflow-password -Nse $Statement commerceflow 2>$null
+    & docker compose --project-directory $Root exec -T commerce-db `
+      commerce-db -ucommerceflow -pcommerceflow-password -Nse $Statement commerceflow 2>$null
     if ($LASTEXITCODE -ne 0) { throw 'Lock holder failed' }
   } -ArgumentList $projectRoot, $sql
   Start-Sleep -Seconds 1
@@ -58,7 +58,7 @@ function Assert-RetryableResponse($Response, [string]$Label) {
 
 try {
   $env:DATABASE_LOCK_WAIT_TIMEOUT_SECONDS = [string]$LockWaitTimeoutSeconds
-  Invoke-Compose @('up','-d','--no-deps','--force-recreate','backend')
+  Invoke-Compose @('up','-d','--no-deps','--force-recreate','commerce-service')
   for ($i=0; $i -lt 30; $i++) {
     try { if ((Invoke-RestMethod "$BaseUrl/actuator/health").status -eq 'UP') { break } } catch {}
     Start-Sleep -Seconds 1
@@ -119,5 +119,5 @@ try {
   Write-Host 'Payment/cancellation lock timeout verification passed: HTTP 503 retry contract, rollback and successful retry.' -ForegroundColor Green
 } finally {
   if ($null -eq $previousTimeout) { Remove-Item Env:DATABASE_LOCK_WAIT_TIMEOUT_SECONDS -ErrorAction SilentlyContinue } else { $env:DATABASE_LOCK_WAIT_TIMEOUT_SECONDS = $previousTimeout }
-  Invoke-Compose @('up','-d','--no-deps','--force-recreate','backend')
+  Invoke-Compose @('up','-d','--no-deps','--force-recreate','commerce-service')
 }
