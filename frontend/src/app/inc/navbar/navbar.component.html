@@ -33,16 +33,16 @@
           <form *ngIf="isProductPage" class="product-search" role="search" (ngSubmit)="search()">
             <i class="bi bi-search search-leading-icon" aria-hidden="true"></i>
             <input type="search" name="productSearch" [(ngModel)]="searchText" [placeholder]="'searchProducts'|t" [attr.aria-label]="'searchProducts'|t">
-            <button type="submit" [attr.aria-label]="'search'|t" [title]="'search'|t">
+            <button hlmBtn type="submit" [attr.aria-label]="'search'|t" [title]="'search'|t">
               <i class="bi bi-arrow-right" aria-hidden="true"></i>
             </button>
           </form>
-          <button class="language-switch" type="button" (click)="i18n.switch()">
+          <button hlmBtn variant="outline" class="language-switch" type="button" (click)="i18n.switch()">
             <i class="bi bi-globe2" aria-hidden="true"></i>
             <span>{{'language'|t}}</span>
           </button>
           <div class="dropdown account-menu">
-            <button class="account-switch dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <button hlmBtn variant="outline" class="account-switch dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
               <span class="account-avatar">{{accountInitial}}</span>
               <span class="account-name">{{accountDisplayName}}</span>
             </button>

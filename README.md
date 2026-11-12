@@ -19,7 +19,7 @@
 浏览器
   └─ http://localhost:14200
        └─ Nginx
-            ├─ Angular 22.2.6 + NG-ZORRO 22.2.0 静态页面
+            ├─ Angular 22.2.6 + SimUI 1.8.0 / Spartan UI 静态页面
             └─ /api/* → Spring Boot 4.1.2 → MyBatis-Plus → MySQL 8.4
                                       └────→ Redis 7.4
 
@@ -29,7 +29,7 @@
                                       └────────────→ 独立 Redis Session 命名空间
 ```
 
-- `frontend/`：Angular 22.2.6、NG-ZORRO 22.2.0、Bootstrap 5.3.9、Nginx 配置和前端 Dockerfile。
+- `frontend/`：Angular 22.2.6、SimUI 1.8.0 / Spartan UI 1.8.0、Tailwind CSS 4.3.5、Bootstrap 5.3.9、Nginx 配置和前端 Dockerfile。
 - `backend/`：Java 25 LTS、Spring Boot 4.1.2、Spring Security 7、MyBatis-Plus、Flyway 和后端 Dockerfile。
 - `mock-payment-service/`：独立支付数据库、后台安全、商户凭据和三渠道交易服务。
 - `mock-payment-ui/`：Vue 3.5.45、Ant Design Vue Next 和 VXE-Table 支付管理后台与模拟收银台。

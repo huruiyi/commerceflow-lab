@@ -3,11 +3,11 @@ import { HttpClientModule } from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { BrowserModule } from '@angular/platform-browser';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
-import { NzAlertModule } from 'ng-zorro-antd/alert';
-import { NzButtonModule } from 'ng-zorro-antd/button';
-import { NzCardModule } from 'ng-zorro-antd/card';
-import { NzSpinModule } from 'ng-zorro-antd/spin';
-import { NzTagModule } from 'ng-zorro-antd/tag';
+import { HlmAlertImports } from '@spartan-ng/helm/alert';
+import { HlmBadge } from '@spartan-ng/helm/badge';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmCardImports } from '@spartan-ng/helm/card';
+import { HlmSpinner } from '@spartan-ng/helm/spinner';
 
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
@@ -58,11 +58,11 @@ import { LogisticsCallbackAdminComponent } from './logistics-callback-admin/logi
     FormsModule,
     ReactiveFormsModule,
     HttpClientModule,
-    NzAlertModule,
-    NzButtonModule,
-    NzCardModule,
-    NzSpinModule,
-    NzTagModule
+    HlmButton,
+    HlmBadge,
+    HlmSpinner,
+    ...HlmCardImports,
+    ...HlmAlertImports
   ],
   providers: [
     {provide: ErrorHandler, useClass: GlobalErrorHandler}],

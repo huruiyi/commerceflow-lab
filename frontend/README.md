@@ -1,6 +1,6 @@
 # Angular frontend
 
-当前基线为 Angular 22.2.6、TypeScript 6.0.3、NG-ZORRO 22.2.0 和 Bootstrap 5.3.9。新增界面优先使用 NG-ZORRO，原有 Bootstrap 界面保留并改为本地 npm 依赖，不再从 CDN 加载。
+当前基线为 Angular 22.2.6、TypeScript 6.0.3、SimUI 1.8.0 / Spartan UI 1.8.0、Tailwind CSS 4.3.5 和 Bootstrap 5.3.9。SimUI 采用 copy-paste 模式：Spartan Brain 从 npm 安装，Button、Card、Badge、Alert 和 Spinner 的 Helm 源码保留在 `libs/ui/` 中。新增界面优先组合这些本地组件；原有 Bootstrap 业务页面暂时保留，不从 CDN 加载。
 
 ## 功能与路由
 
@@ -55,6 +55,7 @@ npm audit
 4. `src/app/services/api.service.ts`：商品、购物车、订单、地址和支付 API。
 5. `src/app/purchase-orders/`：三渠道支付领域与幂等实验 UI。
 6. `src/app/dashboard/`、`order/`、`addresses/`、`users/`：其他业务页面。
+7. `libs/ui/`：由 Spartan CLI 1.8.0 复制到项目内的 SimUI/Helm 组件源码。
 
 ## 安全边界
 

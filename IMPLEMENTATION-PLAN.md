@@ -10,7 +10,7 @@
 
 | 层次 | 目标方案 |
 | --- | --- |
-| 前端 | Angular 22.2.6、NG-ZORRO 22.2.0、Bootstrap 5.3.9、运行时中英文切换 |
+| 前端 | Angular 22.2.6、SimUI 1.8.0 / Spartan UI 1.8.0、Tailwind CSS 4.3.5、Bootstrap 5.3.9、运行时中英文切换 |
 | 后端 | Java 25 LTS、Spring Boot 4.1.2、Spring Security 7 |
 | 数据访问 | MyBatis-Plus 3.5.18、Flyway |
 | 数据库 | MySQL 8.4 |
