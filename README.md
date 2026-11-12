@@ -1,4 +1,4 @@
-# CommerceFlow Lab / 全栈商城与支付流程实验室
+# CommerceFlow Lab / CommerceFlow 电商全链路实验室
 
 这是一个可独立运行的前后端分离教学项目，已将原 Angular Demo 中的登录、商品、订单和用户功能改为本地 Spring Boot + MySQL 实现，不再依赖外部 JsonBulut API。
 
@@ -7,11 +7,13 @@
 | 用途 | 标识 |
 |---|---|
 | 英文标题 | `CommerceFlow Lab` |
-| 中文标题 | `全栈商城与支付流程实验室` |
+| 中文标题 | `CommerceFlow 电商全链路实验室` |
 | GitHub 仓库 | `commerceflow-lab` |
-| Docker Compose 项目前缀 | `commerceflow` |
-| 商城后端 Maven artifactId | `commerceflow-backend` |
-| Java 命名空间 | `lab.commerceflow.storefront` / `lab.commerceflow.payment` |
+| 最终 Java/Maven 命名空间 | `vip.fairy.commerceflow` |
+| 最终 Docker Compose 项目名 | `fairy-commerceflow` |
+| 当前 M1 兼容标识 | Java `lab.commerceflow.*`；Compose `commerceflow`；卷 `commerceflow_*` |
+| 商城服务 Maven artifactId | `commerce-service` |
+| 命名迁移策略 | 不混用两套名称；按 [命名规范](docs/NAMING-CONVENTIONS.md) 独立迁移 |
 
 ## 技术架构
 

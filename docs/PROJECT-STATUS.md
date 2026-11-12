@@ -60,3 +60,4 @@ M1 期间只维护当前实现证据和专项学习文档，未提前创建或�
 - 多节点 MySQL/Redis/Kafka/MQ 高可用、跨可用区容灾、多日容量压测和生产合规认证。
 - Prometheus Alert Rule、Alertmanager 及外部告警通知尚未实现；当前只有应用指标。
 - 验证体系总文档尚未开始，待 M1 后编写。
+- 最终命名目标已记录为 Java/Maven `vip.fairy.commerceflow`、Compose `fairy-commerceflow` 和 `services/web/simulators/infrastructure` 目录边界；运行时迁移正作为 M1 后架构治理独立开展，本文档只在实测通过后更新为已完成。
