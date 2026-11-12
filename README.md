@@ -103,7 +103,7 @@ docker compose ps
 
 ## 验收脚本
 
-根目录不再放置平台脚本。主要业务专项尽量提供 Windows/Bash 成对入口；当前已提供的脚本见下表，全量文件名、参数和语义对齐仍以 [统一进度与代办](docs/TODO.md) 的 M1 门禁为准：
+根目录不再放置平台脚本。主要业务专项提供 Windows/Bash 成对入口；36 组 `verify-*` 的文件名、有序参数和默认非删卷语义已通过 M1 契约审计：
 
 - `scripts/windows/*.ps1`：Windows 上使用 PowerShell 7（`pwsh`）运行。
 - `scripts/linux/*.sh`：Linux、WSL 或 Git Bash 使用，不依赖 PowerShell；`_common.sh` 是各脚本共用的内部函数库，不需要单独运行。
@@ -137,6 +137,20 @@ bash ./scripts/linux/audit-script-contracts.sh
 
 契约清单与删卷边界见 [Windows/Bash 脚本审计](docs/SCRIPT-AUDIT.md)。
 
+### M1 快速回归
+
+默认构建当前源码镜像并运行约数分钟的核心回归：
+
+```powershell
+./scripts/windows/verify-quick.ps1
+```
+
+```bash
+bash ./scripts/linux/verify-quick.sh
+```
+
+已有当前镜像时可使用 `-SkipBuild` / `--skip-build`。快速入口覆盖脚本契约、权限/i18n、取消、支付竞态、退款、物流、收货/完成/评价、backend 租约恢复、Redis 降级和健康检查。它不代替两分钟浸泡、MQ 停机、空卷或旧卷重启专项。
+
 ### 完整自动验收
 
 Windows：
@@ -168,6 +182,7 @@ bash ./scripts/linux/verify-all.sh --skip-build
 | Windows / Bash 主要成对脚本 | 作用 | 默认地址 |
 | --- | --- | --- |
 | `verify-all` | 构建、启动并串联主要验收，最后检查商城/支付/物流健康端点 | 商城 `14200` |
+| `verify-quick` | M1 快速回归；默认构建并覆盖核心权限、订单/支付/退款/物流/收货完成、重启恢复、Redis 降级与健康 | 商城 `14200`、支付 `14201/18082`、物流 `18083` |
 | `verify-authorization` | 匿名访问、登录、禁用账号、CSRF 和三种角色权限矩阵 | 商城 `14200` |
 | `verify-i18n` | 中英文商品、按语言隔离的 Redis 缓存、稳定错误码和前端入口 | 商城 `14200` |
 | `verify-flyway-lifecycle` | 在隔离的临时 MySQL 中验证空库 V1–V23、V16 旧库升级与历史订单截止时间回填，并确认非法任务状态被约束拒绝 | Docker Engine |

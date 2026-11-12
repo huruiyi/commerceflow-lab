@@ -1057,6 +1057,18 @@ commerceflow.scheduling.task-policies.REVIEW_REMINDER
 
 每个任务类型仍复用本文定义的完整字段：`primary-trigger`、`task`、`database-scan`、`rabbitmq`、`rocketmq` 和 `reconciliation`。不能因为某个适配器当前未启用就省略默认字段；完整字段说明继续以第 2 节为准。
 
+### 16.8 切换回滚、监控与告警边界
+
+策略切换只修改任务类型的当前默认值，新建任务保存新快照，已存在任务继续使用原 `primary_trigger_snapshot` 和版本。回滚时恢复上一个策略版本，同样只影响之后创建的任务；不批量改写历史快照，不在 Broker 故障时把原任务静默改成 Database 主策略。如需紧急恢复，优先恢复 Broker，或为已预先开启对账的任务等待 Database 宽限期补偿；任何人工重放都要保留原策略和审计。
+
+已有观测面包括任务成功/失败、RabbitMQ/RocketMQ 发布成功/失败、消费/忽略/非法消息计数，以及物流回调 Outbox 积压、投递、`DEAD`、人工重放和对账指标。当前应重点观察：
+
+- 持续增长的发布失败、任务失败或租约过期事件。
+- 到期后长时间仍处于 `SCHEDULED/FAILED/PROCESSING` 的任务和 MQ/DLQ 积压。
+- 物流回调 `RETRY/DEAD` 积压及对账失败增量。
+
+Prometheus Alert Rule、Alertmanager 和外部通知尚未实现，因此本节只冻结观测信号、切换/回滚语义和未实现边界，不宣称生产告警已交付。
+
 ## 17. 官方能力参考
 
 - 本项目学习章节：[RocketMQ 5.x 延时任务与数据库补偿](../learning/CHAPTER-06-ROCKETMQ-SCHEDULING.md)

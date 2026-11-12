@@ -2,7 +2,7 @@
 
 ## 范围与结论
 
-2026-11-13 审计 `scripts/windows/verify-*.ps1` 与 `scripts/linux/verify-*.sh`。共 35 组主要业务验收入口，文件基名全部一一对应。`generate-expiration-strategy-video.ps1` 是 Windows 教学视频生成器，不是业务验收脚本，不在成对范围内。
+2026-11-13 审计 `scripts/windows/verify-*.ps1` 与 `scripts/linux/verify-*.sh`。加入快速回归后共 36 组主要业务验收入口，文件基名全部一一对应。`generate-expiration-strategy-video.ps1` 是 Windows 教学视频生成器，不是业务验收脚本，不在成对范围内。
 
 参数契约以 [script-contracts.tsv](../scripts/script-contracts.tsv) 为机器可读清单：PowerShell 使用命名参数，Bash 的普通单项脚本按同一顺序使用位置参数，组合入口使用长选项。审计修正了物流服务地址、支付服务地址、RabbitMQ 凭据/等待时间和支付/取消竞态参数顺序的差异。
 
