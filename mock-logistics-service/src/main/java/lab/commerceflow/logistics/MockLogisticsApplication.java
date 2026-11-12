@@ -9,5 +9,9 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @ConfigurationPropertiesScan
 @EnableScheduling
 public class MockLogisticsApplication {
-  public static void main(String[] args) { SpringApplication.run(MockLogisticsApplication.class,args); }
+
+  public static void main(String[] args) {
+    SpringApplication.run(MockLogisticsApplication.class, args);
+  }
+
 }

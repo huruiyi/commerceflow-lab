@@ -1,11 +1,13 @@
 package lab.commerceflow.payment.security;
 
-import java.util.Collection;
+import org.springframework.security.core.CredentialsContainer;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.CredentialsContainer;
+
+import java.util.Collection;
 
 public final class PaymentAdminPrincipal implements UserDetails, CredentialsContainer {
+
   private final Long userId;
   private final String username;
   private String password;
@@ -19,8 +21,8 @@ public final class PaymentAdminPrincipal implements UserDetails, CredentialsCont
   private final Collection<? extends GrantedAuthority> authorities;
 
   public PaymentAdminPrincipal(Long userId, String username, String password, String displayName,
-      String email, boolean enabled, boolean accountNonLocked, boolean passwordChangeRequired,
-      boolean mfaRequired, boolean mfaEnabled, Collection<? extends GrantedAuthority> authorities) {
+                               String email, boolean enabled, boolean accountNonLocked, boolean passwordChangeRequired,
+                               boolean mfaRequired, boolean mfaEnabled, Collection<? extends GrantedAuthority> authorities) {
     this.userId = userId;
     this.username = username;
     this.password = password;
@@ -34,18 +36,67 @@ public final class PaymentAdminPrincipal implements UserDetails, CredentialsCont
     this.authorities = authorities;
   }
 
-  public Long getUserId() { return userId; }
-  @Override public String getUsername() { return username; }
-  @Override public String getPassword() { return password; }
-  public String getDisplayName() { return displayName; }
-  public String getEmail() { return email; }
-  @Override public boolean isEnabled() { return enabled; }
-  @Override public boolean isAccountNonLocked() { return accountNonLocked; }
-  @Override public boolean isAccountNonExpired() { return true; }
-  @Override public boolean isCredentialsNonExpired() { return true; }
-  public boolean isPasswordChangeRequired() { return passwordChangeRequired; }
-  public boolean isMfaRequired() { return mfaRequired; }
-  public boolean isMfaEnabled() { return mfaEnabled; }
-  @Override public Collection<? extends GrantedAuthority> getAuthorities() { return authorities; }
-  @Override public void eraseCredentials() { password = null; }
+  public Long getUserId() {
+    return userId;
+  }
+
+  @Override
+  public String getUsername() {
+    return username;
+  }
+
+  @Override
+  public String getPassword() {
+    return password;
+  }
+
+  public String getDisplayName() {
+    return displayName;
+  }
+
+  public String getEmail() {
+    return email;
+  }
+
+  @Override
+  public boolean isEnabled() {
+    return enabled;
+  }
+
+  @Override
+  public boolean isAccountNonLocked() {
+    return accountNonLocked;
+  }
+
+  @Override
+  public boolean isAccountNonExpired() {
+    return true;
+  }
+
+  @Override
+  public boolean isCredentialsNonExpired() {
+    return true;
+  }
+
+  public boolean isPasswordChangeRequired() {
+    return passwordChangeRequired;
+  }
+
+  public boolean isMfaRequired() {
+    return mfaRequired;
+  }
+
+  public boolean isMfaEnabled() {
+    return mfaEnabled;
+  }
+
+  @Override
+  public Collection<? extends GrantedAuthority> getAuthorities() {
+    return authorities;
+  }
+
+  @Override
+  public void eraseCredentials() {
+    password = null;
+  }
 }
