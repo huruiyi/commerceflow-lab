@@ -103,6 +103,7 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - 受控双线程集成测试已固定复现支付回调赢得取消竞态的时序，验证资金事实优先、单一订单事件且不误写取消终态。
 - Windows PowerShell 与容器化 Bash 的 `verify-payment-cancellation-race` 使用交替偏置和随机抖动并发调用真实商城/支付平台，已验证 `PAID/SUCCESS` 与 `CANCELLED/CLOSED` 都不会产生矛盾账务状态。
 - `verify-payment-cancellation-stress` 在不关闭支付平台每分钟签名请求限流的前提下增加节流与有限退避，并按本轮订单 ID 直接审计 Docker MySQL。Windows 120.6 秒/95 轮（`55 PAID` + `40 CANCELLED`）、容器化 Bash 121 秒/97 轮（`58 PAID` + `39 CANCELLED`）均为 0 矛盾记录。
+- `verify-payment-cancellation-lock-timeout` 在真实 MySQL 中分别持有订单行和支付行锁；Windows 与容器化 Bash 均验证首次请求返回 `503/DATABASE_CONCURRENCY_RETRY` 与 `Retry-After`，超时事务无中间状态，释放锁后取消和支付回调都可成功重试。
 - 单次渠道交易进入 `EXPIRED` 后不关闭订单；`payment_due_at` 未到时可换渠道发起新支付，到期后创建新支付会被后端拒绝。
 - `verify-payment-attempt-deadline` 的 Windows 与容器化 Bash 真实链路均已通过：整单截止时间到达后，Database 任务先关闭当前待支付渠道，再取消订单，且领取/完成事件各一次。
 
@@ -119,7 +120,7 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 
 以下不得在 README、页面或演示中标记为已完成：
 
-- 支付/取消锁等待超时与关键窗口进程崩溃恢复专项。
+- 支付/取消关键窗口进程崩溃恢复专项。
 - 全新空卷全链路和旧卷升级后服务/MQ 重启恢复。
 - Windows/Bash 全部主要脚本的参数/语义对齐与默认非破坏性审计。
 - 物流长时间高并发乱序压力验收。

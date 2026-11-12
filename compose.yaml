@@ -310,7 +310,7 @@ services:
     build:
       context: ./backend
     environment:
-      DATABASE_URL: jdbc:mysql://mysql:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DATABASE_URL: jdbc:mysql://mysql:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&sessionVariables=innodb_lock_wait_timeout=${DATABASE_LOCK_WAIT_TIMEOUT_SECONDS:-5}
       DATABASE_USERNAME: ${DATABASE_USERNAME:-commerceflow}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD:-commerceflow-password}
       REMEMBER_ME_KEY: ${REMEMBER_ME_KEY:-commerceflow-demo-remember-me-key-change-in-production}

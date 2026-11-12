@@ -2,7 +2,7 @@ spring:
   application:
     name: commerceflow-backend
   datasource:
-    url: ${DATABASE_URL:jdbc:mysql://localhost:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    url: ${DATABASE_URL:jdbc:mysql://localhost:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&sessionVariables=innodb_lock_wait_timeout=5}
     username: ${DATABASE_USERNAME:commerceflow}
     password: ${DATABASE_PASSWORD:commerceflow-password}
   flyway:

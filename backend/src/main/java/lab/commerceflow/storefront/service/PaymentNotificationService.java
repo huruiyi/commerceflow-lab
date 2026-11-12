@@ -14,6 +14,7 @@ import lab.commerceflow.storefront.domain.ShopOrderView;
 import lab.commerceflow.storefront.mapper.ShopOrderMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.TransientDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -77,6 +78,8 @@ public class PaymentNotificationService {
       return new Result(changed == 1 ? "PROCESSED" : "ACKNOWLEDGED");
     } catch (DuplicateKeyException exception) {
       return new Result("ACKNOWLEDGED");
+    } catch (TransientDataAccessException exception) {
+      throw exception;
     } catch (ResponseStatusException exception) {
       throw exception;
     } catch (Exception exception) {

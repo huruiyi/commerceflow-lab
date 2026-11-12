@@ -163,6 +163,7 @@ bash ./scripts/linux/verify-all.sh --skip-build
 | `verify-payment-attempt-deadline` | 验证单次渠道支付过期不关闭整单、到期前可换渠道重试，以及整单截止时先关闭待支付交易再取消订单 | 商城 `14200`、支付平台 `14201` |
 | `verify-payment-cancellation-race` | 交替偏置并加入随机抖动，并发支付完成与客户取消，校验订单/支付/退款一致性 | 商城 `14200`、支付平台 `14201` |
 | `verify-payment-cancellation-stress` | 可配置时长、最少轮数、随机种子和节流的竞态浸泡测试；自动准备库存并对本轮订单做 MySQL 矛盾记录审计 | 商城 `14200`、支付平台 `14201`、Docker MySQL |
+| `verify-payment-cancellation-lock-timeout` | 真实持有订单/支付行锁，验证锁等待超时可识别、事务完整回滚且释放锁后可重试 | backend `18081`、Docker MySQL；只重建 backend 容器，不删卷 |
 | `verify-kafka-payment` | 支付回调、Kafka Topic、Outbox 发布和消费记录 | 商城 `14200` |
 | `verify-payment-outcomes` | 失败、余额不足、取消和超时四类支付结果 | 商城 `14200` |
 | `verify-refunds` | 全额退款、资金账一致性、请求/通知幂等、重复申请和伪造通知拒绝 | 商城 `14200` |

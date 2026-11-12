@@ -4,6 +4,7 @@ import lab.commerceflow.storefront.service.ResourceNotFoundException;
 import lab.commerceflow.storefront.service.LoginRateLimitException;
 import lab.commerceflow.storefront.service.BusinessRuleException;
 import org.springframework.http.HttpStatus;
+import org.springframework.dao.TransientDataAccessException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -28,6 +29,14 @@ public class ApiExceptionHandler {
   @ExceptionHandler(BusinessRuleException.class)
   ResponseEntity<Map<String, Object>> businessRule(BusinessRuleException exception) {
     return response(HttpStatus.CONFLICT, "BUSINESS_RULE", exception.getMessage());
+  }
+
+  @ExceptionHandler(TransientDataAccessException.class)
+  ResponseEntity<Map<String, Object>> transientDatabaseConflict(TransientDataAccessException exception) {
+    return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+        .header("Retry-After", "1")
+        .body(body(HttpStatus.SERVICE_UNAVAILABLE, "DATABASE_CONCURRENCY_RETRY",
+            "A concurrent database operation did not complete in time; retry the request"));
   }
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -55,10 +64,14 @@ public class ApiExceptionHandler {
   }
 
   private ResponseEntity<Map<String, Object>> response(HttpStatus status, String code, String message) {
-    return ResponseEntity.status(status).body(Map.of(
+    return ResponseEntity.status(status).body(body(status, code, message));
+  }
+
+  private Map<String, Object> body(HttpStatus status, String code, String message) {
+    return Map.of(
         "timestamp", Instant.now().toString(),
         "status", status.value(),
         "code", code,
-        "message", message));
+        "message", message);
   }
 }
