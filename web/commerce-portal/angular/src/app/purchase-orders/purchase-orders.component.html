@@ -20,22 +20,28 @@
   <p hlmAlertDescription>{{ loadError }}</p>
   <button hlmBtn variant="outline" type="button" (click)="reload()">{{ "retry" | t }}</button>
 </section>
-<article *ngFor="let order of orders; trackBy: trackOrder" hlmCard class="order-card">
+<article
+  *ngFor="let order of orders; trackBy: trackOrder"
+  hlmCard
+  class="order-card"
+  [attr.data-status]="order.status"
+>
   <header class="order-header">
-    <div class="order-identity">
-      <span class="eyebrow">{{ "order" | t }}</span>
-      <h3>{{ order.orderNumber }}</h3>
-      <small>{{ "orderedAt" | t }} {{ order.createdAt | trdate }}</small>
+    <div class="order-leading">
+      <span class="order-status-mark" aria-hidden="true"><i class="bi bi-receipt"></i></span>
+      <div class="order-identity">
+        <span class="eyebrow">{{ "order" | t }}</span>
+        <h3>{{ order.orderNumber }}</h3>
+        <small>{{ "orderedAt" | t }} {{ order.createdAt | trdate }}</small>
+      </div>
     </div>
     <div class="order-summary">
-      <span>{{ order.items.length }} {{ "itemsCount" | t }}</span>
-      <span>{{ order.address.recipientName }}</span>
+      <span><i class="bi bi-box-seam" aria-hidden="true"></i>{{ order.items.length }} {{ "itemsCount" | t }}</span>
+      <span><i class="bi bi-person" aria-hidden="true"></i>{{ order.address.recipientName }}</span>
     </div>
     <div class="order-total">
-      <span hlmBadge class="status" [class.paid]="order.status === 'PAID' || order.status === 'COMPLETED'">{{
-          order.status | t
-        }}</span
-      ><strong>{{ order.totalAmount | trcurrency }}</strong>
+      <span class="status"><span class="status-dot"></span>{{ order.status | t }}</span>
+      <strong>{{ order.totalAmount | trcurrency }}</strong>
     </div>
     <div class="summary-actions">
       <button hlmBtn *ngIf="hasAction(order, 'PAY')" type="button" (click)="showPayment(order)">{{ "payNow" | t }}
@@ -54,27 +60,37 @@
       </button>
     </div>
   </header>
-  <div class="milestone-strip">
-    <div>
-      <small>{{ "paymentDueAt" | t }}</small><strong>{{ order.paymentDueAt ? (order.paymentDueAt | trdate) : "—" }}</strong>
-    </div>
-    <div *ngIf="order.confirmedAt">
-      <small>{{ "confirmedAt" | t }}</small><strong>{{ order.confirmedAt | trdate }}</strong></div>
-    <div *ngIf="order.shippedAt"><small>{{ "shippedAt" | t }}</small><strong>{{ order.shippedAt | trdate }}</strong>
-    </div>
-    <div *ngIf="order.logisticsDeliveredAt">
-      <small>{{ "deliveredAt" | t }}</small><strong>{{ order.logisticsDeliveredAt | trdate }}</strong></div>
-    <div *ngIf="order.receivedAt"><small>{{ "receivedAt" | t }}</small><strong>{{ order.receivedAt | trdate }}</strong>
-    </div>
-    <div *ngIf="order.completedAt">
-      <small>{{ "completedAt" | t }}</small><strong>{{ order.completedAt | trdate }}</strong></div>
-    <div *ngIf="order.cancelledAt">
-      <small>{{ "cancelledAt" | t }}</small><strong>{{ order.cancelledAt | trdate }}</strong></div>
-  </div>
   <div *ngIf="notices[order.id] as notice" class="summary-notice alert"
        [ngClass]="'alert-' + notice.type">{{ notice.text }}
   </div>
   <div class="order-content" *ngIf="expandedOrders.has(order.id)">
+    <section class="milestone-strip" aria-label="Order milestones">
+      <div>
+        <small>{{ "orderedAt" | t }}</small><strong>{{ order.createdAt | trdate }}</strong>
+      </div>
+      <div *ngIf="order.status === 'PENDING_PAYMENT' || order.status === 'CANCELLING'">
+        <small>{{ "paymentDueAt" | t }}</small>
+        <strong>{{ order.paymentDueAt ? (order.paymentDueAt | trdate) : "—" }}</strong>
+      </div>
+      <div *ngIf="order.confirmedAt">
+        <small>{{ "confirmedAt" | t }}</small><strong>{{ order.confirmedAt | trdate }}</strong>
+      </div>
+      <div *ngIf="order.shippedAt">
+        <small>{{ "shippedAt" | t }}</small><strong>{{ order.shippedAt | trdate }}</strong>
+      </div>
+      <div *ngIf="order.logisticsDeliveredAt">
+        <small>{{ "deliveredAt" | t }}</small><strong>{{ order.logisticsDeliveredAt | trdate }}</strong>
+      </div>
+      <div *ngIf="order.receivedAt">
+        <small>{{ "receivedAt" | t }}</small><strong>{{ order.receivedAt | trdate }}</strong>
+      </div>
+      <div *ngIf="order.completedAt">
+        <small>{{ "completedAt" | t }}</small><strong>{{ order.completedAt | trdate }}</strong>
+      </div>
+      <div *ngIf="order.cancelledAt">
+        <small>{{ "cancelledAt" | t }}</small><strong>{{ order.cancelledAt | trdate }}</strong>
+      </div>
+    </section>
     <section
       *ngIf="order.status === 'RECEIVED' || order.status === 'COMPLETED'"
       class="receipt-state-panel"
