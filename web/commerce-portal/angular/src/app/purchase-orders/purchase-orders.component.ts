@@ -196,6 +196,10 @@ export class PurchaseOrdersComponent implements OnInit {
     return order.availableActions.includes(action);
   }
 
+  showPaymentState(order: PurchaseOrder): boolean {
+    return !!order.payment && !['SUCCESS', 'CLOSED'].includes(order.payment.status);
+  }
+
   toggleDetails(order: PurchaseOrder): void {
     if (this.expandedOrders.has(order.id)) this.expandedOrders.delete(order.id);
     else this.expandedOrders.add(order.id);

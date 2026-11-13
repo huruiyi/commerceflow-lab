@@ -40,15 +40,14 @@
       </div>
     </div>
     <div class="order-state">
-      <small>{{ "orderStatus" | t }}</small>
-      <span class="status"><span class="status-dot"></span>{{ order.status | t }}</span>
-      <span *ngIf="order.payment" class="payment-state">
-        {{ "paymentStatus" | t }}
-        <strong>{{ order.payment.status | t }}</strong>
+      <span class="status" [attr.aria-label]="('orderStatus' | t) + ': ' + (order.status | t)">
+        <span class="status-dot"></span>{{ order.status | t }}
+      </span>
+      <span *ngIf="showPaymentState(order)" class="payment-state">
+        {{ "paymentStatus" | t }}·{{ order.payment!.status | t }}
       </span>
     </div>
-    <div class="order-total">
-      <small>{{ "orderAmount" | t }}</small>
+    <div class="order-total" [attr.aria-label]="'orderAmount' | t">
       <strong>{{ order.totalAmount | trcurrency }}</strong>
     </div>
     <div class="summary-actions">

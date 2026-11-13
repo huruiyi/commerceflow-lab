@@ -104,6 +104,33 @@ describe('PurchaseOrdersComponent', () => {
     expect(header.querySelector('.order-total')?.textContent).toContain('99');
     expect(header.querySelector('.summary-actions .primary-action-slot')).not.toBeNull();
   });
+  it('only repeats payment state when it still needs attention', () => {
+    const component = fixture.componentInstance;
+    expect(component.showPaymentState({...order, payment: {
+      paymentNumber: 'PAY-1',
+      merchantNo: 'merchant-1',
+      channel: 'ALIPAY',
+      channelTransactionNo: 'channel-1',
+      status: 'SUCCESS',
+      failureReason: '',
+      amount: 99,
+      refundedAmount: 0,
+      currency: 'CNY',
+      createdAt: '2026-11-10T00:00:00Z'
+    }})).toBeFalse();
+    expect(component.showPaymentState({...order, payment: {
+      paymentNumber: 'PAY-2',
+      merchantNo: 'merchant-1',
+      channel: 'ALIPAY',
+      channelTransactionNo: 'channel-2',
+      status: 'FAILED',
+      failureReason: 'Simulated',
+      amount: 99,
+      refundedAmount: 0,
+      currency: 'CNY',
+      createdAt: '2026-11-10T00:00:00Z'
+    }})).toBeTrue();
+  });
   it('removes historical no-op shipment updates from the customer timeline', () => {
     const component = fixture.componentInstance;
     const events = component.visibleOrderEvents({
