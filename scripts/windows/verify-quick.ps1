@@ -10,26 +10,40 @@ function RunBase([string]$Script){
   if(-not$?){throw "$Script failed"}
 }
 
+& (Join-Path $PSScriptRoot 'audit-code-quality.ps1')
+if(-not$?){throw 'Code quality audit failed'}
 & (Join-Path $PSScriptRoot 'audit-script-contracts.ps1')
 if(-not$?){throw 'Script contract audit failed'}
 & docker compose --project-directory $ProjectRoot config --quiet
 if($LASTEXITCODE-ne0){throw 'Compose configuration is invalid'}
-if(-not$SkipBuild){& docker compose --project-directory $ProjectRoot build;if($LASTEXITCODE-ne0){throw 'Image build failed'}}
+if(-not$SkipBuild){
+  & docker compose --project-directory $ProjectRoot build
+  if($LASTEXITCODE-ne0){throw 'Image build failed'}
+}
 & docker compose --project-directory $ProjectRoot up -d --wait
 if($LASTEXITCODE-ne0){throw 'Default stack did not become healthy'}
 
 RunBase 'verify-authorization.ps1'
 RunBase 'verify-i18n.ps1'
 RunBase 'verify-order-cancellation.ps1'
-& (Join-Path $PSScriptRoot 'verify-payment-cancellation-race.ps1') -BaseUrl $BaseUrl -Iterations 2 -DurationSeconds 0 -Seed 20261113 -AuditDockerDatabase
+& (Join-Path $PSScriptRoot 'verify-payment-cancellation-race.ps1') `
+  -BaseUrl $BaseUrl -Iterations 2 -DurationSeconds 0 -Seed 20261113 -AuditDockerDatabase
 if(-not$?){throw 'verify-payment-cancellation-race.ps1 failed'}
 RunBase 'verify-refunds.ps1'
 RunBase 'verify-auto-lifecycle.ps1'
 RunBase 'verify-redis-business.ps1'
 
-foreach($url in @("$BaseUrl/healthz",'http://localhost:18081/actuator/health','http://localhost:18082/actuator/health','http://localhost:18083/actuator/health')){
+$healthUrls=@(
+  "$BaseUrl/healthz",
+  'http://localhost:18081/actuator/health',
+  'http://localhost:18082/actuator/health',
+  'http://localhost:18083/actuator/health'
+)
+foreach($url in $healthUrls){
   $health=Invoke-RestMethod $url
   if($url.EndsWith('/healthz')){if(-not$health){throw "Health check failed: $url"}}
   elseif($health.status-ne'UP'){throw "Health check failed: $url"}
 }
-Write-Host 'Quick regression passed: contracts, build/start, auth/i18n, cancellation, payment race, refund, logistics, receipt/completion/review, lease recovery, Redis fallback and health.' -ForegroundColor Green
+$summary='Quick regression passed: code quality, contracts, build/start, auth/i18n, cancellation, payment race, '
+$summary+='refund, logistics, receipt/completion/review, lease recovery, Redis fallback and health.'
+Write-Host $summary -ForegroundColor Green

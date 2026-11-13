@@ -104,5 +104,9 @@ M2.3 已完成，下一阶段为 M2.4 数据库注释与自动门禁。
 
 M2.4 第一批已新增商城 V24、支付模拟器 V4 和物流模拟器 V5，为 16 张核心业务表及
 133 个核心标识、状态、金额和时间列补充数据库注释。现有三库已非破坏性升级到 V24/V4/V5；
-Windows/容器化 Bash 隔离 Flyway 演练和 Windows 三库空卷完整业务链路通过。下一批为只检查的
-自动格式、Mapper 契约与快速验证矩阵；当前 Windows 快速回归和 37 对脚本契约审计已复验通过。
+Windows/容器化 Bash 隔离 Flyway 演练和 Windows 三库空卷完整业务链路通过。
+
+M2.4 第二批已建立 Windows/Bash 后端只读质量门禁，覆盖 244 个 Java 文件、20 个 Mapper XML、
+189 个映射语句和 3 个 Maven POM，并接入 `verify-quick`/`verify-all`。商城 25 项（含 4 条 ArchUnit）、
+支付 9 项测试、支付安全专项及 Windows 快速回归通过；容器化 Bash 质量门禁实测通过。M2.4 后端门禁完成，
+前端 HTML/TypeScript 自动格式门禁仍是独立后续治理项，当前不能宣称全仓格式已经统一。

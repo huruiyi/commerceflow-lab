@@ -16,6 +16,8 @@ while (($#)); do
   esac
 done
 
+bash "$SCRIPT_DIR/audit-code-quality.sh"
+
 if [[ "$SKIP_BUILD" == false ]]; then
   echo '==> Building images and running image-build tests'
   compose build
@@ -23,11 +25,22 @@ fi
 echo '==> Starting the complete stack'
 compose up -d --wait
 services="$(compose ps --services --filter status=running)"
-for service in commerce-db commerce-redis kafka-broker payment-simulator-db payment-simulator-redis payment-simulator-service payment-simulator-web logistics-simulator-db logistics-simulator-service commerce-service commerce-portal-angular; do
+required_services=(
+  commerce-db commerce-redis kafka-broker payment-simulator-db payment-simulator-redis
+  payment-simulator-service payment-simulator-web logistics-simulator-db logistics-simulator-service
+  commerce-service commerce-portal-angular
+)
+for service in "${required_services[@]}"; do
   grep -Fxq "$service" <<<"$services" || { echo "Required service is not running: $service" >&2; exit 1; }
 done
 
-for script in verify-i18n.sh verify-authorization.sh verify-scheduling.sh verify-order-cancellation.sh verify-payment-cancellation-race.sh verify-payment-outcomes.sh verify-kafka-payment.sh verify-refunds.sh verify-logistics-automation.sh verify-logistics-reliability.sh verify-logistics-callback-governance.sh verify-auto-lifecycle.sh verify-receipt-reviews.sh verify-redis-business.sh; do
+verification_scripts=(
+  verify-i18n.sh verify-authorization.sh verify-scheduling.sh verify-order-cancellation.sh
+  verify-payment-cancellation-race.sh verify-payment-outcomes.sh verify-kafka-payment.sh verify-refunds.sh
+  verify-logistics-automation.sh verify-logistics-reliability.sh verify-logistics-callback-governance.sh
+  verify-auto-lifecycle.sh verify-receipt-reviews.sh verify-redis-business.sh
+)
+for script in "${verification_scripts[@]}"; do
   echo
   echo "==> $script"
   bash "$SCRIPT_DIR/$script" "$BASE_URL"
@@ -49,4 +62,7 @@ while ((SECONDS < deadline)); do
 done
 [[ "$healthy" == true ]] || { echo 'Final health check did not recover within 60 seconds' >&2; exit 1; }
 echo
-echo 'Complete Docker acceptance passed: build, startup, auth, scheduling governance, i18n, payment outcomes, Kafka, refunds, signed logistics callbacks, fulfillment, reviews, Redis fallback, alerting and health.'
+summary='Complete Docker acceptance passed: code quality, build, startup, auth, scheduling governance, i18n, '
+summary+='payment outcomes, Kafka, refunds, signed logistics callbacks, fulfillment, reviews, Redis fallback, '
+summary+='alerting and health.'
+echo "$summary"

@@ -4,25 +4,38 @@
 
   <insert id="insert">
     <![CDATA[
-      INSERT INTO payment_outbox(event_id,aggregate_type,aggregate_id,event_type,topic,payload) VALUES(#{eventId},#{aggregateType},#{aggregateId},#{eventType},#{topic},CAST(#{payload} AS JSON))
+      INSERT INTO payment_outbox(event_id, aggregate_type, aggregate_id, event_type, topic, payload)
+      VALUES(#{eventId}, #{aggregateType}, #{aggregateId}, #{eventType}, #{topic}, CAST(#{payload} AS JSON))
     ]]>
   </insert>
 
   <select id="pending" resultType="vip.fairy.commerceflow.commerce.payment.domain.OutboxEvent">
     <![CDATA[
-      SELECT * FROM payment_outbox WHERE status IN ('NEW','RETRY') AND next_attempt_at<=CURRENT_TIMESTAMP ORDER BY id LIMIT 50
+      SELECT *
+      FROM payment_outbox
+      WHERE status IN ('NEW', 'RETRY')
+        AND next_attempt_at <= CURRENT_TIMESTAMP
+      ORDER BY id
+      LIMIT 50
     ]]>
   </select>
 
   <update id="published">
     <![CDATA[
-      UPDATE payment_outbox SET status='PUBLISHED',published_at=CURRENT_TIMESTAMP,attempts=attempts+1 WHERE id=#{id} AND status<>'PUBLISHED'
+      UPDATE payment_outbox
+      SET status = 'PUBLISHED', published_at = CURRENT_TIMESTAMP, attempts = attempts + 1
+      WHERE id = #{id}
+        AND status <> 'PUBLISHED'
     ]]>
   </update>
 
   <update id="retry">
     <![CDATA[
-      UPDATE payment_outbox SET status='RETRY',attempts=attempts+1,next_attempt_at=DATE_ADD(CURRENT_TIMESTAMP,INTERVAL 5 SECOND) WHERE id=#{id}
+      UPDATE payment_outbox
+      SET status = 'RETRY',
+          attempts = attempts + 1,
+          next_attempt_at = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 5 SECOND)
+      WHERE id = #{id}
     ]]>
   </update>
 

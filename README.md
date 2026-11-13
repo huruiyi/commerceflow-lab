@@ -149,6 +149,19 @@ bash ./scripts/linux/audit-script-contracts.sh
 
 契约清单与删卷边界见 [Windows/Bash 脚本审计](docs/SCRIPT-AUDIT.md)；改动类型对应的必跑门禁、证据格式和基线冻结检查见 [全开发生命周期可复测验证体系](docs/VERIFICATION-SYSTEM.md)。
 
+三个 Java 服务的只读代码质量与 Mapper 契约门禁：
+
+```powershell
+./scripts/windows/audit-code-quality.ps1
+```
+
+```bash
+bash ./scripts/linux/audit-code-quality.sh
+```
+
+该入口不会格式化或改写文件；它检查后端 Java、Mapper XML 和 Maven POM 的客观格式规则，
+并校验 Mapper namespace、SQL statement id、Java 方法、内联 SQL 和直接 JDBC 边界。
+
 ### M1 快速回归
 
 默认构建当前源码镜像并运行约数分钟的核心回归：
@@ -161,7 +174,7 @@ bash ./scripts/linux/audit-script-contracts.sh
 bash ./scripts/linux/verify-quick.sh
 ```
 
-已有当前镜像时可使用 `-SkipBuild` / `--skip-build`。快速入口覆盖脚本契约、权限/i18n、取消、支付竞态、退款、物流、收货/完成/评价、commerce-service 租约恢复、Redis 降级和健康检查。它不代替两分钟浸泡、MQ 停机、空卷或旧卷重启专项。
+已有当前镜像时可使用 `-SkipBuild` / `--skip-build`。快速入口始终执行代码质量与脚本契约门禁，并覆盖权限/i18n、取消、支付竞态、退款、物流、收货/完成/评价、commerce-service 租约恢复、Redis 降级和健康检查。跳过构建时不会重新执行镜像内 Maven/ArchUnit 测试。它不代替两分钟浸泡、MQ 停机、空卷或旧卷重启专项。
 
 ### 完整自动验收
 
@@ -194,8 +207,8 @@ bash ./scripts/linux/verify-all.sh --skip-build
 | Windows / Bash 主要成对脚本 | 作用 | 默认地址 |
 | --- | --- | --- |
 | `verify-alerting` | 校验 Prometheus/Alertmanager 配置和规则单测，确认三个服务 Target 与 Watchdog 实时 Webhook 投递 | Prometheus `19090`、Alertmanager `19093`、Webhook `18085` |
-| `verify-all` | 构建、启动并串联主要验收，包含告警链并最终检查商城/支付/物流健康端点 | 商城 `14200`、监控 `19090/19093/18085` |
-| `verify-quick` | M1 快速回归；默认构建并覆盖核心权限、订单/支付/退款/物流/收货完成、重启恢复、Redis 降级与健康 | 商城 `14200`、支付 `14201/18082`、物流 `18083` |
+| `verify-all` | 先执行后端代码质量门禁，再构建、启动并串联主要验收，包含告警链和最终健康检查 | 商城 `14200`、监控 `19090/19093/18085` |
+| `verify-quick` | 始终执行后端代码质量和脚本契约门禁；默认构建并覆盖核心业务、重启恢复、Redis 降级与健康 | 商城 `14200`、支付 `14201/18082`、物流 `18083` |
 | `verify-authorization` | 匿名访问、登录、禁用账号、CSRF 和三种角色权限矩阵 | 商城 `14200` |
 | `verify-i18n` | 中英文商品、按语言隔离的 Redis 缓存、稳定错误码和前端入口 | 商城 `14200` |
 | `verify-flyway-lifecycle` | 在隔离的临时 MySQL 中验证空库 V1–V24、V16 旧库升级、核心业务注释与历史订单截止时间回填，并确认非法任务状态被约束拒绝 | Docker Engine |

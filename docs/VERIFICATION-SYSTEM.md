@@ -28,7 +28,7 @@
 
 | 级别 | 目的 | 主入口 | 何时执行 |
 | --- | --- | --- | --- |
-| L0 预检 | 确认分支、变更边界、Compose 和脚本契约 | `git status`、`docker compose config --quiet`、`audit-script-contracts` | 每次修改前后 |
+| L0 预检 | 确认分支、变更边界、后端代码质量、Compose 和脚本契约 | `git status`、`audit-code-quality`、`docker compose config --quiet`、`audit-script-contracts` | 每次修改前后 |
 | L1 构建/测试 | 编译、单元/集成测试、前端生产构建 | `docker compose build <service>` | Java/POM/前端代码改动 |
 | L2 快速回归 | 数分钟内覆盖核心端到端不变量 | `verify-quick` | 普通功能提交、跨模块重构 |
 | L3 完整验收 | 串联主要功能域与最终健康检查 | `verify-all` | 里程碑、合并前、基线冻结前 |
@@ -56,7 +56,7 @@ docker compose ps
 ### 4.2 编码循环：最小反馈
 
 1. 先运行被改模块的构建/测试。
-2. 修改 Mapper XML 后运行对应 Spring 测试和真实 MySQL 专项，不只依赖 H2。
+2. 修改 Java/Mapper XML/POM 后先运行 `audit-code-quality`；修改 Mapper XML 还要运行对应 Spring 测试和真实 MySQL 专项，不只依赖 H2。
 3. 修改页面后完成生产构建，并运行相关 API/权限/国际化脚本。
 4. 在提交前运行 L0，普通功能改动再运行 L2。
 
@@ -76,7 +76,7 @@ bash ./scripts/linux/verify-quick.sh
 bash ./scripts/linux/verify-all.sh
 ```
 
-`-SkipBuild` / `--skip-build` 只能在已确认镜像来自当前源码时使用。冻结基线或修改 Dockerfile/POM/前端依赖时必须使用默认构建模式。
+`verify-quick` 和 `verify-all` 始终运行后端质量门禁。`-SkipBuild` / `--skip-build` 只能在已确认镜像来自当前源码时使用，并且不会重新执行 Maven/ArchUnit 测试。冻结基线或修改 Dockerfile/POM/前端依赖时必须使用默认构建模式。
 
 ## 5. 改动类型与必跑门禁
 

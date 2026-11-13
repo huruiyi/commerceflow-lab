@@ -4,7 +4,11 @@
 
   <select id="selectRoleCodes" resultType="java.lang.String">
     <![CDATA[
-      SELECT r.role_code FROM payment_admin_role r JOIN payment_admin_user_role ur ON ur.role_id=r.id WHERE ur.user_id=#{userId} ORDER BY r.role_code
+      SELECT r.role_code
+      FROM payment_admin_role r
+      JOIN payment_admin_user_role ur ON ur.role_id = r.id
+      WHERE ur.user_id = #{userId}
+      ORDER BY r.role_code
     ]]>
   </select>
 
@@ -16,13 +20,19 @@
 
   <insert id="insertRole">
     <![CDATA[
-      INSERT INTO payment_admin_user_role(user_id, role_id) SELECT #{userId}, id FROM payment_admin_role WHERE role_code=#{roleCode}
+      INSERT INTO payment_admin_user_role(user_id, role_id)
+      SELECT #{userId}, id
+      FROM payment_admin_role
+      WHERE role_code = #{roleCode}
     ]]>
   </insert>
 
   <select id="selectMerchantScope" resultType="java.lang.String">
     <![CDATA[
-      SELECT permission_scope FROM payment_admin_user_merchant WHERE user_id=#{userId} AND merchant_id=#{merchantId}
+      SELECT permission_scope
+      FROM payment_admin_user_merchant
+      WHERE user_id = #{userId}
+        AND merchant_id = #{merchantId}
     ]]>
   </select>
 
@@ -34,7 +44,8 @@
 
   <insert id="insertMerchantAccess">
     <![CDATA[
-      INSERT INTO payment_admin_user_merchant(user_id, merchant_id, permission_scope, created_by) VALUES(#{userId}, #{merchantId}, #{scope}, #{createdBy})
+      INSERT INTO payment_admin_user_merchant(user_id, merchant_id, permission_scope, created_by)
+      VALUES(#{userId}, #{merchantId}, #{scope}, #{createdBy})
     ]]>
   </insert>
 

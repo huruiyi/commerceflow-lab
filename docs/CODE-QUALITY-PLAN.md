@@ -25,7 +25,7 @@
   `LogisticsDataMapper.xml`，商城和支付复杂 SQL 也已放在 Mapper XML。
 - `SchedulerConfiguration` 中的 `JdbcTemplate` 只用于 ShedLock 官方适配器配置，不属于业务 SQL。
 - 未发现多个字段或方法压缩在同一行的现存 Java 声明。
-- 尚未配置自动格式检查；ArchUnit 模块依赖边界测试已在 M2.3 首批治理中建立。
+- 基线时尚未配置自动格式检查；ArchUnit 模块依赖边界测试已在 M2.3 首批治理中建立。
 - `ChannelRefund` 错把外部退款编号标为 `@TableId(AUTO)`，与数据库 `id BIGINT AUTO_INCREMENT`
   不一致；该项作为第一批功能性修复处理。
 
@@ -143,16 +143,28 @@ M2.3 整体门禁完成；下一阶段为 M2.4 数据库注释与自动门禁。
 ### M2.4 数据库注释与自动门禁
 
 - [x] 通过新增 Flyway 迁移补充关键表和列注释，不修改已经执行的历史迁移。
-- [ ] 选择与 IntelliJ IDEA 格式结果兼容的自动检查方式，先以只检查模式接入，再逐模块修复。
-- [ ] 将格式、Mapper 契约、模块边界和相关测试加入快速验证矩阵。
+- [x] 为三个后端服务接入与 IntelliJ IDEA 规则兼容的只检查门禁，不自动改写源码。
+- [x] 将后端格式、Mapper 契约、模块边界和相关测试加入快速/完整验证矩阵。
 
 第一批新增商城 V24、支付模拟器 V4 和物流模拟器 V5，为 7/5/4 张核心业务表与
 67/39/27 个核心标识、状态、金额和时间列补充业务语义注释。本批只修改数据字典元数据，
 未改表结构、约束、默认值或业务数据。三服务正式镜像构建通过，商城 25 项和支付 9 项测试通过；
 Windows 与容器化 Bash 隔离演练均通过空库 V1→V24 及旧库 V16→V24，Windows 独立临时卷还完成
 V24/V4/V5 三库空卷到评价的完整业务链路。验收后仅删除明确命名的临时卷，现有数据卷保留并升级成功。
-Windows 快速回归与 37 对 Windows/Bash 脚本契约审计也已通过。下一批接入只检查的自动格式与
-Mapper 契约门禁。
+Windows 快速回归与 37 对 Windows/Bash 脚本契约审计也已通过。第一批完成后进入只检查的
+自动格式与 Mapper 契约门禁建设。
+
+第二批新增 Windows/Bash `audit-code-quality`，全量检查 244 个主源码 Java 文件、20 个 Mapper XML、
+189 个映射语句和 3 个 Maven POM。门禁覆盖文件末尾换行、制表符/行尾空格、Java/Mapper XML
+120 字符、通配符导入、单行多成员、MyBatis 内联 SQL、直接 Spring JDBC、Mapper namespace、
+重复 statement id 和接口方法对应关系；只报告问题，不自动格式化文件。整理 3 个 Mapper XML 的
+8 条历史超长 SQL 行后，Windows 与容器化 Bash 门禁均通过。三个服务正式镜像构建通过，商城
+25 项（含 4 条 ArchUnit）和支付 9 项测试通过；Windows `verify-quick -SkipBuild` 完整通过且
+始终执行新质量门禁；支付安全专项也通过 HMAC/RSA、签名负例、MFA、一次性提权、角色/商户授权
+和审计链验证。现有数据卷未删除或重建。
+
+M2.4 后端门禁完成。Angular 商城门户和支付模拟器 Web 的 HTML/TypeScript 自动格式门禁仍需
+按前端模块单独治理，不能把本阶段写成全仓 IDEA 格式已统一。
 
 ## 4. 每批完成门禁
 

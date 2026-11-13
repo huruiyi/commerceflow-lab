@@ -100,7 +100,9 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - 商城、支付模拟器和物流模拟器保留三个独立 MySQL；商城与支付模拟器使用独立 Redis，不共享 Session 或故障边界。
 - 12 个 MyBatis-Plus 持久化实体已增加类/字段业务 JavaDoc；简单 CRUD 优先使用 `BaseMapper`/Wrapper，复杂投影、联表、行锁和原子更新放入 Mapper XML。
 - 三个服务主源码中已无 MyBatis SQL 注解和 Service 内联业务 SQL；仅 ShedLock 官方 `JdbcTemplateLockProvider` 配置保留 `JdbcTemplate`。
-- Java/XML/HTML/TypeScript/POM 已使用 IntelliJ IDEA 2026.3 Formatter 统一格式；已发布 Flyway 迁移与 M1 原文件逐字节一致，未因格式化改变校验和。
+- 三个后端服务的 Java 主源码、Mapper XML 和 Maven POM 已接入 Windows/Bash 只读质量门禁；
+  当前覆盖 244 个 Java 文件、20 个 Mapper XML、189 个映射语句和 3 个 POM，并校验格式、
+  内联 SQL/JDBC 边界与 Mapper 契约。Angular/支付 Web 尚未纳入，不能宣称全仓 IDEA 格式已统一。
 - 新空卷验收已通过：Flyway 商城/支付/物流为 V24/V4/V5，完成登录→下单→支付→履约→物流→收货→完成→评价；Windows 快速回归同时通过。
 - 微服务拆分与 PostgreSQL 评估仅记录在 [architecture/](architecture/README.md)，尚未实施，不与业务 `TODO.md` 混用。
 - 已建立 [全开发生命周期可复测验证体系](VERIFICATION-SYSTEM.md)，将现有构建、快速/完整回归、空卷/升级恢复、MQ/崩溃专项和浸泡压测组织为 L0–L6 门禁，并固定证据、破坏性操作和基线冻结规则。

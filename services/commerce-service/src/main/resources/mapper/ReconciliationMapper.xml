@@ -4,7 +4,11 @@
 
   <insert id="detectExpired">
     <![CDATA[
-      INSERT IGNORE INTO payment_reconciliation_issue(payment_id,issue_type,detail) SELECT id,'PAYMENT_TIMEOUT','Pending payment exceeded provider expiry' FROM payment_records WHERE status='PENDING' AND expires_at<CURRENT_TIMESTAMP
+      INSERT IGNORE INTO payment_reconciliation_issue(payment_id, issue_type, detail)
+      SELECT id, 'PAYMENT_TIMEOUT', 'Pending payment exceeded provider expiry'
+      FROM payment_records
+      WHERE status = 'PENDING'
+        AND expires_at < CURRENT_TIMESTAMP
     ]]>
   </insert>
 
