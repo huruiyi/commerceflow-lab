@@ -1,24 +1,23 @@
 package vip.fairy.commerceflow.commerce.ordering.application;
 
+import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
+import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
+import vip.fairy.commerceflow.commerce.ordering.infrastructure.ShopOrderMapper;
 import vip.fairy.commerceflow.commerce.payment.application.PaymentCancellationCrashLab;
 import vip.fairy.commerceflow.commerce.payment.application.PaymentEventPipeline;
 import vip.fairy.commerceflow.commerce.payment.application.PaymentGatewayClient;
+import vip.fairy.commerceflow.commerce.payment.domain.PaymentView;
+import vip.fairy.commerceflow.commerce.payment.infrastructure.PaymentCancellationCrashLabProperties.Phase;
+import vip.fairy.commerceflow.commerce.scheduling.application.ScheduledTaskTypes;
+import vip.fairy.commerceflow.commerce.scheduling.infrastructure.ScheduledTaskMapper;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
-
-import java.util.List;
-import java.util.LinkedHashMap;
-import java.util.Map;
-
-import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
-import vip.fairy.commerceflow.commerce.payment.domain.PaymentView;
-import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
-import vip.fairy.commerceflow.commerce.ordering.infrastructure.ShopOrderMapper;
-import vip.fairy.commerceflow.commerce.scheduling.infrastructure.ScheduledTaskMapper;
-import vip.fairy.commerceflow.commerce.scheduling.application.ScheduledTaskTypes;
-import vip.fairy.commerceflow.commerce.payment.infrastructure.PaymentCancellationCrashLabProperties.Phase;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 public class OrderCancellationService {
@@ -53,11 +52,15 @@ public class OrderCancellationService {
                       Long scheduledTaskId, boolean customerRequest) {
     Begin begin = transactions.execute(status -> begin(orderId, actorId, reason, triggerSource,
       scheduledTaskId, customerRequest));
-    if (begin == null || begin.done()) return;
+    if (begin == null || begin.done()) {
+      return;
+    }
 
     crashLab.pause(orderId, Phase.AFTER_CANCELLATION_BEGIN);
 
-    for (PaymentView payment : begin.pendingPayments()) gateway.close(payment);
+    for (PaymentView payment : begin.pendingPayments()) {
+      gateway.close(payment);
+    }
 
     crashLab.pause(orderId, Phase.AFTER_CHANNEL_CLOSE);
 
@@ -70,9 +73,13 @@ public class OrderCancellationService {
     ShopOrderView order = customerRequest
       ? orders.lock(actorId, orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found"))
       : orders.lockById(orderId).orElse(null);
-    if (order == null || "CANCELLED".equals(order.getStatus())) return new Begin(true, List.of());
+    if (order == null || "CANCELLED".equals(order.getStatus())) {
+      return new Begin(true, List.of());
+    }
     if (!"PENDING_PAYMENT".equals(order.getStatus()) && !"CANCELLING".equals(order.getStatus())) {
-      if (!customerRequest) return new Begin(true, List.of());
+      if (!customerRequest) {
+        return new Begin(true, List.of());
+      }
       throw new BusinessRuleException("Only pending orders can be cancelled");
     }
     if ("PENDING_PAYMENT".equals(order.getStatus())) {
@@ -89,7 +96,9 @@ public class OrderCancellationService {
                       String triggerSource, Long scheduledTaskId, boolean customerRequest) {
     ShopOrderView order = orders.lockById(orderId)
       .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
-    if ("PAID".equals(order.getStatus()) || "CANCELLED".equals(order.getStatus())) return;
+    if ("PAID".equals(order.getStatus()) || "CANCELLED".equals(order.getStatus())) {
+      return;
+    }
     if (!"CANCELLING".equals(order.getStatus())) {
       throw new BusinessRuleException("Order status changed while closing payments");
     }
@@ -114,7 +123,9 @@ public class OrderCancellationService {
     payload.put("orderId", orderId);
     payload.put("reason", reason);
     payload.put("triggerSource", triggerSource);
-    if (scheduledTaskId != null) payload.put("scheduledTaskId", scheduledTaskId);
+    if (scheduledTaskId != null) {
+      payload.put("scheduledTaskId", scheduledTaskId);
+    }
     events.appendOrder(orderId.toString(), "ORDER_CANCELLED", payload);
     if (scheduledTaskId == null) {
       scheduledTasks.byBusinessKey(ScheduledTaskTypes.PAYMENT_TIMEOUT, "order:" + orderId)
@@ -128,9 +139,13 @@ public class OrderCancellationService {
   }
 
   private String normalizeReason(String reason, String fallback) {
-    if (reason == null || reason.isBlank()) return fallback;
+    if (reason == null || reason.isBlank()) {
+      return fallback;
+    }
     String value = reason.trim();
-    if (value.length() > 300) throw new IllegalArgumentException("Cancellation reason is too long");
+    if (value.length() > 300) {
+      throw new IllegalArgumentException("Cancellation reason is too long");
+    }
     return value;
   }
 

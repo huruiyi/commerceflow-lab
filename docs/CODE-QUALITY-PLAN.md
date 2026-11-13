@@ -66,7 +66,7 @@ Windows 回调可靠性专项通过 `RETRY -> PUBLISHED` 和丢失回调对账�
 ### M2.3 商城服务分包治理
 
 - [ ] 分业务包清理通配符导入和过长行，不做全仓一次性机械重写；`identity`、`catalog`、`cart`、
-  `customer`、`review`、`receipt`、`fulfillment` 已完成。
+  `customer`、`review`、`receipt`、`fulfillment`、`ordering` 已完成。
 - 简单单表 CRUD 继续使用 `BaseMapper` 和 Lambda Wrapper；复杂 SQL 保留在 Mapper XML。
 - [x] 建立 ArchUnit 测试，阻止 API 访问基础设施、领域层反向依赖外层，并约束
   `@RestController` 与 Mapper 接口的包位置。
@@ -99,6 +99,14 @@ Windows/Bash 履约专项均通过支付回调、商家确认、发货、物流�
 Windows 快速回归继续通过取消竞态、退款、物流、收货/完成/评价、服务重启租约恢复和 Redis 降级。
 37 对脚本契约审计再次通过，现有数据卷未删除或重建。商城服务剩余 19 个通配符导入和
 104 条超过 120 字符的 Java 行，M2.3 仍需按包继续治理。
+
+第五批治理将 `ordering` 的 4 个通配符导入、19 条超过 120 字符的 Java 行以及
+`ShopOrderMapper.xml` 的 23 条超长 SQL 行均清零。订单、商品明细、事件和收货地址四个数据库投影
+补齐类与字段业务语义注释；购物车行锁、订单/支付幂等锁、条件状态迁移、事件写入和支付通知写入
+继续保留在 Mapper XML，原有锁顺序和事务边界未改变。商城服务正式 Dockerfile 构建及 25 项测试通过；
+Windows 快速回归覆盖取消竞态、退款、履约、物流、收货/完成/评价、服务重启租约恢复和 Redis 降级，
+Bash 订单取消、支付/取消竞态与商家履约专项也通过。37 对脚本契约审计再次通过，现有数据卷未删除
+或重建。商城服务剩余 15 个通配符导入和 85 条超过 120 字符的 Java 行，M2.3 仍未完成。
 
 ### M2.4 数据库注释与自动门禁
 

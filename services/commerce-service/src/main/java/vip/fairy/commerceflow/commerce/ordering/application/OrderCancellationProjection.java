@@ -33,12 +33,17 @@ public class OrderCancellationProjection {
   public void process(String topic, String envelope) throws Exception {
     JsonNode event = mapper.readTree(envelope);
     String eventId = required(event, "eventId");
-    if (outbox.consume(CONSUMER_GROUP, eventId, topic) != 1) return;
-    if (!"ORDER_CANCELLED".equals(required(event, "eventType"))) return;
+    if (outbox.consume(CONSUMER_GROUP, eventId, topic) != 1) {
+      return;
+    }
+    if (!"ORDER_CANCELLED".equals(required(event, "eventType"))) {
+      return;
+    }
     Long orderId = Long.valueOf(required(event, "aggregateId"));
     JsonNode payload = event.get("payload");
     String reason = payload != null && payload.hasNonNull("reason")
-      ? payload.get("reason").asText() : "Order cancelled";
+      ? payload.get("reason").asText()
+      : "Order cancelled";
     inventory.releaseCancelledOrder(orderId, eventId, reason);
   }
 

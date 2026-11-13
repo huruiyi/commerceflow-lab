@@ -1,10 +1,10 @@
 package vip.fairy.commerceflow.commerce.ordering.infrastructure;
 
-import java.time.Duration;
-
 import jakarta.validation.constraints.AssertTrue;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
+
+import java.time.Duration;
 
 @Validated
 @ConfigurationProperties(prefix = "commerceflow.order-lifecycle")

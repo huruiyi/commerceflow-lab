@@ -291,7 +291,7 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
 - [x] 完成物流模拟服务类型与格式治理，并复验乱序与 Outbox 恢复。
 - [x] 建立商城服务 ArchUnit 模块依赖门禁，并移除用户 API 直接访问 Mapper 的越层依赖。
 - [ ] 分业务包治理商城服务的通配符导入和过长行；`identity`、`catalog`、`cart`、`customer`、
-  `review`、`receipt`、`fulfillment` 已完成，其余业务包待继续。
+  `review`、`receipt`、`fulfillment`、`ordering` 已完成，其余业务包待继续。
 - [ ] 通过新增 Flyway 迁移补充关键数据库列注释，不改历史迁移。
 - [ ] 接入与 IntelliJ IDEA 结果一致的自动格式检查，并纳入快速验证矩阵。
 
