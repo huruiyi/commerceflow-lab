@@ -1,6 +1,8 @@
 package vip.fairy.commerceflow.commerce.refund.application;
 
-import io.micrometer.core.instrument.*;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import vip.fairy.commerceflow.commerce.refund.infrastructure.RefundMapper;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -13,15 +15,23 @@ public class RefundReconciliationJob {
   private final Counter attempts;
   private final Counter failures;
 
-  public RefundReconciliationJob(RefundMapper refunds, RefundGatewayClient gateway, MeterRegistry registry) {
+  public RefundReconciliationJob(
+    RefundMapper refunds,
+    RefundGatewayClient gateway,
+    MeterRegistry registry
+  ) {
     this.refunds = refunds;
     this.gateway = gateway;
     this.attempts = registry.counter("commerceflow.refund.reconciliation.attempts");
     this.failures = registry.counter("commerceflow.refund.reconciliation.failures");
-    Gauge.builder("commerceflow.refund.processing", refunds, mapper -> mapper.pendingReconciliation().size()).register(registry);
+    Gauge.builder("commerceflow.refund.processing", refunds, mapper -> mapper.pendingReconciliation().size())
+      .register(registry);
   }
 
-  @Scheduled(fixedDelayString = "${commerceflow.refund-reconciliation.delay:60000}", initialDelayString = "${commerceflow.refund-reconciliation.initial-delay:30000}")
+  @Scheduled(
+    fixedDelayString = "${commerceflow.refund-reconciliation.delay:60000}",
+    initialDelayString = "${commerceflow.refund-reconciliation.initial-delay:30000}"
+  )
   @SchedulerLock(name = "refundReconciliation", lockAtLeastFor = "PT1S", lockAtMostFor = "PT55S")
   public void reconcile() {
     for (var refund : refunds.pendingReconciliation()) {

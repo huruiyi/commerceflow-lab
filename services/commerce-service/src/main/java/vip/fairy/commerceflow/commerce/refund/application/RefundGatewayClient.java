@@ -20,7 +20,11 @@ public class RefundGatewayClient {
   private final ObjectMapper mapper;
   private final String baseUrl;
 
-  public RefundGatewayClient(RestClient.Builder builder, ObjectMapper mapper, @Value("${commerceflow.payment-platform.base-url:http://localhost:18082}") String baseUrl) {
+  public RefundGatewayClient(
+    RestClient.Builder builder,
+    ObjectMapper mapper,
+    @Value("${commerceflow.payment-platform.base-url:http://localhost:18082}") String baseUrl
+  ) {
     this.client = builder.build();
     this.mapper = mapper;
     this.baseUrl = baseUrl;
@@ -28,11 +32,25 @@ public class RefundGatewayClient {
 
   public Result create(RefundView refund, PaymentView payment) {
     try {
-      String body = mapper.writeValueAsString(Map.of("merchantRefundNo", refund.getRefundNumber(), "channelTransactionNo", payment.getChannelTransactionNo(), "amount", refund.getAmount(), "currency", refund.getCurrency(), "reasonCode", refund.getReasonCode(), "faultScenario", "NONE"));
+      String body = mapper.writeValueAsString(Map.of(
+        "merchantRefundNo", refund.getRefundNumber(),
+        "channelTransactionNo", payment.getChannelTransactionNo(),
+        "amount", refund.getAmount(),
+        "currency", refund.getCurrency(),
+        "reasonCode", refund.getReasonCode(),
+        "faultScenario", "NONE"
+      ));
       String path = "/api/channel/refunds";
       PaymentChannel channel = PaymentChannel.valueOf(payment.getChannel());
       var credentials = PaymentSigning.credentials(channel);
-      return client.post().uri(baseUrl + path).contentType(MediaType.APPLICATION_JSON).headers(headers -> PaymentSigning.apply(headers, "POST", path, body, credentials.appId(), credentials.secret())).body(body).retrieve().body(Result.class);
+      return client.post()
+        .uri(baseUrl + path)
+        .contentType(MediaType.APPLICATION_JSON)
+        .headers(headers -> PaymentSigning.apply(
+          headers, "POST", path, body, credentials.appId(), credentials.secret()))
+        .body(body)
+        .retrieve()
+        .body(Result.class);
     } catch (Exception exception) {
       throw new BusinessRuleException("Refund platform unavailable: " + exception.getMessage());
     }
@@ -43,7 +61,12 @@ public class RefundGatewayClient {
       String path = "/api/channel/refunds/" + refund.getRefundNumber() + "/notify";
       PaymentChannel channel = PaymentChannel.valueOf(payment.getChannel());
       var credentials = PaymentSigning.credentials(channel);
-      client.post().uri(baseUrl + path).headers(headers -> PaymentSigning.apply(headers, "POST", path, "", credentials.appId(), credentials.secret())).retrieve().toBodilessEntity();
+      client.post()
+        .uri(baseUrl + path)
+        .headers(headers -> PaymentSigning.apply(
+          headers, "POST", path, "", credentials.appId(), credentials.secret()))
+        .retrieve()
+        .toBodilessEntity();
     } catch (Exception exception) {
       throw new IllegalStateException("Refund reconciliation unavailable", exception);
     }

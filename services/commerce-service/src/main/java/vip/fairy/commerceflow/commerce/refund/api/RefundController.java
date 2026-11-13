@@ -3,15 +3,18 @@ package vip.fairy.commerceflow.commerce.refund.api;
 import jakarta.validation.Valid;
 import vip.fairy.commerceflow.commerce.identity.application.CurrentUserService;
 import vip.fairy.commerceflow.commerce.refund.application.RefundService;
-import vip.fairy.commerceflow.commerce.refund.api.RefundRequest;
-import vip.fairy.commerceflow.commerce.refund.api.RefundResponse;
 
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class RefundController {
@@ -26,7 +29,11 @@ public class RefundController {
   @PostMapping("/api/purchase-orders/{orderId}/refunds")
   @PreAuthorize("hasRole('CUSTOMER')")
   @ResponseStatus(HttpStatus.ACCEPTED)
-  RefundResponse request(@PathVariable Long orderId, @Valid @RequestBody RefundRequest request, Authentication authentication) {
+  RefundResponse request(
+    @PathVariable Long orderId,
+    @Valid @RequestBody RefundRequest request,
+    Authentication authentication
+  ) {
     return refunds.request(users.require(authentication), orderId, request);
   }
 

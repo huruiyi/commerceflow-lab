@@ -66,7 +66,7 @@ Windows 回调可靠性专项通过 `RETRY -> PUBLISHED` 和丢失回调对账�
 ### M2.3 商城服务分包治理
 
 - [ ] 分业务包清理通配符导入和过长行，不做全仓一次性机械重写；`identity`、`catalog`、`cart`、
-  `customer`、`review`、`receipt`、`fulfillment`、`ordering`、`payment` 已完成。
+  `customer`、`review`、`receipt`、`fulfillment`、`ordering`、`payment`、`refund` 已完成。
 - 简单单表 CRUD 继续使用 `BaseMapper` 和 Lambda Wrapper；复杂 SQL 保留在 Mapper XML。
 - [x] 建立 ArchUnit 测试，阻止 API 访问基础设施、领域层反向依赖外层，并约束
   `@RestController` 与 Mapper 接口的包位置。
@@ -114,6 +114,14 @@ Bash 订单取消、支付/取消竞态与商家履约专项也通过。37 对�
 物流、收货/完成/评价、服务重启租约恢复和 Redis 降级；容器化 Bash 支付安全链路通过 HMAC/RSA、
 签名负例、MFA、一次性提权令牌和审计链验证。37 对脚本契约审计再次通过，未删除或重建数据卷。
 商城服务剩余 6 个通配符导入和 73 条超过 120 字符的 Java 行，下一批从 `refund` 继续。
+
+第七批治理将 `refund` 的 4 个通配符导入、27 条超过 120 字符的 Java 行和
+`RefundMapper.xml` 的 11 条超长 SQL 行均清零。`RefundView` 与 `RefundEventView` 补齐类和字段业务
+语义注释；成功支付行锁、退款幂等查询、状态条件更新、金额上限保护和通知去重 SQL 继续保留在
+Mapper XML，未改动事务、锁顺序、幂等、库存回补或通知语义。商城服务正式 Dockerfile 构建及 25 项测试通过；
+Windows 与容器化 Bash 退款专项均通过签名支付、全额退款、双端账本一致、幂等重放、重复退款 `409`、
+伪造回调 `401` 和通知重投；Windows 快速回归与 37 对脚本契约审计同时通过。本批未删除或重建数据卷。
+商城服务当前剩余 2 个通配符导入和 47 条超过 120 字符的 Java 行，下一批从 `logistics` 继续。
 
 ### M2.4 数据库注释与自动门禁
 
