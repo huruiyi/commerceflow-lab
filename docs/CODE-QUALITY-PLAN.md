@@ -167,16 +167,27 @@ M2.4 后端门禁完成。
 
 ### M2.5 前端格式门禁
 
+#### M2.5.1 Angular 商城门户（已完成）
+
 - [x] 分模块治理 Angular 商城门户的 TypeScript、HTML、CSS 和配置文件。
 - [x] 使用项目本地 Prettier 3.10.1 提供 `format:check` 只读检查和显式 `format:write` 写入入口。
 - [x] Angular 正式 Dockerfile 在生产构建前执行格式检查。
-- [ ] 单独治理支付模拟器 Web，不与 Angular 批次混合。
 
 Angular 批次纳入 127 个源码/配置文件（包含新增的两个 Prettier 配置文件），已通过
 `format:check`、29 项 ChromeHeadless 单元测试、本地生产构建和正式 Docker 镜像构建。重建且仅重建
 Angular 容器后，`/healthz`、中英文与三角色权限专项通过，未删除或重建数据卷。
 `verify-quick`/`verify-all` 默认构建会通过 Angular Dockerfile 执行该门禁；显式跳过构建时不会重新检查。
 支付模拟器 Web 仍待单独治理，当前不能宣称全仓前端格式已统一。
+
+#### M2.5.2 支付模拟器 Web（下一批）
+
+- [ ] 以 `simulators/payment-platform/web/` 当前源码、`package-lock.json`、Dockerfile 和现有测试为基线。
+- [ ] 接入模块本地 Prettier 及只读/写入分离的 npm 命令，不顺带重做 UI 或支付流程。
+- [ ] 格式化后通过 Vitest、TypeScript/Vite 生产构建和核心差异审查。
+- [ ] 将只读门禁接入正式 Dockerfile，验证镜像、`14201/healthz` 和支付 Web 运行态。
+- [ ] 同步状态文档、独立提交并推送，不删除或重建数据卷。
+
+可执行清单以 [TODO.md 第 13.2 节](TODO.md#132-下一批支付模拟器-web-格式与自动门禁) 为准。
 
 ## 4. 每批完成门禁
 

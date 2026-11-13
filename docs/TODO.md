@@ -286,6 +286,8 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
 本节只跟踪跨模块工程质量，不混入新增业务功能，也不替代 `docs/architecture/` 下的架构待办。
 详细审计基线和实施门禁见 [CODE-QUALITY-PLAN.md](CODE-QUALITY-PLAN.md)。
 
+### 13.1 已完成批次
+
 - [x] 完成三个 Java 服务的格式、实体注释、SQL 分布和质量门禁只读审计。
 - [x] 修正支付退款实体主键映射并完成 9 项 Maven 测试及 Windows/容器化 Bash 真实退款专项回归。
 - [x] 分批清理支付模拟服务的通配符导入和过长行，两项审计计数均已归零。
@@ -296,9 +298,27 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
 - [x] 通过新增 Flyway V24/V4/V5 迁移补充 16 张核心表和 133 个核心列注释，不改历史迁移。
 - [x] 为三个 Java 服务接入与 IntelliJ IDEA 规则兼容的只检查格式与 Mapper 契约门禁，并纳入快速/完整验证矩阵。
 - [x] 分模块治理 Angular 商城门户的历史 HTML/TypeScript/CSS 格式，并在正式镜像构建前执行 Prettier 只读检查。
-- [ ] 单独治理支付模拟器 Web 的历史格式并接入自动检查，不与 Angular 已完成批次混合。
+
+### 13.2 下一批：支付模拟器 Web 格式与自动门禁
+
+本批只治理 `simulators/payment-platform/web/`，不重做 UI、不改支付业务语义，不与 Angular 已完成批次混合。
+
+- [ ] 先做只读基线：统计 Vue/TypeScript/CSS/JSON 文件、压缩行、制表符和过长行，确认当前测试、构建与镜像入口。
+- [ ] 固定项目本地 Prettier 版本与配置，提供 `format:check` 只读入口和显式 `format:write` 写入入口。
+- [ ] 仅对本模块执行一次机械格式化，审查依赖锁文件及核心支付/收银台差异，不夹带业务重构。
+- [ ] 将 `format:check` 接入支付 Web 正式 Dockerfile，保证默认 Compose 构建可阻止未格式化代码。
+- [ ] 通过格式检查、Vitest、TypeScript/Vite 生产构建、正式 Docker 镜像构建、`14201/healthz` 和支付 Web 相关运行态验证。
+- [ ] 更新 `IMPLEMENTED.md`、`PROJECT-STATUS.md`、`CODE-QUALITY-PLAN.md` 和格式规范，独立提交并推送；不删除或重建数据卷。
 
 ## 14. 实施记录模板
+
+### 2026-11-14：M2.5 Angular 商城门户格式门禁
+
+- 范围：`web/commerce-portal/angular/` 的 TypeScript、HTML、CSS/SCSS 和根配置文件。
+- 实现：固定 Prettier 3.10.1，新增 `format:check`/`format:write`，正式 Dockerfile 在生产构建前执行只读门禁。
+- 验证：127 个源码/配置文件、29 项 ChromeHeadless 测试、本地和 Docker 生产构建、`/healthz`、i18n 及三角色权限通过。
+- 数据边界：仅重建 Angular 容器，未删除或重建数据卷。
+- 提交：`c26d90e style(web): govern Angular portal formatting`，已推送到 `origin/main`。
 
 ### 2026-11-12：通用定时任务底座阶段 1
 
