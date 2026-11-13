@@ -23,9 +23,13 @@ public class LogisticsReconciliationJob {
   private final Counter recovered;
   private final Counter failures;
 
-  public LogisticsReconciliationJob(ShipmentMapper shipments, LogisticsGatewayClient gateway,
-                                    LogisticsNotificationService notifications, LogisticsReconciliationProperties properties,
-                                    MeterRegistry registry) {
+  public LogisticsReconciliationJob(
+    ShipmentMapper shipments,
+    LogisticsGatewayClient gateway,
+    LogisticsNotificationService notifications,
+    LogisticsReconciliationProperties properties,
+    MeterRegistry registry
+  ) {
     this.shipments = shipments;
     this.gateway = gateway;
     this.notifications = notifications;

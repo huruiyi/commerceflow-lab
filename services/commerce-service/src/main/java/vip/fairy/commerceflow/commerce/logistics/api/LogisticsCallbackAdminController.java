@@ -38,8 +38,11 @@ public class LogisticsCallbackAdminController {
   }
 
   @PostMapping("/{id}/replay")
-  LogisticsGatewayClient.CallbackOutbox replay(@PathVariable Long id,
-                                               @Valid @RequestBody ReplayRequest request, Authentication authentication) {
+  LogisticsGatewayClient.CallbackOutbox replay(
+    @PathVariable Long id,
+    @Valid @RequestBody ReplayRequest request,
+    Authentication authentication
+  ) {
     return logistics.replayCallback(id, authentication.getName(), request.reason());
   }
 

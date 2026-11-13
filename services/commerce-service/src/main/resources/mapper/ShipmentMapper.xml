@@ -4,80 +4,134 @@
 
   <insert id="prepare">
     <![CDATA[
-      INSERT INTO shipment_records(order_id,merchant_shipment_no,carrier,tracking_number,status) VALUES(#{orderId},#{merchantNo},#{carrier},#{tracking},'REQUESTED') ON DUPLICATE KEY UPDATE carrier=VALUES(carrier),tracking_number=VALUES(tracking_number),updated_at=CURRENT_TIMESTAMP
+      INSERT INTO shipment_records(order_id, merchant_shipment_no, carrier, tracking_number, status)
+      VALUES (#{orderId}, #{merchantNo}, #{carrier}, #{tracking}, 'REQUESTED')
+      ON DUPLICATE KEY UPDATE
+        carrier = VALUES(carrier),
+        tracking_number = VALUES(tracking_number),
+        updated_at = CURRENT_TIMESTAMP
     ]]>
   </insert>
 
   <select id="byOrder" resultType="vip.fairy.commerceflow.commerce.logistics.domain.ShipmentRecordView">
     <![CDATA[
-      SELECT * FROM shipment_records WHERE order_id=#{orderId}
+      SELECT *
+      FROM shipment_records
+      WHERE order_id = #{orderId}
     ]]>
   </select>
 
   <select id="lockByMerchantNo" resultType="vip.fairy.commerceflow.commerce.logistics.domain.ShipmentRecordView">
     <![CDATA[
-      SELECT * FROM shipment_records WHERE merchant_shipment_no=#{merchantNo} FOR UPDATE
+      SELECT *
+      FROM shipment_records
+      WHERE merchant_shipment_no = #{merchantNo}
+      FOR UPDATE
     ]]>
   </select>
 
   <select id="reconciliationCandidates"
           resultType="vip.fairy.commerceflow.commerce.logistics.domain.ShipmentRecordView">
     <![CDATA[
-      SELECT * FROM shipment_records WHERE status<>'DELIVERED' AND COALESCE(last_reconciled_at,updated_at)<=#{updatedBefore} ORDER BY COALESCE(last_reconciled_at,updated_at),id LIMIT #{limit}
+      SELECT *
+      FROM shipment_records
+      WHERE status <> 'DELIVERED'
+        AND COALESCE(last_reconciled_at, updated_at) <= #{updatedBefore}
+      ORDER BY COALESCE(last_reconciled_at, updated_at), id
+      LIMIT #{limit}
     ]]>
   </select>
 
   <update id="attach">
     <![CDATA[
-      UPDATE shipment_records SET platform_shipment_no=#{platformNo},carrier=#{carrier},tracking_number=#{tracking},status=#{status},shipped_at=COALESCE(shipped_at,CURRENT_TIMESTAMP),updated_at=CURRENT_TIMESTAMP WHERE id=#{id}
+      UPDATE shipment_records
+      SET platform_shipment_no = #{platformNo},
+          carrier = #{carrier},
+          tracking_number = #{tracking},
+          status = #{status},
+          shipped_at = COALESCE(shipped_at, CURRENT_TIMESTAMP),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = #{id}
     ]]>
   </update>
 
   <update id="updateDetails">
     <![CDATA[
-      UPDATE shipment_records SET carrier=#{carrier},tracking_number=#{tracking},updated_at=CURRENT_TIMESTAMP WHERE order_id=#{orderId}
+      UPDATE shipment_records
+      SET carrier = #{carrier},
+          tracking_number = #{tracking},
+          updated_at = CURRENT_TIMESTAMP
+      WHERE order_id = #{orderId}
     ]]>
   </update>
 
   <update id="updateStatus">
     <![CDATA[
-      UPDATE shipment_records SET status=#{status},delivered_at=CASE WHEN #{status}='DELIVERED' THEN COALESCE(delivered_at,#{occurredAt}) ELSE delivered_at END,updated_at=CURRENT_TIMESTAMP WHERE id=#{id}
+      UPDATE shipment_records
+      SET status = #{status},
+          delivered_at = CASE
+            WHEN #{status} = 'DELIVERED' THEN COALESCE(delivered_at, #{occurredAt})
+            ELSE delivered_at
+          END,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = #{id}
     ]]>
   </update>
 
   <insert id="insertEvent">
     <![CDATA[
-      INSERT IGNORE INTO shipment_events(shipment_id,event_id,event_type,status,location,description,occurred_at) VALUES(#{shipmentId},#{eventId},#{eventType},#{status},#{location},#{description},#{occurredAt})
+      INSERT IGNORE INTO shipment_events(
+        shipment_id, event_id, event_type, status, location, description, occurred_at
+      ) VALUES (
+        #{shipmentId}, #{eventId}, #{eventType}, #{status}, #{location}, #{description}, #{occurredAt}
+      )
     ]]>
   </insert>
 
   <select id="events" resultType="vip.fairy.commerceflow.commerce.logistics.domain.ShipmentEventView">
     <![CDATA[
-      SELECT id,event_id,event_type,status,location,description,occurred_at FROM shipment_events WHERE shipment_id=#{shipmentId} ORDER BY occurred_at,id
+      SELECT id, event_id, event_type, status, location, description, occurred_at
+      FROM shipment_events
+      WHERE shipment_id = #{shipmentId}
+      ORDER BY occurred_at, id
     ]]>
   </select>
 
   <insert id="insertNotification">
     <![CDATA[
-      INSERT INTO shipment_notifications(shipment_id,notification_id,signature_valid,processing_status,payload_digest,failure_reason,processed_at) VALUES(#{shipmentId},#{notificationId},TRUE,#{processingStatus},#{digest},#{reason},CURRENT_TIMESTAMP)
+      INSERT INTO shipment_notifications(
+        shipment_id, notification_id, signature_valid, processing_status,
+        payload_digest, failure_reason, processed_at
+      ) VALUES (
+        #{shipmentId}, #{notificationId}, TRUE, #{processingStatus},
+        #{digest}, #{reason}, CURRENT_TIMESTAMP
+      )
     ]]>
   </insert>
 
   <select id="notificationCount" resultType="java.lang.Integer">
     <![CDATA[
-      SELECT COUNT(*) FROM shipment_notifications WHERE notification_id=#{notificationId}
+      SELECT COUNT(*)
+      FROM shipment_notifications
+      WHERE notification_id = #{notificationId}
     ]]>
   </select>
 
   <update id="markReconciled">
     <![CDATA[
-      UPDATE shipment_records SET last_reconciled_at=CURRENT_TIMESTAMP(6),reconciliation_error=NULL WHERE id=#{id}
+      UPDATE shipment_records
+      SET last_reconciled_at = CURRENT_TIMESTAMP(6),
+          reconciliation_error = NULL
+      WHERE id = #{id}
     ]]>
   </update>
 
   <update id="markReconciliationFailed">
     <![CDATA[
-      UPDATE shipment_records SET last_reconciled_at=CURRENT_TIMESTAMP(6),reconciliation_error=#{error} WHERE id=#{id}
+      UPDATE shipment_records
+      SET last_reconciled_at = CURRENT_TIMESTAMP(6),
+          reconciliation_error = #{error}
+      WHERE id = #{id}
     ]]>
   </update>
 </mapper>

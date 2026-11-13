@@ -66,7 +66,7 @@ Windows 回调可靠性专项通过 `RETRY -> PUBLISHED` 和丢失回调对账�
 ### M2.3 商城服务分包治理
 
 - [ ] 分业务包清理通配符导入和过长行，不做全仓一次性机械重写；`identity`、`catalog`、`cart`、
-  `customer`、`review`、`receipt`、`fulfillment`、`ordering`、`payment`、`refund` 已完成。
+  `customer`、`review`、`receipt`、`fulfillment`、`ordering`、`payment`、`refund`、`logistics` 已完成。
 - 简单单表 CRUD 继续使用 `BaseMapper` 和 Lambda Wrapper；复杂 SQL 保留在 Mapper XML。
 - [x] 建立 ArchUnit 测试，阻止 API 访问基础设施、领域层反向依赖外层，并约束
   `@RestController` 与 Mapper 接口的包位置。
@@ -122,6 +122,15 @@ Mapper XML，未改动事务、锁顺序、幂等、库存回补或通知语义�
 Windows 与容器化 Bash 退款专项均通过签名支付、全额退款、双端账本一致、幂等重放、重复退款 `409`、
 伪造回调 `401` 和通知重投；Windows 快速回归与 37 对脚本契约审计同时通过。本批未删除或重建数据卷。
 商城服务当前剩余 2 个通配符导入和 47 条超过 120 字符的 Java 行，下一批从 `logistics` 继续。
+
+第八批治理将 `logistics` 的 2 个通配符导入、40 条超过 120 字符的 Java 行和
+`ShipmentMapper.xml` 的 8 条超长 SQL 行均清零。`ShipmentRecordView` 与 `ShipmentEventView` 补齐类和字段业务
+语义注释；运单 upsert、回调行锁、事件幂等、状态投影和对账候选 SQL 继续保留在 Mapper XML，未改动
+签名、事务、乱序保护、送达时间或自动收货任务语义。商城服务正式 Dockerfile 构建及 25 项测试通过；
+Windows 物流主链路、回调丢失恢复与 `DEAD -> 管理员重放 -> PUBLISHED` 治理专项通过，容器化 Bash 主链路通过
+签名创建、重放 `409`、伪造签名 `401`、异常恢复和完整轨迹投影验证。Windows 快速回归与 37 对脚本契约审计
+同时通过，未删除或重建数据卷。商城服务通配符导入已全部清零，剩余 9 条 Java 超长行均位于 `scheduling`；
+下一批完成 `scheduling` 后再判定 M2.3 整体门禁。
 
 ### M2.4 数据库注释与自动门禁
 

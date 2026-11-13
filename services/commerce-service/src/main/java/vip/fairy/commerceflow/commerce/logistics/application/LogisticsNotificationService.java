@@ -23,7 +23,10 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class LogisticsNotificationService {
-  private static final List<String> FLOW = List.of("REQUESTED", "CREATED", "PICKED_UP", "IN_TRANSIT", "AT_STATION", "OUT_FOR_DELIVERY", "DELIVERED");
+  private static final List<String> FLOW = List.of(
+    "REQUESTED", "CREATED", "PICKED_UP", "IN_TRANSIT",
+    "AT_STATION", "OUT_FOR_DELIVERY", "DELIVERED"
+  );
   private static final List<String> EVENT_TYPES = List.of("PROGRESS", "EXCEPTION", "RECOVERY");
   private final ShipmentMapper shipments;
   private final ShopOrderMapper orders;
@@ -31,9 +34,13 @@ public class LogisticsNotificationService {
   private final String secret;
   private final OrderReceiptLifecycleService lifecycle;
 
-  public LogisticsNotificationService(ShipmentMapper shipments, ShopOrderMapper orders, ObjectMapper mapper,
-                                      @Value("${commerceflow.logistics-platform.callback-secret:demo-logistics-callback-secret}") String secret,
-                                      OrderReceiptLifecycleService lifecycle) {
+  public LogisticsNotificationService(
+    ShipmentMapper shipments,
+    ShopOrderMapper orders,
+    ObjectMapper mapper,
+    @Value("${commerceflow.logistics-platform.callback-secret:demo-logistics-callback-secret}") String secret,
+    OrderReceiptLifecycleService lifecycle
+  ) {
     this.shipments = shipments;
     this.orders = orders;
     this.mapper = mapper;
@@ -61,9 +68,11 @@ public class LogisticsNotificationService {
     int duplicates = 0;
     int rejected = 0;
     for (LogisticsGatewayClient.Event event : authoritative.events()) {
-      Notice notice = new Notice(event.eventId(), authoritative.merchantShipmentNo(), authoritative.platformShipmentNo(),
-        event.eventType(), event.status(), authoritative.carrier(), authoritative.trackingNumber(), event.location(),
-        event.description(), event.occurredAt());
+      Notice notice = new Notice(
+        event.eventId(), authoritative.merchantShipmentNo(), authoritative.platformShipmentNo(),
+        event.eventType(), event.status(), authoritative.carrier(), authoritative.trackingNumber(),
+        event.location(), event.description(), event.occurredAt()
+      );
       Result result = apply(notice, digest(event.eventId()), "LOGISTICS_RECONCILIATION", "RECONCILED");
       if ("PROCESSED".equals(result.status())) processed++;
       else if ("DUPLICATE".equals(result.status())) duplicates++;
@@ -78,24 +87,39 @@ public class LogisticsNotificationService {
     if (shipment == null) return new Result("UNKNOWN_SHIPMENT");
     if (shipment.getPlatformShipmentNo() != null && notice.platformShipmentNo() != null
       && !shipment.getPlatformShipmentNo().equals(notice.platformShipmentNo())) {
-      shipments.insertNotification(shipment.getId(), notice.notificationId(), "REJECTED", digest, "Platform shipment mismatch");
+      shipments.insertNotification(
+        shipment.getId(), notice.notificationId(), "REJECTED", digest, "Platform shipment mismatch"
+      );
       return new Result("REJECTED");
     }
     String eventType = notice.eventType() == null ? "PROGRESS" : notice.eventType();
     if (!EVENT_TYPES.contains(eventType) || (!FLOW.contains(notice.status()) && !"EXCEPTION".equals(notice.status()))) {
-      shipments.insertNotification(shipment.getId(), notice.notificationId(), "REJECTED", digest, "Unsupported event type or status");
+      shipments.insertNotification(
+        shipment.getId(), notice.notificationId(), "REJECTED", digest,
+        "Unsupported event type or status"
+      );
       return new Result("REJECTED");
     }
-    int inserted = shipments.insertEvent(shipment.getId(), notice.notificationId(), eventType, notice.status(), notice.location(), notice.description(), notice.occurredAt());
+    int inserted = shipments.insertEvent(
+      shipment.getId(), notice.notificationId(), eventType, notice.status(),
+      notice.location(), notice.description(), notice.occurredAt()
+    );
     if (inserted == 1 && shouldApply(shipment.getStatus(), notice.status(), eventType)) {
       shipments.updateStatus(shipment.getId(), notice.status(), notice.occurredAt());
       if ("DELIVERED".equals(notice.status())) {
         orders.markLogisticsDelivered(shipment.getOrderId(), notice.occurredAt());
         lifecycle.scheduleAutoReceive(shipment.getOrderId(), notice.occurredAt());
       }
-      orders.insertEventDetailed(shipment.getOrderId(), null, "LOGISTICS_STATUS_UPDATED", orders.status(shipment.getOrderId()), orders.status(shipment.getOrderId()), eventType + " · " + notice.status() + " · " + notice.location() + " · " + notice.description(), source, null);
+      orders.insertEventDetailed(
+        shipment.getOrderId(), null, "LOGISTICS_STATUS_UPDATED",
+        orders.status(shipment.getOrderId()), orders.status(shipment.getOrderId()),
+        eventType + " · " + notice.status() + " · " + notice.location() + " · " + notice.description(),
+        source, null
+      );
     }
-    shipments.insertNotification(shipment.getId(), notice.notificationId(), inserted == 1 ? processedStatus : "DUPLICATE", digest, "");
+    shipments.insertNotification(
+      shipment.getId(), notice.notificationId(), inserted == 1 ? processedStatus : "DUPLICATE", digest, ""
+    );
     return new Result(inserted == 1 ? "PROCESSED" : "DUPLICATE");
   }
 
@@ -113,7 +137,9 @@ public class LogisticsNotificationService {
 
   private String digest(String value) {
     try {
-      return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
+      return HexFormat.of().formatHex(
+        MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))
+      );
     } catch (Exception exception) {
       throw new IllegalStateException("SHA-256 is unavailable", exception);
     }
@@ -123,15 +149,27 @@ public class LogisticsNotificationService {
     try {
       Mac mac = Mac.getInstance("HmacSHA256");
       mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-      return signature != null && MessageDigest.isEqual(mac.doFinal(raw.getBytes(StandardCharsets.UTF_8)), Base64.getDecoder().decode(signature));
+      return signature != null && MessageDigest.isEqual(
+        mac.doFinal(raw.getBytes(StandardCharsets.UTF_8)),
+        Base64.getDecoder().decode(signature)
+      );
     } catch (Exception exception) {
       return false;
     }
   }
 
-  public record Notice(String notificationId, String merchantShipmentNo, String platformShipmentNo, String eventType,
-                       String status, String carrier, String trackingNumber, String location, String description,
-                       Instant occurredAt) {
+  public record Notice(
+    String notificationId,
+    String merchantShipmentNo,
+    String platformShipmentNo,
+    String eventType,
+    String status,
+    String carrier,
+    String trackingNumber,
+    String location,
+    String description,
+    Instant occurredAt
+  ) {
   }
 
   public record Result(String status) {

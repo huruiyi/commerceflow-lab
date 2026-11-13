@@ -20,11 +20,14 @@ public class LogisticsService {
 
   public LogisticsResponse require(AppUser customer, Long orderId) {
     orders.find(customer.getId(), orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found"));
-    ShipmentRecordView value = shipments.byOrder(orderId).orElseThrow(() -> new ResourceNotFoundException("Logistics not found"));
+    ShipmentRecordView value = shipments.byOrder(orderId)
+      .orElseThrow(() -> new ResourceNotFoundException("Logistics not found"));
     return LogisticsResponse.from(value, shipments.events(value.getId()));
   }
 
   public LogisticsResponse find(Long orderId) {
-    return shipments.byOrder(orderId).map(value -> LogisticsResponse.from(value, shipments.events(value.getId()))).orElse(null);
+    return shipments.byOrder(orderId)
+      .map(value -> LogisticsResponse.from(value, shipments.events(value.getId())))
+      .orElse(null);
   }
 }
