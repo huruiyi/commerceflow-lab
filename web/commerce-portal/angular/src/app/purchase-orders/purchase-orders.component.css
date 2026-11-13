@@ -165,13 +165,76 @@
   margin-bottom: 1.4rem;
 }
 
+.receipt-state-panel {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  padding: 1.15rem 1.25rem;
+  border: 1px solid #99f6e4;
+  border-radius: 15px;
+  background: linear-gradient(120deg, #f0fdfa, #f8fafc);
+}
+
+.receipt-state-panel.completed {
+  border-color: #bfdbfe;
+  background: linear-gradient(120deg, #eff6ff, #f8fafc);
+}
+
+.receipt-state-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: #0f766e;
+  color: #fff;
+  font-size: 1.35rem;
+  box-shadow: 0 8px 18px #0f766e2b;
+}
+
+.receipt-state-panel.completed .receipt-state-icon {
+  background: #1d4ed8;
+  box-shadow: 0 8px 18px #1d4ed82b;
+}
+
+.receipt-state-copy h4,
+.refund-heading h4 {
+  margin: 0.15rem 0 0.25rem;
+}
+
+.receipt-state-copy p,
+.refund-heading p {
+  margin: 0;
+  color: #475569;
+}
+
+.receipt-state-times {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 190px;
+}
+
+.receipt-state-times div {
+  display: grid;
+}
+
+.receipt-state-times small {
+  color: #64748b;
+  font-size: 0.72rem;
+}
+
+.item-card {
+  border-bottom: 1px solid #edf2f7;
+}
+
 .item-row {
   display: grid;
   grid-template-columns: 72px 1fr auto;
   gap: 1rem;
   align-items: center;
   padding: 0.7rem 0;
-  border-bottom: 1px solid #edf2f7;
 }
 
 .item-row img {
@@ -184,6 +247,113 @@
 .item-row small {
   display: block;
   color: #64748b;
+}
+
+.review-panel {
+  margin: 0.15rem 0 1rem 88px;
+}
+
+.review-form {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f8fbff, #fff);
+}
+
+.review-heading,
+.review-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.review-heading strong,
+.review-heading span {
+  display: block;
+}
+
+.review-privacy {
+  color: #047857;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.rating-field {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.rating-field legend,
+.review-form > label,
+.refund-fields label {
+  margin-bottom: 0.4rem;
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.rating-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.rating-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 48px;
+  justify-content: center;
+  padding: 0.42rem 0.65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #fff;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.rating-button i {
+  color: #f59e0b;
+}
+
+.rating-button:hover,
+.rating-button.selected {
+  border-color: #f59e0b;
+  background: #fffbeb;
+  color: #92400e;
+  box-shadow: 0 0 0 2px #fef3c7;
+}
+
+.review-actions small {
+  color: #64748b;
+}
+
+.review-complete {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.9rem 1rem;
+  border: 1px solid #a7f3d0;
+  border-radius: 12px;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.review-complete i {
+  font-size: 1.25rem;
+}
+
+.review-complete strong,
+.review-complete small {
+  display: block;
+}
+
+.review-complete small {
+  color: #475569;
 }
 
 .address {
@@ -269,17 +439,78 @@
 
 .refund-form {
   display: grid;
-  gap: 0.7rem;
-  margin-top: 1rem;
-  padding: 1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.42fr);
+  gap: 1rem 1.25rem;
+  margin: 0 0 1.4rem;
+  padding: 1.25rem;
   border: 1px solid #fecaca;
-  border-radius: 12px;
-  background: #fff7f7;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #fff7f7, #fff);
 }
 
-.refund-form p {
-  margin: 0;
-  color: #64748b;
+.refund-heading {
+  display: flex;
+  gap: 0.9rem;
+}
+
+.refund-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 1.1rem;
+}
+
+.refund-amount-card {
+  display: grid;
+  align-content: center;
+  padding: 1rem;
+  border-radius: 12px;
+  background: #7f1d1d;
+  color: #fff;
+}
+
+.refund-amount-card span,
+.refund-amount-card small {
+  color: #fecaca;
+}
+
+.refund-amount-card strong {
+  margin: 0.15rem 0;
+  font-size: 1.45rem;
+}
+
+.refund-fields {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) minmax(0, 1.3fr);
+  gap: 0.4rem 0.75rem;
+}
+
+.refund-fields label:nth-of-type(2) {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.refund-safety-note {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  padding: 0.85rem;
+  border-radius: 10px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 0.82rem;
+}
+
+.refund-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
 }
 
 .cancel-order-form {
@@ -316,7 +547,50 @@
   padding: 1.25rem;
   border: 1px solid #a7f3d0;
   border-radius: 15px;
-  background: #f0fdf4;
+  background: linear-gradient(135deg, #f0fdf4, #f8fafc);
+}
+
+.refund-status-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.refund-status-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #059669;
+  color: #fff;
+}
+
+.refund-status-icon.failed {
+  background: #dc2626;
+}
+
+.refund-receipt-amount {
+  display: grid;
+  text-align: right;
+}
+
+.refund-receipt-amount small {
+  color: #64748b;
+}
+
+.refund-receipt-amount strong {
+  font-size: 1.25rem;
+}
+
+.refund-failure {
+  display: flex;
+  gap: 0.55rem;
+  margin: 1rem 0 0;
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #991b1b;
 }
 
 .order-history {
@@ -732,10 +1006,37 @@
     grid-column: 2;
   }
 
+  .receipt-state-panel {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .receipt-state-times {
+    grid-column: 2;
+    min-width: 0;
+  }
+
+  .review-panel {
+    margin-left: 0;
+  }
+
   .review-form {
     display: grid;
     gap: 0.5rem;
     margin-top: 0.6rem;
+  }
+
+  .refund-form,
+  .refund-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .refund-fields label:nth-of-type(2) {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .refund-actions {
+    grid-column: 1;
   }
 
   .tracking-line,
@@ -774,5 +1075,28 @@
   .tracking-line,
   .section-heading {
     flex-direction: column;
+  }
+
+  .receipt-state-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .receipt-state-times {
+    grid-column: 1;
+  }
+
+  .review-heading,
+  .review-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .review-actions button,
+  .refund-actions .btn-danger {
+    width: 100%;
+  }
+
+  .refund-receipt-amount {
+    text-align: left;
   }
 }

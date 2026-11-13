@@ -39,6 +39,7 @@ interface Notice {
   styleUrls: ['./purchase-orders.component.css'],
 })
 export class PurchaseOrdersComponent implements OnInit {
+  readonly reviewScores = [1, 2, 3, 4, 5];
   readonly channels: ChannelOption[] = [
     {
       code: 'ALIPAY',
@@ -77,6 +78,7 @@ export class PurchaseOrdersComponent implements OnInit {
   ratings: Record<number, number> = {};
   reviewComments: Record<number, string> = {};
   reviewed = new Set<number>();
+  reviewing = new Set<number>();
   refundForms = new Set<number>();
   refunding = new Set<number>();
   refundReasons: Record<number, string> = {};
@@ -286,19 +288,38 @@ export class PurchaseOrdersComponent implements OnInit {
   }
 
   review(order: PurchaseOrder, itemId: number): void {
+    if (!this.canSubmitReview(itemId)) return;
+    this.reviewing.add(itemId);
     this.api
       .reviewOrderItem(
         itemId,
         this.ratings[itemId] || 5,
-        this.reviewComments[itemId] || '',
+        this.reviewComments[itemId].trim(),
       )
-      .subscribe(() => {
-        this.reviewed.add(itemId);
-        this.notices[order.id] = {
-          type: 'success',
-          text: this.i18n.t('reviewSubmitted'),
-        };
+      .pipe(finalize(() => this.reviewing.delete(itemId)))
+      .subscribe({
+        next: () => {
+          this.reviewed.add(itemId);
+          this.notices[order.id] = {
+            type: 'success',
+            text: this.i18n.t('reviewSubmitted'),
+          };
+        },
+        error: (error) => {
+          this.notices[order.id] = {
+            type: 'danger',
+            text: error.error?.message ?? this.i18n.t('reviewFailed'),
+          };
+        },
       });
+  }
+
+  setRating(itemId: number, score: number): void {
+    this.ratings[itemId] = score;
+  }
+
+  canSubmitReview(itemId: number): boolean {
+    return Boolean(this.reviewComments[itemId]?.trim()) && !this.reviewing.has(itemId);
   }
 
   toggleRefund(order: PurchaseOrder): void {

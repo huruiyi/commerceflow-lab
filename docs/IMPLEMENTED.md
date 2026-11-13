@@ -103,6 +103,8 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - 新空卷验收已通过：Flyway 商城/支付/物流为 V23/V3/V4，完成登录→下单→支付→履约→物流→收货→完成→评价；Windows 快速回归同时通过。
 - 微服务拆分与 PostgreSQL 评估仅记录在 [architecture/](architecture/README.md)，尚未实施，不与业务 `TODO.md` 混用。
 - 已建立 [全开发生命周期可复测验证体系](VERIFICATION-SYSTEM.md)，将现有构建、快速/完整回归、空卷/升级恢复、MQ/崩溃专项和浸泡压测组织为 L0–L6 门禁，并固定证据、破坏性操作和基线冻结规则。
+- Angular 客户订单页已将退款申请/回执、`RECEIVED/COMPLETED` 履约状态和逐商品评价改为独立响应式面板；评价增加评分、必填内容、防重复提交和成功/失败反馈，未修改后端状态机或接口契约。
+- 上述界面已通过 25 项 Angular 单元测试、生产构建、Docker 实际页面与现有 `PAID/REFUNDED/RECEIVED/COMPLETED` 数据验收；浏览器控制台无错误，390 px 窄屏无横向溢出。
 
 ## 8. 订单取消与 Database 超时首个垂直闭环
 

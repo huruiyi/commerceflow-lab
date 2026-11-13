@@ -75,41 +75,97 @@
        [ngClass]="'alert-' + notice.type">{{ notice.text }}
   </div>
   <div class="order-content" *ngIf="expandedOrders.has(order.id)">
+    <section
+      *ngIf="order.status === 'RECEIVED' || order.status === 'COMPLETED'"
+      class="receipt-state-panel"
+      [class.completed]="order.status === 'COMPLETED'"
+    >
+      <div class="receipt-state-icon" aria-hidden="true">
+        <i class="bi" [class.bi-box2-heart]="order.status === 'RECEIVED'"
+           [class.bi-patch-check-fill]="order.status === 'COMPLETED'"></i>
+      </div>
+      <div class="receipt-state-copy">
+        <span class="eyebrow">{{ "receiptStatus" | t }}</span>
+        <h4>{{ (order.status === "COMPLETED" ? "orderCompletedTitle" : "orderReceivedTitle") | t }}</h4>
+        <p>{{ (order.status === "COMPLETED" ? "orderCompletedHelp" : "orderReceivedHelp") | t }}</p>
+      </div>
+      <div class="receipt-state-times">
+        <div *ngIf="order.receivedAt">
+          <small>{{ "receivedAt" | t }}</small>
+          <strong>{{ order.receivedAt | trdate }}</strong>
+        </div>
+        <div *ngIf="order.completedAt">
+          <small>{{ "completedAt" | t }}</small>
+          <strong>{{ order.completedAt | trdate }}</strong>
+        </div>
+      </div>
+    </section>
     <section class="items-panel">
-      <div *ngFor="let item of order.items" class="item-row">
-        <img [src]="item.thumbnailUrl" [alt]="item.productName"/>
-        <div>
-          <strong>{{ item.productName }}</strong
-          ><small
-        >{{ item.unitPrice | trcurrency }} × {{ item.quantity }}</small
-        >
+      <div *ngFor="let item of order.items" class="item-card">
+        <div class="item-row">
+          <img [src]="item.thumbnailUrl" [alt]="item.productName"/>
+          <div class="item-copy">
+            <strong>{{ item.productName }}</strong>
+            <small>{{ item.unitPrice | trcurrency }} × {{ item.quantity }}</small>
+          </div>
+          <b>{{ item.subtotal | trcurrency }}</b>
+        </div>
+        <section *ngIf="hasAction(order, 'REVIEW_ITEM')" class="review-panel">
           <form
-            *ngIf="hasAction(order, 'REVIEW_ITEM') && !reviewed.has(item.id)"
+            *ngIf="!reviewed.has(item.id); else reviewComplete"
             (ngSubmit)="review(order, item.id)"
             class="review-form"
           >
-            <select name="rating{{ item.id }}" [(ngModel)]="ratings[item.id]">
-              <option [ngValue]="5">5 ★</option>
-              <option [ngValue]="4">4 ★</option>
-              <option [ngValue]="3">3 ★</option>
-              <option [ngValue]="2">2 ★</option>
-              <option [ngValue]="1">1 ★</option>
-            </select
-            ><input
-            name="comment{{ item.id }}"
-            [(ngModel)]="reviewComments[item.id]"
-            [placeholder]="'yourReview' | t"
-            required
-          />
-            <button class="btn btn-sm btn-outline-success">
-              {{ "submitReview" | t }}
-            </button>
+            <div class="review-heading">
+              <div>
+                <span class="eyebrow">{{ "productReview" | t }}</span>
+                <strong>{{ "shareExperience" | t }}</strong>
+              </div>
+              <span class="review-privacy"><i class="bi bi-shield-check" aria-hidden="true"></i>
+                {{ "verifiedPurchase" | t }}</span>
+            </div>
+            <fieldset class="rating-field">
+              <legend>{{ "ratingLabel" | t }}</legend>
+              <div class="rating-buttons">
+                <button
+                  *ngFor="let score of reviewScores"
+                  type="button"
+                  class="rating-button"
+                  [class.selected]="(ratings[item.id] || 5) === score"
+                  [attr.aria-pressed]="(ratings[item.id] || 5) === score"
+                  [attr.aria-label]="score + ' / 5'"
+                  (click)="setRating(item.id, score)"
+                >
+                  <i class="bi bi-star-fill" aria-hidden="true"></i><span>{{ score }}</span>
+                </button>
+              </div>
+            </fieldset>
+            <label [for]="'review-comment-' + item.id">{{ "reviewCommentLabel" | t }}</label>
+            <textarea
+              class="form-control"
+              [id]="'review-comment-' + item.id"
+              name="comment{{ item.id }}"
+              [(ngModel)]="reviewComments[item.id]"
+              [placeholder]="'reviewCommentHint' | t"
+              rows="3"
+              maxlength="500"
+              required
+            ></textarea>
+            <div class="review-actions">
+              <small>{{ (reviewComments[item.id]?.length || 0) }} / 500</small>
+              <button class="btn btn-success" [disabled]="!canSubmitReview(item.id)">
+                <span *ngIf="reviewing.has(item.id)" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                {{ (reviewing.has(item.id) ? "submittingReview" : "submitReview") | t }}
+              </button>
+            </div>
           </form>
-          <small *ngIf="reviewed.has(item.id)" class="text-success">{{
-              "reviewed" | t
-            }}</small>
-        </div>
-        <b>{{ item.subtotal | trcurrency }}</b>
+          <ng-template #reviewComplete>
+            <div class="review-complete" role="status">
+              <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+              <div><strong>{{ "reviewed" | t }}</strong><small>{{ "reviewCompletedHelp" | t }}</small></div>
+            </div>
+          </ng-template>
+        </section>
       </div>
       <div class="address">
         <span>{{ "shipTo" | t }} · {{ order.address.label }}</span
@@ -128,29 +184,30 @@
         <span *ngIf="order.cancelReason">{{ order.cancelReason }}</span>
         <small *ngIf="order.cancelledAt">{{ order.cancelledAt | trdate }}</small>
       </div>
-      <button
-        *ngIf="hasAction(order, 'CONFIRM_RECEIPT')"
-        class="btn btn-success mt-3"
-        (click)="receive(order)"
-      >
-        {{ "confirmReceipt" | t }}
-      </button>
-      <button
-        *ngIf="hasAction(order, 'REQUEST_REFUND')"
-        class="btn btn-outline-danger mt-3 ms-2"
-        (click)="toggleRefund(order)"
-      >
-        {{ "requestRefund" | t }}
-      </button>
-      <form
-        *ngIf="refundForms.has(order.id)"
-        class="refund-form"
-        (ngSubmit)="requestRefund(order)"
-      >
-        <strong>{{ "refundConfirmTitle" | t }}</strong>
-        <p>{{ "refundConfirmHelp" | t }}</p>
+    </section>
+    <form
+      *ngIf="refundForms.has(order.id)"
+      class="refund-form"
+      (ngSubmit)="requestRefund(order)"
+    >
+      <div class="refund-heading">
+        <div class="refund-icon" aria-hidden="true"><i class="bi bi-arrow-counterclockwise"></i></div>
+        <div>
+          <span class="eyebrow">{{ "refundRequest" | t }}</span>
+          <h4>{{ "refundConfirmTitle" | t }}</h4>
+          <p>{{ "refundConfirmHelp" | t }}</p>
+        </div>
+      </div>
+      <div class="refund-amount-card">
+        <span>{{ "estimatedRefund" | t }}</span>
+        <strong>{{ order.totalAmount | trcurrency }}</strong>
+        <small>{{ "refundOriginalChannel" | t }}</small>
+      </div>
+      <div class="refund-fields">
+        <label [for]="'refund-reason-' + order.id">{{ "refundReason" | t }}</label>
         <select
           class="form-select"
+          [id]="'refund-reason-' + order.id"
           name="refundReason{{ order.id }}"
           [(ngModel)]="refundReasons[order.id]"
         >
@@ -158,22 +215,29 @@
           <option value="ORDER_ERROR">{{ "ORDER_ERROR" | t }}</option>
           <option value="OTHER">{{ "OTHER" | t }}</option>
         </select>
-        <input
+        <label [for]="'refund-detail-' + order.id">{{ "refundDetailLabel" | t }}</label>
+        <textarea
           class="form-control"
+          [id]="'refund-detail-' + order.id"
           name="refundDetail{{ order.id }}"
           [(ngModel)]="refundDetails[order.id]"
           [placeholder]="'refundReasonDetail' | t"
-        />
-        <div>
+          rows="3"
+          maxlength="300"
+        ></textarea>
+      </div>
+      <div class="refund-safety-note">
+        <i class="bi bi-info-circle" aria-hidden="true"></i><span>{{ "refundSafetyNote" | t }}</span>
+      </div>
+      <div class="refund-actions">
           <button class="btn btn-danger" [disabled]="refunding.has(order.id)">
             {{ (refunding.has(order.id) ? "submittingRefund" : "confirmRefund") | t }}
           </button>
           <button type="button" class="btn btn-link" (click)="toggleRefund(order)">
             {{ "cancel" | t }}
           </button>
-        </div>
-      </form>
-    </section>
+      </div>
+    </form>
     <section class="logistics-panel" *ngIf="hasAction(order, 'VIEW_LOGISTICS') && order.logistics as logistics">
       <div class="section-heading">
         <div><span class="eyebrow">{{ "logisticsDetails" | t }}</span><h4>{{ logistics.status | t }}</h4></div>
@@ -406,8 +470,15 @@
     </section>
     <section class="refund-receipt" *ngIf="order.refund as refund">
       <div class="section-heading">
-        <div><span class="eyebrow">{{ "latestRefund" | t }}</span><h4>{{ refund.status | t }}</h4></div>
-        <strong>{{ refund.amount | trcurrency }}</strong>
+        <div class="refund-status-heading">
+          <span class="refund-status-icon" [class.failed]="refund.status === 'FAILED'" aria-hidden="true">
+            <i class="bi" [class.bi-check-lg]="refund.status === 'SUCCEEDED'"
+               [class.bi-hourglass-split]="refund.status !== 'SUCCEEDED' && refund.status !== 'FAILED'"
+               [class.bi-exclamation-lg]="refund.status === 'FAILED'"></i>
+          </span>
+          <div><span class="eyebrow">{{ "latestRefund" | t }}</span><h4>{{ refund.status | t }}</h4></div>
+        </div>
+        <div class="refund-receipt-amount"><small>{{ "amount" | t }}</small><strong>{{ refund.amount | trcurrency }}</strong></div>
       </div>
       <dl>
         <div>
@@ -426,7 +497,13 @@
           <dt>{{ "requestedAt" | t }}</dt>
           <dd>{{ refund.requestedAt | trdate }}</dd>
         </div>
+        <div *ngIf="refund.succeededAt">
+          <dt>{{ "refundCompletedAt" | t }}</dt>
+          <dd>{{ refund.succeededAt | trdate }}</dd>
+        </div>
       </dl>
+      <p *ngIf="refund.failureReason" class="refund-failure"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+        {{ refund.failureReason }}</p>
       <ol class="refund-timeline">
         <li *ngFor="let event of refund.events">
           <strong>{{ event.eventType | t }}</strong><small>{{ event.createdAt | trdate }}</small><span>{{ event.fromStatus | t }}

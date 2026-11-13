@@ -9,7 +9,14 @@ import {TrcurrencyPipe} from '../pipes/trcurrency.pipe';
 
 describe('PurchaseOrdersComponent', () => {
   let fixture: ComponentFixture<PurchaseOrdersComponent>;
-  let api: { purchaseOrders: jasmine.Spy; allProducts: jasmine.Spy; payOrder: jasmine.Spy };
+  let api: {
+    purchaseOrders: jasmine.Spy;
+    allProducts: jasmine.Spy;
+    payOrder: jasmine.Spy;
+    reviewOrderItem: jasmine.Spy;
+    requestRefund: jasmine.Spy;
+    receiveOrder: jasmine.Spy;
+  };
   const order: PurchaseOrder = {
     id: 42,
     orderNumber: 'ORD-42',
@@ -58,7 +65,20 @@ describe('PurchaseOrdersComponent', () => {
           currency: 'CNY',
           createdAt: '2026-11-10T00:00:00Z'
         }
-      }))
+      })),
+      reviewOrderItem: jasmine.createSpy().and.returnValue(of({})),
+      requestRefund: jasmine.createSpy().and.returnValue(of({
+        refundNumber: 'REF-1',
+        orderId: 42,
+        status: 'SUCCEEDED',
+        amount: 99,
+        currency: 'CNY',
+        reasonCode: 'CUSTOMER_CANCELLED',
+        reasonDetail: '',
+        requestedAt: '2026-11-10T01:00:00Z',
+        events: []
+      })),
+      receiveOrder: jasmine.createSpy().and.returnValue(of({...order, status: 'RECEIVED'}))
     };
     await TestBed.configureTestingModule({
       declarations: [PurchaseOrdersComponent, TranslatePipe, TrdatePipe, TrcurrencyPipe],
@@ -132,5 +152,26 @@ describe('PurchaseOrdersComponent', () => {
     component.replayOnAnotherChannel(order);
     expect(component.lastAttempts[42].channel).toBe('WECHAT_PAY');
     expect(component.notices[42].text).toBe('Idempotency conflict');
+  });
+  it('requires review text and submits the selected score once', () => {
+    const component = fixture.componentInstance;
+    component.setRating(1, 4);
+    component.review(order, 1);
+    expect(api.reviewOrderItem).not.toHaveBeenCalled();
+    component.reviewComments[1] = '  Useful learning product.  ';
+    component.review(order, 1);
+    expect(api.reviewOrderItem).toHaveBeenCalledOnceWith(1, 4, 'Useful learning product.');
+    expect(component.reviewed.has(1)).toBeTrue();
+  });
+  it('opens a full-refund form and preserves its idempotency key', () => {
+    const component = fixture.componentInstance;
+    component.showRefund(order);
+    const key = component.refundKeys[42];
+    expect(component.expandedOrders.has(42)).toBeTrue();
+    expect(component.refundForms.has(42)).toBeTrue();
+    component.requestRefund(order);
+    expect(api.requestRefund).toHaveBeenCalledOnceWith(42, key, 'CUSTOMER_CANCELLED', '');
+    expect(component.orders[0].status).toBe('REFUNDED');
+    expect(component.refundForms.has(42)).toBeFalse();
   });
 });
