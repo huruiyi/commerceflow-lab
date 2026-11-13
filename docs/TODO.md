@@ -9,7 +9,7 @@
 | 合并内容 | 订单超时策略、Database/RabbitMQ/RocketMQ 讨论、截图阶段 4～6 和旧实施计划 |
 | 当前状态 | 通用定时任务底座、Database/RabbitMQ/RocketMQ 主触发与 Database 对账、订单取消、模拟物流、回调 Outbox/主动对账、自动确认收货/自动完成已实现 |
 | UI 边界 | 客户订单中心已改为摘要、当前主操作与可展开详情，支付、退款、物流和时间线保持独立事实展示 |
-| 最后更新 | 2026-11-13 |
+| 最后更新 | 2026-11-14 |
 
 本文档保留已完成勾选和未完成项，用于表示实施顺序和阶段门禁。已实现能力的详细证据见 [IMPLEMENTED.md](IMPLEMENTED.md)，当前快照见 [PROJECT-STATUS.md](PROJECT-STATUS.md)，详细策略见 [通用定时任务策略](reference/SCHEDULED-TASK-STRATEGIES.md)。旧草案和旧实施计划移入 `archive/`，不再同步勾选状态。
 
@@ -291,7 +291,7 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
 - [x] 完成物流模拟服务类型与格式治理，并复验乱序与 Outbox 恢复。
 - [x] 建立商城服务 ArchUnit 模块依赖门禁，并移除用户 API 直接访问 Mapper 的越层依赖。
 - [ ] 分业务包治理商城服务的通配符导入和过长行；`identity`、`catalog`、`cart`、`customer`、
-  `review`、`receipt` 已完成，其余业务包待继续。
+  `review`、`receipt`、`fulfillment` 已完成，其余业务包待继续。
 - [ ] 通过新增 Flyway 迁移补充关键数据库列注释，不改历史迁移。
 - [ ] 接入与 IntelliJ IDEA 结果一致的自动格式检查，并纳入快速验证矩阵。
 
