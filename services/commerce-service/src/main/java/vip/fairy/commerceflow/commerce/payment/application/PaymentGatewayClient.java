@@ -23,8 +23,11 @@ public class PaymentGatewayClient {
   private final ObjectMapper mapper;
   private final String baseUrl;
 
-  public PaymentGatewayClient(RestClient.Builder builder, ObjectMapper mapper,
-                              @Value("${commerceflow.payment-platform.base-url:http://localhost:18082}") String baseUrl) {
+  public PaymentGatewayClient(
+    RestClient.Builder builder,
+    ObjectMapper mapper,
+    @Value("${commerceflow.payment-platform.base-url:http://localhost:18082}") String baseUrl
+  ) {
     this.client = builder.build();
     this.mapper = mapper;
     this.baseUrl = baseUrl;

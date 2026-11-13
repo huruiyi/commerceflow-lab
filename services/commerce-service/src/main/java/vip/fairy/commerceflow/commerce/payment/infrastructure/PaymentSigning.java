@@ -5,7 +5,9 @@ import vip.fairy.commerceflow.commerce.payment.domain.PaymentChannel;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
-import java.util.*;
+import java.util.Base64;
+import java.util.HexFormat;
+import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -22,8 +24,12 @@ public final class PaymentSigning {
 
   public static void apply(HttpHeaders h, String method, String path, String body, String appId, String secret) {
     try {
-      String t = "" + Instant.now().getEpochSecond(), n = UUID.randomUUID().toString().replace("-", ""), r = UUID.randomUUID().toString().replace("-", "");
-      String hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(body.getBytes(StandardCharsets.UTF_8)));
+      String t = "" + Instant.now().getEpochSecond();
+      String n = UUID.randomUUID().toString().replace("-", "");
+      String r = UUID.randomUUID().toString().replace("-", "");
+      String hash = HexFormat.of().formatHex(
+        MessageDigest.getInstance("SHA-256").digest(body.getBytes(StandardCharsets.UTF_8))
+      );
       String canonical = String.join("\n", method, path, t, n, r, hash);
       Mac m = Mac.getInstance("HmacSHA256");
       m.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
@@ -33,7 +39,10 @@ public final class PaymentSigning {
       h.set("X-Nonce", n);
       h.set("X-Request-Id", r);
       h.set("X-Body-SHA256", hash);
-      h.set("X-Signature", Base64.getEncoder().encodeToString(m.doFinal(canonical.getBytes(StandardCharsets.UTF_8))));
+      h.set(
+        "X-Signature",
+        Base64.getEncoder().encodeToString(m.doFinal(canonical.getBytes(StandardCharsets.UTF_8)))
+      );
     } catch (Exception e) {
       throw new IllegalStateException(e);
     }

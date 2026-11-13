@@ -35,10 +35,15 @@ public class PaymentNotificationService {
   private final RefundService refunds;
   private final PaymentCancellationCrashLab crashLab;
 
-  public PaymentNotificationService(ShopOrderMapper orders, ObjectMapper mapper,
-                                    @Value("${commerceflow.payment-platform.callback-secret:demo-platform-callback-secret}") String secret,
-                                    PaymentEventPipeline events, InventoryService inventory, RefundService refunds,
-                                    PaymentCancellationCrashLab crashLab) {
+  public PaymentNotificationService(
+    ShopOrderMapper orders,
+    ObjectMapper mapper,
+    @Value("${commerceflow.payment-platform.callback-secret:demo-platform-callback-secret}") String secret,
+    PaymentEventPipeline events,
+    InventoryService inventory,
+    RefundService refunds,
+    PaymentCancellationCrashLab crashLab
+  ) {
     this.orders = orders;
     this.mapper = mapper;
     this.secret = secret;

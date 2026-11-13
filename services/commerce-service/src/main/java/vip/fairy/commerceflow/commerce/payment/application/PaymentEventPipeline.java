@@ -1,11 +1,13 @@
 package vip.fairy.commerceflow.commerce.payment.application;
 
 import tools.jackson.core.JacksonException;
-import tools.jackson.databind.*;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.commerce.payment.domain.OutboxEvent;
 import vip.fairy.commerceflow.commerce.payment.infrastructure.OutboxMapper;
 
-import java.util.*;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -42,7 +44,10 @@ public class PaymentEventPipeline {
     outbox.insert(UUID.randomUUID().toString(), aggregateType, aggregateId, type, topic(type), payload);
   }
 
-  @Scheduled(fixedDelayString = "${commerceflow.outbox.delay:1000}", initialDelayString = "${commerceflow.outbox.initial-delay:1000}")
+  @Scheduled(
+    fixedDelayString = "${commerceflow.outbox.delay:1000}",
+    initialDelayString = "${commerceflow.outbox.initial-delay:1000}"
+  )
   public void publish() {
     for (OutboxEvent e : outbox.pending())
       try {
@@ -53,14 +58,28 @@ public class PaymentEventPipeline {
       }
   }
 
-  @KafkaListener(topics = {"payment-events", "order-events", "payment-callback-events", "payment-reconciliation-events", "merchant-notification-events"}, groupId = "commerceflow-payment-projection")
+  @KafkaListener(
+    topics = {
+      "payment-events",
+      "order-events",
+      "payment-callback-events",
+      "payment-reconciliation-events",
+      "merchant-notification-events"
+    },
+    groupId = "commerceflow-payment-projection"
+  )
   public void consume(ConsumerRecord<String, String> r) throws Exception {
     JsonNode n = mapper.readTree(r.value());
     outbox.consume("commerceflow-payment-projection", n.get("eventId").asText(), r.topic());
   }
 
   private String envelope(OutboxEvent e) throws Exception {
-    return mapper.writeValueAsString(Map.of("eventId", e.getEventId(), "eventType", e.getEventType(), "aggregateId", e.getAggregateId(), "payload", mapper.readTree(e.getPayload())));
+    return mapper.writeValueAsString(Map.of(
+      "eventId", e.getEventId(),
+      "eventType", e.getEventType(),
+      "aggregateId", e.getAggregateId(),
+      "payload", mapper.readTree(e.getPayload())
+    ));
   }
 
   private String topic(String t) {
