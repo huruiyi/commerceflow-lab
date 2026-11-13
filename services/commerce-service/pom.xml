@@ -23,6 +23,7 @@
     <resilience4j.version>2.4.0</resilience4j.version>
     <shedlock.version>7.11.0</shedlock.version>
     <rocketmq-client.version>5.2.2</rocketmq-client.version>
+    <archunit.version>1.5.1</archunit.version>
   </properties>
 
   <dependencies>
@@ -126,6 +127,12 @@
     <dependency>
       <groupId>com.h2database</groupId>
       <artifactId>h2</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.tngtech.archunit</groupId>
+      <artifactId>archunit-junit5</artifactId>
+      <version>${archunit.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>

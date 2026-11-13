@@ -1,9 +1,6 @@
 package vip.fairy.commerceflow.commerce.identity.api;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
-import vip.fairy.commerceflow.commerce.identity.infrastructure.AppUserMapper;
-import vip.fairy.commerceflow.commerce.identity.api.UserSummaryResponse;
+import vip.fairy.commerceflow.commerce.identity.application.UserQueryService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -15,17 +12,14 @@ import java.util.List;
 @RequestMapping("/api/users")
 @PreAuthorize("hasRole('ADMIN')")
 public class UserController {
-  private final AppUserMapper users;
+  private final UserQueryService users;
 
-  public UserController(AppUserMapper users) {
+  public UserController(UserQueryService users) {
     this.users = users;
   }
 
   @GetMapping
   List<UserSummaryResponse> list() {
-    return users.selectList(new LambdaQueryWrapper<AppUser>()
-        .orderByAsc(AppUser::getFirstName, AppUser::getLastName)).stream()
-      .map(UserSummaryResponse::from)
-      .toList();
+    return users.list();
   }
 }

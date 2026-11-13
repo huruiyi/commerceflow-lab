@@ -3,7 +3,7 @@ package vip.fairy.commerceflow.commerce.identity.infrastructure;
 import tools.jackson.databind.ObjectMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
-import vip.fairy.commerceflow.commerce.identity.infrastructure.AppUserMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
@@ -79,9 +79,10 @@ public class SecurityConfiguration {
   @Bean
   RememberMeServices rememberMeServices(UserDetailsService userDetailsService,
                                         PersistentTokenRepository tokenRepository,
-                                        @org.springframework.beans.factory.annotation.Value("${security.remember-me.key}") String key,
-                                        @org.springframework.beans.factory.annotation.Value("${security.remember-me.validity-seconds}") int validitySeconds,
-                                        @org.springframework.beans.factory.annotation.Value("${server.servlet.session.cookie.secure:false}") boolean secureCookie) {
+                                        @Value("${security.remember-me.key}") String key,
+                                        @Value("${security.remember-me.validity-seconds}") int validitySeconds,
+                                        @Value("${server.servlet.session.cookie.secure:false}")
+                                        boolean secureCookie) {
     PersistentTokenBasedRememberMeServices services =
       new PersistentTokenBasedRememberMeServices(key, userDetailsService, tokenRepository);
     services.setTokenValiditySeconds(validitySeconds);
@@ -104,11 +105,24 @@ public class SecurityConfiguration {
       .csrf(csrf -> csrf
         .csrfTokenRepository(csrfRepository)
         .csrfTokenRequestHandler(csrfRequestHandler)
-        .ignoringRequestMatchers("/api/payment-notifications/**", "/api/refund-notifications/**", "/api/logistics-notifications/**"))
+        .ignoringRequestMatchers(
+          "/api/payment-notifications/**",
+          "/api/refund-notifications/**",
+          "/api/logistics-notifications/**"))
       .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
       .rememberMe(remember -> remember.rememberMeServices(rememberMeServices))
       .authorizeHttpRequests(authorize -> authorize
-        .requestMatchers("/api/auth/login", "/api/auth/csrf", "/api/products/**", "/api/payment-notifications/**", "/api/refund-notifications/**", "/api/logistics-notifications/**", "/actuator/health", "/actuator/info", "/actuator/prometheus").permitAll()
+        .requestMatchers(
+          "/api/auth/login",
+          "/api/auth/csrf",
+          "/api/products/**",
+          "/api/payment-notifications/**",
+          "/api/refund-notifications/**",
+          "/api/logistics-notifications/**",
+          "/actuator/health",
+          "/actuator/info",
+          "/actuator/prometheus")
+        .permitAll()
         .anyRequest().authenticated())
       .exceptionHandling(errors -> errors
         .authenticationEntryPoint((request, response, exception) -> {

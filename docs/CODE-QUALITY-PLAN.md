@@ -25,7 +25,7 @@
   `LogisticsDataMapper.xml`，商城和支付复杂 SQL 也已放在 Mapper XML。
 - `SchedulerConfiguration` 中的 `JdbcTemplate` 只用于 ShedLock 官方适配器配置，不属于业务 SQL。
 - 未发现多个字段或方法压缩在同一行的现存 Java 声明。
-- 尚未配置自动格式检查，也没有 ArchUnit 模块依赖边界测试。
+- 尚未配置自动格式检查；ArchUnit 模块依赖边界测试已在 M2.3 首批治理中建立。
 - `ChannelRefund` 错把外部退款编号标为 `@TableId(AUTO)`，与数据库 `id BIGINT AUTO_INCREMENT`
   不一致；该项作为第一批功能性修复处理。
 
@@ -65,9 +65,16 @@ Windows 回调可靠性专项通过 `RETRY -> PUBLISHED` 和丢失回调对账�
 
 ### M2.3 商城服务分包治理
 
-- 分业务包清理通配符导入和过长行，不做全仓一次性机械重写。
+- [ ] 分业务包清理通配符导入和过长行，不做全仓一次性机械重写；`identity` 首批已完成。
 - 简单单表 CRUD 继续使用 `BaseMapper` 和 Lambda Wrapper；复杂 SQL 保留在 Mapper XML。
-- 建立 ArchUnit 测试，阻止 Controller、Mapper 和领域包跨模块反向依赖。
+- [x] 建立 ArchUnit 测试，阻止 API 访问基础设施、领域层反向依赖外层，并约束
+  `@RestController` 与 Mapper 接口的包位置。
+
+首批治理移除了 `UserController -> AppUserMapper` 的越层访问，查询改由
+`UserQueryService` 使用 Lambda Wrapper 完成；`identity` 与 `shared` 包的通配符导入和
+超过 120 字符的 Java 行均为 0。商城服务 24 项 Maven 测试通过，其中包含 4 条 ArchUnit
+门禁；使用重建后的镜像执行 Windows L2 快速回归和容器化 Bash 权限回归均通过，现有数据卷未删除。
+其余商城业务包的格式治理仍按包分批进行，不能据此标记为全服务完成。
 
 ### M2.4 数据库注释与自动门禁
 
