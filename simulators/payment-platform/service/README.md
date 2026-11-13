@@ -19,4 +19,4 @@
 | `payment-operator` | `PAYMENT_OPERATOR` | 被授权商户的交易查询和关闭 |
 | `payment-auditor` | `PAYMENT_AUDITOR` | 被授权商户的交易和审计只读 |
 
-推荐从根目录执行 `docker compose up -d --build --wait`，管理 UI 位于 `http://localhost:14201`，健康检查位于 `http://localhost:18082/actuator/health`。签名协议与验收方法见 [`docs/learning/CHAPTER-05A-3.md`](../docs/learning/CHAPTER-05A-3.md)。
+推荐从根目录执行 `docker compose up -d --build --wait`，管理 UI 位于 `http://localhost:14201`，健康检查位于 `http://localhost:18082/actuator/health`。签名协议与验收方法见 [`docs/learning/CHAPTER-05A-3.md`](../../../docs/learning/CHAPTER-05A-3.md)。

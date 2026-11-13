@@ -87,6 +87,7 @@ bash ./scripts/linux/verify-all.sh
 | Angular/Vue/Nginx | 前端生产镜像构建 + L2 | 角色/国际化/相关业务专项 |
 | Flyway/表结构/状态约束 | L1 + L2 + L4 | 相关业务不变量与升级后历史指纹 |
 | Compose、服务名、Profile、脚本 | L0 + 五镜像构建 + L2 | 涉及卷/重启时加 L4；涉及 MQ 时加对应 L5 |
+| Prometheus、Alertmanager、告警规则 | L0 + `verify-alerting` | 规则变更必须通过 `promtool` 单测和 Watchdog 实时投递 |
 | 事务、锁定顺序、幂等、Outbox | L1 + L2 | 锁超时、崩溃恢复、竞态和历史一致性专项 |
 | RabbitMQ/RocketMQ/定时任务 | L1 + L2 | 幂等、未 ACK 重投、Broker 停机恢复和 Profile 对应专项 |
 | 并发状态机 | L1 + L2 | 固定种子短竞态 + L6 浸泡，并记录数据库矛盾计数 |
@@ -130,6 +131,7 @@ bash ./scripts/linux/verify-all.sh
 | MQ 未 ACK 退出 | `verify-mq-scheduling-redelivery` | Broker 重投，不额外发布，业务副作用一次 |
 | 自动收货/完成 MQ 故障 | `verify-auto-lifecycle-mq-failures` | 发布失败可观测、恢复后沿原快照执行、终态一次 |
 | 收货/完成长竞态 | `verify-receipt-lifecycle-stress` | 手动/自动两种赢家、收货转换/任务/完成事件各一次 |
+| 告警链断路或规则误判 | `verify-alerting` | 三个 Target、10 条规则、PromQL 单测、Alertmanager 配置和 Watchdog Webhook |
 
 浸泡输出必须记录随机种子、时长、并发数、节流参数、实际操作数和最终数据库审计值。没有这些值的“压测通过”不具备可复测性。
 

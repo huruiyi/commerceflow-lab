@@ -1067,7 +1067,7 @@ commerceflow.scheduling.task-policies.REVIEW_REMINDER
 - 到期后长时间仍处于 `SCHEDULED/FAILED/PROCESSING` 的任务和 MQ/DLQ 积压。
 - 物流回调 `RETRY/DEAD` 积压及对账失败增量。
 
-Prometheus Alert Rule、Alertmanager 和外部通知尚未实现，因此本节只冻结观测信号、切换/回滚语义和未实现边界，不宣称生产告警已交付。
+Prometheus Rule、Alertmanager 和可替换 Webhook 已在后续运维阶段实现；本节仍只冻结任务观测信号与切换/回滚语义，具体规则和真实通知供应商边界见 [告警管道](../ALERTING.md)。
 
 ## 17. 官方能力参考
 

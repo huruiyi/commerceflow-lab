@@ -42,6 +42,9 @@ Invoke-ChapterVerification 'verify-logistics-callback-governance.ps1'
 Invoke-ChapterVerification 'verify-auto-lifecycle.ps1'
 Invoke-ChapterVerification 'verify-receipt-reviews.ps1'
 Invoke-ChapterVerification 'verify-redis-business.ps1'
+Write-Host "`n==> verify-alerting.ps1" -ForegroundColor Cyan
+& (Join-Path $PSScriptRoot 'verify-alerting.ps1')
+if (-not $?) { throw 'verify-alerting.ps1 failed' }
 
 $deadline = (Get-Date).AddSeconds(60)
 do {
@@ -58,4 +61,4 @@ do {
 } while (-not $healthy -and (Get-Date) -lt $deadline)
 if (-not $healthy) { throw 'Final health check did not recover within 60 seconds' }
 
-Write-Host "`nComplete Docker acceptance passed: build, startup, auth, scheduling governance, i18n, payment outcomes, Kafka, refunds, signed logistics callbacks, fulfillment, reviews, Redis fallback and health." -ForegroundColor Green
+Write-Host "`nComplete Docker acceptance passed: build, startup, auth, scheduling governance, i18n, payment outcomes, Kafka, refunds, signed logistics callbacks, fulfillment, reviews, Redis fallback, alerting and health." -ForegroundColor Green

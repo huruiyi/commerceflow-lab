@@ -33,6 +33,10 @@ for script in verify-i18n.sh verify-authorization.sh verify-scheduling.sh verify
   bash "$SCRIPT_DIR/$script" "$BASE_URL"
 done
 
+echo
+echo '==> verify-alerting.sh'
+bash "$SCRIPT_DIR/verify-alerting.sh"
+
 deadline=$((SECONDS + 60)); healthy=false
 while ((SECONDS < deadline)); do
   if curl -fsS --max-time 5 "$BASE_URL/healthz" >/dev/null \
@@ -45,4 +49,4 @@ while ((SECONDS < deadline)); do
 done
 [[ "$healthy" == true ]] || { echo 'Final health check did not recover within 60 seconds' >&2; exit 1; }
 echo
-echo 'Complete Docker acceptance passed: build, startup, auth, scheduling governance, i18n, payment outcomes, Kafka, refunds, signed logistics callbacks, fulfillment, reviews, Redis fallback and health.'
+echo 'Complete Docker acceptance passed: build, startup, auth, scheduling governance, i18n, payment outcomes, Kafka, refunds, signed logistics callbacks, fulfillment, reviews, Redis fallback, alerting and health.'

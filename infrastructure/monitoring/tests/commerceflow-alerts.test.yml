@@ -1,0 +1,50 @@
+rule_files:
+  - /etc/prometheus/rules/commerceflow-alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'up{job="commerce-service",instance="commerce-service:8080"}'
+        values: '0x3'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: CommerceFlowServiceDown
+        exp_alerts:
+          - exp_labels:
+              alertname: CommerceFlowServiceDown
+              instance: commerce-service:8080
+              job: commerce-service
+              severity: critical
+            exp_annotations:
+              summary: commerce-service is unavailable
+              description: Prometheus has failed to scrape commerce-service:8080 for more than one minute.
+  - interval: 1m
+    input_series:
+      - series: 'commerceflow_refund_processing{job="commerce-service"}'
+        values: '1x12'
+      - series: 'commerceflow_logistics_callback_outbox{job="logistics-simulator-service",status="dead"}'
+        values: '1x7'
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: CommerceFlowRefundBacklog
+        exp_alerts:
+          - exp_labels:
+              alertname: CommerceFlowRefundBacklog
+              job: commerce-service
+              severity: warning
+            exp_annotations:
+              summary: Refund reconciliation backlog detected
+              description: At least one refund has remained in processing for ten minutes.
+      - eval_time: 6m
+        alertname: CommerceFlowLogisticsCallbackDeadLetter
+        exp_alerts:
+          - exp_labels:
+              alertname: CommerceFlowLogisticsCallbackDeadLetter
+              job: logistics-simulator-service
+              status: dead
+              severity: critical
+            exp_annotations:
+              summary: Logistics callback dead letter requires intervention
+              description: The logistics simulator has callback outbox rows in DEAD state for five minutes.

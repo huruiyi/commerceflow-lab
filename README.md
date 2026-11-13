@@ -73,6 +73,15 @@ docker compose ps
 - 物流 MySQL：`localhost:13308`
 - Kafka UI：`http://localhost:14202`
 
+可选告警与监控栈使用 `docker compose --profile observability up -d --wait` 启动：
+
+- Prometheus：`http://localhost:19090`
+- Alertmanager：`http://localhost:19093`
+- Grafana：`http://localhost:13000`
+- 本地告警 Webhook：`http://localhost:18085/api/alerts`
+
+告警目录、阈值、验证方式与真实外部接收端边界见 [告警管道](docs/ALERTING.md)。
+
 教学账号（密码均为 `demo-password`）：
 
 | 账号 | 角色 | 可体验功能 |
@@ -106,7 +115,7 @@ docker compose ps
 
 ## 验收脚本
 
-根目录不再放置平台脚本。主要业务专项提供 Windows/Bash 成对入口；36 组 `verify-*` 的文件名、有序参数和默认非删卷语义已通过 M1 契约审计：
+根目录不再放置平台脚本。主要业务专项提供 Windows/Bash 成对入口；加入告警验收后共 37 组 `verify-*`，文件名、有序参数和默认非删卷语义通过可重复契约审计：
 
 - `scripts/windows/*.ps1`：Windows 上使用 PowerShell 7（`pwsh`）运行。
 - `scripts/linux/*.sh`：Linux、WSL 或 Git Bash 使用，不依赖 PowerShell；`_common.sh` 是各脚本共用的内部函数库，不需要单独运行。
@@ -184,7 +193,8 @@ bash ./scripts/linux/verify-all.sh --skip-build
 
 | Windows / Bash 主要成对脚本 | 作用 | 默认地址 |
 | --- | --- | --- |
-| `verify-all` | 构建、启动并串联主要验收，最后检查商城/支付/物流健康端点 | 商城 `14200` |
+| `verify-alerting` | 校验 Prometheus/Alertmanager 配置和规则单测，确认三个服务 Target 与 Watchdog 实时 Webhook 投递 | Prometheus `19090`、Alertmanager `19093`、Webhook `18085` |
+| `verify-all` | 构建、启动并串联主要验收，包含告警链并最终检查商城/支付/物流健康端点 | 商城 `14200`、监控 `19090/19093/18085` |
 | `verify-quick` | M1 快速回归；默认构建并覆盖核心权限、订单/支付/退款/物流/收货完成、重启恢复、Redis 降级与健康 | 商城 `14200`、支付 `14201/18082`、物流 `18083` |
 | `verify-authorization` | 匿名访问、登录、禁用账号、CSRF 和三种角色权限矩阵 | 商城 `14200` |
 | `verify-i18n` | 中英文商品、按语言隔离的 Redis 缓存、稳定错误码和前端入口 | 商城 `14200` |
@@ -342,6 +352,7 @@ docker compose down
 - Redis Session、登录限流、商品/评分缓存、支付幂等辅助键、MySQL 降级和健康检查。
 - 中英文运行时切换、商品翻译、稳定错误码和本地语言偏好。
 - Kafka Transactional Outbox、幂等消费、对账补偿和高可用教学 Overlay。
+- 可选 `observability` Profile：三服务 Prometheus 抓取、10 条告警规则、Alertmanager 路由、Grafana 数据源和可替换本地 Webhook 接收端。
 - 后端集成测试、支付服务测试、Docker 构建验收、健康检查和 Nginx API 反向代理。
 
 ## 安全和生产边界

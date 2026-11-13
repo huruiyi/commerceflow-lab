@@ -116,7 +116,7 @@ appId + "\n" + epochSeconds + "\n" + nonce + "\n" + sha256Hex(rawBody)
 - `commerceflow_logistics_callback_replays_total`：管理员人工重放计数；
 - `commerceflow_logistics_reconciliation_total`：商城主动对账的检查、恢复和失败计数。
 
-当前已实现指标与可审计人工处理；Prometheus Alert Rule、Alertmanager 和外部通知接收端属于后续运维集成，没有在本阶段伪造为“已告警”。
+当前已实现指标与可审计人工处理；后续运维阶段已将 `DEAD` Gauge 接入 Prometheus Rule、Alertmanager 和可替换 Webhook，详细边界见 [告警管道](ALERTING.md)。
 
 ## 8. 验收
 

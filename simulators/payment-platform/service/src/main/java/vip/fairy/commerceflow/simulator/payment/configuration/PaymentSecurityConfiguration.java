@@ -66,7 +66,7 @@ public class PaymentSecurityConfiguration {
         .maximumSessions(3))
       .authorizeHttpRequests(authorize -> authorize
         .requestMatchers("/api/auth/login", "/api/auth/csrf", "/api/channel/**", "/api/checkout/**",
-          "/actuator/health", "/actuator/info").permitAll()
+          "/actuator/health", "/actuator/info", "/actuator/prometheus").permitAll()
         .anyRequest().authenticated())
       .exceptionHandling(errors -> errors
         .authenticationEntryPoint((request, response, exception) -> {

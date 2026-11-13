@@ -168,8 +168,52 @@ services:
     ports: ["19090:9090"]
     volumes:
       - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infrastructure/monitoring/rules:/etc/prometheus/rules:ro
+      - ./infrastructure/monitoring/tests:/etc/prometheus/tests:ro
     depends_on:
       commerce-service: {condition: service_healthy}
+      payment-simulator-service: {condition: service_healthy}
+      logistics-simulator-service: {condition: service_healthy}
+      alertmanager: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:9090/-/healthy"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.29.0
+    profiles: [observability]
+    ports: ["19093:9093"]
+    volumes:
+      - ./infrastructure/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    depends_on:
+      alert-webhook: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:9093/-/healthy"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  alert-webhook:
+    image: python:3.14.0-alpine3.22
+    profiles: [observability]
+    command: ["python", "/app/receiver.py"]
+    environment:
+      ALERT_WEBHOOK_MAX_EVENTS: ${ALERT_WEBHOOK_MAX_EVENTS:-100}
+    ports: ["18085:8080"]
+    volumes:
+      - ./infrastructure/monitoring/alert-webhook/receiver.py:/app/receiver.py:ro
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz')"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
     restart: unless-stopped
 
   grafana:
@@ -181,7 +225,8 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: commerceflow-grafana
     volumes:
       - ./infrastructure/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
-    depends_on: [prometheus]
+    depends_on:
+      prometheus: {condition: service_healthy}
     restart: unless-stopped
 
   payment-simulator-db:

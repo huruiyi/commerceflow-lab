@@ -1,4 +1,5 @@
 # script	PowerShell parameters in order	Bash bindings in order (VAR=N or @option)
+verify-alerting	PrometheusUrl,AlertmanagerUrl,WebhookUrl,MaxWaitSeconds,SkipStart	PROMETHEUS_URL=1,ALERTMANAGER_URL=2,WEBHOOK_URL=3,MAX_WAIT_SECONDS=4,SKIP_START=5
 verify-all	BaseUrl,SkipBuild	@base-url,@skip-build
 verify-authorization	BaseUrl	BASE_URL=1
 verify-auto-lifecycle	BaseUrl	BASE_URL=1

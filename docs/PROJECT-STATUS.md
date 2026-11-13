@@ -7,8 +7,8 @@
 | 快照日期 | 2026-11-13 |
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
-| 当前阶段 | M1 冻结、命名/数据访问治理、可复测验证体系文档和客户订单页视觉收尾已完成 |
-| 下一里程碑 | 集成 Prometheus Alert Rule、Alertmanager/外部通知等生产级告警管道 |
+| 当前阶段 | M1、验证体系、客户订单页视觉收尾和本地生产式告警管道均已完成 |
+| 下一里程碑 | 本轮固定序列已结束；停止新增业务代码并汇报结果 |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
 
@@ -29,6 +29,7 @@
 | 库存与商家库存中心 | 已实现 | 可售/预占/已售、转正/释放/退款回补、调整流水 |
 | Angular/Vue 界面 | Angular 主流程和订单页视觉收尾已实现 | 退款申请/回执、已收货/已完成状态和逐商品评价已完成桌面与 390 px 窄屏验收；Vue 3 门户仍为架构预留 |
 | Flyway 数据库生命周期 | 空卷和迁移层已验收 | 商城/支付/物流空卷分别迁移到 V23/V3/V4；V16→V23 升级演练已通过 |
+| 告警与监控 | 本地端到端管道已实现 | 三服务 Prometheus 抓取、10 条规则、Alertmanager、Grafana 数据源和可替换 Webhook；真实通知供应商与高可用部署不在本地学习验收内 |
 
 ## 3. M1 冻结结论
 
@@ -49,7 +50,7 @@ M1 按既定 1→9 顺序完成：核心可靠性、空卷/旧库环境生命周
     -> 冻结 M1 可复测基线
     -> 编写整个开发生命周期的可复测验证体系文档
     -> 退款区域/已收货/评价表单视觉重做（已完成）
-    -> Prometheus Alert Rule、Alertmanager/外部通知等生产级告警
+    -> Prometheus Alert Rule、Alertmanager/可替换 Webhook（已完成）
 ```
 
 M1 期间只维护当前实现证据和专项学习文档，未提前创建或标记“全开发生命周期可复测验证体系”为已开始。
@@ -58,6 +59,6 @@ M1 期间只维护当前实现证据和专项学习文档，未提前创建或�
 
 - 真实支付机构、真实物流渠道、部分退款、退货/换货和售后工单。
 - 多节点 MySQL/Redis/Kafka/MQ 高可用、跨可用区容灾、多日容量压测和生产合规认证。
-- Prometheus Alert Rule、Alertmanager 及外部告警通知尚未实现；当前只有应用指标。
+- Prometheus Rule、Alertmanager 与本地 Webhook 已实现并完成 Windows/容器化 Bash 实时投递；真实通知供应商凭据、通知到人和值班升级流程未配置。
 - [全开发生命周期可复测验证体系](VERIFICATION-SYSTEM.md) 已建立；当前为本地单机 Docker 学习环境门禁，不代表多节点容灾、多日容量或生产合规验收。
 - Java/Maven 已统一为 `vip.fairy.commerceflow`，Compose 已统一为 `fairy-commerceflow`，目录已按 `services/web/simulators/infrastructure` 责任分组。旧学习卷按用户明确授权精确清理，新空卷 Flyway V23/V3/V4、完整业务链路和快速回归均已通过；M1 标签保留迁移前证据。

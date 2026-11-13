@@ -1,0 +1,93 @@
+groups:
+  - name: commerceflow-availability
+    rules:
+      - alert: CommerceFlowWatchdog
+        expr: vector(1)
+        for: 20s
+        labels:
+          severity: none
+          service: observability
+        annotations:
+          summary: CommerceFlow alerting pipeline heartbeat
+          description: This always-firing alert verifies Prometheus to Alertmanager to webhook delivery.
+      - alert: CommerceFlowServiceDown
+        expr: up{job=~"commerce-service|payment-simulator-service|logistics-simulator-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} is unavailable"
+          description: "Prometheus has failed to scrape {{ $labels.instance }} for more than one minute."
+      - alert: CommerceFlowHighServerErrorRate
+        expr: |
+          sum by (job) (rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+            /
+          clamp_min(sum by (job) (rate(http_server_requests_seconds_count[5m])), 0.001) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} has a high HTTP 5xx ratio"
+          description: More than 5% of measured HTTP requests have returned a server error for five minutes.
+      - alert: CommerceFlowJvmHeapPressure
+        expr: |
+          sum by (job) (jvm_memory_used_bytes{area="heap"})
+            /
+          clamp_min(sum by (job) (jvm_memory_max_bytes{area="heap"}), 1) > 0.90
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} JVM heap pressure is high"
+          description: JVM heap usage has remained above 90% for ten minutes.
+
+  - name: commerceflow-business-reliability
+    rules:
+      - alert: CommerceFlowScheduledTaskFailures
+        expr: increase(commerceflow_scheduled_tasks_failed_total[5m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: Scheduled task execution failed
+          description: At least one scheduled task failed during the last five minutes.
+      - alert: CommerceFlowMqPublishFailures
+        expr: |
+          increase(commerceflow_scheduled_tasks_rabbitmq_publish_failed_total[5m]) > 0
+          or
+          increase(commerceflow_scheduled_tasks_rocketmq_publish_failed_total[5m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: Scheduled task MQ publishing failed
+          description: RabbitMQ or RocketMQ task publication failed during the last five minutes.
+      - alert: CommerceFlowRefundBacklog
+        expr: commerceflow_refund_processing > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Refund reconciliation backlog detected
+          description: At least one refund has remained in processing for ten minutes.
+      - alert: CommerceFlowPaymentReconciliationBacklog
+        expr: commerceflow_payment_reconciliation_open > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Payment reconciliation issue remains open
+          description: At least one payment reconciliation issue has remained open for ten minutes.
+      - alert: CommerceFlowLogisticsReconciliationFailure
+        expr: increase(commerceflow_logistics_reconciliation_total{result="failed"}[5m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: Logistics reconciliation failed
+          description: The commerce service recorded a logistics reconciliation failure.
+      - alert: CommerceFlowLogisticsCallbackDeadLetter
+        expr: commerceflow_logistics_callback_outbox{status="dead"} > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Logistics callback dead letter requires intervention
+          description: The logistics simulator has callback outbox rows in DEAD state for five minutes.

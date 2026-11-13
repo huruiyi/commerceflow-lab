@@ -105,6 +105,8 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - 已建立 [全开发生命周期可复测验证体系](VERIFICATION-SYSTEM.md)，将现有构建、快速/完整回归、空卷/升级恢复、MQ/崩溃专项和浸泡压测组织为 L0–L6 门禁，并固定证据、破坏性操作和基线冻结规则。
 - Angular 客户订单页已将退款申请/回执、`RECEIVED/COMPLETED` 履约状态和逐商品评价改为独立响应式面板；评价增加评分、必填内容、防重复提交和成功/失败反馈，未修改后端状态机或接口契约。
 - 上述界面已通过 25 项 Angular 单元测试、生产构建、Docker 实际页面与现有 `PAID/REFUNDED/RECEIVED/COMPLETED` 数据验收；浏览器控制台无错误，390 px 窄屏无横向溢出。
+- `observability` Profile 已接入 Prometheus、10 条可单测告警规则、Alertmanager、Grafana 双数据源和只读本地 Webhook 接收端；商城、支付模拟器、物流模拟器三个 Spring Boot Target 均可抓取。
+- `verify-alerting` 已在 Windows 与容器化 Bash 通过：Prometheus/Alertmanager 配置有效，服务宕机/退款积压/物流 `DEAD` 规则单测通过，Watchdog 经真实 Alertmanager 路由到 Webhook。
 
 ## 8. 订单取消与 Database 超时首个垂直闭环
 
@@ -140,6 +142,6 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 
 以下不得在 README、页面或演示中标记为已完成：
 
-- Prometheus 告警规则、Alertmanager/外部通知接收端。
+- 真实邮箱、短信、电话或企业值班平台接入，以及 Prometheus/Alertmanager 多副本和通知到人升级流程；当前只验证本地可替换 Webhook 管道。
 
 详细顺序和验收门禁只见 [TODO.md](TODO.md)。
