@@ -5,6 +5,8 @@
 
 @media (max-width: 575.98px) {
   .page-shell {
+    padding-right: 1rem;
+    padding-left: 1rem;
     padding-top: 1rem;
   }
 }
