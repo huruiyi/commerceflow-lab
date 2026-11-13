@@ -131,6 +131,15 @@ describe('PurchaseOrdersComponent', () => {
       createdAt: '2026-11-10T00:00:00Z'
     }})).toBeTrue();
   });
+  it('does not render empty history and replaces unavailable product images', () => {
+    const component = fixture.componentInstance;
+    expect(fixture.nativeElement.querySelector('.order-history')).toBeNull();
+    component.markProductImageUnavailable(1);
+    fixture.detectChanges();
+    expect(component.unavailableProductImages.has(1)).toBeTrue();
+    expect(fixture.nativeElement.querySelector('.item-thumbnail img')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.item-thumbnail svg')).not.toBeNull();
+  });
   it('removes historical no-op shipment updates from the customer timeline', () => {
     const component = fixture.componentInstance;
     const events = component.visibleOrderEvents({

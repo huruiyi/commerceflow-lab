@@ -87,6 +87,7 @@ export class PurchaseOrdersComponent implements OnInit {
   cancelForms = new Set<number>();
   cancelling = new Set<number>();
   cancellationReasons: Record<number, string> = {};
+  unavailableProductImages = new Set<number>();
   expandedOrders = new Set<number>();
   loading = true;
   loadError = '';
@@ -118,14 +119,15 @@ export class PurchaseOrdersComponent implements OnInit {
     }).subscribe({
       next: ({orders, products}) => {
         if (version !== this.loadVersion) return;
-        const names = new Map(
-          products.map((product) => [product.id, product.name]),
+        const catalogProducts = new Map(
+          products.map((product) => [product.id, product]),
         );
         this.orders = orders.map((order) => ({
           ...order,
           items: order.items.map((item) => ({
             ...item,
-            productName: names.get(item.productId) ?? item.productName,
+            productName: catalogProducts.get(item.productId)?.name ?? item.productName,
+            thumbnailUrl: catalogProducts.get(item.productId)?.thumbnailUrl ?? item.thumbnailUrl,
           })),
         }));
         this.orders.forEach((order) => this.initializeOrder(order));
@@ -198,6 +200,11 @@ export class PurchaseOrdersComponent implements OnInit {
 
   showPaymentState(order: PurchaseOrder): boolean {
     return !!order.payment && !['SUCCESS', 'CLOSED'].includes(order.payment.status);
+  }
+
+  markProductImageUnavailable(itemId: number): void {
+    this.unavailableProductImages = new Set([...this.unavailableProductImages, itemId]);
+    this.changeDetector.markForCheck();
   }
 
   toggleDetails(order: PurchaseOrder): void {

@@ -128,7 +128,17 @@
     <section class="items-panel">
       <div *ngFor="let item of order.items" class="item-card">
         <div class="item-row">
-          <img [src]="item.thumbnailUrl" [alt]="item.productName"/>
+          <div class="item-thumbnail">
+            <span aria-hidden="true">
+              <svg viewBox="0 0 32 32" focusable="false">
+                <path d="M5 9.5 16 4l11 5.5v13L16 28 5 22.5z"/>
+                <path d="m5 9.5 11 5.5 11-5.5M16 15v13"/>
+              </svg>
+            </span>
+            <img *ngIf="item.thumbnailUrl && !unavailableProductImages.has(item.id)"
+                 [src]="item.thumbnailUrl" [alt]="item.productName"
+                 (error)="markProductImageUnavailable(item.id)"/>
+          </div>
           <div class="item-copy">
             <strong>{{ item.productName }}</strong>
             <small>{{ item.unitPrice | trcurrency }} × {{ item.quantity }}</small>
@@ -400,14 +410,13 @@
       </details>
     </section>
     <section class="payment-receipt" *ngIf="order.payment as payment">
-      <div class="section-heading">
+      <div class="payment-receipt-heading">
+        <span class="payment-receipt-icon" aria-hidden="true"><i class="bi bi-credit-card"></i></span>
         <div>
           <span class="eyebrow">{{ "latestPayment" | t }}</span>
-          <h4>{{ payment.status | t }}</h4>
+          <strong>{{ payment.status | t }}</strong>
         </div>
-        <span class="status" [class.paid]="payment.status === 'SUCCESS'">{{
-            payment.channel
-          }}</span>
+        <span class="payment-channel">{{ payment.channel }}</span>
       </div>
       <dl>
         <div>
@@ -421,10 +430,6 @@
         <div>
           <dt>{{ "merchant" | t }}</dt>
           <dd>{{ payment.merchantNo }}</dd>
-        </div>
-        <div>
-          <dt>{{ "amount" | t }}</dt>
-          <dd>{{ payment.amount | trcurrency }}</dd>
         </div>
         <div>
           <dt>{{ "created" | t }}</dt>
@@ -463,15 +468,6 @@
           {{ "refreshStatus" | t }}
         </button>
       </div>
-      <ol class="payment-timeline">
-        <li class="done">{{ "requestCreated" | t }}</li>
-        <li [class.done]="payment.status !== 'PENDING'">
-          {{ "providerResult" | t }}
-        </li>
-        <li [class.done]="order.status === 'PAID'">
-          {{ "orderPaidEvent" | t }}
-        </li>
-      </ol>
       <div
         *ngIf="
           !hasAction(order, 'PAY') && notices[order.id] as notice
@@ -535,12 +531,13 @@
           → {{ event.toStatus | t }}</span></li>
       </ol>
     </section>
-    <section class="order-history" *ngIf="visibleOrderEvents(order) as events">
-      <div class="section-heading" *ngIf="events.length">
+    <ng-container *ngIf="visibleOrderEvents(order) as events">
+      <section class="order-history" *ngIf="events.length">
+      <div class="section-heading">
         <div><span class="eyebrow">{{ "orderHistory" | t }}</span><h4>{{ "orderTimeline" | t }}</h4></div>
         <span hlmBadge variant="secondary">{{ events.length }}</span>
       </div>
-      <ol *ngIf="events.length" class="order-timeline">
+      <ol class="order-timeline">
         <li *ngFor="let event of events">
           <span class="timeline-dot" aria-hidden="true"></span>
           <div>
@@ -550,7 +547,8 @@
           </div>
         </li>
       </ol>
-    </section>
+      </section>
+    </ng-container>
   </div>
 </article>
 <div *ngIf="!loading && !loadError && orders.length === 0" class="empty-state">

@@ -264,19 +264,18 @@
 }
 
 .milestone-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.55rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1rem;
 }
 
 .milestone-strip div {
   display: grid;
   gap: 0.15rem;
-  padding: 0.7rem 0.8rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  background: #f8fafc;
+  min-width: 180px;
+  padding: 0.25rem 1rem 0.25rem 0;
+  border-right: 1px solid #e2e8f0;
 }
 
 .milestone-strip small {
@@ -370,11 +369,45 @@
   padding: 0.7rem 0;
 }
 
-.item-row img {
+.item-thumbnail {
+  position: relative;
+  display: grid;
+  place-items: center;
   width: 72px;
   height: 52px;
-  object-fit: cover;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
   border-radius: 9px;
+  background: #f8fafc;
+  color: #94a3b8;
+}
+
+.item-thumbnail img {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  color: transparent;
+  font-size: 0;
+}
+
+.item-thumbnail span {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.item-thumbnail svg {
+  width: 25px;
+  height: 25px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
 }
 
 .item-row small {
@@ -491,9 +524,9 @@
 
 .address {
   margin-top: 1rem;
-  padding: 1rem;
-  border-radius: 12px;
-  background: #f8fafc;
+  padding: 0.9rem 1rem;
+  border-left: 3px solid #cbd5e1;
+  background: #fff;
 }
 
 .address span {
@@ -515,6 +548,46 @@
   border: 1px solid #dbeafe;
   border-radius: 15px;
   background: #f8fbff;
+}
+
+.payment-receipt {
+  padding: 1.15rem 0 0;
+  border: 0;
+  border-top: 1px solid #e2e8f0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.payment-receipt-heading {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.payment-receipt-heading > div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.payment-receipt-heading .eyebrow {
+  color: #64748b;
+}
+
+.payment-receipt-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #ecfdf5;
+  color: #0f766e;
+}
+
+.payment-channel {
+  margin-left: auto;
+  color: #0f766e;
+  font-size: 0.75rem;
+  font-weight: 800;
 }
 
 .logistics-panel {
@@ -956,14 +1029,15 @@
 
 .payment-receipt dl {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 1rem 0 0;
+  border-top: 1px solid #e2e8f0;
 }
 
 .payment-receipt dl div {
-  padding: 0.7rem;
-  border-radius: 9px;
-  background: #fff;
+  min-width: 0;
+  padding: 0.75rem 1rem 0.75rem 0;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .payment-receipt dt {
@@ -1087,7 +1161,7 @@
   }
 
   .payment-receipt dl {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
   }
 
   .payment-actions {
@@ -1125,7 +1199,12 @@
   }
 
   .milestone-strip {
+    display: grid;
     grid-template-columns: 1fr 1fr;
+  }
+
+  .milestone-strip div {
+    min-width: 0;
   }
 
   .order-content {
@@ -1140,7 +1219,7 @@
     grid-template-columns: 56px minmax(0, 1fr);
   }
 
-  .item-row img {
+  .item-thumbnail {
     width: 56px;
     height: 48px;
   }
@@ -1202,6 +1281,10 @@
   }
 
   .milestone-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .payment-receipt dl {
     grid-template-columns: 1fr;
   }
 
