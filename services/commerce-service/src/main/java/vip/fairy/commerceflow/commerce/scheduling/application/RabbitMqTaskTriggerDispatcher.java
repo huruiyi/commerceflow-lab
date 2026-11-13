@@ -39,8 +39,12 @@ public class RabbitMqTaskTriggerDispatcher {
       if (task == null) continue;
       try {
         publisher.publish(task);
-        if (mapper.markTriggerPublished(id, TriggerStrategy.RABBITMQ.name(), Instant.now()) == 1)
-          mapper.insertEvent(id, "TASK_TRIGGER_PUBLISHED", TaskTriggerSource.RABBITMQ.name(), null, null, "RabbitMQ publisher confirm received");
+        if (mapper.markTriggerPublished(id, TriggerStrategy.RABBITMQ.name(), Instant.now()) == 1) {
+          mapper.insertEvent(
+            id, "TASK_TRIGGER_PUBLISHED", TaskTriggerSource.RABBITMQ.name(),
+            null, null, "RabbitMQ publisher confirm received"
+          );
+        }
       } catch (Exception exception) {
         String message = exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage();
         if (message.length() > 1000) message = message.substring(0, 1000);

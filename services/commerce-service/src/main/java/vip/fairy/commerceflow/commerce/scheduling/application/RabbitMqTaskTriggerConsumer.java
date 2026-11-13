@@ -21,10 +21,17 @@ public class RabbitMqTaskTriggerConsumer {
   private final ScheduledTaskMapper mapper;
   private final ScheduledTaskExecutor executor;
   private final MqConsumerCrashLab crashLab;
-  private final Counter consumed, ignored, malformed;
+  private final Counter consumed;
+  private final Counter ignored;
+  private final Counter malformed;
 
-  public RabbitMqTaskTriggerConsumer(ObjectMapper objectMapper, ScheduledTaskMapper mapper,
-                                     ScheduledTaskExecutor executor, MqConsumerCrashLab crashLab, MeterRegistry registry) {
+  public RabbitMqTaskTriggerConsumer(
+    ObjectMapper objectMapper,
+    ScheduledTaskMapper mapper,
+    ScheduledTaskExecutor executor,
+    MqConsumerCrashLab crashLab,
+    MeterRegistry registry
+  ) {
     this.objectMapper = objectMapper;
     this.mapper = mapper;
     this.executor = executor;

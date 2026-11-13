@@ -162,7 +162,12 @@
 
   <select id="expiredLeaseIds" resultType="java.lang.Long">
     <![CDATA[
-      SELECT id FROM scheduled_tasks WHERE status='PROCESSING' AND lease_until<#{now} ORDER BY lease_until,id LIMIT #{limit}
+      SELECT id
+      FROM scheduled_tasks
+      WHERE status = 'PROCESSING'
+        AND lease_until < #{now}
+      ORDER BY lease_until, id
+      LIMIT #{limit}
     ]]>
   </select>
 

@@ -65,8 +65,8 @@ Windows 回调可靠性专项通过 `RETRY -> PUBLISHED` 和丢失回调对账�
 
 ### M2.3 商城服务分包治理
 
-- [ ] 分业务包清理通配符导入和过长行，不做全仓一次性机械重写；`identity`、`catalog`、`cart`、
-  `customer`、`review`、`receipt`、`fulfillment`、`ordering`、`payment`、`refund`、`logistics` 已完成。
+- [x] 分业务包清理通配符导入和过长行，不做全仓一次性机械重写；`identity`、`catalog`、`cart`、
+  `customer`、`review`、`receipt`、`fulfillment`、`ordering`、`payment`、`refund`、`logistics`、`scheduling` 已完成。
 - 简单单表 CRUD 继续使用 `BaseMapper` 和 Lambda Wrapper；复杂 SQL 保留在 Mapper XML。
 - [x] 建立 ArchUnit 测试，阻止 API 访问基础设施、领域层反向依赖外层，并约束
   `@RestController` 与 Mapper 接口的包位置。
@@ -131,6 +131,14 @@ Windows 物流主链路、回调丢失恢复与 `DEAD -> 管理员重放 -> PUBL
 签名创建、重放 `409`、伪造签名 `401`、异常恢复和完整轨迹投影验证。Windows 快速回归与 37 对脚本契约审计
 同时通过，未删除或重建数据卷。商城服务通配符导入已全部清零，剩余 9 条 Java 超长行均位于 `scheduling`；
 下一批完成 `scheduling` 后再判定 M2.3 整体门禁。
+
+第九批治理将 `scheduling` 的 9 条超过 120 字符的 Java 行和
+`ScheduledTaskMapper.xml` 的 1 条超长 SQL 行清零，并拆分了多计数器单行声明。过期租约查询仍保留在
+Mapper XML，未改动任务领取、租约、重试、对账或 MQ 消费语义。商城服务正式 Dockerfile 构建及
+25 项测试通过；Windows 快速回归覆盖数据库调度、服务重启与过期租约恢复，Windows 和容器化 Bash
+MQ 幂等专项均通过 RabbitMQ/RocketMQ 重复与迟到消息单次执行及毒消息 DLQ 验证；37 对脚本契约
+审计通过，未删除或重建数据卷。商城业务源码通配符导入和超过 120 字符的 Java 行均为 0，
+M2.3 整体门禁完成；下一阶段为 M2.4 数据库注释与自动门禁。
 
 ### M2.4 数据库注释与自动门禁
 

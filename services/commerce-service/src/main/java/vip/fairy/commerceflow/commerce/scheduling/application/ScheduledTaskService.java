@@ -44,8 +44,14 @@ public class ScheduledTaskService {
   }
 
   @Transactional
-  public Optional<ScheduledTaskView> scheduleIfEnabled(String taskType, String taskKey,
-                                                       String aggregateType, String aggregateId, Instant dueAt, Object payload) {
+  public Optional<ScheduledTaskView> scheduleIfEnabled(
+    String taskType,
+    String taskKey,
+    String aggregateType,
+    String aggregateId,
+    Instant dueAt,
+    Object payload
+  ) {
     String normalizedType = ScheduledTaskTypes.normalize(taskType);
     ResolvedTaskPolicy policy = policies.resolve(normalizedType);
     if (!policy.enabled()) return Optional.empty();
@@ -113,7 +119,10 @@ public class ScheduledTaskService {
   @Transactional
   public ScheduledTaskView retry(Long id) {
     if (mapper.retry(id) != 1) throw new IllegalStateException("Only failed tasks can be retried");
-    mapper.insertEvent(id, "TASK_RETRIED", TaskTriggerSource.ADMIN_RETRY.name(), "FAILED", "SCHEDULED", "Administrator retry");
+    mapper.insertEvent(
+      id, "TASK_RETRIED", TaskTriggerSource.ADMIN_RETRY.name(),
+      "FAILED", "SCHEDULED", "Administrator retry"
+    );
     return mapper.byId(id).orElseThrow();
   }
 

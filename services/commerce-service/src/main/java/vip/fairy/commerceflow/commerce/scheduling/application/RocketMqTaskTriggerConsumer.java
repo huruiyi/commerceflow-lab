@@ -27,8 +27,13 @@ public class RocketMqTaskTriggerConsumer {
   private final Counter ignored;
   private final Counter malformed;
 
-  public RocketMqTaskTriggerConsumer(ObjectMapper objectMapper, ScheduledTaskMapper mapper,
-                                     ScheduledTaskExecutor executor, MqConsumerCrashLab crashLab, MeterRegistry registry) {
+  public RocketMqTaskTriggerConsumer(
+    ObjectMapper objectMapper,
+    ScheduledTaskMapper mapper,
+    ScheduledTaskExecutor executor,
+    MqConsumerCrashLab crashLab,
+    MeterRegistry registry
+  ) {
     this.objectMapper = objectMapper;
     this.mapper = mapper;
     this.executor = executor;

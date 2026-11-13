@@ -25,8 +25,13 @@ public class RocketMqTaskTriggerPublisher {
   private final RocketMqTaskTriggerProperties properties;
   private final Counter published;
 
-  public RocketMqTaskTriggerPublisher(Producer producer, ClientServiceProvider provider,
-                                      ObjectMapper mapper, RocketMqTaskTriggerProperties properties, MeterRegistry registry) {
+  public RocketMqTaskTriggerPublisher(
+    Producer producer,
+    ClientServiceProvider provider,
+    ObjectMapper mapper,
+    RocketMqTaskTriggerProperties properties,
+    MeterRegistry registry
+  ) {
     this.producer = producer;
     this.provider = provider;
     this.mapper = mapper;

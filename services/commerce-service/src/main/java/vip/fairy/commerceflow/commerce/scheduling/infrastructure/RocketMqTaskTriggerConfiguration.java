@@ -32,8 +32,11 @@ public class RocketMqTaskTriggerConfiguration {
   }
 
   @Bean(destroyMethod = "close")
-  Producer scheduledTaskRocketMqProducer(ClientServiceProvider provider,
-                                         ClientConfiguration configuration, RocketMqTaskTriggerProperties properties) throws Exception {
+  Producer scheduledTaskRocketMqProducer(
+    ClientServiceProvider provider,
+    ClientConfiguration configuration,
+    RocketMqTaskTriggerProperties properties
+  ) throws Exception {
     return provider.newProducerBuilder()
       .setClientConfiguration(configuration)
       .setTopics(properties.getTopic())
@@ -41,9 +44,12 @@ public class RocketMqTaskTriggerConfiguration {
   }
 
   @Bean(destroyMethod = "close")
-  PushConsumer scheduledTaskRocketMqConsumer(ClientServiceProvider provider,
-                                             ClientConfiguration configuration, RocketMqTaskTriggerProperties properties,
-                                             RocketMqTaskTriggerConsumer consumer) throws Exception {
+  PushConsumer scheduledTaskRocketMqConsumer(
+    ClientServiceProvider provider,
+    ClientConfiguration configuration,
+    RocketMqTaskTriggerProperties properties,
+    RocketMqTaskTriggerConsumer consumer
+  ) throws Exception {
     FilterExpression filter = new FilterExpression(properties.getTag(), FilterExpressionType.TAG);
     return provider.newPushConsumerBuilder()
       .setClientConfiguration(configuration)

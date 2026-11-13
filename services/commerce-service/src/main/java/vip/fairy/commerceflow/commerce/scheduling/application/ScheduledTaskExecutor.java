@@ -75,7 +75,9 @@ public class ScheduledTaskExecutor {
       succeeded.increment();
       return true;
     } catch (Exception exception) {
-      String message = truncate(exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage());
+      String message = truncate(
+        exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage()
+      );
       Instant retryAt = Instant.now().plusSeconds(claimed.getRetryDelaySecondsSnapshot());
       mapper.fail(taskId, owner, retryAt, message);
       mapper.insertEvent(taskId, "TASK_FAILED", source.name(), "PROCESSING", "FAILED", message);
