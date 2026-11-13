@@ -3,7 +3,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 require_commands curl jq openssl
 BASE_URL="${1:-http://localhost:14200}"
 PAYMENT_BASE_URL="${2:-http://localhost:14201}"
-"$SCRIPT_DIR/verify-payment-notifications.sh" "$BASE_URL"
+"$SCRIPT_DIR/verify-payment-notifications.sh" "$BASE_URL" "$PAYMENT_BASE_URL"
 temp_dir="$(new_temp_dir)"; trap 'rm -rf -- "$temp_dir"' EXIT
 cookie_jar="$temp_dir/customer.cookies"
 IFS=$'\t' read -r csrf_header csrf_token <<<"$(storefront_login "$BASE_URL" demo@example.com "$cookie_jar")"

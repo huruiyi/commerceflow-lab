@@ -1,6 +1,6 @@
 param([string]$BaseUrl='http://localhost:14200',[string]$PaymentBaseUrl='http://localhost:14201')
 $ErrorActionPreference='Stop'
-& "$PSScriptRoot/verify-payment-notifications.ps1" -BaseUrl $BaseUrl
+& "$PSScriptRoot/verify-payment-notifications.ps1" -BaseUrl $BaseUrl -PaymentBaseUrl $PaymentBaseUrl
 if(-not$?){throw 'Could not create a paid order'}
 $session=[Microsoft.PowerShell.Commands.WebRequestSession]::new();$csrf=Invoke-RestMethod "$BaseUrl/api/auth/csrf" -WebSession $session;$headers=@{$csrf.headerName=$csrf.token};Invoke-RestMethod "$BaseUrl/api/auth/login" -Method Post -WebSession $session -Headers $headers -ContentType application/json -Body '{"email":"demo@example.com","password":"demo-password","rememberMe":false}'|Out-Null
 $orders=Invoke-RestMethod "$BaseUrl/api/purchase-orders" -WebSession $session;$order=$orders|Where-Object status -eq 'PAID'|Select-Object -First 1;if(-not$order){throw 'Paid order not found'}

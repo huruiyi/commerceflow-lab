@@ -8,7 +8,7 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | 当前阶段 | M1、验证体系、客户订单页视觉收尾和本地生产式告警管道均已完成 |
-| 下一里程碑 | 本轮固定序列已结束；停止新增业务代码并汇报结果 |
+| 下一里程碑 | M2 代码质量与模块化单体治理；不新增业务功能，不启动微服务或 PostgreSQL 迁移 |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
 
@@ -62,3 +62,10 @@ M1 期间只维护当前实现证据和专项学习文档，未提前创建或�
 - Prometheus Rule、Alertmanager 与本地 Webhook 已实现并完成 Windows/容器化 Bash 实时投递；真实通知供应商凭据、通知到人和值班升级流程未配置。
 - [全开发生命周期可复测验证体系](VERIFICATION-SYSTEM.md) 已建立；当前为本地单机 Docker 学习环境门禁，不代表多节点容灾、多日容量或生产合规验收。
 - Java/Maven 已统一为 `vip.fairy.commerceflow`，Compose 已统一为 `fairy-commerceflow`，目录已按 `services/web/simulators/infrastructure` 责任分组。旧学习卷按用户明确授权精确清理，新空卷 Flyway V23/V3/V4、完整业务链路和快速回归均已通过；M1 标签保留迁移前证据。
+
+## 7. M2 工程质量起点
+
+M2 只读基线与分批门禁见 [M2 代码质量与模块化单体治理计划](CODE-QUALITY-PLAN.md)。
+当前先修复数据映射与格式问题，再建立模块边界门禁；微服务拆分和 PostgreSQL 迁移仍是独立架构待办。
+首批已修正支付退款实体主键映射，并通过 9 项支付服务测试及 Windows/容器化 Bash
+真实 MySQL 退款全链路专项。

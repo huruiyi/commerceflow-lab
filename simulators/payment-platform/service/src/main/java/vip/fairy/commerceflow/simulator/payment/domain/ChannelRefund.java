@@ -16,12 +16,12 @@ public class ChannelRefund {
   /**
    * 数据库主键；仅用于内部关联，不作为对外业务编号。
    */
+  @TableId(type = IdType.AUTO)
   private Long id;
 
   /**
    * 模拟渠道生成的唯一退款编号。
    */
-  @TableId(type = IdType.AUTO)
   private String channelRefundNo;
   /**
    * 关联支付商户的内部主键。
