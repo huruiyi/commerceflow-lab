@@ -123,7 +123,7 @@ Windows 与容器化 Bash 退款专项均通过签名支付、全额退款、双
 伪造回调 `401` 和通知重投；Windows 快速回归与 37 对脚本契约审计同时通过。本批未删除或重建数据卷。
 商城服务当前剩余 2 个通配符导入和 47 条超过 120 字符的 Java 行，下一批从 `logistics` 继续。
 
-第八批治理将 `logistics` 的 2 个通配符导入、40 条超过 120 字符的 Java 行和
+第八批治理将 `logistics` 的 2 个通配符导入、38 条超过 120 字符的 Java 行和
 `ShipmentMapper.xml` 的 8 条超长 SQL 行均清零。`ShipmentRecordView` 与 `ShipmentEventView` 补齐类和字段业务
 语义注释；运单 upsert、回调行锁、事件幂等、状态投影和对账候选 SQL 继续保留在 Mapper XML，未改动
 签名、事务、乱序保护、送达时间或自动收货任务语义。商城服务正式 Dockerfile 构建及 25 项测试通过；
