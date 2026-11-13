@@ -1,4 +1,4 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, ElementRef, HostListener, OnInit} from '@angular/core';
 import {AccountService} from 'src/app/services/account.service';
 import {UserProfile} from 'src/model/IUserLogin';
 import {I18nService} from '../../services/i18n.service';
@@ -27,7 +27,7 @@ export class NavbarComponent implements OnInit {
   }
 
   constructor(private accountService: AccountService, public i18n: I18nService, private router: Router,
-              private api: ApiService) {
+              private api: ApiService, private elementRef: ElementRef<HTMLElement>) {
     const userInfo = this.accountService.loginControl()
 
     if (userInfo) {
@@ -53,7 +53,24 @@ export class NavbarComponent implements OnInit {
     if (this.notificationOpen) this.loadNotifications()
   }
 
+  closeNotifications(): void {
+    this.notificationOpen = false
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    if (!this.notificationOpen) return
+    const menu = this.elementRef.nativeElement.querySelector('.notification-menu')
+    if (!menu?.contains(event.target as Node)) this.closeNotifications()
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    this.closeNotifications()
+  }
+
   markNotificationRead(notification: CustomerNotification): void {
+    this.closeNotifications()
     if (notification.status === 'READ') return
     this.api.markNotificationRead(notification.id).subscribe({
       next: () => {

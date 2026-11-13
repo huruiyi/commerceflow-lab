@@ -59,16 +59,21 @@
         <div class="notification-menu" *ngIf="bilgiler.role === 'CUSTOMER'">
           <button hlmBtn variant="outline" class="notification-switch" type="button"
                   [attr.aria-expanded]="notificationOpen" (click)="toggleNotifications()"
+                  aria-controls="notification-panel"
                   [attr.aria-label]="'notifications'|t">
             <i class="bi bi-bell" aria-hidden="true"></i>
             <span class="notification-count"
                   *ngIf="unreadNotifications">{{ unreadNotifications > 99 ? '99+' : unreadNotifications }}</span>
           </button>
-          <div class="notification-panel" *ngIf="notificationOpen">
-            <div class="notification-heading"><strong>{{ 'notifications'|t }}</strong>
-              <button type="button" *ngIf="unreadNotifications"
-                      (click)="markAllNotificationsRead()">{{ 'markAllRead'|t }}
-              </button>
+          <div id="notification-panel" class="notification-panel" *ngIf="notificationOpen">
+            <div class="notification-heading">
+              <div><strong>{{ 'notifications'|t }}</strong><small>{{ notifications.length }}</small></div>
+              <div class="notification-heading-actions">
+                <button type="button" *ngIf="unreadNotifications"
+                        (click)="markAllNotificationsRead()">{{ 'markAllRead'|t }}</button>
+                <button type="button" class="notification-close" (click)="closeNotifications()"
+                        [attr.aria-label]="'close'|t"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+              </div>
             </div>
             <div class="notification-empty" *ngIf="!notifications.length">{{ 'noNotifications'|t }}</div>
             <button type="button" class="notification-item" *ngFor="let notification of notifications"
