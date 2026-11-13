@@ -16,6 +16,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -43,17 +44,19 @@ public class AdminUserController {
   @ResponseStatus(HttpStatus.CREATED)
   public AdminUserResponse create(@Valid @RequestBody CreateAdminUserRequest request,
                                   @RequestHeader("X-Step-Up-Token") String stepUpToken,
-                                  @AuthenticationPrincipal PaymentAdminPrincipal actor, HttpServletRequest servletRequest) {
+                                  @AuthenticationPrincipal PaymentAdminPrincipal actor,
+                                  HttpServletRequest servletRequest) {
     mfa.consumeStepUp(actor, stepUpToken);
     return accounts.create(request, actor, servletRequest);
   }
 
   @PostMapping("/{userId}/merchants")
   @ResponseStatus(HttpStatus.NO_CONTENT)
-  public void grantMerchant(@org.springframework.web.bind.annotation.PathVariable long userId,
+  public void grantMerchant(@PathVariable long userId,
                             @Valid @RequestBody MerchantAccessRequest request,
                             @RequestHeader("X-Step-Up-Token") String stepUpToken,
-                            @AuthenticationPrincipal PaymentAdminPrincipal actor, HttpServletRequest servletRequest) {
+                            @AuthenticationPrincipal PaymentAdminPrincipal actor,
+                            HttpServletRequest servletRequest) {
     mfa.consumeStepUp(actor, stepUpToken);
     accounts.grantMerchant(userId, request, actor, servletRequest);
   }

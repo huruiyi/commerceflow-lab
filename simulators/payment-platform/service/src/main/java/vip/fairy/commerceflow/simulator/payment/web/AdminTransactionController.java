@@ -33,7 +33,8 @@ public class AdminTransactionController {
   @PostMapping("/{transactionNo}/close")
   @PreAuthorize("hasAuthority('TRANSACTION_CLOSE')")
   public ChannelTransactionResponse close(@PathVariable String transactionNo,
-                                          @AuthenticationPrincipal PaymentAdminPrincipal actor, HttpServletRequest request) {
+                                          @AuthenticationPrincipal PaymentAdminPrincipal actor,
+                                          HttpServletRequest request) {
     return transactions.closeByAdmin(transactionNo, actor, request);
   }
 }

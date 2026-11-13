@@ -8,7 +8,11 @@ import java.util.List;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
@@ -28,7 +32,9 @@ public class AdminRefundController {
 
   @PostMapping("/{channelRefundNo}/notify")
   @PreAuthorize("hasAuthority('REFUND_OPERATE')")
-  ChannelRefundResponse redeliver(@PathVariable String channelRefundNo, @AuthenticationPrincipal PaymentAdminPrincipal actor, HttpServletRequest request) {
+  ChannelRefundResponse redeliver(@PathVariable String channelRefundNo,
+                                  @AuthenticationPrincipal PaymentAdminPrincipal actor,
+                                  HttpServletRequest request) {
     return refunds.redeliver(channelRefundNo, actor, request);
   }
 }

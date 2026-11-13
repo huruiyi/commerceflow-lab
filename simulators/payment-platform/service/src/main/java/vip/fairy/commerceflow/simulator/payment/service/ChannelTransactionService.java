@@ -40,7 +40,8 @@ public class ChannelTransactionService {
 
   public ChannelTransactionService(ChannelTransactionMapper transactions, PaymentAdminUserMapper users,
                                    MerchantService merchants, AuditService audit, List<ChannelAdapter> adapters,
-                                   @Value("${payment-platform.checkout-base-url}") String checkoutBaseUrl, PaymentCallbackClient callbacks) {
+                                   @Value("${payment-platform.checkout-base-url}") String checkoutBaseUrl,
+                                   PaymentCallbackClient callbacks) {
     this.transactions = transactions;
     this.users = users;
     this.merchants = merchants;

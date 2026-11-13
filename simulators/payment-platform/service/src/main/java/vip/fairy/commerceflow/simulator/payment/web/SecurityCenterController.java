@@ -22,13 +22,15 @@ public class SecurityCenterController {
 
   @PostMapping("/mfa/enroll")
   public MfaService.Enrollment enroll(@Valid @RequestBody PasswordRequest body,
-                                      @AuthenticationPrincipal PaymentAdminPrincipal actor, HttpServletRequest request) {
+                                      @AuthenticationPrincipal PaymentAdminPrincipal actor,
+                                      HttpServletRequest request) {
     return mfa.enroll(actor, body.password(), request);
   }
 
   @PostMapping("/mfa/confirm")
   public MfaService.RecoveryCodes confirm(@Valid @RequestBody CodeRequest body,
-                                          @AuthenticationPrincipal PaymentAdminPrincipal actor, HttpServletRequest request) {
+                                          @AuthenticationPrincipal PaymentAdminPrincipal actor,
+                                          HttpServletRequest request) {
     return mfa.confirm(actor, body.code(), request);
   }
 

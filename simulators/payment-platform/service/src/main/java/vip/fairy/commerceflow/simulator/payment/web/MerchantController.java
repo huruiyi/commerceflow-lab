@@ -46,21 +46,24 @@ public class MerchantController {
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
   public IssuedCredentialResponse create(@Valid @RequestBody CreateMerchantRequest body,
-                                         @AuthenticationPrincipal PaymentAdminPrincipal actor, HttpServletRequest request) {
+                                         @AuthenticationPrincipal PaymentAdminPrincipal actor,
+                                         HttpServletRequest request) {
     return merchants.create(body, actor, request);
   }
 
   @PostMapping("/{id}/rotate-secret")
   public IssuedCredentialResponse rotate(@PathVariable long id,
                                          @RequestHeader("X-Step-Up-Token") String stepUpToken,
-                                         @AuthenticationPrincipal PaymentAdminPrincipal actor, HttpServletRequest request) {
+                                         @AuthenticationPrincipal PaymentAdminPrincipal actor,
+                                         HttpServletRequest request) {
     return merchants.rotate(id, stepUpToken, actor, request);
   }
 
   @PostMapping("/{id}/enabled/{enabled}")
   public MerchantResponse enabled(@PathVariable long id, @PathVariable boolean enabled,
                                   @RequestHeader("X-Step-Up-Token") String stepUpToken,
-                                  @AuthenticationPrincipal PaymentAdminPrincipal actor, HttpServletRequest request) {
+                                  @AuthenticationPrincipal PaymentAdminPrincipal actor,
+                                  HttpServletRequest request) {
     return merchants.setEnabled(id, enabled, stepUpToken, actor, request);
   }
 

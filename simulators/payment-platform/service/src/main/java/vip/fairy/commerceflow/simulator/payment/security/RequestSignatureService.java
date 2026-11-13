@@ -36,7 +36,8 @@ public class RequestSignatureService {
   public RequestSignatureService(MerchantService merchants, SignedRequestRecordMapper records,
                                  StringRedisTemplate redis,
                                  @Value("${payment-platform.signature.allowed-skew:5m}") Duration allowedSkew,
-                                 @Value("${payment-platform.signature.requests-per-minute:120}") int requestsPerMinute) {
+                                 @Value("${payment-platform.signature.requests-per-minute:120}")
+                                 int requestsPerMinute) {
     this.merchants = merchants;
     this.records = records;
     this.redis = redis;

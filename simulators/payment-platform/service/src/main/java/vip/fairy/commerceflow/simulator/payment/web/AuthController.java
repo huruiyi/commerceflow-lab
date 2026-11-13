@@ -43,7 +43,8 @@ public class AuthController {
   private final PaymentAdminUserMapper users;
 
   public AuthController(AuthenticationManager authenticationManager, SecurityContextRepository contextRepository,
-                        SessionAuthenticationStrategy sessionStrategy, LoginProtectionService protection, AuditService audit,
+                        SessionAuthenticationStrategy sessionStrategy,
+                        LoginProtectionService protection, AuditService audit,
                         PaymentAdminUserMapper users) {
     this.authenticationManager = authenticationManager;
     this.contextRepository = contextRepository;

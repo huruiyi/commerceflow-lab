@@ -40,8 +40,11 @@ public class MerchantService {
   }
 
   public List<MerchantResponse> list(PaymentAdminPrincipal actor, HttpServletRequest request) {
-    List<MerchantResponse> result = merchants.selectList(new LambdaQueryWrapper<PaymentMerchant>().orderByDesc(PaymentMerchant::getId))
-      .stream().map(MerchantService::response).toList();
+    List<MerchantResponse> result = merchants.selectList(new LambdaQueryWrapper<PaymentMerchant>()
+        .orderByDesc(PaymentMerchant::getId))
+      .stream()
+      .map(MerchantService::response)
+      .toList();
     audit.record(actor, "VIEW_MERCHANT_CREDENTIALS", "MERCHANT", null, "SUCCESS",
       "查看商户凭据元数据（敏感密钥保持遮蔽）", request);
     return result;
@@ -143,7 +146,8 @@ public class MerchantService {
 
   private static MerchantResponse response(PaymentMerchant value) {
     return new MerchantResponse(value.getId(), value.getMerchantNo(), value.getDisplayName(), value.getAppId(),
-      "****" + value.getSecretLastFour(), value.getCredentialVersion(), value.getSigningAlgorithm(), value.getMerchantPublicKey(),
+      "****" + value.getSecretLastFour(), value.getCredentialVersion(), value.getSigningAlgorithm(),
+      value.getMerchantPublicKey(),
       value.getNotifyUrl(), value.isEnabled(), value.getCreatedBy(), value.getCreatedAt());
   }
 

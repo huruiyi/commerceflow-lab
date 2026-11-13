@@ -22,7 +22,8 @@ public final class PaymentAdminPrincipal implements UserDetails, CredentialsCont
 
   public PaymentAdminPrincipal(Long userId, String username, String password, String displayName,
                                String email, boolean enabled, boolean accountNonLocked, boolean passwordChangeRequired,
-                               boolean mfaRequired, boolean mfaEnabled, Collection<? extends GrantedAuthority> authorities) {
+                               boolean mfaRequired, boolean mfaEnabled,
+                               Collection<? extends GrantedAuthority> authorities) {
     this.userId = userId;
     this.username = username;
     this.password = password;

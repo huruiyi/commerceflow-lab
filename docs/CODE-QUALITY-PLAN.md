@@ -34,7 +34,7 @@
 ### M2.1 支付退款映射与格式基线
 
 - [x] 修正 `ChannelRefund.id` 的 MyBatis-Plus 自增主键映射并增加防回归测试。
-- 整理支付模块通配符导入、过长构造器和 Wrapper 链，不改变退款事务和通知补偿语义。
+- [x] 整理支付模块通配符导入、过长构造器和 Wrapper 链，不改变退款事务和通知补偿语义。
 - [x] 使用真实 MySQL 重新执行模拟支付测试和退款专项。
 
 首批验证证据：支付服务 9 项 Maven 测试通过；Windows 与容器化 Bash 真实退款专项均完成
@@ -43,6 +43,11 @@
 正式 Dockerfile
 首次重建受 Docker Hub 获取 `eclipse-temurin:25-jre-alpine` 元数据时连续 `EOF` 阻断；本轮使用
 已缓存的同版本 Maven/JDK 25 Alpine 镜像构建测试运行镜像，不修改仓库 Dockerfile。
+
+格式收口验收：支付模拟服务的通配符导入从审计基线 11 个降为 0，
+超过 120 字符的 Java 行从 32 行降为 0。支付服务 9 项 Maven 测试再次通过，
+Windows 与容器化 Bash 真实退款专项再次通过，相关容器重建后均为 `healthy`。
+Windows `verify-quick -SkipBuild` 也已使用本次构建的支付服务镜像通过完整 L2 快速回归。
 
 ### M2.2 物流模拟服务类型与格式治理
 
