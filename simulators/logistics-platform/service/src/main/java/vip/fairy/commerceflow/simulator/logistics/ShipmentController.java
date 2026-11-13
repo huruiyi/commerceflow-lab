@@ -2,7 +2,15 @@ package vip.fairy.commerceflow.simulator.logistics;
 
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.ObjectMapper;
 
 @RestController
@@ -13,7 +21,8 @@ public class ShipmentController {
   private final RequestSignatureVerifier signatures;
   private final ObjectMapper mapper;
 
-  public ShipmentController(ShipmentService shipments, RequestSignatureVerifier signatures, ObjectMapper mapper) {
+  public ShipmentController(ShipmentService shipments, RequestSignatureVerifier signatures,
+                            ObjectMapper mapper) {
     this.shipments = shipments;
     this.signatures = signatures;
     this.mapper = mapper;
@@ -27,7 +36,8 @@ public class ShipmentController {
     signatures.verify(appId, timestamp, nonce, signature, raw);
     CreateRequest request = mapper.readValue(raw, CreateRequest.class);
     request.validate();
-    return shipments.create(new ShipmentService.Create(request.merchantShipmentNo(), request.orderNumber(), request.carrier(), request.trackingNumber(), request.callbackUrl()));
+    return shipments.create(new ShipmentService.Create(request.merchantShipmentNo(),
+      request.orderNumber(), request.carrier(), request.trackingNumber(), request.callbackUrl()));
   }
 
   @GetMapping
@@ -49,8 +59,10 @@ public class ShipmentController {
                       @RequestHeader("X-Signature") String signature) throws Exception {
     signatures.verify(appId, timestamp, nonce, signature, raw);
     UpdateRequest request = mapper.readValue(raw, UpdateRequest.class);
-    if (request.carrier() == null || request.carrier().isBlank() || request.trackingNumber() == null || request.trackingNumber().isBlank())
+    if (request.carrier() == null || request.carrier().isBlank()
+      || request.trackingNumber() == null || request.trackingNumber().isBlank()) {
       throw new IllegalArgumentException("Carrier and tracking number are required");
+    }
     return shipments.update(merchantShipmentNo, request.carrier(), request.trackingNumber());
   }
 
@@ -89,10 +101,16 @@ public class ShipmentController {
   }
 
   public record CreateRequest(@NotBlank String merchantShipmentNo, @NotBlank String orderNumber,
-                              @NotBlank String carrier, @NotBlank String trackingNumber, @NotBlank String callbackUrl) {
+                              @NotBlank String carrier, @NotBlank String trackingNumber,
+                              @NotBlank String callbackUrl) {
     void validate() {
-      if (merchantShipmentNo == null || merchantShipmentNo.isBlank() || orderNumber == null || orderNumber.isBlank() || carrier == null || carrier.isBlank() || trackingNumber == null || trackingNumber.isBlank() || callbackUrl == null || callbackUrl.isBlank())
+      if (merchantShipmentNo == null || merchantShipmentNo.isBlank()
+        || orderNumber == null || orderNumber.isBlank()
+        || carrier == null || carrier.isBlank()
+        || trackingNumber == null || trackingNumber.isBlank()
+        || callbackUrl == null || callbackUrl.isBlank()) {
         throw new IllegalArgumentException("All shipment fields are required");
+      }
     }
   }
 

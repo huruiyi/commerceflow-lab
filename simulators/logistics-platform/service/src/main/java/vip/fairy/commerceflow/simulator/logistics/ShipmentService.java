@@ -3,7 +3,6 @@ package vip.fairy.commerceflow.simulator.logistics;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.LinkedHashMap;
@@ -117,36 +116,31 @@ public class ShipmentService {
   }
 
   private ShipmentView requireForUpdate(String merchantNo) {
-    Map<String, Object> row = dataMapper.lockShipmentByMerchantNo(merchantNo);
+    LogisticsDataMapper.ShipmentRow row = dataMapper.lockShipmentByMerchantNo(merchantNo);
     if (row == null) throw notFound();
     return map(row);
   }
 
   private ShipmentView requireForUpdate(Long shipmentId) {
-    Map<String, Object> row = dataMapper.lockShipmentById(shipmentId);
+    LogisticsDataMapper.ShipmentRow row = dataMapper.lockShipmentById(shipmentId);
     if (row == null) throw notFound();
     return map(row);
   }
 
   private ShipmentView find(String merchantNo) {
-    Map<String, Object> row = dataMapper.findShipmentByMerchantNo(merchantNo);
+    LogisticsDataMapper.ShipmentRow row = dataMapper.findShipmentByMerchantNo(merchantNo);
     return row == null ? null : map(row);
   }
 
-  private ShipmentView map(Map<String, Object> row) {
-    Long id = ((Number) row.get("id")).longValue();
-    List<ShipmentView.Event> events = dataMapper.shipmentEvents(id).stream()
+  private ShipmentView map(LogisticsDataMapper.ShipmentRow row) {
+    List<ShipmentView.Event> events = dataMapper.shipmentEvents(row.id()).stream()
       .map(event -> new ShipmentView.Event(
-        (String) event.get("event_id"), (String) event.get("event_type"),
-        (String) event.get("status"), (String) event.get("location"),
-        (String) event.get("description"), ((Timestamp) event.get("occurred_at")).toInstant()))
+        event.eventId(), event.eventType(), event.status(), event.location(),
+        event.description(), event.occurredAt().toInstant()))
       .toList();
-    return new ShipmentView(id, (String) row.get("merchant_shipment_no"),
-      (String) row.get("platform_shipment_no"), (String) row.get("order_number"),
-      (String) row.get("carrier"), (String) row.get("tracking_number"),
-      (String) row.get("status"), (String) row.get("callback_url"),
-      ((Timestamp) row.get("created_at")).toInstant(),
-      ((Timestamp) row.get("updated_at")).toInstant(), events);
+    return new ShipmentView(row.id(), row.merchantShipmentNo(), row.platformShipmentNo(),
+      row.orderNumber(), row.carrier(), row.trackingNumber(), row.status(), row.callbackUrl(),
+      row.createdAt().toInstant(), row.updatedAt().toInstant(), events);
   }
 
   private void insertEvent(Long id, String eventType, String status, String location,
@@ -154,20 +148,20 @@ public class ShipmentService {
     String eventId = UUID.randomUUID().toString();
     Instant occurredAt = Instant.now();
     dataMapper.insertShipmentEvent(id, eventId, eventType, status, location, description, occurredAt);
-    Map<String, Object> shipment = dataMapper.shipmentById(id);
+    LogisticsDataMapper.ShipmentRow shipment = dataMapper.shipmentById(id);
     Map<String, Object> payload = new LinkedHashMap<>();
     payload.put("notificationId", eventId);
-    payload.put("merchantShipmentNo", shipment.get("merchant_shipment_no"));
-    payload.put("platformShipmentNo", shipment.get("platform_shipment_no"));
+    payload.put("merchantShipmentNo", shipment.merchantShipmentNo());
+    payload.put("platformShipmentNo", shipment.platformShipmentNo());
     payload.put("eventType", eventType);
     payload.put("status", status);
-    payload.put("carrier", shipment.get("carrier"));
-    payload.put("trackingNumber", shipment.get("tracking_number"));
+    payload.put("carrier", shipment.carrier());
+    payload.put("trackingNumber", shipment.trackingNumber());
     payload.put("location", location);
     payload.put("description", description);
     payload.put("occurredAt", occurredAt);
     try {
-      outbox.enqueue(id, eventId, (String) shipment.get("callback_url"),
+      outbox.enqueue(id, eventId, shipment.callbackUrl(),
         mapper.writeValueAsString(payload));
     } catch (JacksonException exception) {
       throw new IllegalStateException("Logistics callback payload cannot be serialized", exception);

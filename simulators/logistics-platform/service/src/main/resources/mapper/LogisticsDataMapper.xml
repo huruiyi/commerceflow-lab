@@ -13,23 +13,43 @@
     SELECT id FROM shipment_records WHERE merchant_shipment_no = #{merchantShipmentNo}
   </select>
 
-  <select id="findShipmentByMerchantNo" resultType="map">
-    SELECT * FROM shipment_records WHERE merchant_shipment_no = #{merchantShipmentNo}
+  <sql id="shipmentProjection">
+    id, merchant_shipment_no, platform_shipment_no, order_number, carrier, tracking_number,
+    status, callback_url, created_at, updated_at
+  </sql>
+
+  <select id="findShipmentByMerchantNo"
+          resultType="vip.fairy.commerceflow.simulator.logistics.LogisticsDataMapper$ShipmentRow">
+    SELECT <include refid="shipmentProjection"/>
+    FROM shipment_records
+    WHERE merchant_shipment_no = #{merchantShipmentNo}
   </select>
 
-  <select id="lockShipmentByMerchantNo" resultType="map">
-    SELECT * FROM shipment_records WHERE merchant_shipment_no = #{merchantShipmentNo} FOR UPDATE
+  <select id="lockShipmentByMerchantNo"
+          resultType="vip.fairy.commerceflow.simulator.logistics.LogisticsDataMapper$ShipmentRow">
+    SELECT <include refid="shipmentProjection"/>
+    FROM shipment_records
+    WHERE merchant_shipment_no = #{merchantShipmentNo}
+    FOR UPDATE
   </select>
 
-  <select id="lockShipmentById" resultType="map">
-    SELECT * FROM shipment_records WHERE id = #{id} FOR UPDATE
+  <select id="lockShipmentById"
+          resultType="vip.fairy.commerceflow.simulator.logistics.LogisticsDataMapper$ShipmentRow">
+    SELECT <include refid="shipmentProjection"/>
+    FROM shipment_records
+    WHERE id = #{id}
+    FOR UPDATE
   </select>
 
-  <select id="shipmentById" resultType="map">
-    SELECT * FROM shipment_records WHERE id = #{id}
+  <select id="shipmentById"
+          resultType="vip.fairy.commerceflow.simulator.logistics.LogisticsDataMapper$ShipmentRow">
+    SELECT <include refid="shipmentProjection"/>
+    FROM shipment_records
+    WHERE id = #{id}
   </select>
 
-  <select id="shipmentEvents" resultType="map">
+  <select id="shipmentEvents"
+          resultType="vip.fairy.commerceflow.simulator.logistics.LogisticsDataMapper$ShipmentEventRow">
     SELECT event_id, event_type, status, location, description, occurred_at
     FROM shipment_events
     WHERE shipment_id = #{shipmentId}
@@ -93,8 +113,15 @@
     SELECT id FROM callback_outbox WHERE event_id = #{eventId}
   </select>
 
-  <select id="listOutbox" resultType="map">
-    SELECT * FROM callback_outbox
+  <sql id="outboxProjection">
+    id, shipment_id, event_id, callback_url, payload, status, attempts, max_attempts,
+    next_attempt_at, lease_until, claimed_by, last_error, created_at, published_at, updated_at
+  </sql>
+
+  <select id="listOutbox"
+          resultType="vip.fairy.commerceflow.simulator.logistics.LogisticsDataMapper$CallbackOutboxRow">
+    SELECT <include refid="outboxProjection"/>
+    FROM callback_outbox
     <where>
       <if test="status != null and status != ''">status = #{status}</if>
     </where>
@@ -102,15 +129,19 @@
     LIMIT #{limit}
   </select>
 
-  <select id="outboxEvents" resultType="map">
+  <select id="outboxEvents"
+          resultType="vip.fairy.commerceflow.simulator.logistics.LogisticsDataMapper$CallbackOutboxEventRow">
     SELECT id, event_type, from_status, to_status, operated_by, reason, created_at
     FROM callback_outbox_events
     WHERE outbox_id = #{outboxId}
     ORDER BY created_at, id
   </select>
 
-  <select id="outboxById" resultType="map">
-    SELECT * FROM callback_outbox WHERE id = #{id}
+  <select id="outboxById"
+          resultType="vip.fairy.commerceflow.simulator.logistics.LogisticsDataMapper$CallbackOutboxRow">
+    SELECT <include refid="outboxProjection"/>
+    FROM callback_outbox
+    WHERE id = #{id}
   </select>
 
   <select id="lockOutbox" resultType="java.lang.Long">

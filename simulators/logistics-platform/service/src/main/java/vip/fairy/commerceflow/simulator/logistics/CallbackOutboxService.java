@@ -1,10 +1,8 @@
 package vip.fairy.commerceflow.simulator.logistics;
 
 import java.nio.charset.StandardCharsets;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.Set;
 
@@ -50,9 +48,8 @@ public class CallbackOutboxService {
   public List<CallbackOutboxView.AuditEvent> events(Long id) {
     require(id);
     return dataMapper.outboxEvents(id).stream()
-      .map(row -> new CallbackOutboxView.AuditEvent(number(row, "id"),
-        string(row, "event_type"), string(row, "from_status"), string(row, "to_status"),
-        string(row, "operated_by"), string(row, "reason"), instant(row, "created_at")))
+      .map(row -> new CallbackOutboxView.AuditEvent(row.id(), row.eventType(), row.fromStatus(),
+        row.toStatus(), row.operatedBy(), row.reason(), row.createdAt().toInstant()))
       .toList();
   }
 
@@ -84,14 +81,13 @@ public class CallbackOutboxService {
     Instant leaseUntil = now.plus(properties.getClaimLease());
     int claimed = dataMapper.claimOutbox(id, now, leaseUntil, owner);
     if (claimed != 1) return null;
-    Map<String, Object> row = dataMapper.outboxById(id);
+    LogisticsDataMapper.CallbackOutboxRow row = dataMapper.outboxById(id);
     audit(id, "DELIVERY_CLAIMED", null, "PROCESSING", owner,
-      "Attempt " + row.get("attempts") + " of " + row.get("max_attempts"));
-    Object payload = row.get("payload");
+      "Attempt " + row.attempts() + " of " + row.maxAttempts());
+    Object payload = row.payload();
     String body = payload instanceof byte[] bytes ? new String(bytes, StandardCharsets.UTF_8)
       : String.valueOf(payload);
-    return new Delivery(id, (String) row.get("callback_url"), body,
-      ((Number) row.get("attempts")).intValue(), ((Number) row.get("max_attempts")).intValue(), owner);
+    return new Delivery(id, row.callbackUrl(), body, row.attempts(), row.maxAttempts(), owner);
   }
 
   @Transactional
@@ -114,7 +110,7 @@ public class CallbackOutboxService {
   }
 
   private CallbackOutboxView require(Long id) {
-    Map<String, Object> row = dataMapper.outboxById(id);
+    LogisticsDataMapper.CallbackOutboxRow row = dataMapper.outboxById(id);
     if (row == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND,
       "CALLBACK_OUTBOX_NOT_FOUND");
     return map(row);
@@ -126,34 +122,15 @@ public class CallbackOutboxService {
     }
   }
 
-  private CallbackOutboxView map(Map<String, Object> row) {
-    return new CallbackOutboxView(number(row, "id"), number(row, "shipment_id"),
-      string(row, "event_id"), string(row, "callback_url"), string(row, "status"),
-      integer(row, "attempts"), integer(row, "max_attempts"),
-      instant(row, "next_attempt_at"), instant(row, "lease_until"), string(row, "claimed_by"),
-      string(row, "last_error"), instant(row, "created_at"), instant(row, "published_at"),
-      instant(row, "updated_at"));
+  private CallbackOutboxView map(LogisticsDataMapper.CallbackOutboxRow row) {
+    return new CallbackOutboxView(row.id(), row.shipmentId(), row.eventId(), row.callbackUrl(),
+      row.status(), row.attempts(), row.maxAttempts(), instant(row.nextAttemptAt()),
+      instant(row.leaseUntil()), row.claimedBy(), row.lastError(), instant(row.createdAt()),
+      instant(row.publishedAt()), instant(row.updatedAt()));
   }
 
-  private Long number(Map<String, Object> row, String column) {
-    Object value = row.get(column);
-    return value == null ? null : ((Number) value).longValue();
-  }
-
-  private int integer(Map<String, Object> row, String column) {
-    return ((Number) row.get(column)).intValue();
-  }
-
-  private String string(Map<String, Object> row, String column) {
-    Object value = row.get(column);
-    return value == null ? null : String.valueOf(value);
-  }
-
-  private Instant instant(Map<String, Object> row, String column) {
-    Object value = row.get(column);
-    if (value == null) return null;
-    if (value instanceof Timestamp timestamp) return timestamp.toInstant();
-    return (Instant) value;
+  private Instant instant(java.sql.Timestamp value) {
+    return value == null ? null : value.toInstant();
   }
 
   private void audit(Long id, String eventType, String fromStatus, String toStatus,

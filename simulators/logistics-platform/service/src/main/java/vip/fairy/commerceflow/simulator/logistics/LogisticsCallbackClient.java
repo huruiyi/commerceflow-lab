@@ -17,7 +17,8 @@ public class LogisticsCallbackClient {
   private final String secret;
 
   public LogisticsCallbackClient(RestClient.Builder builder,
-                                 @Value("${logistics-platform.callback-secret}") String secret, CallbackDeliveryProperties properties) {
+                                 @Value("${logistics-platform.callback-secret}") String secret,
+                                 CallbackDeliveryProperties properties) {
     SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
     requestFactory.setConnectTimeout(properties.getConnectTimeout());
     requestFactory.setReadTimeout(properties.getReadTimeout());
