@@ -1,74 +1,92 @@
 <main class="callback-page container-fluid">
   <header class="page-heading">
-    <div><p>{{ 'logisticsCallbackChapter'|t }}</p>
-      <h1>{{ 'logisticsCallbackAdmin'|t }}</h1><span>{{ 'logisticsCallbackHelp'|t }}</span></div>
-    <button class="btn btn-outline-light" (click)="load()">{{ 'refreshStatus'|t }}</button>
+    <div>
+      <p>{{ 'logisticsCallbackChapter' | t }}</p>
+      <h1>{{ 'logisticsCallbackAdmin' | t }}</h1>
+      <span>{{ 'logisticsCallbackHelp' | t }}</span>
+    </div>
+    <button class="btn btn-outline-light" (click)="load()">{{ 'refreshStatus' | t }}</button>
   </header>
-  <div *ngIf="message" class="alert alert-success">{{ message|t }}</div>
-  <div *ngIf="error" class="alert alert-danger">{{ error|t }}</div>
+  <div *ngIf="message" class="alert alert-success">{{ message | t }}</div>
+  <div *ngIf="error" class="alert alert-danger">{{ error | t }}</div>
   <section class="panel">
     <div class="toolbar">
-      <div><h2>{{ 'callbackOutbox'|t }}</h2>
-        <p>{{ 'callbackOutboxHelp'|t }}</p></div>
-      <form (ngSubmit)="load()"><select name="status" [(ngModel)]="statusFilter">
-        <option value="">{{ 'allStatuses'|t }}</option>
-        <option>NEW</option>
-        <option>PROCESSING</option>
-        <option>RETRY</option>
-        <option>PUBLISHED</option>
-        <option>DEAD</option>
-      </select>
-        <button class="btn btn-dark">{{ 'filter'|t }}</button>
+      <div>
+        <h2>{{ 'callbackOutbox' | t }}</h2>
+        <p>{{ 'callbackOutboxHelp' | t }}</p>
+      </div>
+      <form (ngSubmit)="load()">
+        <select name="status" [(ngModel)]="statusFilter">
+          <option value="">{{ 'allStatuses' | t }}</option>
+          <option>NEW</option>
+          <option>PROCESSING</option>
+          <option>RETRY</option>
+          <option>PUBLISHED</option>
+          <option>DEAD</option>
+        </select>
+        <button class="btn btn-dark">{{ 'filter' | t }}</button>
       </form>
     </div>
     <div class="table-responsive">
       <table class="table align-middle">
         <thead>
-        <tr>
-          <th>ID</th>
-          <th>{{ 'status'|t }}</th>
-          <th>{{ 'callbackEvent'|t }}</th>
-          <th>{{ 'attempts'|t }}</th>
-          <th>{{ 'updated'|t }}</th>
-          <th>{{ 'lastError'|t }}</th>
-          <th>{{ 'action'|t }}</th>
-        </tr>
+          <tr>
+            <th>ID</th>
+            <th>{{ 'status' | t }}</th>
+            <th>{{ 'callbackEvent' | t }}</th>
+            <th>{{ 'attempts' | t }}</th>
+            <th>{{ 'updated' | t }}</th>
+            <th>{{ 'lastError' | t }}</th>
+            <th>{{ 'action' | t }}</th>
+          </tr>
         </thead>
         <tbody>
-        <ng-container *ngFor="let item of callbacks">
-          <tr>
-            <td>{{ item.id }}</td>
-            <td><span class="status" [attr.data-status]="item.status">{{ item.status|t }}</span></td>
-            <td><code>{{ item.eventId }}</code><small>{{ 'shipment'|t }} #{{ item.shipmentId }}</small></td>
-            <td>{{ item.attempts }} / {{ item.maxAttempts }}</td>
-            <td>{{ item.updatedAt|trdate }}</td>
-            <td class="error-cell">{{ item.lastError || '—' }}</td>
-            <td>
-              <button class="btn btn-sm btn-outline-secondary" (click)="toggleEvents(item)">{{ 'events'|t }}</button>
-            </td>
+          <ng-container *ngFor="let item of callbacks">
+            <tr>
+              <td>{{ item.id }}</td>
+              <td>
+                <span class="status" [attr.data-status]="item.status">{{ item.status | t }}</span>
+              </td>
+              <td>
+                <code>{{ item.eventId }}</code><small>{{ 'shipment' | t }} #{{ item.shipmentId }}</small>
+              </td>
+              <td>{{ item.attempts }} / {{ item.maxAttempts }}</td>
+              <td>{{ item.updatedAt | trdate }}</td>
+              <td class="error-cell">{{ item.lastError || '—' }}</td>
+              <td>
+                <button class="btn btn-sm btn-outline-secondary" (click)="toggleEvents(item)">
+                  {{ 'events' | t }}
+                </button>
+              </td>
+            </tr>
+            <tr *ngIf="item.status === 'DEAD'" class="replay-row">
+              <td colspan="7">
+                <form (ngSubmit)="replay(item)">
+                  <input
+                    name="reason-{{ item.id }}"
+                    [(ngModel)]="replayReasons[item.id]"
+                    [placeholder]="'replayReason' | t"
+                  />
+                  <button class="btn btn-sm btn-danger" [disabled]="busy">{{ 'manualReplay' | t }}</button>
+                </form>
+              </td>
+            </tr>
+            <tr *ngIf="events[item.id]" class="audit-row">
+              <td colspan="7">
+                <ol>
+                  <li *ngFor="let event of events[item.id]">
+                    <time>{{ event.createdAt | trdate }}</time>
+                    <strong>{{ event.eventType | t }}</strong><span
+                      >{{ event.fromStatus || '—' }} → {{ event.toStatus | t }}</span
+                    ><small>{{ event.operatedBy }} · {{ event.reason }}</small>
+                  </li>
+                </ol>
+              </td>
+            </tr>
+          </ng-container>
+          <tr *ngIf="callbacks.length === 0">
+            <td colspan="7" class="empty">{{ 'noCallbacks' | t }}</td>
           </tr>
-          <tr *ngIf="item.status==='DEAD'" class="replay-row">
-            <td colspan="7">
-              <form (ngSubmit)="replay(item)"><input name="reason-{{item.id}}" [(ngModel)]="replayReasons[item.id]"
-                                                     [placeholder]="'replayReason'|t">
-                <button class="btn btn-sm btn-danger" [disabled]="busy">{{ 'manualReplay'|t }}</button>
-              </form>
-            </td>
-          </tr>
-          <tr *ngIf="events[item.id]" class="audit-row">
-            <td colspan="7">
-              <ol>
-                <li *ngFor="let event of events[item.id]">
-                  <time>{{ event.createdAt|trdate }}</time>
-                  <strong>{{ event.eventType|t }}</strong><span>{{ event.fromStatus || '—' }}
-                  → {{ event.toStatus|t }}</span><small>{{ event.operatedBy }} · {{ event.reason }}</small></li>
-              </ol>
-            </td>
-          </tr>
-        </ng-container>
-        <tr *ngIf="callbacks.length===0">
-          <td colspan="7" class="empty">{{ 'noCallbacks'|t }}</td>
-        </tr>
         </tbody>
       </table>
     </div>

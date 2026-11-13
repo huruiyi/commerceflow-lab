@@ -1,70 +1,110 @@
-<section class="fulfillment-hero"><span>{{ 'fulfillmentChapter'|t }}</span>
-  <h2>{{ 'orderFulfillment'|t }}</h2>
-  <p>{{ 'fulfillmentHelp'|t }}</p></section>
+<section class="fulfillment-hero">
+  <span>{{ 'fulfillmentChapter' | t }}</span>
+  <h2>{{ 'orderFulfillment' | t }}</h2>
+  <p>{{ 'fulfillmentHelp' | t }}</p>
+</section>
 <div *ngIf="notice" class="alert alert-success">{{ notice }}</div>
 
 <article *ngFor="let order of orders" class="fulfillment-card">
   <header>
-    <div><small>{{ 'order'|t }}</small>
+    <div>
+      <small>{{ 'order' | t }}</small>
       <h3>{{ order.orderNumber }}</h3>
-      <time>{{ order.createdAt|trdate }}</time>
+      <time>{{ order.createdAt | trdate }}</time>
     </div>
-    <div class="order-state"><span [class]="'order-status status-' + order.status.toLowerCase()"><i
-      aria-hidden="true"></i>{{ order.status|t }}</span><strong>{{ order.totalAmount|trcurrency }}</strong></div>
+    <div class="order-state">
+      <span [class]="'order-status status-' + order.status.toLowerCase()"
+        ><i aria-hidden="true"></i>{{ order.status | t }}</span
+      ><strong>{{ order.totalAmount | trcurrency }}</strong>
+    </div>
   </header>
 
-  <div class="order-actions" [attr.aria-label]="'fulfillmentActions'|t">
-    <button class="action-button" type="button" (click)="toggleDetails(order.id)"><i class="bi bi-receipt"
-                                                                                     aria-hidden="true"></i>{{ expandedOrders.has(order.id) ? ('hideDetails'|t) : ('viewDetails'|t) }}
+  <div class="order-actions" [attr.aria-label]="'fulfillmentActions' | t">
+    <button class="action-button" type="button" (click)="toggleDetails(order.id)">
+      <i class="bi bi-receipt" aria-hidden="true"></i
+      >{{ expandedOrders.has(order.id) ? ('hideDetails' | t) : ('viewDetails' | t) }}
     </button>
-    <button class="action-button" type="button" (click)="copyOrderNumber(order)"><i class="bi bi-copy"
-                                                                                    aria-hidden="true"></i>{{ 'copyOrderNumber'|t }}
+    <button class="action-button" type="button" (click)="copyOrderNumber(order)">
+      <i class="bi bi-copy" aria-hidden="true"></i>{{ 'copyOrderNumber' | t }}
     </button>
-    <button *ngIf="order.status==='PAID'" class="action-button primary" type="button" (click)="confirm(order)"><i
-      class="bi bi-check2-circle" aria-hidden="true"></i>{{ 'confirmOrder'|t }}
+    <button *ngIf="order.status === 'PAID'" class="action-button primary" type="button" (click)="confirm(order)">
+      <i class="bi bi-check2-circle" aria-hidden="true"></i>{{ 'confirmOrder' | t }}
     </button>
-    <button *ngIf="order.status==='CONFIRMED' && !expandedOrders.has(order.id)" class="action-button primary"
-            type="button" (click)="prepareShipment(order)"><i class="bi bi-truck"
-                                                              aria-hidden="true"></i>{{ 'prepareShipment'|t }}
+    <button
+      *ngIf="order.status === 'CONFIRMED' && !expandedOrders.has(order.id)"
+      class="action-button primary"
+      type="button"
+      (click)="prepareShipment(order)"
+    >
+      <i class="bi bi-truck" aria-hidden="true"></i>{{ 'prepareShipment' | t }}
     </button>
-    <button *ngIf="order.status==='SHIPPED'" class="action-button primary" type="button"
-            (click)="prepareShipment(order)"><i class="bi bi-pencil-square"
-                                                aria-hidden="true"></i>{{ 'updateShipment'|t }}
+    <button
+      *ngIf="order.status === 'SHIPPED'"
+      class="action-button primary"
+      type="button"
+      (click)="prepareShipment(order)"
+    >
+      <i class="bi bi-pencil-square" aria-hidden="true"></i>{{ 'updateShipment' | t }}
     </button>
   </div>
 
   <div *ngIf="expandedOrders.has(order.id)" class="order-details">
     <div class="items">
-      <div *ngFor="let item of order.items"><img [src]="item.thumbnailUrl"
-                                                 [alt]="item.productName"><span><b>{{ item.productName }}</b><small>{{ item.quantity }}
-        × {{ item.unitPrice|trcurrency }}</small></span><strong>{{ item.subtotal|trcurrency }}</strong></div>
+      <div *ngFor="let item of order.items">
+        <img [src]="item.thumbnailUrl" [alt]="item.productName" /><span
+          ><b>{{ item.productName }}</b
+          ><small>{{ item.quantity }} × {{ item.unitPrice | trcurrency }}</small></span
+        ><strong>{{ item.subtotal | trcurrency }}</strong>
+      </div>
     </div>
-    <p class="shipping-address"><span>{{ 'shipTo'|t }}</span><strong>{{ order.address.recipientName }}
-      · {{ order.address.phone }}</strong><small>{{ order.address.addressLine1 }} {{ order.address.addressLine2 }}
-      , {{ order.address.district }}, {{ order.address.city }}, {{ order.address.stateProvince }}</small></p>
-    <form *ngIf="order.status==='CONFIRMED' || order.status==='SHIPPED'" (ngSubmit)="saveShipment(order)"
-          class="ship-form"><input class="form-control" name="carrier{{order.id}}" [(ngModel)]="carrier[order.id]"
-                                   [placeholder]="'carrier'|t" required><input class="form-control"
-                                                                               name="tracking{{order.id}}"
-                                                                               [(ngModel)]="tracking[order.id]"
-                                                                               [placeholder]="'tracking'|t" required>
-      <button class="btn btn-success" [disabled]="shipmentInvalid(order) || shipmentUnchanged(order)"><i
-        class="bi bi-truck me-1"
-        aria-hidden="true"></i>{{ (order.status === 'SHIPPED' ? 'saveShipment' : 'markShipped')|t }}
+    <p class="shipping-address">
+      <span>{{ 'shipTo' | t }}</span><strong>{{ order.address.recipientName }} · {{ order.address.phone }}</strong
+      ><small
+        >{{ order.address.addressLine1 }} {{ order.address.addressLine2 }} , {{ order.address.district }},
+        {{ order.address.city }}, {{ order.address.stateProvince }}</small
+      >
+    </p>
+    <form
+      *ngIf="order.status === 'CONFIRMED' || order.status === 'SHIPPED'"
+      (ngSubmit)="saveShipment(order)"
+      class="ship-form"
+    >
+      <input
+        class="form-control"
+        name="carrier{{ order.id }}"
+        [(ngModel)]="carrier[order.id]"
+        [placeholder]="'carrier' | t"
+        required
+      /><input
+        class="form-control"
+        name="tracking{{ order.id }}"
+        [(ngModel)]="tracking[order.id]"
+        [placeholder]="'tracking' | t"
+        required
+      />
+      <button class="btn btn-success" [disabled]="shipmentInvalid(order) || shipmentUnchanged(order)">
+        <i class="bi bi-truck me-1" aria-hidden="true"></i
+        >{{ (order.status === 'SHIPPED' ? 'saveShipment' : 'markShipped') | t }}
       </button>
     </form>
     <section *ngIf="order.refund as refund" class="merchant-refund">
-      <span>{{ 'latestRefund'|t }}</span><strong>{{ refund.status|t }}
-      · {{ refund.amount|trcurrency }}</strong><small>{{ refund.refundNumber }} · {{ refund.reasonCode|t }}</small>
+      <span>{{ 'latestRefund' | t }}</span><strong>{{ refund.status | t }} · {{ refund.amount | trcurrency }}</strong
+      ><small>{{ refund.refundNumber }} · {{ refund.reasonCode | t }}</small>
     </section>
     <section *ngIf="order.events?.length" class="order-timeline">
-      <h4>{{ 'fulfillmentTimeline'|t }}</h4>
+      <h4>{{ 'fulfillmentTimeline' | t }}</h4>
       <ol>
-        <li *ngFor="let event of order.events"><i aria-hidden="true"></i>
-          <div><strong>{{ event.eventType|t }}</strong>
-            <time>{{ event.createdAt|trdate }}</time>
-            <small *ngIf="event.fromStatus && event.toStatus">{{ event.fromStatus|t }} → {{ event.toStatus|t }}</small>
-            <p *ngIf="event.eventType==='ORDER_SHIPPED' || event.eventType==='SHIPMENT_UPDATED'">{{ event.detail }}</p>
+        <li *ngFor="let event of order.events">
+          <i aria-hidden="true"></i>
+          <div>
+            <strong>{{ event.eventType | t }}</strong>
+            <time>{{ event.createdAt | trdate }}</time>
+            <small *ngIf="event.fromStatus && event.toStatus"
+              >{{ event.fromStatus | t }} → {{ event.toStatus | t }}</small
+            >
+            <p *ngIf="event.eventType === 'ORDER_SHIPPED' || event.eventType === 'SHIPMENT_UPDATED'">
+              {{ event.detail }}
+            </p>
           </div>
         </li>
       </ol>
@@ -72,4 +112,4 @@
   </div>
 </article>
 
-<div *ngIf="!orders.length" class="alert alert-light">{{ 'noMerchantOrders'|t }}</div>
+<div *ngIf="!orders.length" class="alert alert-light">{{ 'noMerchantOrders' | t }}</div>

@@ -295,7 +295,8 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
   `review`、`receipt`、`fulfillment`、`ordering`、`payment`、`refund`、`logistics`、`scheduling` 已完成，全商城业务源码计数已归零。
 - [x] 通过新增 Flyway V24/V4/V5 迁移补充 16 张核心表和 133 个核心列注释，不改历史迁移。
 - [x] 为三个 Java 服务接入与 IntelliJ IDEA 规则兼容的只检查格式与 Mapper 契约门禁，并纳入快速/完整验证矩阵。
-- [ ] 分模块治理 Angular 商城门户与支付模拟器 Web 的历史 HTML/TypeScript 格式，再接入前端自动检查。
+- [x] 分模块治理 Angular 商城门户的历史 HTML/TypeScript/CSS 格式，并在正式镜像构建前执行 Prettier 只读检查。
+- [ ] 单独治理支付模拟器 Web 的历史格式并接入自动检查，不与 Angular 已完成批次混合。
 
 ## 14. 实施记录模板
 

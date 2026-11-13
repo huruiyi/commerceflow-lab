@@ -1,10 +1,10 @@
-import {ChangeDetectorRef, Component, OnInit} from '@angular/core';
-import {forkJoin} from 'rxjs';
-import {ShippingAddress, ShippingAddressRequest} from 'src/model/IShippingAddress';
-import {ApiService} from '../services/api.service';
-import {I18nService} from '../services/i18n.service';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
+import { forkJoin } from 'rxjs';
+import { ShippingAddress, ShippingAddressRequest } from 'src/model/IShippingAddress';
+import { ApiService } from '../services/api.service';
+import { I18nService } from '../services/i18n.service';
 
-@Component({standalone: false, selector: 'app-addresses', templateUrl: './addresses.component.html'})
+@Component({ standalone: false, selector: 'app-addresses', templateUrl: './addresses.component.html' })
 export class AddressesComponent implements OnInit {
   addresses: ShippingAddress[] = [];
   selectedAddressId?: number;
@@ -12,26 +12,30 @@ export class AddressesComponent implements OnInit {
   message = '';
   draft: ShippingAddressRequest = this.empty();
 
-  constructor(private api: ApiService, private changeDetector: ChangeDetectorRef, private i18n: I18nService) {
-  }
+  constructor(
+    private api: ApiService,
+    private changeDetector: ChangeDetectorRef,
+    private i18n: I18nService,
+  ) {}
 
   ngOnInit(): void {
     this.reload();
   }
 
   reload(): void {
-    forkJoin({addresses: this.api.getAddresses(), selected: this.api.selectedAddress()}).subscribe(({
-                                                                                                      addresses,
-                                                                                                      selected
-                                                                                                    }) => {
-      this.addresses = addresses;
-      this.selectedAddressId = selected.addressId;
-      this.changeDetector.markForCheck();
-    });
+    forkJoin({ addresses: this.api.getAddresses(), selected: this.api.selectedAddress() }).subscribe(
+      ({ addresses, selected }) => {
+        this.addresses = addresses;
+        this.selectedAddressId = selected.addressId;
+        this.changeDetector.markForCheck();
+      },
+    );
   }
 
   save(): void {
-    const request = this.editingId ? this.api.updateAddress(this.editingId, this.draft) : this.api.createAddress(this.draft);
+    const request = this.editingId
+      ? this.api.updateAddress(this.editingId, this.draft)
+      : this.api.createAddress(this.draft);
     request.subscribe(() => {
       this.cancel();
       this.message = this.i18n.t('addressSaved');
@@ -41,7 +45,7 @@ export class AddressesComponent implements OnInit {
 
   edit(a: ShippingAddress): void {
     this.editingId = a.id;
-    this.draft = {...a};
+    this.draft = { ...a };
     delete (this.draft as any).id;
   }
 
@@ -78,7 +82,7 @@ export class AddressesComponent implements OnInit {
       addressLine2: '',
       postalCode: '',
       label: 'Home',
-      isDefault: false
+      isDefault: false,
     };
   }
 }

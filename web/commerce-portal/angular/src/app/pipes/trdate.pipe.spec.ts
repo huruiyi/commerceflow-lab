@@ -1,5 +1,5 @@
-import {TrdatePipe} from './trdate.pipe';
-import {I18nService} from '../services/i18n.service';
+import { TrdatePipe } from './trdate.pipe';
+import { I18nService } from '../services/i18n.service';
 
 describe('TrdatePipe', () => {
   it('create an instance', () => {

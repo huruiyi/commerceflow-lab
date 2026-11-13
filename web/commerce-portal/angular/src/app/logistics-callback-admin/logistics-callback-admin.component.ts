@@ -1,12 +1,12 @@
-import {Component, OnInit} from '@angular/core';
-import {ApiService} from '../services/api.service';
-import {LogisticsCallbackAuditEvent, LogisticsCallbackOutbox} from 'src/model/ILogisticsCallbackAdmin';
+import { Component, OnInit } from '@angular/core';
+import { ApiService } from '../services/api.service';
+import { LogisticsCallbackAuditEvent, LogisticsCallbackOutbox } from 'src/model/ILogisticsCallbackAdmin';
 
 @Component({
   standalone: false,
   selector: 'app-logistics-callback-admin',
   templateUrl: './logistics-callback-admin.component.html',
-  styleUrls: ['./logistics-callback-admin.component.css']
+  styleUrls: ['./logistics-callback-admin.component.css'],
 })
 export class LogisticsCallbackAdminComponent implements OnInit {
   callbacks: LogisticsCallbackOutbox[] = [];
@@ -17,8 +17,7 @@ export class LogisticsCallbackAdminComponent implements OnInit {
   error = '';
   message = '';
 
-  constructor(private readonly api: ApiService) {
-  }
+  constructor(private readonly api: ApiService) {}
 
   ngOnInit(): void {
     this.load();
@@ -26,7 +25,9 @@ export class LogisticsCallbackAdminComponent implements OnInit {
 
   load(): void {
     this.error = '';
-    this.api.logisticsCallbacks(this.statusFilter).subscribe({next: v => this.callbacks = v, error: e => this.fail(e)});
+    this.api
+      .logisticsCallbacks(this.statusFilter)
+      .subscribe({ next: (v) => (this.callbacks = v), error: (e) => this.fail(e) });
   }
 
   toggleEvents(item: LogisticsCallbackOutbox): void {
@@ -35,8 +36,8 @@ export class LogisticsCallbackAdminComponent implements OnInit {
       return;
     }
     this.api.logisticsCallbackEvents(item.id).subscribe({
-      next: v => this.events[item.id] = v,
-      error: e => this.fail(e)
+      next: (v) => (this.events[item.id] = v),
+      error: (e) => this.fail(e),
     });
   }
 
@@ -49,12 +50,13 @@ export class LogisticsCallbackAdminComponent implements OnInit {
     this.busy = true;
     this.error = '';
     this.api.replayLogisticsCallback(item.id, reason).subscribe({
-      next: v => {
+      next: (v) => {
         Object.assign(item, v);
         this.message = 'logisticsCallbackReplayQueued';
         this.busy = false;
         this.load();
-      }, error: e => this.fail(e)
+      },
+      error: (e) => this.fail(e),
     });
   }
 

@@ -1,6 +1,6 @@
-import {ComponentFixture, TestBed} from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import {UseritemComponent} from './useritem.component';
+import { UseritemComponent } from './useritem.component';
 
 describe('UseritemComponent', () => {
   let component: UseritemComponent;
@@ -8,9 +8,8 @@ describe('UseritemComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      declarations: [UseritemComponent]
-    })
-      .compileComponents();
+      declarations: [UseritemComponent],
+    }).compileComponents();
 
     fixture = TestBed.createComponent(UseritemComponent);
     component = fixture.componentInstance;

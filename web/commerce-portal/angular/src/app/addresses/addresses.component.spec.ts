@@ -1,16 +1,17 @@
-import {ComponentFixture, TestBed} from '@angular/core/testing';
-import {FormsModule} from '@angular/forms';
-import {of} from 'rxjs';
-import {AddressesComponent} from './addresses.component';
-import {ApiService} from '../services/api.service';
-import {TranslatePipe} from '../pipes/translate.pipe';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { FormsModule } from '@angular/forms';
+import { of } from 'rxjs';
+import { AddressesComponent } from './addresses.component';
+import { ApiService } from '../services/api.service';
+import { TranslatePipe } from '../pipes/translate.pipe';
 
 describe('AddressesComponent', () => {
   let fixture: ComponentFixture<AddressesComponent>;
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      declarations: [AddressesComponent, TranslatePipe], imports: [FormsModule],
-      providers: [{provide: ApiService, useValue: {getAddresses: () => of([]), selectedAddress: () => of({})}}]
+      declarations: [AddressesComponent, TranslatePipe],
+      imports: [FormsModule],
+      providers: [{ provide: ApiService, useValue: { getAddresses: () => of([]), selectedAddress: () => of({}) } }],
     }).compileComponents();
     fixture = TestBed.createComponent(AddressesComponent);
     fixture.detectChanges();

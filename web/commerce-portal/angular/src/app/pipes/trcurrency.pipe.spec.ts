@@ -1,5 +1,5 @@
-import {TrcurrencyPipe} from './trcurrency.pipe';
-import {I18nService} from '../services/i18n.service';
+import { TrcurrencyPipe } from './trcurrency.pipe';
+import { I18nService } from '../services/i18n.service';
 
 describe('TrcurrencyPipe', () => {
   it('create an instance', () => {

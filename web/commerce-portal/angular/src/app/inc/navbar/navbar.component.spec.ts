@@ -1,11 +1,11 @@
-import {ComponentFixture, TestBed} from '@angular/core/testing';
-import {RouterTestingModule} from '@angular/router/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { RouterTestingModule } from '@angular/router/testing';
 
-import {NavbarComponent} from './navbar.component';
-import {TranslatePipe} from '../../pipes/translate.pipe';
-import {TrdatePipe} from '../../pipes/trdate.pipe';
-import {ApiService} from '../../services/api.service';
-import {of} from 'rxjs';
+import { NavbarComponent } from './navbar.component';
+import { TranslatePipe } from '../../pipes/translate.pipe';
+import { TrdatePipe } from '../../pipes/trdate.pipe';
+import { ApiService } from '../../services/api.service';
+import { of } from 'rxjs';
 
 describe('NavbarComponent', () => {
   let component: NavbarComponent;
@@ -15,15 +15,17 @@ describe('NavbarComponent', () => {
     await TestBed.configureTestingModule({
       imports: [RouterTestingModule],
       declarations: [NavbarComponent, TranslatePipe, TrdatePipe],
-      providers: [{provide: ApiService,
-        useValue: {
-          notifications: () => of([]),
-          markNotificationRead: () => of(void 0),
-          markAllNotificationsRead: () => of(void 0)
-        }
-      }]
-    })
-      .compileComponents();
+      providers: [
+        {
+          provide: ApiService,
+          useValue: {
+            notifications: () => of([]),
+            markNotificationRead: () => of(void 0),
+            markAllNotificationsRead: () => of(void 0),
+          },
+        },
+      ],
+    }).compileComponents();
 
     fixture = TestBed.createComponent(NavbarComponent);
     component = fixture.componentInstance;
@@ -50,7 +52,7 @@ describe('NavbarComponent', () => {
       title: 'Order cancelled',
       message: 'Customer changed mind',
       status: 'READ',
-      createdAt: '2026-11-14T00:16:00Z'
+      createdAt: '2026-11-14T00:16:00Z',
     });
     expect(component.notificationOpen).toBeFalse();
   });

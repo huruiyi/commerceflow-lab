@@ -76,7 +76,10 @@ bash ./scripts/linux/verify-quick.sh
 bash ./scripts/linux/verify-all.sh
 ```
 
-`verify-quick` 和 `verify-all` 始终运行后端质量门禁。`-SkipBuild` / `--skip-build` 只能在已确认镜像来自当前源码时使用，并且不会重新执行 Maven/ArchUnit 测试。冻结基线或修改 Dockerfile/POM/前端依赖时必须使用默认构建模式。
+`verify-quick` 和 `verify-all` 始终运行后端质量门禁。默认构建模式还会通过 Angular Dockerfile 执行
+`npm run format:check` 和生产构建。`-SkipBuild` / `--skip-build` 只能在已确认镜像来自当前源码时使用，
+并且不会重新执行 Maven/ArchUnit 测试或 Angular 格式检查。冻结基线或修改 Dockerfile/POM/前端依赖时
+必须使用默认构建模式。
 
 ## 5. 改动类型与必跑门禁
 
@@ -84,7 +87,7 @@ bash ./scripts/linux/verify-all.sh
 | --- | --- | --- |
 | 纯文档，不改命令/契约 | L0，链接和命令人工复核 | 无 |
 | Java 业务代码、Mapper、POM | L1 + L2 | 对应功能专项；跨模块时加 L3 |
-| Angular/Vue/Nginx | 前端生产镜像构建 + L2 | 角色/国际化/相关业务专项 |
+| Angular/Vue/Nginx | 模块格式检查 + 单元测试 + 前端生产镜像构建 + L2 | 角色/国际化/相关业务专项 |
 | Flyway/表结构/状态约束 | L1 + L2 + L4 | 相关业务不变量与升级后历史指纹 |
 | Compose、服务名、Profile、脚本 | L0 + 五镜像构建 + L2 | 涉及卷/重启时加 L4；涉及 MQ 时加对应 L5 |
 | Prometheus、Alertmanager、告警规则 | L0 + `verify-alerting` | 规则变更必须通过 `promtool` 单测和 Watchdog 实时投递 |

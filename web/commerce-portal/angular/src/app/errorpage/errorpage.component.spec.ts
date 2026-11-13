@@ -1,7 +1,7 @@
-import {ComponentFixture, TestBed} from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import {ErrorpageComponent} from './errorpage.component';
-import {TranslatePipe} from '../pipes/translate.pipe';
+import { ErrorpageComponent } from './errorpage.component';
+import { TranslatePipe } from '../pipes/translate.pipe';
 
 describe('ErrorpageComponent', () => {
   let component: ErrorpageComponent;
@@ -9,9 +9,8 @@ describe('ErrorpageComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      declarations: [ErrorpageComponent, TranslatePipe]
-    })
-      .compileComponents();
+      declarations: [ErrorpageComponent, TranslatePipe],
+    }).compileComponents();
 
     fixture = TestBed.createComponent(ErrorpageComponent);
     component = fixture.componentInstance;

@@ -1,13 +1,13 @@
-import {Component, inject} from '@angular/core';
-import {UserProfile} from 'src/model/IUserLogin';
-import {AccountService} from '../services/account.service';
-import {I18nService} from '../services/i18n.service';
+import { Component, inject } from '@angular/core';
+import { UserProfile } from 'src/model/IUserLogin';
+import { AccountService } from '../services/account.service';
+import { I18nService } from '../services/i18n.service';
 
 @Component({
   standalone: false,
   selector: 'app-profile',
   templateUrl: './profile.component.html',
-  styleUrls: ['./profile.component.css']
+  styleUrls: ['./profile.component.css'],
 })
 export class ProfileComponent {
   private readonly accountService = inject(AccountService);
@@ -16,7 +16,9 @@ export class ProfileComponent {
 
   displayName(user: UserProfile): string {
     if (user.email.endsWith('@example.com') && user.firstName.toLowerCase() === 'demo') {
-      return this.i18n.t(user.role === 'CUSTOMER' ? 'demoCustomerName' : user.role === 'MERCHANT' ? 'demoMerchantName' : 'demoAdminName');
+      return this.i18n.t(
+        user.role === 'CUSTOMER' ? 'demoCustomerName' : user.role === 'MERCHANT' ? 'demoMerchantName' : 'demoAdminName',
+      );
     }
     return [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email;
   }

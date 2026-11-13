@@ -1,5 +1,5 @@
-import {Injectable, signal} from '@angular/core';
-import {Subject} from 'rxjs';
+import { Injectable, signal } from '@angular/core';
+import { Subject } from 'rxjs';
 
 export type Locale = 'en' | 'zh-CN';
 
@@ -21,7 +21,8 @@ const en: Record<string, string> = {
   search: 'Search',
   inventoryChapter: 'MERCHANT · STOCK CONTROL',
   inventoryCenter: 'Inventory center',
-  inventoryHelp: 'Review available, reserved, and sold balances. Every manual adjustment requires a reason and creates an audit movement.',
+  inventoryHelp:
+    'Review available, reserved, and sold balances. Every manual adjustment requires a reason and creates an audit movement.',
   inventoryProducts: 'managed products',
   inventorySnapshotHint: 'total available units',
   inventoryLoadFailed: 'Inventory is unavailable.',
@@ -82,7 +83,8 @@ const en: Record<string, string> = {
   callbackGovernance: 'Callback governance',
   logisticsCallbackChapter: 'ADMIN · LOGISTICS RELIABILITY',
   logisticsCallbackAdmin: 'Logistics callback governance',
-  logisticsCallbackHelp: 'Inspect callback delivery, failures and auditable manual replay without changing shipment state.',
+  logisticsCallbackHelp:
+    'Inspect callback delivery, failures and auditable manual replay without changing shipment state.',
   callbackOutbox: 'Callback outbox',
   callbackOutboxHelp: 'DEAD callbacks require an explicit reason and administrator replay.',
   callbackEvent: 'Callback event',
@@ -198,7 +200,8 @@ const en: Record<string, string> = {
   paymentLab: 'Multi-channel Payment Lab',
   paymentIntro: 'Create a payment, enter the simulated provider cashier, and observe the signed asynchronous result.',
   realisticFlow: 'Realistic learning flow',
-  realisticFlowDetail: 'Merchant request → provider checkout → signed callback → transactional outbox → Kafka projection.',
+  realisticFlowDetail:
+    'Merchant request → provider checkout → signed callback → transactional outbox → Kafka projection.',
   order: 'ORDER',
   orderStatus: 'ORDER STATUS',
   paymentStatus: 'Payment',
@@ -335,7 +338,8 @@ const en: Record<string, string> = {
   requestRefund: 'Cancel and refund',
   refundRequest: 'REFUND REQUEST',
   refundConfirmTitle: 'Request a full refund?',
-  refundConfirmHelp: 'Only unshipped paid orders can be refunded. Shipping is blocked while the signed channel result is pending.',
+  refundConfirmHelp:
+    'Only unshipped paid orders can be refunded. Shipping is blocked while the signed channel result is pending.',
   estimatedRefund: 'Estimated refund',
   refundOriginalChannel: 'Returned to the original payment channel',
   refundDetailLabel: 'Additional details',
@@ -392,7 +396,7 @@ const en: Record<string, string> = {
   FAILED: 'Failed',
   CANCELLED: 'Cancelled',
   CLOSED: 'Closed',
-  EXPIRED: 'Expired'
+  EXPIRED: 'Expired',
 };
 
 const zh: Record<string, string> = {
@@ -784,10 +788,10 @@ const zh: Record<string, string> = {
   FAILED: '失败',
   CANCELLED: '已取消',
   CLOSED: '已关闭',
-  EXPIRED: '已过期'
+  EXPIRED: '已过期',
 };
 
-@Injectable({providedIn: 'root'})
+@Injectable({ providedIn: 'root' })
 export class I18nService {
   private state = signal<Locale>((localStorage.getItem('commerceflow-locale') as Locale) || 'en');
   private readonly changes = new Subject<Locale>();
@@ -800,7 +804,8 @@ export class I18nService {
 
   t(key: string, params?: Record<string, string | number>): string {
     let value = (this.state() === 'zh-CN' ? zh : en)[key] || key;
-    for (const [name, replacement] of Object.entries(params || {})) value = value.replace(`{${name}}`, String(replacement));
+    for (const [name, replacement] of Object.entries(params || {}))
+      value = value.replace(`{${name}}`, String(replacement));
     return value;
   }
 

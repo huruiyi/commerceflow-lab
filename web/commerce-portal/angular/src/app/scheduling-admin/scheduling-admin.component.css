@@ -1,13 +1,18 @@
 .scheduling-page {
   max-width: 1500px;
-  padding: 32px 24px 64px
+  padding: 32px 24px 64px;
 }
 
-.page-heading, .section-title, .policy-head, .actions, .filters, .add-policy {
+.page-heading,
+.section-title,
+.policy-head,
+.actions,
+.filters,
+.add-policy {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px
+  gap: 12px;
 }
 
 .page-heading {
@@ -15,21 +20,21 @@
   border-radius: 20px;
   background: linear-gradient(120deg, #142b5f, #087f73);
   color: #fff;
-  margin-bottom: 24px
+  margin-bottom: 24px;
 }
 
 .page-heading p {
   margin: 0;
-  font-size: .8rem;
-  letter-spacing: .16em
+  font-size: 0.8rem;
+  letter-spacing: 0.16em;
 }
 
 .page-heading h1 {
-  margin: 4px 0
+  margin: 4px 0;
 }
 
 .page-heading span {
-  opacity: .85
+  opacity: 0.85;
 }
 
 .panel {
@@ -38,27 +43,27 @@
   border-radius: 18px;
   padding: 24px;
   margin-bottom: 24px;
-  box-shadow: 0 14px 35px rgba(25, 46, 80, .06)
+  box-shadow: 0 14px 35px rgba(25, 46, 80, 0.06);
 }
 
 .section-title {
   align-items: flex-end;
-  margin-bottom: 20px
+  margin-bottom: 20px;
 }
 
 .section-title h2 {
-  margin: 0
+  margin: 0;
 }
 
 .section-title p {
   margin: 4px 0 0;
-  color: #66758a
+  color: #66758a;
 }
 
 .policy-grid {
   display: grid;
-  grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));
-  gap: 16px
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
 }
 
 .policy-card {
@@ -66,84 +71,93 @@
   border-radius: 14px;
   padding: 18px;
   display: grid;
-  gap: 13px
+  gap: 13px;
 }
 
-.policy-head strong, .policy-head small, table small {
-  display: block
+.policy-head strong,
+.policy-head small,
+table small {
+  display: block;
 }
 
-.policy-head small, table small {
-  color: #718096
+.policy-head small,
+table small {
+  color: #718096;
 }
 
 .policy-head span {
-  font-size: .75rem;
+  font-size: 0.75rem;
   border-radius: 999px;
   padding: 5px 9px;
   background: #fff1db;
-  color: #9b4d00
+  color: #9b4d00;
 }
 
 .policy-head span.ready {
   background: #dcfce7;
-  color: #16733b
+  color: #16733b;
 }
 
 .policy-card label {
   display: grid;
   gap: 5px;
-  font-size: .85rem;
-  color: #526177
+  font-size: 0.85rem;
+  color: #526177;
 }
 
-.policy-card label:has(input[type=checkbox]) {
+.policy-card label:has(input[type='checkbox']) {
   display: flex;
-  align-items: center
+  align-items: center;
 }
 
-.policy-card input, .policy-card select, .filters input, .filters select, .add-policy input {
+.policy-card input,
+.policy-card select,
+.filters input,
+.filters select,
+.add-policy input {
   border: 1px solid #cbd6e4;
   border-radius: 8px;
   padding: 8px 10px;
-  background: #fff
+  background: #fff;
 }
 
 .numeric-grid {
   display: grid;
-  grid-template-columns:1fr 1fr;
-  gap: 10px
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
 }
 
 .actions {
   justify-content: flex-start;
-  flex-wrap: wrap
+  flex-wrap: wrap;
 }
 
 .policy-audit {
   margin: 0;
   padding: 10px 10px 10px 30px;
   border-radius: 9px;
-  background: #f7fafc
+  background: #f7fafc;
 }
 
 .policy-audit li {
-  padding: 5px
+  padding: 5px;
 }
 
-.policy-audit span, .policy-audit small {
+.policy-audit span,
+.policy-audit small {
   display: block;
-  color: #66758a
+  color: #66758a;
 }
 
-.filters, .add-policy {
-  justify-content: flex-end
+.filters,
+.add-policy {
+  justify-content: flex-end;
 }
 
 .table th {
   white-space: nowrap;
   color: #607086;
-  font-size: .8rem
+  font-size: 0.8rem;
 }
 
 .status {
@@ -151,58 +165,60 @@
   padding: 4px 8px;
   border-radius: 999px;
   background: #edf3f9;
-  font-size: .8rem
+  font-size: 0.8rem;
 }
 
 .task-actions {
-  white-space: nowrap
+  white-space: nowrap;
 }
 
 .task-actions .btn {
-  margin: 2px
+  margin: 2px;
 }
 
 .event-row td {
-  background: #f7fafc
+  background: #f7fafc;
 }
 
 .event-row ol {
   margin: 0;
-  padding-left: 22px
+  padding-left: 22px;
 }
 
 .event-row li {
   display: grid;
-  grid-template-columns:160px 180px 160px 1fr;
+  grid-template-columns: 160px 180px 160px 1fr;
   gap: 10px;
   padding: 8px 0;
-  border-bottom: 1px solid #e7edf4
+  border-bottom: 1px solid #e7edf4;
 }
 
 .event-row small {
-  color: #66758a
+  color: #66758a;
 }
 
 @media (max-width: 800px) {
-  .page-heading, .section-title {
+  .page-heading,
+  .section-title {
     align-items: stretch;
-    flex-direction: column
+    flex-direction: column;
   }
 
-  .filters, .add-policy {
+  .filters,
+  .add-policy {
     justify-content: stretch;
-    flex-wrap: wrap
+    flex-wrap: wrap;
   }
 
   .event-row li {
-    grid-template-columns:1fr
+    grid-template-columns: 1fr;
   }
 
   .scheduling-page {
-    padding: 18px 12px
+    padding: 18px 12px;
   }
 
   .panel {
-    padding: 16px
+    padding: 16px;
   }
 }

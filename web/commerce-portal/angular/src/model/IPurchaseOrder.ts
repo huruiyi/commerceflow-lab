@@ -96,7 +96,7 @@ export interface OrderRefund {
 }
 
 export type OrderAction =
-  'PAY'
+  | 'PAY'
   | 'REFRESH_PAYMENT'
   | 'CANCEL_ORDER'
   | 'REQUEST_REFUND'

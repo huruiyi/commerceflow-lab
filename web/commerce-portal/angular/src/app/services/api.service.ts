@@ -1,28 +1,29 @@
-import {HttpClient} from '@angular/common/http';
-import {Injectable} from '@angular/core';
-import {Observable} from 'rxjs';
-import {CreateOrderRequest} from 'src/model/IOrder';
-import {OrderList} from 'src/model/IOrderList';
-import {Product} from 'src/model/IProduct';
-import {IUser} from 'src/model/IUser';
-import {ShippingAddress, ShippingAddressRequest} from 'src/model/IShippingAddress';
-import {OrderLogistics, OrderRefund, PaymentChannel, PurchaseOrder} from 'src/model/IPurchaseOrder';
-import {ScheduledTask, ScheduledTaskEvent, SchedulingPolicy, SchedulingPolicyEvent} from 'src/model/IScheduling';
-import {LogisticsCallbackAuditEvent, LogisticsCallbackOutbox} from 'src/model/ILogisticsCallbackAdmin';
-import {CustomerNotification} from 'src/model/INotification';
-import {InventoryMovement, MerchantInventoryItem} from 'src/model/IInventory';
+import { HttpClient } from '@angular/common/http';
+import { Injectable } from '@angular/core';
+import { Observable } from 'rxjs';
+import { CreateOrderRequest } from 'src/model/IOrder';
+import { OrderList } from 'src/model/IOrderList';
+import { Product } from 'src/model/IProduct';
+import { IUser } from 'src/model/IUser';
+import { ShippingAddress, ShippingAddressRequest } from 'src/model/IShippingAddress';
+import { OrderLogistics, OrderRefund, PaymentChannel, PurchaseOrder } from 'src/model/IPurchaseOrder';
+import { ScheduledTask, ScheduledTaskEvent, SchedulingPolicy, SchedulingPolicyEvent } from 'src/model/IScheduling';
+import { LogisticsCallbackAuditEvent, LogisticsCallbackOutbox } from 'src/model/ILogisticsCallbackAdmin';
+import { CustomerNotification } from 'src/model/INotification';
+import { InventoryMovement, MerchantInventoryItem } from 'src/model/IInventory';
 
-@Injectable({providedIn: 'root'})
+@Injectable({ providedIn: 'root' })
 export class ApiService {
-  constructor(private http: HttpClient) {
-  }
+  constructor(private http: HttpClient) {}
 
   allProducts(): Observable<Product[]> {
-    return this.http.get<Product[]>(`/api/products?lang=${encodeURIComponent(localStorage.getItem('commerceflow-locale') || 'en')}`);
+    return this.http.get<Product[]>(
+      `/api/products?lang=${encodeURIComponent(localStorage.getItem('commerceflow-locale') || 'en')}`,
+    );
   }
 
   addOrder(productId: number, quantity: number): Observable<OrderList> {
-    const request: CreateOrderRequest = {productId, quantity, note: 'Created from the Angular demo'};
+    const request: CreateOrderRequest = { productId, quantity, note: 'Created from the Angular demo' };
     return this.http.post<OrderList>('/api/cart/items', request);
   }
 
@@ -31,7 +32,7 @@ export class ApiService {
   }
 
   updateOrderQuantity(orderId: number, quantity: number): Observable<OrderList> {
-    return this.http.put<OrderList>(`/api/cart/items/${orderId}`, {quantity});
+    return this.http.put<OrderList>(`/api/cart/items/${orderId}`, { quantity });
   }
 
   removeCartItem(itemId: number): Observable<void> {
@@ -90,16 +91,21 @@ export class ApiService {
     return this.http.get<OrderLogistics>(`/api/purchase-orders/${id}/logistics`);
   }
 
-  payOrder(id: number, idempotencyKey: string, simulateFailure = false, channel: PaymentChannel = 'ALIPAY'): Observable<PurchaseOrder> {
+  payOrder(
+    id: number,
+    idempotencyKey: string,
+    simulateFailure = false,
+    channel: PaymentChannel = 'ALIPAY',
+  ): Observable<PurchaseOrder> {
     return this.http.post<PurchaseOrder>(`/api/purchase-orders/${id}/payments`, {
       idempotencyKey,
       simulateFailure,
-      channel
+      channel,
     });
   }
 
   cancelOrder(id: number, reason = ''): Observable<PurchaseOrder> {
-    return this.http.post<PurchaseOrder>(`/api/purchase-orders/${id}/cancel`, {reason});
+    return this.http.post<PurchaseOrder>(`/api/purchase-orders/${id}/cancel`, { reason });
   }
 
   notifications(): Observable<CustomerNotification[]> {
@@ -131,7 +137,7 @@ export class ApiService {
   }
 
   adjustMerchantInventory(productId: number, delta: number, reason: string): Observable<MerchantInventoryItem> {
-    return this.http.post<MerchantInventoryItem>(`/api/merchant/inventory/${productId}/adjustments`, {delta, reason});
+    return this.http.post<MerchantInventoryItem>(`/api/merchant/inventory/${productId}/adjustments`, { delta, reason });
   }
 
   confirmMerchantOrder(id: number): Observable<PurchaseOrder> {
@@ -139,11 +145,11 @@ export class ApiService {
   }
 
   shipMerchantOrder(id: number, carrier: string, trackingNumber: string): Observable<PurchaseOrder> {
-    return this.http.post<PurchaseOrder>(`/api/merchant/orders/${id}/ship`, {carrier, trackingNumber});
+    return this.http.post<PurchaseOrder>(`/api/merchant/orders/${id}/ship`, { carrier, trackingNumber });
   }
 
   updateMerchantShipment(id: number, carrier: string, trackingNumber: string): Observable<PurchaseOrder> {
-    return this.http.put<PurchaseOrder>(`/api/merchant/orders/${id}/shipment`, {carrier, trackingNumber});
+    return this.http.put<PurchaseOrder>(`/api/merchant/orders/${id}/shipment`, { carrier, trackingNumber });
   }
 
   receiveOrder(id: number): Observable<PurchaseOrder> {
@@ -151,14 +157,14 @@ export class ApiService {
   }
 
   reviewOrderItem(id: number, rating: number, comment: string): Observable<unknown> {
-    return this.http.post(`/api/order-items/${id}/reviews`, {rating, comment});
+    return this.http.post(`/api/order-items/${id}/reviews`, { rating, comment });
   }
 
   requestRefund(id: number, idempotencyKey: string, reasonCode: string, reasonDetail: string): Observable<OrderRefund> {
     return this.http.post<OrderRefund>(`/api/purchase-orders/${id}/refunds`, {
       idempotencyKey,
       reasonCode,
-      reasonDetail
+      reasonDetail,
     });
   }
 
@@ -167,7 +173,10 @@ export class ApiService {
   }
 
   saveSchedulingPolicy(policy: SchedulingPolicy): Observable<SchedulingPolicy> {
-    return this.http.put<SchedulingPolicy>(`/api/admin/scheduling/policies/${encodeURIComponent(policy.taskType)}`, policy);
+    return this.http.put<SchedulingPolicy>(
+      `/api/admin/scheduling/policies/${encodeURIComponent(policy.taskType)}`,
+      policy,
+    );
   }
 
   resetSchedulingPolicy(taskType: string): Observable<SchedulingPolicy> {
@@ -175,7 +184,9 @@ export class ApiService {
   }
 
   schedulingPolicyEvents(taskType: string): Observable<SchedulingPolicyEvent[]> {
-    return this.http.get<SchedulingPolicyEvent[]>(`/api/admin/scheduling/policies/${encodeURIComponent(taskType)}/events`);
+    return this.http.get<SchedulingPolicyEvent[]>(
+      `/api/admin/scheduling/policies/${encodeURIComponent(taskType)}/events`,
+    );
   }
 
   scheduledTasks(taskType = '', status = ''): Observable<ScheduledTask[]> {
@@ -195,7 +206,7 @@ export class ApiService {
   }
 
   cancelScheduledTask(id: number, reason: string): Observable<ScheduledTask> {
-    return this.http.post<ScheduledTask>(`/api/admin/scheduling/tasks/${id}/cancel`, {reason});
+    return this.http.post<ScheduledTask>(`/api/admin/scheduling/tasks/${id}/cancel`, { reason });
   }
 
   logisticsCallbacks(status = ''): Observable<LogisticsCallbackOutbox[]> {
@@ -208,6 +219,6 @@ export class ApiService {
   }
 
   replayLogisticsCallback(id: number, reason: string): Observable<LogisticsCallbackOutbox> {
-    return this.http.post<LogisticsCallbackOutbox>(`/api/admin/logistics-callbacks/${id}/replay`, {reason});
+    return this.http.post<LogisticsCallbackOutbox>(`/api/admin/logistics-callbacks/${id}/replay`, { reason });
   }
 }

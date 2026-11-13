@@ -1,5 +1,5 @@
-import {ApptitleDirective} from './apptitle.directive';
-import {ElementRef} from '@angular/core';
+import { ApptitleDirective } from './apptitle.directive';
+import { ElementRef } from '@angular/core';
 
 describe('ApptitleDirective', () => {
   it('should create an instance', () => {

@@ -1,11 +1,11 @@
-import {ComponentFixture, TestBed} from '@angular/core/testing';
-import {of, throwError} from 'rxjs';
-import {PurchaseOrder} from 'src/model/IPurchaseOrder';
-import {PurchaseOrdersComponent} from './purchase-orders.component';
-import {ApiService} from '../services/api.service';
-import {TranslatePipe} from '../pipes/translate.pipe';
-import {TrdatePipe} from '../pipes/trdate.pipe';
-import {TrcurrencyPipe} from '../pipes/trcurrency.pipe';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { of, throwError } from 'rxjs';
+import { PurchaseOrder } from 'src/model/IPurchaseOrder';
+import { PurchaseOrdersComponent } from './purchase-orders.component';
+import { ApiService } from '../services/api.service';
+import { TranslatePipe } from '../pipes/translate.pipe';
+import { TrdatePipe } from '../pipes/trdate.pipe';
+import { TrcurrencyPipe } from '../pipes/trcurrency.pipe';
 
 describe('PurchaseOrdersComponent', () => {
   let fixture: ComponentFixture<PurchaseOrdersComponent>;
@@ -25,15 +25,17 @@ describe('PurchaseOrdersComponent', () => {
     currency: 'CNY',
     createdAt: '2026-11-10T00:00:00Z',
     availableActions: ['PAY', 'REFRESH_PAYMENT', 'CANCEL_ORDER'],
-    items: [{
-      id: 1,
-      productId: 1,
-      productName: 'Learning Item',
-      thumbnailUrl: 'item.png',
-      unitPrice: 99,
-      quantity: 1,
-      subtotal: 99
-    }],
+    items: [
+      {
+        id: 1,
+        productId: 1,
+        productName: 'Learning Item',
+        thumbnailUrl: 'item.png',
+        unitPrice: 99,
+        quantity: 1,
+        subtotal: 99,
+      },
+    ],
     address: {
       recipientName: 'Demo',
       phone: '13800000000',
@@ -44,45 +46,49 @@ describe('PurchaseOrdersComponent', () => {
       addressLine1: 'Learning Road',
       addressLine2: '',
       postalCode: '200120',
-      label: 'Home'
-    }
+      label: 'Home',
+    },
   };
   beforeEach(async () => {
     sessionStorage.clear();
     api = {
       purchaseOrders: jasmine.createSpy().and.returnValue(of([order])),
       allProducts: jasmine.createSpy().and.returnValue(of([])),
-      payOrder: jasmine.createSpy().and.returnValue(of({
-        ...order,
-        payment: {
-          paymentNumber: 'PAY-1',
-          merchantNo: '1900001001',
-          channel: 'WECHAT_PAY',
-          channelTransactionNo: 'MOCK-1',
-          status: 'FAILED',
-          failureReason: 'Simulated',
+      payOrder: jasmine.createSpy().and.returnValue(
+        of({
+          ...order,
+          payment: {
+            paymentNumber: 'PAY-1',
+            merchantNo: '1900001001',
+            channel: 'WECHAT_PAY',
+            channelTransactionNo: 'MOCK-1',
+            status: 'FAILED',
+            failureReason: 'Simulated',
+            amount: 99,
+            currency: 'CNY',
+            createdAt: '2026-11-10T00:00:00Z',
+          },
+        }),
+      ),
+      reviewOrderItem: jasmine.createSpy().and.returnValue(of({})),
+      requestRefund: jasmine.createSpy().and.returnValue(
+        of({
+          refundNumber: 'REF-1',
+          orderId: 42,
+          status: 'SUCCEEDED',
           amount: 99,
           currency: 'CNY',
-          createdAt: '2026-11-10T00:00:00Z'
-        }
-      })),
-      reviewOrderItem: jasmine.createSpy().and.returnValue(of({})),
-      requestRefund: jasmine.createSpy().and.returnValue(of({
-        refundNumber: 'REF-1',
-        orderId: 42,
-        status: 'SUCCEEDED',
-        amount: 99,
-        currency: 'CNY',
-        reasonCode: 'CUSTOMER_CANCELLED',
-        reasonDetail: '',
-        requestedAt: '2026-11-10T01:00:00Z',
-        events: []
-      })),
-      receiveOrder: jasmine.createSpy().and.returnValue(of({...order, status: 'RECEIVED'}))
+          reasonCode: 'CUSTOMER_CANCELLED',
+          reasonDetail: '',
+          requestedAt: '2026-11-10T01:00:00Z',
+          events: [],
+        }),
+      ),
+      receiveOrder: jasmine.createSpy().and.returnValue(of({ ...order, status: 'RECEIVED' })),
     };
     await TestBed.configureTestingModule({
       declarations: [PurchaseOrdersComponent, TranslatePipe, TrdatePipe, TrcurrencyPipe],
-      providers: [{provide: ApiService, useValue: api}]
+      providers: [{ provide: ApiService, useValue: api }],
     }).compileComponents();
     fixture = TestBed.createComponent(PurchaseOrdersComponent);
     fixture.detectChanges();
@@ -106,30 +112,40 @@ describe('PurchaseOrdersComponent', () => {
   });
   it('only repeats payment state when it still needs attention', () => {
     const component = fixture.componentInstance;
-    expect(component.showPaymentState({...order, payment: {
-      paymentNumber: 'PAY-1',
-      merchantNo: 'merchant-1',
-      channel: 'ALIPAY',
-      channelTransactionNo: 'channel-1',
-      status: 'SUCCESS',
-      failureReason: '',
-      amount: 99,
-      refundedAmount: 0,
-      currency: 'CNY',
-      createdAt: '2026-11-10T00:00:00Z'
-    }})).toBeFalse();
-    expect(component.showPaymentState({...order, payment: {
-      paymentNumber: 'PAY-2',
-      merchantNo: 'merchant-1',
-      channel: 'ALIPAY',
-      channelTransactionNo: 'channel-2',
-      status: 'FAILED',
-      failureReason: 'Simulated',
-      amount: 99,
-      refundedAmount: 0,
-      currency: 'CNY',
-      createdAt: '2026-11-10T00:00:00Z'
-    }})).toBeTrue();
+    expect(
+      component.showPaymentState({
+        ...order,
+        payment: {
+          paymentNumber: 'PAY-1',
+          merchantNo: 'merchant-1',
+          channel: 'ALIPAY',
+          channelTransactionNo: 'channel-1',
+          status: 'SUCCESS',
+          failureReason: '',
+          amount: 99,
+          refundedAmount: 0,
+          currency: 'CNY',
+          createdAt: '2026-11-10T00:00:00Z',
+        },
+      }),
+    ).toBeFalse();
+    expect(
+      component.showPaymentState({
+        ...order,
+        payment: {
+          paymentNumber: 'PAY-2',
+          merchantNo: 'merchant-1',
+          channel: 'ALIPAY',
+          channelTransactionNo: 'channel-2',
+          status: 'FAILED',
+          failureReason: 'Simulated',
+          amount: 99,
+          refundedAmount: 0,
+          currency: 'CNY',
+          createdAt: '2026-11-10T00:00:00Z',
+        },
+      }),
+    ).toBeTrue();
   });
   it('does not render empty history and replaces unavailable product images', () => {
     const component = fixture.componentInstance;
@@ -144,19 +160,23 @@ describe('PurchaseOrdersComponent', () => {
     const component = fixture.componentInstance;
     const events = component.visibleOrderEvents({
       ...order,
-      events: [{id: 1, eventType: 'ORDER_SHIPPED', createdAt: '2026-11-10T01:00:00Z'}, {
-        id: 2,
-        eventType: 'SHIPMENT_UPDATED',
-        detail: 'Carrier / TRACK-1 -> Carrier / TRACK-1',
-        createdAt: '2026-11-10T02:00:00Z'
-      }, {
-        id: 3,
-        eventType: 'SHIPMENT_UPDATED',
-        detail: 'Carrier / TRACK-1 -> Carrier / TRACK-2',
-        createdAt: '2026-11-10T03:00:00Z'
-      }]
+      events: [
+        { id: 1, eventType: 'ORDER_SHIPPED', createdAt: '2026-11-10T01:00:00Z' },
+        {
+          id: 2,
+          eventType: 'SHIPMENT_UPDATED',
+          detail: 'Carrier / TRACK-1 -> Carrier / TRACK-1',
+          createdAt: '2026-11-10T02:00:00Z',
+        },
+        {
+          id: 3,
+          eventType: 'SHIPMENT_UPDATED',
+          detail: 'Carrier / TRACK-1 -> Carrier / TRACK-2',
+          createdAt: '2026-11-10T03:00:00Z',
+        },
+      ],
     });
-    expect(events.map(event => event.id)).toEqual([1, 3]);
+    expect(events.map((event) => event.id)).toEqual([1, 3]);
   });
   it('switches payment channel and creates a fresh key', () => {
     const component = fixture.componentInstance;
@@ -176,20 +196,23 @@ describe('PurchaseOrdersComponent', () => {
   });
   it('keeps the valid replay request after a cross-channel conflict', () => {
     const component = fixture.componentInstance;
-    api.payOrder.and.returnValues(of({
-      ...order,
-      payment: {
-        paymentNumber: 'PAY-1',
-        merchantNo: '1900001001',
-        channel: 'WECHAT_PAY',
-        channelTransactionNo: 'MOCK-1',
-        status: 'FAILED',
-        failureReason: 'Simulated',
-        amount: 99,
-        currency: 'CNY',
-        createdAt: '2026-11-10T00:00:00Z'
-      }
-    }), throwError(() => ({error: {message: 'Idempotency conflict'}})));
+    api.payOrder.and.returnValues(
+      of({
+        ...order,
+        payment: {
+          paymentNumber: 'PAY-1',
+          merchantNo: '1900001001',
+          channel: 'WECHAT_PAY',
+          channelTransactionNo: 'MOCK-1',
+          status: 'FAILED',
+          failureReason: 'Simulated',
+          amount: 99,
+          currency: 'CNY',
+          createdAt: '2026-11-10T00:00:00Z',
+        },
+      }),
+      throwError(() => ({ error: { message: 'Idempotency conflict' } })),
+    );
     component.selectChannel(order, 'WECHAT_PAY');
     component.pay(order, true);
     component.replayOnAnotherChannel(order);

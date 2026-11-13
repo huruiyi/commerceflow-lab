@@ -1,7 +1,7 @@
-import {ComponentFixture, TestBed} from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import {OrderComponent} from './order.component';
-import {TranslatePipe} from '../pipes/translate.pipe';
+import { OrderComponent } from './order.component';
+import { TranslatePipe } from '../pipes/translate.pipe';
 
 describe('OrderComponent', () => {
   let component: OrderComponent;
@@ -9,9 +9,8 @@ describe('OrderComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      declarations: [OrderComponent, TranslatePipe]
-    })
-      .compileComponents();
+      declarations: [OrderComponent, TranslatePipe],
+    }).compileComponents();
 
     fixture = TestBed.createComponent(OrderComponent);
     component = fixture.componentInstance;

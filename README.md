@@ -162,6 +162,17 @@ bash ./scripts/linux/audit-code-quality.sh
 该入口不会格式化或改写文件；它检查后端 Java、Mapper XML 和 Maven POM 的客观格式规则，
 并校验 Mapper namespace、SQL statement id、Java 方法、内联 SQL 和直接 JDBC 边界。
 
+Angular 商城门户使用模块本地 Prettier 只读门禁：
+
+```powershell
+cd web/commerce-portal/angular
+npm run format:check
+npm test -- --watch=false --browsers=ChromeHeadless
+```
+
+正式 Angular Dockerfile 会在生产构建前自动执行 `format:check`。支付模拟器 Web 仍待单独治理，
+当前不宣称全仓前端格式已统一。
+
 ### M1 快速回归
 
 默认构建当前源码镜像并运行约数分钟的核心回归：
@@ -174,7 +185,10 @@ bash ./scripts/linux/audit-code-quality.sh
 bash ./scripts/linux/verify-quick.sh
 ```
 
-已有当前镜像时可使用 `-SkipBuild` / `--skip-build`。快速入口始终执行代码质量与脚本契约门禁，并覆盖权限/i18n、取消、支付竞态、退款、物流、收货/完成/评价、commerce-service 租约恢复、Redis 降级和健康检查。跳过构建时不会重新执行镜像内 Maven/ArchUnit 测试。它不代替两分钟浸泡、MQ 停机、空卷或旧卷重启专项。
+已有当前镜像时可使用 `-SkipBuild` / `--skip-build`。快速入口始终执行后端代码质量与脚本契约门禁，
+默认构建还会通过 Angular Dockerfile 执行前端格式检查。回归覆盖权限/i18n、取消、支付竞态、退款、物流、
+收货/完成/评价、commerce-service 租约恢复、Redis 降级和健康检查。跳过构建时不会重新执行镜像内
+Maven/ArchUnit 测试或 Angular 格式检查。它不代替两分钟浸泡、MQ 停机、空卷或旧卷重启专项。
 
 ### 完整自动验收
 

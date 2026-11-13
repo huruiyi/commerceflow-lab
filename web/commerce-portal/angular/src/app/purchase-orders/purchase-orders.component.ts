@@ -1,14 +1,9 @@
-import {
-  ChangeDetectorRef,
-  Component,
-  DestroyRef,
-  OnInit,
-} from '@angular/core';
-import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
-import {finalize, forkJoin} from 'rxjs';
-import {OrderAction, OrderEvent, PaymentChannel, PurchaseOrder} from 'src/model/IPurchaseOrder';
-import {ApiService} from '../services/api.service';
-import {I18nService} from '../services/i18n.service';
+import { ChangeDetectorRef, Component, DestroyRef, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { finalize, forkJoin } from 'rxjs';
+import { OrderAction, OrderEvent, PaymentChannel, PurchaseOrder } from 'src/model/IPurchaseOrder';
+import { ApiService } from '../services/api.service';
+import { I18nService } from '../services/i18n.service';
 
 interface ChannelOption {
   code: PaymentChannel;
@@ -99,14 +94,11 @@ export class PurchaseOrdersComponent implements OnInit {
     private changeDetector: ChangeDetectorRef,
     public i18n: I18nService,
     private destroyRef: DestroyRef,
-  ) {
-  }
+  ) {}
 
   ngOnInit(): void {
     this.reload();
-    this.i18n.localeChanged
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.reload());
+    this.i18n.localeChanged.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.reload());
   }
 
   reload(): void {
@@ -117,11 +109,9 @@ export class PurchaseOrdersComponent implements OnInit {
       orders: this.api.purchaseOrders(),
       products: this.api.allProducts(),
     }).subscribe({
-      next: ({orders, products}) => {
+      next: ({ orders, products }) => {
         if (version !== this.loadVersion) return;
-        const catalogProducts = new Map(
-          products.map((product) => [product.id, product]),
-        );
+        const catalogProducts = new Map(products.map((product) => [product.id, product]));
         this.orders = orders.map((order) => ({
           ...order,
           items: order.items.map((item) => ({
@@ -171,23 +161,19 @@ export class PurchaseOrdersComponent implements OnInit {
 
   replayLast(order: PurchaseOrder): void {
     const attempt = this.lastAttempts[order.id];
-    if (attempt) this.execute(order, {...attempt}, true);
+    if (attempt) this.execute(order, { ...attempt }, true);
   }
 
   replayOnAnotherChannel(order: PurchaseOrder): void {
     const previous = this.lastAttempts[order.id];
     if (!previous) return;
-    const alternative =
-      this.channels.find((channel) => channel.code !== previous.channel)
-        ?.code ?? 'WECHAT_PAY';
-    this.execute(order, {...previous, channel: alternative}, true);
+    const alternative = this.channels.find((channel) => channel.code !== previous.channel)?.code ?? 'WECHAT_PAY';
+    this.execute(order, { ...previous, channel: alternative }, true);
   }
 
   channel(order: PurchaseOrder): ChannelOption {
     const code = this.selectedChannels[order.id] ?? 'ALIPAY';
-    return (
-      this.channels.find((channel) => channel.code === code) ?? this.channels[0]
-    );
+    return this.channels.find((channel) => channel.code === code) ?? this.channels[0];
   }
 
   trackOrder(_index: number, order: PurchaseOrder): number {
@@ -242,30 +228,29 @@ export class PurchaseOrdersComponent implements OnInit {
 
   cancelOrder(order: PurchaseOrder): void {
     this.cancelling.add(order.id);
-    this.api.cancelOrder(order.id, this.cancellationReasons[order.id] ?? '')
+    this.api
+      .cancelOrder(order.id, this.cancellationReasons[order.id] ?? '')
       .pipe(finalize(() => this.cancelling.delete(order.id)))
       .subscribe({
         next: (updated) => {
-          this.orders = this.orders.map((value) => value.id === updated.id ? updated : value);
+          this.orders = this.orders.map((value) => (value.id === updated.id ? updated : value));
           this.cancelForms.delete(order.id);
-          this.notices[order.id] = {type: 'success', text: this.i18n.t('orderCancelled')};
+          this.notices[order.id] = { type: 'success', text: this.i18n.t('orderCancelled') };
         },
-        error: (error) => this.notices[order.id] = {
-          type: 'danger', text: error.error?.message ?? this.i18n.t('orderCancelFailed')
-        }
+        error: (error) =>
+          (this.notices[order.id] = {
+            type: 'danger',
+            text: error.error?.message ?? this.i18n.t('orderCancelFailed'),
+          }),
       });
   }
 
   refresh(order: PurchaseOrder): void {
     this.api.purchaseOrder(order.id).subscribe((updated) => {
-      this.orders = this.orders.map((item) =>
-        item.id === updated.id ? updated : item,
-      );
+      this.orders = this.orders.map((item) => (item.id === updated.id ? updated : item));
       this.notices[order.id] = {
         type: updated.status === 'PAID' ? 'success' : 'info',
-        text: this.i18n.t(
-          updated.status === 'PAID' ? 'signedCallbackPaid' : 'waitingCallback',
-        ),
+        text: this.i18n.t(updated.status === 'PAID' ? 'signedCallbackPaid' : 'waitingCallback'),
       };
       this.changeDetector.markForCheck();
     });
@@ -295,18 +280,14 @@ export class PurchaseOrdersComponent implements OnInit {
   async copyTracking(order: PurchaseOrder): Promise<void> {
     if (!order.logistics?.trackingNumber) return;
     await navigator.clipboard.writeText(order.logistics.trackingNumber);
-    this.notices[order.id] = {type: 'success', text: this.i18n.t('trackingCopied')};
+    this.notices[order.id] = { type: 'success', text: this.i18n.t('trackingCopied') };
   }
 
   review(order: PurchaseOrder, itemId: number): void {
     if (!this.canSubmitReview(itemId)) return;
     this.reviewing.add(itemId);
     this.api
-      .reviewOrderItem(
-        itemId,
-        this.ratings[itemId] || 5,
-        this.reviewComments[itemId].trim(),
-      )
+      .reviewOrderItem(itemId, this.ratings[itemId] || 5, this.reviewComments[itemId].trim())
       .pipe(finalize(() => this.reviewing.delete(itemId)))
       .subscribe({
         next: () => {
@@ -357,22 +338,18 @@ export class PurchaseOrdersComponent implements OnInit {
           this.orders = this.orders.map((value) =>
             value.id === order.id
               ? {
-                ...value,
-                status:
-                  refund.status === 'SUCCEEDED' ? 'REFUNDED' : 'REFUNDING',
-                refund,
-              }
+                  ...value,
+                  status: refund.status === 'SUCCEEDED' ? 'REFUNDED' : 'REFUNDING',
+                  refund,
+                }
               : value,
           );
           this.refundForms.delete(order.id);
           this.notices[order.id] = {
             type: refund.status === 'SUCCEEDED' ? 'success' : 'info',
-            text: this.i18n.t(
-              refund.status === 'SUCCEEDED'
-                ? 'refundSucceeded'
-                : 'refundProcessing',
-              {refund: refund.refundNumber},
-            ),
+            text: this.i18n.t(refund.status === 'SUCCEEDED' ? 'refundSucceeded' : 'refundProcessing', {
+              refund: refund.refundNumber,
+            }),
           };
         },
         error: (error) =>
@@ -383,11 +360,7 @@ export class PurchaseOrdersComponent implements OnInit {
       });
   }
 
-  private execute(
-    order: PurchaseOrder,
-    attempt: PaymentAttempt,
-    replay: boolean,
-  ): void {
+  private execute(order: PurchaseOrder, attempt: PaymentAttempt, replay: boolean): void {
     this.paying.add(order.id);
     this.notices[order.id] = {
       type: 'info',
@@ -406,9 +379,7 @@ export class PurchaseOrdersComponent implements OnInit {
           attempt.paymentNumber = updated.payment?.paymentNumber;
           this.lastAttempts[order.id] = attempt;
           this.persist(order.id, attempt);
-          this.orders = this.orders.map((item) =>
-            item.id === updated.id ? updated : item,
-          );
+          this.orders = this.orders.map((item) => (item.id === updated.id ? updated : item));
           this.notices[order.id] = {
             type: 'info',
             text: this.i18n.t('paymentPending', {
@@ -442,8 +413,7 @@ export class PurchaseOrdersComponent implements OnInit {
         sessionStorage.removeItem(this.storageKey(order.id));
       }
     }
-    this.selectedChannels[order.id] =
-      (order.payment?.channel as PaymentChannel) ?? 'ALIPAY';
+    this.selectedChannels[order.id] = (order.payment?.channel as PaymentChannel) ?? 'ALIPAY';
     this.draftKeys[order.id] = crypto.randomUUID();
   }
 

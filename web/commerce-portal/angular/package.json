@@ -5,6 +5,8 @@
     "ng": "ng",
     "start": "ng serve --proxy-config proxy.conf.json",
     "build": "ng build",
+    "format:check": "prettier --check \"src/**/*.{ts,html,css,scss}\" \"libs/**/*.{ts,html,css,scss}\" \"*.{json,js}\" \".postcssrc.json\"",
+    "format:write": "prettier --write \"src/**/*.{ts,html,css,scss}\" \"libs/**/*.{ts,html,css,scss}\" \"*.{json,js}\" \".postcssrc.json\"",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
   },
@@ -50,6 +52,7 @@
     "karma-jasmine": "5.1.0",
     "karma-jasmine-html-reporter": "2.1.0",
     "postcss": "8.5.32",
+    "prettier": "3.10.1",
     "tailwindcss": "4.3.5",
     "typescript": "6.0.3"
   }

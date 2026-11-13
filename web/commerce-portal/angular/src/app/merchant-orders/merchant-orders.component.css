@@ -212,23 +212,23 @@
 
 .merchant-refund {
   display: grid;
-  gap: .2rem;
+  gap: 0.2rem;
   margin-top: 1rem;
   padding: 1rem;
   border: 1px solid #a7f3d0;
   border-radius: 12px;
-  background: #f0fdf4
+  background: #f0fdf4;
 }
 
 .merchant-refund span {
   color: #047857;
-  font-size: .7rem;
+  font-size: 0.7rem;
   font-weight: 800;
-  letter-spacing: .08em
+  letter-spacing: 0.08em;
 }
 
 .merchant-refund small {
-  color: #64748b
+  color: #64748b;
 }
 
 .order-timeline h4 {
@@ -251,7 +251,7 @@
 }
 
 .order-timeline li:not(:last-child)::before {
-  content: "";
+  content: '';
   position: absolute;
   left: 5px;
   top: 12px;

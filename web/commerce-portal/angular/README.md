@@ -42,10 +42,14 @@ docker compose up --build -d --wait
 ## 验证
 
 ```powershell
+npm run format:check
 npm run build -- --configuration production
 npm test -- --watch=false --browsers=ChromeHeadless
 npm audit
 ```
+
+`npm run format:check` 使用项目本地 Prettier 只读检查 `src/`、`libs/` 和根配置文件；
+需要明确改写格式时才执行 `npm run format:write`。正式 Docker 镜像会在 Angular 生产构建前自动运行只读检查。
 
 ## 代码阅读顺序
 

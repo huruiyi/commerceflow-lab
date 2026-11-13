@@ -163,8 +163,20 @@ Windows 快速回归与 37 对 Windows/Bash 脚本契约审计也已通过。第
 始终执行新质量门禁；支付安全专项也通过 HMAC/RSA、签名负例、MFA、一次性提权、角色/商户授权
 和审计链验证。现有数据卷未删除或重建。
 
-M2.4 后端门禁完成。Angular 商城门户和支付模拟器 Web 的 HTML/TypeScript 自动格式门禁仍需
-按前端模块单独治理，不能把本阶段写成全仓 IDEA 格式已统一。
+M2.4 后端门禁完成。
+
+### M2.5 前端格式门禁
+
+- [x] 分模块治理 Angular 商城门户的 TypeScript、HTML、CSS 和配置文件。
+- [x] 使用项目本地 Prettier 3.10.1 提供 `format:check` 只读检查和显式 `format:write` 写入入口。
+- [x] Angular 正式 Dockerfile 在生产构建前执行格式检查。
+- [ ] 单独治理支付模拟器 Web，不与 Angular 批次混合。
+
+Angular 批次纳入 127 个源码/配置文件（包含新增的两个 Prettier 配置文件），已通过
+`format:check`、29 项 ChromeHeadless 单元测试、本地生产构建和正式 Docker 镜像构建。重建且仅重建
+Angular 容器后，`/healthz`、中英文与三角色权限专项通过，未删除或重建数据卷。
+`verify-quick`/`verify-all` 默认构建会通过 Angular Dockerfile 执行该门禁；显式跳过构建时不会重新检查。
+支付模拟器 Web 仍待单独治理，当前不能宣称全仓前端格式已统一。
 
 ## 4. 每批完成门禁
 

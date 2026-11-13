@@ -18,29 +18,14 @@
     "importHelpers": true,
     "target": "es2022",
     "module": "es2022",
-    "lib": [
-      "es2022",
-      "dom"
-    ],
+    "lib": ["es2022", "dom"],
     "paths": {
-      "@spartan-ng/helm/button": [
-        "./libs/ui/button/src/index.ts"
-      ],
-      "@spartan-ng/helm/utils": [
-        "./libs/ui/utils/src/index.ts"
-      ],
-      "@spartan-ng/helm/card": [
-        "./libs/ui/card/src/index.ts"
-      ],
-      "@spartan-ng/helm/badge": [
-        "./libs/ui/badge/src/index.ts"
-      ],
-      "@spartan-ng/helm/alert": [
-        "./libs/ui/alert/src/index.ts"
-      ],
-      "@spartan-ng/helm/spinner": [
-        "./libs/ui/spinner/src/index.ts"
-      ]
+      "@spartan-ng/helm/button": ["./libs/ui/button/src/index.ts"],
+      "@spartan-ng/helm/utils": ["./libs/ui/utils/src/index.ts"],
+      "@spartan-ng/helm/card": ["./libs/ui/card/src/index.ts"],
+      "@spartan-ng/helm/badge": ["./libs/ui/badge/src/index.ts"],
+      "@spartan-ng/helm/alert": ["./libs/ui/alert/src/index.ts"],
+      "@spartan-ng/helm/spinner": ["./libs/ui/spinner/src/index.ts"]
     }
   },
   "angularCompilerOptions": {

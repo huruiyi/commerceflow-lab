@@ -108,5 +108,9 @@ Windows/容器化 Bash 隔离 Flyway 演练和 Windows 三库空卷完整业务�
 
 M2.4 第二批已建立 Windows/Bash 后端只读质量门禁，覆盖 244 个 Java 文件、20 个 Mapper XML、
 189 个映射语句和 3 个 Maven POM，并接入 `verify-quick`/`verify-all`。商城 25 项（含 4 条 ArchUnit）、
-支付 9 项测试、支付安全专项及 Windows 快速回归通过；容器化 Bash 质量门禁实测通过。M2.4 后端门禁完成，
-前端 HTML/TypeScript 自动格式门禁仍是独立后续治理项，当前不能宣称全仓格式已经统一。
+支付 9 项测试、支付安全专项及 Windows 快速回归通过；容器化 Bash 质量门禁实测通过。M2.4 后端门禁完成。
+
+M2.5 第一批已完成 Angular 商城门户的 Prettier 3.10.1 格式治理，`format:check`、29 项
+ChromeHeadless 测试、本地与正式 Docker 生产构建均通过。镜像构建已强制只读格式检查；
+运行态 `/healthz`、中英文及三角色权限专项通过，未删除或重建数据卷。支付模拟器 Web 仍是
+独立的下一批，因此当前仍不宣称全仓前端格式已统一。
