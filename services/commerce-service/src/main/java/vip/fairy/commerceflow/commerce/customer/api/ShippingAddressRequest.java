@@ -1,6 +1,8 @@
 package vip.fairy.commerceflow.commerce.customer.api;
 
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 public record ShippingAddressRequest(
   @NotBlank @Size(max = 100) String recipientName,

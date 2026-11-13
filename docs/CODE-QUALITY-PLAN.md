@@ -65,8 +65,8 @@ Windows 回调可靠性专项通过 `RETRY -> PUBLISHED` 和丢失回调对账�
 
 ### M2.3 商城服务分包治理
 
-- [ ] 分业务包清理通配符导入和过长行，不做全仓一次性机械重写；`identity`、`catalog`、`cart`
-  已完成。
+- [ ] 分业务包清理通配符导入和过长行，不做全仓一次性机械重写；`identity`、`catalog`、`cart`、
+  `customer`、`review`、`receipt` 已完成。
 - 简单单表 CRUD 继续使用 `BaseMapper` 和 Lambda Wrapper；复杂 SQL 保留在 Mapper XML。
 - [x] 建立 ArchUnit 测试，阻止 API 访问基础设施、领域层反向依赖外层，并约束
   `@RestController` 与 Mapper 接口的包位置。
@@ -84,6 +84,13 @@ Windows 回调可靠性专项通过 `RETRY -> PUBLISHED` 和丢失回调对账�
 Windows L2 快速回归、容器化 Bash i18n 与权限回归均通过。Bash i18n 脚本还修复了
 `pipefail` 下 `curl | grep -q` 提前断管导致的页面可用性误判。最终镜像还在现有 MySQL 卷完成
 旧订单创建与数量更新，响应保留正确的 `productId`。本批未删除或重建数据卷。
+
+第三批治理将 `customer`、`review` 与 `receipt` 的通配符导入和超过 120 字符的 Java 行均清零。
+收货地址单表查询改用 Lambda Wrapper，并通过 `@TableField("is_default")` 显式映射默认地址字段；
+评价写入改用带完整字段注释的 `ProductReview` 实体和 `BaseMapper`。评价联表查询、聚合统计以及地址默认项
+批量切换等复杂 SQL 继续保留在 Mapper XML。商城服务 25 项测试、Windows 快速回归和容器化 Bash
+收货/评价专项均通过；快速回归还覆盖服务重启后的租约恢复和 Redis 故障降级。脚本契约审计确认
+37 对 Windows/Bash 验证脚本参数有序对应，默认路径不会删除命名卷。本批未删除或重建数据卷。
 
 ### M2.4 数据库注释与自动门禁
 

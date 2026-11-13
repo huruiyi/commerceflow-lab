@@ -1,6 +1,7 @@
 package vip.fairy.commerceflow.commerce.customer.domain;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -63,7 +64,8 @@ public class ShippingAddress {
   /**
    * 是否为用户默认收货地址。
    */
-  private boolean isDefault;
+  @TableField("is_default")
+  private boolean defaultAddress;
   /**
    * 记录创建时间。
    */
@@ -125,7 +127,11 @@ public class ShippingAddress {
   }
 
   public boolean isDefault() {
-    return isDefault;
+    return defaultAddress;
+  }
+
+  public boolean getDefaultAddress() {
+    return defaultAddress;
   }
 
   public Instant getCreatedAt() {
@@ -181,7 +187,7 @@ public class ShippingAddress {
   }
 
   public void setDefault(boolean value) {
-    isDefault = value;
+    defaultAddress = value;
   }
 
   public void setCreatedAt(Instant value) {

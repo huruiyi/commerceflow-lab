@@ -1,14 +1,16 @@
 package vip.fairy.commerceflow.commerce.review.api;
 
 import vip.fairy.commerceflow.commerce.identity.application.CurrentUserService;
-import vip.fairy.commerceflow.commerce.review.application.ReceiptReviewService;
 import vip.fairy.commerceflow.commerce.ordering.api.ShopOrderResponse;
-import vip.fairy.commerceflow.commerce.review.api.ProductReviewResponse;
-import vip.fairy.commerceflow.commerce.review.api.ReviewRequest;
+import vip.fairy.commerceflow.commerce.review.application.ReceiptReviewService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api")
@@ -23,12 +25,14 @@ public class ReceiptReviewController {
   }
 
   @PostMapping("/purchase-orders/{id}/receive")
-  ShopOrderResponse receive(@PathVariable Long id, Authentication a) {
-    return service.receive(users.require(a), id);
+  ShopOrderResponse receive(@PathVariable Long id, Authentication authentication) {
+    return service.receive(users.require(authentication), id);
   }
 
   @PostMapping("/order-items/{id}/reviews")
-  ProductReviewResponse review(@PathVariable Long id, @Valid @RequestBody ReviewRequest request, Authentication a) {
-    return service.review(users.require(a), id, request);
+  ProductReviewResponse review(@PathVariable Long id,
+                               @Valid @RequestBody ReviewRequest request,
+                               Authentication authentication) {
+    return service.review(users.require(authentication), id, request);
   }
 }
