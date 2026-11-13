@@ -33,25 +33,35 @@
         <span class="eyebrow">{{ "order" | t }}</span>
         <h3>{{ order.orderNumber }}</h3>
         <small>{{ "orderedAt" | t }} {{ order.createdAt | trdate }}</small>
+        <div class="order-meta">
+          <span><i class="bi bi-box-seam" aria-hidden="true"></i>{{ order.items.length }} {{ "itemsCount" | t }}</span>
+          <span><i class="bi bi-person" aria-hidden="true"></i>{{ order.address.recipientName }}</span>
+        </div>
       </div>
     </div>
-    <div class="order-summary">
-      <span><i class="bi bi-box-seam" aria-hidden="true"></i>{{ order.items.length }} {{ "itemsCount" | t }}</span>
-      <span><i class="bi bi-person" aria-hidden="true"></i>{{ order.address.recipientName }}</span>
+    <div class="order-state">
+      <small>{{ "orderStatus" | t }}</small>
+      <span class="status"><span class="status-dot"></span>{{ order.status | t }}</span>
+      <span *ngIf="order.payment" class="payment-state">
+        {{ "paymentStatus" | t }}
+        <strong>{{ order.payment.status | t }}</strong>
+      </span>
     </div>
     <div class="order-total">
-      <span class="status"><span class="status-dot"></span>{{ order.status | t }}</span>
+      <small>{{ "orderAmount" | t }}</small>
       <strong>{{ order.totalAmount | trcurrency }}</strong>
     </div>
     <div class="summary-actions">
-      <button hlmBtn *ngIf="hasAction(order, 'PAY')" type="button" (click)="showPayment(order)">{{ "payNow" | t }}
-      </button>
-      <button hlmBtn *ngIf="hasAction(order, 'CONFIRM_RECEIPT')" type="button"
-              (click)="receive(order)">{{ "confirmReceipt" | t }}
-      </button>
-      <button hlmBtn variant="outline" *ngIf="hasAction(order, 'REQUEST_REFUND')" type="button"
-              (click)="showRefund(order)">{{ "requestRefund" | t }}
-      </button>
+      <div class="primary-action-slot">
+        <button hlmBtn *ngIf="hasAction(order, 'PAY')" type="button" (click)="showPayment(order)">{{ "payNow" | t }}
+        </button>
+        <button hlmBtn *ngIf="hasAction(order, 'CONFIRM_RECEIPT')" type="button"
+                (click)="receive(order)">{{ "confirmReceipt" | t }}
+        </button>
+        <button hlmBtn variant="outline" *ngIf="hasAction(order, 'REQUEST_REFUND')" type="button"
+                (click)="showRefund(order)">{{ "requestRefund" | t }}
+        </button>
+      </div>
       <button hlmBtn variant="ghost" type="button" (click)="toggleDetails(order)"
               [attr.aria-expanded]="expandedOrders.has(order.id)">
         {{ (expandedOrders.has(order.id) ? "collapseDetails" : "expandDetails") | t }}

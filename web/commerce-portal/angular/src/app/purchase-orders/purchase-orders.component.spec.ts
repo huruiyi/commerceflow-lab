@@ -97,6 +97,13 @@ describe('PurchaseOrdersComponent', () => {
     component.toggleDetails(order);
     expect(component.expandedOrders.has(42)).toBeFalse();
   });
+  it('renders aligned summary fields for identity, status, amount and actions', () => {
+    const header = fixture.nativeElement.querySelector('.order-header') as HTMLElement;
+    expect(header.querySelector('.order-meta')?.textContent).toContain('1 items');
+    expect(header.querySelector('.order-state')?.textContent).toContain('Pending payment');
+    expect(header.querySelector('.order-total')?.textContent).toContain('99');
+    expect(header.querySelector('.summary-actions .primary-action-slot')).not.toBeNull();
+  });
   it('removes historical no-op shipment updates from the customer timeline', () => {
     const component = fixture.componentInstance;
     const events = component.visibleOrderEvents({

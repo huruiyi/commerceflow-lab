@@ -11,6 +11,12 @@
   background: #fff;
 }
 
+.navbar > .container-fluid {
+  width: min(calc(100% - 2rem), 1480px);
+  margin-inline: auto;
+  padding-inline: 0;
+}
+
 .navbar-brand {
   color: #0f172a;
   font-weight: 750;
@@ -336,6 +342,10 @@
 }
 
 @media (max-width: 520px) {
+  .navbar > .container-fluid {
+    width: calc(100% - 1.5rem);
+  }
+
   .navbar-tools {
     display: grid;
     grid-template-columns: 1fr auto;
