@@ -65,7 +65,8 @@ Windows 回调可靠性专项通过 `RETRY -> PUBLISHED` 和丢失回调对账�
 
 ### M2.3 商城服务分包治理
 
-- [ ] 分业务包清理通配符导入和过长行，不做全仓一次性机械重写；`identity` 首批已完成。
+- [ ] 分业务包清理通配符导入和过长行，不做全仓一次性机械重写；`identity`、`catalog`、`cart`
+  已完成。
 - 简单单表 CRUD 继续使用 `BaseMapper` 和 Lambda Wrapper；复杂 SQL 保留在 Mapper XML。
 - [x] 建立 ArchUnit 测试，阻止 API 访问基础设施、领域层反向依赖外层，并约束
   `@RestController` 与 Mapper 接口的包位置。
@@ -75,6 +76,14 @@ Windows 回调可靠性专项通过 `RETRY -> PUBLISHED` 和丢失回调对账�
 超过 120 字符的 Java 行均为 0。商城服务 24 项 Maven 测试通过，其中包含 4 条 ArchUnit
 门禁；使用重建后的镜像执行 Windows L2 快速回归和容器化 Bash 权限回归均通过，现有数据卷未删除。
 其余商城业务包的格式治理仍按包分批进行，不能据此标记为全服务完成。
+
+第二批治理将 `catalog` 与 `cart` 的通配符导入和超过 120 字符的 Java 行均清零。
+商品翻译单表查询由手写 `SELECT *` 改为 `BaseMapper + LambdaQueryWrapper`，复合业务键字段补齐语义注释；
+购物车 upsert、联表投影和按用户归属条件更新仍保留在 Mapper XML。审计同时发现旧订单投影遗漏
+`product_id`，修复后补充接口级回归测试，并将测试 Schema 与 V1 真实迁移对齐。商城服务 25 项测试、
+Windows L2 快速回归、容器化 Bash i18n 与权限回归均通过。Bash i18n 脚本还修复了
+`pipefail` 下 `curl | grep -q` 提前断管导致的页面可用性误判。最终镜像还在现有 MySQL 卷完成
+旧订单创建与数量更新，响应保留正确的 `productId`。本批未删除或重建数据卷。
 
 ### M2.4 数据库注释与自动门禁
 

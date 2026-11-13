@@ -17,5 +17,6 @@ csrf="$(curl -fsS -c "$jar" "$BASE_URL/api/auth/csrf")"
 response="$temp_dir/error.json"
 status="$(curl -sS -o "$response" -w '%{http_code}' -b "$jar" -c "$jar" -H "$(jq -r .headerName <<<"$csrf"): $(jq -r .token <<<"$csrf")" -H 'Content-Type: application/json' --data '{"email":"demo@example.com","password":"wrong-password","rememberMe":false}' "$BASE_URL/api/auth/login")"
 [[ "$status" == 401 && "$(jq -r .code "$response")" == AUTH_INVALID ]] || { echo 'Stable error code AUTH_INVALID is missing' >&2; exit 1; }
-curl -fsS "$BASE_URL" | grep -q '<app-root' || { echo 'Angular application unavailable' >&2; exit 1; }
+page="$(curl -fsS "$BASE_URL")"
+grep -q '<app-root' <<<"$page" || { echo 'Angular application unavailable' >&2; exit 1; }
 echo 'Chapter 09 verification passed: English/Chinese products, isolated cache, persisted UI bundle, error code AUTH_INVALID'

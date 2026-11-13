@@ -177,6 +177,26 @@ class CommerceFlowIntegrationTest {
   }
 
   @Test
+  void customerOrderProjectionKeepsProductIdentity() throws Exception {
+    CsrfContext csrf = login("demo@example.com", false);
+    MvcResult created = mvc.perform(post("/api/orders").session(csrf.session()).cookie(csrf.cookie())
+        .header("X-XSRF-TOKEN", csrf.token()).contentType("application/json")
+        .content("{\"productId\":1,\"quantity\":2,\"note\":\"projection\"}"))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.productId").value(1))
+      .andReturn();
+    long orderId = json.readTree(created.getResponse().getContentAsString()).get("id").asLong();
+
+    mvc.perform(put("/api/orders/{orderId}/quantity", orderId)
+        .session(csrf.session()).cookie(csrf.cookie())
+        .header("X-XSRF-TOKEN", csrf.token()).contentType("application/json")
+        .content("{\"quantity\":3}"))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.productId").value(1))
+      .andExpect(jsonPath("$.quantity").value(3));
+  }
+
+  @Test
   void adminCanListUsers() throws Exception {
     CsrfContext csrf = login("admin@example.com", false);
     mvc.perform(get("/api/users").session(csrf.session())).andExpect(status().isOk())

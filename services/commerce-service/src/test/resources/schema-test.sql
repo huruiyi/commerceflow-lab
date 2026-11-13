@@ -51,6 +51,17 @@ CREATE TABLE product_translations
   description VARCHAR(2000),
   PRIMARY KEY (product_id, locale)
 );
+CREATE TABLE customer_orders
+(
+  id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id    BIGINT       NOT NULL,
+  product_id BIGINT       NOT NULL,
+  created_at TIMESTAMP    NOT NULL,
+  note       VARCHAR(500) NOT NULL,
+  quantity   INT          NOT NULL DEFAULT 1,
+  FOREIGN KEY (user_id) REFERENCES app_users (id),
+  FOREIGN KEY (product_id) REFERENCES products (id)
+);
 CREATE TABLE product_reviews
 (
   id            BIGINT AUTO_INCREMENT PRIMARY KEY,

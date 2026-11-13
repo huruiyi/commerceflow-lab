@@ -4,22 +4,22 @@
 
   <select id="selectAllForUser" resultType="vip.fairy.commerceflow.commerce.cart.domain.OrderView">
     <![CDATA[
-      SELECT o.id, o.created_at, o.note, o.quantity,
-           p.name AS product_name, p.price, p.thumbnail_url
-    FROM customer_orders o
-    JOIN products p ON p.id = o.product_id
-    WHERE o.user_id = #{userId}
-    ORDER BY o.created_at DESC, o.id DESC
+      SELECT o.id, o.product_id, o.created_at, o.note, o.quantity,
+             p.name AS product_name, p.price, p.thumbnail_url
+      FROM customer_orders o
+      JOIN products p ON p.id = o.product_id
+      WHERE o.user_id = #{userId}
+      ORDER BY o.created_at DESC, o.id DESC
     ]]>
   </select>
 
   <select id="selectViewForUser" resultType="vip.fairy.commerceflow.commerce.cart.domain.OrderView">
     <![CDATA[
-      SELECT o.id, o.created_at, o.note, o.quantity,
-           p.name AS product_name, p.price, p.thumbnail_url
-    FROM customer_orders o
-    JOIN products p ON p.id = o.product_id
-    WHERE o.id = #{orderId} AND o.user_id = #{userId}
+      SELECT o.id, o.product_id, o.created_at, o.note, o.quantity,
+             p.name AS product_name, p.price, p.thumbnail_url
+      FROM customer_orders o
+      JOIN products p ON p.id = o.product_id
+      WHERE o.id = #{orderId} AND o.user_id = #{userId}
     ]]>
   </select>
 </mapper>

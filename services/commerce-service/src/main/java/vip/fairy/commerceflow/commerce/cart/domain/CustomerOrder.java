@@ -7,7 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.Instant;
 
 /**
- * 购物车条目持久化实体，记录用户对商品的待结算数量。
+ * 客户轻量订单持久化实体，记录独立于主订单流程的历史商品订单。
  */
 @TableName("customer_orders")
 public class CustomerOrder {
@@ -29,11 +29,11 @@ public class CustomerOrder {
    */
   private Instant createdAt;
   /**
-   * 用户对购物车条目的备注。
+   * 用户下单时填写的订单备注。
    */
   private String note;
   /**
-   * 待结算商品数量，默认为 1。
+   * 下单商品数量，默认为 1。
    */
   private int quantity = 1;
 
