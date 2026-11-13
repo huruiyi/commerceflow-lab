@@ -64,7 +64,7 @@
 - MySQL + Flyway、Redis/Spring Session、Kafka/Outbox、RabbitMQ 分桶延迟任务、RocketMQ 5.x 原生延时任务 Profile、ShedLock。
 - Angular/Vue 前端、三个 Spring Boot 服务和 Docker Compose。
 - `scripts/windows/` 与 `scripts/linux/` 保留同名验收脚本结构。
-- `verify-flyway-lifecycle` 使用与后端一致的 Flyway `12.4.0` 和隔离 MySQL 8.4，Windows/容器化 Bash 均已验证空库 V1–V23、V16→V23 升级、V17 历史订单 30 分钟截止时间回填和任务状态 `CHECK` 约束。脚本只删除自己的随机命名容器/网络，不使用或清空开发数据卷。
+- `verify-flyway-lifecycle` 使用与后端一致的 Flyway `12.4.0` 和隔离 MySQL 8.4，Windows/容器化 Bash 均已验证空库 V1–V24、V16→V24 升级、V17 历史订单 30 分钟截止时间回填、V24 核心注释和任务状态 `CHECK` 约束。脚本只删除自己的随机命名容器/网络，不使用或清空开发数据卷。
 
 ## 7. 通用定时任务底座（阶段 1）
 
@@ -101,7 +101,7 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - 12 个 MyBatis-Plus 持久化实体已增加类/字段业务 JavaDoc；简单 CRUD 优先使用 `BaseMapper`/Wrapper，复杂投影、联表、行锁和原子更新放入 Mapper XML。
 - 三个服务主源码中已无 MyBatis SQL 注解和 Service 内联业务 SQL；仅 ShedLock 官方 `JdbcTemplateLockProvider` 配置保留 `JdbcTemplate`。
 - Java/XML/HTML/TypeScript/POM 已使用 IntelliJ IDEA 2026.3 Formatter 统一格式；已发布 Flyway 迁移与 M1 原文件逐字节一致，未因格式化改变校验和。
-- 新空卷验收已通过：Flyway 商城/支付/物流为 V23/V3/V4，完成登录→下单→支付→履约→物流→收货→完成→评价；Windows 快速回归同时通过。
+- 新空卷验收已通过：Flyway 商城/支付/物流为 V24/V4/V5，完成登录→下单→支付→履约→物流→收货→完成→评价；Windows 快速回归同时通过。
 - 微服务拆分与 PostgreSQL 评估仅记录在 [architecture/](architecture/README.md)，尚未实施，不与业务 `TODO.md` 混用。
 - 已建立 [全开发生命周期可复测验证体系](VERIFICATION-SYSTEM.md)，将现有构建、快速/完整回归、空卷/升级恢复、MQ/崩溃专项和浸泡压测组织为 L0–L6 门禁，并固定证据、破坏性操作和基线冻结规则。
 - Angular 客户订单页已将退款申请/回执、`RECEIVED/COMPLETED` 履约状态和逐商品评价改为独立响应式面板；评价增加评分、必填内容、防重复提交和成功/失败反馈，未修改后端状态机或接口契约。
@@ -128,8 +128,8 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - `verify-payment-cancellation-crash-recovery` 用默认关闭的定点暂停钩子和 commerce-service SIGKILL 覆盖四个窗口：`CANCELLING` 中间态恢复、渠道已关但本地未完成、支付回调事务回滚/重放、迟到成功回调恢复资金事实；Windows 与容器化 Bash 均已通过。
 - 单次渠道交易进入 `EXPIRED` 后不关闭订单；`payment_due_at` 未到时可换渠道发起新支付，到期后创建新支付会被后端拒绝。
 - `verify-payment-attempt-deadline` 的 Windows 与容器化 Bash 真实链路均已通过：整单截止时间到达后，Database 任务先关闭当前待支付渠道，再取消订单，且领取/完成事件各一次。
-- 全新独立数据卷已在 Windows 与容器化 Bash 跑完完整链路：商城/支付/物流 Flyway 分别达到 V23/V3/V4，从 0 订单开始完成登录、下单、支付、履约、物流、收货、完成、重启恢复和评价。
-- V16→V23 隔离旧库升级演练已通过；在不删现有卷的前提下，Windows 和容器化 Bash 均已完成数据层、业务服务和两种 MQ 重启，RabbitMQ/RocketMQ 租约过期任务各恢复一次，终态业务历史指纹不变。
+- 全新独立数据卷已跑完完整链路：商城/支付/物流 Flyway 分别达到 V24/V4/V5，从 0 订单开始完成登录、下单、支付、履约、物流、收货、完成、重启恢复和评价。
+- V16→V24 隔离旧库升级演练已通过；在不删现有卷的前提下，Windows 和容器化 Bash 均已完成数据层、业务服务和两种 MQ 重启，RabbitMQ/RocketMQ 租约过期任务各恢复一次，终态业务历史指纹不变。
 - `verify-quick` 已作为 M1 快速回归入口在 Windows 和容器化 Bash 通过；Windows 默认构建模式也已重建当前源码镜像并通过核心业务回归。M1 冻结标签为 `m1-baseline-2026-11-13`。
 
 ## 9. 库存预占与商家库存中心

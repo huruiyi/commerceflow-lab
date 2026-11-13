@@ -101,7 +101,7 @@ bash ./scripts/linux/verify-all.sh
 ./scripts/windows/verify-flyway-lifecycle.ps1
 ```
 
-它使用随机容器/网络和 tmpfs，验证空库及 V16→V23 升级，不连接默认开发卷。
+它使用随机容器/网络和 tmpfs，验证空库及 V16→V24 升级，不连接默认开发卷。
 
 ### 6.2 全新卷全链路
 

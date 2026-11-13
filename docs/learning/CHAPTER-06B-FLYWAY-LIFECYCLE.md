@@ -14,13 +14,13 @@
 
 ```text
 临时 MySQL A（空库）
-    -> Flyway migrate V1..V23
+    -> Flyway migrate V1..V24
     -> 校验当前表与 schema history
 
 临时 MySQL B（旧库）
     -> Flyway target=16
     -> 插入旧版待支付订单
-    -> Flyway migrate V17..V23
+    -> Flyway migrate V17..V24
     -> 校验 payment_due_at = created_at + 30m
     -> 插入非法任务状态，期待 CHECK 约束拒绝
 ```
@@ -61,7 +61,7 @@ docker compose build commerce-service
 本实验已证明：
 
 - 23 个 SQL 迁移可从空库执行。
-- V16 历史数据可升级到 V23，V17 回填符合预期。
+- V16 历史数据可升级到 V24，V17 回填符合预期，V24 核心表列注释完整。
 - MySQL 与 Java 两层都会拒绝已覆盖的非法状态。
 - Windows 和容器化 Bash 实机结果一致。
 
@@ -76,4 +76,4 @@ docker compose build commerce-service
 | [Flyway Validate](https://documentation.red-gate.com/flyway/reference/commands/validate) | 版本、名称和 checksum 不一致时如何失败 |
 | [MySQL 8.4 CHECK Constraints](https://dev.mysql.com/doc/refman/8.4/en/create-table-check-constraints.html) | `CHECK` 何时被执行，以及约束表达式的能力边界 |
 
-建议先跟踪 `flyway_schema_history`，再逐条阅读 V15–V23，最后对照 `OrderCancellationService`、`PurchaseOrderService`和 `OrderReceiptLifecycleService` 理解“数据库约束 + 领域门禁”的分工。
+建议先跟踪 `flyway_schema_history`，再逐条阅读 V15–V24，最后对照 `OrderCancellationService`、`PurchaseOrderService`和 `OrderReceiptLifecycleService` 理解“数据库约束 + 领域门禁”的分工。

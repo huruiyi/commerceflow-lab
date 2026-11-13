@@ -49,7 +49,7 @@ try{
 
   Compose up -d --wait commerce-db payment-simulator-db logistics-simulator-db commerce-redis payment-simulator-redis kafka-broker payment-simulator-service logistics-simulator-service rabbitmq-broker rocketmq-nameserver rocketmq-broker commerce-service commerce-portal-angular payment-simulator-web kafka-console
   $versions="$(DbScalar "SELECT CONCAT(MAX(CAST(version AS UNSIGNED)),'|',SUM(success=0)) FROM flyway_schema_history WHERE version IS NOT NULL")|$(ServiceDbScalar payment-simulator-db payment_platform payment payment-password "SELECT CONCAT(MAX(CAST(version AS UNSIGNED)),'|',SUM(success=0)) FROM flyway_schema_history WHERE version IS NOT NULL")|$(ServiceDbScalar logistics-simulator-db logistics_platform logistics logistics-password "SELECT CONCAT(MAX(CAST(version AS UNSIGNED)),'|',SUM(success=0)) FROM flyway_schema_history WHERE version IS NOT NULL")"
-  if($versions-ne'23|0|3|0|4|0'){throw "Unexpected persisted-volume Flyway state: $versions"}
+  if($versions-ne'24|0|4|0|5|0'){throw "Unexpected persisted-volume Flyway state: $versions"}
   $before=HistoricalFingerprint
   if(-not$before){throw 'Historical fingerprint is empty'}
   $sourceTask=DbScalar "SELECT id FROM scheduled_tasks WHERE task_type='AUTO_COMPLETE' AND status='SUCCEEDED' ORDER BY id DESC LIMIT 1"
@@ -78,8 +78,8 @@ try{
   if($after-ne$before){throw "Historical data changed across restart: before=$before after=$after"}
   foreach($url in @('http://localhost:18081/actuator/health','http://localhost:18082/actuator/health','http://localhost:18083/actuator/health')){if((Invoke-RestMethod $url).status-ne'UP'){throw "Health check failed: $url"}}
   $passed=$true
-  $migrationEvidence=if($SkipMigrationRehearsal){'migration rehearsal skipped'}else{'V16->V23 rehearsal passed'}
-  Write-Host "Upgrade/restart recovery passed: $migrationEvidence, persisted Flyway storefront/payment/logistics=V23/V3/V4, full service+MQ restart, RabbitMQ task=$rabbitTask and RocketMQ task=$rocketTask recovered exactly once, history=$after." -ForegroundColor Green
+  $migrationEvidence=if($SkipMigrationRehearsal){'migration rehearsal skipped'}else{'V16->V24 rehearsal passed'}
+  Write-Host "Upgrade/restart recovery passed: $migrationEvidence, persisted Flyway storefront/payment/logistics=V24/V4/V5, full service+MQ restart, RabbitMQ task=$rabbitTask and RocketMQ task=$rocketTask recovered exactly once, history=$after." -ForegroundColor Green
 }finally{
   RestoreEnvironment
   & docker compose --project-directory $ProjectRoot up -d --wait --force-recreate commerce-service commerce-portal-angular payment-simulator-web kafka-console 2>$null|Out-Null

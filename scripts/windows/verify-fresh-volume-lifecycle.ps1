@@ -28,11 +28,17 @@ try{
   $volumes=@(docker volume ls --filter "label=com.docker.compose.project=$TemporaryProjectName" --format '{{.Name}}')
   if($volumes.Count -lt 5){throw "Fresh project created only $($volumes.Count) volumes"}
   $migrationAudit=Sql "SELECT CONCAT(COUNT(*),'|',SUM(CASE WHEN success=0 THEN 1 ELSE 0 END),'|',MAX(CAST(version AS UNSIGNED))) FROM flyway_schema_history WHERE version IS NOT NULL"
-  if($migrationAudit -ne '23|0|23'){throw "Unexpected Flyway audit: $migrationAudit"}
+  if($migrationAudit -ne '24|0|24'){throw "Unexpected Flyway audit: $migrationAudit"}
   $paymentMigrationAudit=PaymentSql "SELECT CONCAT(COUNT(*),'|',SUM(CASE WHEN success=0 THEN 1 ELSE 0 END),'|',MAX(CAST(version AS UNSIGNED))) FROM flyway_schema_history WHERE version IS NOT NULL"
-  if($paymentMigrationAudit -ne '3|0|3'){throw "Unexpected payment Flyway audit: $paymentMigrationAudit"}
+  if($paymentMigrationAudit -ne '4|0|4'){throw "Unexpected payment Flyway audit: $paymentMigrationAudit"}
   $logisticsMigrationAudit=LogisticsSql "SELECT CONCAT(COUNT(*),'|',SUM(CASE WHEN success=0 THEN 1 ELSE 0 END),'|',MAX(CAST(version AS UNSIGNED))) FROM flyway_schema_history WHERE version IS NOT NULL"
-  if($logisticsMigrationAudit -ne '4|0|4'){throw "Unexpected logistics Flyway audit: $logisticsMigrationAudit"}
+  if($logisticsMigrationAudit -ne '5|0|5'){throw "Unexpected logistics Flyway audit: $logisticsMigrationAudit"}
+  $commentAudit=Sql "SELECT CONCAT((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_comment<>''),'|',(SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='commerceflow' AND column_comment<>''))"
+  if($commentAudit -ne '7|67'){throw "Unexpected storefront comment audit: $commentAudit"}
+  $paymentCommentAudit=PaymentSql "SELECT CONCAT((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='payment_platform' AND table_comment<>''),'|',(SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='payment_platform' AND column_comment<>''))"
+  if($paymentCommentAudit -ne '5|39'){throw "Unexpected payment comment audit: $paymentCommentAudit"}
+  $logisticsCommentAudit=LogisticsSql "SELECT CONCAT((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='logistics_platform' AND table_comment<>''),'|',(SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='logistics_platform' AND column_comment<>''))"
+  if($logisticsCommentAudit -ne '4|27'){throw "Unexpected logistics comment audit: $logisticsCommentAudit"}
   $seedAudit=Sql "SELECT CONCAT((SELECT COUNT(*) FROM app_users),'|',(SELECT COUNT(*) FROM products),'|',(SELECT COUNT(*) FROM shop_orders))"
   if($seedAudit -ne '6|6|0'){throw "Fresh seed audit failed: $seedAudit"}
   & "$PSScriptRoot/verify-auto-lifecycle.ps1" -BaseUrl $BaseUrl
@@ -48,7 +54,7 @@ try{
   )
   if(@($health|Where-Object{$_ -ne 'UP'}).Count){throw "Fresh project health failed: $($health-join',')"}
   $passed=$true
-  Write-Host "Fresh-volume lifecycle passed: project=$TemporaryProjectName, Flyway storefront/payment/logistics=V23/V3/V4, empty seed order set, login -> checkout -> payment -> fulfillment -> logistics -> receipt -> completion -> review, audit=$businessAudit." -ForegroundColor Green
+  Write-Host "Fresh-volume lifecycle passed: project=$TemporaryProjectName, Flyway storefront/payment/logistics=V24/V4/V5, core comments=7/5/4 tables, empty seed order set, login -> checkout -> payment -> fulfillment -> logistics -> receipt -> completion -> review, audit=$businessAudit." -ForegroundColor Green
 }finally{
   if(-not $passed){& docker compose --project-directory $ProjectRoot --project-name $TemporaryProjectName logs --no-color --tail 200 payment-simulator-service payment-simulator-db commerce-service logistics-simulator-service}
   try{if($RemoveTemporaryVolumes){TempCompose @('down','--volumes','--remove-orphans')}else{TempCompose @('down','--remove-orphans')}}catch{Write-Warning "Temporary project cleanup failed: $_"}

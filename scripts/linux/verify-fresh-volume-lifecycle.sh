@@ -65,11 +65,17 @@ volume_count="$(docker volume ls --filter "label=com.docker.compose.project=$TEM
 (( volume_count >= 5 )) || { echo "Fresh project created only $volume_count volumes" >&2; exit 1; }
 
 migration_audit="$(store_sql "SELECT CONCAT(COUNT(*),'|',SUM(CASE WHEN success=0 THEN 1 ELSE 0 END),'|',MAX(CAST(version AS UNSIGNED))) FROM flyway_schema_history WHERE version IS NOT NULL")"
-[[ "$migration_audit" == '23|0|23' ]] || { echo "Unexpected storefront Flyway audit: $migration_audit" >&2; exit 1; }
+[[ "$migration_audit" == '24|0|24' ]] || { echo "Unexpected storefront Flyway audit: $migration_audit" >&2; exit 1; }
 payment_migration_audit="$(payment_sql "SELECT CONCAT(COUNT(*),'|',SUM(CASE WHEN success=0 THEN 1 ELSE 0 END),'|',MAX(CAST(version AS UNSIGNED))) FROM flyway_schema_history WHERE version IS NOT NULL")"
-[[ "$payment_migration_audit" == '3|0|3' ]] || { echo "Unexpected payment Flyway audit: $payment_migration_audit" >&2; exit 1; }
+[[ "$payment_migration_audit" == '4|0|4' ]] || { echo "Unexpected payment Flyway audit: $payment_migration_audit" >&2; exit 1; }
 logistics_migration_audit="$(logistics_sql "SELECT CONCAT(COUNT(*),'|',SUM(CASE WHEN success=0 THEN 1 ELSE 0 END),'|',MAX(CAST(version AS UNSIGNED))) FROM flyway_schema_history WHERE version IS NOT NULL")"
-[[ "$logistics_migration_audit" == '4|0|4' ]] || { echo "Unexpected logistics Flyway audit: $logistics_migration_audit" >&2; exit 1; }
+[[ "$logistics_migration_audit" == '5|0|5' ]] || { echo "Unexpected logistics Flyway audit: $logistics_migration_audit" >&2; exit 1; }
+comment_audit="$(store_sql "SELECT CONCAT((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_comment<>''),'|',(SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='commerceflow' AND column_comment<>''))")"
+[[ "$comment_audit" == '7|67' ]] || { echo "Unexpected storefront comment audit: $comment_audit" >&2; exit 1; }
+payment_comment_audit="$(payment_sql "SELECT CONCAT((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='payment_platform' AND table_comment<>''),'|',(SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='payment_platform' AND column_comment<>''))")"
+[[ "$payment_comment_audit" == '5|39' ]] || { echo "Unexpected payment comment audit: $payment_comment_audit" >&2; exit 1; }
+logistics_comment_audit="$(logistics_sql "SELECT CONCAT((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='logistics_platform' AND table_comment<>''),'|',(SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='logistics_platform' AND column_comment<>''))")"
+[[ "$logistics_comment_audit" == '4|27' ]] || { echo "Unexpected logistics comment audit: $logistics_comment_audit" >&2; exit 1; }
 seed_audit="$(store_sql "SELECT CONCAT((SELECT COUNT(*) FROM app_users),'|',(SELECT COUNT(*) FROM products),'|',(SELECT COUNT(*) FROM shop_orders))")"
 [[ "$seed_audit" == '6|6|0' ]] || { echo "Fresh seed audit failed: $seed_audit" >&2; exit 1; }
 
@@ -81,4 +87,4 @@ for health_url in "$BACKEND_HEALTH_URL" "$PAYMENT_HEALTH_URL" "$LOGISTICS_HEALTH
   [[ "$(curl -fsS "$health_url/actuator/health" | jq -r .status)" == UP ]] || { echo "Fresh project health failed: $health_url" >&2; exit 1; }
 done
 passed=true
-echo "Fresh-volume lifecycle passed: project=$TEMPORARY_PROJECT_NAME, Flyway storefront/payment/logistics=V23/V3/V4, empty seed order set, login -> checkout -> payment -> fulfillment -> logistics -> receipt -> completion -> review, audit=$business_audit."
+echo "Fresh-volume lifecycle passed: project=$TEMPORARY_PROJECT_NAME, Flyway storefront/payment/logistics=V24/V4/V5, core comments=7/5/4 tables, empty seed order set, login -> checkout -> payment -> fulfillment -> logistics -> receipt -> completion -> review, audit=$business_audit."
