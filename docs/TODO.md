@@ -310,6 +310,36 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
 - [ ] 通过格式检查、Vitest、TypeScript/Vite 生产构建、正式 Docker 镜像构建、`14201/healthz` 和支付 Web 相关运行态验证。
 - [ ] 更新 `IMPLEMENTED.md`、`PROJECT-STATUS.md`、`CODE-QUALITY-PLAN.md` 和格式规范，独立提交并推送；不删除或重建数据卷。
 
+### 13.3 M2 工程质量总验收与基线冻结
+
+本节必须在 13.2 全部完成并独立提交推送后执行。本阶段只做门禁收口和基线冻结，
+不继续格式类改造，不新增业务功能，不启动微服务拆分或 PostgreSQL 迁移。
+
+- [ ] 汇总三个 Java 服务、Angular 商城门户和支付模拟器 Web 的格式、Mapper 契约、模块边界和生产构建门禁。
+- [ ] 使用默认构建模式执行 Windows `verify-quick` 和 `verify-all`，不使用 `-SkipBuild` 冒充当前源码验收。
+- [ ] 执行容器化 Bash 质量门禁、脚本契约与快速/完整验证，记录与 Windows 的等价结果和平台差异。
+- [ ] 复验 Compose 配置、五个正式镜像、脚本默认非破坏性、主要健康检查和运行态服务名称。
+- [ ] 核对当前源码、迁移、脚本和实际验收证据与 `PROJECT-STATUS.md`、`IMPLEMENTED.md`、`TODO.md` 完全一致。
+- [ ] 确认工作区干净、本地 `main` 与远端 `origin/main` 一致，记录最终提交号。
+- [ ] 建立并推送 `m2-quality-baseline-YYYY-MM-DD` Git 标签；标签日期以实际验收日为准，不预先伪造。
+- [ ] 冻结后停止新增代码，先汇报 M2 完成范围、验收证据、遗留边界、提交和标签。
+
+### 13.4 M2 冻结后的架构阶段顺序
+
+以下是 M2 冻结后的架构层演进顺序，不属于当前业务待办，不得在实际验收前写入 `IMPLEMENTED.md`。
+详细边界以 [微服务演进计划](architecture/MICROSERVICE-EVOLUTION-PLAN.md) 和
+[数据库演进计划](architecture/DATABASE-EVOLUTION-PLAN.md) 为准。
+
+1. **M3.1 微服务拆分前置条件审计**：盘点模块数据所有权、跨模块 Mapper/表依赖、应用接口、事件契约、
+   Inbox、消费者契约测试和分布式追踪基线；本阶段不直接拆服务。
+2. **M3.2 首个微服务试拆**：优先评估 `notification-service`，因其副作用边界清晰且允许最终一致；
+   必须保留单体回退路径、契约测试和故障恢复证据。
+3. **后续微服务候选顺序**：`catalog-service` → `inventory-service` → `order-service` →
+   `payment-orchestration-service` → `fulfillment-service`；每次只拆一个边界并独立验收。
+4. **M4 PostgreSQL 专项**：不与微服务拆分同时进行。启动前必须明确 JSONB、部分/表达式索引、
+   Advisory Lock、`SKIP LOCKED` 或 PostgreSQL 锁模型等学习目标；迁移后重新执行支付/取消锁超时、
+   崩溃恢复、物流乱序、RabbitMQ/RocketMQ 故障及收货/完成竞态等全部可靠性门禁。
+
 ## 14. 实施记录模板
 
 ### 2026-11-14：M2.5 Angular 商城门户格式门禁
