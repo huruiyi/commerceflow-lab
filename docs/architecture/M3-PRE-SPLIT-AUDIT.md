@@ -8,7 +8,7 @@ Mapper、同步调用和事件契约仍有明显共享边界。此结论不否�
 
 本轮冻结的是审计基线，不是微服务实现：
 
-- 39 张商城表均声明当前唯一责任模块；新增表必须同步声明所有者。
+- 42 张商城表均声明当前唯一责任模块；新增表必须同步声明所有者。
 - 当前存在 41 组跨模块 Java 依赖、118 个导入引用，涉及 38 个源码文件。
 - 其中 21 个引用直接指向其他模块的 `infrastructure`，属于拆分前必须消除的硬阻塞项。
 - 新增的 `MicroserviceReadinessBaselineTest` 允许依赖减少，但禁止出现未经评审的新依赖方向、引用数量增长、
@@ -28,7 +28,7 @@ Mapper、同步调用和事件契约仍有明显共享边界。此结论不否�
 | `logistics` | `shipment_records`、`shipment_events`、`shipment_notifications` | 商城侧投影已有独立表，但仍直接读写订单并调用收货模块。 |
 | `inventory` | `inventory_reservations`、`inventory_movements` | 可售、预占、已售数量仍位于 `products`，所有权尚未真正独立。 |
 | `review` | `product_reviews` | 查询跨订单、商品和用户表，拆分时需要只读快照或组合查询边界。 |
-| `notification` | `customer_notifications`、`notification_inbox`、`notification_delivery_outbox` | V1 命令支持进程内/Kafka 适配器、独立幂等消费和持久恢复；尚未独立 Schema。 |
+| `notification` | `customer_notifications`、`notification_inbox`、`notification_delivery_outbox`、`notification_projection_windows`、`notification_projection_shadow`、`notification_projection_audits` | V1 命令支持进程内/Kafka 适配器、独立幂等消费和持久恢复；影子核对窗口已验收，但运行时尚未切换到独立 Schema。 |
 | `scheduling` | `scheduled_task_policies`、`scheduled_tasks`、`scheduled_task_events`、`scheduled_task_policy_events`、`shedlock` | 调度记录可独立，但 Handler 仍同步调用 ordering/receipt。 |
 
 `receipt` 与 `fulfillment` 当前没有自有表，分别直接修改 ordering 状态或组合 ordering、refund、logistics 数据；
@@ -68,14 +68,14 @@ Mapper、同步调用和事件契约仍有明显共享边界。此结论不否�
 
 ## 4. 应用接口与 HTTP 边界
 
-商城当前有 17 个 Controller、57 个 HTTP 操作，面向浏览器、管理端以及支付/物流模拟平台。它们是现有外部
+商城当前有 18 个 Controller、60 个 HTTP 操作，面向浏览器、管理端以及支付/物流模拟平台。它们是现有外部
 接口，不等同于稳定的内部服务契约。模块间主要注入具体 `*Service`、领域对象和 Mapper，尚未形成独立的
 inbound/outbound port。
 
 拆分前优先固化以下应用接口：
 
-1. notification：V1 写入命令、查询接口、独立 Inbox、可替换异步适配器和恢复门禁已完成；下一步定义
-   双写/投影核对窗口、停止条件和独立 Schema 迁移演练。
+1. notification：V1 写入命令、查询接口、独立 Inbox、可替换异步适配器、恢复门禁、影子投影核对窗口、
+   停止条件和独立 Schema 迁移演练已完成；下一步须经单独授权后验证实际独立运行 Schema 与切换/回滚。
 2. catalog/inventory：商品资料查询与库存预占/转正/释放分离，明确 `products` 中库存列的迁移归属。
 3. ordering：订单状态查询、条件迁移和订单快照接口，不暴露 `ShopOrderMapper` 或跨服务行锁。
 4. payment/refund：支付结果、退款请求及回调投影使用版本化命令/事件，不跨模块更新支付记录。
@@ -131,16 +131,19 @@ HTTP、RabbitMQ、RocketMQ 的全系统追踪或可查询的追踪后端。
 - [x] 拥有独立 Inbox、幂等键、消费者契约 fixture 和进程内重复回放测试。
 - [x] 进程内/Kafka 可替换适配器具备 Outbox 重试、本地 DEAD/重放、Kafka DLT、Broker 恢复和重复幂等证据。
 - [x] notification Kafka 边界具备 trace/correlation 传播和单体回退开关。
-- [ ] 双写或投影核对窗口有明确停止条件，且不共享商城 Schema。
+- [x] 影子投影核对窗口具备最小样本、零差异、零阻塞 Outbox、连续通过和显式停止条件。
+- [x] 独立 notification Schema 的 Flyway 迁移已在隔离 MySQL 中验证三张自有表、零外键和 Inbox 幂等。
+- [ ] 实际运行目标使用独立 Schema，并完成切换/回滚验收；当前投影和主通知仍在商城 MySQL 中。
 
-在这些条件完成前，下一步仍属于 M3.1 基线治理，而不是创建新服务或新数据库。
+在最后一项完成并获得单独授权前，不创建 notification-service，也不把迁移演练描述为已完成 M3.2。
 
 ## 8. 自动基线
 
 [`MicroserviceReadinessBaselineTest`](../../services/commerce-service/src/test/java/vip/fairy/commerceflow/commerce/architecture/MicroserviceReadinessBaselineTest.java)
 已接入商城 Maven 测试：
 
-- 从 Flyway 迁移读取 `CREATE TABLE`，当前 39 张表的任何新增/移除都必须同步评审所有权。
+- 从商城 Flyway 迁移读取 `CREATE TABLE`，当前 42 张表的任何新增/移除都必须同步评审所有权；独立
+  notification Schema 的迁移目录单独演练，不混入商城表所有权计数。
 - 从 Java package/import 读取跨模块依赖；现有依赖可减少，不允许未经评审增加方向、引用或基础设施耦合。
 - 当前基线为 41 组方向、118 个 import、38 个涉及文件和 21 个基础设施引用；基线不是白名单式“合格证明”，
   已记录的基础设施耦合仍是待消减债务。

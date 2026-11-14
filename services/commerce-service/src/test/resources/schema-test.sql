@@ -235,6 +235,42 @@ CREATE TABLE notification_delivery_outbox
   published_at    TIMESTAMP,
   processed_at    TIMESTAMP
 );
+CREATE TABLE notification_projection_windows
+(
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  status                VARCHAR(20) NOT NULL DEFAULT 'RUNNING',
+  start_notification_id BIGINT      NOT NULL,
+  started_at            TIMESTAMP            DEFAULT CURRENT_TIMESTAMP,
+  ready_at              TIMESTAMP,
+  stopped_at            TIMESTAMP
+);
+CREATE TABLE notification_projection_shadow
+(
+  window_id        BIGINT       NOT NULL,
+  event_id         VARCHAR(100) NOT NULL,
+  customer_id      BIGINT       NOT NULL,
+  order_id         BIGINT,
+  notification_type VARCHAR(50) NOT NULL,
+  title            VARCHAR(160) NOT NULL,
+  message          VARCHAR(500) NOT NULL,
+  correlation_id   VARCHAR(100) NOT NULL,
+  causation_id      VARCHAR(100) NOT NULL,
+  traceparent       VARCHAR(55)  NOT NULL,
+  projected_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (window_id, event_id)
+);
+CREATE TABLE notification_projection_audits
+(
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  window_id             BIGINT  NOT NULL,
+  matched_count         INT     NOT NULL,
+  missing_shadow_count  INT     NOT NULL,
+  orphan_shadow_count   INT     NOT NULL,
+  mismatch_count        INT     NOT NULL,
+  blocking_outbox_count INT     NOT NULL,
+  passed                BOOLEAN NOT NULL,
+  checked_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE payment_merchant_accounts
 (
   id          BIGINT AUTO_INCREMENT PRIMARY KEY,

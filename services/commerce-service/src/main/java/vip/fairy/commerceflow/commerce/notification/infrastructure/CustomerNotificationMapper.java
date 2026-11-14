@@ -54,4 +54,65 @@ public interface CustomerNotificationMapper {
 
 
   int replayDeadOutbox(@Param("eventId") String eventId);
+
+
+  Long runningProjectionWindowId();
+
+
+  int startProjectionWindow();
+
+
+  int markProjectionWindowReady(Long windowId);
+
+
+  int markProjectionWindowRunning(Long windowId);
+
+
+  int stopProjectionWindow(Long windowId);
+
+
+  Long projectionWindowStartNotificationId(Long windowId);
+
+
+  String projectionWindowStatus(Long windowId);
+
+
+  int insertProjection(@Param("windowId") Long windowId, @Param("eventId") String eventId,
+                       @Param("customerId") Long customerId,
+                       @Param("orderId") Long orderId, @Param("type") String type,
+                       @Param("title") String title, @Param("message") String message,
+                       @Param("correlationId") String correlationId,
+                       @Param("causationId") String causationId,
+                       @Param("traceparent") String traceparent);
+
+
+  int matchedProjectionCount(@Param("windowId") Long windowId,
+                             @Param("startNotificationId") Long startNotificationId);
+
+
+  int missingShadowProjectionCount(@Param("windowId") Long windowId,
+                                   @Param("startNotificationId") Long startNotificationId);
+
+
+  int orphanShadowProjectionCount(@Param("windowId") Long windowId);
+
+
+  int mismatchedProjectionCount(@Param("windowId") Long windowId,
+                                @Param("startNotificationId") Long startNotificationId);
+
+
+  int blockingOutboxCount(@Param("windowId") Long windowId);
+
+
+  int insertProjectionAudit(@Param("windowId") Long windowId,
+                            @Param("matched") int matched,
+                            @Param("missingShadow") int missingShadow,
+                            @Param("orphanShadow") int orphanShadow,
+                            @Param("mismatch") int mismatch,
+                            @Param("blockingOutbox") int blockingOutbox,
+                            @Param("passed") boolean passed);
+
+
+  int recentPassingProjectionChecks(@Param("windowId") Long windowId,
+                                    @Param("limit") int limit);
 }

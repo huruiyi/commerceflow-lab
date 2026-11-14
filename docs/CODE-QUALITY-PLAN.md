@@ -231,6 +231,12 @@ Broker 恢复、W3C traceparent 传播和单体 FALLBACK 门禁。notification a
 商城 29 项测试及正式镜像通过，双平台质量计数更新为 258 个主源码 Java、20 个 Mapper XML、197 个映射语句、
 3 个 POM 和全部 267 个 Java 源文件。
 
+notification 投影核对治理新增 V27 窗口、影子投影与审计，以及独立 Schema V1 隔离演练。商城表增至
+42 张，跨模块基线保持 41 组方向、118 个 import、38 个文件和 21 个基础设施引用；商城 30 项测试及
+正式镜像通过。双平台门禁当前覆盖 265 个主源码 Java、20 个 Mapper XML、212 个映射语句、3 个 POM 和
+全部 274 个 Java 源文件；38 对 Windows/Bash 脚本契约一致。实际运行 Schema 未切换，微服务与 PostgreSQL
+均未启动。
+
 ## 4. 每批完成门禁
 
 1. 修改前后 `git diff --check` 通过，格式化变更与业务语义变更可以清晰审查。

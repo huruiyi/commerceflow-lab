@@ -64,7 +64,7 @@
 - MySQL + Flyway、Redis/Spring Session、Kafka/Outbox、RabbitMQ 分桶延迟任务、RocketMQ 5.x 原生延时任务 Profile、ShedLock。
 - Angular/Vue 前端、三个 Spring Boot 服务和 Docker Compose。
 - `scripts/windows/` 与 `scripts/linux/` 保留同名验收脚本结构。
-- `verify-flyway-lifecycle` 使用与后端一致的 Flyway `12.4.0` 和隔离 MySQL 8.4，Windows/容器化 Bash 均已验证空库 V1–V24、V16→V24 升级、V17 历史订单 30 分钟截止时间回填、V24 核心注释和任务状态 `CHECK` 约束。脚本只删除自己的随机命名容器/网络，不使用或清空开发数据卷。
+- `verify-flyway-lifecycle` 使用与后端一致的 Flyway `12.4.0` 和隔离 MySQL 8.4，Windows/容器化 Bash 均已验证空库 V1–V27、V16→V27 升级、V17 历史订单 30 分钟截止时间回填、V24 核心注释和任务状态 `CHECK` 约束。脚本只删除自己的随机命名容器/网络，不使用或清空开发数据卷。
 
 ## 7. 通用定时任务底座（阶段 1）
 
@@ -101,7 +101,7 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - 12 个 MyBatis-Plus 持久化实体已增加类/字段业务 JavaDoc；简单 CRUD 优先使用 `BaseMapper`/Wrapper，复杂投影、联表、行锁和原子更新放入 Mapper XML。
 - 三个服务主源码中已无 MyBatis SQL 注解和 Service 内联业务 SQL；仅 ShedLock 官方 `JdbcTemplateLockProvider` 配置保留 `JdbcTemplate`。
 - 三个后端服务的 Java 主源码、Mapper XML 和 Maven POM 已接入 Windows/Bash 只读质量门禁；
-  当前覆盖 258 个主源码 Java、20 个 Mapper XML、197 个映射语句和 3 个 POM，并对全部 267 个
+  当前覆盖 265 个主源码 Java、20 个 Mapper XML、212 个映射语句和 3 个 POM，并对全部 274 个
   Java 主源码/测试源校验类声明后空行，同时校验格式、内联 SQL/JDBC 边界与 Mapper 契约。
 - 物流模拟器根包只保留启动类，业务实现已按 `api/application/domain/infrastructure` 分层；
   基础设施继续按客户端、配置、指标、持久化和安全分目录，Mapper 投影独立放入持久化 `row` 子目录。
@@ -119,6 +119,11 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   Kafka DLT、Broker 恢复和受控单体回退。V1 payload/Header 传播 correlation/causation/W3C traceparent，
   Inbox 保存证据；notification application 查询只接收 customerId，不再传递 `AppUser`。29 项测试及正式镜像、
   真实 Kafka 取消、毒消息 DLT、停机恢复和 FALLBACK 通过。当前基线为 39 张表、41 组方向、118 个 import。
+- V27 增加 notification 投影验证窗、窗口级影子投影和核对审计；停止要求最少 5 条匹配、零差异、零阻塞
+  Outbox 且连续 3 次通过。真实 Kafka 窗口达到 `READY` 后显式停止，三次审计全部通过。独立 notification
+  Schema V1 的三张自有表、零外键、快照和 Inbox 幂等已在 Windows/容器化 Bash 隔离 MySQL 中通过。
+  商城 30 项测试、正式镜像和双平台门禁通过；当前为 42 张商城表，依赖基线仍为 41/118/38/21。
+  默认已恢复 `IN_PROCESS` 且投影关闭；实际运行仍使用商城 Schema，未创建微服务、独立运行数据库或 PostgreSQL。
 - 已建立 [全开发生命周期可复测验证体系](VERIFICATION-SYSTEM.md)，将现有构建、快速/完整回归、空卷/升级恢复、MQ/崩溃专项和浸泡压测组织为 L0–L6 门禁，并固定证据、破坏性操作和基线冻结规则。
 - Angular 客户订单页已将退款申请/回执、`RECEIVED/COMPLETED` 履约状态和逐商品评价改为独立响应式面板；评价增加评分、必填内容、防重复提交和成功/失败反馈，未修改后端状态机或接口契约。
 - 上述界面已通过 25 项 Angular 单元测试、生产构建、Docker 实际页面与现有 `PAID/REFUNDED/RECEIVED/COMPLETED` 数据验收；浏览器控制台无错误，390 px 窄屏无横向溢出。

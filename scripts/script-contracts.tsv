@@ -5,6 +5,7 @@ verify-authorization	BaseUrl	BASE_URL=1
 verify-auto-lifecycle	BaseUrl	BASE_URL=1
 verify-auto-lifecycle-mq-failures	BaseUrl,MaxWaitSeconds	BASE_URL=1,MAX_WAIT_SECONDS=2
 verify-flyway-lifecycle	MaxWaitSeconds	MAX_WAIT=1
+verify-notification-schema-split	MaxWaitSeconds	MAX_WAIT=1
 verify-fresh-volume-lifecycle	BaseUrl,TemporaryProjectName,RemoveTemporaryVolumes,SkipBuild	@base-url,@temporary-project-name,@remove-temporary-volumes,@skip-build
 verify-i18n	BaseUrl	BASE_URL=1
 verify-kafka-payment	BaseUrl	BASE_URL=1

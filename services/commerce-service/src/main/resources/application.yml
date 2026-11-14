@@ -94,6 +94,12 @@ commerceflow:
       fallback-to-in-process: ${NOTIFICATION_FALLBACK_TO_IN_PROCESS:false}
       publish-initial-delay: ${NOTIFICATION_PUBLISH_INITIAL_DELAY:2s}
       publish-delay: ${NOTIFICATION_PUBLISH_DELAY:1s}
+    projection:
+      enabled: ${NOTIFICATION_PROJECTION_ENABLED:false}
+      minimum-matched-events: ${NOTIFICATION_PROJECTION_MINIMUM_MATCHED_EVENTS:5}
+      required-consecutive-passing-checks: ${NOTIFICATION_PROJECTION_REQUIRED_PASSES:3}
+      check-initial-delay: ${NOTIFICATION_PROJECTION_CHECK_INITIAL_DELAY:30s}
+      check-delay: ${NOTIFICATION_PROJECTION_CHECK_DELAY:30s}
   logistics-platform:
     base-url: ${LOGISTICS_PLATFORM_BASE_URL:http://localhost:18083}
     app-id: ${LOGISTICS_APP_ID:commerceflow-storefront}

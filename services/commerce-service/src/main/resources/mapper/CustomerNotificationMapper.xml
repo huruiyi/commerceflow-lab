@@ -87,4 +87,104 @@
     SET status='RETRY',next_attempt_at=CURRENT_TIMESTAMP,last_error=NULL
     WHERE event_id=#{eventId} AND status='DEAD'
   </update>
+
+  <select id="runningProjectionWindowId" resultType="java.lang.Long">
+    SELECT id FROM notification_projection_windows
+    WHERE status IN ('RUNNING','READY') ORDER BY id DESC LIMIT 1
+  </select>
+
+  <insert id="startProjectionWindow">
+    INSERT INTO notification_projection_windows(start_notification_id)
+    SELECT COALESCE(MAX(id),0) FROM customer_notifications
+    HAVING NOT EXISTS (
+      SELECT 1 FROM notification_projection_windows WHERE status IN ('RUNNING','READY')
+    )
+  </insert>
+
+  <update id="markProjectionWindowReady">
+    UPDATE notification_projection_windows SET status='READY',ready_at=CURRENT_TIMESTAMP
+    WHERE id=#{id} AND status='RUNNING'
+  </update>
+
+  <update id="markProjectionWindowRunning">
+    UPDATE notification_projection_windows SET status='RUNNING',ready_at=NULL
+    WHERE id=#{id} AND status='READY'
+  </update>
+
+  <update id="stopProjectionWindow">
+    UPDATE notification_projection_windows SET status='STOPPED',stopped_at=CURRENT_TIMESTAMP
+    WHERE id=#{id} AND status='READY'
+  </update>
+
+  <select id="projectionWindowStartNotificationId" resultType="java.lang.Long">
+    SELECT start_notification_id FROM notification_projection_windows WHERE id=#{id}
+  </select>
+
+  <select id="projectionWindowStatus" resultType="java.lang.String">
+    SELECT status FROM notification_projection_windows WHERE id=#{id}
+  </select>
+
+  <insert id="insertProjection">
+    INSERT IGNORE INTO notification_projection_shadow(
+      window_id,event_id,customer_id,order_id,notification_type,title,message,
+      correlation_id,causation_id,traceparent)
+    VALUES(#{windowId},#{eventId},#{customerId},#{orderId},#{type},#{title},#{message},
+      #{correlationId},#{causationId},#{traceparent})
+  </insert>
+
+  <select id="matchedProjectionCount" resultType="java.lang.Integer">
+    SELECT COUNT(*) FROM customer_notifications n
+    JOIN notification_projection_shadow s ON s.window_id=#{windowId} AND s.event_id=n.event_id
+    WHERE n.id&gt;#{startNotificationId}
+      AND n.customer_id=s.customer_id
+      AND COALESCE(n.order_id,-1)=COALESCE(s.order_id,-1)
+      AND n.notification_type=s.notification_type
+      AND n.title=s.title
+      AND n.message=s.message
+  </select>
+
+  <select id="missingShadowProjectionCount" resultType="java.lang.Integer">
+    SELECT COUNT(*) FROM customer_notifications n
+    LEFT JOIN notification_projection_shadow s ON s.window_id=#{windowId} AND s.event_id=n.event_id
+    WHERE n.id&gt;#{startNotificationId} AND s.event_id IS NULL
+  </select>
+
+  <select id="orphanShadowProjectionCount" resultType="java.lang.Integer">
+    SELECT COUNT(*) FROM notification_projection_shadow s
+    LEFT JOIN customer_notifications n ON n.event_id=s.event_id
+    WHERE s.window_id=#{windowId} AND n.event_id IS NULL
+  </select>
+
+  <select id="mismatchedProjectionCount" resultType="java.lang.Integer">
+    SELECT COUNT(*) FROM customer_notifications n
+    JOIN notification_projection_shadow s ON s.window_id=#{windowId} AND s.event_id=n.event_id
+    WHERE n.id&gt;#{startNotificationId} AND (
+      n.customer_id&lt;&gt;s.customer_id
+      OR COALESCE(n.order_id,-1)&lt;&gt;COALESCE(s.order_id,-1)
+      OR n.notification_type&lt;&gt;s.notification_type
+      OR n.title&lt;&gt;s.title
+      OR n.message&lt;&gt;s.message
+    )
+  </select>
+
+  <select id="blockingOutboxCount" resultType="java.lang.Integer">
+    SELECT COUNT(*) FROM notification_delivery_outbox o
+    JOIN notification_projection_windows w ON w.id=#{windowId}
+    WHERE o.created_at&gt;=w.started_at AND o.status IN ('NEW','RETRY','DEAD','FALLBACK')
+  </select>
+
+  <insert id="insertProjectionAudit">
+    INSERT INTO notification_projection_audits(
+      window_id,matched_count,missing_shadow_count,orphan_shadow_count,mismatch_count,
+      blocking_outbox_count,passed)
+    VALUES(#{windowId},#{matched},#{missingShadow},#{orphanShadow},#{mismatch},
+      #{blockingOutbox},#{passed})
+  </insert>
+
+  <select id="recentPassingProjectionChecks" resultType="java.lang.Integer">
+    SELECT COUNT(*) FROM (
+      SELECT passed FROM notification_projection_audits
+      WHERE window_id=#{windowId} ORDER BY id DESC LIMIT #{limit}
+    ) recent WHERE passed=TRUE
+  </select>
 </mapper>

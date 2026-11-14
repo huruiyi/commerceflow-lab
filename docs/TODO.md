@@ -357,10 +357,26 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
 - [x] 为版本化通知命令增加进程内/Kafka 可替换传输、事务 Outbox、有限重试、本地 DEAD/人工重放、
   Kafka DLT、Broker 恢复和单体回退门禁；notification 查询只接收 customerId，V1 命令与 Kafka Header
   传播 correlation/causation/traceparent。
-- [ ] 定义 notification 双写/投影核对窗口、停止条件和独立 Schema 迁移演练；完成前不启动
-  `notification-service`，也不迁移 PostgreSQL。
+- [x] 定义 notification 影子投影核对窗口、连续通过与阻塞 Outbox 停止条件，并完成独立 MySQL Schema
+  的 Flyway 迁移演练；未启动 `notification-service`，也未迁移 PostgreSQL。
+- [ ] 若后续获准进入 M3.2，再让实际运行目标使用独立 Schema，补齐切换/回滚演练后单独决定是否创建
+  `notification-service`；不得把本次隔离迁移演练视为已拆服务。
 
 ## 14. 实施记录模板
+
+### 2026-11-15：notification 影子投影核对与独立 Schema 演练
+
+- 迁移：商城 V27 新增投影验证窗、窗口级影子投影和核对审计三张 notification 自有表；当前 MySQL
+  非破坏性升级到 V27，窗口从 `RUNNING` 经连续三次通过进入 `READY`，随后显式停止为 `STOPPED`。
+- 核对：独立 Kafka consumer group 只在开关启用时写影子投影，以窗口起始通知水位隔离历史数据；停止条件要求
+  最少 5 条匹配、missing/orphan/mismatch 均为 0、窗口期间阻塞 Outbox 为 0，并连续通过 3 次检查。
+- 独立 Schema：新增只包含 `customer_notifications`、`notification_inbox`、
+  `notification_delivery_outbox` 的 V1 Flyway 迁移；Windows 与容器化 Bash 均在随机网络和 tmpfs MySQL 中
+  验证三表、零外键、身份/订单快照与 Inbox 幂等，未连接或删除开发数据卷。
+- 验证：真实 Kafka 窗口收到 5 条影子投影，三次审计全部通过后才允许停止；商城 30 项测试及正式镜像、
+  Windows/Bash 质量门禁和 38 对脚本契约通过。默认配置已恢复为 `IN_PROCESS` 且投影关闭。
+- 边界：独立 Schema 目前只完成可重放迁移演练，实际运行仍使用商城 MySQL；未创建 notification-service、
+  独立运行数据库或 PostgreSQL，M3.2 尚未启动。
 
 ### 2026-11-15：notification 可替换异步传输与恢复门禁
 

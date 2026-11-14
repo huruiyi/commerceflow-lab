@@ -32,6 +32,12 @@ commerceflow:
       mode: IN_PROCESS
       publish-initial-delay: 1h
       publish-delay: 1h
+    projection:
+      enabled: false
+      minimum-matched-events: 1
+      required-consecutive-passing-checks: 3
+      check-initial-delay: 1h
+      check-delay: 1h
   logistics-platform:
     reconciliation:
       enabled: false

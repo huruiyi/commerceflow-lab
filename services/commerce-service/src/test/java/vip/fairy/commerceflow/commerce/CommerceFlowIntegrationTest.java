@@ -38,8 +38,11 @@ import vip.fairy.commerceflow.commerce.notification.application.CustomerNotifica
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandRouter;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandV1;
 import vip.fairy.commerceflow.commerce.notification.infrastructure.CustomerNotificationKafkaConsumer;
+import vip.fairy.commerceflow.commerce.notification.infrastructure.projection.CustomerNotificationProjectionConsumer;
 import vip.fairy.commerceflow.commerce.notification.infrastructure.NotificationDeliveryProperties;
 import vip.fairy.commerceflow.commerce.notification.infrastructure.NotificationOutboxDispatcher;
+import vip.fairy.commerceflow.commerce.notification.application.NotificationProjectionVerificationResult;
+import vip.fairy.commerceflow.commerce.notification.application.NotificationProjectionVerificationService;
 import vip.fairy.commerceflow.commerce.ordering.application.PurchaseOrderService;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import vip.fairy.commerceflow.commerce.payment.domain.PaymentChannel;
@@ -147,6 +150,10 @@ class CommerceFlowIntegrationTest {
   NotificationOutboxDispatcher notificationOutbox;
   @Autowired
   CustomerNotificationKafkaConsumer notificationConsumer;
+  @Autowired
+  CustomerNotificationProjectionConsumer notificationProjectionConsumer;
+  @Autowired
+  NotificationProjectionVerificationService notificationProjectionVerification;
   @Autowired
   NotificationDeliveryProperties notificationDelivery;
   @Autowired
@@ -258,6 +265,62 @@ class CommerceFlowIntegrationTest {
       notificationDelivery.setFallbackToInProcess(originalFallback);
       org.mockito.Mockito.reset(kafka);
     }
+  }
+
+  @Test
+  void notificationProjectionWindowRequiresConsecutiveMatchingChecksBeforeStop() throws Exception {
+    Long windowId = notificationProjectionVerification.start();
+    CustomerNotificationCommandV1 command = CustomerNotificationCommandV1.orderCancelled(
+      "projection-window-" + UUID.randomUUID(), 4L, 2001L, "Projection verification",
+      "order-2001");
+    org.junit.jupiter.api.Assertions.assertTrue(notificationCommands.handle(command));
+    NotificationProjectionVerificationResult missing = notificationProjectionVerification.check();
+    org.junit.jupiter.api.Assertions.assertFalse(missing.passed());
+    org.junit.jupiter.api.Assertions.assertEquals(1, missing.missingShadowCount());
+    ConsumerRecord<String, String> record = projectionRecord(command, 0L);
+    notificationProjectionConsumer.consume(record);
+    notificationProjectionConsumer.consume(record);
+
+    NotificationProjectionVerificationResult first = notificationProjectionVerification.check();
+    org.junit.jupiter.api.Assertions.assertTrue(first.passed());
+    org.junit.jupiter.api.Assertions.assertFalse(first.readyToStopWindow());
+    notificationProjectionVerification.check();
+    NotificationProjectionVerificationResult third = notificationProjectionVerification.check();
+    org.junit.jupiter.api.Assertions.assertTrue(third.readyToStopWindow());
+    org.junit.jupiter.api.Assertions.assertEquals("READY", third.windowStatus());
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+      "SELECT COUNT(*) FROM notification_projection_shadow WHERE window_id=? AND event_id=?",
+      Integer.class, windowId, command.eventId()));
+
+    CustomerNotificationCommandV1 lateCommand = CustomerNotificationCommandV1.orderCancelled(
+      "projection-window-late-" + UUID.randomUUID(), 4L, 2002L, "Late verification",
+      "order-2002");
+    org.junit.jupiter.api.Assertions.assertTrue(notificationCommands.handle(lateCommand));
+    NotificationProjectionVerificationResult revoked = notificationProjectionVerification.check();
+    org.junit.jupiter.api.Assertions.assertFalse(revoked.passed());
+    org.junit.jupiter.api.Assertions.assertEquals("RUNNING", revoked.windowStatus());
+    org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+      () -> notificationProjectionVerification.stop(windowId));
+    notificationProjectionConsumer.consume(projectionRecord(lateCommand, 1L));
+    notificationProjectionVerification.check();
+    notificationProjectionVerification.check();
+    NotificationProjectionVerificationResult readyAgain = notificationProjectionVerification.check();
+    org.junit.jupiter.api.Assertions.assertEquals("READY", readyAgain.windowStatus());
+    notificationProjectionVerification.stop(windowId);
+    org.junit.jupiter.api.Assertions.assertEquals("STOPPED", jdbc.queryForObject(
+      "SELECT status FROM notification_projection_windows WHERE id=?", String.class, windowId));
+  }
+
+  private ConsumerRecord<String, String> projectionRecord(CustomerNotificationCommandV1 command,
+                                                           long offset) throws Exception {
+    ConsumerRecord<String, String> record = new ConsumerRecord<>(
+      "customer-notification-commands", 0, offset, command.eventId(), json.writeValueAsString(command));
+    record.headers().add("commerceflow-correlation-id",
+      command.correlationId().getBytes(StandardCharsets.UTF_8));
+    record.headers().add("commerceflow-causation-id",
+      command.causationId().getBytes(StandardCharsets.UTF_8));
+    record.headers().add("traceparent", command.traceparent().getBytes(StandardCharsets.UTF_8));
+    return record;
   }
 
   private String outboxStatus(String eventId) {

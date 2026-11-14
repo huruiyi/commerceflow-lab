@@ -4,10 +4,7 @@ import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandHandler;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandV1;
 
-import java.nio.charset.StandardCharsets;
-
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.common.header.Header;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
@@ -30,20 +27,7 @@ public class CustomerNotificationKafkaConsumer {
   public void consume(ConsumerRecord<String, String> record) throws Exception {
     CustomerNotificationCommandV1 command = mapper.readValue(record.value(),
       CustomerNotificationCommandV1.class);
-    requireHeader(record, CustomerNotificationKafkaTransport.CORRELATION_HEADER,
-      command.correlationId());
-    requireHeader(record, CustomerNotificationKafkaTransport.CAUSATION_HEADER,
-      command.causationId());
-    requireHeader(record, CustomerNotificationKafkaTransport.TRACEPARENT_HEADER,
-      command.traceparent());
+    CustomerNotificationKafkaHeaders.validate(record, command);
     handler.handle(command);
-  }
-
-  private void requireHeader(ConsumerRecord<String, String> record, String name, String expected) {
-    Header header = record.headers().lastHeader(name);
-    String actual = header == null ? null : new String(header.value(), StandardCharsets.UTF_8);
-    if (!expected.equals(actual)) {
-      throw new IllegalArgumentException("Customer notification command has invalid " + name);
-    }
   }
 }

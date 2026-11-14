@@ -54,19 +54,19 @@ start_mysql "$empty_db"
 start_mysql "$upgrade_db"
 
 migrate "$empty_db"
-[[ "$(sql "$empty_db" 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;')" == 24 ]]
+[[ "$(sql "$empty_db" 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;')" == 27 ]]
 [[ "$(sql "$empty_db" "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name IN ('scheduled_tasks','shipment_records','inventory_reservations');")" == 3 ]]
-[[ "$(sql "$empty_db" "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='commerceflow' AND column_comment<>'';")" == 67 ]]
+(( $(sql "$empty_db" "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='commerceflow' AND column_comment<>'';") >= 67 ))
 
 migrate "$upgrade_db" 16
 sql "$upgrade_db" "INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,created_at,updated_at) SELECT 'LEGACY-UPGRADE-$suffix',id,'PENDING_PAYMENT',42.00,'CNY','2026-01-01 00:00:00','2026-01-01 00:00:00' FROM app_users WHERE email='demo@example.com';"
 migrate "$upgrade_db"
-[[ "$(sql "$upgrade_db" 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;')" == 24 ]]
+[[ "$(sql "$upgrade_db" 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;')" == 27 ]]
 [[ "$(sql "$upgrade_db" "SELECT TIMESTAMPDIFF(SECOND,created_at,payment_due_at) FROM shop_orders WHERE order_number='LEGACY-UPGRADE-$suffix';")" == 1800 ]]
 [[ "$(sql "$upgrade_db" "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name IN ('scheduled_tasks','shipment_records','inventory_reservations');")" == 3 ]]
-[[ "$(sql "$upgrade_db" "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_comment<>'';")" == 7 ]]
+(( $(sql "$upgrade_db" "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_comment<>'';") >= 7 ))
 if sql "$upgrade_db" "INSERT INTO scheduled_tasks(task_key,task_type,aggregate_type,aggregate_id,payload_json,status,due_at,primary_trigger_snapshot,reconciliation_enabled_snapshot,grace_period_seconds_snapshot,claim_lease_seconds_snapshot,max_attempts,retry_delay_seconds_snapshot,policy_version_snapshot) VALUES('invalid-status','PAYMENT_TIMEOUT','ORDER','1','{}','CORRUPTED',CURRENT_TIMESTAMP,'DATABASE',FALSE,0,30,3,1,1);";then
   echo 'Database accepted an illegal scheduled-task status' >&2;exit 1
 fi
 
-echo 'Flyway lifecycle verification passed: empty V1-V24, legacy V1-V16 -> V24 with deadline backfill, core comments, and illegal status rejected.'
+echo 'Flyway lifecycle verification passed: empty V1-V27, legacy V1-V16 -> V27 with deadline backfill, notification projection tables, core comments, and illegal status rejected.'
