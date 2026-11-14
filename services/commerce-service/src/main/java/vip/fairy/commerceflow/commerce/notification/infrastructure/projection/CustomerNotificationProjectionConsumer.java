@@ -3,7 +3,7 @@ package vip.fairy.commerceflow.commerce.notification.infrastructure.projection;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandV1;
 import vip.fairy.commerceflow.commerce.notification.infrastructure.CustomerNotificationKafkaHeaders;
-import vip.fairy.commerceflow.commerce.notification.infrastructure.CustomerNotificationMapper;
+import vip.fairy.commerceflow.commerce.notification.infrastructure.persistence.commerce.NotificationMapper;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -14,10 +14,10 @@ public class CustomerNotificationProjectionConsumer {
 
   static final String CONSUMER_GROUP = "commerceflow-customer-notification-shadow-v1";
 
-  private final CustomerNotificationMapper notifications;
+  private final NotificationMapper notifications;
   private final ObjectMapper mapper;
 
-  public CustomerNotificationProjectionConsumer(CustomerNotificationMapper notifications,
+  public CustomerNotificationProjectionConsumer(NotificationMapper notifications,
                                                 ObjectMapper mapper) {
     this.notifications = notifications;
     this.mapper = mapper;

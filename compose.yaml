@@ -17,6 +17,24 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  notification-db:
+    image: mysql:8.4
+    profiles: [notification-storage]
+    environment:
+      MYSQL_DATABASE: notification
+      MYSQL_USER: ${NOTIFICATION_DATABASE_USERNAME:-notification}
+      MYSQL_PASSWORD: ${NOTIFICATION_DATABASE_PASSWORD:-notification-password}
+      MYSQL_ROOT_PASSWORD: ${NOTIFICATION_MYSQL_ROOT_PASSWORD:-local-notification-root-password}
+    volumes:
+      - notification-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
   commerce-redis:
     image: redis:7.4-alpine
     command: ["redis-server", "--appendonly", "yes"]
@@ -410,6 +428,16 @@ services:
       NOTIFICATION_PROJECTION_REQUIRED_PASSES: ${NOTIFICATION_PROJECTION_REQUIRED_PASSES:-3}
       NOTIFICATION_PROJECTION_CHECK_INITIAL_DELAY: ${NOTIFICATION_PROJECTION_CHECK_INITIAL_DELAY:-30s}
       NOTIFICATION_PROJECTION_CHECK_DELAY: ${NOTIFICATION_PROJECTION_CHECK_DELAY:-30s}
+      NOTIFICATION_STORAGE_ENABLED: ${NOTIFICATION_STORAGE_ENABLED:-false}
+      NOTIFICATION_STORAGE_CONSUMER_ENABLED: ${NOTIFICATION_STORAGE_CONSUMER_ENABLED:-false}
+      NOTIFICATION_STORAGE_MODE: ${NOTIFICATION_STORAGE_MODE:-COMMERCE}
+      NOTIFICATION_DATABASE_URL: jdbc:mysql://notification-db:3306/notification?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      NOTIFICATION_DATABASE_USERNAME: ${NOTIFICATION_DATABASE_USERNAME:-notification}
+      NOTIFICATION_DATABASE_PASSWORD: ${NOTIFICATION_DATABASE_PASSWORD:-notification-password}
+      NOTIFICATION_STORAGE_BACKFILL_BATCH_SIZE: ${NOTIFICATION_STORAGE_BACKFILL_BATCH_SIZE:-100}
+      NOTIFICATION_STORAGE_VERIFICATION_BATCH_SIZE: ${NOTIFICATION_STORAGE_VERIFICATION_BATCH_SIZE:-200}
+      NOTIFICATION_STORAGE_MINIMUM_MATCHED_EVENTS: ${NOTIFICATION_STORAGE_MINIMUM_MATCHED_EVENTS:-5}
+      NOTIFICATION_STORAGE_REQUIRED_PASSES: ${NOTIFICATION_STORAGE_REQUIRED_PASSES:-3}
       SCHEDULING_POOL_SIZE: ${SCHEDULING_POOL_SIZE:-4}
       RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq-broker}
       RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
@@ -491,6 +519,7 @@ services:
 
 volumes:
   commerce-db-data:
+  notification-db-data:
   commerce-redis-data:
   payment-simulator-db-data:
   payment-simulator-redis-data:

@@ -100,6 +100,18 @@ commerceflow:
       required-consecutive-passing-checks: ${NOTIFICATION_PROJECTION_REQUIRED_PASSES:3}
       check-initial-delay: ${NOTIFICATION_PROJECTION_CHECK_INITIAL_DELAY:30s}
       check-delay: ${NOTIFICATION_PROJECTION_CHECK_DELAY:30s}
+    storage:
+      enabled: ${NOTIFICATION_STORAGE_ENABLED:false}
+      consumer-enabled: ${NOTIFICATION_STORAGE_CONSUMER_ENABLED:false}
+      mode: ${NOTIFICATION_STORAGE_MODE:COMMERCE}
+      url: ${NOTIFICATION_DATABASE_URL:jdbc:mysql://localhost:3307/notification?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+      username: ${NOTIFICATION_DATABASE_USERNAME:notification}
+      password: ${NOTIFICATION_DATABASE_PASSWORD:notification-password}
+      driver-class-name: ${NOTIFICATION_DATABASE_DRIVER:com.mysql.cj.jdbc.Driver}
+      backfill-batch-size: ${NOTIFICATION_STORAGE_BACKFILL_BATCH_SIZE:100}
+      verification-batch-size: ${NOTIFICATION_STORAGE_VERIFICATION_BATCH_SIZE:200}
+      minimum-matched-events: ${NOTIFICATION_STORAGE_MINIMUM_MATCHED_EVENTS:5}
+      required-consecutive-passing-checks: ${NOTIFICATION_STORAGE_REQUIRED_PASSES:3}
   logistics-platform:
     base-url: ${LOGISTICS_PLATFORM_BASE_URL:http://localhost:18083}
     app-id: ${LOGISTICS_APP_ID:commerceflow-storefront}

@@ -107,7 +107,11 @@ bash ./scripts/linux/verify-all.sh
 它使用随机容器/网络和 tmpfs，验证空库 V1→V27 及 V16→V27 升级，不连接默认开发卷。
 
 notification 独立 Schema 使用配对脚本 `verify-notification-schema-split`，在随机网络和 tmpfs MySQL 中验证
-V1 三张自有表、零外键、快照字段和 Inbox 幂等；该演练不表示运行时已切换 Schema 或已创建微服务。
+V1→V3 的三张业务表、回填/核对/隔离表、零外键、快照字段和 Inbox 幂等。
+
+`verify-notification-runtime-cutover` 在保留现有卷的前提下执行历史回填、孤儿隔离、Kafka 实时镜像、连续
+三次核对、独立读切换、已读状态镜像、notification-db 停机和 COMMERCE 回滚，最后恢复默认
+`IN_PROCESS + COMMERCE`。它证明 Schema 可独立运行，但不创建 notification-service。
 
 ### 6.2 全新卷全链路
 

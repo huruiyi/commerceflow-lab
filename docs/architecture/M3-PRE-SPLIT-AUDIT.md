@@ -2,9 +2,8 @@
 
 ## 1. 结论
 
-当前模块化单体**尚不满足 M3.2 试拆条件**。代码已经按业务能力分包并具备基础层次门禁，但数据、
-Mapper、同步调用和事件契约仍有明显共享边界。此结论不否定现有单体实现；它只表示不能把某个包直接复制为
-独立服务并继续共享商城数据库。
+M3.1 最终门禁已经完成，`notification-service` **具备进入 M3.2 影子试拆的前置条件，但 M3.2 尚未启动**。
+其他模块仍存在数据、Mapper 和同步调用共享边界，不能把任意业务包直接复制为独立服务并继续共享商城数据库。
 
 本轮冻结的是审计基线，不是微服务实现：
 
@@ -28,7 +27,7 @@ Mapper、同步调用和事件契约仍有明显共享边界。此结论不否�
 | `logistics` | `shipment_records`、`shipment_events`、`shipment_notifications` | 商城侧投影已有独立表，但仍直接读写订单并调用收货模块。 |
 | `inventory` | `inventory_reservations`、`inventory_movements` | 可售、预占、已售数量仍位于 `products`，所有权尚未真正独立。 |
 | `review` | `product_reviews` | 查询跨订单、商品和用户表，拆分时需要只读快照或组合查询边界。 |
-| `notification` | `customer_notifications`、`notification_inbox`、`notification_delivery_outbox`、`notification_projection_windows`、`notification_projection_shadow`、`notification_projection_audits` | V1 命令支持进程内/Kafka 适配器、独立幂等消费和持久恢复；影子核对窗口已验收，但运行时尚未切换到独立 Schema。 |
+| `notification` | 商城暂存：`customer_notifications`、`notification_inbox`、`notification_delivery_outbox`、三张投影验证表；独立 Schema：通知、Inbox、Outbox、回填状态、核对审计、孤儿隔离 | 独立 Schema 已实际完成回填、实时镜像、读切换和回滚；商城表作为 M3.2 回退窗口暂不删除。 |
 | `scheduling` | `scheduled_task_policies`、`scheduled_tasks`、`scheduled_task_events`、`scheduled_task_policy_events`、`shedlock` | 调度记录可独立，但 Handler 仍同步调用 ordering/receipt。 |
 
 `receipt` 与 `fulfillment` 当前没有自有表，分别直接修改 ordering 状态或组合 ordering、refund、logistics 数据；
@@ -68,14 +67,14 @@ Mapper、同步调用和事件契约仍有明显共享边界。此结论不否�
 
 ## 4. 应用接口与 HTTP 边界
 
-商城当前有 18 个 Controller、60 个 HTTP 操作，面向浏览器、管理端以及支付/物流模拟平台。它们是现有外部
+商城当前有 19 个 Controller、63 个 HTTP 操作，面向浏览器、管理端以及支付/物流模拟平台。它们是现有外部
 接口，不等同于稳定的内部服务契约。模块间主要注入具体 `*Service`、领域对象和 Mapper，尚未形成独立的
 inbound/outbound port。
 
 拆分前优先固化以下应用接口：
 
-1. notification：V1 写入命令、查询接口、独立 Inbox、可替换异步适配器、恢复门禁、影子投影核对窗口、
-   停止条件和独立 Schema 迁移演练已完成；下一步须经单独授权后验证实际独立运行 Schema 与切换/回滚。
+1. notification：V1 契约、独立 Inbox、异步恢复、投影窗口、独立运行 Schema 和可逆切换均已完成；
+   下一步仅在单独授权后启动 notification-service 影子进程，并继续保留单体回退。
 2. catalog/inventory：商品资料查询与库存预占/转正/释放分离，明确 `products` 中库存列的迁移归属。
 3. ordering：订单状态查询、条件迁移和订单快照接口，不暴露 `ShopOrderMapper` 或跨服务行锁。
 4. payment/refund：支付结果、退款请求及回调投影使用版本化命令/事件，不跨模块更新支付记录。
@@ -133,9 +132,9 @@ HTTP、RabbitMQ、RocketMQ 的全系统追踪或可查询的追踪后端。
 - [x] notification Kafka 边界具备 trace/correlation 传播和单体回退开关。
 - [x] 影子投影核对窗口具备最小样本、零差异、零阻塞 Outbox、连续通过和显式停止条件。
 - [x] 独立 notification Schema 的 Flyway 迁移已在隔离 MySQL 中验证三张自有表、零外键和 Inbox 幂等。
-- [ ] 实际运行目标使用独立 Schema，并完成切换/回滚验收；当前投影和主通知仍在商城 MySQL 中。
+- [x] 实际运行目标使用独立 Schema，并完成历史回填、实时镜像、读切换、数据库停机和商城回滚验收。
 
-在最后一项完成并获得单独授权前，不创建 notification-service，也不把迁移演练描述为已完成 M3.2。
+以上条件已满足，因此 M3.1 完成；这只代表可以评审 M3.2，不代表 notification-service 已创建或流量已迁出。
 
 ## 8. 自动基线
 

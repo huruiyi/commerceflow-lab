@@ -43,6 +43,15 @@ import vip.fairy.commerceflow.commerce.notification.infrastructure.NotificationD
 import vip.fairy.commerceflow.commerce.notification.infrastructure.NotificationOutboxDispatcher;
 import vip.fairy.commerceflow.commerce.notification.application.NotificationProjectionVerificationResult;
 import vip.fairy.commerceflow.commerce.notification.application.NotificationProjectionVerificationService;
+import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationService;
+import vip.fairy.commerceflow.commerce.notification.application.NotificationStorageBackfillResult;
+import vip.fairy.commerceflow.commerce.notification.application.NotificationStorageBackfillService;
+import vip.fairy.commerceflow.commerce.notification.application.NotificationStorageVerificationResult;
+import vip.fairy.commerceflow.commerce.notification.application.NotificationStorageVerificationService;
+import vip.fairy.commerceflow.commerce.notification.infrastructure.persistence.commerce.NotificationMapper;
+import vip.fairy.commerceflow.commerce.notification.infrastructure.persistence.independent.StoreMapper;
+import vip.fairy.commerceflow.commerce.notification.infrastructure.storage.IndependentNotificationCommandHandler;
+import vip.fairy.commerceflow.commerce.notification.infrastructure.storage.NotificationStorageProperties;
 import vip.fairy.commerceflow.commerce.ordering.application.PurchaseOrderService;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import vip.fairy.commerceflow.commerce.payment.domain.PaymentChannel;
@@ -154,6 +163,20 @@ class CommerceFlowIntegrationTest {
   CustomerNotificationProjectionConsumer notificationProjectionConsumer;
   @Autowired
   NotificationProjectionVerificationService notificationProjectionVerification;
+  @Autowired
+  NotificationStorageBackfillService notificationStorageBackfill;
+  @Autowired
+  NotificationStorageVerificationService notificationStorageVerification;
+  @Autowired
+  IndependentNotificationCommandHandler independentNotificationCommands;
+  @Autowired
+  StoreMapper independentNotifications;
+  @Autowired
+  NotificationMapper commerceNotifications;
+  @Autowired
+  CustomerNotificationService customerNotifications;
+  @Autowired
+  NotificationStorageProperties notificationStorage;
   @Autowired
   NotificationDeliveryProperties notificationDelivery;
   @Autowired
@@ -309,6 +332,61 @@ class CommerceFlowIntegrationTest {
     notificationProjectionVerification.stop(windowId);
     org.junit.jupiter.api.Assertions.assertEquals("STOPPED", jdbc.queryForObject(
       "SELECT status FROM notification_projection_windows WHERE id=?", String.class, windowId));
+  }
+
+  @Test
+  void independentNotificationSchemaSupportsCutoverAndRollback() {
+    NotificationStorageBackfillResult backfill;
+    do {
+      backfill = notificationStorageBackfill.copyNextBatch();
+    } while (!backfill.completed());
+
+    CustomerNotificationCommandV1 orphan = CustomerNotificationCommandV1.orderCancelled(
+      "independent-orphan-" + UUID.randomUUID(), 4L, 3000L, "Orphan storage",
+      "order-3000");
+    org.junit.jupiter.api.Assertions.assertTrue(independentNotificationCommands.handle(orphan));
+    NotificationStorageVerificationResult blocked = notificationStorageVerification.check();
+    org.junit.jupiter.api.Assertions.assertFalse(blocked.passed());
+    org.junit.jupiter.api.Assertions.assertEquals(1, blocked.orphanCount());
+    org.junit.jupiter.api.Assertions.assertEquals(1,
+      notificationStorageVerification.quarantineOrphans().quarantinedCount());
+
+    CustomerNotificationCommandV1 command = CustomerNotificationCommandV1.orderCancelled(
+      "independent-storage-" + UUID.randomUUID(), 4L, 3001L, "Independent storage",
+      "order-3001");
+    org.junit.jupiter.api.Assertions.assertTrue(notificationCommands.handle(command));
+    org.junit.jupiter.api.Assertions.assertTrue(independentNotificationCommands.handle(command));
+
+    notificationStorageVerification.check();
+    notificationStorageVerification.check();
+    NotificationStorageVerificationResult ready = notificationStorageVerification.check();
+    org.junit.jupiter.api.Assertions.assertTrue(ready.readyToCutOver());
+    org.junit.jupiter.api.Assertions.assertEquals(0, ready.missingCount());
+    org.junit.jupiter.api.Assertions.assertEquals(0, ready.orphanCount());
+    org.junit.jupiter.api.Assertions.assertEquals(0, ready.mismatchCount());
+
+    NotificationStorageProperties.Mode originalMode = notificationStorage.getMode();
+    try {
+      notificationStorage.setMode(NotificationStorageProperties.Mode.INDEPENDENT);
+      var independent = independentNotifications.findStorageRecordByEventId(command.eventId());
+      org.junit.jupiter.api.Assertions.assertNotNull(independent);
+      org.junit.jupiter.api.Assertions.assertTrue(customerNotifications.list(4L).stream()
+        .anyMatch(item -> item.getId().equals(independent.getId())));
+      customerNotifications.markRead(4L, independent.getId());
+      org.junit.jupiter.api.Assertions.assertEquals("READ",
+        independentNotifications.findStorageRecordByEventId(command.eventId()).getStatus());
+      org.junit.jupiter.api.Assertions.assertEquals("READ",
+        commerceNotifications.findStorageRecordByEventId(command.eventId()).getStatus());
+
+      notificationStorage.setMode(NotificationStorageProperties.Mode.SHADOW);
+      org.junit.jupiter.api.Assertions.assertTrue(customerNotifications.list(4L).stream()
+        .anyMatch(item -> item.getId().equals(
+          commerceNotifications.findStorageRecordByEventId(command.eventId()).getId())));
+      NotificationStorageVerificationResult rolledBack = notificationStorageVerification.check();
+      org.junit.jupiter.api.Assertions.assertTrue(rolledBack.passed());
+    } finally {
+      notificationStorage.setMode(originalMode);
+    }
   }
 
   private ConsumerRecord<String, String> projectionRecord(CustomerNotificationCommandV1 command,

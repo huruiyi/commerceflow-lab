@@ -1,7 +1,7 @@
 package vip.fairy.commerceflow.commerce.notification.infrastructure.projection;
 
 import vip.fairy.commerceflow.commerce.notification.application.NotificationProjectionVerificationService;
-import vip.fairy.commerceflow.commerce.notification.infrastructure.CustomerNotificationMapper;
+import vip.fairy.commerceflow.commerce.notification.infrastructure.persistence.commerce.NotificationMapper;
 
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -9,11 +9,11 @@ import org.springframework.stereotype.Component;
 @Component
 public class NotificationProjectionVerifierJob {
 
-  private final CustomerNotificationMapper notifications;
+  private final NotificationMapper notifications;
   private final NotificationProjectionProperties properties;
   private final NotificationProjectionVerificationService verification;
 
-  public NotificationProjectionVerifierJob(CustomerNotificationMapper notifications,
+  public NotificationProjectionVerifierJob(NotificationMapper notifications,
                                            NotificationProjectionProperties properties,
                                            NotificationProjectionVerificationService verification) {
     this.notifications = notifications;

@@ -359,10 +359,27 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
   传播 correlation/causation/traceparent。
 - [x] 定义 notification 影子投影核对窗口、连续通过与阻塞 Outbox 停止条件，并完成独立 MySQL Schema
   的 Flyway 迁移演练；未启动 `notification-service`，也未迁移 PostgreSQL。
-- [ ] 若后续获准进入 M3.2，再让实际运行目标使用独立 Schema，补齐切换/回滚演练后单独决定是否创建
-  `notification-service`；不得把本次隔离迁移演练视为已拆服务。
+- [x] 在现有 commerce-service 进程内让 notification 实际运行于独立 MySQL Schema，完成历史回填、
+  Kafka 实时镜像、连续核对、独立读切换、数据库停机与商城 Schema 回滚；M3.2 尚未创建独立进程。
 
 ## 14. 实施记录模板
+
+### 2026-11-15：M3.1 最终门禁——notification 独立运行 Schema 与可逆切换
+
+- 存储边界：新增可选 `notification-storage` Profile 的独立 `notification-db`，commerce-service 使用专用连接池、Flyway、MyBatis Session 和
+  本地事务管理器；商城命令 Outbox 继续留在原业务事务侧，独立库只负责 Inbox、通知读模型和切换证据，
+  不建立外键、跨 Schema JOIN 或伪跨库事务。
+- 迁移与回填：notification Schema 升至 V3，增加可续跑水位、核对审计和孤儿隔离证据；159 条初始历史
+  以两批追平，后续 Windows/Bash 实时演练结束时商城/独立库均为 167 条。
+- Kafka 历史重放：新 consumer group 发现 `broker-recovery-*` 与 `poison-dlt-*` 两条权威库不存在的旧命令；
+  门禁先以 orphan=2 拒绝切换，管理员将完整记录归档到 quarantine 后移出活动读模型，Inbox 继续阻止重放。
+- 切换与回滚：SHADOW 模式连续 3 次达到零 missing/orphan/mismatch 后切到 INDEPENDENT；独立通知 ID
+  与商城 ID 不同，已读状态按 eventId 双向镜像。停掉 notification-db 后独立查询明确失败，切回 COMMERCE
+  且关闭独立存储后服务恢复健康，已读状态保留。
+- 验证：商城 31 项测试及正式镜像通过；Windows 与容器化 Bash 的 Schema V1→V3 和运行时切换脚本均
+  实测通过；质量门禁为 280/21/235/3 与全部 289 个 Java 源文件，39 对脚本契约一致。
+- 边界：默认恢复 `IN_PROCESS + COMMERCE`，独立库保留且健康；未创建 notification-service，未迁移
+  PostgreSQL。M3.1 已完成，M3.2 仅具备后续单独启动条件。
 
 ### 2026-11-15：notification 影子投影核对与独立 Schema 演练
 

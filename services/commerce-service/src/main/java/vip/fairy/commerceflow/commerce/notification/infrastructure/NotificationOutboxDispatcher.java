@@ -4,6 +4,7 @@ import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandHandler;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandV1;
 import vip.fairy.commerceflow.commerce.notification.domain.NotificationOutboxEntry;
+import vip.fairy.commerceflow.commerce.notification.infrastructure.persistence.commerce.NotificationMapper;
 
 import java.time.Instant;
 
@@ -13,13 +14,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class NotificationOutboxDispatcher {
 
-  private final CustomerNotificationMapper notifications;
+  private final NotificationMapper notifications;
   private final CustomerNotificationKafkaTransport kafka;
   private final CustomerNotificationCommandHandler handler;
   private final NotificationDeliveryProperties properties;
   private final ObjectMapper mapper;
 
-  public NotificationOutboxDispatcher(CustomerNotificationMapper notifications,
+  public NotificationOutboxDispatcher(NotificationMapper notifications,
                                       CustomerNotificationKafkaTransport kafka,
                                       CustomerNotificationCommandHandler handler,
                                       NotificationDeliveryProperties properties,

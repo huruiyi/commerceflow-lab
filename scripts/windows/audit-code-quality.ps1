@@ -31,7 +31,7 @@ $pomFiles = @(
 
 $javaFiles = @($javaRoots | ForEach-Object { Get-ChildItem $_ -Recurse -File -Filter '*.java' })
 $allJavaFiles = @($javaSourceRoots | ForEach-Object { Get-ChildItem $_ -Recurse -File -Filter '*.java' })
-$mapperFiles = @($mapperRoots | ForEach-Object { Get-ChildItem $_ -File -Filter '*.xml' })
+$mapperFiles = @($mapperRoots | ForEach-Object { Get-ChildItem $_ -Recurse -File -Filter '*.xml' })
 $formatFiles = @($javaFiles) + @($mapperFiles) + @($pomFiles | ForEach-Object { Get-Item $_ })
 $classDeclarationPattern = '^\s*(?:(?:public|protected|private|static|final|abstract|sealed|non-sealed)\s+)*' +
   'class\s+[A-Za-z_$][A-Za-z0-9_$]*[^{]*\{\s*$'
@@ -83,7 +83,8 @@ foreach ($file in $javaFiles) {
   if ($source -match '@(?:Select|Insert|Update|Delete)(?:Provider)?\s*\(') {
     Fail "$relativePath contains inline MyBatis SQL"
   }
-  if ($file.Name -ne 'SchedulerConfiguration.java' -and
+  if ($file.Name -notin @('SchedulerConfiguration.java',
+                          'NotificationIndependentPersistenceConfiguration.java') -and
       $source -match 'import\s+org\.springframework\.jdbc\.') {
     Fail "$relativePath introduces direct Spring JDBC access"
   }

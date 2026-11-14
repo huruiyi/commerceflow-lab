@@ -38,10 +38,11 @@ fi
 docker run --rm --network "$network" "${volume_args[@]}" "$flyway_image" \
   "-url=jdbc:mysql://$database:3306/notification_service?allowPublicKeyRetrieval=true&useSSL=false" \
   -user=root "-password=$password" -connectRetries=60 "-locations=$location" migrate
-[[ "$(sql 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;')" == 1 ]]
+[[ "$(sql 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;')" == 3 ]]
 [[ "$(sql "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='notification_service' AND table_name IN ('customer_notifications','notification_inbox','notification_delivery_outbox');")" == 3 ]]
 [[ "$(sql "SELECT COUNT(*) FROM information_schema.referential_constraints WHERE constraint_schema='notification_service';")" == 0 ]]
+[[ "$(sql "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='notification_service' AND table_name IN ('notification_storage_state','notification_storage_audits','notification_storage_quarantine');")" == 3 ]]
 sql "INSERT INTO customer_notifications(event_id,customer_id,order_id,notification_type,title,message) VALUES('schema-drill',9001,8001,'ORDER_CANCELLED','Order cancelled','Independent schema');"
 sql "INSERT IGNORE INTO notification_inbox(consumer_name,event_id,event_type,schema_version,correlation_id,causation_id,traceparent) VALUES('schema-drill','schema-drill','CUSTOMER_NOTIFICATION_REQUESTED',1,'order-8001','cause-8001','00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'),('schema-drill','schema-drill','CUSTOMER_NOTIFICATION_REQUESTED',1,'order-8001','cause-8001','00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01');"
 [[ "$(sql "SELECT CONCAT((SELECT COUNT(*) FROM customer_notifications),(SELECT COUNT(*) FROM notification_inbox));")" == 11 ]]
-echo 'Notification Schema split drill passed: Flyway V1, three owned tables, no foreign keys, arbitrary identity/order snapshots, and Inbox idempotency.'
+echo 'Notification Schema split drill passed: Flyway V1-V3, owned/runtime tables, no foreign keys, snapshots, Inbox idempotency and cutover evidence.'

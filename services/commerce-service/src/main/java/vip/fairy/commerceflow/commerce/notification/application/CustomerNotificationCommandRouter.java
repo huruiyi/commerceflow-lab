@@ -2,8 +2,8 @@ package vip.fairy.commerceflow.commerce.notification.application;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
-import vip.fairy.commerceflow.commerce.notification.infrastructure.CustomerNotificationMapper;
 import vip.fairy.commerceflow.commerce.notification.infrastructure.NotificationDeliveryProperties;
+import vip.fairy.commerceflow.commerce.notification.infrastructure.persistence.commerce.NotificationMapper;
 
 import org.springframework.stereotype.Service;
 
@@ -11,12 +11,12 @@ import org.springframework.stereotype.Service;
 public class CustomerNotificationCommandRouter implements CustomerNotificationCommandPublisher {
 
   private final CustomerNotificationCommandHandler handler;
-  private final CustomerNotificationMapper notifications;
+  private final NotificationMapper notifications;
   private final NotificationDeliveryProperties properties;
   private final ObjectMapper mapper;
 
   public CustomerNotificationCommandRouter(CustomerNotificationCommandHandler handler,
-                                           CustomerNotificationMapper notifications,
+                                           NotificationMapper notifications,
                                            NotificationDeliveryProperties properties,
                                            ObjectMapper mapper) {
     this.handler = handler;

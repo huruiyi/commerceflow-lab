@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.1 notification 影子投影核对、停止条件与独立 Schema 迁移演练已完成 |
-| 下一候选阶段 | 经单独授权后验证独立运行 Schema、切换与回滚；尚不创建 notification-service |
+| 当前阶段 | M3.1 最终门禁完成：notification 独立运行 Schema 与可逆切换已验收 |
+| 下一候选阶段 | 经单独授权后进入 M3.2，启动 notification-service 影子进程；当前尚未启动 |
 | 范围边界 | 不新增业务功能，不启动微服务或 PostgreSQL 迁移 |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -30,7 +30,7 @@
 | 收货、自动收货和自动完成 | M1 可靠性门禁已通过 | 重放、重启/租约恢复、RabbitMQ/RocketMQ 停机恢复和双平台 120 秒/12 并发竞态压测均通过 |
 | 库存与商家库存中心 | 已实现 | 可售/预占/已售、转正/释放/退款回补、调整流水 |
 | Angular/Vue 界面 | Angular 主流程和订单页视觉收尾已实现 | 订单详情与支付信息已扁平化，商品图有失败回退；通知菜单使用中性列表和细滚动条，支持外部点击、`Esc`、关闭按钮和选择通知后关闭；语言切换使用图标；导航与 1480 px 正文容器对齐，桌面与 390 px 窄屏已验收 |
-| Flyway 数据库生命周期 | 空卷和迁移层已验收 | M2 空卷到 V24/V4/V5；当前商城库已非破坏性升级到 V27，notification 独立 Schema V1 已隔离演练 |
+| Flyway 数据库生命周期 | 空卷和迁移层已验收 | 当前商城库 V27；notification 独立 Schema V1→V3 已隔离及实际运行验收 |
 | 告警与监控 | 本地端到端管道已实现 | 三服务 Prometheus 抓取、10 条规则、Alertmanager、Grafana 数据源和可替换 Webhook；真实通知供应商与高可用部署不在本地学习验收内 |
 
 ## 3. M1 冻结结论
@@ -180,3 +180,16 @@ notification 恢复任务。notification application 已不再接收 `AppUser`�
 隔离升级演练均通过。当前商城所有权基线为 42 张表；依赖基线仍为 41 组方向、118 个 import、38 个文件和
 21 个基础设施引用，HTTP 基线为 18 个 Controller、60 个操作。独立 Schema 尚未成为实际运行目标，
 notification-service、独立运行数据库和 PostgreSQL 均未启动，M3.2 仍需单独授权。
+
+第六批完成 M3.1 最终门禁：Compose 增加可选 `notification-storage` Profile 的独立 `notification-db`；commerce-service 通过专用连接池、Flyway、
+MyBatis Session 与事务管理器访问 notification Schema，商城命令 Outbox 仍由原业务事务持有。V2/V3 增加
+历史回填水位、核对审计和孤儿隔离证据，不使用跨 Schema 外键、JOIN 或事务。
+
+真实历史回填从 159 条开始追平。新 consumer group 重放时发现 2 条故障专项旧命令，核对以 orphan=2
+阻止切换；完整归档后活动读模型恢复一致。Windows 与容器化 Bash 随后分别完成实时 Kafka 通知、连续三次
+零差异、INDEPENDENT 读切换、按 eventId 镜像已读状态、notification-db 停机和 COMMERCE 回滚。
+最终商城/独立通知均为 167 条，默认恢复 `IN_PROCESS + COMMERCE`，两个数据库均健康。
+
+当前质量基线为 280 个主源码 Java、21 个 Mapper XML、235 条映射、3 个 POM 和全部 289 个 Java 源文件；
+脚本契约为 39 对，HTTP 基线为 19 个 Controller、63 个操作。商城所有权及跨模块依赖基线仍为
+42 张表和 41/118/38/21。M3.1 已完成并具备 M3.2 启动条件，但 notification-service 与 PostgreSQL 均未启动。

@@ -1,13 +1,14 @@
-package vip.fairy.commerceflow.commerce.notification.infrastructure;
+package vip.fairy.commerceflow.commerce.notification.infrastructure.persistence.commerce;
 
 import java.util.List;
 import java.time.Instant;
 
 import vip.fairy.commerceflow.commerce.notification.domain.CustomerNotification;
 import vip.fairy.commerceflow.commerce.notification.domain.NotificationOutboxEntry;
+import vip.fairy.commerceflow.commerce.notification.infrastructure.persistence.row.NotificationStorageRecord;
 import org.apache.ibatis.annotations.Param;
 
-public interface CustomerNotificationMapper {
+public interface NotificationMapper {
 
   List<CustomerNotification> list(Long customerId);
 
@@ -115,4 +116,18 @@ public interface CustomerNotificationMapper {
 
   int recentPassingProjectionChecks(@Param("windowId") Long windowId,
                                     @Param("limit") int limit);
+
+
+  String eventIdById(@Param("customerId") Long customerId, @Param("id") Long id);
+
+
+  int markReadByEventId(@Param("customerId") Long customerId,
+                        @Param("eventId") String eventId);
+
+
+  List<NotificationStorageRecord> storageRecordsAfter(@Param("afterId") long afterId,
+                                                      @Param("limit") int limit);
+
+
+  NotificationStorageRecord findStorageRecordByEventId(String eventId);
 }

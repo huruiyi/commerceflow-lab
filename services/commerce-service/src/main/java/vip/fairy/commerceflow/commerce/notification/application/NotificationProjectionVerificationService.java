@@ -1,7 +1,7 @@
 package vip.fairy.commerceflow.commerce.notification.application;
 
-import vip.fairy.commerceflow.commerce.notification.infrastructure.CustomerNotificationMapper;
 import vip.fairy.commerceflow.commerce.notification.infrastructure.projection.NotificationProjectionProperties;
+import vip.fairy.commerceflow.commerce.notification.infrastructure.persistence.commerce.NotificationMapper;
 
 import java.time.Instant;
 
@@ -11,10 +11,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class NotificationProjectionVerificationService {
 
-  private final CustomerNotificationMapper notifications;
+  private final NotificationMapper notifications;
   private final NotificationProjectionProperties properties;
 
-  public NotificationProjectionVerificationService(CustomerNotificationMapper notifications,
+  public NotificationProjectionVerificationService(NotificationMapper notifications,
                                                    NotificationProjectionProperties properties) {
     this.notifications = notifications;
     this.properties = properties;

@@ -40,7 +40,7 @@ pom_files=(
 
 mapfile -d '' -t java_files < <(find "${java_roots[@]}" -type f -name '*.java' -print0)
 mapfile -d '' -t all_java_files < <(find "${java_source_roots[@]}" -type f -name '*.java' -print0)
-mapfile -d '' -t mapper_files < <(find "${mapper_roots[@]}" -maxdepth 1 -type f -name '*.xml' -print0)
+mapfile -d '' -t mapper_files < <(find "${mapper_roots[@]}" -type f -name '*.xml' -print0)
 format_files=("${java_files[@]}" "${mapper_files[@]}" "${pom_files[@]}")
 
 for file in "${format_files[@]}"; do
@@ -86,7 +86,8 @@ for file in "${java_files[@]}"; do
   if grep -Eq '@(Select|Insert|Update|Delete)(Provider)?[[:space:]]*\(' "$file"; then
     fail "$relative contains inline MyBatis SQL"
   fi
-  if [[ "$(basename "$file")" != SchedulerConfiguration.java ]] &&
+  if [[ "$(basename "$file")" != SchedulerConfiguration.java &&
+        "$(basename "$file")" != NotificationIndependentPersistenceConfiguration.java ]] &&
       grep -Eq 'import[[:space:]]+org\.springframework\.jdbc\.' "$file"; then
     fail "$relative introduces direct Spring JDBC access"
   fi

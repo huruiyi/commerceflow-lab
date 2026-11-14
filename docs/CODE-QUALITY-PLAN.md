@@ -237,6 +237,12 @@ notification 投影核对治理新增 V27 窗口、影子投影与审计，以�
 全部 274 个 Java 源文件；38 对 Windows/Bash 脚本契约一致。实际运行 Schema 未切换，微服务与 PostgreSQL
 均未启动。
 
+M3.1 最终门禁新增 notification 独立 DataSource/Flyway/MyBatis/事务配置、回填/核对应用服务、Kafka
+独立消费者、运行时管理 API 和 Windows/Bash 可逆切换脚本。Mapper 质量门禁改为递归覆盖分层子目录，
+仅允许独立持久化配置类创建事务管理器，不放宽业务代码的 Spring JDBC/内联 SQL 禁令。当前双平台计数为
+280 个主源码 Java、21 个 Mapper XML、235 条映射、3 个 POM 和全部 289 个 Java 源文件；商城 31 项测试、
+正式镜像与 39 对脚本契约通过。M3.2 和 PostgreSQL 尚未启动。
+
 ## 4. 每批完成门禁
 
 1. 修改前后 `git diff --check` 通过，格式化变更与业务语义变更可以清晰审查。
