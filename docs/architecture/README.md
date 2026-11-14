@@ -5,6 +5,7 @@
 | 文档 | 范围 |
 | --- | --- |
 | [MICROSERVICE-EVOLUTION-PLAN.md](MICROSERVICE-EVOLUTION-PLAN.md) | 模块化单体向微服务的候选边界、前置条件和门禁 |
+| [M3-PRE-SPLIT-AUDIT.md](M3-PRE-SPLIT-AUDIT.md) | M3.1 数据所有权、跨模块依赖、契约、Inbox 与追踪基线审计 |
 | [DATABASE-EVOLUTION-PLAN.md](DATABASE-EVOLUTION-PLAN.md) | MySQL 现状、PostgreSQL 迁移评估和数据库演进门禁 |
 
 业务功能、UI 和当前交付顺序仍以 `docs/TODO.md` 为准。

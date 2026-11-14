@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.1 微服务拆分前置审计；首批代码结构基线治理已完成 |
-| 下一候选阶段 | 继续数据所有权、跨模块依赖、接口/事件契约、Inbox、契约测试和追踪基线审计 |
+| 当前阶段 | M3.1 前置审计已完成；进入拆分前债务消减，不具备 M3.2 启动条件 |
+| 下一候选阶段 | 收口 notification 写入所有权、版本化事件、独立 Inbox 和消费者契约 fixture |
 | 范围边界 | 不新增业务功能，不启动微服务或 PostgreSQL 迁移 |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -137,4 +137,14 @@ Mapper 投影独立放入 `infrastructure/persistence/row`。三个服务全部 
 248 个主源码 Java、20 个 Mapper XML、189 个映射语句和 3 个 POM 的双平台质量审计通过；物流服务
 正式镜像完成 Maven 打包，签名建单、重放/伪造签名负例、异常恢复、完整轨迹回调以及
 `DEAD -> 管理员重放 -> PUBLISHED` Outbox 治理专项通过。现有数据卷保留，微服务拆分和 PostgreSQL
-迁移均未启动；下一批继续只读盘点数据所有权、跨模块依赖和分布式契约缺口。
+迁移均未启动；该批没有提前实施架构拆分。
+
+第二批完成了完整审计并形成 [M3.1 微服务拆分前置条件审计](architecture/M3-PRE-SPLIT-AUDIT.md)：
+商城当前 37 张表均已声明责任模块；40 组跨模块方向包含 117 个 import 引用，分布在 39 个源码文件，
+其中 21 个引用直接指向其他模块的 `infrastructure`。新增 2 项 Maven 架构基线测试，允许依赖债务减少，
+但禁止新表无所有者、出现新依赖方向或增加跨模块基础设施引用。
+
+Kafka 已有 5 个 topic、事务 Outbox 和由唯一键保护的 Inbox 等价去重，RabbitMQ/RocketMQ 也具备重复、
+迟到、毒消息和重投证据；但事件信封没有 schema version、发生时间、因果/关联 ID 或 trace context，
+消费者契约 fixture、每服务独立 Inbox 和真正的分布式追踪仍缺失。因此 M3.2 尚不可启动；下一批先治理
+notification 表由 InventoryMapper 直接写入的所有权倒置，不创建新服务或数据库。
