@@ -299,16 +299,16 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
 - [x] 为三个 Java 服务接入与 IntelliJ IDEA 规则兼容的只检查格式与 Mapper 契约门禁，并纳入快速/完整验证矩阵。
 - [x] 分模块治理 Angular 商城门户的历史 HTML/TypeScript/CSS 格式，并在正式镜像构建前执行 Prettier 只读检查。
 
-### 13.2 下一批：支付模拟器 Web 格式与自动门禁
+### 13.2 已完成：支付模拟器 Web 格式与自动门禁
 
 本批只治理 `simulators/payment-platform/web/`，不重做 UI、不改支付业务语义，不与 Angular 已完成批次混合。
 
-- [ ] 先做只读基线：统计 Vue/TypeScript/CSS/JSON 文件、压缩行、制表符和过长行，确认当前测试、构建与镜像入口。
-- [ ] 固定项目本地 Prettier 版本与配置，提供 `format:check` 只读入口和显式 `format:write` 写入入口。
-- [ ] 仅对本模块执行一次机械格式化，审查依赖锁文件及核心支付/收银台差异，不夹带业务重构。
-- [ ] 将 `format:check` 接入支付 Web 正式 Dockerfile，保证默认 Compose 构建可阻止未格式化代码。
-- [ ] 通过格式检查、Vitest、TypeScript/Vite 生产构建、正式 Docker 镜像构建、`14201/healthz` 和支付 Web 相关运行态验证。
-- [ ] 更新 `IMPLEMENTED.md`、`PROJECT-STATUS.md`、`CODE-QUALITY-PLAN.md` 和格式规范，独立提交并推送；不删除或重建数据卷。
+- [x] 先做只读基线：统计 Vue/TypeScript/CSS/JSON 文件、压缩行、制表符和过长行，确认当前测试、构建与镜像入口。
+- [x] 固定项目本地 Prettier 版本与配置，提供 `format:check` 只读入口和显式 `format:write` 写入入口。
+- [x] 仅对本模块执行一次机械格式化，审查依赖锁文件及核心支付/收银台差异，不夹带业务重构。
+- [x] 将 `format:check` 接入支付 Web 正式 Dockerfile，保证默认 Compose 构建可阻止未格式化代码。
+- [x] 通过格式检查、Vitest、TypeScript/Vite 生产构建、正式 Docker 镜像构建、`14201/healthz` 和支付 Web 相关运行态验证。
+- [x] 更新 `IMPLEMENTED.md`、`PROJECT-STATUS.md`、`CODE-QUALITY-PLAN.md` 和格式规范，独立提交并推送；不删除或重建数据卷。
 
 ### 13.3 M2 工程质量总验收与基线冻结
 

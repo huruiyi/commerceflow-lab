@@ -60,7 +60,7 @@
 `verify-quick` 与 `verify-all` 会先执行该门禁。默认构建模式随后运行 Maven 测试和商城 ArchUnit
 模块边界测试；显式跳过构建只复用已有镜像，不冒充重新执行了这些测试。
 
-Angular 商城门户使用模块本地 Prettier 3.10.1，项目根配置同时供 IntelliJ IDEA 读取：
+Angular 商城门户和支付模拟器 Web 都使用模块本地 Prettier 3.10.1，各模块配置同时供 IntelliJ IDEA 读取：
 
 ```powershell
 cd web/commerce-portal/angular
@@ -68,6 +68,12 @@ npm run format:check
 npm run format:write
 ```
 
-`format:check` 只读检查 TypeScript、HTML、CSS/SCSS 和项目配置；`format:write` 仅在人工明确执行时改写。
-Angular Dockerfile 会在生产构建前执行只读检查，因此 `verify-quick`/`verify-all` 默认构建模式可覆盖该门禁；
-显式跳过构建时不会重新执行。支付模拟器 Web 尚未接入，不能据此宣称全仓前端格式已统一。
+```powershell
+cd simulators/payment-platform/web
+npm run format:check
+npm run format:write
+```
+
+`format:check` 只读检查 Vue、TypeScript、HTML、CSS/SCSS 和项目配置；`format:write` 仅在人工明确执行时改写。
+两个正式前端 Dockerfile 都会在生产构建前执行只读检查，因此 `verify-quick`/`verify-all` 默认构建模式
+可覆盖前端门禁；显式跳过构建时不会重新执行。

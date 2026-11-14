@@ -1,19 +1,21 @@
-html, body, #app {
+html,
+body,
+#app {
   min-height: 100%;
-  max-width: 100%
+  max-width: 100%;
 }
 
 body {
   min-width: 0;
-  overflow-x: hidden
+  overflow-x: hidden;
 }
 
 .app-shell {
-  grid-template-columns:245px minmax(0, 1fr)
+  grid-template-columns: 245px minmax(0, 1fr);
 }
 
 .main {
-  min-width: 0
+  min-width: 0;
 }
 
 .language-toggle {
@@ -24,24 +26,24 @@ body {
   color: #344252;
   font-size: 11px;
   font-weight: 700;
-  white-space: nowrap
+  white-space: nowrap;
 }
 
 .language-toggle:hover {
   border-color: var(--green);
-  color: #087858
+  color: #087858;
 }
 
 .language-toggle.dark {
   border-color: #ffffff45;
   background: #ffffff12;
-  color: #fff
+  color: #fff;
 }
 
 .public-language {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 10px
+  margin-bottom: 10px;
 }
 
 .cashier-page {
@@ -52,7 +54,7 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  overflow-x: hidden
+  overflow-x: hidden;
 }
 
 .cashier-brand {
@@ -63,50 +65,50 @@ body {
   display: flex;
   align-items: center;
   gap: 9px;
-  z-index: 1
+  z-index: 1;
 }
 
 .cashier-brand > span:nth-of-type(2) {
   font: 9px DM Mono;
   color: #52dec8;
-  margin-left: 6px
+  margin-left: 6px;
 }
 
 .cashier-brand .language-toggle {
-  margin-left: auto
+  margin-left: auto;
 }
 
 .cashier-card {
   width: min(680px, 100%);
   padding: 20px 24px;
-  border-radius: 16px
+  border-radius: 16px;
 }
 
 .cashier-heading h1 {
   margin: 5px 0 2px;
-  font-size: 30px
+  font-size: 30px;
 }
 
 .amount {
   margin: 14px -24px 18px;
-  padding: 12px
+  padding: 12px;
 }
 
 .amount b {
   font-size: 38px;
-  line-height: 1.1
+  line-height: 1.1;
 }
 
 .cashier-content {
   display: grid;
-  grid-template-columns:190px minmax(0, 1fr);
+  grid-template-columns: 190px minmax(0, 1fr);
   gap: 22px;
   align-items: center;
-  text-align: left
+  text-align: left;
 }
 
 .cashier-content.without-qr {
-  grid-template-columns:1fr
+  grid-template-columns: 1fr;
 }
 
 .qr-panel {
@@ -114,30 +116,30 @@ body {
   place-items: center;
   padding: 8px;
   border-radius: 12px;
-  background: #f7fafb
+  background: #f7fafb;
 }
 
 .qr {
   width: 174px;
   height: 174px;
-  margin: 0
+  margin: 0;
 }
 
 .cashier-details dl {
-  grid-template-columns:90px minmax(0, 1fr);
+  grid-template-columns: 90px minmax(0, 1fr);
   gap: 8px 10px;
   margin: 0 0 14px;
-  font-size: 11px
+  font-size: 11px;
 }
 
 .cashier-actions {
-  grid-template-columns:repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 7px;
-  margin-top: 12px
+  margin-top: 12px;
 }
 
 .cashier-actions button {
-  padding: 8px 10px
+  padding: 8px 10px;
 }
 
 .cashier-disclaimer {
@@ -146,105 +148,107 @@ body {
   border-top: 1px solid #edf0f2;
   color: var(--muted);
   font-size: 10px;
-  text-align: center
+  text-align: center;
 }
 
 .cashier-loading {
   min-height: 150px;
   display: grid;
-  place-items: center
+  place-items: center;
 }
 
 @media (max-width: 760px) {
   .cashier-page {
     justify-content: flex-start;
-    padding: 74px 14px 18px
+    padding: 74px 14px 18px;
   }
 
   .cashier-brand {
     top: 14px;
     left: 14px;
-    right: 14px
+    right: 14px;
   }
 
   .cashier-brand strong {
-    font-size: 13px
+    font-size: 13px;
   }
 
   .cashier-brand > span:nth-of-type(2) {
-    display: none
+    display: none;
   }
 
   .cashier-card {
-    padding: 18px
+    padding: 18px;
   }
 
   .cashier-heading h1 {
-    font-size: 24px
+    font-size: 24px;
   }
 
   .amount {
-    margin: 12px -18px 15px
+    margin: 12px -18px 15px;
   }
 
   .cashier-content {
-    grid-template-columns:1fr;
-    gap: 14px
+    grid-template-columns: 1fr;
+    gap: 14px;
   }
 
   .qr {
     width: 160px;
-    height: 160px
+    height: 160px;
   }
 }
 
 @media (max-width: 900px) {
   .app-shell {
-    display: block
+    display: block;
   }
 
   .sidebar {
     position: static;
     width: 100%;
     height: auto;
-    padding: 16px
+    padding: 16px;
   }
 
   .sidebar nav {
     display: flex;
     overflow-x: auto;
-    margin-top: 18px
+    margin-top: 18px;
   }
 
   .security-card {
-    display: none
+    display: none;
   }
 
   .main {
-    width: 100%
+    width: 100%;
   }
 
   .topbar {
-    padding: 0 18px
+    padding: 0 18px;
   }
 
   .topbar .muted {
-    display: none
+    display: none;
   }
 
   .page {
-    padding: 22px 18px 50px
+    padding: 22px 18px 50px;
   }
 
-  .metric-grid, .content-grid, .merchant-grid {
-    grid-template-columns:1fr
+  .metric-grid,
+  .content-grid,
+  .merchant-grid {
+    grid-template-columns: 1fr;
   }
 
   .span-2 {
-    grid-column: auto
+    grid-column: auto;
   }
 
   .transaction-layout {
-    grid-template-columns:1fr
+    grid-template-columns: 1fr;
   }
 }

@@ -1,6 +1,6 @@
-import {computed, ref, watch} from 'vue'
+import { computed, ref, watch } from 'vue';
 
-export type Locale = 'zh-CN' | 'en'
+export type Locale = 'zh-CN' | 'en';
 
 const messages: Record<Locale, Record<string, string>> = {
   'zh-CN': {
@@ -119,7 +119,8 @@ const messages: Record<Locale, Record<string, string>> = {
     subject: '商品主题',
     faultScenario: '故障场景',
     sendSigned: '签名并发送',
-    signatureHint: '签名串：METHOD + PATH + TIMESTAMP + NONCE + REQUEST_ID + BODY_SHA256。密钥不会保存到 localStorage。',
+    signatureHint:
+      '签名串：METHOD + PATH + TIMESTAMP + NONCE + REQUEST_ID + BODY_SHA256。密钥不会保存到 localStorage。',
     liveLedger: '实时账本',
     channelLedger: '渠道交易账本',
     refresh: '刷新',
@@ -295,10 +296,12 @@ const messages: Record<Locale, Record<string, string>> = {
     localSimulation: 'LOCAL SIMULATION',
     noRealFunds: 'No real funds are transferred',
     logout: 'Sign out',
-    mfaNotice: 'This account must enable MFA. Enroll TOTP in Security Center before rotating keys, disabling merchants, or changing permissions.',
+    mfaNotice:
+      'This account must enable MFA. Enroll TOTP in Security Center before rotating keys, disabling merchants, or changing permissions.',
     refundLedger: 'REFUND DOMAIN',
     refundTitle: 'Channel Refund Ledger',
-    refundDescription: 'Review original-payment refunds created by signed storefront requests and their independent funds status.',
+    refundDescription:
+      'Review original-payment refunds created by signed storefront requests and their independent funds status.',
     noRefunds: 'No refunds yet.',
     refundNumber: 'Refund',
     originalTransaction: 'Original transaction',
@@ -310,7 +313,8 @@ const messages: Record<Locale, Record<string, string>> = {
     chapter: '05A-2 · Independent Payment Platform',
     loginLead: 'Understand every payment,',
     loginAccent: 'from credentials to channel transactions.',
-    loginDescription: 'An independent database, Redis sessions, three channel adapters, and a least-privilege console. Every operation stays in the local learning environment.',
+    loginDescription:
+      'An independent database, Redis sessions, three channel adapters, and a least-privilege console. Every operation stays in the local learning environment.',
     simulatedChannels: 'simulated channels',
     credentialEncryption: 'credential encryption',
     leastPrivilege: 'least privilege',
@@ -342,7 +346,8 @@ const messages: Record<Locale, Record<string, string>> = {
     recentFlow: 'RECENT FLOW',
     recentTransactions: 'Recent channel transactions',
     viewAll: 'View all →',
-    noVisibleTransactions: 'No visible transactions yet. An administrator can create a merchant, then run the three-channel lab under Channel Transactions.',
+    noVisibleTransactions:
+      'No visible transactions yet. An administrator can create a merchant, then run the three-channel lab under Channel Transactions.',
     transactionNo: 'Transaction',
     channel: 'Channel',
     amount: 'Amount',
@@ -379,7 +384,8 @@ const messages: Record<Locale, Record<string, string>> = {
     notifyUrl: 'Async notification URL (server allowlist)',
     requestSigningAlgorithm: 'Request signing algorithm',
     merchantRsaPublicKey: 'Merchant RSA public key (X.509 PEM)',
-    credentialNotice: 'The key is displayed only at creation; callback URLs are configured by the merchant console and cannot be overridden per transaction.',
+    credentialNotice:
+      'The key is displayed only at creation; callback URLs are configured by the merchant console and cannot be overridden per transaction.',
     issueCredential: 'Issue merchant credential',
     stepUpFirst: 'Complete step-up authentication in Security Center, then perform this action immediately.',
     createFailed: 'Creation failed',
@@ -387,7 +393,8 @@ const messages: Record<Locale, Record<string, string>> = {
     operationFailed: 'Operation failed',
     signedApiLab: 'SIGNED API LAB',
     transactionTitle: 'Merchant Request Signature Lab',
-    transactionDescription: 'Web Crypto signs HMAC/RSA requests in the browser; the server verifies time windows, digests, and replay records.',
+    transactionDescription:
+      'Web Crypto signs HMAC/RSA requests in the browser; the server verifies time windows, digests, and replay records.',
     signedRequests: 'SIGNED REQUESTS',
     merchantSdkSimulator: 'MERCHANT SDK SIMULATOR',
     createSignedTransaction: 'Create signed transaction',
@@ -397,7 +404,8 @@ const messages: Record<Locale, Record<string, string>> = {
     subject: 'Order subject',
     faultScenario: 'Fault scenario',
     sendSigned: 'Sign and send',
-    signatureHint: 'Signature input: METHOD + PATH + TIMESTAMP + NONCE + REQUEST_ID + BODY_SHA256. Keys are never stored in localStorage.',
+    signatureHint:
+      'Signature input: METHOD + PATH + TIMESTAMP + NONCE + REQUEST_ID + BODY_SHA256. Keys are never stored in localStorage.',
     liveLedger: 'LIVE LEDGER',
     channelLedger: 'Channel transaction ledger',
     refresh: 'Refresh',
@@ -559,40 +567,43 @@ const messages: Record<Locale, Record<string, string>> = {
     'enum.CHANNEL_TRANSACTION': 'Channel transaction',
     'enum.ADMIN_USER': 'Admin account',
   },
-}
+};
 
-const stored = localStorage.getItem('commerceflow-pay-locale')
-export const locale = ref<Locale>(stored === 'en' ? 'en' : 'zh-CN')
-export const languageLabel = computed(() => messages[locale.value].language)
+const stored = localStorage.getItem('commerceflow-pay-locale');
+export const locale = ref<Locale>(stored === 'en' ? 'en' : 'zh-CN');
+export const languageLabel = computed(() => messages[locale.value].language);
 
 export function t(key: string, params: Record<string, string | number> = {}): string {
-  const template = messages[locale.value][key] ?? messages['zh-CN'][key] ?? key
-  return Object.entries(params).reduce((value, [name, replacement]) => value.replaceAll(`{${name}}`, String(replacement)), template)
+  const template = messages[locale.value][key] ?? messages['zh-CN'][key] ?? key;
+  return Object.entries(params).reduce(
+    (value, [name, replacement]) => value.replaceAll(`{${name}}`, String(replacement)),
+    template,
+  );
 }
 
 export function enumLabel(value?: string): string {
-  if (!value) return ''
-  const key = `enum.${value}`
-  const translated = t(key)
-  return translated === key ? value : translated
+  if (!value) return '';
+  const key = `enum.${value}`;
+  const translated = t(key);
+  return translated === key ? value : translated;
 }
 
 export function switchLanguage(): void {
-  locale.value = locale.value === 'zh-CN' ? 'en' : 'zh-CN'
-  localStorage.setItem('commerceflow-pay-locale', locale.value)
-  document.documentElement.lang = locale.value
+  locale.value = locale.value === 'zh-CN' ? 'en' : 'zh-CN';
+  localStorage.setItem('commerceflow-pay-locale', locale.value);
+  document.documentElement.lang = locale.value;
 }
 
 export function formatDate(value: string): string {
-  return new Intl.DateTimeFormat(locale.value, {dateStyle: 'medium', timeStyle: 'medium'}).format(new Date(value))
+  return new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(value));
 }
 
 export function formatTime(value: string): string {
-  return new Intl.DateTimeFormat(locale.value, {timeStyle: 'medium'}).format(new Date(value))
+  return new Intl.DateTimeFormat(locale.value, { timeStyle: 'medium' }).format(new Date(value));
 }
 
-document.documentElement.lang = locale.value
-document.title = t('appTitle')
+document.documentElement.lang = locale.value;
+document.title = t('appTitle');
 watch(locale, () => {
-  document.title = t('appTitle')
-})
+  document.title = t('appTitle');
+});

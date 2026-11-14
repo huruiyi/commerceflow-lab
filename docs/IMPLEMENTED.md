@@ -103,9 +103,10 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - 三个后端服务的 Java 主源码、Mapper XML 和 Maven POM 已接入 Windows/Bash 只读质量门禁；
   当前覆盖 244 个 Java 文件、20 个 Mapper XML、189 个映射语句和 3 个 POM，并校验格式、
   内联 SQL/JDBC 边界与 Mapper 契约。
-- Angular 商城门户已纳入项目本地 Prettier 3.10.1 只读门禁，正式 Dockerfile 在生产构建前强制检查；
-  127 个源码/配置文件、29 项单元测试、本地/Docker 生产构建和运行态 i18n/权限专项已验证；
-  完成提交为 `c26d90e`，已推送到 `origin/main`。支付模拟器 Web 尚未纳入，不能宣称全仓前端格式已统一。
+- Angular 商城门户和支付模拟器 Web 均已纳入模块本地 Prettier 3.10.1 只读门禁，两个正式 Dockerfile
+  都会在生产构建前强制检查。Angular 的 127 个源码/配置文件、29 项单元测试、本地/Docker 生产构建和
+  运行态 i18n/权限专项已验证；支付 Web 的 24 个基线文件完成机械格式化，格式检查、无用例 Vitest、
+  TypeScript/Vite 生产构建、正式镜像和 `14201/healthz`/Vue 入口运行态已验证。
 - 新空卷验收已通过：Flyway 商城/支付/物流为 V24/V4/V5，完成登录→下单→支付→履约→物流→收货→完成→评价；Windows 快速回归同时通过。
 - 微服务拆分与 PostgreSQL 评估仅记录在 [architecture/](architecture/README.md)，尚未实施，不与业务 `TODO.md` 混用。
 - 已建立 [全开发生命周期可复测验证体系](VERIFICATION-SYSTEM.md)，将现有构建、快速/完整回归、空卷/升级恢复、MQ/崩溃专项和浸泡压测组织为 L0–L6 门禁，并固定证据、破坏性操作和基线冻结规则。

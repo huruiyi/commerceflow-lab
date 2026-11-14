@@ -177,17 +177,23 @@ Angular 批次纳入 127 个源码/配置文件（包含新增的两个 Prettier
 `format:check`、29 项 ChromeHeadless 单元测试、本地生产构建和正式 Docker 镜像构建。重建且仅重建
 Angular 容器后，`/healthz`、中英文与三角色权限专项通过，未删除或重建数据卷。
 `verify-quick`/`verify-all` 默认构建会通过 Angular Dockerfile 执行该门禁；显式跳过构建时不会重新检查。
-支付模拟器 Web 仍待单独治理，当前不能宣称全仓前端格式已统一。
+支付模拟器 Web 由下一独立批次治理。
 
-#### M2.5.2 支付模拟器 Web（下一批）
+#### M2.5.2 支付模拟器 Web（已完成）
 
-- [ ] 以 `simulators/payment-platform/web/` 当前源码、`package-lock.json`、Dockerfile 和现有测试为基线。
-- [ ] 接入模块本地 Prettier 及只读/写入分离的 npm 命令，不顺带重做 UI 或支付流程。
-- [ ] 格式化后通过 Vitest、TypeScript/Vite 生产构建和核心差异审查。
-- [ ] 将只读门禁接入正式 Dockerfile，验证镜像、`14201/healthz` 和支付 Web 运行态。
-- [ ] 同步状态文档、独立提交并推送，不删除或重建数据卷。
+- [x] 以 `simulators/payment-platform/web/` 当前源码、`package-lock.json`、Dockerfile 和现有测试为基线。
+- [x] 接入模块本地 Prettier 及只读/写入分离的 npm 命令，不顺带重做 UI 或支付流程。
+- [x] 格式化后通过 Vitest、TypeScript/Vite 生产构建和核心差异审查。
+- [x] 将只读门禁接入正式 Dockerfile，验证镜像、`14201/healthz` 和支付 Web 运行态。
+- [x] 同步状态文档、独立提交并推送，不删除或重建数据卷。
 
-可执行清单以 [TODO.md 第 13.2 节](TODO.md#132-下一批支付模拟器-web-格式与自动门禁) 为准。
+本批基线包含 24 个 Vue/TypeScript/CSS/JSON/HTML 文件，无制表符或超过 200 字符的压缩行，
+共有 20 条超过 120 字符的行。固定 Prettier 3.10.1 后只对本模块执行机械格式化；依赖锁仅增加
+Prettier 包，支付签名、收银台和管理视图没有业务重构。`format:check`、Vitest（当前无测试文件，
+按既有 `--passWithNoTests` 契约通过）、TypeScript/Vite 生产构建和正式 Docker 镜像构建均通过；
+镜像构建已强制格式检查，`14201/healthz`、Vue 入口和正式服务名运行态验证通过。未删除或重建数据卷。
+
+M2.5 前端格式门禁完成；总验收清单见 [TODO.md 第 13.3 节](TODO.md#133-m2-工程质量总验收与基线冻结)。
 
 ## 4. 每批完成门禁
 

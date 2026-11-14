@@ -1,30 +1,33 @@
 <script setup lang="ts">
-import {computed} from 'vue'
-import {useRoute, useRouter} from 'vue-router'
-import {authState} from './main'
-import {api, initializeCsrf} from './api'
-import {languageLabel, switchLanguage, t} from './i18n'
+import { computed } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { authState } from './main';
+import { api, initializeCsrf } from './api';
+import { languageLabel, switchLanguage, t } from './i18n';
 
-const route = useRoute()
-const router = useRouter()
-const publicPage = computed(() => Boolean(route.meta.public))
-const can = (authority: string) => authState.session?.authorities.includes(authority)
+const route = useRoute();
+const router = useRouter();
+const publicPage = computed(() => Boolean(route.meta.public));
+const can = (authority: string) => authState.session?.authorities.includes(authority);
 
 async function logout() {
-  await initializeCsrf()
-  await api<void>('/api/auth/logout', {method: 'POST'})
-  authState.session = null
-  authState.checked = true
-  await router.push('/login')
+  await initializeCsrf();
+  await api<void>('/api/auth/logout', { method: 'POST' });
+  authState.session = null;
+  authState.checked = true;
+  await router.push('/login');
 }
 </script>
 
 <template>
-  <router-view v-if="publicPage"/>
+  <router-view v-if="publicPage" />
   <div v-else class="app-shell">
     <aside class="sidebar">
-      <div class="brand"><span class="brand-mark">C</span>
-        <div><strong>CommerceFlow Pay</strong><small>{{ t('loginLab') }}</small></div>
+      <div class="brand">
+        <span class="brand-mark">C</span>
+        <div>
+          <strong>CommerceFlow Pay</strong><small>{{ t('loginLab') }}</small>
+        </div>
       </div>
       <nav>
         <router-link to="/">◈ {{ t('dashboard') }}</router-link>
@@ -35,17 +38,23 @@ async function logout() {
         <router-link v-if="can('AUDIT_READ')" to="/audit">⌕ {{ t('audit') }}</router-link>
         <router-link to="/security">◈ {{ t('security') }}</router-link>
       </nav>
-      <div class="security-card"><span class="pulse"></span>
-        <div><strong>{{ t('securityMode') }}</strong><small>Redis Session · CSRF · BCrypt</small></div>
+      <div class="security-card">
+        <span class="pulse"></span>
+        <div>
+          <strong>{{ t('securityMode') }}</strong><small>Redis Session · CSRF · BCrypt</small>
+        </div>
       </div>
     </aside>
     <main class="main">
       <header class="topbar">
-        <div><span class="env">{{ t('localSimulation') }}</span><span class="muted">{{ t('noRealFunds') }}</span></div>
+        <div>
+          <span class="env">{{ t('localSimulation') }}</span><span class="muted">{{ t('noRealFunds') }}</span>
+        </div>
         <div class="account">
           <button class="language-toggle" type="button" @click="switchLanguage">{{ languageLabel }}</button>
           <div class="avatar">{{ authState.session?.displayName.slice(0, 1) }}</div>
-          <div><strong>{{ authState.session?.displayName }}</strong><small>{{ authState.session?.username }}</small>
+          <div>
+            <strong>{{ authState.session?.displayName }}</strong><small>{{ authState.session?.username }}</small>
           </div>
           <button class="ghost" @click="logout">{{ t('logout') }}</button>
         </div>
@@ -54,7 +63,7 @@ async function logout() {
         {{ t('mfaNotice') }}
       </div>
       <section class="page">
-        <router-view/>
+        <router-view />
       </section>
     </main>
   </div>

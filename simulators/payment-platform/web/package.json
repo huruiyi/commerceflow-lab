@@ -10,6 +10,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
+    "format:check": "prettier --check \"src/**/*.{vue,ts,css}\" \"*.{json,ts,html}\"",
+    "format:write": "prettier --write \"src/**/*.{vue,ts,css}\" \"*.{json,ts,html}\"",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
@@ -25,6 +27,7 @@
   "devDependencies": {
     "@types/node": "26.6.6",
     "@types/qrcode": "1.5.6",
+    "prettier": "3.10.1",
     "typescript": "6.0.3",
     "vite": "8.3.8",
     "vitest": "5.1.0",
