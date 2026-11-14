@@ -101,7 +101,7 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - 12 个 MyBatis-Plus 持久化实体已增加类/字段业务 JavaDoc；简单 CRUD 优先使用 `BaseMapper`/Wrapper，复杂投影、联表、行锁和原子更新放入 Mapper XML。
 - 三个服务主源码中已无 MyBatis SQL 注解和 Service 内联业务 SQL；仅 ShedLock 官方 `JdbcTemplateLockProvider` 配置保留 `JdbcTemplate`。
 - 三个后端服务的 Java 主源码、Mapper XML 和 Maven POM 已接入 Windows/Bash 只读质量门禁；
-  当前覆盖 248 个主源码 Java、20 个 Mapper XML、189 个映射语句和 3 个 POM，并对全部 257 个
+  当前覆盖 250 个主源码 Java、20 个 Mapper XML、190 个映射语句和 3 个 POM，并对全部 259 个
   Java 主源码/测试源校验类声明后空行，同时校验格式、内联 SQL/JDBC 边界与 Mapper 契约。
 - 物流模拟器根包只保留启动类，业务实现已按 `api/application/domain/infrastructure` 分层；
   基础设施继续按客户端、配置、指标、持久化和安全分目录，Mapper 投影独立放入持久化 `row` 子目录。
@@ -110,8 +110,11 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   运行态 i18n/权限专项已验证；支付 Web 的 24 个基线文件完成机械格式化，格式检查、无用例 Vitest、
   TypeScript/Vite 生产构建、正式镜像和 `14201/healthz`/Vue 入口运行态已验证。
 - 新空卷验收已通过：Flyway 商城/支付/物流为 V24/V4/V5，完成登录→下单→支付→履约→物流→收货→完成→评价；Windows 快速回归同时通过。
-- 微服务拆分与 PostgreSQL 迁移尚未实施；M3.1 前置审计已盘点 37 张表、40 组跨模块依赖方向、
+- 微服务拆分与 PostgreSQL 迁移尚未实施；M3.1 初始审计盘点了 37 张表、40 组跨模块依赖方向、
   Outbox/Inbox、消费者契约和追踪缺口，并以 2 项 Maven 基线测试阻止所有权和依赖债务继续增长。
+- notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
+  correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
+  Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。
 - 已建立 [全开发生命周期可复测验证体系](VERIFICATION-SYSTEM.md)，将现有构建、快速/完整回归、空卷/升级恢复、MQ/崩溃专项和浸泡压测组织为 L0–L6 门禁，并固定证据、破坏性操作和基线冻结规则。
 - Angular 客户订单页已将退款申请/回执、`RECEIVED/COMPLETED` 履约状态和逐商品评价改为独立响应式面板；评价增加评分、必填内容、防重复提交和成功/失败反馈，未修改后端状态机或接口契约。
 - 上述界面已通过 25 项 Angular 单元测试、生产构建、Docker 实际页面与现有 `PAID/REFUNDED/RECEIVED/COMPLETED` 数据验收；浏览器控制台无错误，390 px 窄屏无横向溢出。

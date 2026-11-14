@@ -220,6 +220,11 @@ M3.1 第二批新增 2 项商城 Maven 架构基线测试：37 张 Flyway 表必
 该基线记录债务而不豁免债务，完整拆分阻塞项见
 [M3.1 微服务拆分前置条件审计](architecture/M3-PRE-SPLIT-AUDIT.md)。
 
+notification 所有权治理经评审将基线更新为 38 张表、41 组方向和 119 个 import：新增的
+`inventory -> notification` 仅依赖 V1 应用命令，跨模块基础设施引用仍为 21。InventoryMapper 删除通知表
+写入，notification 模块以 V25 自有 Inbox 和 Mapper 在同一事务中幂等处理。商城 28 项测试、正式镜像、
+Windows/Bash 取消通知链路与双平台门禁通过；Java/Mapper/语句计数更新为 250/20/190，全部 Java 源文件为 259。
+
 ## 4. 每批完成门禁
 
 1. 修改前后 `git diff --check` 通过，格式化变更与业务语义变更可以清晰审查。

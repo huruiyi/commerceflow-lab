@@ -50,9 +50,4 @@ public interface InventoryMapper {
 
 
   Long customerId(Long orderId);
-
-
-  int insertNotification(@Param("eventId") String eventId, @Param("customerId") Long customerId,
-                         @Param("orderId") Long orderId, @Param("type") String type,
-                         @Param("title") String title, @Param("message") String message);
 }

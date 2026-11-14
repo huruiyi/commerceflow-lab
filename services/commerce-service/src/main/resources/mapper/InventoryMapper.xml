@@ -102,10 +102,4 @@
     ]]>
   </select>
 
-  <insert id="insertNotification">
-    <![CDATA[
-      INSERT INTO customer_notifications(event_id,customer_id,order_id,notification_type,title,message)
-    VALUES(#{eventId},#{customerId},#{orderId},#{type},#{title},#{message})
-    ]]>
-  </insert>
 </mapper>

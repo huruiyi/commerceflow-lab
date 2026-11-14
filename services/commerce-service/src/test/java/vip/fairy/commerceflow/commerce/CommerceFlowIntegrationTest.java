@@ -33,6 +33,8 @@ import vip.fairy.commerceflow.commerce.logistics.application.LogisticsNotificati
 import vip.fairy.commerceflow.commerce.logistics.application.LogisticsGatewayClient;
 import vip.fairy.commerceflow.commerce.payment.application.PaymentGatewayClient;
 import vip.fairy.commerceflow.commerce.payment.application.PaymentNotificationService;
+import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandHandler;
+import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandV1;
 import vip.fairy.commerceflow.commerce.ordering.application.PurchaseOrderService;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import vip.fairy.commerceflow.commerce.payment.domain.PaymentChannel;
@@ -128,9 +130,36 @@ class CommerceFlowIntegrationTest {
   @Autowired
   PurchaseOrderService purchaseOrders;
   @Autowired
+  CustomerNotificationCommandHandler notificationCommands;
+  @Autowired
   AppUserMapper users;
   @MockitoBean
   PaymentGatewayClient paymentGateway;
+
+  @Test
+  void customerNotificationV1FixtureRemainsCompatible() throws Exception {
+    try (var fixture = getClass().getResourceAsStream(
+      "/contracts/customer-notification-command-v1.json")) {
+      org.junit.jupiter.api.Assertions.assertNotNull(fixture);
+      CustomerNotificationCommandV1 command = json.readValue(
+        fixture, CustomerNotificationCommandV1.class);
+      org.junit.jupiter.api.Assertions.assertEquals(CustomerNotificationCommandV1.VERSION,
+        command.schemaVersion());
+      org.junit.jupiter.api.Assertions.assertEquals(CustomerNotificationCommandV1.TYPE,
+        command.eventType());
+      org.junit.jupiter.api.Assertions.assertEquals("contract-notification-0001", command.eventId());
+      org.junit.jupiter.api.Assertions.assertEquals("order-2001", command.correlationId());
+      org.junit.jupiter.api.Assertions.assertEquals("order-cancelled-0001", command.causationId());
+      org.junit.jupiter.api.Assertions.assertTrue(notificationCommands.handle(command));
+      org.junit.jupiter.api.Assertions.assertFalse(notificationCommands.handle(command));
+      org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM notification_inbox WHERE event_id=?", Integer.class,
+        command.eventId()));
+      org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM customer_notifications WHERE event_id=?", Integer.class,
+        command.eventId()));
+    }
+  }
 
   @Test
   void publicCatalogSupportsLocalesAndAuthenticationReturnsStableErrors() throws Exception {
@@ -429,6 +458,9 @@ class CommerceFlowIntegrationTest {
       "SELECT COUNT(*) FROM inventory_movements WHERE order_id=? AND movement_type='RELEASED'", Integer.class, orderId));
     org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
       "SELECT COUNT(*) FROM customer_notifications WHERE order_id=? AND notification_type='ORDER_CANCELLED'", Integer.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+      "SELECT COUNT(*) FROM notification_inbox WHERE event_id=?", Integer.class,
+      outbox.get("EVENT_ID") + ":notification"));
     Long notificationId = jdbc.queryForObject(
       "SELECT id FROM customer_notifications WHERE order_id=?", Long.class, orderId);
     mvc.perform(get("/api/notifications").session(customer.session()))

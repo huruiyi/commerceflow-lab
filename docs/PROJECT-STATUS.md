@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.1 前置审计已完成；进入拆分前债务消减，不具备 M3.2 启动条件 |
-| 下一候选阶段 | 收口 notification 写入所有权、版本化事件、独立 Inbox 和消费者契约 fixture |
+| 当前阶段 | M3.1 notification 写入所有权、V1 命令、独立 Inbox 与 fixture 已完成 |
+| 下一候选阶段 | notification 异步传输/恢复、身份解耦、跨进程追踪和单体回退门禁 |
 | 范围边界 | 不新增业务功能，不启动微服务或 PostgreSQL 迁移 |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -30,7 +30,7 @@
 | 收货、自动收货和自动完成 | M1 可靠性门禁已通过 | 重放、重启/租约恢复、RabbitMQ/RocketMQ 停机恢复和双平台 120 秒/12 并发竞态压测均通过 |
 | 库存与商家库存中心 | 已实现 | 可售/预占/已售、转正/释放/退款回补、调整流水 |
 | Angular/Vue 界面 | Angular 主流程和订单页视觉收尾已实现 | 订单详情与支付信息已扁平化，商品图有失败回退；通知菜单使用中性列表和细滚动条，支持外部点击、`Esc`、关闭按钮和选择通知后关闭；语言切换使用图标；导航与 1480 px 正文容器对齐，桌面与 390 px 窄屏已验收 |
-| Flyway 数据库生命周期 | 空卷和迁移层已验收 | 商城/支付/物流空卷分别迁移到 V24/V4/V5；V16→V24 升级演练已通过 |
+| Flyway 数据库生命周期 | 空卷和迁移层已验收 | M2 空卷到 V24/V4/V5；当前商城库已非破坏性升级到 V25 |
 | 告警与监控 | 本地端到端管道已实现 | 三服务 Prometheus 抓取、10 条规则、Alertmanager、Grafana 数据源和可替换 Webhook；真实通知供应商与高可用部署不在本地学习验收内 |
 
 ## 3. M1 冻结结论
@@ -148,3 +148,13 @@ Kafka 已有 5 个 topic、事务 Outbox 和由唯一键保护的 Inbox 等价�
 迟到、毒消息和重投证据；但事件信封没有 schema version、发生时间、因果/关联 ID 或 trace context，
 消费者契约 fixture、每服务独立 Inbox 和真正的分布式追踪仍缺失。因此 M3.2 尚不可启动；下一批先治理
 notification 表由 InventoryMapper 直接写入的所有权倒置，不创建新服务或数据库。
+
+第三批完成 notification 写入责任收口：商城 V25 新增 notification 自有 Inbox；
+`CustomerNotificationCommandV1` 固定 schema version、事件标识/类型、发生时间、业务字段及
+correlation/causation ID。InventoryMapper 已不再写通知表，notification Handler 在原业务事务中先以
+`(consumer_name,event_id)` 领取命令，再通过自己的 Mapper 写通知。消费者 fixture、重复消费和
+Windows/Bash 真实取消通知链路通过，商城测试增至 28 项。
+
+当前审计基线随评审更新为 38 张表、41 组方向和 119 个跨模块 import；21 个跨模块基础设施引用没有增加。
+本批没有创建新服务或数据库，传输仍为单体内应用调用。M3.2 剩余阻塞包括可替换异步适配器及恢复、
+共享身份模型解耦、跨进程追踪和单体回退开关。

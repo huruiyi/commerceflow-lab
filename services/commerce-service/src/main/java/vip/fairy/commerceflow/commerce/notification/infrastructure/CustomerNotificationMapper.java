@@ -17,4 +17,13 @@ public interface CustomerNotificationMapper {
 
 
   int markAllRead(Long customerId);
+
+
+  int insertInbox(@Param("consumerName") String consumerName, @Param("eventId") String eventId,
+                  @Param("eventType") String eventType, @Param("schemaVersion") int schemaVersion);
+
+
+  int insertNotification(@Param("eventId") String eventId, @Param("customerId") Long customerId,
+                         @Param("orderId") Long orderId, @Param("type") String type,
+                         @Param("title") String title, @Param("message") String message);
 }

@@ -24,6 +24,20 @@ function New-Order {
   return Invoke-RestMethod "$BaseUrl/api/purchase-orders/checkout" -Method Post -WebSession $customer.Session -Headers $customer.Headers -ContentType application/json -Body '{}'
 }
 
+function Wait-CancellationNotification([long]$OrderId) {
+  $deadline = (Get-Date).AddSeconds(30)
+  do {
+    $notifications = Invoke-RestMethod "$BaseUrl/api/notifications" -WebSession $customer.Session
+    $matches = @($notifications.Where({
+      $_.orderId -eq $OrderId -and $_.notificationType -eq 'ORDER_CANCELLED'
+    }))
+    if ($matches.Count -eq 1) { return $matches[0] }
+    if ($matches.Count -gt 1) { throw 'Cancellation notification was not idempotent' }
+    Start-Sleep -Milliseconds 500
+  } while ((Get-Date) -lt $deadline)
+  throw 'Versioned cancellation notification was not consumed'
+}
+
 $order = New-Order
 if ($order.status -ne 'PENDING_PAYMENT' -or -not $order.paymentDueAt) { throw 'Checkout did not create a payment deadline' }
 if ($order.availableActions -notcontains 'PAY' -or $order.availableActions -notcontains 'CANCEL_ORDER') { throw 'Pending order actions are incomplete' }
@@ -32,6 +46,8 @@ $cancelled = Invoke-RestMethod "$BaseUrl/api/purchase-orders/$($order.id)/cancel
 $replayed = Invoke-RestMethod "$BaseUrl/api/purchase-orders/$($order.id)/cancel" -Method Post -WebSession $customer.Session -Headers $customer.Headers -ContentType application/json -Body $cancelBody
 if ($cancelled.status -ne 'CANCELLED' -or $replayed.status -ne 'CANCELLED' -or -not $replayed.cancelledAt) { throw 'No-payment cancellation was not idempotent' }
 if ($cancelled.availableActions -contains 'PAY' -or $cancelled.availableActions -contains 'CANCEL_ORDER') { throw 'Cancelled order still exposes mutating payment actions' }
+$notification = Wait-CancellationNotification $order.id
+if ($notification.message -ne 'customer changed mind') { throw 'Cancellation notification lost its command payload' }
 
 $admin = New-Session 'admin@example.com'
 $tasks = Invoke-RestMethod "$BaseUrl/api/admin/scheduling/tasks?taskType=PAYMENT_TIMEOUT&limit=500" -WebSession $admin.Session
@@ -47,4 +63,4 @@ if ($pending.payment.status -ne 'PENDING') { throw 'Acceptance payment was not p
 $closed = Invoke-RestMethod "$BaseUrl/api/purchase-orders/$($orderWithPayment.id)/cancel" -Method Post -WebSession $customer.Session -Headers $customer.Headers -ContentType application/json -Body '{"reason":"close pending transaction"}'
 if ($closed.status -ne 'CANCELLED' -or $closed.payment.status -ne 'CLOSED') { throw 'Pending channel transaction was not closed before order cancellation' }
 
-Write-Host 'Order cancellation verification passed: available actions, deadline task, Outbox-backed idempotent cancellation and pending channel close.' -ForegroundColor Green
+Write-Host 'Order cancellation verification passed: available actions, deadline task, Outbox-backed cancellation, versioned notification consumption and pending channel close.' -ForegroundColor Green

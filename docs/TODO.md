@@ -352,10 +352,23 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
   审计、幂等和指标专项通过；未删除或重建数据卷。
 - [x] 完成 M3.1 的数据所有权、跨模块 Mapper/表依赖、应用接口、事件契约、Inbox、消费者契约测试和
   分布式追踪基线审计，并建立“现有债务可减少、不得未经评审增长”的 Maven 自动门禁。
-- [ ] 先消除 `notification` 写路径对 InventoryMapper 的反向所有权，定义版本化通知命令/事件、独立 Inbox
-  与消费者契约 fixture；完成前不启动 `notification-service`。
+- [x] 消除 `notification` 写路径对 InventoryMapper 的反向所有权，定义 V1 通知命令、notification 独立
+  Inbox 和消费者契约 fixture；Windows/Bash 真实取消通知链路与重复消费幂等通过。
+- [ ] 为版本化通知命令增加可替换的异步传输适配器与失败恢复门禁，解耦共享身份模型，并建立跨进程追踪和
+  单体回退开关；完成前不启动 `notification-service`。
 
 ## 14. 实施记录模板
+
+### 2026-11-15：notification 写入所有权与 Inbox 收口
+
+- 迁移：商城 V25 新增 notification 自有 `notification_inbox`，现有 MySQL 非破坏性升级成功。
+- 契约：新增 `CustomerNotificationCommandV1`，固定版本、事件/通知类型、发生时间、客户/订单、
+  correlation/causation ID 等字段，并提供可反序列化 fixture。
+- 所有权：InventoryMapper 不再写 `customer_notifications`；notification Handler 在同一事务中先登记 Inbox，
+  再由 CustomerNotificationMapper 写通知，重复事件无重复副作用。
+- 验证：商城 28 项测试、正式镜像、Windows/Bash 订单取消通知链路、双平台质量/脚本契约通过；
+  当前库 V25 成功，5 条实测命令一一对应通知且无重复 Inbox 键。
+- 边界：当前传输仍为单体内应用调用；未创建 notification-service、独立数据库或 PostgreSQL。
 
 ### 2026-11-15：M3.1 数据所有权与分布式契约基线审计
 

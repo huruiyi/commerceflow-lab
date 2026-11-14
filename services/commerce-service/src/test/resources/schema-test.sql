@@ -208,6 +208,16 @@ CREATE TABLE customer_notifications
   read_at           TIMESTAMP,
   created_at        TIMESTAMP             DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE notification_inbox
+(
+  id             BIGINT AUTO_INCREMENT PRIMARY KEY,
+  consumer_name  VARCHAR(100) NOT NULL,
+  event_id       VARCHAR(100) NOT NULL,
+  event_type     VARCHAR(80)  NOT NULL,
+  schema_version INT          NOT NULL,
+  processed_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (consumer_name, event_id)
+);
 CREATE TABLE payment_merchant_accounts
 (
   id          BIGINT AUTO_INCREMENT PRIMARY KEY,

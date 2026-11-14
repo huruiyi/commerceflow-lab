@@ -8,8 +8,8 @@ Mapper、同步调用和事件契约仍有明显共享边界。此结论不否�
 
 本轮冻结的是审计基线，不是微服务实现：
 
-- 37 张商城表均声明当前唯一责任模块；新增表必须同步声明所有者。
-- 当前存在 40 组跨模块 Java 依赖、117 个导入引用，涉及 39 个源码文件。
+- 38 张商城表均声明当前唯一责任模块；新增表必须同步声明所有者。
+- 当前存在 41 组跨模块 Java 依赖、119 个导入引用，涉及 39 个源码文件。
 - 其中 21 个引用直接指向其他模块的 `infrastructure`，属于拆分前必须消除的硬阻塞项。
 - 新增的 `MicroserviceReadinessBaselineTest` 允许依赖减少，但禁止出现未经评审的新依赖方向、引用数量增长、
   跨模块基础设施引用增长或未声明所有者的新表。
@@ -28,7 +28,7 @@ Mapper、同步调用和事件契约仍有明显共享边界。此结论不否�
 | `logistics` | `shipment_records`、`shipment_events`、`shipment_notifications` | 商城侧投影已有独立表，但仍直接读写订单并调用收货模块。 |
 | `inventory` | `inventory_reservations`、`inventory_movements` | 可售、预占、已售数量仍位于 `products`，所有权尚未真正独立。 |
 | `review` | `product_reviews` | 查询跨订单、商品和用户表，拆分时需要只读快照或组合查询边界。 |
-| `notification` | `customer_notifications` | 表由 notification 查询，但库存 Mapper 直接写入，当前没有通知命令/事件入口。 |
+| `notification` | `customer_notifications`、`notification_inbox` | 写入已收回 notification Handler；当前传输仍是单体内 V1 应用命令。 |
 | `scheduling` | `scheduled_task_policies`、`scheduled_tasks`、`scheduled_task_events`、`scheduled_task_policy_events`、`shedlock` | 调度记录可独立，但 Handler 仍同步调用 ordering/receipt。 |
 
 `receipt` 与 `fulfillment` 当前没有自有表，分别直接修改 ordering 状态或组合 ordering、refund、logistics 数据；
@@ -40,8 +40,8 @@ Mapper、同步调用和事件契约仍有明显共享边界。此结论不否�
 
 | 指标 | 当前值 |
 | --- | ---: |
-| 跨模块依赖方向 | 40 |
-| 跨模块 import 引用 | 117 |
+| 跨模块依赖方向 | 41 |
+| 跨模块 import 引用 | 119 |
 | 涉及源码文件 | 39 |
 | 指向其他模块 `infrastructure` 的引用 | 21 |
 
@@ -74,7 +74,7 @@ inbound/outbound port。
 
 拆分前优先固化以下应用接口：
 
-1. notification：`CreateCustomerNotification` 命令和通知查询接口，移除 InventoryMapper 对通知表的写入。
+1. notification：V1 写入命令、查询接口和独立 Inbox 已完成；下一步增加可替换异步适配器和恢复门禁。
 2. catalog/inventory：商品资料查询与库存预占/转正/释放分离，明确 `products` 中库存列的迁移归属。
 3. ordering：订单状态查询、条件迁移和订单快照接口，不暴露 `ShopOrderMapper` 或跨服务行锁。
 4. payment/refund：支付结果、退款请求及回调投影使用版本化命令/事件，不跨模块更新支付记录。
@@ -97,7 +97,7 @@ inbound/outbound port。
 
 - Kafka 信封没有 `schemaVersion`、`occurredAt`、`producer`、`correlationId`、`causationId` 或追踪上下文。
 - `payload` 是动态 JSON，没有按事件类型固定 schema，也没有兼容性策略或 schema registry。
-- `kafka_consumed_event` 由支付模块 Mapper 维护；未来每个服务必须拥有自己的 Inbox 和处理事务。
+- `kafka_consumed_event` 由支付模块 Mapper 维护；notification 已建立自己的 Inbox，其他未来服务仍需独立。
 - 现有测试主要验证本仓库生产者与消费者的当前实现，没有独立消费者契约、旧版本 fixture 或向后兼容测试。
 - RabbitMQ 与 RocketMQ 使用两个结构相同但独立的消息 record，尚未声明统一版本化契约。
 
@@ -121,11 +121,12 @@ RocketMQ 跨进程 trace context 验收。RabbitMQ 的 publisher `CorrelationDat
 
 `notification-service` 仍是首个候选，但只有以下条件全部满足才可开始试拆：
 
-- InventoryMapper 不再直接写 `customer_notifications`，通知写入通过版本化命令或事件进入。
-- notification 不依赖共享 Session、`AppUser` 实体或商城 Mapper；身份只使用必要快照。
-- 拥有独立 Inbox、幂等键、失败重试/DLQ、消费者契约 fixture 和回放测试。
-- 具备 trace/correlation 传播和单体回退开关。
-- 双写或投影核对窗口有明确停止条件，且不共享商城 Schema。
+- [x] InventoryMapper 不再直接写 `customer_notifications`，通知写入通过 V1 命令进入。
+- [ ] notification 不依赖共享 Session、`AppUser` 实体或商城 Mapper；身份只使用必要快照。
+- [x] 拥有独立 Inbox、幂等键、消费者契约 fixture 和进程内重复回放测试。
+- [ ] 可替换的异步适配器具备失败重试、DLQ、Broker 恢复和重复投递证据。
+- [ ] 具备跨进程 trace/correlation 传播和单体回退开关。
+- [ ] 双写或投影核对窗口有明确停止条件，且不共享商城 Schema。
 
 在这些条件完成前，下一步仍属于 M3.1 基线治理，而不是创建新服务或新数据库。
 
@@ -134,6 +135,7 @@ RocketMQ 跨进程 trace context 验收。RabbitMQ 的 publisher `CorrelationDat
 [`MicroserviceReadinessBaselineTest`](../../services/commerce-service/src/test/java/vip/fairy/commerceflow/commerce/architecture/MicroserviceReadinessBaselineTest.java)
 已接入商城 Maven 测试：
 
-- 从 Flyway 迁移读取 `CREATE TABLE`，任何新增/移除表都必须同步评审所有权。
+- 从 Flyway 迁移读取 `CREATE TABLE`，当前 38 张表的任何新增/移除都必须同步评审所有权。
 - 从 Java package/import 读取跨模块依赖；现有依赖可减少，不允许未经评审增加方向、引用或基础设施耦合。
-- 基线不是白名单式“合格证明”。其中记录的 21 处基础设施耦合仍是待消减债务。
+- 当前基线为 41 组方向、119 个 import 和 21 个基础设施引用；基线不是白名单式“合格证明”，
+  已记录的基础设施耦合仍是待消减债务。
