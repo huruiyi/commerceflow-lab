@@ -19,6 +19,8 @@ spring:
       namespace: commerceflow:session
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    listener:
+      observation-enabled: true
     producer:
       acks: all
       properties:
@@ -43,6 +45,7 @@ spring:
     publisher-returns: true
     listener:
       simple:
+        observation-enabled: true
         acknowledge-mode: auto
         default-requeue-rejected: false
         prefetch: 20
@@ -52,6 +55,8 @@ spring:
           initial-interval: 1s
           multiplier: 2
           max-interval: 10s
+    template:
+      observation-enabled: true
 server:
   port: 8080
   servlet:
@@ -63,6 +68,23 @@ server:
         secure: ${SESSION_COOKIE_SECURE:false}
 
 management:
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+    export:
+      otlp:
+        enabled: ${TRACING_EXPORT_ENABLED:false}
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${TRACING_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+          timeout: ${TRACING_EXPORT_TIMEOUT:3s}
+          transport: http
+  otlp:
+    metrics:
+      export:
+        enabled: false
   health:
     rabbit:
       enabled: ${SCHEDULING_RABBITMQ_ENABLED:false}
@@ -74,6 +96,11 @@ management:
     health:
       probes:
         enabled: true
+
+logging:
+  pattern:
+    correlation: "[${spring.application.name:},%X{traceId:-},%X{spanId:-}] "
+  include-application-name: false
 
 mybatis-plus:
   configuration:

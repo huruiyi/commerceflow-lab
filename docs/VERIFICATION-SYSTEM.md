@@ -91,6 +91,7 @@ bash ./scripts/linux/verify-all.sh
 | Flyway/表结构/状态约束 | L1 + L2 + L4 | 相关业务不变量与升级后历史指纹 |
 | Compose、服务名、Profile、脚本 | L0 + 五镜像构建 + L2 | 涉及卷/重启时加 L4；涉及 MQ 时加对应 L5 |
 | Prometheus、Alertmanager、告警规则 | L0 + `verify-alerting` | 规则变更必须通过 `promtool` 单测和 Watchdog 实时投递 |
+| OpenTelemetry、Tempo、Trace 传播 | L0 + 三服务构建 + `verify-distributed-tracing` | 涉及消息中间件时追加对应 Kafka/RabbitMQ/RocketMQ 真实传播专项 |
 | 事务、锁定顺序、幂等、Outbox | L1 + L2 | 锁超时、崩溃恢复、竞态和历史一致性专项 |
 | RabbitMQ/RocketMQ/定时任务 | L1 + L2 | 幂等、未 ACK 重投、Broker 停机恢复和 Profile 对应专项 |
 | 并发状态机 | L1 + L2 | 固定种子短竞态 + L6 浸泡，并记录数据库矛盾计数 |
@@ -112,6 +113,12 @@ V1→V3 的三张业务表、回填/核对/隔离表、零外键、快照字段�
 `verify-notification-runtime-cutover` 在保留现有卷的前提下执行历史回填、孤儿隔离、Kafka 实时镜像、连续
 三次核对、独立读切换、已读状态镜像、notification-db 停机和 COMMERCE 回滚，最后恢复默认
 `IN_PROCESS + COMMERCE`。它证明 Schema 可独立运行，但不创建 notification-service。
+
+`verify-distributed-tracing` 临时开启 OTLP 导出并启动 Tempo，通过真实商家发货链路查询
+commerce-service 与 logistics-simulator-service 的同一 Trace；随后停止 Tempo，确认追踪后端故障不会
+拖垮三个业务服务，最后恢复原导出配置。Windows 直接管理 Compose；容器化 Bash 可使用
+`EXTERNAL_RUNTIME=true` 让宿主机管理 Compose，避免 Docker Desktop 将容器内仓库路径当作宿主 bind path。
+该专项当前证明 HTTP 和 Kafka Observation 基线，不把 RabbitMQ/RocketMQ 记为已验收。
 
 ### 6.2 全新卷全链路
 

@@ -29,7 +29,7 @@ public class CustomerNotificationProjectionConsumer {
   public void consume(ConsumerRecord<String, String> record) throws Exception {
     CustomerNotificationCommandV1 command = mapper.readValue(record.value(),
       CustomerNotificationCommandV1.class);
-    CustomerNotificationKafkaHeaders.validate(record, command);
+    command = CustomerNotificationKafkaHeaders.validate(record, command);
     Long windowId = notifications.runningProjectionWindowId();
     if (windowId == null) {
       return;

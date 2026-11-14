@@ -3,7 +3,6 @@ package vip.fairy.commerceflow.commerce.inventory.application;
 import vip.fairy.commerceflow.commerce.catalog.domain.Product;
 import vip.fairy.commerceflow.commerce.inventory.domain.ProductInventory;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandPublisher;
-import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandV1;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 
 import java.util.List;
@@ -74,13 +73,13 @@ public class InventoryService {
     }
     Long customerId = inventory.customerId(orderId);
     if (customerId != null) {
-      notifications.publish(CustomerNotificationCommandV1.orderCancelled(
+      notifications.publishOrderCancelled(
         eventId + ":notification",
         customerId,
         orderId,
         reason,
         eventId
-      ));
+      );
     }
   }
 

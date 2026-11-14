@@ -16,6 +16,7 @@ public class CustomerNotificationKafkaTransport {
 
   static final String CORRELATION_HEADER = "commerceflow-correlation-id";
   static final String CAUSATION_HEADER = "commerceflow-causation-id";
+  static final String ORIGIN_TRACEPARENT_HEADER = "commerceflow-origin-traceparent";
   static final String TRACEPARENT_HEADER = "traceparent";
 
   private final KafkaTemplate<String, String> kafka;
@@ -32,6 +33,7 @@ public class CustomerNotificationKafkaTransport {
       serialize(command));
     header(record, CORRELATION_HEADER, command.correlationId());
     header(record, CAUSATION_HEADER, command.causationId());
+    header(record, ORIGIN_TRACEPARENT_HEADER, command.traceparent());
     header(record, TRACEPARENT_HEADER, command.traceparent());
     kafka.send(record).get(5, TimeUnit.SECONDS);
   }

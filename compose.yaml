@@ -200,6 +200,19 @@ services:
       retries: 20
     restart: unless-stopped
 
+  tempo:
+    image: grafana/tempo:3.1.1
+    profiles: [observability]
+    command: ["-config.file=/etc/tempo.yml"]
+    ports:
+      - "13200:3200"
+      - "14318:4318"
+    volumes:
+      - ./infrastructure/monitoring/tempo.yml:/etc/tempo.yml:ro
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+
   alertmanager:
     image: prom/alertmanager:v0.29.0
     profiles: [observability]
@@ -250,6 +263,7 @@ services:
       - ./infrastructure/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on:
       prometheus: {condition: service_healthy}
+      tempo: {condition: service_started}
     restart: unless-stopped
 
   payment-simulator-db:
@@ -298,6 +312,9 @@ services:
       PAYMENT_CALLBACK_URL: http://commerce-service:8080/api/payment-notifications/callback
       REFUND_CALLBACK_URL: http://commerce-service:8080/api/refund-notifications/callback
       PAYMENT_CALLBACK_SECRET: ${PAYMENT_CALLBACK_SECRET:-demo-platform-callback-secret}
+      TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
+      TRACING_OTLP_ENDPOINT: ${TRACING_OTLP_ENDPOINT:-http://tempo:4318/v1/traces}
+      TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1.0}
     ports:
       - "18082:8080"
     depends_on:
@@ -373,6 +390,9 @@ services:
       LOGISTICS_AUTO_PROGRESS_SCAN_INTERVAL: ${LOGISTICS_AUTO_PROGRESS_SCAN_INTERVAL:-5s}
       LOGISTICS_AUTO_PROGRESS_STEP_INTERVAL: ${LOGISTICS_AUTO_PROGRESS_STEP_INTERVAL:-5m}
       LOGISTICS_AUTO_PROGRESS_BATCH_SIZE: ${LOGISTICS_AUTO_PROGRESS_BATCH_SIZE:-100}
+      TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
+      TRACING_OTLP_ENDPOINT: ${TRACING_OTLP_ENDPOINT:-http://tempo:4318/v1/traces}
+      TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1.0}
     ports:
       - "18083:8080"
     depends_on:
@@ -480,6 +500,9 @@ services:
       SCHEDULING_RECONCILIATION_FIXED_DELAY: ${SCHEDULING_RECONCILIATION_FIXED_DELAY:-5m}
       SCHEDULING_RECONCILIATION_BATCH_SIZE: ${SCHEDULING_RECONCILIATION_BATCH_SIZE:-100}
       ORDER_PAYMENT_TIMEOUT: ${ORDER_PAYMENT_TIMEOUT:-30m}
+      TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
+      TRACING_OTLP_ENDPOINT: ${TRACING_OTLP_ENDPOINT:-http://tempo:4318/v1/traces}
+      TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1.0}
     ports:
       - "18081:8080"
     depends_on:

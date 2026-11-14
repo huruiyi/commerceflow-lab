@@ -2,7 +2,8 @@
 
 ## 1. 结论
 
-M3.1 最终门禁已经完成，`notification-service` **具备进入 M3.2 影子试拆的前置条件，但 M3.2 尚未启动**。
+M3.1 最终门禁已经完成；M3.2 准入首批已补齐 HTTP/Kafka 跨进程追踪，但
+`notification-service` **尚未创建或启动**。RabbitMQ/RocketMQ 的真实跨消息追踪仍是影子进程启动前门禁。
 其他模块仍存在数据、Mapper 和同步调用共享边界，不能把任意业务包直接复制为独立服务并继续共享商城数据库。
 
 本轮冻结的是审计基线，不是微服务实现：
@@ -105,21 +106,21 @@ inbound/outbound port。
 
 ## 6. 可观测性与分布式追踪
 
-三个 Java 服务已有 Actuator、Prometheus 指标、告警规则和关键失败计数器，但当前后端没有
-Micrometer Tracing/OpenTelemetry 依赖，没有 OTLP/Zipkin/Tempo 后端，也没有 HTTP、Kafka、RabbitMQ、
-RocketMQ 跨进程 trace context 验收。RabbitMQ 的 publisher `CorrelationData` 仅用于发布确认，不能替代
-业务关联 ID 或分布式 trace。
+三个 Java 服务现已接入 OpenTelemetry，统一 W3C Trace Context、日志 `traceId/spanId`、采样和 OTLP
+开关；Compose 提供可选 Tempo，Grafana 可查询 Trace。Windows 与容器化 Bash 已实测
+commerce-service → logistics-simulator-service 的 HTTP 父子 Span，并在 Tempo 停机后确认业务健康。
+默认 `TRACING_EXPORT_ENABLED=false`，Prometheus 继续承担指标采集，追踪后端不成为业务启动依赖。
 
-notification V1 已先行使用 W3C traceparent，并在 Kafka payload/Header 双通道传播校验；correlationId、
-causationId 和 traceparent 最终保存到 notification Inbox。该证据只覆盖 notification Kafka 边界，不能冒充
-HTTP、RabbitMQ、RocketMQ 的全系统追踪或可查询的追踪后端。
+Kafka Producer/Listener Observation 已开启，实测存在同一 Trace 下的 `send/process` Span。notification V1
+保留 correlationId/causationId，并通过 `commerceflow-origin-traceparent` 保存业务来源上下文；Kafka
+instrumentation 改写的传输 traceparent 经格式校验后进入 Inbox。合法的两位 W3C trace-flags 已纳入回归。
 
-进入 M3.2 前至少需要：
+剩余门禁：
 
-- 统一 W3C Trace Context，并验证 HTTP 与三种消息中间件的上下文传播。
-- 日志稳定输出 `traceId/spanId`，业务事件保留 `correlationId/causationId`。
-- 建立本地追踪后端和一条“下单 → 支付 → 通知”跨边界验收脚本。
-- 对采样、敏感字段、异步 span 生命周期和追踪后端故障降级作出明确约束。
+- RabbitMQ 已开启 listener/template Observation，但仍需真实任务消息的跨进程 Trace 查询证据。
+- RocketMQ 尚未完成显式上下文注入/提取和真实跨消息 Trace 查询证据。
+- 完成两种 MQ 的追踪后端停机降级验证，再允许启动 notification-service 影子进程。
+- 继续禁止在 Span 中记录密码、令牌、完整通知正文等敏感或高基数字段。
 
 ## 7. M3.2 启动判定
 
@@ -133,8 +134,11 @@ HTTP、RabbitMQ、RocketMQ 的全系统追踪或可查询的追踪后端。
 - [x] 影子投影核对窗口具备最小样本、零差异、零阻塞 Outbox、连续通过和显式停止条件。
 - [x] 独立 notification Schema 的 Flyway 迁移已在隔离 MySQL 中验证三张自有表、零外键和 Inbox 幂等。
 - [x] 实际运行目标使用独立 Schema，并完成历史回填、实时镜像、读切换、数据库停机和商城回滚验收。
+- [x] HTTP 与 Kafka 已具备可查询的跨进程 Trace、日志关联和追踪后端故障降级证据。
+- [ ] RabbitMQ/RocketMQ 已具备真实跨消息 Trace 和追踪后端故障降级证据。
 
-以上条件已满足，因此 M3.1 完成；这只代表可以评审 M3.2，不代表 notification-service 已创建或流量已迁出。
+M3.1 条件已满足，M3.2 准入首批也已完成；未完成的 MQ 追踪项继续阻止 notification-service 影子进程
+启动。这不代表服务已创建、流量已迁出或具备生产级可观测性。
 
 ## 8. 自动基线
 

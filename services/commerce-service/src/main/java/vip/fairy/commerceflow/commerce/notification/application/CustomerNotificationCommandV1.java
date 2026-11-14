@@ -25,11 +25,23 @@ public record CustomerNotificationCommandV1(
   public static final int VERSION = 1;
   public static final String TYPE = "CUSTOMER_NOTIFICATION_REQUESTED";
   public static final Pattern TRACEPARENT = Pattern.compile(
-    "^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$");
+    "^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$");
 
   public static CustomerNotificationCommandV1 orderCancelled(String eventId, Long customerId,
                                                                Long orderId, String reason,
                                                                String causationId) {
+    return orderCancelled(eventId, customerId, orderId, reason, causationId, newTraceparent());
+  }
+
+  public CustomerNotificationCommandV1 withTraceparent(String transportTraceparent) {
+    return new CustomerNotificationCommandV1(
+      schemaVersion, eventId, eventType, occurredAt, customerId, orderId, notificationType,
+      title, message, correlationId, causationId, transportTraceparent);
+  }
+
+  public static CustomerNotificationCommandV1 orderCancelled(String eventId, Long customerId,
+                                                               Long orderId, String reason,
+                                                               String causationId, String traceparent) {
     return new CustomerNotificationCommandV1(
       VERSION,
       eventId,
@@ -42,7 +54,7 @@ public record CustomerNotificationCommandV1(
       reason,
       causationId,
       causationId,
-      newTraceparent()
+      traceparent
     );
   }
 

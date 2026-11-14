@@ -31,7 +31,7 @@ public class IndependentNotificationKafkaConsumer {
   public void consume(ConsumerRecord<String, String> record) throws Exception {
     CustomerNotificationCommandV1 command = mapper.readValue(record.value(),
       CustomerNotificationCommandV1.class);
-    CustomerNotificationKafkaHeaders.validate(record, command);
+    command = CustomerNotificationKafkaHeaders.validate(record, command);
     handler.handle(command);
   }
 }

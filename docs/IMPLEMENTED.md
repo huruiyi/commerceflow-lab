@@ -101,7 +101,7 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - 12 个 MyBatis-Plus 持久化实体已增加类/字段业务 JavaDoc；简单 CRUD 优先使用 `BaseMapper`/Wrapper，复杂投影、联表、行锁和原子更新放入 Mapper XML。
 - 三个服务主源码中已无 MyBatis SQL 注解和 Service 内联业务 SQL；仅 ShedLock 官方 `JdbcTemplateLockProvider` 配置保留 `JdbcTemplate`。
 - 三个后端服务的 Java 主源码、Mapper XML 和 Maven POM 已接入 Windows/Bash 只读质量门禁；
-  当前覆盖 280 个主源码 Java、21 个 Mapper XML、235 个映射语句和 3 个 POM，并对全部 289 个
+  当前覆盖 283 个主源码 Java、21 个 Mapper XML、235 个映射语句和 3 个 POM，并对全部 292 个
   Java 主源码/测试源校验类声明后空行，同时校验格式、内联 SQL/JDBC 边界与 Mapper 契约。
 - 物流模拟器根包只保留启动类，业务实现已按 `api/application/domain/infrastructure` 分层；
   基础设施继续按客户端、配置、指标、持久化和安全分目录，Mapper 投影独立放入持久化 `row` 子目录。
@@ -129,10 +129,16 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   历史追平、Kafka 实时镜像、连续三次零差异、独立读、已读状态 eventId 镜像、独立库停机和商城回滚。
   当前两库通知均为 167 条；默认恢复 `IN_PROCESS + COMMERCE`。31 项测试、正式镜像和 39 对脚本门禁通过。
   notification-service 与 PostgreSQL 仍未启动，M3.1 完成后仅具备 M3.2 的后续启动条件。
+- M3.2 准入首批为三个 Java 服务接入 OpenTelemetry，并增加默认关闭的 OTLP 导出、可选 Tempo 和
+  Grafana Trace 数据源。Windows/容器化 Bash 已查询到 commerce-service → logistics-simulator-service
+  的同一 HTTP Trace，并验证 Tempo 停机不影响业务健康；Kafka `send/process` Span 及 notification
+  来源/传输 traceparent 分离已实测。RabbitMQ/RocketMQ 真实跨消息 Trace 仍是后续门禁，因此
+  notification-service 与 PostgreSQL 仍未启动。
 - 已建立 [全开发生命周期可复测验证体系](VERIFICATION-SYSTEM.md)，将现有构建、快速/完整回归、空卷/升级恢复、MQ/崩溃专项和浸泡压测组织为 L0–L6 门禁，并固定证据、破坏性操作和基线冻结规则。
 - Angular 客户订单页已将退款申请/回执、`RECEIVED/COMPLETED` 履约状态和逐商品评价改为独立响应式面板；评价增加评分、必填内容、防重复提交和成功/失败反馈，未修改后端状态机或接口契约。
 - 上述界面已通过 25 项 Angular 单元测试、生产构建、Docker 实际页面与现有 `PAID/REFUNDED/RECEIVED/COMPLETED` 数据验收；浏览器控制台无错误，390 px 窄屏无横向溢出。
-- `observability` Profile 已接入 Prometheus、10 条可单测告警规则、Alertmanager、Grafana 双数据源和只读本地 Webhook 接收端；商城、支付模拟器、物流模拟器三个 Spring Boot Target 均可抓取。
+- `observability` Profile 已接入 Prometheus、10 条可单测告警规则、Alertmanager、Grafana 的 Prometheus/Tempo
+  数据源和只读本地 Webhook 接收端；商城、支付模拟器、物流模拟器三个 Spring Boot Target 均可抓取。
 - `verify-alerting` 已在 Windows 与容器化 Bash 通过：Prometheus/Alertmanager 配置有效，服务宕机/退款积压/物流 `DEAD` 规则单测通过，Watchdog 经真实 Alertmanager 路由到 Webhook。
 - M2 工程质量总验收已完成：Windows 与容器化 Bash 的默认完整验收、质量审计和 37 对脚本契约审计通过；
   五个正式镜像、默认/全 Profile Compose、默认 11 个核心服务和 8 个主要健康端点已复验。连续执行会在

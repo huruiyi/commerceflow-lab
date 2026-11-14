@@ -246,12 +246,16 @@ class CommerceFlowIntegrationTest {
       ConsumerRecord<String, String> consumed = new ConsumerRecord<>(published.topic(), 0, 0L,
         published.key(), published.value());
       published.headers().forEach(header -> consumed.headers().add(header));
+      String transportTraceparent =
+        "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-03";
+      consumed.headers().remove("traceparent");
+      consumed.headers().add("traceparent", transportTraceparent.getBytes(StandardCharsets.UTF_8));
       notificationConsumer.consume(consumed);
       notificationConsumer.consume(consumed);
       org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
         "SELECT COUNT(*) FROM customer_notifications WHERE event_id=?", Integer.class,
         recovered.eventId()));
-      org.junit.jupiter.api.Assertions.assertEquals(recovered.traceparent(), jdbc.queryForObject(
+      org.junit.jupiter.api.Assertions.assertEquals(transportTraceparent, jdbc.queryForObject(
         "SELECT traceparent FROM notification_inbox WHERE event_id=?", String.class,
         recovered.eventId()));
 
@@ -397,6 +401,8 @@ class CommerceFlowIntegrationTest {
       command.correlationId().getBytes(StandardCharsets.UTF_8));
     record.headers().add("commerceflow-causation-id",
       command.causationId().getBytes(StandardCharsets.UTF_8));
+    record.headers().add("commerceflow-origin-traceparent",
+      command.traceparent().getBytes(StandardCharsets.UTF_8));
     record.headers().add("traceparent", command.traceparent().getBytes(StandardCharsets.UTF_8));
     return record;
   }

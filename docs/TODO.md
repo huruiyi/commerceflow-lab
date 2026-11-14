@@ -362,7 +362,39 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
 - [x] 在现有 commerce-service 进程内让 notification 实际运行于独立 MySQL Schema，完成历史回填、
   Kafka 实时镜像、连续核对、独立读切换、数据库停机与商城 Schema 回滚；M3.2 尚未创建独立进程。
 
+### 13.6 M3.2 准入批次：跨进程追踪基线
+
+本批只补齐独立服务启动前的可观测性门禁，不创建 `notification-service`，不迁移 PostgreSQL。
+
+- [x] 三个 Java 服务接入 OpenTelemetry，统一 W3C Trace Context、日志 `traceId/spanId` 和可配置采样；
+  默认关闭 OTLP 导出，追踪后端故障不得成为业务依赖。
+- [x] 增加可选 Tempo 后端和 Grafana 数据源，并完成 commerce-service 到物流模拟器的 HTTP 跨进程
+  父子 Span 实测。
+- [x] 开启 Kafka Producer/Listener Observation，完成发送、消费及 notification V1 来源/传输
+  traceparent 分离兼容；合法两位 W3C trace-flags 不再被误送 DLT。
+- [x] 提供 Windows/Bash 配对的 `verify-distributed-tracing`，验证同一 Trace 可查询及 Tempo 停机时业务
+  健康；容器化 Bash 使用外部运行时模式，避免 Docker Desktop bind path 被容器内路径替换。
+- [ ] 完成 RabbitMQ 和 RocketMQ 的真实跨消息 Trace 传播、后端查询及故障降级证据。
+- [ ] 上述 MQ 门禁完成后再评审 `notification-service` 影子进程；当前不启动独立服务。
+
 ## 14. 实施记录模板
+
+### 2026-11-15：M3.2 准入——跨进程追踪基线首批
+
+- 接入：三个 Spring Boot 服务增加 OpenTelemetry Starter，日志关联统一为
+  `[application,traceId,spanId]`；OTLP 导出由 `TRACING_EXPORT_ENABLED` 显式开启，默认关闭且
+  Prometheus 继续负责指标。
+- 后端：Compose 增加可选 Tempo `3.1.1`，Grafana 自动装载 Tempo 数据源；本地存储使用临时目录，
+  不引入新的业务数据卷或业务运行依赖。
+- 传播：HTTP 实测 commerce-service 客户端 Span 与 logistics-simulator-service 服务端 Span 保持同一
+  Trace 和正确父子关系；Kafka 实测 `send/process` Span。notification 命令保留业务来源
+  `commerceflow-origin-traceparent`，Inbox 记录实际传输上下文，旧消息仍保持兼容校验。
+- 验证：商城 31 项测试通过；Windows 与容器化 Bash 的分布式追踪专项均查询到 commerce/logistics
+  同一 Trace，并在 Tempo 停机后确认三个服务业务健康。带 tracing 的 M3.1 运行时切换演练再次通过
+  Kafka 实时镜像、连续三次核对、独立读、数据库故障和 Commerce Schema 回退；当前质量门禁覆盖
+  283/21/235/3、全部 292 个 Java 源文件和 40 对脚本契约，Windows 快速回归通过。
+- 边界：RabbitMQ 已开启 Observation 配置，但本批未把 RabbitMQ/RocketMQ 的真实跨消息 Trace 作为
+  已验收结论；`notification-service` 与 PostgreSQL 均未启动。
 
 ### 2026-11-15：M3.1 最终门禁——notification 独立运行 Schema 与可逆切换
 

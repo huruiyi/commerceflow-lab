@@ -14,15 +14,18 @@ public class CustomerNotificationCommandRouter implements CustomerNotificationCo
   private final NotificationMapper notifications;
   private final NotificationDeliveryProperties properties;
   private final ObjectMapper mapper;
+  private final TraceContextProvider traceContext;
 
   public CustomerNotificationCommandRouter(CustomerNotificationCommandHandler handler,
                                            NotificationMapper notifications,
                                            NotificationDeliveryProperties properties,
-                                           ObjectMapper mapper) {
+                                           ObjectMapper mapper,
+                                           TraceContextProvider traceContext) {
     this.handler = handler;
     this.notifications = notifications;
     this.properties = properties;
     this.mapper = mapper;
+    this.traceContext = traceContext;
   }
 
   @Override
@@ -37,5 +40,12 @@ public class CustomerNotificationCommandRouter implements CustomerNotificationCo
     } catch (JacksonException exception) {
       throw new IllegalArgumentException("Customer notification command cannot be serialized", exception);
     }
+  }
+
+  @Override
+  public void publishOrderCancelled(String eventId, Long customerId, Long orderId, String reason,
+                                    String causationId) {
+    publish(CustomerNotificationCommandV1.orderCancelled(
+      eventId, customerId, orderId, reason, causationId, traceContext.traceparent()));
   }
 }
