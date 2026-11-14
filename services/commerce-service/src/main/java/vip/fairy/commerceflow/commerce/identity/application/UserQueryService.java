@@ -10,6 +10,7 @@ import java.util.List;
 
 @Service
 public class UserQueryService {
+
   private final AppUserMapper users;
 
   public UserQueryService(AppUserMapper users) {

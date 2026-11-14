@@ -76,6 +76,7 @@ class CommerceFlowIntegrationTest {
 
   @TestConfiguration
   static class TestSessions {
+
     @Bean
     MapSessionRepository sessionRepository() {
       return new MapSessionRepository(new ConcurrentHashMap<>());

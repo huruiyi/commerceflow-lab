@@ -1,6 +1,7 @@
 package vip.fairy.commerceflow.commerce.payment.domain;
 
 public class OutboxEvent {
+
   private Long id;
   private String eventId, aggregateType, aggregateId, eventType, topic, payload, status;
   private int attempts;

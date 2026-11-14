@@ -14,6 +14,7 @@ import javax.crypto.spec.SecretKeySpec;
 import org.springframework.http.HttpHeaders;
 
 public final class PaymentSigning {
+
   private PaymentSigning() {
   }
 

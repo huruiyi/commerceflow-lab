@@ -3,6 +3,7 @@ package vip.fairy.commerceflow.commerce.inventory.domain;
 import java.math.BigDecimal;
 
 public class MerchantInventoryItem {
+
   private Long productId;
   private String productName;
   private String thumbnailUrl;

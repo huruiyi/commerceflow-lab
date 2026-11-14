@@ -1,4 +1,9 @@
-package vip.fairy.commerceflow.simulator.logistics;
+package vip.fairy.commerceflow.simulator.logistics.application;
+
+import vip.fairy.commerceflow.simulator.logistics.domain.CallbackOutboxView;
+import vip.fairy.commerceflow.simulator.logistics.infrastructure.configuration.CallbackDeliveryProperties;
+import vip.fairy.commerceflow.simulator.logistics.infrastructure.persistence.LogisticsDataMapper;
+import vip.fairy.commerceflow.simulator.logistics.infrastructure.persistence.row.CallbackOutboxRow;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -15,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class CallbackOutboxService {
+
   private final LogisticsDataMapper dataMapper;
   private final CallbackDeliveryProperties properties;
   private final Counter manualReplays;
@@ -81,7 +87,7 @@ public class CallbackOutboxService {
     Instant leaseUntil = now.plus(properties.getClaimLease());
     int claimed = dataMapper.claimOutbox(id, now, leaseUntil, owner);
     if (claimed != 1) return null;
-    LogisticsDataMapper.CallbackOutboxRow row = dataMapper.outboxById(id);
+    CallbackOutboxRow row = dataMapper.outboxById(id);
     audit(id, "DELIVERY_CLAIMED", null, "PROCESSING", owner,
       "Attempt " + row.attempts() + " of " + row.maxAttempts());
     Object payload = row.payload();
@@ -110,7 +116,7 @@ public class CallbackOutboxService {
   }
 
   private CallbackOutboxView require(Long id) {
-    LogisticsDataMapper.CallbackOutboxRow row = dataMapper.outboxById(id);
+    CallbackOutboxRow row = dataMapper.outboxById(id);
     if (row == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND,
       "CALLBACK_OUTBOX_NOT_FOUND");
     return map(row);
@@ -122,7 +128,7 @@ public class CallbackOutboxService {
     }
   }
 
-  private CallbackOutboxView map(LogisticsDataMapper.CallbackOutboxRow row) {
+  private CallbackOutboxView map(CallbackOutboxRow row) {
     return new CallbackOutboxView(row.id(), row.shipmentId(), row.eventId(), row.callbackUrl(),
       row.status(), row.attempts(), row.maxAttempts(), instant(row.nextAttemptAt()),
       instant(row.leaseUntil()), row.claimedBy(), row.lastError(), instant(row.createdAt()),

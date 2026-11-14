@@ -1,4 +1,8 @@
-package vip.fairy.commerceflow.simulator.logistics;
+package vip.fairy.commerceflow.simulator.logistics.api;
+
+import vip.fairy.commerceflow.simulator.logistics.application.CallbackOutboxService;
+import vip.fairy.commerceflow.simulator.logistics.domain.CallbackOutboxView;
+import vip.fairy.commerceflow.simulator.logistics.infrastructure.security.RequestSignatureVerifier;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -17,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/channel/callback-outbox")
 public class CallbackOutboxAdminController {
+
   private final CallbackOutboxService outbox;
   private final RequestSignatureVerifier signatures;
   private final ObjectMapper mapper;

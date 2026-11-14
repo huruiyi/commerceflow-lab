@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 public class PaymentView {
+
   private Long id;
   private Long orderId;
   private Long merchantAccountId;

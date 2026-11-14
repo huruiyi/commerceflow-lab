@@ -3,6 +3,7 @@ package vip.fairy.commerceflow.commerce.scheduling.domain;
 import java.time.Instant;
 
 public class ScheduledTaskPolicyView {
+
   private String taskType;
   private boolean enabled;
   private String primaryTrigger;

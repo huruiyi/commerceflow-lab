@@ -6,6 +6,7 @@ import java.time.Instant;
  * 商城侧运单当前状态的持久化投影。
  */
 public class ShipmentRecordView {
+
   /** 商城运单记录自增主键。 */
   private Long id;
   /** 运单所属商城订单主键。 */

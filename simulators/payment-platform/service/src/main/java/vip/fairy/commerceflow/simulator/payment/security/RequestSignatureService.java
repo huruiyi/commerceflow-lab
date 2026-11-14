@@ -27,6 +27,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class RequestSignatureService {
+
   private final MerchantService merchants;
   private final SignedRequestRecordMapper records;
   private final StringRedisTemplate redis;

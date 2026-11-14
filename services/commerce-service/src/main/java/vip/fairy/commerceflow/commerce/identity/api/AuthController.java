@@ -29,6 +29,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
+
   private final AuthenticationManager authenticationManager;
   private final SecurityContextRepository securityContextRepository;
   private final SessionAuthenticationStrategy sessionAuthenticationStrategy;

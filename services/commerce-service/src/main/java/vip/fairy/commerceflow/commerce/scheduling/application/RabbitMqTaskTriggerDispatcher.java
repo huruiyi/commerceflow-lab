@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 @Service
 @ConditionalOnProperty(prefix = "commerceflow.scheduling.rabbitmq", name = "enabled", havingValue = "true")
 public class RabbitMqTaskTriggerDispatcher {
+
   private final ScheduledTaskMapper mapper;
   private final RabbitMqTaskTriggerPublisher publisher;
   private final RabbitMqTaskTriggerProperties properties;

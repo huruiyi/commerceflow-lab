@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/refund-notifications")
 public class RefundNotificationController {
+
   private final RefundNotificationService service;
 
   public RefundNotificationController(RefundNotificationService service) {

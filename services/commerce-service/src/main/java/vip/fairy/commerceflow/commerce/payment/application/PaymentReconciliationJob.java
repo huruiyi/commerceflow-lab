@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class PaymentReconciliationJob {
+
   private final ReconciliationMapper mapper;
   private final Counter detected;
 

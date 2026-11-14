@@ -23,6 +23,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class LogisticsNotificationService {
+
   private static final List<String> FLOW = List.of(
     "REQUESTED", "CREATED", "PICKED_UP", "IN_TRANSIT",
     "AT_STATION", "OUT_FOR_DELIVERY", "DELIVERED"

@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
  */
 @TableName("payment_platform_key")
 public class PaymentPlatformKey {
+
   /**
    * 数据库主键；仅用于内部关联，不作为对外业务编号。
    */

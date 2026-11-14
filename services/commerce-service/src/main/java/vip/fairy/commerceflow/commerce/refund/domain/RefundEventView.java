@@ -6,6 +6,7 @@ import java.time.Instant;
  * 退款状态变更的只读事件投影。
  */
 public class RefundEventView {
+
   /** 退款事件自增主键。 */
   private Long id;
   /** 退款事件类型，例如 REFUND_SUCCEEDED。 */

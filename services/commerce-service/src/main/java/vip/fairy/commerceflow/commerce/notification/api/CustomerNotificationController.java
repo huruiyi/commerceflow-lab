@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 @RequestMapping("/api/notifications")
 @PreAuthorize("hasRole('CUSTOMER')")
 public class CustomerNotificationController {
+
   private final CurrentUserService currentUsers;
   private final CustomerNotificationService notifications;
 

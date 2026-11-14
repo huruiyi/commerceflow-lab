@@ -6,6 +6,7 @@ import java.time.Instant;
  * 订单生命周期事件投影，用于审计状态迁移及其触发来源。
  */
 public class OrderEventView {
+
   /**
    * 订单事件内部主键。
    */

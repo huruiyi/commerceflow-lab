@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/admin/logistics-callbacks")
 @PreAuthorize("hasRole('ADMIN')")
 public class LogisticsCallbackAdminController {
+
   private final LogisticsGatewayClient logistics;
 
   public LogisticsCallbackAdminController(LogisticsGatewayClient logistics) {

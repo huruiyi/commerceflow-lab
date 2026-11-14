@@ -3,6 +3,7 @@ package vip.fairy.commerceflow.commerce.notification.domain;
 import java.time.Instant;
 
 public class CustomerNotification {
+
   private Long id;
   private Long orderId;
   private String notificationType;

@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class LogisticsReconciliationJob {
+
   private static final Logger log = LoggerFactory.getLogger(LogisticsReconciliationJob.class);
   private final ShipmentMapper shipments;
   private final LogisticsGatewayClient gateway;

@@ -7,6 +7,7 @@ import java.time.Instant;
  * 商城订单数据库投影，承载订单状态机及各生命周期时间点。
  */
 public class ShopOrderView {
+
   /**
    * 订单内部主键。
    */

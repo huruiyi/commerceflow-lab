@@ -19,6 +19,7 @@ import java.util.List;
 @RequestMapping("/api/merchant/orders")
 @PreAuthorize("hasRole('MERCHANT')")
 public class MerchantFulfillmentController {
+
   private final CurrentUserService users;
   private final MerchantFulfillmentService service;
 

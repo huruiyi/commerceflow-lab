@@ -1,4 +1,7 @@
-package vip.fairy.commerceflow.simulator.logistics;
+package vip.fairy.commerceflow.simulator.logistics.application;
+
+import vip.fairy.commerceflow.simulator.logistics.infrastructure.client.LogisticsCallbackClient;
+import vip.fairy.commerceflow.simulator.logistics.infrastructure.configuration.CallbackDeliveryProperties;
 
 import java.time.Instant;
 
@@ -11,6 +14,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class CallbackOutboxDispatcher {
+
   private static final Logger log = LoggerFactory.getLogger(CallbackOutboxDispatcher.class);
   private final CallbackOutboxService outbox;
   private final LogisticsCallbackClient callbacks;

@@ -101,8 +101,10 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - 12 个 MyBatis-Plus 持久化实体已增加类/字段业务 JavaDoc；简单 CRUD 优先使用 `BaseMapper`/Wrapper，复杂投影、联表、行锁和原子更新放入 Mapper XML。
 - 三个服务主源码中已无 MyBatis SQL 注解和 Service 内联业务 SQL；仅 ShedLock 官方 `JdbcTemplateLockProvider` 配置保留 `JdbcTemplate`。
 - 三个后端服务的 Java 主源码、Mapper XML 和 Maven POM 已接入 Windows/Bash 只读质量门禁；
-  当前覆盖 244 个 Java 文件、20 个 Mapper XML、189 个映射语句和 3 个 POM，并校验格式、
-  内联 SQL/JDBC 边界与 Mapper 契约。
+  当前覆盖 248 个主源码 Java、20 个 Mapper XML、189 个映射语句和 3 个 POM，并对全部 256 个
+  Java 主源码/测试源校验类声明后空行，同时校验格式、内联 SQL/JDBC 边界与 Mapper 契约。
+- 物流模拟器根包只保留启动类，业务实现已按 `api/application/domain/infrastructure` 分层；
+  基础设施继续按客户端、配置、指标、持久化和安全分目录，Mapper 投影独立放入持久化 `row` 子目录。
 - Angular 商城门户和支付模拟器 Web 均已纳入模块本地 Prettier 3.10.1 只读门禁，两个正式 Dockerfile
   都会在生产构建前强制检查。Angular 的 127 个源码/配置文件、29 项单元测试、本地/Docker 生产构建和
   运行态 i18n/权限专项已验证；支付 Web 的 24 个基线文件完成机械格式化，格式检查、无用例 Vitest、

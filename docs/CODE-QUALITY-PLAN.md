@@ -209,6 +209,11 @@ M2.5 前端格式门禁完成；总验收清单见 [TODO.md 第 13.3 节](TODO.m
 Bash/WSL，使用 Docker CLI 容器、host 网络和 Docker Desktop 可见路径执行同一原生脚本。
 M2 结论不包含微服务拆分、PostgreSQL 迁移、多节点高可用、多日容量或生产通知验收。
 
+M2 标签冻结后的 M3.1 首批治理扩展了当前门禁，但不改写历史标签结论：物流模拟器根包只允许保留
+启动类，业务代码必须存在 `api/application/domain/infrastructure` 四层；三个服务全部 256 个 Java
+主源码/测试源要求每个 `class` 声明后保留空行。当前双平台门禁覆盖 248 个主源码 Java、20 个 Mapper XML、
+189 个映射语句和 3 个 POM，并已通过物流正式镜像打包、主链路和 Outbox 管理专项。
+
 ## 4. 每批完成门禁
 
 1. 修改前后 `git diff --check` 通过，格式化变更与业务语义变更可以清晰审查。

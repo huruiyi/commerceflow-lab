@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
  */
 @TableName("payment_admin_mfa_credential")
 public class PaymentAdminMfaCredential {
+
   /**
    * 数据库主键；仅用于内部关联，不作为对外业务编号。
    */

@@ -19,6 +19,7 @@ import org.springframework.web.client.RestClient;
 
 @Component
 public class PaymentGatewayClient {
+
   private final RestClient client;
   private final ObjectMapper mapper;
   private final String baseUrl;

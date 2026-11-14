@@ -23,6 +23,7 @@ import org.springframework.http.HttpStatus;
 
 @Service
 public class PaymentAdminAccountService {
+
   private static final Set<String> ALLOWED_ROLES = Set.of("PAYMENT_ADMIN", "PAYMENT_OPERATOR", "PAYMENT_AUDITOR");
   private final PaymentAdminUserMapper users;
   private final PasswordEncoder passwordEncoder;

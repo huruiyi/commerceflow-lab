@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/admin/scheduling")
 @PreAuthorize("hasRole('ADMIN')")
 public class ScheduledTaskAdminController {
+
   private final ScheduledTaskPolicyService policies;
   private final ScheduledTaskService tasks;
 

@@ -11,6 +11,12 @@ $javaRoots = @(
   'simulators\logistics-platform\service\src\main\java'
 ) | ForEach-Object { Join-Path $ProjectRoot $_ }
 
+$javaSourceRoots = @(
+  'services\commerce-service\src',
+  'simulators\payment-platform\service\src',
+  'simulators\logistics-platform\service\src'
+) | ForEach-Object { Join-Path $ProjectRoot $_ }
+
 $mapperRoots = @(
   'services\commerce-service\src\main\resources\mapper',
   'simulators\payment-platform\service\src\main\resources\mapper',
@@ -24,8 +30,11 @@ $pomFiles = @(
 ) | ForEach-Object { Join-Path $ProjectRoot $_ }
 
 $javaFiles = @($javaRoots | ForEach-Object { Get-ChildItem $_ -Recurse -File -Filter '*.java' })
+$allJavaFiles = @($javaSourceRoots | ForEach-Object { Get-ChildItem $_ -Recurse -File -Filter '*.java' })
 $mapperFiles = @($mapperRoots | ForEach-Object { Get-ChildItem $_ -File -Filter '*.xml' })
 $formatFiles = @($javaFiles) + @($mapperFiles) + @($pomFiles | ForEach-Object { Get-Item $_ })
+$classDeclarationPattern = '^\s*(?:(?:public|protected|private|static|final|abstract|sealed|non-sealed)\s+)*' +
+  'class\s+[A-Za-z_$][A-Za-z0-9_$]*[^{]*\{\s*$'
 
 foreach ($file in $formatFiles) {
   $relativePath = [IO.Path]::GetRelativePath($ProjectRoot, $file.FullName)
@@ -57,6 +66,17 @@ foreach ($file in $formatFiles) {
   }
 }
 
+foreach ($file in $allJavaFiles) {
+  $relativePath = [IO.Path]::GetRelativePath($ProjectRoot, $file.FullName)
+  $lines = [IO.File]::ReadAllLines($file.FullName)
+  for ($lineIndex = 0; $lineIndex -lt $lines.Length - 1; $lineIndex++) {
+    if ($lines[$lineIndex] -match $classDeclarationPattern -and
+        -not [string]::IsNullOrWhiteSpace($lines[$lineIndex + 1])) {
+      Fail "$relativePath`:$($lineIndex + 1) must have a blank line after the class declaration"
+    }
+  }
+}
+
 foreach ($file in $javaFiles) {
   $relativePath = [IO.Path]::GetRelativePath($ProjectRoot, $file.FullName)
   $source = [IO.File]::ReadAllText($file.FullName)
@@ -67,6 +87,23 @@ foreach ($file in $javaFiles) {
       $source -match 'import\s+org\.springframework\.jdbc\.') {
     Fail "$relativePath introduces direct Spring JDBC access"
   }
+}
+
+$logisticsJavaRoot = Join-Path $ProjectRoot (
+  'simulators\logistics-platform\service\src\main\java\vip\fairy\commerceflow\simulator\logistics'
+)
+$expectedLogisticsLayers = @('api', 'application', 'domain', 'infrastructure')
+foreach ($layer in $expectedLogisticsLayers) {
+  if (-not (Test-Path (Join-Path $logisticsJavaRoot $layer) -PathType Container)) {
+    Fail "logistics simulator is missing the $layer layer"
+  }
+}
+$unexpectedLogisticsRootClasses = @(
+  Get-ChildItem $logisticsJavaRoot -File -Filter '*.java' |
+    Where-Object Name -ne 'LogisticsSimulatorApplication.java'
+)
+if ($unexpectedLogisticsRootClasses.Count -gt 0) {
+  Fail "logistics simulator root package contains $($unexpectedLogisticsRootClasses[0].Name)"
 }
 
 $statementCount = 0
@@ -116,6 +153,7 @@ foreach ($mapperFile in $mapperFiles) {
 
 $message = (
   "Code quality audit passed: {0} Java files, {1} Mapper XML files, {2} mapped statements, " +
-  "3 Maven POM files; format rules, inline SQL boundary and Mapper contracts are valid."
-) -f $javaFiles.Count, $mapperFiles.Count, $statementCount
+  "3 Maven POM files; class spacing across {3} Java sources, format rules, logistics layers, " +
+  "inline SQL boundary and Mapper contracts are valid."
+) -f $javaFiles.Count, $mapperFiles.Count, $statementCount, $allJavaFiles.Count
 Write-Host $message -ForegroundColor Green

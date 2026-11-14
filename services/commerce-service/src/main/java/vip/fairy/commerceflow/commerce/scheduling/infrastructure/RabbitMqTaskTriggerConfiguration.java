@@ -18,6 +18,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConditionalOnProperty(prefix = "commerceflow.scheduling.rabbitmq", name = "enabled", havingValue = "true")
 public class RabbitMqTaskTriggerConfiguration {
+
   @Bean
   Declarables scheduledTaskRabbitMqTopology(RabbitMqTaskTriggerProperties properties) {
     DirectExchange delay = new DirectExchange(properties.getDelayExchange(), true, false);

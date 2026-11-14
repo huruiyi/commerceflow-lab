@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 public class OrderView {
+
   private Long id;
   private Long productId;
   private Instant createdAt;

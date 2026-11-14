@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/admin/transactions")
 public class AdminTransactionController {
+
   private final ChannelTransactionService transactions;
 
   public AdminTransactionController(ChannelTransactionService transactions) {

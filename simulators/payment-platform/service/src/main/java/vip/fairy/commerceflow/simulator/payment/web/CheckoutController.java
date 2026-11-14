@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/checkout")
 public class CheckoutController {
+
   private final ChannelTransactionService transactions;
 
   public CheckoutController(ChannelTransactionService transactions) {

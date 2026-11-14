@@ -1,4 +1,6 @@
-package vip.fairy.commerceflow.simulator.logistics;
+package vip.fairy.commerceflow.simulator.logistics.infrastructure.security;
+
+import vip.fairy.commerceflow.simulator.logistics.infrastructure.persistence.LogisticsDataMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -17,6 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Component
 public class RequestSignatureVerifier {
+
   private final LogisticsDataMapper dataMapper;
   private final String appId, secret;
   private final Duration allowedSkew;

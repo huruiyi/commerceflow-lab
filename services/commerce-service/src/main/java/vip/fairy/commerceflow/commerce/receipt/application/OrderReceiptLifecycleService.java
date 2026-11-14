@@ -17,6 +17,7 @@ import java.util.Map;
 
 @Service
 public class OrderReceiptLifecycleService {
+
   private final ShopOrderMapper orders;
   private final ScheduledTaskMapper taskMapper;
   private final ObjectProvider<ScheduledTaskService> scheduledTasks;

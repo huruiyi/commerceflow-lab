@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class PaymentTimeoutTaskHandler implements ScheduledTaskHandler {
+
   private final OrderCancellationService cancellations;
 
   public PaymentTimeoutTaskHandler(OrderCancellationService cancellations) {

@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 public class NewShopOrder {
+
   private Long id;
   private final String orderNumber;
   private final Long customerId;

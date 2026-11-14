@@ -13,6 +13,7 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties(prefix = "commerceflow.logistics-platform.reconciliation")
 public class LogisticsReconciliationProperties {
+
   private boolean enabled = true;
   @NotNull
   private Duration initialDelay = Duration.ofSeconds(30);

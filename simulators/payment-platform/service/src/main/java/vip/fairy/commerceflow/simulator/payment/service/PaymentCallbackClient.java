@@ -17,6 +17,7 @@ import org.springframework.web.client.RestClient;
 
 @Component
 public class PaymentCallbackClient {
+
   private final RestClient client;
   private final ObjectMapper mapper;
   private final String url, secret;

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class PaymentCancellationCrashLab {
+
   private static final Logger LOGGER = LoggerFactory.getLogger(PaymentCancellationCrashLab.class);
 
   private final PaymentCancellationCrashLabProperties properties;

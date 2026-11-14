@@ -24,6 +24,7 @@ import org.springframework.web.util.UriUtils;
 
 @Component
 public class LogisticsGatewayClient {
+
   private final RestClient client;
   private final ObjectMapper mapper;
   private final String baseUrl;

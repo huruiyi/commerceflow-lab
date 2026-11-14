@@ -6,6 +6,7 @@ import java.math.BigDecimal;
  * 订单商品快照投影，保留下单时的商品、商家、价格和数量事实。
  */
 public class OrderItemView {
+
   /**
    * 订单商品条目内部主键。
    */

@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class PaymentEventPipeline {
+
   private final OutboxMapper outbox;
   private final KafkaTemplate<String, String> kafka;
   private final ObjectMapper mapper;

@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class AlipayChannelAdapter implements ChannelAdapter {
+
   @Override
   public String channel() {
     return "ALIPAY";

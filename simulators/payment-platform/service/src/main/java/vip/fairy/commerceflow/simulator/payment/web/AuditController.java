@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/admin/audit-logs")
 @PreAuthorize("hasAuthority('AUDIT_READ')")
 public class AuditController {
+
   private final PaymentAuditLogMapper auditLogs;
 
   public AuditController(PaymentAuditLogMapper auditLogs) {

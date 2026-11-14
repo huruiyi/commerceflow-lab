@@ -23,6 +23,7 @@ import java.util.List;
 @RequestMapping("/api/purchase-orders")
 @PreAuthorize("hasRole('CUSTOMER')")
 public class PurchaseOrderController {
+
   private final CurrentUserService currentUsers;
   private final PurchaseOrderService orders;
   private final LogisticsService logistics;

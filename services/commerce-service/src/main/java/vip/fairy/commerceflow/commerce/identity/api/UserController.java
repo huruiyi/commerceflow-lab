@@ -12,6 +12,7 @@ import java.util.List;
 @RequestMapping("/api/users")
 @PreAuthorize("hasRole('ADMIN')")
 public class UserController {
+
   private final UserQueryService users;
 
   public UserController(UserQueryService users) {

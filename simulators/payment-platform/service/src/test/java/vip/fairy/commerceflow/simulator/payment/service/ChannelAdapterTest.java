@@ -6,6 +6,7 @@ import vip.fairy.commerceflow.simulator.payment.domain.ChannelTransaction;
 import org.junit.jupiter.api.Test;
 
 class ChannelAdapterTest {
+
   private final ChannelTransaction transaction = transaction();
 
   @Test

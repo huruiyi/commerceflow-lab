@@ -6,6 +6,7 @@ import java.time.Instant;
  * 物流轨迹事件的只读持久化投影。
  */
 public class ShipmentEventView {
+
   /** 商城物流事件自增主键。 */
   private Long id;
   /** 物流平台生成的全局事件标识，用于幂等去重。 */

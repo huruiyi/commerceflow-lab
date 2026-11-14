@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/channel/transactions")
 public class ChannelTransactionController {
+
   private final ChannelTransactionService transactions;
 
   public ChannelTransactionController(ChannelTransactionService transactions) {

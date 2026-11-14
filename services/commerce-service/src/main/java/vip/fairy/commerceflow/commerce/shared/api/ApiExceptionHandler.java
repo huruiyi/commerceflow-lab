@@ -16,6 +16,7 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
   @ExceptionHandler(AuthenticationException.class)
   ResponseEntity<Map<String, Object>> authentication(AuthenticationException exception) {
     return response(HttpStatus.UNAUTHORIZED, "AUTH_INVALID", "Invalid email or password");

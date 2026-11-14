@@ -23,6 +23,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class MerchantService {
+
   private static final SecureRandom RANDOM = new SecureRandom();
   private final PaymentMerchantMapper merchants;
   private final PaymentAdminUserMapper users;

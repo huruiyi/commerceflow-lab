@@ -1,4 +1,4 @@
-package vip.fairy.commerceflow.simulator.logistics;
+package vip.fairy.commerceflow.simulator.logistics.infrastructure.client;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -10,9 +10,11 @@ import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import vip.fairy.commerceflow.simulator.logistics.infrastructure.configuration.CallbackDeliveryProperties;
 
 @Component
 public class LogisticsCallbackClient {
+
   private final RestClient client;
   private final String secret;
 

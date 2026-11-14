@@ -16,6 +16,7 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties(prefix = "commerceflow.scheduling")
 public class SchedulingProperties {
+
   private boolean enabled = true;
   @Valid
   private Policy defaultPolicy = new Policy();
@@ -77,6 +78,7 @@ public class SchedulingProperties {
   }
 
   public static class Policy {
+
     private boolean enabled = false;
     @NotBlank
     private String primaryTrigger = "DATABASE";
@@ -160,6 +162,7 @@ public class SchedulingProperties {
   }
 
   public static class Scan {
+
     @NotNull
     private Duration initialDelay = Duration.ofSeconds(10);
     @NotNull

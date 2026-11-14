@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class CurrentUserService {
+
   private final AppUserMapper users;
 
   public CurrentUserService(AppUserMapper users) {

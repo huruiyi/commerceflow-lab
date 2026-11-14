@@ -340,7 +340,28 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
    Advisory Lock、`SKIP LOCKED` 或 PostgreSQL 锁模型等学习目标；迁移后重新执行支付/取消锁超时、
    崩溃恢复、物流乱序、RabbitMQ/RocketMQ 故障及收货/完成竞态等全部可靠性门禁。
 
+### 13.5 M3.1 前置审计首批：代码结构基线治理
+
+- [x] 将物流模拟器从根包平铺调整为 `api/application/domain/infrastructure`，并在基础设施层继续拆分
+  `client/configuration/metrics/persistence/security`；根包只保留启动类。
+- [x] 将 Mapper 持久化投影独立放入 `infrastructure/persistence/row`，同步 MyBatis namespace、
+  `resultType` 和扫描路径，不改变数据库、事务、签名、Outbox 或状态机语义。
+- [x] 为三个服务全部 256 个 Java 主源码/测试源建立“每个 `class` 声明后必须空一行”门禁；
+  Windows 与容器化 Bash 质量审计均通过。
+- [x] 物流正式镜像 Maven 打包、签名主链路、异常恢复、回调投影、Outbox DEAD 人工重放、RBAC、
+  审计、幂等和指标专项通过；未删除或重建数据卷。
+- [ ] 继续 M3.1 的数据所有权、跨模块 Mapper/表依赖、应用接口、事件契约、Inbox、消费者契约测试和
+  分布式追踪基线审计；本批未启动微服务拆分或 PostgreSQL 迁移。
+
 ## 14. 实施记录模板
+
+### 2026-11-14：M3.1 前置代码结构基线治理
+
+- 结构：物流模拟器形成 `api/application/domain/infrastructure` 四层及基础设施子目录，持久化投影独立拆分。
+- 格式：为 173 个既有 Java 文件补齐 175 个类声明后空行，并以 Windows/Bash 门禁覆盖全部 256 个 Java 源文件。
+- 验证：248 个主源码 Java、20 个 Mapper XML、189 个映射语句和 3 个 POM 的双平台质量审计通过；
+  物流镜像 Maven 打包、主链路和 Outbox 管理专项通过。
+- 边界：保留三个独立 MySQL 和现有数据卷；未启动微服务拆分或 PostgreSQL 迁移。
 
 ### 2026-11-14：M2 工程质量总验收与基线冻结
 

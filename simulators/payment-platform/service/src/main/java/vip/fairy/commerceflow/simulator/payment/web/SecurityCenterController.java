@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/auth")
 public class SecurityCenterController {
+
   private final MfaService mfa;
 
   public SecurityCenterController(MfaService mfa) {

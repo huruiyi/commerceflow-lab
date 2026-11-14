@@ -12,6 +12,7 @@ import java.time.Instant;
  */
 @TableName("shipping_addresses")
 public class ShippingAddress {
+
   /**
    * 数据库主键；仅用于内部关联，不作为对外业务编号。
    */

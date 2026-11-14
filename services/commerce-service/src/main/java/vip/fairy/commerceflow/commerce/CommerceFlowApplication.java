@@ -37,6 +37,7 @@ import vip.fairy.commerceflow.commerce.payment.infrastructure.PaymentCancellatio
   RocketMqTaskTriggerProperties.class, MqConsumerCrashLabProperties.class,
   PaymentCancellationCrashLabProperties.class})
 public class CommerceFlowApplication {
+
   public static void main(String[] args) {
     SpringApplication.run(CommerceFlowApplication.class, args);
   }

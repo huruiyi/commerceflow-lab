@@ -11,6 +11,7 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties(prefix = "commerceflow.scheduling.mq-crash-lab")
 public class MqConsumerCrashLabProperties {
+
   private boolean enabled;
   @Min(1)
   private long taskId = 1;

@@ -1,4 +1,4 @@
-package vip.fairy.commerceflow.simulator.logistics;
+package vip.fairy.commerceflow.simulator.logistics.infrastructure.configuration;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -13,6 +13,7 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties(prefix = "logistics-platform.automation")
 public class LogisticsAutomationProperties {
+
   private boolean enabled;
   @NotNull
   private Duration stepInterval = Duration.ofMinutes(5);

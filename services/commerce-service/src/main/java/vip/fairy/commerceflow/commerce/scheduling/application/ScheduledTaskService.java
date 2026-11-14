@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ScheduledTaskService {
+
   private final ScheduledTaskMapper mapper;
   private final ScheduledTaskPolicyService policies;
   private final ScheduledTaskHandlerRegistry handlers;

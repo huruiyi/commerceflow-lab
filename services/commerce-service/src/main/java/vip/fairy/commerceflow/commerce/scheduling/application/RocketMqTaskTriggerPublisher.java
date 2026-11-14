@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 @ConditionalOnProperty(prefix = "commerceflow.scheduling.rocketmq", name = "enabled",
   havingValue = "true")
 public class RocketMqTaskTriggerPublisher {
+
   private final Producer producer;
   private final ClientServiceProvider provider;
   private final ObjectMapper mapper;

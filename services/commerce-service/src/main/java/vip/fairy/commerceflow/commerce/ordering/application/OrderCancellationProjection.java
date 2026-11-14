@@ -11,6 +11,7 @@ import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class OrderCancellationProjection {
+
   static final String CONSUMER_GROUP = "commerceflow-order-effects";
 
   private final ObjectMapper mapper;

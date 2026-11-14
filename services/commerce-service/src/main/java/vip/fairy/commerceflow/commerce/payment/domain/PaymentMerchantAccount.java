@@ -1,6 +1,7 @@
 package vip.fairy.commerceflow.commerce.payment.domain;
 
 public class PaymentMerchantAccount {
+
   private Long id;
   private PaymentChannel channel;
   private String merchantNo;

@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 @RequestMapping("/api/admin/users")
 @PreAuthorize("hasAuthority('ADMIN_USER_MANAGE')")
 public class AdminUserController {
+
   private final PaymentAdminAccountService accounts;
   private final MfaService mfa;
 

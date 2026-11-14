@@ -1,4 +1,6 @@
-package vip.fairy.commerceflow.simulator.logistics;
+package vip.fairy.commerceflow.simulator.logistics.application;
+
+import vip.fairy.commerceflow.simulator.logistics.infrastructure.configuration.LogisticsAutomationProperties;
 
 import java.time.Instant;
 
@@ -9,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class AutomaticShipmentProgressJob {
+
   private static final Logger log = LoggerFactory.getLogger(AutomaticShipmentProgressJob.class);
   private final ShipmentService shipments;
   private final LogisticsAutomationProperties properties;

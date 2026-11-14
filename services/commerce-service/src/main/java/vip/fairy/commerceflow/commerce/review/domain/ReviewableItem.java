@@ -1,6 +1,7 @@
 package vip.fairy.commerceflow.commerce.review.domain;
 
 public class ReviewableItem {
+
   private Long orderItemId;
   private Long productId;
 

@@ -13,6 +13,7 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties(prefix = "commerceflow.scheduling.rocketmq")
 public class RocketMqTaskTriggerProperties {
+
   private boolean enabled;
   @NotBlank
   private String endpoints = "localhost:8081";

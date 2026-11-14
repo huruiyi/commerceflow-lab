@@ -16,6 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Component
 public class SignedRequestFilter extends OncePerRequestFilter {
+
   private final RequestSignatureService signatures;
   private final ObjectMapper mapper;
 

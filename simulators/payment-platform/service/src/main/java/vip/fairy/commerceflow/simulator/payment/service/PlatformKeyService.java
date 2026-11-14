@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class PlatformKeyService implements ApplicationRunner {
+
   private final PaymentPlatformKeyMapper keys;
   private final CredentialCipher cipher;
 

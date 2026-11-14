@@ -5,6 +5,7 @@
 - 以 IntelliJ IDEA 的 Java、XML、HTML 格式化结果为主，同时遵守根目录 `.editorconfig`。
 - UTF-8、两空格缩进、文件末尾保留一个换行，不保留行尾空格。
 - 每个字段、方法和主要 HTML/XML 节点独立换行。不接受为减少行数而压缩的代码。
+- 每个 Java `class` 声明的左花括号后必须先保留一个空行，再声明字段、构造器、方法或嵌套类型。
 - 导入使用显式类名；除非框架 API 的常规用法，不新增通配符导入。
 - 格式化不得夹带业务语义改动，格式化提交与功能/重构提交分开。
 
@@ -50,10 +51,12 @@
 ## 6. 自动检查入口
 
 `scripts/windows/audit-code-quality.ps1` 与 `scripts/linux/audit-code-quality.sh` 是只检查入口，
-不会自动改写文件。当前纳入门禁的是三个后端服务的主源码 Java、Mapper XML 和 Maven POM：
+不会自动改写文件。当前纳入门禁的是三个后端服务的全部主源码/测试 Java、Mapper XML 和 Maven POM：
 
 - 文件应使用空格缩进、无行尾空格并以换行结束；编码仍以根目录 `.editorconfig` 的 UTF-8 为准。
 - Java 和 Mapper XML 每行不超过 120 个字符；Java 不允许通配符导入或单行多成员声明。
+- Java 的每个 `class` 声明后必须有空行；物流模拟器根包只保留启动类，业务代码按
+  `api/application/domain/infrastructure` 分层放置。
 - 禁止 MyBatis SQL 注解；除 ShedLock 官方适配器配置外，禁止直接引入 Spring JDBC。
 - Mapper XML 的 namespace 必须唯一对应 Java Mapper；statement id 必须唯一且存在同名接口方法。
 

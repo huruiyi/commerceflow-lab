@@ -11,6 +11,7 @@ import java.math.BigDecimal;
  */
 @TableName("products")
 public class Product {
+
   /**
    * 数据库主键；仅用于内部关联，不作为对外业务编号。
    */

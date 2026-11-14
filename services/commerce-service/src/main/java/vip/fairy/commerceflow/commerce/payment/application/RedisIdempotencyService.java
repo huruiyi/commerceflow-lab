@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class RedisIdempotencyService {
+
   private final StringRedisTemplate redis;
 
   public RedisIdempotencyService(StringRedisTemplate redis) {

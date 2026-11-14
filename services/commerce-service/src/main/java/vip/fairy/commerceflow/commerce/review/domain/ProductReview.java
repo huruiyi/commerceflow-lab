@@ -11,6 +11,7 @@ import java.time.Instant;
  */
 @TableName("product_reviews")
 public class ProductReview {
+
   /**
    * 数据库自增主键，仅用于内部关联。
    */

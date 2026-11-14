@@ -9,7 +9,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication
 @ConfigurationPropertiesScan
 @EnableScheduling
-@MapperScan("vip.fairy.commerceflow.simulator.logistics")
+@MapperScan("vip.fairy.commerceflow.simulator.logistics.infrastructure.persistence")
 public class LogisticsSimulatorApplication {
 
   public static void main(String[] args) {

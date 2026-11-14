@@ -1,4 +1,4 @@
-package vip.fairy.commerceflow.simulator.logistics;
+package vip.fairy.commerceflow.simulator.logistics.domain;
 
 import java.time.Instant;
 

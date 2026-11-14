@@ -1,6 +1,7 @@
 package vip.fairy.commerceflow.commerce.inventory.domain;
 
 public class InventoryReservation {
+
   private Long id;
   private Long orderId;
   private Long productId;

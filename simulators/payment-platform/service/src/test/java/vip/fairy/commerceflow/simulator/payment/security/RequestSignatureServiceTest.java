@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 
 class RequestSignatureServiceTest {
+
   @Test
   void canonicalRequestHasStableFieldOrder() {
     assertThat(RequestSignatureService.canonical("post", "/api/channel/transactions", "100", "nonce",

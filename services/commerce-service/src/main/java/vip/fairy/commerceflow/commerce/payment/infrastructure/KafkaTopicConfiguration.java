@@ -13,6 +13,7 @@ import org.springframework.kafka.core.KafkaAdmin;
 @Configuration
 @Profile("!test")
 public class KafkaTopicConfiguration {
+
   @Bean
   KafkaAdmin.NewTopics paymentTopics(@Value("${commerceflow.kafka.topic-replicas:1}") int replicas) {
     NewTopic[] topics = List.of(

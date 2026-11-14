@@ -27,6 +27,7 @@ import vip.fairy.commerceflow.commerce.payment.infrastructure.PaymentCancellatio
 
 @Service
 public class PaymentNotificationService {
+
   private final ShopOrderMapper orders;
   private final ObjectMapper mapper;
   private final String secret;

@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class PaymentAdminUserDetailsService implements UserDetailsService {
+
   private final PaymentAdminUserMapper users;
 
   public PaymentAdminUserDetailsService(PaymentAdminUserMapper users) {

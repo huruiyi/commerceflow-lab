@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Component
 public class DemoMerchantInitializer implements ApplicationRunner {
+
   private final PaymentMerchantMapper merchants;
   private final CredentialCipher cipher;
 

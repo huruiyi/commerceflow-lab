@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class ScheduledTaskExecutor {
+
   private final ScheduledTaskMapper mapper;
   private final ScheduledTaskService tasks;
   private final ScheduledTaskHandlerRegistry handlers;

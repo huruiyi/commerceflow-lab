@@ -4,6 +4,7 @@ package vip.fairy.commerceflow.commerce.ordering.domain;
  * 订单收货地址快照投影，内容在下单时从客户地址复制，后续不随地址簿修改。
  */
 public class OrderAddressView {
+
   /**
    * 收件人姓名。
    */

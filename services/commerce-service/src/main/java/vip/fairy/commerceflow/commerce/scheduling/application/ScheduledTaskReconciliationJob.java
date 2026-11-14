@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class ScheduledTaskReconciliationJob {
+
   private final ScheduledTaskExecutor executor;
   private final SchedulingProperties properties;
 

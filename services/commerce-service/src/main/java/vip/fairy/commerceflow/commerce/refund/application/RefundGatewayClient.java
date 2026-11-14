@@ -16,6 +16,7 @@ import org.springframework.web.client.RestClient;
 
 @Component
 public class RefundGatewayClient {
+
   private final RestClient client;
   private final ObjectMapper mapper;
   private final String baseUrl;

@@ -12,6 +12,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Configuration
 @EnableSchedulerLock(defaultLockAtMostFor = "PT5M")
 public class SchedulerConfiguration {
+
   @Bean
   LockProvider lockProvider(DataSource dataSource) {
     return new JdbcTemplateLockProvider(

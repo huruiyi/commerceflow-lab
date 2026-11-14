@@ -1,4 +1,8 @@
-package vip.fairy.commerceflow.simulator.logistics;
+package vip.fairy.commerceflow.simulator.logistics.application;
+
+import vip.fairy.commerceflow.simulator.logistics.domain.ShipmentView;
+import vip.fairy.commerceflow.simulator.logistics.infrastructure.persistence.LogisticsDataMapper;
+import vip.fairy.commerceflow.simulator.logistics.infrastructure.persistence.row.ShipmentRow;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
@@ -16,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ShipmentService {
+
   private static final List<String> FLOW = List.of(
     "CREATED", "PICKED_UP", "IN_TRANSIT", "AT_STATION", "OUT_FOR_DELIVERY", "DELIVERED");
   private final LogisticsDataMapper dataMapper;
@@ -116,23 +121,23 @@ public class ShipmentService {
   }
 
   private ShipmentView requireForUpdate(String merchantNo) {
-    LogisticsDataMapper.ShipmentRow row = dataMapper.lockShipmentByMerchantNo(merchantNo);
+    ShipmentRow row = dataMapper.lockShipmentByMerchantNo(merchantNo);
     if (row == null) throw notFound();
     return map(row);
   }
 
   private ShipmentView requireForUpdate(Long shipmentId) {
-    LogisticsDataMapper.ShipmentRow row = dataMapper.lockShipmentById(shipmentId);
+    ShipmentRow row = dataMapper.lockShipmentById(shipmentId);
     if (row == null) throw notFound();
     return map(row);
   }
 
   private ShipmentView find(String merchantNo) {
-    LogisticsDataMapper.ShipmentRow row = dataMapper.findShipmentByMerchantNo(merchantNo);
+    ShipmentRow row = dataMapper.findShipmentByMerchantNo(merchantNo);
     return row == null ? null : map(row);
   }
 
-  private ShipmentView map(LogisticsDataMapper.ShipmentRow row) {
+  private ShipmentView map(ShipmentRow row) {
     List<ShipmentView.Event> events = dataMapper.shipmentEvents(row.id()).stream()
       .map(event -> new ShipmentView.Event(
         event.eventId(), event.eventType(), event.status(), event.location(),
@@ -148,7 +153,7 @@ public class ShipmentService {
     String eventId = UUID.randomUUID().toString();
     Instant occurredAt = Instant.now();
     dataMapper.insertShipmentEvent(id, eventId, eventType, status, location, description, occurredAt);
-    LogisticsDataMapper.ShipmentRow shipment = dataMapper.shipmentById(id);
+    ShipmentRow shipment = dataMapper.shipmentById(id);
     Map<String, Object> payload = new LinkedHashMap<>();
     payload.put("notificationId", eventId);
     payload.put("merchantShipmentNo", shipment.merchantShipmentNo());

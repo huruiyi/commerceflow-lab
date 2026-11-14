@@ -9,6 +9,7 @@ import java.util.Base64;
 import org.junit.jupiter.api.Test;
 
 class CredentialCipherTest {
+
   private static final String KEY = Base64.getEncoder()
     .encodeToString("12345678901234567890123456789012".getBytes(StandardCharsets.UTF_8));
 

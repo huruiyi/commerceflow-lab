@@ -9,6 +9,7 @@ import java.time.Duration;
 @Validated
 @ConfigurationProperties(prefix = "commerceflow.order-lifecycle")
 public class OrderLifecycleProperties {
+
   private Duration paymentTimeout = Duration.ofMinutes(30);
   private Duration autoReceiveAfterDelivery = Duration.ofDays(7);
   private Duration autoCompleteAfterReceipt = Duration.ofDays(7);

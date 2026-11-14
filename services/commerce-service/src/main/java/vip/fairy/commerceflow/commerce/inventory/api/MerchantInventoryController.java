@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/merchant/inventory")
 @PreAuthorize("hasRole('MERCHANT')")
 public class MerchantInventoryController {
+
   private final CurrentUserService currentUsers;
   private final MerchantInventoryService inventory;
 

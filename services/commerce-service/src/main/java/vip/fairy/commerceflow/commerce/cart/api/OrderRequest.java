@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 
 public class OrderRequest {
+
   @NotNull
   private Long productId;
 

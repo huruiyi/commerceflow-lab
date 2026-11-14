@@ -13,6 +13,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
   @ExceptionHandler(ResponseStatusException.class)
   ResponseEntity<Map<String, String>> status(ResponseStatusException exception) {
     return ResponseEntity.status(exception.getStatusCode())

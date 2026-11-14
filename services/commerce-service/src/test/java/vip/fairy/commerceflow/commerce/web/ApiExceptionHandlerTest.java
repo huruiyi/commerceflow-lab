@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ApiExceptionHandlerTest {
+
   @Test
   void lockWaitFailureHasAStableRetryableContract() {
     var response = new ApiExceptionHandler().transientDatabaseConflict(

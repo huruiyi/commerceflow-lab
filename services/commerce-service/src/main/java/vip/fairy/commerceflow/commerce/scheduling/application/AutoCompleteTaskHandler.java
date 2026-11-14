@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class AutoCompleteTaskHandler implements ScheduledTaskHandler {
+
   private final OrderReceiptLifecycleService lifecycle;
 
   public AutoCompleteTaskHandler(OrderReceiptLifecycleService lifecycle) {

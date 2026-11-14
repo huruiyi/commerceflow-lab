@@ -9,6 +9,7 @@ import java.util.Locale;
 
 @Service
 public class LoginRateLimitService {
+
   private static final int MAX_FAILURES = 5;
   private static final Duration WINDOW = Duration.ofMinutes(5);
   private final StringRedisTemplate redis;

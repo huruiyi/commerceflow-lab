@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class LogisticsService {
+
   private final ShopOrderMapper orders;
   private final ShipmentMapper shipments;
 

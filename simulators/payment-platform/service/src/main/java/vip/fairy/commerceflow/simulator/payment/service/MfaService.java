@@ -30,6 +30,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class MfaService {
+
   private static final SecureRandom RANDOM = new SecureRandom();
   private static final String BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
   private final PaymentAdminMfaCredentialMapper credentials;

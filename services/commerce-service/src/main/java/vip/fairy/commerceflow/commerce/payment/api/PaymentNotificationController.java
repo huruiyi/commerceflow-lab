@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/payment-notifications")
 public class PaymentNotificationController {
+
   private final PaymentNotificationService service;
 
   public PaymentNotificationController(PaymentNotificationService s) {

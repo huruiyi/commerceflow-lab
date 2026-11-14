@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 @PreAuthorize("hasRole('CUSTOMER')")
 public class ReceiptReviewController {
+
   private final CurrentUserService users;
   private final ReceiptReviewService service;
 

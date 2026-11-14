@@ -22,6 +22,11 @@ java_roots=(
   "$PROJECT_ROOT/simulators/payment-platform/service/src/main/java"
   "$PROJECT_ROOT/simulators/logistics-platform/service/src/main/java"
 )
+java_source_roots=(
+  "$PROJECT_ROOT/services/commerce-service/src"
+  "$PROJECT_ROOT/simulators/payment-platform/service/src"
+  "$PROJECT_ROOT/simulators/logistics-platform/service/src"
+)
 mapper_roots=(
   "$PROJECT_ROOT/services/commerce-service/src/main/resources/mapper"
   "$PROJECT_ROOT/simulators/payment-platform/service/src/main/resources/mapper"
@@ -34,6 +39,7 @@ pom_files=(
 )
 
 mapfile -d '' -t java_files < <(find "${java_roots[@]}" -type f -name '*.java' -print0)
+mapfile -d '' -t all_java_files < <(find "${java_source_roots[@]}" -type f -name '*.java' -print0)
 mapfile -d '' -t mapper_files < <(find "${mapper_roots[@]}" -maxdepth 1 -type f -name '*.xml' -print0)
 format_files=("${java_files[@]}" "${mapper_files[@]}" "${pom_files[@]}")
 
@@ -44,6 +50,18 @@ for file in "${format_files[@]}"; do
     fail "$relative must end with a newline"
   if grep -n $'\t' "$file" >/dev/null; then fail "$relative contains a tab"; fi
   if grep -nE '[[:blank:]]+$' "$file" >/dev/null; then fail "$relative contains trailing whitespace"; fi
+done
+
+for file in "${all_java_files[@]}"; do
+  relative="${file#"$PROJECT_ROOT/"}"
+  if awk '
+    FNR == 1 { previous="" }
+    previous ~ /^[[:space:]]*((public|protected|private|static|final|abstract|sealed|non-sealed)[[:space:]]+)*class[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*[^{]*\{[[:space:]]*$/ &&
+      $0 !~ /^[[:space:]]*$/ { print FNR - 1; exit }
+    { previous=$0 }
+  ' "$file" | grep -q .; then
+    fail "$relative must have a blank line after every class declaration"
+  fi
 done
 
 for file in "${java_files[@]}"; do
@@ -74,6 +92,17 @@ for file in "${java_files[@]}"; do
   fi
 done
 
+logistics_java_root="$PROJECT_ROOT/simulators/logistics-platform/service/src/main/java/vip/fairy/commerceflow/simulator/logistics"
+for layer in api application domain infrastructure; do
+  [[ -d "$logistics_java_root/$layer" ]] || fail "logistics simulator is missing the $layer layer"
+done
+unexpected_logistics_root_class="$(
+  find "$logistics_java_root" -maxdepth 1 -type f -name '*.java' \
+    ! -name 'LogisticsSimulatorApplication.java' -print -quit
+)"
+[[ -z "$unexpected_logistics_root_class" ]] ||
+  fail "logistics simulator root package contains $(basename "$unexpected_logistics_root_class")"
+
 statement_count=0
 for mapper_file in "${mapper_files[@]}"; do
   relative="${mapper_file#"$PROJECT_ROOT/"}"
@@ -102,6 +131,7 @@ for mapper_file in "${mapper_files[@]}"; do
 done
 
 summary="Code quality audit passed: ${#java_files[@]} Java files, ${#mapper_files[@]} Mapper XML files, "
-summary+="$statement_count mapped statements, 3 Maven POM files; format rules, inline SQL boundary and "
+summary+="$statement_count mapped statements, 3 Maven POM files; class spacing across ${#all_java_files[@]} Java sources, "
+summary+='format rules, logistics layers, inline SQL boundary and '
 summary+='Mapper contracts are valid.'
 echo "$summary"

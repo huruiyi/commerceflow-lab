@@ -7,6 +7,7 @@ import java.time.Instant;
  * 商城退款记录的持久化投影。
  */
 public class RefundView {
+
   /** 退款记录自增主键。 */
   private Long id;
   /** 商城生成的对外退款单号。 */

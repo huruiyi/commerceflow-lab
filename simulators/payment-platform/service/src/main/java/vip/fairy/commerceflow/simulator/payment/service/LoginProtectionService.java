@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class LoginProtectionService {
+
   private final PaymentAdminUserMapper users;
   private final StringRedisTemplate redis;
   private final int maxFailures;

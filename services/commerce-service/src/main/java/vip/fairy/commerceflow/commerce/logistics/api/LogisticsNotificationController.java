@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/logistics-notifications")
 public class LogisticsNotificationController {
+
   private final LogisticsNotificationService service;
 
   public LogisticsNotificationController(LogisticsNotificationService service) {

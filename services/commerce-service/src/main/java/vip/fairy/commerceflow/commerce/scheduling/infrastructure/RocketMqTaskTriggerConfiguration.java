@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Configuration;
 @ConditionalOnProperty(prefix = "commerceflow.scheduling.rocketmq", name = "enabled",
   havingValue = "true")
 public class RocketMqTaskTriggerConfiguration {
+
   @Bean
   ClientServiceProvider rocketMqClientServiceProvider() {
     return ClientServiceProvider.loadService();

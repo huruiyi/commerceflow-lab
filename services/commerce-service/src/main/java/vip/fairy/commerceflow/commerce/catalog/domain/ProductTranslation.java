@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
  */
 @TableName("product_translations")
 public class ProductTranslation {
+
   /**
    * 关联商品的内部主键。
    */

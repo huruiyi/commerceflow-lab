@@ -3,6 +3,7 @@ package vip.fairy.commerceflow.commerce.cart.domain;
 import java.math.BigDecimal;
 
 public class CheckoutCartItem {
+
   private Long productId;
   private Long merchantId;
   private String productName;

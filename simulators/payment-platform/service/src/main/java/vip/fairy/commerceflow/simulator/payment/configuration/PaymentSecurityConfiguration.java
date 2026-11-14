@@ -27,6 +27,7 @@ import org.springframework.security.web.authentication.session.SessionAuthentica
 @Configuration
 @EnableMethodSecurity
 public class PaymentSecurityConfiguration {
+
   @Bean
   PasswordEncoder passwordEncoder() {
     return new BCryptPasswordEncoder();

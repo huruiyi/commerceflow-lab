@@ -1,4 +1,6 @@
-package vip.fairy.commerceflow.simulator.logistics;
+package vip.fairy.commerceflow.simulator.logistics.infrastructure.metrics;
+
+import vip.fairy.commerceflow.simulator.logistics.infrastructure.persistence.LogisticsDataMapper;
 
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -6,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class CallbackOutboxMetrics {
+
   public CallbackOutboxMetrics(LogisticsDataMapper dataMapper, MeterRegistry registry) {
     register(dataMapper, registry, "new", "NEW");
     register(dataMapper, registry, "processing", "PROCESSING");

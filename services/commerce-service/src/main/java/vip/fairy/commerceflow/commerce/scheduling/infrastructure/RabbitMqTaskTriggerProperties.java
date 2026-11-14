@@ -16,6 +16,7 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties(prefix = "commerceflow.scheduling.rabbitmq")
 public class RabbitMqTaskTriggerProperties {
+
   private boolean enabled;
   @NotNull
   private Duration publishInitialDelay = Duration.ofSeconds(2);

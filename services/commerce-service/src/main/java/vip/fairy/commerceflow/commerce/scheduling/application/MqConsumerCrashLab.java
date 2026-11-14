@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class MqConsumerCrashLab {
+
   public static final String PAUSED_EVENT = "TASK_DELIVERY_PAUSED_BEFORE_ACK";
 
   private final MqConsumerCrashLabProperties properties;

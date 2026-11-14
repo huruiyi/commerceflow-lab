@@ -19,6 +19,7 @@ import java.util.Set;
 
 @Service
 public class ProductCatalogService {
+
   public static final String CACHE_KEY = "commerceflow:catalog:products:v1";
   private final ProductMapper products;
   private final ProductTranslationMapper translations;

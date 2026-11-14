@@ -9,6 +9,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
  */
 @TableName("app_users")
 public class AppUser {
+
   /**
    * 数据库主键；仅用于内部关联，不作为对外业务编号。
    */

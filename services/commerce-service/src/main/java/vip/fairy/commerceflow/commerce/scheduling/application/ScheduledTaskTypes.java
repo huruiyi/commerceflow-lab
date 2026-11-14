@@ -4,6 +4,7 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 public final class ScheduledTaskTypes {
+
   public static final String PAYMENT_TIMEOUT = "PAYMENT_TIMEOUT";
   public static final String AUTO_RECEIVE = "AUTO_RECEIVE";
   public static final String AUTO_COMPLETE = "AUTO_COMPLETE";

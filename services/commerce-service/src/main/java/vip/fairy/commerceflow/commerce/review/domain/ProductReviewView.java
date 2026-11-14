@@ -3,6 +3,7 @@ package vip.fairy.commerceflow.commerce.review.domain;
 import java.time.Instant;
 
 public class ProductReviewView {
+
   private Long id;
   private Long productId;
   private Long customerId;

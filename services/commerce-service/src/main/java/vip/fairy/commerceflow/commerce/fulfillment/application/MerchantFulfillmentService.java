@@ -25,6 +25,7 @@ import java.util.Objects;
 
 @Service
 public class MerchantFulfillmentService {
+
   private final MerchantOrderMapper merchants;
   private final ShopOrderMapper orders;
   private final RefundMapper refunds;

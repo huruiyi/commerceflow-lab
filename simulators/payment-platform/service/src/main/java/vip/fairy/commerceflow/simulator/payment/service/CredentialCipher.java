@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class CredentialCipher {
+
   private static final SecureRandom RANDOM = new SecureRandom();
   private final SecretKeySpec key;
 

@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/admin/merchants")
 @PreAuthorize("hasAuthority('MERCHANT_MANAGE')")
 public class MerchantController {
+
   private final MerchantService merchants;
   private final PlatformKeyService keys;
 

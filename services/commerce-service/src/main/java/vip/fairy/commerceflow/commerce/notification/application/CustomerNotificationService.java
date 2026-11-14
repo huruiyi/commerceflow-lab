@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class CustomerNotificationService {
+
   private final CustomerNotificationMapper notifications;
 
   public CustomerNotificationService(CustomerNotificationMapper notifications) {

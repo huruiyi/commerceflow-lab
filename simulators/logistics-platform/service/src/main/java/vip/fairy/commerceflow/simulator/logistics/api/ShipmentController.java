@@ -1,4 +1,8 @@
-package vip.fairy.commerceflow.simulator.logistics;
+package vip.fairy.commerceflow.simulator.logistics.api;
+
+import vip.fairy.commerceflow.simulator.logistics.application.ShipmentService;
+import vip.fairy.commerceflow.simulator.logistics.domain.ShipmentView;
+import vip.fairy.commerceflow.simulator.logistics.infrastructure.security.RequestSignatureVerifier;
 
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.MediaType;

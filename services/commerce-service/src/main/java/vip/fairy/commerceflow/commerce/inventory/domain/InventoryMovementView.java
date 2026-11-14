@@ -3,6 +3,7 @@ package vip.fairy.commerceflow.commerce.inventory.domain;
 import java.time.Instant;
 
 public class InventoryMovementView {
+
   private Long id;
   private Long orderId;
   private Long productId;

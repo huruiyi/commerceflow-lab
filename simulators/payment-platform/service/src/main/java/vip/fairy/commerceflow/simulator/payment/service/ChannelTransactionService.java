@@ -29,6 +29,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ChannelTransactionService {
+
   private static final SecureRandom RANDOM = new SecureRandom();
   private final ChannelTransactionMapper transactions;
   private final PaymentAdminUserMapper users;

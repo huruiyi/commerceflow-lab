@@ -11,6 +11,7 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties(prefix = "commerceflow.payment-cancellation-crash-lab")
 public class PaymentCancellationCrashLabProperties {
+
   public enum Phase {
     AFTER_CANCELLATION_BEGIN,
     AFTER_CHANNEL_CLOSE,

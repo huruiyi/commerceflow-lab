@@ -1,4 +1,4 @@
-package vip.fairy.commerceflow.simulator.logistics;
+package vip.fairy.commerceflow.simulator.logistics.infrastructure.configuration;
 
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
@@ -13,6 +13,7 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties(prefix = "logistics-platform.callback-delivery")
 public class CallbackDeliveryProperties {
+
   private boolean enabled = true;
   @NotNull
   private Duration initialDelay = Duration.ofSeconds(2);

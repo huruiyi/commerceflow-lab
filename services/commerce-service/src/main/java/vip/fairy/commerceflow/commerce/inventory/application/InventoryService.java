@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class InventoryService {
+
   private final InventoryMapper inventory;
 
   public InventoryService(InventoryMapper inventory) {

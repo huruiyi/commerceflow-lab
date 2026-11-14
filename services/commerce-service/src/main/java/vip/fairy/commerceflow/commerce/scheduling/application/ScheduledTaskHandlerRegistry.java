@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class ScheduledTaskHandlerRegistry {
+
   private final Map<String, ScheduledTaskHandler> handlers;
 
   public ScheduledTaskHandlerRegistry(List<ScheduledTaskHandler> discovered) {
