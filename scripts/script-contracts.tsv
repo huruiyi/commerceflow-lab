@@ -32,6 +32,7 @@ verify-quick	BaseUrl,SkipBuild	@base-url,@skip-build
 verify-rabbitmq-scheduling	BaseUrl,MaxWaitSeconds	BASE_URL=1,MAX_WAIT_SECONDS=2
 verify-receipt-lifecycle-stress	BaseUrl,RabbitManagementUrl,DurationSeconds,MinimumRounds,Concurrency,RequestsPerWorker,MaxWaitSeconds	BASE_URL=1,RABBIT_URL=2,DURATION_SECONDS=3,MINIMUM_ROUNDS=4,CONCURRENCY=5,REQUESTS_PER_WORKER=6,MAX_WAIT_SECONDS=7
 verify-distributed-tracing	BaseUrl,TempoUrl,MaxWaitSeconds,SkipBuild	BASE_URL=1,TEMPO_URL=2,MAX_WAIT_SECONDS=3,SKIP_BUILD=4
+verify-mq-distributed-tracing	BaseUrl,TempoUrl,MaxWaitSeconds,SkipBuild	BASE_URL=1,TEMPO_URL=2,MAX_WAIT_SECONDS=3,SKIP_BUILD=4
 verify-receipt-reviews	BaseUrl	BASE_URL=1
 verify-redis-business	BaseUrl	BASE_URL=1
 verify-refunds	BaseUrl,PaymentBaseUrl	BASE_URL=1,PAYMENT_BASE_URL=2

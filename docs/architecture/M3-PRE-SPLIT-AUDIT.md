@@ -2,8 +2,8 @@
 
 ## 1. 结论
 
-M3.1 最终门禁已经完成；M3.2 准入首批已补齐 HTTP/Kafka 跨进程追踪，但
-`notification-service` **尚未创建或启动**。RabbitMQ/RocketMQ 的真实跨消息追踪仍是影子进程启动前门禁。
+M3.1 最终门禁已经完成；M3.2 准入已补齐 HTTP、Kafka、RabbitMQ 和 RocketMQ 跨进程追踪。
+`notification-service` **尚未创建或启动**，下一步仍需单独评审影子进程范围和回退边界。
 其他模块仍存在数据、Mapper 和同步调用共享边界，不能把任意业务包直接复制为独立服务并继续共享商城数据库。
 
 本轮冻结的是审计基线，不是微服务实现：
@@ -115,12 +115,10 @@ Kafka Producer/Listener Observation 已开启，实测存在同一 Trace 下的 
 保留 correlationId/causationId，并通过 `commerceflow-origin-traceparent` 保存业务来源上下文；Kafka
 instrumentation 改写的传输 traceparent 经格式校验后进入 Inbox。合法的两位 W3C trace-flags 已纳入回归。
 
-剩余门禁：
-
-- RabbitMQ 已开启 listener/template Observation，但仍需真实任务消息的跨进程 Trace 查询证据。
-- RocketMQ 尚未完成显式上下文注入/提取和真实跨消息 Trace 查询证据。
-- 完成两种 MQ 的追踪后端停机降级验证，再允许启动 notification-service 影子进程。
-- 继续禁止在 Span 中记录密码、令牌、完整通知正文等敏感或高基数字段。
+RabbitMQ 同时使用 Spring Observation 和显式 W3C 注入/提取，TTL 队列与 DLX 转发后仍保持上下文；
+RocketMQ 使用 Micrometer Tracer/Propagator 在消息 properties 中传播。Windows 与容器化 Bash 均以
+taskId 查询到同一 Trace 的 publish/process Span，并验证 Tempo 停机不影响商城健康。Span 仅记录消息系统
+和 taskId，不记录密码、令牌、完整通知正文等敏感字段。
 
 ## 7. M3.2 启动判定
 
@@ -135,10 +133,10 @@ instrumentation 改写的传输 traceparent 经格式校验后进入 Inbox。合
 - [x] 独立 notification Schema 的 Flyway 迁移已在隔离 MySQL 中验证三张自有表、零外键和 Inbox 幂等。
 - [x] 实际运行目标使用独立 Schema，并完成历史回填、实时镜像、读切换、数据库停机和商城回滚验收。
 - [x] HTTP 与 Kafka 已具备可查询的跨进程 Trace、日志关联和追踪后端故障降级证据。
-- [ ] RabbitMQ/RocketMQ 已具备真实跨消息 Trace 和追踪后端故障降级证据。
+- [x] RabbitMQ/RocketMQ 已具备真实跨消息 Trace 和追踪后端故障降级证据。
 
-M3.1 条件已满足，M3.2 准入首批也已完成；未完成的 MQ 追踪项继续阻止 notification-service 影子进程
-启动。这不代表服务已创建、流量已迁出或具备生产级可观测性。
+M3.1 条件及 M3.2 本地追踪准入门禁均已满足，可以单独评审 notification-service 影子进程。这不代表
+服务已创建、流量已迁出或具备生产级可观测性。
 
 ## 8. 自动基线
 

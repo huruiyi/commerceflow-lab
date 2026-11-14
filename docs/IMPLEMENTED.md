@@ -132,8 +132,9 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - M3.2 准入首批为三个 Java 服务接入 OpenTelemetry，并增加默认关闭的 OTLP 导出、可选 Tempo 和
   Grafana Trace 数据源。Windows/容器化 Bash 已查询到 commerce-service → logistics-simulator-service
   的同一 HTTP Trace，并验证 Tempo 停机不影响业务健康；Kafka `send/process` Span 及 notification
-  来源/传输 traceparent 分离已实测。RabbitMQ/RocketMQ 真实跨消息 Trace 仍是后续门禁，因此
-  notification-service 与 PostgreSQL 仍未启动。
+  来源/传输 traceparent 分离已实测。RabbitMQ 通过 Observation 与显式 W3C 上下文跨越 TTL/DLX，
+  RocketMQ 通过消息 properties 传播；Windows 与容器化 Bash 均查询到 publish/process 同 Trace，并验证
+  Tempo 停机降级。四种边界的本地追踪准入门禁已补齐，但 notification-service 与 PostgreSQL 仍未启动。
 - 已建立 [全开发生命周期可复测验证体系](VERIFICATION-SYSTEM.md)，将现有构建、快速/完整回归、空卷/升级恢复、MQ/崩溃专项和浸泡压测组织为 L0–L6 门禁，并固定证据、破坏性操作和基线冻结规则。
 - Angular 客户订单页已将退款申请/回执、`RECEIVED/COMPLETED` 履约状态和逐商品评价改为独立响应式面板；评价增加评分、必填内容、防重复提交和成功/失败反馈，未修改后端状态机或接口契约。
 - 上述界面已通过 25 项 Angular 单元测试、生产构建、Docker 实际页面与现有 `PAID/REFUNDED/RECEIVED/COMPLETED` 数据验收；浏览器控制台无错误，390 px 窄屏无横向溢出。

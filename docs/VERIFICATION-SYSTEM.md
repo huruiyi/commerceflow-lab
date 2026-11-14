@@ -118,7 +118,12 @@ V1→V3 的三张业务表、回填/核对/隔离表、零外键、快照字段�
 commerce-service 与 logistics-simulator-service 的同一 Trace；随后停止 Tempo，确认追踪后端故障不会
 拖垮三个业务服务，最后恢复原导出配置。Windows 直接管理 Compose；容器化 Bash 可使用
 `EXTERNAL_RUNTIME=true` 让宿主机管理 Compose，避免 Docker Desktop 将容器内仓库路径当作宿主 bind path。
-该专项当前证明 HTTP 和 Kafka Observation 基线，不把 RabbitMQ/RocketMQ 记为已验收。
+该专项证明 HTTP 和 Kafka Observation 基线；MQ 传播由下述独立专项验收。
+
+`verify-mq-distributed-tracing` 临时开启 RabbitMQ、RocketMQ 和 OTLP，分别创建真实 `PAYMENT_TIMEOUT`
+任务，并按 taskId 在 Tempo 中要求同一 Trace 同时存在 publish/process Span。随后停止 Tempo 验证
+commerce-service 健康，再恢复后端和默认 `Database + tracing off` 运行态。Windows 与容器化 Bash 均已
+实测；脚本不删除 Broker 或业务数据卷。
 
 ### 6.2 全新卷全链路
 

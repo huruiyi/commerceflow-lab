@@ -3,6 +3,9 @@ package vip.fairy.commerceflow.commerce.scheduling.application;
 import tools.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
+import io.micrometer.tracing.propagation.Propagator;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -27,24 +30,45 @@ public class RabbitMqTaskTriggerPublisher {
   private final RabbitTemplate rabbit;
   private final ObjectMapper mapper;
   private final RabbitMqTaskTriggerProperties properties;
+  private final Tracer tracer;
+  private final Propagator propagator;
   private final Counter published;
 
   public RabbitMqTaskTriggerPublisher(RabbitTemplate rabbit, ObjectMapper mapper,
-                                      RabbitMqTaskTriggerProperties properties, MeterRegistry registry) {
+                                      RabbitMqTaskTriggerProperties properties, MeterRegistry registry,
+                                      Tracer tracer, Propagator propagator) {
     this.rabbit = rabbit;
     this.mapper = mapper;
     this.properties = properties;
+    this.tracer = tracer;
+    this.propagator = propagator;
     this.rabbit.setMandatory(true);
     this.published = registry.counter("commerceflow.scheduled.tasks.rabbitmq.published");
   }
 
   public void publish(ScheduledTaskView task) throws Exception {
+    Span span = tracer.spanBuilder().name("rabbitmq scheduled task publish")
+      .kind(Span.Kind.PRODUCER).tag("messaging.system", "rabbitmq")
+      .tag("commerceflow.task.id", task.getId().toString()).start();
+    try (Tracer.SpanInScope ignored = tracer.withSpan(span)) {
+      publish(task, span);
+    } catch (Exception exception) {
+      span.error(exception);
+      throw exception;
+    } finally {
+      span.end();
+    }
+  }
+
+  private void publish(ScheduledTaskView task, Span span) throws Exception {
     RabbitMqTaskTriggerMessage payload = new RabbitMqTaskTriggerMessage(task.getId(),
       task.getTaskType(), task.getDueAt(), task.getPrimaryTriggerSnapshot());
     byte[] body = mapper.writeValueAsString(payload).getBytes(StandardCharsets.UTF_8);
     Message message = MessageBuilder.withBody(body).setContentType("application/json")
       .setContentEncoding(StandardCharsets.UTF_8.name()).setMessageId("scheduled-task-" + task.getId())
       .setDeliveryMode(MessageDeliveryMode.PERSISTENT).build();
+    propagator.inject(span.context(), message.getMessageProperties(),
+      (carrier, key, value) -> carrier.setHeader(key, value));
     CorrelationData correlation = new CorrelationData("scheduled-task-" + task.getId() + "-" + task.getVersion());
     rabbit.send(properties.getDelayExchange(), bucketRoutingKey(task.getDueAt()), message, correlation);
     CorrelationData.Confirm confirm = correlation.getFuture().get(

@@ -374,8 +374,8 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
   traceparent 分离兼容；合法两位 W3C trace-flags 不再被误送 DLT。
 - [x] 提供 Windows/Bash 配对的 `verify-distributed-tracing`，验证同一 Trace 可查询及 Tempo 停机时业务
   健康；容器化 Bash 使用外部运行时模式，避免 Docker Desktop bind path 被容器内路径替换。
-- [ ] 完成 RabbitMQ 和 RocketMQ 的真实跨消息 Trace 传播、后端查询及故障降级证据。
-- [ ] 上述 MQ 门禁完成后再评审 `notification-service` 影子进程；当前不启动独立服务。
+- [x] 完成 RabbitMQ 和 RocketMQ 的真实跨消息 Trace 传播、后端查询及故障降级证据。
+- [x] MQ 门禁完成后只开放 `notification-service` 影子进程的下一步评审；本批不启动独立服务。
 
 ## 14. 实施记录模板
 
@@ -393,8 +393,14 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
   同一 Trace，并在 Tempo 停机后确认三个服务业务健康。带 tracing 的 M3.1 运行时切换演练再次通过
   Kafka 实时镜像、连续三次核对、独立读、数据库故障和 Commerce Schema 回退；当前质量门禁覆盖
   283/21/235/3、全部 292 个 Java 源文件和 40 对脚本契约，Windows 快速回归通过。
-- 边界：RabbitMQ 已开启 Observation 配置，但本批未把 RabbitMQ/RocketMQ 的真实跨消息 Trace 作为
-  已验收结论；`notification-service` 与 PostgreSQL 均未启动。
+- MQ 补齐：RabbitMQ 在 Spring Observation 之外显式注入/提取 W3C 上下文，确保 TTL 队列和 DLX
+  转发后仍关联；RocketMQ 使用 Micrometer Tracer/Propagator 在 properties 中传播上下文。两者均以
+  taskId 低基数标签精确查询同一 Trace 的 publish/process Span。
+- MQ 验证：Windows 的 RabbitMQ/RocketMQ 任务 410/411 与容器化 Bash 任务 414/415 均完成真实延时
+  投递、原子领取和支付超时关单；四条 Trace 均包含发布/消费 Span。两平台均停止 Tempo 并确认
+  commerce-service 健康后恢复。脚本契约增至 41 对。
+- 边界：HTTP、Kafka、RabbitMQ、RocketMQ 的本地单机追踪准入门禁已补齐；这不是多 Broker 节点、
+  跨区域或生产采样验收。`notification-service` 与 PostgreSQL 均未启动。
 
 ### 2026-11-15：M3.1 最终门禁——notification 独立运行 Schema 与可逆切换
 

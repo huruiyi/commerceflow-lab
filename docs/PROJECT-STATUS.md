@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.2 准入首批完成：HTTP/Kafka 跨进程追踪基线已验收 |
-| 下一候选阶段 | 补齐 RabbitMQ/RocketMQ 真实跨消息追踪门禁；notification-service 尚未启动 |
+| 当前阶段 | M3.2 准入追踪门禁完成：HTTP/Kafka/RabbitMQ/RocketMQ 均已验收 |
+| 下一候选阶段 | 经单独评审后启动 notification-service 影子进程；当前尚未启动 |
 | 范围边界 | 不新增业务功能，不启动微服务或 PostgreSQL 迁移 |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -191,7 +191,7 @@ MyBatis Session 与事务管理器访问 notification Schema，商城命令 Outb
 最终商城/独立通知均为 167 条，默认恢复 `IN_PROCESS + COMMERCE`，两个数据库均健康。
 
 当前质量基线为 283 个主源码 Java、21 个 Mapper XML、235 条映射、3 个 POM 和全部 292 个 Java 源文件；
-脚本契约为 40 对，HTTP 基线为 19 个 Controller、63 个操作。商城所有权及跨模块依赖基线仍为
+脚本契约为 41 对，HTTP 基线为 19 个 Controller、63 个操作。商城所有权及跨模块依赖基线仍为
 42 张表和 41/118/38/21。M3.1 已完成并具备 M3.2 启动条件，但 notification-service 与 PostgreSQL 均未启动。
 
 第七批完成 M3.2 独立进程准入所需的首个跨进程追踪基线。三个 Java 服务接入 OpenTelemetry，统一
@@ -200,6 +200,8 @@ Tempo 数据源。默认关闭导出，因此追踪后端不是默认业务依�
 
 Windows 与容器化 Bash 的配对专项均查询到 commerce-service 与 logistics-simulator-service 的同一 Trace，
 并确认 Tempo 停机时业务服务继续健康。Kafka `send/process` Span 已实测；notification V1 同时保留业务来源
-traceparent 和传输 Span，上述兼容修复又通过带 tracing 的独立 Schema 实时切换全演练。RabbitMQ 已配置
-Observation，但 RabbitMQ/RocketMQ 的真实跨消息 Trace 尚未完成，因此下一批先补该门禁，不创建
-notification-service，也不迁移 PostgreSQL。
+traceparent 和传输 Span，上述兼容修复又通过带 tracing 的独立 Schema 实时切换全演练。RabbitMQ 通过
+Observation 与显式 W3C 上下文跨越 TTL/DLX，RocketMQ 通过消息 properties 注入/提取上下文。
+Windows 任务 410/411 和容器化 Bash 任务 414/415 均在 Tempo 查询到同一 Trace 的 publish/process Span，
+两平台也验证 Tempo 停机不影响商城健康。脚本契约现为 41 对。四种边界的本地追踪准入门禁已经补齐，
+下一步可单独评审 notification-service 影子进程；本批未创建服务或迁移 PostgreSQL。

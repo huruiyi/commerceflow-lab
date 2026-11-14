@@ -3,6 +3,9 @@ package vip.fairy.commerceflow.commerce.scheduling.application;
 import tools.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
+import io.micrometer.tracing.propagation.Propagator;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -24,6 +27,8 @@ public class RocketMqTaskTriggerConsumer {
   private final ScheduledTaskMapper mapper;
   private final ScheduledTaskExecutor executor;
   private final MqConsumerCrashLab crashLab;
+  private final Tracer tracer;
+  private final Propagator propagator;
   private final Counter consumed;
   private final Counter ignored;
   private final Counter malformed;
@@ -33,18 +38,33 @@ public class RocketMqTaskTriggerConsumer {
     ScheduledTaskMapper mapper,
     ScheduledTaskExecutor executor,
     MqConsumerCrashLab crashLab,
-    MeterRegistry registry
+    MeterRegistry registry,
+    Tracer tracer,
+    Propagator propagator
   ) {
     this.objectMapper = objectMapper;
     this.mapper = mapper;
     this.executor = executor;
     this.crashLab = crashLab;
+    this.tracer = tracer;
+    this.propagator = propagator;
     this.consumed = registry.counter("commerceflow.scheduled.tasks.rocketmq.consumed");
     this.ignored = registry.counter("commerceflow.scheduled.tasks.rocketmq.ignored");
     this.malformed = registry.counter("commerceflow.scheduled.tasks.rocketmq.malformed");
   }
 
   public ConsumeResult consume(MessageView raw) {
+    Span span = propagator.extract(raw.getProperties(), (carrier, key) -> carrier.get(key))
+      .name("rocketmq scheduled task process").kind(Span.Kind.CONSUMER)
+      .tag("messaging.system", "rocketmq").start();
+    try (Tracer.SpanInScope ignored = tracer.withSpan(span)) {
+      return consumeTraced(raw, span);
+    } finally {
+      span.end();
+    }
+  }
+
+  private ConsumeResult consumeTraced(MessageView raw, Span span) {
     try {
       ByteBuffer buffer = raw.getBody().duplicate();
       byte[] body = new byte[buffer.remaining()];
@@ -54,6 +74,7 @@ public class RocketMqTaskTriggerConsumer {
       if (message.taskId() == null || !TriggerStrategy.ROCKETMQ.name().equals(message.strategySnapshot())) {
         throw new IllegalArgumentException("Invalid RocketMQ task trigger payload");
       }
+      span.tag("commerceflow.task.id", message.taskId().toString());
       ScheduledTaskView task = mapper.byId(message.taskId()).orElse(null);
       if (task == null || !TriggerStrategy.ROCKETMQ.name().equals(task.getPrimaryTriggerSnapshot())) {
         ignored.increment();
@@ -70,9 +91,11 @@ public class RocketMqTaskTriggerConsumer {
       if (!executor.execute(task.getId(), TaskTriggerSource.ROCKETMQ)) ignored.increment();
       return ConsumeResult.SUCCESS;
     } catch (IllegalArgumentException exception) {
+      span.error(exception);
       malformed.increment();
       return ConsumeResult.FAILURE;
     } catch (Exception exception) {
+      span.error(exception);
       malformed.increment();
       return ConsumeResult.FAILURE;
     }
