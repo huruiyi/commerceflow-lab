@@ -12,6 +12,7 @@
 | Java/Maven 命名空间 | `vip.fairy.commerceflow` |
 | Docker Compose 项目名 | `fairy-commerceflow` |
 | M1 历史基线 | `m1-baseline-2026-11-13`（保留旧命名与验收证据） |
+| M2 质量基线 | `m2-quality-baseline-2026-11-14` |
 | 商城服务 Maven artifactId | `commerce-service` |
 | 命名迁移策略 | 不混用两套名称；按 [命名规范](docs/NAMING-CONVENTIONS.md) 独立迁移 |
 
@@ -179,7 +180,7 @@ npm test
 两个正式前端 Dockerfile 都会在生产构建前自动执行 `format:check`。`format:write` 是人工明确执行的
 机械格式化入口，不会由验收脚本自动改写源码。
 
-### M1 快速回归
+### 快速回归
 
 默认构建当前源码镜像并运行约数分钟的核心回归：
 

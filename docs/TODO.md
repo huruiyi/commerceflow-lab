@@ -315,14 +315,14 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
 本节必须在 13.2 全部完成并独立提交推送后执行。本阶段只做门禁收口和基线冻结，
 不继续格式类改造，不新增业务功能，不启动微服务拆分或 PostgreSQL 迁移。
 
-- [ ] 汇总三个 Java 服务、Angular 商城门户和支付模拟器 Web 的格式、Mapper 契约、模块边界和生产构建门禁。
-- [ ] 使用默认构建模式执行 Windows `verify-quick` 和 `verify-all`，不使用 `-SkipBuild` 冒充当前源码验收。
-- [ ] 执行容器化 Bash 质量门禁、脚本契约与快速/完整验证，记录与 Windows 的等价结果和平台差异。
-- [ ] 复验 Compose 配置、五个正式镜像、脚本默认非破坏性、主要健康检查和运行态服务名称。
-- [ ] 核对当前源码、迁移、脚本和实际验收证据与 `PROJECT-STATUS.md`、`IMPLEMENTED.md`、`TODO.md` 完全一致。
-- [ ] 确认工作区干净、本地 `main` 与远端 `origin/main` 一致，记录最终提交号。
-- [ ] 建立并推送 `m2-quality-baseline-YYYY-MM-DD` Git 标签；标签日期以实际验收日为准，不预先伪造。
-- [ ] 冻结后停止新增代码，先汇报 M2 完成范围、验收证据、遗留边界、提交和标签。
+- [x] 汇总三个 Java 服务、Angular 商城门户和支付模拟器 Web 的格式、Mapper 契约、模块边界和生产构建门禁。
+- [x] 使用默认构建模式执行 Windows `verify-quick` 和 `verify-all`，不使用 `-SkipBuild` 冒充当前源码验收。
+- [x] 执行容器化 Bash 质量门禁、脚本契约与快速/完整验证，记录与 Windows 的等价结果和平台差异。
+- [x] 复验 Compose 配置、五个正式镜像、脚本默认非破坏性、主要健康检查和运行态服务名称。
+- [x] 核对当前源码、迁移、脚本和实际验收证据与 `PROJECT-STATUS.md`、`IMPLEMENTED.md`、`TODO.md` 完全一致。
+- [x] 确认工作区干净、本地 `main` 与远端 `origin/main` 一致，记录最终提交号。
+- [x] 建立并推送 `m2-quality-baseline-2026-11-14` Git 标签；标签日期以实际验收日为准，不预先伪造。
+- [x] 冻结后停止新增代码，先汇报 M2 完成范围、验收证据、遗留边界、提交和标签。
 
 ### 13.4 M2 冻结后的架构阶段顺序
 
@@ -341,6 +341,23 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
    崩溃恢复、物流乱序、RabbitMQ/RocketMQ 故障及收货/完成竞态等全部可靠性门禁。
 
 ## 14. 实施记录模板
+
+### 2026-11-14：M2 工程质量总验收与基线冻结
+
+- 质量门禁：Windows 与容器化 Bash 均通过 244 个 Java 文件、20 个 Mapper XML、189 个映射语句、
+  3 个 Maven POM 和 37 对验收脚本的只读审计；两个前端的 Prettier 门禁均由正式 Dockerfile 强制执行。
+- 全量验收：Windows 默认 `verify-quick`、默认 `verify-all` 和最终 `-SkipBuild` 全业务复跑通过；
+  容器化 Bash 默认 `verify-quick`、默认 `verify-all` 通过。Bash 使用 Docker CLI 容器、host 网络和
+  Docker Desktop 可见仓库路径运行同一原生脚本，因为当前 Windows 主机没有可用的原生 Bash/WSL。
+- 收口修复：支付 Web Nginx 使用 Docker DNS 动态解析上游；支付结果和完整验收脚本通过商户 API
+  准备可重复库存；本地单节点 Alertmanager 关闭集群监听并以 tmpfs 保存通知日志，Watchdog 使用稳定
+  `instance/job` 标签，Windows/Bash 在监控栈全新重建后均完成真实 webhook 投递。
+- 运行态：默认及全 Profile Compose 配置有效，五个正式镜像存在，默认 11 个核心服务及监控服务健康，
+  8 个主要健康端点返回 `200`；脚本默认不删除命名卷，本轮未删除或重建数据卷。
+- 边界：结论限于本地单机 Docker 学习环境，不代表多节点高可用、多日容量、真实通知到人或生产合规验收；
+  微服务拆分与 PostgreSQL 迁移均未启动。
+- 冻结：13.2 独立提交 `ebaa761 style(payment-web): enforce frontend formatting` 已先推送；
+  本节最终提交推送后以注释标签 `m2-quality-baseline-2026-11-14` 冻结，标签指向该最终提交。
 
 ### 2026-11-14：M2.5 Angular 商城门户格式门禁
 

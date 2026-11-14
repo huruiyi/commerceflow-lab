@@ -114,6 +114,11 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - 上述界面已通过 25 项 Angular 单元测试、生产构建、Docker 实际页面与现有 `PAID/REFUNDED/RECEIVED/COMPLETED` 数据验收；浏览器控制台无错误，390 px 窄屏无横向溢出。
 - `observability` Profile 已接入 Prometheus、10 条可单测告警规则、Alertmanager、Grafana 双数据源和只读本地 Webhook 接收端；商城、支付模拟器、物流模拟器三个 Spring Boot Target 均可抓取。
 - `verify-alerting` 已在 Windows 与容器化 Bash 通过：Prometheus/Alertmanager 配置有效，服务宕机/退款积压/物流 `DEAD` 规则单测通过，Watchdog 经真实 Alertmanager 路由到 Webhook。
+- M2 工程质量总验收已完成：Windows 与容器化 Bash 的默认完整验收、质量审计和 37 对脚本契约审计通过；
+  五个正式镜像、默认/全 Profile Compose、默认 11 个核心服务和 8 个主要健康端点已复验。连续执行会在
+  全量验收开场通过商户 API 准备测试库存；支付 Web 代理动态解析容器上游；本地单节点 Alertmanager
+  使用可重建的 tmpfs 通知日志，监控栈冷启动后 Watchdog 可真实送达 webhook。M2 冻结标签为
+  `m2-quality-baseline-2026-11-14`，微服务拆分和 PostgreSQL 迁移尚未启动。
 
 ## 8. 订单取消与 Database 超时首个垂直闭环
 
@@ -136,7 +141,8 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - `verify-payment-attempt-deadline` 的 Windows 与容器化 Bash 真实链路均已通过：整单截止时间到达后，Database 任务先关闭当前待支付渠道，再取消订单，且领取/完成事件各一次。
 - 全新独立数据卷已跑完完整链路：商城/支付/物流 Flyway 分别达到 V24/V4/V5，从 0 订单开始完成登录、下单、支付、履约、物流、收货、完成、重启恢复和评价。
 - V16→V24 隔离旧库升级演练已通过；在不删现有卷的前提下，Windows 和容器化 Bash 均已完成数据层、业务服务和两种 MQ 重启，RabbitMQ/RocketMQ 租约过期任务各恢复一次，终态业务历史指纹不变。
-- `verify-quick` 已作为 M1 快速回归入口在 Windows 和容器化 Bash 通过；Windows 默认构建模式也已重建当前源码镜像并通过核心业务回归。M1 冻结标签为 `m1-baseline-2026-11-13`。
+- `verify-quick` 已作为快速回归入口在 Windows 和容器化 Bash 通过；M2 冻结前两平台默认完整验收也已通过。
+  M1 历史标签为 `m1-baseline-2026-11-13`，M2 质量基线标签为 `m2-quality-baseline-2026-11-14`。
 
 ## 9. 库存预占与商家库存中心
 

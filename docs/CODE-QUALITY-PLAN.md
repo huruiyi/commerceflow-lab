@@ -195,6 +195,20 @@ Prettier 包，支付签名、收银台和管理视图没有业务重构。`form
 
 M2.5 前端格式门禁完成；总验收清单见 [TODO.md 第 13.3 节](TODO.md#133-m2-工程质量总验收与基线冻结)。
 
+### M2.6 工程质量总验收与冻结（已完成）
+
+- [x] 三个 Java 服务的格式、内联 SQL/JDBC 边界、Mapper 契约和商城 ArchUnit 模块边界门禁通过。
+- [x] Angular 与支付模拟器 Web 的项目本地 Prettier、生产构建和正式镜像门禁通过。
+- [x] Windows 与容器化 Bash 的质量审计、37 对脚本契约、快速/完整验收通过。
+- [x] Compose 默认/全 Profile、五个正式镜像、运行态服务名和主要健康端点通过复验。
+- [x] 文档、最终提交、远端 `main` 与注释标签 `m2-quality-baseline-2026-11-14` 完成收口。
+
+最终验收保持现有数据卷，连续运行所需库存通过商户 API 准备。支付 Web 使用 Docker DNS 动态解析
+支付后端；本地单节点 Alertmanager 关闭集群监听并使用 tmpfs 通知日志，Watchdog 具有稳定分组标签，
+监控栈全新重建后的 Windows/Bash webhook 投递均通过。容器化 Bash 是因为当前主机没有可用的原生
+Bash/WSL，使用 Docker CLI 容器、host 网络和 Docker Desktop 可见路径执行同一原生脚本。
+M2 结论不包含微服务拆分、PostgreSQL 迁移、多节点高可用、多日容量或生产通知验收。
+
 ## 4. 每批完成门禁
 
 1. 修改前后 `git diff --check` 通过，格式化变更与业务语义变更可以清晰审查。

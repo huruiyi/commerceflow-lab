@@ -185,9 +185,14 @@ services:
   alertmanager:
     image: prom/alertmanager:v0.29.0
     profiles: [observability]
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --cluster.listen-address=
     ports: ["19093:9093"]
     volumes:
       - ./infrastructure/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    tmpfs: [/alertmanager]
     depends_on:
       alert-webhook: {condition: service_healthy}
     healthcheck:

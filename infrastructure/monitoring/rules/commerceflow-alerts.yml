@@ -5,6 +5,8 @@ groups:
         expr: vector(1)
         for: 20s
         labels:
+          instance: commerceflow-alerting-pipeline
+          job: alerting-pipeline
           severity: none
           service: observability
         annotations:

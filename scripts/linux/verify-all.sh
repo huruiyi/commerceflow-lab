@@ -34,6 +34,16 @@ for service in "${required_services[@]}"; do
   grep -Fxq "$service" <<<"$services" || { echo "Required service is not running: $service" >&2; exit 1; }
 done
 
+inventory_temp="$(new_temp_dir)"
+trap 'rm -rf -- "$inventory_temp"' EXIT
+merchant_jar="$inventory_temp/merchant.cookies"
+IFS=$'\t' read -r merchant_header merchant_token <<<"$(storefront_login "$BASE_URL" merchant@example.com "$merchant_jar")"
+available="$(json_request GET "$BASE_URL/api/merchant/inventory" "$merchant_jar" | jq -r '.[] | select(.productId == 1) | .stockAvailable')"
+if ((available < 100)); then
+  json_request POST "$BASE_URL/api/merchant/inventory/1/adjustments" "$merchant_jar" "$merchant_header" "$merchant_token" \
+    "$(jq -nc --argjson delta "$((100 - available))" '{delta:$delta,reason:"Prepare complete acceptance inventory"}')" >/dev/null
+fi
+
 verification_scripts=(
   verify-i18n.sh verify-authorization.sh verify-scheduling.sh verify-order-cancellation.sh
   verify-payment-cancellation-race.sh verify-payment-outcomes.sh verify-kafka-payment.sh verify-refunds.sh

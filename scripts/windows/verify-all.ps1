@@ -43,6 +43,23 @@ foreach ($service in $expected) {
   if ($services -notcontains $service) { throw "Required service is not running: $service" }
 }
 
+$merchant = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+$merchantCsrf = Invoke-RestMethod "$BaseUrl/api/auth/csrf" -WebSession $merchant
+$merchantHeaders = @{$merchantCsrf.headerName = $merchantCsrf.token}
+$loginBody = @{email = 'merchant@example.com'; password = 'demo-password'; rememberMe = $false} | ConvertTo-Json -Compress
+Invoke-RestMethod "$BaseUrl/api/auth/login" -Method Post -WebSession $merchant -Headers $merchantHeaders `
+  -ContentType application/json -Body $loginBody | Out-Null
+$product = Invoke-RestMethod "$BaseUrl/api/merchant/inventory" -WebSession $merchant |
+  Where-Object productId -eq 1 | Select-Object -First 1
+if ([int]$product.stockAvailable -lt 100) {
+  $inventoryBody = @{
+    delta = 100 - [int]$product.stockAvailable
+    reason = 'Prepare complete acceptance inventory'
+  } | ConvertTo-Json -Compress
+  Invoke-RestMethod "$BaseUrl/api/merchant/inventory/1/adjustments" -Method Post -WebSession $merchant `
+    -Headers $merchantHeaders -ContentType application/json -Body $inventoryBody | Out-Null
+}
+
 Invoke-ChapterVerification 'verify-i18n.ps1'
 Invoke-ChapterVerification 'verify-authorization.ps1'
 Invoke-ChapterVerification 'verify-scheduling.ps1'
