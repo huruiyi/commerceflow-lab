@@ -19,7 +19,7 @@ services:
 
   notification-db:
     image: mysql:8.4
-    profiles: [notification-storage]
+    profiles: [notification-storage, notification-service]
     environment:
       MYSQL_DATABASE: notification
       MYSQL_USER: ${NOTIFICATION_DATABASE_USERNAME:-notification}
@@ -513,6 +513,35 @@ services:
       payment-simulator-service:
         condition: service_healthy
       logistics-simulator-service:
+        condition: service_healthy
+      kafka-broker:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: ./services/notification-service
+    profiles: [notification-service]
+    environment:
+      DATABASE_URL: jdbc:mysql://notification-db:3306/notification?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DATABASE_USERNAME: ${NOTIFICATION_DATABASE_USERNAME:-notification}
+      DATABASE_PASSWORD: ${NOTIFICATION_DATABASE_PASSWORD:-notification-password}
+      KAFKA_BOOTSTRAP_SERVERS: kafka-broker:9092
+      NOTIFICATION_DELIVERY_TOPIC: ${NOTIFICATION_DELIVERY_TOPIC:-customer-notification-commands}
+      NOTIFICATION_CONSUMER_GROUP: ${NOTIFICATION_CONSUMER_GROUP:-commerceflow-independent-notification-v1}
+      TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
+      TRACING_OTLP_ENDPOINT: ${TRACING_OTLP_ENDPOINT:-http://tempo:4318/v1/traces}
+      TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1.0}
+    ports:
+      - "18086:8080"
+    depends_on:
+      notification-db:
         condition: service_healthy
       kafka-broker:
         condition: service_healthy

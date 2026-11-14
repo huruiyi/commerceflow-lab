@@ -377,7 +377,44 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
 - [x] 完成 RabbitMQ 和 RocketMQ 的真实跨消息 Trace 传播、后端查询及故障降级证据。
 - [x] MQ 门禁完成后只开放 `notification-service` 影子进程的下一步评审；本批不启动独立服务。
 
+### 13.7 M3.2 首批：notification-service 独立影子进程
+
+本批只让 notification 以影子消费者独立运行；客户查询和写入权威仍在 commerce-service，默认运行态仍为
+`IN_PROCESS + COMMERCE`，不启动 PostgreSQL，也不删除单体通知表。
+
+- [x] 新建分层的 `services/notification-service`，根包只保留启动类，业务代码进入
+  `api/application/domain/infrastructure`，基础设施继续拆分 `messaging/persistence`。
+- [x] 复用冻结的 V1 通知命令、稳定消费者组和独立 Schema V1→V3；独立进程以 Inbox + eventId 唯一键
+  抵御重复和历史回放，不共享 commerce Schema、Mapper 或事务。
+- [x] Compose 增加可选 `notification-service` Profile 和 `18086` 健康/状态端点；默认 `docker compose up`
+  不启动影子进程，`notification-db` 数据卷保持不变。
+- [x] 增加 Windows/Bash 配对专项，实测实时影子写入、进程停机期间 Kafka 积压、重启追平、
+  commerce/notification 同 Trace 和显式切回 `IN_PROCESS` 的单体门禁。
+- [x] 扩展质量审计到第四个 POM、notification 分层/子目录、Mapper 契约及两处 V1→V3 迁移字节一致性；
+  双平台质量和 42 对脚本契约审计通过。
+- [x] 收口 README、状态、实现、演进计划和验证体系；本批独立提交推送，不建立 M3 标签。
+- [ ] 后续批次再评审客户通知读 API 切换、双读核对和单体代码删除；当前不得宣称 notification 已完成流量迁出。
+
 ## 14. 实施记录模板
+
+### 2026-11-15：M3.2 首批——notification-service 独立影子进程
+
+- 进程边界：新增 Spring Boot `notification-service`，使用独立 MySQL、Flyway、MyBatis、Kafka listener
+  与本地事务；稳定消费者组继续使用 `commerceflow-independent-notification-v1`，避免切换时丢失既有 offset
+  和 Inbox 身份。
+- 兼容与恢复：沿用 V1 payload/Header 校验及 DLT 有限重试；通知插入使用 eventId 幂等，服务停机期间
+  commerce 主投影继续工作，重启后从 Kafka offset 追平独立读模型。
+- 验证：镜像内 1 项集成测试通过；Windows 事件
+  `a6a4fb5a-9c37-466d-ad3e-cee7a132a570:notification` 实时写入、
+  `221a7028-f2ae-4717-b85b-e40727d4cc8e:notification` 停机恢复，Trace
+  `8750bd0c1079a7cb0c59f36166170d5c` 包含 commerce/notification；容器化 Bash 对应事件
+  `14348143-fdd5-4d1d-9b02-d964f70c5f04:notification`、
+  `a2c7f8f6-5421-4611-a51a-9cabb1d1a110:notification` 和 Trace
+  `e603e4390efbb48c319a9334738c11d2` 均通过。
+- 门禁：293 个主源码 Java、22 个 Mapper XML、239 条映射、4 个 POM、全部 303 个 Java 源文件和
+  42 对脚本契约通过；容器化 Bash 使用外部运行时模式避开 Docker Desktop bind path 替换。
+- 边界：验收后关闭 notification-service 并恢复 commerce 默认配置；notification-db 和历史数据保留，
+  Tempo 保持原运行状态。客户 API 未切换，单体回退未删除，PostgreSQL 未启动。
 
 ### 2026-11-15：M3.2 准入——跨进程追踪基线首批
 

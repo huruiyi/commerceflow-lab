@@ -135,8 +135,9 @@ taskId 查询到同一 Trace 的 publish/process Span，并验证 Tempo 停机�
 - [x] HTTP 与 Kafka 已具备可查询的跨进程 Trace、日志关联和追踪后端故障降级证据。
 - [x] RabbitMQ/RocketMQ 已具备真实跨消息 Trace 和追踪后端故障降级证据。
 
-M3.1 条件及 M3.2 本地追踪准入门禁均已满足，可以单独评审 notification-service 影子进程。这不代表
-服务已创建、流量已迁出或具备生产级可观测性。
+M3.1 条件及 M3.2 本地追踪准入门禁均已满足，notification-service 影子进程已在单独授权后创建并完成
+双平台实时消费、停机恢复和跨进程 Trace 验收。这仍不代表客户读流量已迁出、单体路径可删除或具备
+生产级可观测性；下一门禁是双读核对与显式 API 切换评审。
 
 ## 8. 自动基线
 

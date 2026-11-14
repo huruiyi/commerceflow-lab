@@ -14,6 +14,7 @@
 | M1 历史基线 | `m1-baseline-2026-11-13`（保留旧命名与验收证据） |
 | M2 质量基线 | `m2-quality-baseline-2026-11-14` |
 | 商城服务 Maven artifactId | `commerce-service` |
+| 通知影子服务 Maven artifactId | `notification-service`（可选 Profile，默认关闭） |
 | 命名迁移策略 | 不混用两套名称；按 [命名规范](docs/NAMING-CONVENTIONS.md) 独立迁移 |
 
 ## 技术架构
@@ -34,6 +35,7 @@
 
 - `web/commerce-portal/angular/`：Angular 22.2.6、SimUI 1.8.0 / Spartan UI 1.8.0、Tailwind CSS 4.3.5、Bootstrap 5.3.9、Nginx 配置和前端 Dockerfile。
 - `services/commerce-service/`：Java 25 LTS、Spring Boot 4.1.2、Spring Security 7、MyBatis-Plus、Flyway 和后端 Dockerfile。
+- `services/notification-service/`：独立 MySQL/Kafka 通知影子消费者；客户 API 仍由商城单体承载。
 - `simulators/payment-platform/service/`：独立支付数据库、后台安全、商户凭据和三渠道交易服务。
 - `simulators/logistics-platform/service/`：独立物流数据库、运单推进、异常与可靠回调模拟服务。
 - `simulators/payment-platform/web/`：Vue 3.5.45、Ant Design Vue Next 和 VXE-Table 支付管理后台与模拟收银台。
@@ -73,6 +75,15 @@ docker compose ps
 - 模拟物流健康检查：`http://localhost:18083/actuator/health`
 - 物流 MySQL：`localhost:13308`
 - Kafka UI：`http://localhost:14202`
+
+可选通知影子进程不会随默认环境启动。它只镜像 Kafka 通知到独立 Schema，不切换客户 API：
+
+```powershell
+docker compose --profile notification-service up -d --build --wait notification-service
+```
+
+- 影子健康检查：`http://localhost:18086/actuator/health`
+- 影子状态：`http://localhost:18086/internal/shadow/status`
 
 可选告警与监控栈使用 `docker compose --profile observability up -d --wait` 启动：
 
@@ -150,7 +161,7 @@ bash ./scripts/linux/audit-script-contracts.sh
 
 契约清单与删卷边界见 [Windows/Bash 脚本审计](docs/SCRIPT-AUDIT.md)；改动类型对应的必跑门禁、证据格式和基线冻结检查见 [全开发生命周期可复测验证体系](docs/VERIFICATION-SYSTEM.md)。
 
-三个 Java 服务的只读代码质量与 Mapper 契约门禁：
+四个 Java 服务的只读代码质量与 Mapper 契约门禁：
 
 ```powershell
 ./scripts/windows/audit-code-quality.ps1
@@ -242,6 +253,7 @@ bash ./scripts/linux/verify-all.sh --skip-build
 | `verify-payment-cancellation-lock-timeout` | 真实持有订单/支付行锁，验证锁等待超时可识别、事务完整回滚且释放锁后可重试 | commerce-service `18081`、Docker MySQL；只重建 commerce-service 容器，不删卷 |
 | `verify-payment-cancellation-crash-recovery` | 定点 SIGKILL 验证取消中间态、渠道已关窗口、回调事务回滚与迟到回调 | commerce-service `18081`、商城/支付 MySQL；钩子默认关闭，不删卷 |
 | `verify-kafka-payment` | 支付回调、Kafka Topic、Outbox 发布和消费记录 | 商城 `14200` |
+| `verify-notification-service-shadow` | notification 独立影子写入、停机积压恢复、跨进程 Trace 与单体回退 | 商城 `18081`、影子 `18086`、Tempo `13200` |
 | `verify-payment-outcomes` | 失败、余额不足、取消和超时四类支付结果 | 商城 `14200` |
 | `verify-refunds` | 全额退款、资金账一致性、请求/通知幂等、重复申请和伪造通知拒绝 | 商城 `14200` |
 | `verify-merchant-fulfillment` | 已支付订单的商家确认、发货及客户越权拒绝 | 商城 `14200` |
@@ -386,6 +398,7 @@ docker compose down
 - Redis Session、登录限流、商品/评分缓存、支付幂等辅助键、MySQL 降级和健康检查。
 - 中英文运行时切换、商品翻译、稳定错误码和本地语言偏好。
 - Kafka Transactional Outbox、幂等消费、对账补偿和高可用教学 Overlay。
+- 可选 notification-service 影子进程：独立 MySQL Schema、Kafka Inbox 幂等、停机恢复和跨进程追踪；客户 API 与单体回退仍保留。
 - 可选 `observability` Profile：三服务 Prometheus 抓取、10 条告警规则、Alertmanager 路由、Grafana 数据源和可替换本地 Webhook 接收端。
 - 后端集成测试、支付服务测试、Docker 构建验收、健康检查和 Nginx API 反向代理。
 
@@ -395,7 +408,7 @@ Compose 中的数据库密码、商户号、App ID/Secret、RSA/HMAC 密钥和�
 
 ## 常见故障
 
-- 端口被占用：检查 `14200`、`14201`、`14202`、`18081`、`18082`、`18083`、`13307`、`13308`，或修改 Compose 端口映射。
+- 端口被占用：检查 `14200`、`14201`、`14202`、`18081`、`18082`、`18083`、`18086`、`13307`、`13308`，或修改 Compose 端口映射。
 - 服务一直 `starting`：运行 `docker compose ps` 和 `docker compose logs <service>`，优先查看 MySQL、Kafka 和后端依赖健康状态。
 - 修改源码未生效：执行 `docker compose up -d --build --wait` 重新构建镜像。
 - 演示数据需要重置：确认数据可删除后执行 `docker compose down --volumes`，再重新启动。

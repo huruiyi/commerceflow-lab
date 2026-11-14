@@ -7,24 +7,28 @@ function Fail([string]$Message) {
 
 $javaRoots = @(
   'services\commerce-service\src\main\java',
+  'services\notification-service\src\main\java',
   'simulators\payment-platform\service\src\main\java',
   'simulators\logistics-platform\service\src\main\java'
 ) | ForEach-Object { Join-Path $ProjectRoot $_ }
 
 $javaSourceRoots = @(
   'services\commerce-service\src',
+  'services\notification-service\src',
   'simulators\payment-platform\service\src',
   'simulators\logistics-platform\service\src'
 ) | ForEach-Object { Join-Path $ProjectRoot $_ }
 
 $mapperRoots = @(
   'services\commerce-service\src\main\resources\mapper',
+  'services\notification-service\src\main\resources\mapper',
   'simulators\payment-platform\service\src\main\resources\mapper',
   'simulators\logistics-platform\service\src\main\resources\mapper'
 ) | ForEach-Object { Join-Path $ProjectRoot $_ }
 
 $pomFiles = @(
   'services\commerce-service\pom.xml',
+  'services\notification-service\pom.xml',
   'simulators\payment-platform\service\pom.xml',
   'simulators\logistics-platform\service\pom.xml'
 ) | ForEach-Object { Join-Path $ProjectRoot $_ }
@@ -107,6 +111,46 @@ if ($unexpectedLogisticsRootClasses.Count -gt 0) {
   Fail "logistics simulator root package contains $($unexpectedLogisticsRootClasses[0].Name)"
 }
 
+$notificationJavaRoot = Join-Path $ProjectRoot (
+  'services\notification-service\src\main\java\vip\fairy\commerceflow\notification'
+)
+$expectedNotificationLayers = @('api', 'application', 'domain', 'infrastructure')
+foreach ($layer in $expectedNotificationLayers) {
+  if (-not (Test-Path (Join-Path $notificationJavaRoot $layer) -PathType Container)) {
+    Fail "notification service is missing the $layer layer"
+  }
+}
+foreach ($subdirectory in @('messaging', 'persistence')) {
+  $path = Join-Path $notificationJavaRoot "infrastructure\$subdirectory"
+  if (-not (Test-Path $path -PathType Container)) {
+    Fail "notification service infrastructure is missing the $subdirectory subdirectory"
+  }
+}
+$unexpectedNotificationRootClasses = @(
+  Get-ChildItem $notificationJavaRoot -File -Filter '*.java' |
+    Where-Object Name -ne 'NotificationServiceApplication.java'
+)
+if ($unexpectedNotificationRootClasses.Count -gt 0) {
+  Fail "notification service root package contains $($unexpectedNotificationRootClasses[0].Name)"
+}
+
+foreach ($migration in @(
+  'V1__notification_service_schema.sql',
+  'V2__runtime_cutover_state.sql',
+  'V3__orphan_quarantine.sql'
+)) {
+  $commerceMigration = Join-Path $ProjectRoot (
+    "services\commerce-service\src\main\resources\db\notification-schema\$migration"
+  )
+  $serviceMigration = Join-Path $ProjectRoot (
+    "services\notification-service\src\main\resources\db\migration\$migration"
+  )
+  if ((Get-FileHash $commerceMigration -Algorithm SHA256).Hash -ne
+      (Get-FileHash $serviceMigration -Algorithm SHA256).Hash) {
+    Fail "notification migration $migration differs between commerce and notification service"
+  }
+}
+
 $statementCount = 0
 foreach ($mapperFile in $mapperFiles) {
   $relativePath = [IO.Path]::GetRelativePath($ProjectRoot, $mapperFile.FullName)
@@ -154,7 +198,7 @@ foreach ($mapperFile in $mapperFiles) {
 
 $message = (
   "Code quality audit passed: {0} Java files, {1} Mapper XML files, {2} mapped statements, " +
-  "3 Maven POM files; class spacing across {3} Java sources, format rules, logistics layers, " +
-  "inline SQL boundary and Mapper contracts are valid."
+  "4 Maven POM files; class spacing across {3} Java sources, format rules, service layers, " +
+  "notification migration parity, inline SQL boundary and Mapper contracts are valid."
 ) -f $javaFiles.Count, $mapperFiles.Count, $statementCount, $allJavaFiles.Count
 Write-Host $message -ForegroundColor Green

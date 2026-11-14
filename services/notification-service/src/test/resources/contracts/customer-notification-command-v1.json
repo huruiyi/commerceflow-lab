@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "eventId": "contract-notification-0001",
+  "eventType": "CUSTOMER_NOTIFICATION_REQUESTED",
+  "occurredAt": "2026-11-15T00:00:00Z",
+  "customerId": 4,
+  "orderId": 2001,
+  "notificationType": "ORDER_CANCELLED",
+  "title": "Order cancelled",
+  "message": "The order was cancelled by the customer",
+  "correlationId": "order-2001",
+  "causationId": "order-cancelled-0001",
+  "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+}

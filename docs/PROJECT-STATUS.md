@@ -8,9 +8,9 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.2 准入追踪门禁完成：HTTP/Kafka/RabbitMQ/RocketMQ 均已验收 |
-| 下一候选阶段 | 经单独评审后启动 notification-service 影子进程；当前尚未启动 |
-| 范围边界 | 不新增业务功能，不启动微服务或 PostgreSQL 迁移 |
+| 当前阶段 | M3.2 首批完成：notification-service 独立影子进程已实现并双平台验收 |
+| 下一候选阶段 | 评审客户通知读 API 双读/切换；当前不删除单体路径 |
+| 范围边界 | 影子进程默认关闭；客户流量仍由单体承载，不启动 PostgreSQL 迁移 |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
 
@@ -205,3 +205,13 @@ Observation 与显式 W3C 上下文跨越 TTL/DLX，RocketMQ 通过消息 proper
 Windows 任务 410/411 和容器化 Bash 任务 414/415 均在 Tempo 查询到同一 Trace 的 publish/process Span，
 两平台也验证 Tempo 停机不影响商城健康。脚本契约现为 41 对。四种边界的本地追踪准入门禁已经补齐，
 下一步可单独评审 notification-service 影子进程；本批未创建服务或迁移 PostgreSQL。
+
+第八批在单独授权后实现 `notification-service` 影子进程。服务按
+`api/application/domain/infrastructure` 分层并继续拆分 `messaging/persistence`，只消费冻结的 notification
+V1 命令，使用稳定消费者组、独立 MySQL Schema、Inbox 和本地事务，不访问商城 Mapper 或 Schema。
+Compose 的 `notification-service` Profile 默认关闭，健康与只读影子状态端点使用 `18086`。
+
+Windows 与容器化 Bash 均完成实时写入、进程停机期间消息积压、重启追平、commerce/notification 同一
+Trace 和 `IN_PROCESS` 单体回退。当前质量基线为 293/22/239/4、全部 303 个 Java 源文件和 42 对脚本契约。
+验收后 notification-service 已关闭，商城恢复默认配置；客户通知 API 尚未切到独立服务，单体表和回退路径
+保留，PostgreSQL 未启动。

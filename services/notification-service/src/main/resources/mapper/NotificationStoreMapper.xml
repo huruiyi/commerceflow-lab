@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.notification.infrastructure.persistence.NotificationStoreMapper">
+
+  <insert id="insertInbox">
+    INSERT IGNORE INTO notification_inbox(
+      consumer_name,event_id,event_type,schema_version,correlation_id,causation_id,traceparent)
+    VALUES(#{consumerName},#{eventId},#{eventType},#{schemaVersion},#{correlationId},
+      #{causationId},#{traceparent})
+  </insert>
+
+  <insert id="insertNotification">
+    INSERT IGNORE INTO customer_notifications(
+      event_id,customer_id,order_id,notification_type,title,message)
+    VALUES(#{eventId},#{customerId},#{orderId},#{type},#{title},#{message})
+  </insert>
+
+  <select id="notificationCount" resultType="java.lang.Integer">
+    SELECT COUNT(*) FROM customer_notifications
+  </select>
+
+  <select id="inboxCount" resultType="java.lang.Integer">
+    SELECT COUNT(*) FROM notification_inbox WHERE consumer_name=#{consumerName}
+  </select>
+</mapper>

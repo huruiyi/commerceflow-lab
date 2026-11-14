@@ -135,6 +135,11 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   来源/传输 traceparent 分离已实测。RabbitMQ 通过 Observation 与显式 W3C 上下文跨越 TTL/DLX，
   RocketMQ 通过消息 properties 传播；Windows 与容器化 Bash 均查询到 publish/process 同 Trace，并验证
   Tempo 停机降级。四种边界的本地追踪准入门禁已补齐，但 notification-service 与 PostgreSQL 仍未启动。
+- M3.2 影子首批已新增独立 `notification-service`：分层包、独立 Flyway/MyBatis/MySQL、稳定 Kafka
+  consumer group、Inbox/eventId 幂等、有限重试 DLT、健康与影子状态端点均已实现。Windows 与容器化
+  Bash 实测实时消费、停机积压恢复、commerce/notification 同 Trace 和切回 `IN_PROCESS`；质量门禁为
+  293/22/239/4、全部 303 个 Java 源文件及 42 对脚本。该 Profile 默认关闭，客户 API 仍在单体，
+  notification 表和回退路径未删除，PostgreSQL 未启动。
 - 已建立 [全开发生命周期可复测验证体系](VERIFICATION-SYSTEM.md)，将现有构建、快速/完整回归、空卷/升级恢复、MQ/崩溃专项和浸泡压测组织为 L0–L6 门禁，并固定证据、破坏性操作和基线冻结规则。
 - Angular 客户订单页已将退款申请/回执、`RECEIVED/COMPLETED` 履约状态和逐商品评价改为独立响应式面板；评价增加评分、必填内容、防重复提交和成功/失败反馈，未修改后端状态机或接口契约。
 - 上述界面已通过 25 项 Angular 单元测试、生产构建、Docker 实际页面与现有 `PAID/REFUNDED/RECEIVED/COMPLETED` 数据验收；浏览器控制台无错误，390 px 窄屏无横向溢出。
