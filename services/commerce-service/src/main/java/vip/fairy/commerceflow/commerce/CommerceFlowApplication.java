@@ -13,6 +13,7 @@ import vip.fairy.commerceflow.commerce.scheduling.infrastructure.RabbitMqTaskTri
 import vip.fairy.commerceflow.commerce.scheduling.infrastructure.RocketMqTaskTriggerProperties;
 import vip.fairy.commerceflow.commerce.scheduling.infrastructure.MqConsumerCrashLabProperties;
 import vip.fairy.commerceflow.commerce.payment.infrastructure.PaymentCancellationCrashLabProperties;
+import vip.fairy.commerceflow.commerce.notification.infrastructure.NotificationDeliveryProperties;
 
 @SpringBootApplication
 @EnableScheduling
@@ -35,7 +36,7 @@ import vip.fairy.commerceflow.commerce.payment.infrastructure.PaymentCancellatio
 @EnableConfigurationProperties({SchedulingProperties.class, OrderLifecycleProperties.class,
   LogisticsReconciliationProperties.class, RabbitMqTaskTriggerProperties.class,
   RocketMqTaskTriggerProperties.class, MqConsumerCrashLabProperties.class,
-  PaymentCancellationCrashLabProperties.class})
+  PaymentCancellationCrashLabProperties.class, NotificationDeliveryProperties.class})
 public class CommerceFlowApplication {
 
   public static void main(String[] args) {

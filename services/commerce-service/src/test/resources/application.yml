@@ -27,6 +27,11 @@ security:
     validity-seconds: 1209600
 
 commerceflow:
+  notification:
+    delivery:
+      mode: IN_PROCESS
+      publish-initial-delay: 1h
+      publish-delay: 1h
   logistics-platform:
     reconciliation:
       enabled: false

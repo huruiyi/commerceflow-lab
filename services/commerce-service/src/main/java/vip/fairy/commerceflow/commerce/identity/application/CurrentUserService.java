@@ -26,4 +26,8 @@ public class CurrentUserService {
     }
     return user;
   }
+
+  public Long requireId(Authentication authentication) {
+    return require(authentication).getId();
+  }
 }

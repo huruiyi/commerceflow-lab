@@ -20,7 +20,8 @@ public class CustomerNotificationCommandHandler {
   public boolean handle(CustomerNotificationCommandV1 command) {
     validate(command);
     if (notifications.insertInbox(CONSUMER_NAME, command.eventId(), command.eventType(),
-      command.schemaVersion()) != 1) {
+      command.schemaVersion(), command.correlationId(), command.causationId(),
+      command.traceparent()) != 1) {
       return false;
     }
     notifications.insertNotification(command.eventId(), command.customerId(), command.orderId(),
@@ -39,6 +40,10 @@ public class CustomerNotificationCommandHandler {
     require(command.message(), "message");
     require(command.correlationId(), "correlationId");
     require(command.causationId(), "causationId");
+    require(command.traceparent(), "traceparent");
+    if (!CustomerNotificationCommandV1.TRACEPARENT.matcher(command.traceparent()).matches()) {
+      throw new IllegalArgumentException("Customer notification command has an invalid traceparent");
+    }
     if (command.occurredAt() == null || command.customerId() == null || command.orderId() == null) {
       throw new IllegalArgumentException("Customer notification command is missing required facts");
     }

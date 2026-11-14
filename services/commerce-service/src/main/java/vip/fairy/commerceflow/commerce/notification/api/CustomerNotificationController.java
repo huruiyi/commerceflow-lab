@@ -32,23 +32,23 @@ public class CustomerNotificationController {
 
   @GetMapping
   List<CustomerNotification> list(Authentication authentication) {
-    return notifications.list(currentUsers.require(authentication));
+    return notifications.list(currentUsers.requireId(authentication));
   }
 
   @GetMapping("/unread-count")
   Map<String, Integer> unreadCount(Authentication authentication) {
-    return Map.of("count", notifications.unreadCount(currentUsers.require(authentication)));
+    return Map.of("count", notifications.unreadCount(currentUsers.requireId(authentication)));
   }
 
   @PatchMapping("/{id}/read")
   @ResponseStatus(HttpStatus.NO_CONTENT)
   void markRead(@PathVariable Long id, Authentication authentication) {
-    notifications.markRead(currentUsers.require(authentication), id);
+    notifications.markRead(currentUsers.requireId(authentication), id);
   }
 
   @PatchMapping("/read-all")
   @ResponseStatus(HttpStatus.NO_CONTENT)
   void markAllRead(Authentication authentication) {
-    notifications.markAllRead(currentUsers.require(authentication));
+    notifications.markAllRead(currentUsers.requireId(authentication));
   }
 }

@@ -23,8 +23,15 @@ spring:
       acks: all
       properties:
         enable.idempotence: true
+        max.block.ms: ${KAFKA_PRODUCER_MAX_BLOCK_MS:5000}
+        request.timeout.ms: ${KAFKA_PRODUCER_REQUEST_TIMEOUT_MS:3000}
+        delivery.timeout.ms: ${KAFKA_PRODUCER_DELIVERY_TIMEOUT_MS:5000}
     consumer:
       auto-offset-reset: earliest
+  task:
+    scheduling:
+      pool:
+        size: ${SCHEDULING_POOL_SIZE:4}
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
@@ -78,6 +85,15 @@ security:
     validity-seconds: ${REMEMBER_ME_VALIDITY_SECONDS:1209600}
 
 commerceflow:
+  notification:
+    delivery:
+      mode: ${NOTIFICATION_DELIVERY_MODE:IN_PROCESS}
+      topic: ${NOTIFICATION_DELIVERY_TOPIC:customer-notification-commands}
+      max-attempts: ${NOTIFICATION_DELIVERY_MAX_ATTEMPTS:5}
+      retry-delay: ${NOTIFICATION_DELIVERY_RETRY_DELAY:5s}
+      fallback-to-in-process: ${NOTIFICATION_FALLBACK_TO_IN_PROCESS:false}
+      publish-initial-delay: ${NOTIFICATION_PUBLISH_INITIAL_DELAY:2s}
+      publish-delay: ${NOTIFICATION_PUBLISH_DELAY:1s}
   logistics-platform:
     base-url: ${LOGISTICS_PLATFORM_BASE_URL:http://localhost:18083}
     app-id: ${LOGISTICS_APP_ID:commerceflow-storefront}

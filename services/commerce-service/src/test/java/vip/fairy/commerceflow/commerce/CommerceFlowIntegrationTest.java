@@ -10,6 +10,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.time.Instant;
@@ -34,12 +35,18 @@ import vip.fairy.commerceflow.commerce.logistics.application.LogisticsGatewayCli
 import vip.fairy.commerceflow.commerce.payment.application.PaymentGatewayClient;
 import vip.fairy.commerceflow.commerce.payment.application.PaymentNotificationService;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandHandler;
+import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandRouter;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandV1;
+import vip.fairy.commerceflow.commerce.notification.infrastructure.CustomerNotificationKafkaConsumer;
+import vip.fairy.commerceflow.commerce.notification.infrastructure.NotificationDeliveryProperties;
+import vip.fairy.commerceflow.commerce.notification.infrastructure.NotificationOutboxDispatcher;
 import vip.fairy.commerceflow.commerce.ordering.application.PurchaseOrderService;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import vip.fairy.commerceflow.commerce.payment.domain.PaymentChannel;
 import vip.fairy.commerceflow.commerce.payment.api.PaymentRequest;
 import org.junit.jupiter.api.Test;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -51,6 +58,7 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.session.MapSessionRepository;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -62,6 +70,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 @ActiveProfiles("test")
 @SpringBootTest(properties = {
@@ -132,9 +142,19 @@ class CommerceFlowIntegrationTest {
   @Autowired
   CustomerNotificationCommandHandler notificationCommands;
   @Autowired
+  CustomerNotificationCommandRouter notificationRouter;
+  @Autowired
+  NotificationOutboxDispatcher notificationOutbox;
+  @Autowired
+  CustomerNotificationKafkaConsumer notificationConsumer;
+  @Autowired
+  NotificationDeliveryProperties notificationDelivery;
+  @Autowired
   AppUserMapper users;
   @MockitoBean
   PaymentGatewayClient paymentGateway;
+  @MockitoBean
+  KafkaTemplate<String, String> kafka;
 
   @Test
   void customerNotificationV1FixtureRemainsCompatible() throws Exception {
@@ -150,6 +170,9 @@ class CommerceFlowIntegrationTest {
       org.junit.jupiter.api.Assertions.assertEquals("contract-notification-0001", command.eventId());
       org.junit.jupiter.api.Assertions.assertEquals("order-2001", command.correlationId());
       org.junit.jupiter.api.Assertions.assertEquals("order-cancelled-0001", command.causationId());
+      org.junit.jupiter.api.Assertions.assertEquals(
+        "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+        command.traceparent());
       org.junit.jupiter.api.Assertions.assertTrue(notificationCommands.handle(command));
       org.junit.jupiter.api.Assertions.assertFalse(notificationCommands.handle(command));
       org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
@@ -159,6 +182,87 @@ class CommerceFlowIntegrationTest {
         "SELECT COUNT(*) FROM customer_notifications WHERE event_id=?", Integer.class,
         command.eventId()));
     }
+  }
+
+  @Test
+  void notificationKafkaOutboxRecoversPropagatesTraceAndSupportsFallback() throws Exception {
+    NotificationDeliveryProperties.Mode originalMode = notificationDelivery.getMode();
+    int originalMaxAttempts = notificationDelivery.getMaxAttempts();
+    java.time.Duration originalRetryDelay = notificationDelivery.getRetryDelay();
+    boolean originalFallback = notificationDelivery.isFallbackToInProcess();
+    try {
+      notificationDelivery.setMode(NotificationDeliveryProperties.Mode.KAFKA);
+      notificationDelivery.setMaxAttempts(3);
+      notificationDelivery.setRetryDelay(java.time.Duration.ZERO);
+      notificationDelivery.setFallbackToInProcess(false);
+      CustomerNotificationCommandV1 recovered = CustomerNotificationCommandV1.orderCancelled(
+        "async-recovery-" + UUID.randomUUID(), 4L, 2001L, "Broker recovery", "order-2001");
+      when(kafka.send(any(ProducerRecord.class)))
+        .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("broker unavailable")))
+        .thenReturn(CompletableFuture.completedFuture(null));
+
+      notificationRouter.publish(recovered);
+      notificationOutbox.dispatch();
+      org.junit.jupiter.api.Assertions.assertEquals("RETRY", outboxStatus(recovered.eventId()));
+      notificationOutbox.dispatch();
+      org.junit.jupiter.api.Assertions.assertEquals("PUBLISHED", outboxStatus(recovered.eventId()));
+
+      org.mockito.ArgumentCaptor<ProducerRecord<String, String>> records =
+        org.mockito.ArgumentCaptor.forClass(ProducerRecord.class);
+      org.mockito.Mockito.verify(kafka, org.mockito.Mockito.times(2)).send(records.capture());
+      ProducerRecord<String, String> published = records.getAllValues().get(1);
+      org.junit.jupiter.api.Assertions.assertEquals(recovered.traceparent(),
+        new String(published.headers().lastHeader("traceparent").value(), StandardCharsets.UTF_8));
+      ConsumerRecord<String, String> consumed = new ConsumerRecord<>(published.topic(), 0, 0L,
+        published.key(), published.value());
+      published.headers().forEach(header -> consumed.headers().add(header));
+      notificationConsumer.consume(consumed);
+      notificationConsumer.consume(consumed);
+      org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM customer_notifications WHERE event_id=?", Integer.class,
+        recovered.eventId()));
+      org.junit.jupiter.api.Assertions.assertEquals(recovered.traceparent(), jdbc.queryForObject(
+        "SELECT traceparent FROM notification_inbox WHERE event_id=?", String.class,
+        recovered.eventId()));
+
+      org.mockito.Mockito.reset(kafka);
+      notificationDelivery.setMaxAttempts(1);
+      CustomerNotificationCommandV1 dead = CustomerNotificationCommandV1.orderCancelled(
+        "async-dead-" + UUID.randomUUID(), 4L, 2001L, "Dead then replay", "order-2001");
+      when(kafka.send(any(ProducerRecord.class)))
+        .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("broker unavailable")))
+        .thenReturn(CompletableFuture.completedFuture(null));
+      notificationRouter.publish(dead);
+      notificationOutbox.dispatch();
+      org.junit.jupiter.api.Assertions.assertEquals("DEAD", outboxStatus(dead.eventId()));
+      org.junit.jupiter.api.Assertions.assertEquals(1, notificationOutbox.replayDead(dead.eventId()));
+      notificationOutbox.dispatch();
+      org.junit.jupiter.api.Assertions.assertEquals("PUBLISHED", outboxStatus(dead.eventId()));
+
+      org.mockito.Mockito.reset(kafka);
+      notificationDelivery.setFallbackToInProcess(true);
+      CustomerNotificationCommandV1 fallback = CustomerNotificationCommandV1.orderCancelled(
+        "async-fallback-" + UUID.randomUUID(), 4L, 2001L, "Monolith fallback", "order-2001");
+      when(kafka.send(any(ProducerRecord.class)))
+        .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("broker unavailable")));
+      notificationRouter.publish(fallback);
+      notificationOutbox.dispatch();
+      org.junit.jupiter.api.Assertions.assertEquals("FALLBACK", outboxStatus(fallback.eventId()));
+      org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+        "SELECT COUNT(*) FROM customer_notifications WHERE event_id=?", Integer.class,
+        fallback.eventId()));
+    } finally {
+      notificationDelivery.setMode(originalMode);
+      notificationDelivery.setMaxAttempts(originalMaxAttempts);
+      notificationDelivery.setRetryDelay(originalRetryDelay);
+      notificationDelivery.setFallbackToInProcess(originalFallback);
+      org.mockito.Mockito.reset(kafka);
+    }
+  }
+
+  private String outboxStatus(String eventId) {
+    return jdbc.queryForObject(
+      "SELECT status FROM notification_delivery_outbox WHERE event_id=?", String.class, eventId);
   }
 
   @Test

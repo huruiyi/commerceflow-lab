@@ -225,6 +225,12 @@ notification 所有权治理经评审将基线更新为 38 张表、41 组方向
 写入，notification 模块以 V25 自有 Inbox 和 Mapper 在同一事务中幂等处理。商城 28 项测试、正式镜像、
 Windows/Bash 取消通知链路与双平台门禁通过；Java/Mapper/语句计数更新为 250/20/190，全部 Java 源文件为 259。
 
+notification 传输治理新增 V26 自有 Outbox、进程内/Kafka 适配器、发布 RETRY/DEAD/重放、消费 DLT、
+Broker 恢复、W3C traceparent 传播和单体 FALLBACK 门禁。notification application 不再传递 `AppUser`，
+使跨模块基线降为 41 组方向、118 个 import、38 个涉及文件，基础设施引用仍为 21；商城表增至 39 张。
+商城 29 项测试及正式镜像通过，双平台质量计数更新为 258 个主源码 Java、20 个 Mapper XML、197 个映射语句、
+3 个 POM 和全部 267 个 Java 源文件。
+
 ## 4. 每批完成门禁
 
 1. 修改前后 `git diff --check` 通过，格式化变更与业务语义变更可以清晰审查。

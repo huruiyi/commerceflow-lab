@@ -215,8 +215,25 @@ CREATE TABLE notification_inbox
   event_id       VARCHAR(100) NOT NULL,
   event_type     VARCHAR(80)  NOT NULL,
   schema_version INT          NOT NULL,
+  correlation_id VARCHAR(100),
+  causation_id    VARCHAR(100),
+  traceparent     VARCHAR(55),
   processed_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (consumer_name, event_id)
+);
+CREATE TABLE notification_delivery_outbox
+(
+  id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  event_id        VARCHAR(100) NOT NULL UNIQUE,
+  topic           VARCHAR(100) NOT NULL,
+  payload         VARCHAR(4000) NOT NULL,
+  status          VARCHAR(20)  NOT NULL DEFAULT 'NEW',
+  attempts        INT          NOT NULL DEFAULT 0,
+  next_attempt_at TIMESTAMP             DEFAULT CURRENT_TIMESTAMP,
+  last_error      VARCHAR(500),
+  created_at      TIMESTAMP             DEFAULT CURRENT_TIMESTAMP,
+  published_at    TIMESTAMP,
+  processed_at    TIMESTAMP
 );
 CREATE TABLE payment_merchant_accounts
 (

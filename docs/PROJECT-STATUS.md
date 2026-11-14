@@ -4,12 +4,12 @@
 
 | 项目 | 当前值 |
 | --- | --- |
-| 快照日期 | 2026-11-14 |
+| 快照日期 | 2026-11-15 |
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.1 notification 写入所有权、V1 命令、独立 Inbox 与 fixture 已完成 |
-| 下一候选阶段 | notification 异步传输/恢复、身份解耦、跨进程追踪和单体回退门禁 |
+| 当前阶段 | M3.1 notification 可替换传输、恢复、身份解耦、追踪传播和回退门禁已完成 |
+| 下一候选阶段 | notification 双写/投影核对窗口、停止条件与独立 Schema 迁移演练 |
 | 范围边界 | 不新增业务功能，不启动微服务或 PostgreSQL 迁移 |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -30,7 +30,7 @@
 | 收货、自动收货和自动完成 | M1 可靠性门禁已通过 | 重放、重启/租约恢复、RabbitMQ/RocketMQ 停机恢复和双平台 120 秒/12 并发竞态压测均通过 |
 | 库存与商家库存中心 | 已实现 | 可售/预占/已售、转正/释放/退款回补、调整流水 |
 | Angular/Vue 界面 | Angular 主流程和订单页视觉收尾已实现 | 订单详情与支付信息已扁平化，商品图有失败回退；通知菜单使用中性列表和细滚动条，支持外部点击、`Esc`、关闭按钮和选择通知后关闭；语言切换使用图标；导航与 1480 px 正文容器对齐，桌面与 390 px 窄屏已验收 |
-| Flyway 数据库生命周期 | 空卷和迁移层已验收 | M2 空卷到 V24/V4/V5；当前商城库已非破坏性升级到 V25 |
+| Flyway 数据库生命周期 | 空卷和迁移层已验收 | M2 空卷到 V24/V4/V5；当前商城库已非破坏性升级到 V26 |
 | 告警与监控 | 本地端到端管道已实现 | 三服务 Prometheus 抓取、10 条规则、Alertmanager、Grafana 数据源和可替换 Webhook；真实通知供应商与高可用部署不在本地学习验收内 |
 
 ## 3. M1 冻结结论
@@ -155,6 +155,17 @@ correlation/causation ID。InventoryMapper 已不再写通知表，notification 
 `(consumer_name,event_id)` 领取命令，再通过自己的 Mapper 写通知。消费者 fixture、重复消费和
 Windows/Bash 真实取消通知链路通过，商城测试增至 28 项。
 
-当前审计基线随评审更新为 38 张表、41 组方向和 119 个跨模块 import；21 个跨模块基础设施引用没有增加。
-本批没有创建新服务或数据库，传输仍为单体内应用调用。M3.2 剩余阻塞包括可替换异步适配器及恢复、
-共享身份模型解耦、跨进程追踪和单体回退开关。
+第三批审计基线曾更新为 38 张表、41 组方向和 119 个跨模块 import；21 个跨模块基础设施引用没有增加。
+该批没有创建新服务或数据库，传输仍为单体内应用调用；当时遗留的异步适配器、恢复、身份解耦、
+追踪传播和回退开关已由下述第四批完成。
+
+第四批完成 notification 拆分前传输门禁：商城 V26 新增 notification 自有投递 Outbox，并为 Inbox 增加
+correlation/causation/traceparent。`CustomerNotificationCommandPublisher` 支持默认进程内与 Kafka 两种适配器；
+Kafka 发布失败可持久重试、进入本地 DEAD 后重放，消费毒消息有限重试后进入专用 DLT，达到阈值也可按开关
+回退进程内 Handler。Kafka payload/Header 双通道校验 W3C traceparent，Inbox 保留最终证据。
+
+真实 Broker 停机时验证了 `RETRY:1 -> PUBLISHED:2`，恢复后 Inbox/通知各一条；持续故障且回退开启时验证
+`FALLBACK:1`。共享调度池扩为 4，Producer 阻塞/请求/交付超时为 5/3/5 秒，避免其他 Outbox 饿死
+notification 恢复任务。notification application 已不再接收 `AppUser`，只使用 customerId。当前基线为
+39 张表、41 组方向、118 个跨模块 import、38 个涉及文件和 21 个基础设施引用。M3.2 仍被双写/投影核对窗口、
+停止条件与独立 Schema 迁移演练阻塞；本批未创建服务或数据库，默认仍为 `IN_PROCESS`。

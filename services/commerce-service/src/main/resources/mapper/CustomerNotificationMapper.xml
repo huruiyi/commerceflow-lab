@@ -33,12 +33,58 @@
   </update>
 
   <insert id="insertInbox">
-    INSERT IGNORE INTO notification_inbox(consumer_name,event_id,event_type,schema_version)
-    VALUES(#{consumerName},#{eventId},#{eventType},#{schemaVersion})
+    INSERT IGNORE INTO notification_inbox(
+      consumer_name,event_id,event_type,schema_version,correlation_id,causation_id,traceparent)
+    VALUES(#{consumerName},#{eventId},#{eventType},#{schemaVersion},#{correlationId},
+      #{causationId},#{traceparent})
   </insert>
 
   <insert id="insertNotification">
     INSERT INTO customer_notifications(event_id,customer_id,order_id,notification_type,title,message)
     VALUES(#{eventId},#{customerId},#{orderId},#{type},#{title},#{message})
   </insert>
+
+  <insert id="insertOutbox">
+    INSERT IGNORE INTO notification_delivery_outbox(event_id,topic,payload)
+    VALUES(#{eventId},#{topic},#{payload})
+  </insert>
+
+  <select id="pendingOutbox"
+          resultType="vip.fairy.commerceflow.commerce.notification.domain.NotificationOutboxEntry">
+    SELECT id,event_id,topic,payload,status,attempts
+    FROM notification_delivery_outbox
+    WHERE status IN ('NEW','RETRY') AND next_attempt_at&lt;=CURRENT_TIMESTAMP
+    ORDER BY id
+    LIMIT #{limit}
+  </select>
+
+  <update id="markOutboxPublished">
+    UPDATE notification_delivery_outbox
+    SET status='PUBLISHED',attempts=attempts+1,published_at=CURRENT_TIMESTAMP,last_error=NULL
+    WHERE id=#{id} AND status IN ('NEW','RETRY')
+  </update>
+
+  <update id="markOutboxRetry">
+    UPDATE notification_delivery_outbox
+    SET status='RETRY',attempts=attempts+1,next_attempt_at=#{nextAttemptAt},last_error=#{error}
+    WHERE id=#{id} AND status IN ('NEW','RETRY')
+  </update>
+
+  <update id="markOutboxFallback">
+    UPDATE notification_delivery_outbox
+    SET status='FALLBACK',attempts=attempts+1,processed_at=CURRENT_TIMESTAMP,last_error=#{error}
+    WHERE id=#{id} AND status IN ('NEW','RETRY')
+  </update>
+
+  <update id="markOutboxDead">
+    UPDATE notification_delivery_outbox
+    SET status='DEAD',attempts=attempts+1,processed_at=CURRENT_TIMESTAMP,last_error=#{error}
+    WHERE id=#{id} AND status IN ('NEW','RETRY')
+  </update>
+
+  <update id="replayDeadOutbox">
+    UPDATE notification_delivery_outbox
+    SET status='RETRY',next_attempt_at=CURRENT_TIMESTAMP,last_error=NULL
+    WHERE event_id=#{eventId} AND status='DEAD'
+  </update>
 </mapper>

@@ -2,11 +2,10 @@ package vip.fairy.commerceflow.commerce.inventory.application;
 
 import vip.fairy.commerceflow.commerce.catalog.domain.Product;
 import vip.fairy.commerceflow.commerce.inventory.domain.ProductInventory;
-import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandHandler;
+import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandPublisher;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandV1;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -20,9 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class InventoryService {
 
   private final InventoryMapper inventory;
-  private final CustomerNotificationCommandHandler notifications;
+  private final CustomerNotificationCommandPublisher notifications;
 
-  public InventoryService(InventoryMapper inventory, CustomerNotificationCommandHandler notifications) {
+  public InventoryService(InventoryMapper inventory, CustomerNotificationCommandPublisher notifications) {
     this.inventory = inventory;
     this.notifications = notifications;
   }
@@ -75,17 +74,11 @@ public class InventoryService {
     }
     Long customerId = inventory.customerId(orderId);
     if (customerId != null) {
-      notifications.handle(new CustomerNotificationCommandV1(
-        CustomerNotificationCommandV1.VERSION,
+      notifications.publish(CustomerNotificationCommandV1.orderCancelled(
         eventId + ":notification",
-        CustomerNotificationCommandV1.TYPE,
-        Instant.now(),
         customerId,
         orderId,
-        "ORDER_CANCELLED",
-        "Order cancelled",
         reason,
-        eventId,
         eventId
       ));
     }

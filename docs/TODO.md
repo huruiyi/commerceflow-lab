@@ -354,10 +354,27 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
   分布式追踪基线审计，并建立“现有债务可减少、不得未经评审增长”的 Maven 自动门禁。
 - [x] 消除 `notification` 写路径对 InventoryMapper 的反向所有权，定义 V1 通知命令、notification 独立
   Inbox 和消费者契约 fixture；Windows/Bash 真实取消通知链路与重复消费幂等通过。
-- [ ] 为版本化通知命令增加可替换的异步传输适配器与失败恢复门禁，解耦共享身份模型，并建立跨进程追踪和
-  单体回退开关；完成前不启动 `notification-service`。
+- [x] 为版本化通知命令增加进程内/Kafka 可替换传输、事务 Outbox、有限重试、本地 DEAD/人工重放、
+  Kafka DLT、Broker 恢复和单体回退门禁；notification 查询只接收 customerId，V1 命令与 Kafka Header
+  传播 correlation/causation/traceparent。
+- [ ] 定义 notification 双写/投影核对窗口、停止条件和独立 Schema 迁移演练；完成前不启动
+  `notification-service`，也不迁移 PostgreSQL。
 
 ## 14. 实施记录模板
+
+### 2026-11-15：notification 可替换异步传输与恢复门禁
+
+- 迁移：商城 V26 为 notification 增加自有 `notification_delivery_outbox`，Inbox 保存
+  correlation/causation/traceparent；现有 MySQL 非破坏性升级到 V26。
+- 传输：`CustomerNotificationCommandPublisher` 在 `IN_PROCESS/KAFKA` 间配置切换；Kafka 模式在原业务事务
+  写 Outbox，Dispatcher 发布并以事件 ID + Inbox 唯一键抵御确认窗口重复投递。
+- 恢复：发布失败进入持久 RETRY，超过阈值进入本地 DEAD 并可人工重放，消费毒消息有限重试后进入
+  `customer-notification-commands-dlt`；共享调度池扩为 4，Producer 阻塞/请求/交付超时收紧为 5/3/5 秒。
+- 身份与追踪：notification application 不再接收 `AppUser`，查询只使用 customerId；V1 payload 与 Kafka
+  Header 双重传播并校验 correlationId、causationId 和 W3C traceparent，Inbox 保留审计证据。
+- 验证：商城 29 项测试及正式镜像通过；真实 Kafka 取消链路、毒消息 DLT、Broker 停机 RETRY→恢复
+  PUBLISHED、重复幂等及 `FALLBACK` 单体回退通过。当前库 V26，未删除或重建数据卷。
+- 边界：默认仍为 `IN_PROCESS`；未创建 notification-service、独立数据库或 PostgreSQL。
 
 ### 2026-11-15：notification 写入所有权与 Inbox 收口
 
