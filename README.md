@@ -14,7 +14,7 @@
 | M1 历史基线 | `m1-baseline-2026-11-13`（保留旧命名与验收证据） |
 | M2 质量基线 | `m2-quality-baseline-2026-11-14` |
 | 商城服务 Maven artifactId | `commerce-service` |
-| 通知影子服务 Maven artifactId | `notification-service`（可选 Profile，默认关闭） |
+| 通知服务 Maven artifactId | `notification-service`（默认启动、唯一通知读写实现） |
 | 命名迁移策略 | 不混用两套名称；按 [命名规范](docs/NAMING-CONVENTIONS.md) 独立迁移 |
 
 ## 技术架构
@@ -24,8 +24,8 @@
   └─ http://localhost:14200
        └─ Nginx
             ├─ Angular 22.2.6 + SimUI 1.8.0 / Spartan UI 静态页面
-            └─ /api/* → Spring Boot 4.1.2 → MyBatis-Plus → MySQL 8.4
-                                      └────→ Redis 7.4
+            └─ /api/* → commerce-service → MySQL 8.4 / Redis 7.4
+                         └─ 通知身份薄代理 → notification-service → 独立 MySQL 8.4
 
 支付平台浏览器 http://localhost:14201
   └─ Vue 3.5.45 + Ant Design Vue Next + VXE-Table + Nginx
@@ -35,7 +35,8 @@
 
 - `web/commerce-portal/angular/`：Angular 22.2.6、SimUI 1.8.0 / Spartan UI 1.8.0、Tailwind CSS 4.3.5、Bootstrap 5.3.9、Nginx 配置和前端 Dockerfile。
 - `services/commerce-service/`：Java 25 LTS、Spring Boot 4.1.2、Spring Security 7、MyBatis-Plus、Flyway 和后端 Dockerfile。
-- `services/notification-service/`：独立 MySQL/Kafka 通知影子消费者；客户 API 仍由商城单体承载。
+- `services/notification-service/`：独立 MySQL/Kafka 通知服务，是通知查询、未读统计和已读状态的唯一实现；
+  commerce 只保留 Session/RBAC/HMAC 薄代理与订单事务侧通知 Outbox。
 - `simulators/payment-platform/service/`：独立支付数据库、后台安全、商户凭据和三渠道交易服务。
 - `simulators/logistics-platform/service/`：独立物流数据库、运单推进、异常与可靠回调模拟服务。
 - `simulators/payment-platform/web/`：Vue 3.5.45、Ant Design Vue Next 和 VXE-Table 支付管理后台与模拟收银台。
@@ -73,17 +74,12 @@ docker compose ps
 - 后端健康检查：`http://localhost:18081/actuator/health`
 - 支付服务健康检查：`http://localhost:18082/actuator/health`
 - 模拟物流健康检查：`http://localhost:18083/actuator/health`
+- 通知服务健康检查：`http://localhost:18086/actuator/health`
 - 物流 MySQL：`localhost:13308`
 - Kafka UI：`http://localhost:14202`
 
-可选通知影子进程不会随默认环境启动。它只镜像 Kafka 通知到独立 Schema，不切换客户 API：
-
-```powershell
-docker compose --profile notification-service up -d --build --wait notification-service
-```
-
-- 影子健康检查：`http://localhost:18086/actuator/health`
-- 影子状态：`http://localhost:18086/internal/shadow/status`
+`notification-db` 与 `notification-service` 属于默认拓扑。浏览器继续访问原 `/api/notifications`，commerce
+从 Session 提取 customerId 并签名转发；它不访问通知表，也不在独立服务故障时回退到本地数据。
 
 可选告警与监控栈使用 `docker compose --profile observability up -d --wait` 启动：
 
@@ -253,7 +249,7 @@ bash ./scripts/linux/verify-all.sh --skip-build
 | `verify-payment-cancellation-lock-timeout` | 真实持有订单/支付行锁，验证锁等待超时可识别、事务完整回滚且释放锁后可重试 | commerce-service `18081`、Docker MySQL；只重建 commerce-service 容器，不删卷 |
 | `verify-payment-cancellation-crash-recovery` | 定点 SIGKILL 验证取消中间态、渠道已关窗口、回调事务回滚与迟到回调 | commerce-service `18081`、商城/支付 MySQL；钩子默认关闭，不删卷 |
 | `verify-kafka-payment` | 支付回调、Kafka Topic、Outbox 发布和消费记录 | 商城 `14200` |
-| `verify-notification-service-shadow` | notification 独立影子写入、停机积压恢复、跨进程 Trace 与单体回退 | 商城 `18081`、影子 `18086`、Tempo `13200` |
+| `verify-notification-runtime-cutover` | notification 单一所有权、签名代理、eventId 已读、停机 503 与核心商城隔离 | 商城 `18081`、通知服务 `18086`、通知 MySQL |
 | `verify-payment-outcomes` | 失败、余额不足、取消和超时四类支付结果 | 商城 `14200` |
 | `verify-refunds` | 全额退款、资金账一致性、请求/通知幂等、重复申请和伪造通知拒绝 | 商城 `14200` |
 | `verify-merchant-fulfillment` | 已支付订单的商家确认、发货及客户越权拒绝 | 商城 `14200` |
@@ -398,7 +394,8 @@ docker compose down
 - Redis Session、登录限流、商品/评分缓存、支付幂等辅助键、MySQL 降级和健康检查。
 - 中英文运行时切换、商品翻译、稳定错误码和本地语言偏好。
 - Kafka Transactional Outbox、幂等消费、对账补偿和高可用教学 Overlay。
-- 可选 notification-service 影子进程：独立 MySQL Schema、Kafka Inbox 幂等、停机恢复和跨进程追踪；客户 API 与单体回退仍保留。
+- 默认 notification-service：独立 MySQL、Kafka Inbox 幂等、签名内部 API、停机恢复和跨进程追踪；
+  commerce 不再保留通知读模型或数据库回退。
 - 可选 `observability` Profile：三服务 Prometheus 抓取、10 条告警规则、Alertmanager 路由、Grafana 数据源和可替换本地 Webhook 接收端。
 - 后端集成测试、支付服务测试、Docker 构建验收、健康检查和 Nginx API 反向代理。
 

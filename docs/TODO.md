@@ -333,10 +333,13 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
 1. **M3.1 微服务拆分前置条件审计**：盘点模块数据所有权、跨模块 Mapper/表依赖、应用接口、事件契约、
    Inbox、消费者契约测试和分布式追踪基线；本阶段不直接拆服务。
 2. **M3.2 首个微服务试拆**：优先评估 `notification-service`，因其副作用边界清晰且允许最终一致；
-   必须保留单体回退路径、契约测试和故障恢复证据。
+   必须具备契约测试、故障恢复和可停止的一次性数据交接；切换完成后只保留独立服务实现。
 3. **后续微服务候选顺序**：`catalog-service` → `inventory-service` → `order-service` →
    `payment-orchestration-service` → `fulfillment-service`；每次只拆一个边界并独立验收。
-4. **M4 PostgreSQL 专项**：不与微服务拆分同时进行。启动前必须明确 JSONB、部分/表达式索引、
+4. **M4 PostgreSQL 专项**：只有 M3 清单中的全部业务服务——`notification-service`、`catalog-service`、
+   `inventory-service`、`order-service`、`payment-orchestration-service`、`fulfillment-service`——均完成单一
+   所有权切换并逐一验收后才允许启动；若 M3 清单增加新的待拆服务，新服务也必须先完成。不与任何微服务
+   拆分同时进行。启动前必须明确 JSONB、部分/表达式索引、
    Advisory Lock、`SKIP LOCKED` 或 PostgreSQL 锁模型等学习目标；迁移后重新执行支付/取消锁超时、
    崩溃恢复、物流乱序、RabbitMQ/RocketMQ 故障及收货/完成竞态等全部可靠性门禁。
 
@@ -393,9 +396,46 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
 - [x] 扩展质量审计到第四个 POM、notification 分层/子目录、Mapper 契约及两处 V1→V3 迁移字节一致性；
   双平台质量和 42 对脚本契约审计通过。
 - [x] 收口 README、状态、实现、演进计划和验证体系；本批独立提交推送，不建立 M3 标签。
-- [ ] 后续批次再评审客户通知读 API 切换、双读核对和单体代码删除；当前不得宣称 notification 已完成流量迁出。
+- [x] 后续批次一次性补齐独立 API、完成数据交接并删除单体通知读写路径；切换完成前不得宣称流量已迁出。
+
+### 13.8 M3.2 下一批：notification 单一所有权与公开入口切换
+
+详细边界和分阶段切换顺序见
+[notification-service 单一所有权切换计划](architecture/NOTIFICATION-SERVICE-CUTOVER-PLAN.md)。
+本批完成后只保留 notification-service + notification-db 一套通知读写实现，不建立长期双读、双写或数据库
+回退。commerce 只保留订单事务侧通知 Outbox 和身份薄代理。
+
+- [x] 在 notification-service 一次性补齐列表、未读数、按 eventId 单条已读和全部已读 V1 API。
+- [x] 增加客户隔离、幂等、契约 fixture、HMAC 服务身份、错误码、脱敏日志和 HTTP Trace。
+- [x] 停止 commerce 进程内 notification consumer；本机交接时 commerce 历史通知为 0 行，无历史需回填，
+  独立消费者三分区 lag 均为 0。
+- [x] 完成一次性交接核对：源侧 0 行，独立库运行数据 eventId 唯一；不建立长期 COMPARE 模式。
+- [x] 将 commerce 公开四个通知接口原位替换成身份薄代理，Angular 使用 eventId 标记已读。
+- [x] notification 故障时返回稳定 503 并让通知菜单可重试；不得回查 commerce 通知表。
+- [x] 删除 commerce 通知查询/已读 Mapper、进程内 consumer、独立库连接配置、运行路由和旧存储开关。
+- [x] 保留 commerce 事务 Outbox/V1 命令生产端和历史 Flyway，明确它们不构成第二份通知读模型。
+- [x] Windows/Bash 验证正常、越权、重复、停机 503、服务恢复及核心商城不受影响；消费者三分区 lag 为 0。
+- [x] 执行 Windows 完整验收、Bash 等价全链路与告警补验并完成文档收口；不启动 PostgreSQL，不拆第二个服务。
+- [x] 本批独立提交并推送。
 
 ## 14. 实施记录模板
+
+### 2026-11-15：M3.2 第二批——notification 单一所有权切换
+
+- 所有权：notification-service 默认启动并独占通知读写与独立 MySQL；commerce 只保留事务 Outbox、V1
+  生产契约及 Session/RBAC/HMAC 薄代理，不保留 `LOCAL/COMPARE`、本地读模型或数据库回退。
+- API：独立服务补齐列表、未读数、eventId 单条已读和全部已读；所有查询/更新带 customerId，已读重放
+  保留首次 readAt。代理使用 2 秒连接/3 秒读取超时，失败返回稳定 503，Angular 显示重试入口。
+- 清理：删除 commerce 的本地通知 Handler/consumer、通知查询 Mapper、独立数据源、投影比较、回填核对、
+  隔离管理端及旧配置；历史 Flyway 不改写。
+- 数据交接：切换时 commerce 历史通知为 0 行，无需搬迁；独立库运行事件 eventId 唯一，Kafka 三分区 lag
+  均为 0。该结论只适用于本次实际数据，不把零行交接描述成有历史数据的回填成功。
+- 验证：commerce 29 项、notification 2 项测试和 Angular 生产构建通过；Windows 完整验收通过；Bash 等价
+  全链路通过全部业务阶段，并在排除 Git Bash 对 `/opt/kafka`、`/etc/prometheus`、`/etc/alertmanager` 的
+  MSYS 参数转换后单独补验告警尾段。277/21/198/4 质量审计、287 个 Java 类声明空行及 41 对脚本契约通过。
+- 边界：仍使用 MySQL；M3 清单中的 notification、catalog、inventory、order、payment-orchestration、
+  fulfillment 全部完成单一所有权切换并逐一验收前，不评审、不启动、不迁移 PostgreSQL，也不建立数据库
+  方言分支；后续新增待拆服务同样纳入该门禁。本批只剩独立提交推送。
 
 ### 2026-11-15：M3.2 首批——notification-service 独立影子进程
 

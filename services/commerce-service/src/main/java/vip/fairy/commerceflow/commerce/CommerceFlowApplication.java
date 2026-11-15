@@ -14,8 +14,6 @@ import vip.fairy.commerceflow.commerce.scheduling.infrastructure.RocketMqTaskTri
 import vip.fairy.commerceflow.commerce.scheduling.infrastructure.MqConsumerCrashLabProperties;
 import vip.fairy.commerceflow.commerce.payment.infrastructure.PaymentCancellationCrashLabProperties;
 import vip.fairy.commerceflow.commerce.notification.infrastructure.NotificationDeliveryProperties;
-import vip.fairy.commerceflow.commerce.notification.infrastructure.projection.NotificationProjectionProperties;
-import vip.fairy.commerceflow.commerce.notification.infrastructure.storage.NotificationStorageProperties;
 
 @SpringBootApplication
 @EnableScheduling
@@ -38,8 +36,7 @@ import vip.fairy.commerceflow.commerce.notification.infrastructure.storage.Notif
 @EnableConfigurationProperties({SchedulingProperties.class, OrderLifecycleProperties.class,
   LogisticsReconciliationProperties.class, RabbitMqTaskTriggerProperties.class,
   RocketMqTaskTriggerProperties.class, MqConsumerCrashLabProperties.class,
-  PaymentCancellationCrashLabProperties.class, NotificationDeliveryProperties.class,
-  NotificationProjectionProperties.class, NotificationStorageProperties.class})
+  PaymentCancellationCrashLabProperties.class, NotificationDeliveryProperties.class})
 public class CommerceFlowApplication {
 
   public static void main(String[] args) {

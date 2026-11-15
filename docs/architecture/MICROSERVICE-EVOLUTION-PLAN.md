@@ -25,10 +25,14 @@
 - 不共享数据库 Schema，不跨库 join。
 - API/事件版本可向后兼容，具有消费者契约测试。
 - 并发、重放、超时、迟到消息和部分失败有实测证据。
-- 具有单体回退路径或双读核对窗口，不使用一次性大爆炸迁移。
+- 具有可恢复的数据迁移、备份和失败停止门禁；不得用长期双实现代替清晰所有权。
 - 架构评审确认拆分收益大于分布式事务和运维成本。
 
-M3.1 前置审计和 M3.2 notification 独立影子进程首批已完成，实测结论见
-[M3-PRE-SPLIT-AUDIT.md](M3-PRE-SPLIT-AUDIT.md)。当前仅完成独立消费、存储、故障恢复和追踪：客户读 API
-仍由单体承载，默认 Profile 关闭，单体回退路径保留。完成双读核对和显式流量切换前，不得标记为
-notification 已迁出单体；PostgreSQL 继续作为后续独立专项。
+M3.1 前置审计和 M3.2 notification 单一所有权切换已完成实现，实测结论见
+[M3-PRE-SPLIT-AUDIT.md](M3-PRE-SPLIT-AUDIT.md)。notification-service 默认启动并独占消费、存储和通知业务
+API；commerce 原公开路径只做身份薄代理，旧通知读写、数据源、投影和回填运行代码已删除。
+
+切换边界与证据见 [单一所有权切换计划](NOTIFICATION-SERVICE-CUTOVER-PLAN.md)。下一步先独立提交推送该批，
+再单独评审 `catalog-service`；每次仍只拆一个边界。PostgreSQL 不属于拆分步骤，必须等 notification、
+catalog、inventory、order、payment-orchestration、fulfillment 以及后续新增待拆服务全部完成单一所有权切换
+并验收后另立专项。

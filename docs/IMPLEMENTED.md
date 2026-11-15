@@ -110,7 +110,9 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   运行态 i18n/权限专项已验证；支付 Web 的 24 个基线文件完成机械格式化，格式检查、无用例 Vitest、
   TypeScript/Vite 生产构建、正式镜像和 `14201/healthz`/Vue 入口运行态已验证。
 - 新空卷验收已通过：Flyway 商城/支付/物流为 V24/V4/V5，完成登录→下单→支付→履约→物流→收货→完成→评价；Windows 快速回归同时通过。
-- 微服务拆分与 PostgreSQL 迁移尚未实施；M3.1 初始审计盘点了 37 张表、40 组跨模块依赖方向、
+- notification-service 已完成首个独立边界切换；catalog、inventory、order、payment-orchestration、
+  fulfillment 尚未拆分。PostgreSQL 专项必须等 M3 清单中的全部服务完成单一所有权切换并验收后才允许
+  启动；后续新增待拆服务也必须先完成。M3.1 初始审计盘点了 37 张表、40 组跨模块依赖方向、
   Outbox/Inbox、消费者契约和追踪缺口，并以 2 项 Maven 基线测试阻止所有权和依赖债务继续增长。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
@@ -140,6 +142,16 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   Bash 实测实时消费、停机积压恢复、commerce/notification 同 Trace 和切回 `IN_PROCESS`；质量门禁为
   293/22/239/4、全部 303 个 Java 源文件及 42 对脚本。该 Profile 默认关闭，客户 API 仍在单体，
   notification 表和回退路径未删除，PostgreSQL 未启动。
+- M3.2 单一所有权批次已将 notification-service 纳入默认 Compose 拓扑，并补齐列表、未读数、eventId
+  单条已读和全部已读内部 V1 API。commerce 的公开路径保持不变，但只负责 Session/RBAC、HMAC 签名和
+  有超时的 HTTP 转发；独立服务故障返回 `503/NOTIFICATION_SERVICE_UNAVAILABLE`，Angular 显示可重试状态。
+  commerce 内通知读写 Mapper、进程内消费者、独立数据源、投影比较、回填核对和旧模式配置已删除，
+  只保留订单事务侧 Outbox、V1 生产契约与历史 Flyway。Windows/容器化 Bash 运行专项和快速回归已验证
+  Kafka 投递、eventId 已读、服务停机 503、恢复和核心商城健康；当前质量基线为 277/21/198/4、全部 287 个
+  Java 源文件与 41 对脚本。Windows 完整验收和 Bash 等价全链路业务阶段通过；Git Bash 告警尾段补验
+  3 个采集目标、10 条规则和 Watchdog 真实投递。切换时 commerce 历史通知为 0 行，消费者三分区 lag
+  均为 0。M3 清单中的全部服务完成单一所有权切换并验收前继续使用 MySQL，不启动 PostgreSQL 专项或
+  数据库方言分支。
 - 已建立 [全开发生命周期可复测验证体系](VERIFICATION-SYSTEM.md)，将现有构建、快速/完整回归、空卷/升级恢复、MQ/崩溃专项和浸泡压测组织为 L0–L6 门禁，并固定证据、破坏性操作和基线冻结规则。
 - Angular 客户订单页已将退款申请/回执、`RECEIVED/COMPLETED` 履约状态和逐商品评价改为独立响应式面板；评价增加评分、必填内容、防重复提交和成功/失败反馈，未修改后端状态机或接口契约。
 - 上述界面已通过 25 项 Angular 单元测试、生产构建、Docker 实际页面与现有 `PAID/REFUNDED/RECEIVED/COMPLETED` 数据验收；浏览器控制台无错误，390 px 窄屏无横向溢出。

@@ -34,24 +34,13 @@ import vip.fairy.commerceflow.commerce.logistics.application.LogisticsNotificati
 import vip.fairy.commerceflow.commerce.logistics.application.LogisticsGatewayClient;
 import vip.fairy.commerceflow.commerce.payment.application.PaymentGatewayClient;
 import vip.fairy.commerceflow.commerce.payment.application.PaymentNotificationService;
-import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandHandler;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandRouter;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandV1;
-import vip.fairy.commerceflow.commerce.notification.infrastructure.CustomerNotificationKafkaConsumer;
-import vip.fairy.commerceflow.commerce.notification.infrastructure.projection.CustomerNotificationProjectionConsumer;
 import vip.fairy.commerceflow.commerce.notification.infrastructure.NotificationDeliveryProperties;
 import vip.fairy.commerceflow.commerce.notification.infrastructure.NotificationOutboxDispatcher;
-import vip.fairy.commerceflow.commerce.notification.application.NotificationProjectionVerificationResult;
-import vip.fairy.commerceflow.commerce.notification.application.NotificationProjectionVerificationService;
-import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationService;
-import vip.fairy.commerceflow.commerce.notification.application.NotificationStorageBackfillResult;
-import vip.fairy.commerceflow.commerce.notification.application.NotificationStorageBackfillService;
-import vip.fairy.commerceflow.commerce.notification.application.NotificationStorageVerificationResult;
-import vip.fairy.commerceflow.commerce.notification.application.NotificationStorageVerificationService;
+import vip.fairy.commerceflow.commerce.notification.domain.CustomerNotification;
+import vip.fairy.commerceflow.commerce.notification.infrastructure.client.notification.NotificationServiceClient;
 import vip.fairy.commerceflow.commerce.notification.infrastructure.persistence.commerce.NotificationMapper;
-import vip.fairy.commerceflow.commerce.notification.infrastructure.persistence.independent.StoreMapper;
-import vip.fairy.commerceflow.commerce.notification.infrastructure.storage.IndependentNotificationCommandHandler;
-import vip.fairy.commerceflow.commerce.notification.infrastructure.storage.NotificationStorageProperties;
 import vip.fairy.commerceflow.commerce.ordering.application.PurchaseOrderService;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import vip.fairy.commerceflow.commerce.payment.domain.PaymentChannel;
@@ -152,31 +141,9 @@ class CommerceFlowIntegrationTest {
   @Autowired
   PurchaseOrderService purchaseOrders;
   @Autowired
-  CustomerNotificationCommandHandler notificationCommands;
-  @Autowired
   CustomerNotificationCommandRouter notificationRouter;
   @Autowired
   NotificationOutboxDispatcher notificationOutbox;
-  @Autowired
-  CustomerNotificationKafkaConsumer notificationConsumer;
-  @Autowired
-  CustomerNotificationProjectionConsumer notificationProjectionConsumer;
-  @Autowired
-  NotificationProjectionVerificationService notificationProjectionVerification;
-  @Autowired
-  NotificationStorageBackfillService notificationStorageBackfill;
-  @Autowired
-  NotificationStorageVerificationService notificationStorageVerification;
-  @Autowired
-  IndependentNotificationCommandHandler independentNotificationCommands;
-  @Autowired
-  StoreMapper independentNotifications;
-  @Autowired
-  NotificationMapper commerceNotifications;
-  @Autowired
-  CustomerNotificationService customerNotifications;
-  @Autowired
-  NotificationStorageProperties notificationStorage;
   @Autowired
   NotificationDeliveryProperties notificationDelivery;
   @Autowired
@@ -185,6 +152,8 @@ class CommerceFlowIntegrationTest {
   PaymentGatewayClient paymentGateway;
   @MockitoBean
   KafkaTemplate<String, String> kafka;
+  @MockitoBean
+  NotificationServiceClient notificationServiceClient;
 
   @Test
   void customerNotificationV1FixtureRemainsCompatible() throws Exception {
@@ -203,28 +172,16 @@ class CommerceFlowIntegrationTest {
       org.junit.jupiter.api.Assertions.assertEquals(
         "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
         command.traceparent());
-      org.junit.jupiter.api.Assertions.assertTrue(notificationCommands.handle(command));
-      org.junit.jupiter.api.Assertions.assertFalse(notificationCommands.handle(command));
-      org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
-        "SELECT COUNT(*) FROM notification_inbox WHERE event_id=?", Integer.class,
-        command.eventId()));
-      org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
-        "SELECT COUNT(*) FROM customer_notifications WHERE event_id=?", Integer.class,
-        command.eventId()));
     }
   }
 
   @Test
-  void notificationKafkaOutboxRecoversPropagatesTraceAndSupportsFallback() throws Exception {
-    NotificationDeliveryProperties.Mode originalMode = notificationDelivery.getMode();
+  void notificationKafkaOutboxRecoversAndPropagatesTrace() throws Exception {
     int originalMaxAttempts = notificationDelivery.getMaxAttempts();
     java.time.Duration originalRetryDelay = notificationDelivery.getRetryDelay();
-    boolean originalFallback = notificationDelivery.isFallbackToInProcess();
     try {
-      notificationDelivery.setMode(NotificationDeliveryProperties.Mode.KAFKA);
       notificationDelivery.setMaxAttempts(3);
       notificationDelivery.setRetryDelay(java.time.Duration.ZERO);
-      notificationDelivery.setFallbackToInProcess(false);
       CustomerNotificationCommandV1 recovered = CustomerNotificationCommandV1.orderCancelled(
         "async-recovery-" + UUID.randomUUID(), 4L, 2001L, "Broker recovery", "order-2001");
       when(kafka.send(any(ProducerRecord.class)))
@@ -243,22 +200,6 @@ class CommerceFlowIntegrationTest {
       ProducerRecord<String, String> published = records.getAllValues().get(1);
       org.junit.jupiter.api.Assertions.assertEquals(recovered.traceparent(),
         new String(published.headers().lastHeader("traceparent").value(), StandardCharsets.UTF_8));
-      ConsumerRecord<String, String> consumed = new ConsumerRecord<>(published.topic(), 0, 0L,
-        published.key(), published.value());
-      published.headers().forEach(header -> consumed.headers().add(header));
-      String transportTraceparent =
-        "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-03";
-      consumed.headers().remove("traceparent");
-      consumed.headers().add("traceparent", transportTraceparent.getBytes(StandardCharsets.UTF_8));
-      notificationConsumer.consume(consumed);
-      notificationConsumer.consume(consumed);
-      org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
-        "SELECT COUNT(*) FROM customer_notifications WHERE event_id=?", Integer.class,
-        recovered.eventId()));
-      org.junit.jupiter.api.Assertions.assertEquals(transportTraceparent, jdbc.queryForObject(
-        "SELECT traceparent FROM notification_inbox WHERE event_id=?", String.class,
-        recovered.eventId()));
-
       org.mockito.Mockito.reset(kafka);
       notificationDelivery.setMaxAttempts(1);
       CustomerNotificationCommandV1 dead = CustomerNotificationCommandV1.orderCancelled(
@@ -273,138 +214,11 @@ class CommerceFlowIntegrationTest {
       notificationOutbox.dispatch();
       org.junit.jupiter.api.Assertions.assertEquals("PUBLISHED", outboxStatus(dead.eventId()));
 
-      org.mockito.Mockito.reset(kafka);
-      notificationDelivery.setFallbackToInProcess(true);
-      CustomerNotificationCommandV1 fallback = CustomerNotificationCommandV1.orderCancelled(
-        "async-fallback-" + UUID.randomUUID(), 4L, 2001L, "Monolith fallback", "order-2001");
-      when(kafka.send(any(ProducerRecord.class)))
-        .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("broker unavailable")));
-      notificationRouter.publish(fallback);
-      notificationOutbox.dispatch();
-      org.junit.jupiter.api.Assertions.assertEquals("FALLBACK", outboxStatus(fallback.eventId()));
-      org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
-        "SELECT COUNT(*) FROM customer_notifications WHERE event_id=?", Integer.class,
-        fallback.eventId()));
     } finally {
-      notificationDelivery.setMode(originalMode);
       notificationDelivery.setMaxAttempts(originalMaxAttempts);
       notificationDelivery.setRetryDelay(originalRetryDelay);
-      notificationDelivery.setFallbackToInProcess(originalFallback);
       org.mockito.Mockito.reset(kafka);
     }
-  }
-
-  @Test
-  void notificationProjectionWindowRequiresConsecutiveMatchingChecksBeforeStop() throws Exception {
-    Long windowId = notificationProjectionVerification.start();
-    CustomerNotificationCommandV1 command = CustomerNotificationCommandV1.orderCancelled(
-      "projection-window-" + UUID.randomUUID(), 4L, 2001L, "Projection verification",
-      "order-2001");
-    org.junit.jupiter.api.Assertions.assertTrue(notificationCommands.handle(command));
-    NotificationProjectionVerificationResult missing = notificationProjectionVerification.check();
-    org.junit.jupiter.api.Assertions.assertFalse(missing.passed());
-    org.junit.jupiter.api.Assertions.assertEquals(1, missing.missingShadowCount());
-    ConsumerRecord<String, String> record = projectionRecord(command, 0L);
-    notificationProjectionConsumer.consume(record);
-    notificationProjectionConsumer.consume(record);
-
-    NotificationProjectionVerificationResult first = notificationProjectionVerification.check();
-    org.junit.jupiter.api.Assertions.assertTrue(first.passed());
-    org.junit.jupiter.api.Assertions.assertFalse(first.readyToStopWindow());
-    notificationProjectionVerification.check();
-    NotificationProjectionVerificationResult third = notificationProjectionVerification.check();
-    org.junit.jupiter.api.Assertions.assertTrue(third.readyToStopWindow());
-    org.junit.jupiter.api.Assertions.assertEquals("READY", third.windowStatus());
-    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
-      "SELECT COUNT(*) FROM notification_projection_shadow WHERE window_id=? AND event_id=?",
-      Integer.class, windowId, command.eventId()));
-
-    CustomerNotificationCommandV1 lateCommand = CustomerNotificationCommandV1.orderCancelled(
-      "projection-window-late-" + UUID.randomUUID(), 4L, 2002L, "Late verification",
-      "order-2002");
-    org.junit.jupiter.api.Assertions.assertTrue(notificationCommands.handle(lateCommand));
-    NotificationProjectionVerificationResult revoked = notificationProjectionVerification.check();
-    org.junit.jupiter.api.Assertions.assertFalse(revoked.passed());
-    org.junit.jupiter.api.Assertions.assertEquals("RUNNING", revoked.windowStatus());
-    org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
-      () -> notificationProjectionVerification.stop(windowId));
-    notificationProjectionConsumer.consume(projectionRecord(lateCommand, 1L));
-    notificationProjectionVerification.check();
-    notificationProjectionVerification.check();
-    NotificationProjectionVerificationResult readyAgain = notificationProjectionVerification.check();
-    org.junit.jupiter.api.Assertions.assertEquals("READY", readyAgain.windowStatus());
-    notificationProjectionVerification.stop(windowId);
-    org.junit.jupiter.api.Assertions.assertEquals("STOPPED", jdbc.queryForObject(
-      "SELECT status FROM notification_projection_windows WHERE id=?", String.class, windowId));
-  }
-
-  @Test
-  void independentNotificationSchemaSupportsCutoverAndRollback() {
-    NotificationStorageBackfillResult backfill;
-    do {
-      backfill = notificationStorageBackfill.copyNextBatch();
-    } while (!backfill.completed());
-
-    CustomerNotificationCommandV1 orphan = CustomerNotificationCommandV1.orderCancelled(
-      "independent-orphan-" + UUID.randomUUID(), 4L, 3000L, "Orphan storage",
-      "order-3000");
-    org.junit.jupiter.api.Assertions.assertTrue(independentNotificationCommands.handle(orphan));
-    NotificationStorageVerificationResult blocked = notificationStorageVerification.check();
-    org.junit.jupiter.api.Assertions.assertFalse(blocked.passed());
-    org.junit.jupiter.api.Assertions.assertEquals(1, blocked.orphanCount());
-    org.junit.jupiter.api.Assertions.assertEquals(1,
-      notificationStorageVerification.quarantineOrphans().quarantinedCount());
-
-    CustomerNotificationCommandV1 command = CustomerNotificationCommandV1.orderCancelled(
-      "independent-storage-" + UUID.randomUUID(), 4L, 3001L, "Independent storage",
-      "order-3001");
-    org.junit.jupiter.api.Assertions.assertTrue(notificationCommands.handle(command));
-    org.junit.jupiter.api.Assertions.assertTrue(independentNotificationCommands.handle(command));
-
-    notificationStorageVerification.check();
-    notificationStorageVerification.check();
-    NotificationStorageVerificationResult ready = notificationStorageVerification.check();
-    org.junit.jupiter.api.Assertions.assertTrue(ready.readyToCutOver());
-    org.junit.jupiter.api.Assertions.assertEquals(0, ready.missingCount());
-    org.junit.jupiter.api.Assertions.assertEquals(0, ready.orphanCount());
-    org.junit.jupiter.api.Assertions.assertEquals(0, ready.mismatchCount());
-
-    NotificationStorageProperties.Mode originalMode = notificationStorage.getMode();
-    try {
-      notificationStorage.setMode(NotificationStorageProperties.Mode.INDEPENDENT);
-      var independent = independentNotifications.findStorageRecordByEventId(command.eventId());
-      org.junit.jupiter.api.Assertions.assertNotNull(independent);
-      org.junit.jupiter.api.Assertions.assertTrue(customerNotifications.list(4L).stream()
-        .anyMatch(item -> item.getId().equals(independent.getId())));
-      customerNotifications.markRead(4L, independent.getId());
-      org.junit.jupiter.api.Assertions.assertEquals("READ",
-        independentNotifications.findStorageRecordByEventId(command.eventId()).getStatus());
-      org.junit.jupiter.api.Assertions.assertEquals("READ",
-        commerceNotifications.findStorageRecordByEventId(command.eventId()).getStatus());
-
-      notificationStorage.setMode(NotificationStorageProperties.Mode.SHADOW);
-      org.junit.jupiter.api.Assertions.assertTrue(customerNotifications.list(4L).stream()
-        .anyMatch(item -> item.getId().equals(
-          commerceNotifications.findStorageRecordByEventId(command.eventId()).getId())));
-      NotificationStorageVerificationResult rolledBack = notificationStorageVerification.check();
-      org.junit.jupiter.api.Assertions.assertTrue(rolledBack.passed());
-    } finally {
-      notificationStorage.setMode(originalMode);
-    }
-  }
-
-  private ConsumerRecord<String, String> projectionRecord(CustomerNotificationCommandV1 command,
-                                                           long offset) throws Exception {
-    ConsumerRecord<String, String> record = new ConsumerRecord<>(
-      "customer-notification-commands", 0, offset, command.eventId(), json.writeValueAsString(command));
-    record.headers().add("commerceflow-correlation-id",
-      command.correlationId().getBytes(StandardCharsets.UTF_8));
-    record.headers().add("commerceflow-causation-id",
-      command.causationId().getBytes(StandardCharsets.UTF_8));
-    record.headers().add("commerceflow-origin-traceparent",
-      command.traceparent().getBytes(StandardCharsets.UTF_8));
-    record.headers().add("traceparent", command.traceparent().getBytes(StandardCharsets.UTF_8));
-    return record;
   }
 
   private String outboxStatus(String eventId) {
@@ -707,23 +521,22 @@ class CommerceFlowIntegrationTest {
       "SELECT status FROM inventory_reservations WHERE order_id=? AND product_id=1", String.class, orderId));
     org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
       "SELECT COUNT(*) FROM inventory_movements WHERE order_id=? AND movement_type='RELEASED'", Integer.class, orderId));
-    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
-      "SELECT COUNT(*) FROM customer_notifications WHERE order_id=? AND notification_type='ORDER_CANCELLED'", Integer.class, orderId));
-    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
-      "SELECT COUNT(*) FROM notification_inbox WHERE event_id=?", Integer.class,
-      outbox.get("EVENT_ID") + ":notification"));
-    Long notificationId = jdbc.queryForObject(
-      "SELECT id FROM customer_notifications WHERE order_id=?", Long.class, orderId);
+    String notificationEventId = outbox.get("EVENT_ID") + ":notification";
+    when(notificationServiceClient.list(customerId)).thenReturn(List.of(
+      new CustomerNotification(1L, notificationEventId, orderId, "ORDER_CANCELLED",
+        "Order cancelled", "Inventory test cancellation", "UNREAD", null, Instant.now())));
+    when(notificationServiceClient.unreadCount(customerId)).thenReturn(1);
     mvc.perform(get("/api/notifications").session(customer.session()))
       .andExpect(status().isOk())
-      .andExpect(jsonPath("$[?(@.id == " + notificationId + ")].status").value("UNREAD"));
+      .andExpect(jsonPath("$[0].eventId").value(notificationEventId))
+      .andExpect(jsonPath("$[0].status").value("UNREAD"));
     mvc.perform(get("/api/notifications/unread-count").session(customer.session()))
       .andExpect(status().isOk()).andExpect(jsonPath("$.count").value(1));
-    mvc.perform(patch("/api/notifications/{id}/read", notificationId)
+    mvc.perform(patch("/api/notifications/{eventId}/read", notificationEventId)
         .session(customer.session()).cookie(customer.cookie()).header("X-XSRF-TOKEN", customer.token()))
       .andExpect(status().isNoContent());
-    org.junit.jupiter.api.Assertions.assertEquals("READ", jdbc.queryForObject(
-      "SELECT status FROM customer_notifications WHERE id=?", String.class, notificationId));
+    org.mockito.Mockito.verify(notificationServiceClient).markRead(customerId,
+      notificationEventId);
   }
 
   @Test

@@ -28,7 +28,7 @@ services="$(compose ps --services --filter status=running)"
 required_services=(
   commerce-db commerce-redis kafka-broker payment-simulator-db payment-simulator-redis
   payment-simulator-service payment-simulator-web logistics-simulator-db logistics-simulator-service
-  commerce-service commerce-portal-angular
+  notification-db notification-service commerce-service commerce-portal-angular
 )
 for service in "${required_services[@]}"; do
   grep -Fxq "$service" <<<"$services" || { echo "Required service is not running: $service" >&2; exit 1; }
@@ -65,7 +65,8 @@ while ((SECONDS < deadline)); do
   if curl -fsS --max-time 5 "$BASE_URL/healthz" >/dev/null \
     && [[ "$(curl -fsS --max-time 5 http://localhost:18081/actuator/health | jq -r .status)" == UP ]] \
     && [[ "$(curl -fsS --max-time 5 http://localhost:18082/actuator/health | jq -r .status)" == UP ]] \
-    && [[ "$(curl -fsS --max-time 5 http://localhost:18083/actuator/health | jq -r .status)" == UP ]]; then
+    && [[ "$(curl -fsS --max-time 5 http://localhost:18083/actuator/health | jq -r .status)" == UP ]] \
+    && [[ "$(curl -fsS --max-time 5 http://localhost:18086/actuator/health | jq -r .status)" == UP ]]; then
     healthy=true; break
   fi
   sleep 2

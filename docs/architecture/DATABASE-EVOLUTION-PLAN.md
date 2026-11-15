@@ -2,16 +2,23 @@
 
 ## 当前决策
 
-当前保留 MySQL 8.4，三个系统继续拥有独立数据库：
+当前保留 MySQL 8.4，各已独立进程继续拥有独立数据库：
 
 - `commerce-db` / `commerceflow`
 - `payment-simulator-db` / `payment_platform`
 - `logistics-simulator-db` / `logistics_platform`
+- `notification-db` / `notification`
 
-目录和命名重构不同时迁移 PostgreSQL。MySQL 并非商城的不合理选择；当前行锁、唯一约束、幂等、Outbox 和事务竞态基线均已在 InnoDB 上实测。
+PostgreSQL 不与任何服务拆分、目录或命名重构同时进行。M3 清单中的全部业务服务尚未独立前，不评审、
+不启动、不建立方言分支；只有 `notification-service`、`catalog-service`、`inventory-service`、
+`order-service`、`payment-orchestration-service`、`fulfillment-service` 全部完成单一所有权切换并逐一验收后，
+才允许单独开启 PostgreSQL 专项。若 M3 清单增加新的待拆服务，新服务也必须先完成。MySQL 并非商城的
+不合理选择；当前行锁、唯一约束、幂等、Outbox 和事务竞态基线均已在 InnoDB 上实测。
 
 ## PostgreSQL 专项的启动条件
 
+- M3 清单中的 notification、catalog、inventory、order、payment-orchestration、fulfillment 已全部独立，
+  且不存在过渡期双写、单体回退或待完成的数据所有权交接；后续新增待拆服务也已完成。
 - 明确的学习目标包含 JSONB、部分/表达式索引、Advisory Lock、`SKIP LOCKED` 或 PostgreSQL 锁模型。
 - 结构命名和 MyBatis 数据访问治理已完成，不与包/目录迁移混合。
 - 允许从空卷重建，并愿意重新执行 M1 全部并发与故障门禁。

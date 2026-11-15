@@ -10,18 +10,15 @@ import org.springframework.stereotype.Service;
 @Service
 public class CustomerNotificationCommandRouter implements CustomerNotificationCommandPublisher {
 
-  private final CustomerNotificationCommandHandler handler;
   private final NotificationMapper notifications;
   private final NotificationDeliveryProperties properties;
   private final ObjectMapper mapper;
   private final TraceContextProvider traceContext;
 
-  public CustomerNotificationCommandRouter(CustomerNotificationCommandHandler handler,
-                                           NotificationMapper notifications,
+  public CustomerNotificationCommandRouter(NotificationMapper notifications,
                                            NotificationDeliveryProperties properties,
                                            ObjectMapper mapper,
                                            TraceContextProvider traceContext) {
-    this.handler = handler;
     this.notifications = notifications;
     this.properties = properties;
     this.mapper = mapper;
@@ -30,10 +27,6 @@ public class CustomerNotificationCommandRouter implements CustomerNotificationCo
 
   @Override
   public void publish(CustomerNotificationCommandV1 command) {
-    if (properties.getMode() == NotificationDeliveryProperties.Mode.IN_PROCESS) {
-      handler.handle(command);
-      return;
-    }
     try {
       notifications.insertOutbox(command.eventId(), properties.getTopic(),
         mapper.writeValueAsString(command));

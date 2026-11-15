@@ -8,9 +8,9 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.2 首批完成：notification-service 独立影子进程已实现并双平台验收 |
-| 下一候选阶段 | 评审客户通知读 API 双读/切换；当前不删除单体路径 |
-| 范围边界 | 影子进程默认关闭；客户流量仍由单体承载，不启动 PostgreSQL 迁移 |
+| 当前阶段 | M3.2 第二批实现与验收收口完成：notification-service 已成为唯一通知读写实现 |
+| 下一候选阶段 | 独立提交推送本批；随后再评审下一个服务边界 |
+| 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
 
@@ -31,6 +31,7 @@
 | 库存与商家库存中心 | 已实现 | 可售/预占/已售、转正/释放/退款回补、调整流水 |
 | Angular/Vue 界面 | Angular 主流程和订单页视觉收尾已实现 | 订单详情与支付信息已扁平化，商品图有失败回退；通知菜单使用中性列表和细滚动条，支持外部点击、`Esc`、关闭按钮和选择通知后关闭；语言切换使用图标；导航与 1480 px 正文容器对齐，桌面与 390 px 窄屏已验收 |
 | Flyway 数据库生命周期 | 空卷和迁移层已验收 | 当前商城库 V27；notification 独立 Schema V1→V3 已隔离及实际运行验收 |
+| notification 独立服务 | 单一所有权切换已实现 | 默认拓扑启动独立 MySQL/Kafka 服务；commerce 仅签名代理，故障稳定返回 503，无本地数据库回退 |
 | 告警与监控 | 本地端到端管道已实现 | 三服务 Prometheus 抓取、10 条规则、Alertmanager、Grafana 数据源和可替换 Webhook；真实通知供应商与高可用部署不在本地学习验收内 |
 
 ## 3. M1 冻结结论
@@ -215,3 +216,12 @@ Windows 与容器化 Bash 均完成实时写入、进程停机期间消息积压
 Trace 和 `IN_PROCESS` 单体回退。当前质量基线为 293/22/239/4、全部 303 个 Java 源文件和 42 对脚本契约。
 验收后 notification-service 已关闭，商城恢复默认配置；客户通知 API 尚未切到独立服务，单体表和回退路径
 保留，PostgreSQL 未启动。
+
+第九批实施 notification 单一所有权切换：notification-service 补齐四个内部 V1 API、客户隔离和 HMAC
+调用方校验并进入默认 Compose 拓扑；commerce 原四个公开接口只做 Session/RBAC、签名与限时 HTTP 转发。
+Angular 改用 eventId 已读并在 503 时显示重试。commerce 内本地通知 Mapper、消费者、独立数据源、投影、
+回填核对和运行模式均删除，只保留事务 Outbox、V1 生产契约与历史 Flyway。Windows 专项已验证真实 Kafka
+通知、已读落库、独立服务停机 503、核心商城健康与恢复；交接时 commerce 历史通知为 0 行，Kafka 三分区
+lag 均为 0。Windows/Bash 通知专项、快速回归、质量审计和 41 对脚本契约均已通过；Windows 完整验收通过。
+Bash 等价全链路通过全部业务阶段，告警尾段在 Git Bash 排除容器路径的 MSYS 参数转换后补验，结果为 3 个
+健康采集目标、10 条规则和 1 次 Watchdog 投递。本批仅剩独立提交推送。

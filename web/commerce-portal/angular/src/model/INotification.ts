@@ -1,5 +1,6 @@
 export interface CustomerNotification {
   id: number;
+  eventId: string;
   orderId?: number;
   notificationType: string;
   title: string;

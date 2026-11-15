@@ -2,8 +2,9 @@
 
 ## 1. 结论
 
-M3.1 最终门禁已经完成；M3.2 准入已补齐 HTTP、Kafka、RabbitMQ 和 RocketMQ 跨进程追踪。
-`notification-service` **尚未创建或启动**，下一步仍需单独评审影子进程范围和回退边界。
+M3.1 最终门禁已经完成；M3.2 已将 `notification-service` 切换为默认运行的唯一通知读写实现，并补齐
+HTTP、Kafka、RabbitMQ 和 RocketMQ 跨进程追踪。commerce 只保留订单事务侧 Outbox 和身份薄代理，
+不保留 notification 本地读模型或数据库回退。
 其他模块仍存在数据、Mapper 和同步调用共享边界，不能把任意业务包直接复制为独立服务并继续共享商城数据库。
 
 本轮冻结的是审计基线，不是微服务实现：
@@ -28,7 +29,7 @@ M3.1 最终门禁已经完成；M3.2 准入已补齐 HTTP、Kafka、RabbitMQ 和
 | `logistics` | `shipment_records`、`shipment_events`、`shipment_notifications` | 商城侧投影已有独立表，但仍直接读写订单并调用收货模块。 |
 | `inventory` | `inventory_reservations`、`inventory_movements` | 可售、预占、已售数量仍位于 `products`，所有权尚未真正独立。 |
 | `review` | `product_reviews` | 查询跨订单、商品和用户表，拆分时需要只读快照或组合查询边界。 |
-| `notification` | 商城暂存：`customer_notifications`、`notification_inbox`、`notification_delivery_outbox`、三张投影验证表；独立 Schema：通知、Inbox、Outbox、回填状态、核对审计、孤儿隔离 | 独立 Schema 已实际完成回填、实时镜像、读切换和回滚；商城表作为 M3.2 回退窗口暂不删除。 |
+| `notification` | commerce 仅运行 `notification_delivery_outbox`；独立 Schema 持有通知、Inbox 及历史切换证据表 | notification-service 是唯一运行读写实现；commerce 历史 Flyway 表保留但无运行代码访问。 |
 | `scheduling` | `scheduled_task_policies`、`scheduled_tasks`、`scheduled_task_events`、`scheduled_task_policy_events`、`shedlock` | 调度记录可独立，但 Handler 仍同步调用 ordering/receipt。 |
 
 `receipt` 与 `fulfillment` 当前没有自有表，分别直接修改 ordering 状态或组合 ordering、refund、logistics 数据；
@@ -137,7 +138,7 @@ taskId 查询到同一 Trace 的 publish/process Span，并验证 Tempo 停机�
 
 M3.1 条件及 M3.2 本地追踪准入门禁均已满足，notification-service 影子进程已在单独授权后创建并完成
 双平台实时消费、停机恢复和跨进程 Trace 验收。这仍不代表客户读流量已迁出、单体路径可删除或具备
-生产级可观测性；下一门禁是双读核对与显式 API 切换评审。
+生产级可观测性；下一门禁是独立 API、一次性数据交接、公开入口切换和单体通知读写实现删除。
 
 ## 8. 自动基线
 

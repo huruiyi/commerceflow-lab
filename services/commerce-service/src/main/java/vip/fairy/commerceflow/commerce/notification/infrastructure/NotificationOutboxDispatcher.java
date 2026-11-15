@@ -1,7 +1,6 @@
 package vip.fairy.commerceflow.commerce.notification.infrastructure;
 
 import tools.jackson.databind.ObjectMapper;
-import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandHandler;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandV1;
 import vip.fairy.commerceflow.commerce.notification.domain.NotificationOutboxEntry;
 import vip.fairy.commerceflow.commerce.notification.infrastructure.persistence.commerce.NotificationMapper;
@@ -16,18 +15,15 @@ public class NotificationOutboxDispatcher {
 
   private final NotificationMapper notifications;
   private final CustomerNotificationKafkaTransport kafka;
-  private final CustomerNotificationCommandHandler handler;
   private final NotificationDeliveryProperties properties;
   private final ObjectMapper mapper;
 
   public NotificationOutboxDispatcher(NotificationMapper notifications,
                                       CustomerNotificationKafkaTransport kafka,
-                                      CustomerNotificationCommandHandler handler,
                                       NotificationDeliveryProperties properties,
                                       ObjectMapper mapper) {
     this.notifications = notifications;
     this.kafka = kafka;
-    this.handler = handler;
     this.properties = properties;
     this.mapper = mapper;
   }
@@ -35,9 +31,6 @@ public class NotificationOutboxDispatcher {
   @Scheduled(fixedDelayString = "${commerceflow.notification.delivery.publish-delay:1s}",
     initialDelayString = "${commerceflow.notification.delivery.publish-initial-delay:2s}")
   public void dispatch() {
-    if (properties.getMode() != NotificationDeliveryProperties.Mode.KAFKA) {
-      return;
-    }
     for (NotificationOutboxEntry entry : notifications.pendingOutbox(50)) {
       deliver(entry);
     }
@@ -65,22 +58,7 @@ public class NotificationOutboxDispatcher {
         Instant.now().plus(properties.getRetryDelay()), error);
       return;
     }
-    if (properties.isFallbackToInProcess()) {
-      fallback(entry, error);
-      return;
-    }
     notifications.markOutboxDead(entry.getId(), error);
-  }
-
-  private void fallback(NotificationOutboxEntry entry, String error) {
-    try {
-      CustomerNotificationCommandV1 command = mapper.readValue(entry.getPayload(),
-        CustomerNotificationCommandV1.class);
-      handler.handle(command);
-      notifications.markOutboxFallback(entry.getId(), error);
-    } catch (Exception fallbackFailure) {
-      notifications.markOutboxDead(entry.getId(), abbreviate(fallbackFailure.getMessage()));
-    }
   }
 
   private String abbreviate(String message) {

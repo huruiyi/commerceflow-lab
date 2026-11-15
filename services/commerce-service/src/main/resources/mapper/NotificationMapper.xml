@@ -2,48 +2,6 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="vip.fairy.commerceflow.commerce.notification.infrastructure.persistence.commerce.NotificationMapper">
 
-  <select id="list" resultType="vip.fairy.commerceflow.commerce.notification.domain.CustomerNotification">
-    <![CDATA[
-      SELECT id,order_id,notification_type,title,message,status,read_at,created_at
-    FROM customer_notifications
-    WHERE customer_id=#{customerId}
-    ORDER BY created_at DESC,id DESC
-    LIMIT 20
-    ]]>
-  </select>
-
-  <select id="unreadCount" resultType="java.lang.Integer">
-    <![CDATA[
-      SELECT COUNT(*) FROM customer_notifications WHERE customer_id=#{customerId} AND status='UNREAD'
-    ]]>
-  </select>
-
-  <update id="markRead">
-    <![CDATA[
-      UPDATE customer_notifications SET status='READ',read_at=CURRENT_TIMESTAMP
-    WHERE id=#{id} AND customer_id=#{customerId} AND status='UNREAD'
-    ]]>
-  </update>
-
-  <update id="markAllRead">
-    <![CDATA[
-      UPDATE customer_notifications SET status='READ',read_at=CURRENT_TIMESTAMP
-    WHERE customer_id=#{customerId} AND status='UNREAD'
-    ]]>
-  </update>
-
-  <insert id="insertInbox">
-    INSERT IGNORE INTO notification_inbox(
-      consumer_name,event_id,event_type,schema_version,correlation_id,causation_id,traceparent)
-    VALUES(#{consumerName},#{eventId},#{eventType},#{schemaVersion},#{correlationId},
-      #{causationId},#{traceparent})
-  </insert>
-
-  <insert id="insertNotification">
-    INSERT INTO customer_notifications(event_id,customer_id,order_id,notification_type,title,message)
-    VALUES(#{eventId},#{customerId},#{orderId},#{type},#{title},#{message})
-  </insert>
-
   <insert id="insertOutbox">
     INSERT IGNORE INTO notification_delivery_outbox(event_id,topic,payload)
     VALUES(#{eventId},#{topic},#{payload})
@@ -70,12 +28,6 @@
     WHERE id=#{id} AND status IN ('NEW','RETRY')
   </update>
 
-  <update id="markOutboxFallback">
-    UPDATE notification_delivery_outbox
-    SET status='FALLBACK',attempts=attempts+1,processed_at=CURRENT_TIMESTAMP,last_error=#{error}
-    WHERE id=#{id} AND status IN ('NEW','RETRY')
-  </update>
-
   <update id="markOutboxDead">
     UPDATE notification_delivery_outbox
     SET status='DEAD',attempts=attempts+1,processed_at=CURRENT_TIMESTAMP,last_error=#{error}
@@ -88,126 +40,4 @@
     WHERE event_id=#{eventId} AND status='DEAD'
   </update>
 
-  <select id="runningProjectionWindowId" resultType="java.lang.Long">
-    SELECT id FROM notification_projection_windows
-    WHERE status IN ('RUNNING','READY') ORDER BY id DESC LIMIT 1
-  </select>
-
-  <insert id="startProjectionWindow">
-    INSERT INTO notification_projection_windows(start_notification_id)
-    SELECT COALESCE(MAX(id),0) FROM customer_notifications
-    HAVING NOT EXISTS (
-      SELECT 1 FROM notification_projection_windows WHERE status IN ('RUNNING','READY')
-    )
-  </insert>
-
-  <update id="markProjectionWindowReady">
-    UPDATE notification_projection_windows SET status='READY',ready_at=CURRENT_TIMESTAMP
-    WHERE id=#{id} AND status='RUNNING'
-  </update>
-
-  <update id="markProjectionWindowRunning">
-    UPDATE notification_projection_windows SET status='RUNNING',ready_at=NULL
-    WHERE id=#{id} AND status='READY'
-  </update>
-
-  <update id="stopProjectionWindow">
-    UPDATE notification_projection_windows SET status='STOPPED',stopped_at=CURRENT_TIMESTAMP
-    WHERE id=#{id} AND status='READY'
-  </update>
-
-  <select id="projectionWindowStartNotificationId" resultType="java.lang.Long">
-    SELECT start_notification_id FROM notification_projection_windows WHERE id=#{id}
-  </select>
-
-  <select id="projectionWindowStatus" resultType="java.lang.String">
-    SELECT status FROM notification_projection_windows WHERE id=#{id}
-  </select>
-
-  <insert id="insertProjection">
-    INSERT IGNORE INTO notification_projection_shadow(
-      window_id,event_id,customer_id,order_id,notification_type,title,message,
-      correlation_id,causation_id,traceparent)
-    VALUES(#{windowId},#{eventId},#{customerId},#{orderId},#{type},#{title},#{message},
-      #{correlationId},#{causationId},#{traceparent})
-  </insert>
-
-  <select id="matchedProjectionCount" resultType="java.lang.Integer">
-    SELECT COUNT(*) FROM customer_notifications n
-    JOIN notification_projection_shadow s ON s.window_id=#{windowId} AND s.event_id=n.event_id
-    WHERE n.id&gt;#{startNotificationId}
-      AND n.customer_id=s.customer_id
-      AND COALESCE(n.order_id,-1)=COALESCE(s.order_id,-1)
-      AND n.notification_type=s.notification_type
-      AND n.title=s.title
-      AND n.message=s.message
-  </select>
-
-  <select id="missingShadowProjectionCount" resultType="java.lang.Integer">
-    SELECT COUNT(*) FROM customer_notifications n
-    LEFT JOIN notification_projection_shadow s ON s.window_id=#{windowId} AND s.event_id=n.event_id
-    WHERE n.id&gt;#{startNotificationId} AND s.event_id IS NULL
-  </select>
-
-  <select id="orphanShadowProjectionCount" resultType="java.lang.Integer">
-    SELECT COUNT(*) FROM notification_projection_shadow s
-    LEFT JOIN customer_notifications n ON n.event_id=s.event_id
-    WHERE s.window_id=#{windowId} AND n.event_id IS NULL
-  </select>
-
-  <select id="mismatchedProjectionCount" resultType="java.lang.Integer">
-    SELECT COUNT(*) FROM customer_notifications n
-    JOIN notification_projection_shadow s ON s.window_id=#{windowId} AND s.event_id=n.event_id
-    WHERE n.id&gt;#{startNotificationId} AND (
-      n.customer_id&lt;&gt;s.customer_id
-      OR COALESCE(n.order_id,-1)&lt;&gt;COALESCE(s.order_id,-1)
-      OR n.notification_type&lt;&gt;s.notification_type
-      OR n.title&lt;&gt;s.title
-      OR n.message&lt;&gt;s.message
-    )
-  </select>
-
-  <select id="blockingOutboxCount" resultType="java.lang.Integer">
-    SELECT COUNT(*) FROM notification_delivery_outbox o
-    JOIN notification_projection_windows w ON w.id=#{windowId}
-    WHERE o.created_at&gt;=w.started_at AND o.status IN ('NEW','RETRY','DEAD','FALLBACK')
-  </select>
-
-  <insert id="insertProjectionAudit">
-    INSERT INTO notification_projection_audits(
-      window_id,matched_count,missing_shadow_count,orphan_shadow_count,mismatch_count,
-      blocking_outbox_count,passed)
-    VALUES(#{windowId},#{matched},#{missingShadow},#{orphanShadow},#{mismatch},
-      #{blockingOutbox},#{passed})
-  </insert>
-
-  <select id="recentPassingProjectionChecks" resultType="java.lang.Integer">
-    SELECT COUNT(*) FROM (
-      SELECT passed FROM notification_projection_audits
-      WHERE window_id=#{windowId} ORDER BY id DESC LIMIT #{limit}
-    ) recent WHERE passed=TRUE
-  </select>
-
-  <select id="eventIdById" resultType="java.lang.String">
-    SELECT event_id FROM customer_notifications WHERE id=#{id} AND customer_id=#{customerId}
-  </select>
-
-  <update id="markReadByEventId">
-    UPDATE customer_notifications SET status='READ',read_at=CURRENT_TIMESTAMP
-    WHERE event_id=#{eventId} AND customer_id=#{customerId} AND status='UNREAD'
-  </update>
-
-  <select id="storageRecordsAfter"
-          resultType=
-            "vip.fairy.commerceflow.commerce.notification.infrastructure.persistence.row.NotificationStorageRecord">
-    SELECT id,event_id,customer_id,order_id,notification_type,title,message,status,read_at,created_at
-    FROM customer_notifications WHERE id&gt;#{afterId} ORDER BY id LIMIT #{limit}
-  </select>
-
-  <select id="findStorageRecordByEventId"
-          resultType=
-            "vip.fairy.commerceflow.commerce.notification.infrastructure.persistence.row.NotificationStorageRecord">
-    SELECT id,event_id,customer_id,order_id,notification_type,title,message,status,read_at,created_at
-    FROM customer_notifications WHERE event_id=#{eventId}
-  </select>
 </mapper>

@@ -3,6 +3,7 @@ package vip.fairy.commerceflow.commerce.shared.api;
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
 import vip.fairy.commerceflow.commerce.identity.application.LoginRateLimitException;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
+import vip.fairy.commerceflow.commerce.shared.application.ExternalServiceUnavailableException;
 import org.springframework.http.HttpStatus;
 import org.springframework.dao.TransientDataAccessException;
 import org.springframework.http.ResponseEntity;
@@ -38,6 +39,14 @@ public class ApiExceptionHandler {
       .header("Retry-After", "1")
       .body(body(HttpStatus.SERVICE_UNAVAILABLE, "DATABASE_CONCURRENCY_RETRY",
         "A concurrent database operation did not complete in time; retry the request"));
+  }
+
+  @ExceptionHandler(ExternalServiceUnavailableException.class)
+  ResponseEntity<Map<String, Object>> externalServiceUnavailable(
+    ExternalServiceUnavailableException exception
+  ) {
+    return response(HttpStatus.SERVICE_UNAVAILABLE, exception.errorCode(),
+      exception.getMessage());
   }
 
   @ExceptionHandler(MethodArgumentNotValidException.class)

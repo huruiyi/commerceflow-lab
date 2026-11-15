@@ -17,6 +17,7 @@ export class NavbarComponent implements OnInit {
   notifications: CustomerNotification[] = [];
   unreadNotifications = 0;
   notificationOpen = false;
+  notificationUnavailable = false;
   bilgiler: UserProfile = {
     id: 0,
     firstName: '',
@@ -47,8 +48,12 @@ export class NavbarComponent implements OnInit {
   loadNotifications(): void {
     this.api.notifications().subscribe({
       next: (notifications) => {
+        this.notificationUnavailable = false;
         this.notifications = notifications;
         this.unreadNotifications = notifications.filter((item) => item.status === 'UNREAD').length;
+      },
+      error: () => {
+        this.notificationUnavailable = true;
       },
     });
   }
@@ -77,7 +82,7 @@ export class NavbarComponent implements OnInit {
   markNotificationRead(notification: CustomerNotification): void {
     this.closeNotifications();
     if (notification.status === 'READ') return;
-    this.api.markNotificationRead(notification.id).subscribe({
+    this.api.markNotificationRead(notification.eventId).subscribe({
       next: () => {
         notification.status = 'READ';
         this.unreadNotifications = Math.max(0, this.unreadNotifications - 1);

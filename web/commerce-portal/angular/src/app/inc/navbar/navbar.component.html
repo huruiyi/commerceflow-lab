@@ -120,7 +120,13 @@
               </div>
             </div>
             <div class="notification-list">
-              <div class="notification-empty" *ngIf="!notifications.length">{{ 'noNotifications' | t }}</div>
+              <div class="notification-empty" *ngIf="notificationUnavailable">
+                {{ 'notificationUnavailable' | t }}
+                <button type="button" (click)="loadNotifications()">{{ 'retry' | t }}</button>
+              </div>
+              <div class="notification-empty" *ngIf="!notificationUnavailable && !notifications.length">
+                {{ 'noNotifications' | t }}
+              </div>
               <button
                 type="button"
                 class="notification-item"

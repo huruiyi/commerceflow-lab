@@ -40,10 +40,10 @@ public class CustomerNotificationController {
     return Map.of("count", notifications.unreadCount(currentUsers.requireId(authentication)));
   }
 
-  @PatchMapping("/{id}/read")
+  @PatchMapping("/{eventId}/read")
   @ResponseStatus(HttpStatus.NO_CONTENT)
-  void markRead(@PathVariable Long id, Authentication authentication) {
-    notifications.markRead(currentUsers.requireId(authentication), id);
+  void markRead(@PathVariable String eventId, Authentication authentication) {
+    notifications.markRead(currentUsers.requireId(authentication), eventId);
   }
 
   @PatchMapping("/read-all")

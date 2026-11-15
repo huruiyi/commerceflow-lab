@@ -1,13 +1,11 @@
-package vip.fairy.commerceflow.commerce.notification.infrastructure.persistence.row;
+package vip.fairy.commerceflow.notification.domain;
 
 import java.time.Instant;
-import java.util.Objects;
 
-public class NotificationStorageRecord {
+public class CustomerNotificationView {
 
   private Long id;
   private String eventId;
-  private Long customerId;
   private Long orderId;
   private String notificationType;
   private String title;
@@ -22,10 +20,6 @@ public class NotificationStorageRecord {
 
   public String getEventId() {
     return eventId;
-  }
-
-  public Long getCustomerId() {
-    return customerId;
   }
 
   public Long getOrderId() {
@@ -54,15 +48,5 @@ public class NotificationStorageRecord {
 
   public Instant getCreatedAt() {
     return createdAt;
-  }
-
-  public boolean sameBusinessState(NotificationStorageRecord other) {
-    return other != null
-      && Objects.equals(customerId, other.customerId)
-      && Objects.equals(orderId, other.orderId)
-      && Objects.equals(notificationType, other.notificationType)
-      && Objects.equals(title, other.title)
-      && Objects.equals(message, other.message)
-      && Objects.equals(status, other.status);
   }
 }

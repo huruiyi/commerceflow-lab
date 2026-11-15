@@ -18,6 +18,10 @@
 | [ALERTING.md](ALERTING.md) | Prometheus 规则、Alertmanager 路由、本地 Webhook、阈值和生产边界 | 指标、规则、通知路由或验收入口变更时更新 |
 | [architecture/](architecture/README.md) | 微服务和数据库演进等架构层待办 | 不与当前业务 `TODO.md` 混用 |
 
+当前 M3.2 下一批的详细方案见
+[notification-service 单一所有权切换计划](architecture/NOTIFICATION-SERVICE-CUTOVER-PLAN.md)：独立服务一次性
+补齐查询和已读 API，完成历史交接后成为唯一通知读写实现；commerce 不保留双读或数据库回退。
+
 ## 专题参考 `reference/`
 
 - [高级模拟支付](reference/ADVANCED-PAYMENT.md)：已实现的支付架构、安全与验收记录。

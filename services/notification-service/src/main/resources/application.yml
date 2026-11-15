@@ -60,6 +60,8 @@ mybatis-plus:
     map-underscore-to-camel-case: true
 
 commerceflow:
+  internal-api:
+    secret: ${NOTIFICATION_INTERNAL_SECRET:demo-notification-internal-secret}
   notification:
     topic: ${NOTIFICATION_DELIVERY_TOPIC:customer-notification-commands}
     consumer-group: ${NOTIFICATION_CONSUMER_GROUP:commerceflow-independent-notification-v1}

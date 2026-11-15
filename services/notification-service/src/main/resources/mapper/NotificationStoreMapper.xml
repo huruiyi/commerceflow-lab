@@ -2,6 +2,32 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="vip.fairy.commerceflow.notification.infrastructure.persistence.NotificationStoreMapper">
 
+  <select id="list"
+          resultType="vip.fairy.commerceflow.notification.domain.CustomerNotificationView">
+    SELECT id,event_id,order_id,notification_type,title,message,status,read_at,created_at
+    FROM customer_notifications
+    WHERE customer_id=#{customerId}
+    ORDER BY created_at DESC,event_id DESC
+    LIMIT #{limit}
+  </select>
+
+  <select id="unreadCount" resultType="java.lang.Integer">
+    SELECT COUNT(*) FROM customer_notifications
+    WHERE customer_id=#{customerId} AND status='UNREAD'
+  </select>
+
+  <update id="markRead">
+    UPDATE customer_notifications SET status='READ',
+      read_at=COALESCE(read_at,CURRENT_TIMESTAMP)
+    WHERE customer_id=#{customerId} AND event_id=#{eventId} AND status='UNREAD'
+  </update>
+
+  <update id="markAllRead">
+    UPDATE customer_notifications SET status='READ',
+      read_at=COALESCE(read_at,CURRENT_TIMESTAMP)
+    WHERE customer_id=#{customerId} AND status='UNREAD'
+  </update>
+
   <insert id="insertInbox">
     INSERT IGNORE INTO notification_inbox(
       consumer_name,event_id,event_type,schema_version,correlation_id,causation_id,traceparent)

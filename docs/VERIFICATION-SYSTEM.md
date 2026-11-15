@@ -110,14 +110,9 @@ bash ./scripts/linux/verify-all.sh
 notification 独立 Schema 使用配对脚本 `verify-notification-schema-split`，在随机网络和 tmpfs MySQL 中验证
 V1→V3 的三张业务表、回填/核对/隔离表、零外键、快照字段和 Inbox 幂等。
 
-`verify-notification-runtime-cutover` 在保留现有卷的前提下执行历史回填、孤儿隔离、Kafka 实时镜像、连续
-三次核对、独立读切换、已读状态镜像、notification-db 停机和 COMMERCE 回滚，最后恢复默认
-`IN_PROCESS + COMMERCE`。它证明 Schema 可独立运行，但不创建 notification-service。
-
-`verify-notification-service-shadow` 临时启用 Kafka 投递、OTLP 和可选 notification-service Profile，验证
-独立 Inbox/读模型实时写入、服务停机期间积压与重启追平、commerce/notification 同 Trace，最后显式切回
-`IN_PROCESS` 验证单体路径。Windows 负责本机 Compose 生命周期；容器化 Bash 使用
-`EXTERNAL_RUNTIME=true` 避免 Docker Desktop 将容器内 Tempo 配置路径当成宿主路径。脚本不删除数据卷。
+`verify-notification-runtime-cutover` 在保留现有卷的前提下验证默认 notification-service 的 Kafka 投递、
+commerce HMAC 身份薄代理、eventId 幂等已读、独立服务停机时稳定 503、核心商城健康和服务恢复。脚本不切换
+本地实现、不访问 commerce 通知表，也不删除数据卷；Windows 与 Bash 保持配对入口。
 
 `verify-distributed-tracing` 临时开启 OTLP 导出并启动 Tempo，通过真实商家发货链路查询
 commerce-service 与 logistics-simulator-service 的同一 Trace；随后停止 Tempo，确认追踪后端故障不会

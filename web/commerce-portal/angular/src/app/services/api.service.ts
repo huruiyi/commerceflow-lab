@@ -116,8 +116,8 @@ export class ApiService {
     return this.http.get<{ count: number }>('/api/notifications/unread-count');
   }
 
-  markNotificationRead(id: number): Observable<void> {
-    return this.http.patch<void>(`/api/notifications/${id}/read`, {});
+  markNotificationRead(eventId: string): Observable<void> {
+    return this.http.patch<void>(`/api/notifications/${encodeURIComponent(eventId)}/read`, {});
   }
 
   markAllNotificationsRead(): Observable<void> {

@@ -35,6 +35,8 @@ $expected = @(
   'payment-simulator-web',
   'logistics-simulator-db',
   'logistics-simulator-service',
+  'notification-db',
+  'notification-service',
   'commerce-service',
   'commerce-portal-angular'
 )
@@ -85,11 +87,13 @@ do {
     $backendHealth = Invoke-RestMethod 'http://localhost:18081/actuator/health' -TimeoutSec 5
     $paymentHealth = Invoke-RestMethod 'http://localhost:18082/actuator/health' -TimeoutSec 5
     $logisticsHealth = Invoke-RestMethod 'http://localhost:18083/actuator/health' -TimeoutSec 5
+    $notificationHealth = Invoke-RestMethod 'http://localhost:18086/actuator/health' -TimeoutSec 5
     $healthy = (
       $webHealth.StatusCode -eq 200 -and
       $backendHealth.status -eq 'UP' -and
       $paymentHealth.status -eq 'UP' -and
-      $logisticsHealth.status -eq 'UP'
+      $logisticsHealth.status -eq 'UP' -and
+      $notificationHealth.status -eq 'UP'
     )
   } catch {
     $healthy = $false

@@ -48,6 +48,7 @@ describe('NavbarComponent', () => {
     component.notificationOpen = true;
     component.markNotificationRead({
       id: 1,
+      eventId: 'notification-event-1',
       notificationType: 'ORDER_CANCELLED',
       title: 'Order cancelled',
       message: 'Customer changed mind',
