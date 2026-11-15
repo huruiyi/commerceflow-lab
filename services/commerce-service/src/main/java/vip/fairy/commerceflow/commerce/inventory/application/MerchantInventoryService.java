@@ -7,7 +7,6 @@ import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundExcept
 import java.util.List;
 import java.util.UUID;
 
-import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
 import vip.fairy.commerceflow.commerce.inventory.domain.InventoryMovementView;
 import vip.fairy.commerceflow.commerce.inventory.domain.MerchantInventoryItem;
 import vip.fairy.commerceflow.commerce.inventory.infrastructure.InventoryMapper;
@@ -27,31 +26,31 @@ public class MerchantInventoryService {
     this.inventory = inventory;
   }
 
-  public List<MerchantInventoryItem> list(AppUser merchant) {
-    return merchantInventory.list(merchant.getId());
+  public List<MerchantInventoryItem> list(Long merchantId) {
+    return merchantInventory.list(merchantId);
   }
 
-  public List<InventoryMovementView> movements(AppUser merchant, Long productId) {
-    requireProduct(merchant, productId);
-    return merchantInventory.movements(merchant.getId(), productId);
+  public List<InventoryMovementView> movements(Long merchantId, Long productId) {
+    requireProduct(merchantId, productId);
+    return merchantInventory.movements(merchantId, productId);
   }
 
   @Transactional
-  public MerchantInventoryItem adjust(AppUser merchant, Long productId, int delta, String reason) {
+  public MerchantInventoryItem adjust(Long merchantId, Long productId, int delta, String reason) {
     if (delta == 0) throw new BusinessRuleException("Inventory adjustment cannot be zero");
-    requireProduct(merchant, productId);
-    if (merchantInventory.adjust(merchant.getId(), productId, delta) != 1) {
+    requireProduct(merchantId, productId);
+    if (merchantInventory.adjust(merchantId, productId, delta) != 1) {
       throw new BusinessRuleException("Inventory adjustment would make available stock negative");
     }
     ProductInventory balance = inventory.inventory(productId);
     inventory.insertMovement("adjust:" + UUID.randomUUID(), null, productId,
       delta > 0 ? "MANUAL_INCREASE" : "MANUAL_DECREASE", Math.abs(delta), balance,
       reason.trim());
-    return requireProduct(merchant, productId);
+    return requireProduct(merchantId, productId);
   }
 
-  private MerchantInventoryItem requireProduct(AppUser merchant, Long productId) {
-    MerchantInventoryItem item = merchantInventory.find(merchant.getId(), productId);
+  private MerchantInventoryItem requireProduct(Long merchantId, Long productId) {
+    MerchantInventoryItem item = merchantInventory.find(merchantId, productId);
     if (item == null) throw new ResourceNotFoundException("Product inventory not found");
     return item;
   }

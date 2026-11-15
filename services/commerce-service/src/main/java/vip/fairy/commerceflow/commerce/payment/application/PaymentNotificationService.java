@@ -1,6 +1,6 @@
 package vip.fairy.commerceflow.commerce.payment.application;
 
-import vip.fairy.commerceflow.commerce.inventory.application.InventoryService;
+import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
 import vip.fairy.commerceflow.commerce.refund.application.RefundService;
 import tools.jackson.databind.ObjectMapper;
 
@@ -32,7 +32,7 @@ public class PaymentNotificationService {
   private final ObjectMapper mapper;
   private final String secret;
   private final PaymentEventPipeline events;
-  private final InventoryService inventory;
+  private final InventoryCommandPort inventory;
   private final RefundService refunds;
   private final PaymentCancellationCrashLab crashLab;
 
@@ -41,7 +41,7 @@ public class PaymentNotificationService {
     ObjectMapper mapper,
     @Value("${commerceflow.payment-platform.callback-secret:demo-platform-callback-secret}") String secret,
     PaymentEventPipeline events,
-    InventoryService inventory,
+    InventoryCommandPort inventory,
     RefundService refunds,
     PaymentCancellationCrashLab crashLab
   ) {

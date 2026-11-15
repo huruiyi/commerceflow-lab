@@ -130,6 +130,12 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   代理和一次性 V29 数据交接。6 条商品与 6 条翻译通过计数/内容指纹后标记 COMPLETE，重复迁移拒绝覆盖；
   commerce 已删除 catalog Mapper/XML/Outbox 写入和过渡投影。catalog 停机返回稳定 503 且 commerce
   健康隔离，commerce→catalog 跨进程 Trace 已验证；inventory-service 与 PostgreSQL 继续冻结。
+- M3.4 inventory 准入首批新增分层 `inventory/application/port`：ordering、payment、refund 只依赖
+  `InventoryCommandPort`，预占命令使用 inventory 自有最小商品项，商家库存应用层只接收 merchantId。
+  ArchUnit 禁止库存外模块重新依赖库存 API、domain、infrastructure 或具体实现。当前依赖为
+  39/109/36/18；order 外键、取消通知副作用、独立 Inbox 和 catalog 事件消费仍待下一批治理，未创建
+  inventory-service/inventory-db，也未启动 PostgreSQL。Java 25 的 30 项测试、Windows 新运行 JAR 快速
+  回归及容器化 Bash 质量/脚本审计已通过。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

@@ -8,7 +8,6 @@ import vip.fairy.commerceflow.commerce.inventory.domain.InventoryMovementView;
 import vip.fairy.commerceflow.commerce.inventory.domain.MerchantInventoryItem;
 import vip.fairy.commerceflow.commerce.identity.application.CurrentUserService;
 import vip.fairy.commerceflow.commerce.inventory.application.MerchantInventoryService;
-import vip.fairy.commerceflow.commerce.inventory.api.InventoryAdjustmentRequest;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,19 +33,19 @@ public class MerchantInventoryController {
 
   @GetMapping
   List<MerchantInventoryItem> list(Authentication authentication) {
-    return inventory.list(currentUsers.require(authentication));
+    return inventory.list(currentUsers.require(authentication).getId());
   }
 
   @GetMapping("/{productId}/movements")
   List<InventoryMovementView> movements(@PathVariable Long productId,
                                         Authentication authentication) {
-    return inventory.movements(currentUsers.require(authentication), productId);
+    return inventory.movements(currentUsers.require(authentication).getId(), productId);
   }
 
   @PostMapping("/{productId}/adjustments")
   MerchantInventoryItem adjust(@PathVariable Long productId,
                                @Valid @RequestBody InventoryAdjustmentRequest request, Authentication authentication) {
-    return inventory.adjust(currentUsers.require(authentication), productId,
+    return inventory.adjust(currentUsers.require(authentication).getId(), productId,
       request.delta(), request.reason());
   }
 }

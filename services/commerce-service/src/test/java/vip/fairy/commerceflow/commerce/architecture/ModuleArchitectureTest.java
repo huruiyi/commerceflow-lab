@@ -39,4 +39,16 @@ class ModuleArchitectureTest {
     .that().areInterfaces()
     .and().haveSimpleNameEndingWith("Mapper")
     .should().resideInAPackage("..infrastructure..");
+
+  @ArchTest
+  static final ArchRule INVENTORY_INTERNALS_STAY_BEHIND_APPLICATION_PORTS = noClasses()
+    .that().resideOutsideOfPackage("..inventory..")
+    .should().dependOnClassesThat()
+    .resideInAnyPackage(
+      "..inventory.api..",
+      "..inventory.domain..",
+      "..inventory.infrastructure..",
+      "..inventory.application"
+    )
+    .because("other modules must call inventory through its application ports");
 }

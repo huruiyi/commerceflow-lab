@@ -4,12 +4,12 @@
 
 | 项目 | 当前值 |
 | --- | --- |
-| 快照日期 | 2026-11-15 |
+| 快照日期 | 2026-11-16 |
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.3 第四批 catalog-service/MySQL 单一所有权切换及双平台总回归已完成并独立提交推送 |
-| 下一候选阶段 | inventory-service 准入评审与边界治理；本批不直接启动拆分 |
+| 当前阶段 | M3.4 首批 inventory-service 准入评审与模块内边界治理已完成；独立服务尚未启动 |
+| 下一候选阶段 | 冻结库存 V1 命令/fixture，清除 ordering、notification 运行耦合和跨边界外键 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -33,6 +33,7 @@
 | Flyway 数据库生命周期 | 空卷和迁移层已验收 | 当前商城库 V29；notification 独立 Schema V1→V3 已隔离及实际运行验收 |
 | notification 独立服务 | 单一所有权切换已实现 | 默认拓扑启动独立 MySQL/Kafka 服务；commerce 仅签名代理，故障稳定返回 503，无本地数据库回退 |
 | catalog 拆分准入 | 单一所有权已切换 | catalog-service/catalog-db 独占资料、翻译、版本和 Outbox；commerce 只保留鉴权、签名代理与 review 组合 |
+| inventory 拆分准入 | 首批边界治理完成 | 外部模块只依赖 inventory application port；独立进程、Schema、Inbox 与迁移尚未启动 |
 | 告警与监控 | 本地端到端管道已实现 | 三服务 Prometheus 抓取、10 条规则、Alertmanager、Grafana 数据源和可替换 Webhook；真实通知供应商与高可用部署不在本地学习验收内 |
 
 ## 3. M1 冻结结论
@@ -256,3 +257,12 @@ Java 25 正式镜像 32 项测试、双平台 V1→V29/V16→V29 生命周期及
 未删除命名卷。commerce 已删除 catalog Mapper/XML/本地写路径与 shared 过渡投影，只通过 HMAC HTTP 访问；
 catalog 停机稳定返回 503，commerce 核心健康保持 UP，跨进程 Trace 同时出现 commerce-service 与
 catalog-service。inventory-service 与 PostgreSQL 均未启动。
+
+第五批进入 M3.4 inventory-service 准入评审。ordering、payment、refund 已改为只依赖
+`inventory/application/port/InventoryCommandPort`，预占输入不再泄露 cart DTO，商家库存应用服务不再接收
+identity 的 `AppUser`。新增 ArchUnit 门禁阻止外部模块依赖库存 API、domain、infrastructure 或具体实现；
+当前跨模块实际依赖收紧为 39 个方向、109 个 import、36 个源码文件和 18 个 infrastructure 引用。评审同时
+确认 order 外键、取消通知副作用、本地事务、独立 Inbox 和 catalog 事件消费者仍是拆分阻塞项，因此本批没有
+创建 inventory-service/inventory-db、迁移数据或启动 PostgreSQL。Java 25 的 30 项测试、Windows 新运行 JAR
+快速回归及容器化 Bash 质量/脚本审计通过；从工具容器调用宿主 Compose 因路径身份不同导致迁移脚本 126，
+已用 Windows 原生 Compose 恢复全部健康，未把该次 Bash 全链路记为通过，也未删除命名卷。

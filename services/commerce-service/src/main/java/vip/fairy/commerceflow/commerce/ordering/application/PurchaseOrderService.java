@@ -5,7 +5,7 @@ import vip.fairy.commerceflow.commerce.cart.domain.NewShopOrder;
 import vip.fairy.commerceflow.commerce.cart.infrastructure.CartMapper;
 import vip.fairy.commerceflow.commerce.customer.domain.ShippingAddress;
 import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
-import vip.fairy.commerceflow.commerce.inventory.application.InventoryService;
+import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
 import vip.fairy.commerceflow.commerce.logistics.application.LogisticsService;
 import vip.fairy.commerceflow.commerce.ordering.api.ShopOrderResponse;
 import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
@@ -48,13 +48,13 @@ public class PurchaseOrderService {
   private final OrderLifecycleProperties lifecycle;
   private final ScheduledTaskService scheduledTasks;
   private final LogisticsService logistics;
-  private final InventoryService inventory;
+  private final InventoryCommandPort inventory;
 
   public PurchaseOrderService(ShopOrderMapper orders, CartMapper carts, PaymentGatewayClient gateway,
                               RedisIdempotencyService redisIdempotency, RefundMapper refunds,
                               OrderLifecycleProperties lifecycle, ScheduledTaskService scheduledTasks,
                               LogisticsService logistics,
-                              InventoryService inventory) {
+                              InventoryCommandPort inventory) {
     this.orders = orders;
     this.carts = carts;
     this.gateway = gateway;
@@ -84,7 +84,10 @@ public class PurchaseOrderService {
     NewShopOrder order = new NewShopOrder(number("ORD"), user.getId(), total, "CNY", paymentDueAt);
     orders.insertOrder(order);
     items.forEach(item -> orders.insertItem(order.getId(), item, item.subtotal()));
-    inventory.reserve(order.getId(), items);
+    inventory.reserve(order.getId(), items.stream()
+      .map(item -> new InventoryCommandPort.ReservationItem(
+        item.getProductId(), item.getProductName(), item.getQuantity()))
+      .toList());
     orders.insertAddress(order.getId(), address);
     orders.insertEvent(order.getId(), user.getId(), "ORDER_CREATED", "CART", "PENDING_PAYMENT",
       "Checkout created from cart");

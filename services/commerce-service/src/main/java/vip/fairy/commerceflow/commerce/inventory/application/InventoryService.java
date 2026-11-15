@@ -1,20 +1,20 @@
 package vip.fairy.commerceflow.commerce.inventory.application;
 
 import vip.fairy.commerceflow.commerce.inventory.domain.ProductInventory;
+import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandPublisher;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 
 import java.util.List;
 import java.util.UUID;
 
-import vip.fairy.commerceflow.commerce.cart.domain.CheckoutCartItem;
 import vip.fairy.commerceflow.commerce.inventory.domain.InventoryReservation;
 import vip.fairy.commerceflow.commerce.inventory.infrastructure.InventoryMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class InventoryService {
+public class InventoryService implements InventoryCommandPort {
 
   private final InventoryMapper inventory;
   private final CustomerNotificationCommandPublisher notifications;
@@ -25,18 +25,20 @@ public class InventoryService {
   }
 
   @Transactional
-  public void reserve(Long orderId, List<CheckoutCartItem> items) {
-    for (CheckoutCartItem item : items) {
-      if (inventory.reserve(item.getProductId(), item.getQuantity()) != 1) {
-        throw new BusinessRuleException("Insufficient stock for " + item.getProductName());
+  @Override
+  public void reserve(Long orderId, List<ReservationItem> items) {
+    for (ReservationItem item : items) {
+      if (inventory.reserve(item.productId(), item.quantity()) != 1) {
+        throw new BusinessRuleException("Insufficient stock for " + item.productName());
       }
-      inventory.insertReservation(orderId, item.getProductId(), item.getQuantity());
-      movement("reserve:" + UUID.randomUUID(), orderId, item.getProductId(), "RESERVED",
-        item.getQuantity(), "Stock reserved during checkout");
+      inventory.insertReservation(orderId, item.productId(), item.quantity());
+      movement("reserve:" + UUID.randomUUID(), orderId, item.productId(), "RESERVED",
+        item.quantity(), "Stock reserved during checkout");
     }
   }
 
   @Transactional
+  @Override
   public void commit(Long orderId, String eventId) {
     for (InventoryReservation reservation : inventory.lockByOrder(orderId)) {
       if ("COMMITTED".equals(reservation.getStatus())) continue;
@@ -60,6 +62,7 @@ public class InventoryService {
   }
 
   @Transactional
+  @Override
   public void releaseCancelledOrder(Long orderId, String eventId, String reason) {
     for (InventoryReservation reservation : inventory.lockByOrder(orderId)) {
       if (!"RESERVED".equals(reservation.getStatus())) continue;
@@ -83,6 +86,7 @@ public class InventoryService {
   }
 
   @Transactional
+  @Override
   public void refund(Long orderId, String eventId) {
     for (InventoryReservation reservation : inventory.lockByOrder(orderId)) {
       if (!"COMMITTED".equals(reservation.getStatus())) continue;

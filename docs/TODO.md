@@ -9,7 +9,7 @@
 | 合并内容 | 订单超时策略、Database/RabbitMQ/RocketMQ 讨论、截图阶段 4～6 和旧实施计划 |
 | 当前状态 | 通用定时任务底座、Database/RabbitMQ/RocketMQ 主触发与 Database 对账、订单取消、模拟物流、回调 Outbox/主动对账、自动确认收货/自动完成已实现 |
 | UI 边界 | 客户订单中心已改为摘要、当前主操作与可展开详情，支付、退款、物流和时间线保持独立事实展示 |
-| 最后更新 | 2026-11-14 |
+| 最后更新 | 2026-11-16 |
 
 本文档保留已完成勾选和未完成项，用于表示实施顺序和阶段门禁。已实现能力的详细证据见 [IMPLEMENTED.md](IMPLEMENTED.md)，当前快照见 [PROJECT-STATUS.md](PROJECT-STATUS.md)，详细策略见 [通用定时任务策略](reference/SCHEDULED-TASK-STRATEGIES.md)。旧草案和旧实施计划移入 `archive/`，不再同步勾选状态。
 
@@ -491,7 +491,28 @@ Outbox 的唯一运行所有者；commerce 仅保留公开 API、Session/RBAC、
   `commerce-service` 和 `catalog-service`。
 - [x] 完成 Windows/Bash 快速回归、304 个 Java 类声明空行/294 个 Java 文件质量审计、42 对脚本契约审计、
   文档收口和本批独立提交推送。
-- [ ] 下一批只启动 inventory-service 准入评审与边界治理；不同时拆 inventory，不启动 PostgreSQL。
+- [x] 下一批只启动 inventory-service 准入评审与边界治理；不同时拆 inventory，不启动 PostgreSQL。
+
+### 13.13 M3.4 首批：inventory-service 准入评审与边界治理
+
+详细边界见 [inventory-service 准入与单一所有权演进计划](architecture/INVENTORY-SERVICE-EVOLUTION-PLAN.md)。
+本批只在 commerce 模块化单体内治理依赖，不创建 inventory-service/inventory-db，不迁移数据，不改默认
+Docker 拓扑，也不启动 PostgreSQL。
+
+- [x] 新增 `inventory/application/port` 子目录和 `InventoryCommandPort`；ordering、payment、refund 不再
+  注入具体 `InventoryService`。
+- [x] 预占输入改为 inventory 自有 `ReservationItem`，清除 `inventory -> cart`；商家库存应用层只接收
+  merchantId，减少对 identity 实体的泄露。
+- [x] 新增 ArchUnit 门禁，库存外模块不得依赖 inventory 的 API、domain、infrastructure 或具体 application
+  实现，只能使用 application port。
+- [x] 复核三张库存自有表、残留 ordering 外键、取消通知副作用和本地事务耦合，明确当前只通过首批边界
+  准入，尚未获准启动独立服务。
+- [x] 冻结后续 V1 命令信封、幂等 Inbox、catalog 事件消费、失败恢复、一次性迁移、整体切换和 Git/数据
+  回退顺序；明确禁止长期 LOCAL/COMPARE、双写或共享数据库。
+- [x] Java 25 正式构建 30 项测试、Windows 新运行 JAR 快速回归及容器化 Bash 质量/脚本审计通过；跨模块
+  实际依赖收紧为 39/109/36/18。Bash 全链路不以工具容器内 Compose 的宿主路径结果冒充通过。
+- [ ] 下一批冻结 RESERVE/COMMIT/RELEASE/REFUND V1 命令与消费者 fixture，移除 inventory 对 ordering/
+  notification 的运行依赖和跨边界外键；仍不创建独立 inventory 服务，不启动 PostgreSQL。
 
 ## 14. 实施记录模板
 

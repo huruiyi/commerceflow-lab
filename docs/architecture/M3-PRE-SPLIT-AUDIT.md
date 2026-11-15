@@ -10,7 +10,7 @@ HTTP、Kafka、RabbitMQ 和 RocketMQ 跨进程追踪。commerce 只保留订单�
 本轮冻结的是审计基线，不是微服务实现：
 
 - 44 张商城表均声明当前唯一责任模块；新增表必须同步声明所有者。
-- 当前存在 41 组跨模块 Java 依赖、113 个导入引用，涉及 37 个源码文件。
+- 当前存在 39 组跨模块 Java 依赖、109 个导入引用，涉及 36 个源码文件。
 - 其中 18 个引用直接指向其他模块的 `infrastructure`，属于拆分前必须消除的硬阻塞项。
 - 新增的 `MicroserviceReadinessBaselineTest` 允许依赖减少，但禁止出现未经评审的新依赖方向、引用数量增长、
   跨模块基础设施引用增长或未声明所有者的新表。
@@ -41,9 +41,9 @@ HTTP、Kafka、RabbitMQ 和 RocketMQ 跨进程追踪。commerce 只保留订单�
 
 | 指标 | 当前值 |
 | --- | ---: |
-| 跨模块依赖方向 | 41 |
-| 跨模块 import 引用 | 113 |
-| 涉及源码文件 | 37 |
+| 跨模块依赖方向 | 39 |
+| 跨模块 import 引用 | 109 |
+| 涉及源码文件 | 36 |
 | 指向其他模块 `infrastructure` 的引用 | 18 |
 
 引用最多的方向为 `ordering -> payment`（16）、`refund -> payment`（8）、
@@ -74,8 +74,8 @@ inbound/outbound port。
 拆分前优先固化以下应用接口：
 
 1. notification：单一所有权切换已完成，独立服务是唯一通知读写实现，commerce 只保留 Outbox 和身份薄代理。
-2. catalog/inventory：已消除 Mapper 直连，将商品资料与库存数量分表、固化 cart/order 快照、移除跨边界
-   join，并冻结 V1 API/事件/业务版本；下一步执行独立 Schema 迁移和单一所有权切换。
+2. catalog/inventory：catalog 已完成独立 Schema 和单一所有权切换；inventory 首批应用端口已收敛，下一步
+   冻结命令 V1/Inbox、消费 catalog 事件并移除 ordering/notification 与数据库外键耦合。
 3. ordering：订单状态查询、条件迁移和订单快照接口，不暴露 `ShopOrderMapper` 或跨服务行锁。
 4. payment/refund：支付结果、退款请求及回调投影使用版本化命令/事件，不跨模块更新支付记录。
 5. fulfillment/logistics/receipt：以履约命令和状态事件连接，保留重复、迟到和乱序保护。
@@ -134,9 +134,9 @@ taskId 查询到同一 Trace 的 publish/process Span，并验证 Tempo 停机�
 - [x] HTTP 与 Kafka 已具备可查询的跨进程 Trace、日志关联和追踪后端故障降级证据。
 - [x] RabbitMQ/RocketMQ 已具备真实跨消息 Trace 和追踪后端故障降级证据。
 
-M3.2 已完成 notification 单一所有权切换：独立服务承接客户读写，commerce 只保留事务 Outbox 和身份薄
-代理。M3.3 前三批进一步消除 Mapper 直连，完成商品资料与库存数量的物理分离、跨边界 join 消除及 V1
-API/事件契约；独立 Schema 迁移和单一所有权切换仍是后续门禁。
+M3.2 已完成 notification 单一所有权切换，M3.3 已完成 catalog 独立 Schema、数据交接和单一所有权切换。
+M3.4 首批进一步建立 inventory application port 并禁止外部模块依赖库存内部实现；独立命令/Inbox、数据迁移
+和单一所有权切换仍是后续门禁。
 
 ## 8. 自动基线
 
@@ -146,5 +146,5 @@ API/事件契约；独立 Schema 迁移和单一所有权切换仍是后续门�
 - 从商城 Flyway 迁移读取 `CREATE TABLE`，当前 44 张表的任何新增/移除都必须同步评审所有权；独立
   notification Schema 的迁移目录单独演练，不混入商城表所有权计数。
 - 从 Java package/import 读取跨模块依赖；现有依赖可减少，不允许未经评审增加方向、引用或基础设施耦合。
-- 当前基线为 41 组方向、113 个 import、37 个涉及文件和 18 个基础设施引用；基线不是白名单式“合格证明”，
+- 当前实际为 39 组方向、109 个 import、36 个涉及文件和 18 个基础设施引用；基线不是白名单式“合格证明”，
   已记录的基础设施耦合仍是待消减债务。
