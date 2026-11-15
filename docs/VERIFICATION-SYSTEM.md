@@ -105,8 +105,8 @@ bash ./scripts/linux/verify-all.sh
 ./scripts/windows/verify-flyway-lifecycle.ps1
 ```
 
-它使用随机容器/网络和 tmpfs，验证空库 V1→V29、V16→V29 升级、catalog/inventory 所有权分离及
-catalog V1 版本/Outbox 元数据，
+它使用随机容器/网络和 tmpfs，验证空库 V1→V30、V16→V30 升级、catalog/inventory 所有权分离、
+catalog V1 版本/Outbox 元数据、inventory 命令 Inbox 及 ordering 外键清理，
 不连接默认开发卷。
 
 notification 独立 Schema 使用配对脚本 `verify-notification-schema-split`，在随机网络和 tmpfs MySQL 中验证

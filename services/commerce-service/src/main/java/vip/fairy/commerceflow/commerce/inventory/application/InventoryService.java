@@ -1,8 +1,7 @@
 package vip.fairy.commerceflow.commerce.inventory.application;
 
 import vip.fairy.commerceflow.commerce.inventory.domain.ProductInventory;
-import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
-import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandPublisher;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandV1;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 
 import java.util.List;
@@ -14,20 +13,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class InventoryService implements InventoryCommandPort {
+public class InventoryService {
 
   private final InventoryMapper inventory;
-  private final CustomerNotificationCommandPublisher notifications;
 
-  public InventoryService(InventoryMapper inventory, CustomerNotificationCommandPublisher notifications) {
+  public InventoryService(InventoryMapper inventory) {
     this.inventory = inventory;
-    this.notifications = notifications;
   }
 
   @Transactional
-  @Override
-  public void reserve(Long orderId, List<ReservationItem> items) {
-    for (ReservationItem item : items) {
+  public void reserve(Long orderId, List<InventoryCommandV1.Item> items) {
+    for (InventoryCommandV1.Item item : items) {
       if (inventory.reserve(item.productId(), item.quantity()) != 1) {
         throw new BusinessRuleException("Insufficient stock for " + item.productName());
       }
@@ -38,7 +34,6 @@ public class InventoryService implements InventoryCommandPort {
   }
 
   @Transactional
-  @Override
   public void commit(Long orderId, String eventId) {
     for (InventoryReservation reservation : inventory.lockByOrder(orderId)) {
       if ("COMMITTED".equals(reservation.getStatus())) continue;
@@ -62,7 +57,6 @@ public class InventoryService implements InventoryCommandPort {
   }
 
   @Transactional
-  @Override
   public void releaseCancelledOrder(Long orderId, String eventId, String reason) {
     for (InventoryReservation reservation : inventory.lockByOrder(orderId)) {
       if (!"RESERVED".equals(reservation.getStatus())) continue;
@@ -73,20 +67,9 @@ public class InventoryService implements InventoryCommandPort {
       movement(eventId + ":release:" + reservation.getId(), orderId, reservation.getProductId(),
         "RELEASED", reservation.getQuantity(), reason);
     }
-    Long customerId = inventory.customerId(orderId);
-    if (customerId != null) {
-      notifications.publishOrderCancelled(
-        eventId + ":notification",
-        customerId,
-        orderId,
-        reason,
-        eventId
-      );
-    }
   }
 
   @Transactional
-  @Override
   public void refund(Long orderId, String eventId) {
     for (InventoryReservation reservation : inventory.lockByOrder(orderId)) {
       if (!"COMMITTED".equals(reservation.getStatus())) continue;

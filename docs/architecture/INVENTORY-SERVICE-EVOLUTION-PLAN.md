@@ -2,16 +2,19 @@
 
 ## 1. 本批结论
 
-`inventory-service` 已完成首批准入评审和模块内边界治理，但**尚未获准创建独立进程或独立 Schema**。
-本批只在 `commerce-service` 内保留一套库存实现，并完成以下收敛：
+`inventory-service` 已完成前两批准入治理，但**尚未获准创建独立进程或独立 Schema**。
+当前只在 `commerce-service` 内保留一套库存实现，并完成以下收敛：
 
 - ordering、payment、refund 只能依赖 `inventory/application/port`，不能注入 `InventoryService`、库存领域对象或 Mapper；
-- 预占输入改为库存自有的 `InventoryCommandPort.ReservationItem`，库存不再接收 cart 的 `CheckoutCartItem`；
+- 四类写入统一为 `InventoryCommandV1`，预占输入使用库存自有 `Item`，不再接收 cart DTO；
 - 商家库存应用服务只接收 `merchantId`，不再接收 identity 的 `AppUser`；
+- V30 新增 inventory 自有 `inventory_command_inbox`，同一本地事务完成命令领取、余额变更和处理状态；
+- V30 移除 reservation/movement 指向 `shop_orders` 的外键，InventoryMapper 不再查询 ordering 表；
+- 取消通知由订单取消事务写入 notification Outbox，库存释放不再承担客户身份查询或通知副作用；
 - ArchUnit 门禁禁止库存以外的模块重新依赖库存 API、领域、基础设施或具体应用实现；
-- 跨模块现状收紧为 39 个方向、109 个 import、36 个源码文件，跨模块 infrastructure 引用仍为 18。
+- 跨模块现状为 39 个方向、109 个 import、35 个源码文件，跨模块 infrastructure 引用仍为 18。
 
-这表示本地调用入口已稳定，不表示远程命令、事务补偿、独立 Inbox 或数据交接已经完成。
+这表示本地 V1 命令和幂等边界已稳定，不表示远程传输、catalog 事件消费、事务补偿或数据交接已经完成。
 
 ## 2. 唯一数据所有权
 
@@ -20,13 +23,14 @@
 | `product_inventory` | inventory | productId、merchantId、履行展示快照及可售/预占/已售余额 |
 | `inventory_reservations` | inventory | 每个订单商品的预占状态与版本 |
 | `inventory_movements` | inventory | 余额变化后的不可变流水，eventId 唯一 |
+| `inventory_command_inbox` | inventory | commandId 去重、语义载荷指纹和本地处理结果 |
 | `products`、`product_translations` | catalog-service | 商品资料、翻译、生命周期和业务版本；不得回流库存 |
 | `shop_orders`、`order_items` | ordering | 订单及下单快照；inventory 只能保存稳定 orderId/productId |
 
-商城历史 Flyway 中 `inventory_reservations.order_id`、`inventory_movements.order_id` 仍有指向
-`shop_orders` 的跨边界外键。这在同库单体中有效，但独立 Schema 前必须通过新的非破坏迁移移除；不得在拆分后
-跨库模拟外键或读取 ordering 表。`InventoryMapper.customerId(orderId)` 及取消通知副作用也仍跨越 ordering、
-notification 边界，必须在下一批改为各消费者独立处理同一订单事件。
+V30 已移除 `inventory_reservations.order_id`、`inventory_movements.order_id` 指向 `shop_orders` 的跨边界
+外键，并删除 `InventoryMapper.customerId(orderId)`。orderId 现在只是稳定业务标识，不依赖 ordering 表存在；
+取消通知由订单取消事务使用同一 order eventId 作为 causationId 写入 notification Outbox，库存模块不再依赖
+notification。独立 Schema 后同样不得跨库模拟这些外键。
 
 ## 3. 当前应用端口
 
@@ -34,28 +38,28 @@ notification 边界，必须在下一批改为各消费者独立处理同一订�
 
 | 操作 | 当前调用方 | 业务语义 |
 | --- | --- | --- |
-| `reserve(orderId, items)` | ordering checkout | 原子扣减可售、增加预占并写 reservation/movement |
-| `commit(orderId, eventId)` | payment callback | `RESERVED → COMMITTED`；迟到支付允许从 RELEASED 重新占用可售 |
-| `releaseCancelledOrder(orderId, eventId, reason)` | order event consumer | 仅释放 RESERVED，重复事件不重复改变余额 |
-| `refund(orderId, eventId)` | refund callback | `COMMITTED → REFUNDED`，已售回到可售 |
+| `handle(RESERVE)` | ordering checkout | 原子扣减可售、增加预占并写 reservation/movement |
+| `handle(COMMIT)` | payment callback | `RESERVED → COMMITTED`；迟到支付允许从 RELEASED 重新占用可售 |
+| `handle(RELEASE)` | order event consumer | 仅释放 RESERVED，重复 commandId 不重复改变余额 |
+| `handle(REFUND)` | refund callback | `COMMITTED → REFUNDED`，已售回到可售 |
 
-端口参数不泄露 cart、ordering、payment、refund 的实体。它仍是 Java 本地接口，不作为 HTTP/消息 V1 契约；
-独立服务前不能直接把这些方法机械改成同步 REST，否则 checkout/payment/refund 的本地事务会变成不可恢复的
-跨服务部分提交。
+端口参数不泄露 cart、ordering、payment、refund 的实体。当前传输仍是 Java 本地调用；独立服务前不能直接
+机械改成同步 REST，否则 checkout/payment/refund 的本地事务会变成不可恢复的跨服务部分提交。
 
-## 4. 独立服务前必须冻结的 V1 命令
+## 4. 已冻结的 V1 命令与失败语义
 
-下一批需要为 `RESERVE/COMMIT/RELEASE/REFUND` 定义统一信封，至少包含：
+`RESERVE/COMMIT/RELEASE/REFUND` 使用统一信封：
 
 - `schemaVersion`、稳定 `commandId`、`commandType`、`occurredAt`、`producer`；
 - `orderId`、商品项或事件所需最小字段；
 - `correlationId`、`causationId` 和合法 W3C `traceparent`；
-- 每类命令的幂等键、允许的来源状态、重复结果和不可重试错误；
-- 库存不足、版本缺口、非法状态、服务不可用和超时后的稳定错误/补偿语义。
+- commandId 是幂等键；相同 commandId、相同语义载荷返回已处理，不重复改变余额；
+- 相同 commandId 复用为不同类型、orderId、reason 或商品项时拒绝，防止错误重放被静默吞掉；
+- `RESERVE` 必须有正数商品项，其他命令禁止携带商品项；未知 schema、非法 traceparent 和空必填字段拒绝；
+- 业务处理失败时命令领取与库存变化一起回滚，调用方必须使用原 commandId 重试。
 
-每个命令必须由 inventory 自有 Inbox 去重，并在同一本地事务中完成余额、reservation、movement 与处理结果。
-调用方超时后只能用同一 commandId 重试，不能生成新命令。消费者契约测试必须覆盖当前版本 fixture、重复、乱序、
-迟到、并发及未知版本拒绝。
+四份 fixture 已固定字段与类型；集成测试覆盖解析/校验、重复不重复扣减和同 ID 异载荷拒绝。乱序/迟到仍由
+reservation 状态机处理；跨进程超时、Broker 重投和并发消费要在真正引入传输适配器后专项验证。
 
 ## 5. catalog 事件入口
 
@@ -72,8 +76,8 @@ catalog-service 已是商品资料唯一所有者。inventory 只能消费 catal
 
 后续严格一次只推进一个门禁：
 
-1. 冻结库存命令 V1、catalog 事件消费 fixture、稳定失败语义和事务/补偿边界；
-2. 移除 inventory→ordering/notification 运行依赖及跨边界数据库外键，增加 inventory 自有 Inbox/Outbox；
+1. 冻结并实现 catalog 事件消费 fixture、businessVersion 门禁、独立 Inbox 和有限重试/DEAD；
+2. 明确 checkout/payment/refund 的跨进程结果与补偿协议，再评审独立服务启动；
 3. 在独立 MySQL Schema 创建分层 `inventory-service`，完成一次性计数、余额总和和内容指纹迁移；
 4. 停写窗口内追平增量，整体切换调用方，验证并发、重复、乱序、超时、停机恢复和跨进程 Trace；
 5. 删除 commerce 的库存 Mapper/XML/运行表访问，只保留必要的公开身份/RBAC 薄代理，不保留 LOCAL/COMPARE、
@@ -83,7 +87,7 @@ catalog-service 已是商品资料唯一所有者。inventory 只能消费 catal
 ## 7. 明确不在本批实施
 
 - 不创建或启动 `inventory-service`、`inventory-db`；
-- 不迁移库存表、不移除现有外键、不改 Docker 默认拓扑；
+- 不迁移库存表、不创建独立数据库、不改 Docker 默认拓扑；
 - 不同时启动 order/payment-orchestration/fulfillment 拆分；
 - 不引入 PostgreSQL 或 MySQL/PostgreSQL 双方言。只有 M3 清单中的 notification、catalog、inventory、order、
   payment-orchestration、fulfillment 全部完成单一所有权切换并逐一验收后，才允许单独启动 PostgreSQL 专项。

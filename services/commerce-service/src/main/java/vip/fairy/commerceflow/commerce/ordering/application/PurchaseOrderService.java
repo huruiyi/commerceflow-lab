@@ -84,10 +84,14 @@ public class PurchaseOrderService {
     NewShopOrder order = new NewShopOrder(number("ORD"), user.getId(), total, "CNY", paymentDueAt);
     orders.insertOrder(order);
     items.forEach(item -> orders.insertItem(order.getId(), item, item.subtotal()));
-    inventory.reserve(order.getId(), items.stream()
-      .map(item -> new InventoryCommandPort.ReservationItem(
-        item.getProductId(), item.getProductName(), item.getQuantity()))
-      .toList());
+    inventory.handle(InventoryCommandPort.reserve(
+      "order:" + order.getId() + ":reserve",
+      order.getId(),
+      items.stream()
+        .map(item -> InventoryCommandPort.item(
+          item.getProductId(), item.getProductName(), item.getQuantity()))
+        .toList()
+    ));
     orders.insertAddress(order.getId(), address);
     orders.insertEvent(order.getId(), user.getId(), "ORDER_CREATED", "CART", "PENDING_PAYMENT",
       "Checkout created from cart");

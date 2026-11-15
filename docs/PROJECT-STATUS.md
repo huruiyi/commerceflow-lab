@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.4 首批 inventory-service 准入评审与模块内边界治理已完成；独立服务尚未启动 |
-| 下一候选阶段 | 冻结库存 V1 命令/fixture，清除 ordering、notification 运行耦合和跨边界外键 |
+| 当前阶段 | M3.4 第二批 inventory V1 命令、Inbox 与跨边界外键治理已完成；独立服务尚未启动 |
+| 下一候选阶段 | catalog V1 事件到 inventory 快照的版本化消费、失败恢复与 fixture |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -30,10 +30,10 @@
 | 收货、自动收货和自动完成 | M1 可靠性门禁已通过 | 重放、重启/租约恢复、RabbitMQ/RocketMQ 停机恢复和双平台 120 秒/12 并发竞态压测均通过 |
 | 库存与商家库存中心 | 已实现 | 可售/预占/已售、转正/释放/退款回补、调整流水 |
 | Angular/Vue 界面 | Angular 主流程和订单页视觉收尾已实现 | 订单详情与支付信息已扁平化，商品图有失败回退；通知菜单使用中性列表和细滚动条，支持外部点击、`Esc`、关闭按钮和选择通知后关闭；语言切换使用图标；导航与 1480 px 正文容器对齐，桌面与 390 px 窄屏已验收 |
-| Flyway 数据库生命周期 | 空卷和迁移层已验收 | 当前商城库 V29；notification 独立 Schema V1→V3 已隔离及实际运行验收 |
+| Flyway 数据库生命周期 | 空卷和迁移层已验收 | 商城迁移 V30；notification 独立 Schema V1→V3 已隔离及实际运行验收 |
 | notification 独立服务 | 单一所有权切换已实现 | 默认拓扑启动独立 MySQL/Kafka 服务；commerce 仅签名代理，故障稳定返回 503，无本地数据库回退 |
 | catalog 拆分准入 | 单一所有权已切换 | catalog-service/catalog-db 独占资料、翻译、版本和 Outbox；commerce 只保留鉴权、签名代理与 review 组合 |
-| inventory 拆分准入 | 首批边界治理完成 | 外部模块只依赖 inventory application port；独立进程、Schema、Inbox 与迁移尚未启动 |
+| inventory 拆分准入 | 第二批命令边界完成 | V1 命令、自有 Inbox、无 ordering 外键/通知依赖；独立进程、Schema 与数据迁移尚未启动 |
 | 告警与监控 | 本地端到端管道已实现 | 三服务 Prometheus 抓取、10 条规则、Alertmanager、Grafana 数据源和可替换 Webhook；真实通知供应商与高可用部署不在本地学习验收内 |
 
 ## 3. M1 冻结结论
@@ -266,3 +266,12 @@ identity 的 `AppUser`。新增 ArchUnit 门禁阻止外部模块依赖库存 AP
 创建 inventory-service/inventory-db、迁移数据或启动 PostgreSQL。Java 25 的 30 项测试、Windows 新运行 JAR
 快速回归及容器化 Bash 质量/脚本审计通过；从工具容器调用宿主 Compose 因路径身份不同导致迁移脚本 126，
 已用 Windows 原生 Compose 恢复全部健康，未把该次 Bash 全链路记为通过，也未删除命名卷。
+
+第六批完成 M3.4 inventory V1 命令边界。`application/contract/v1` 固定 RESERVE、COMMIT、RELEASE、REFUND
+统一信封和四份 fixture；V30 新增 `inventory_command_inbox`，同一事务完成幂等领取、库存变化和 SUCCEEDED，
+重复同载荷不重复扣减，同 commandId 异载荷拒绝。两条 inventory→shop_orders 外键和 customerId 跨表查询已
+删除，取消通知改由订单取消事务写 notification Outbox，inventory→notification 依赖归零。当前跨模块实际为
+39/109/35/18。Java 25 共 32 项测试，Windows 与容器化 Bash 的 V1→V30、V16→V30 隔离升级及 Windows
+快速回归均通过；默认 Docker 持久库已升级到 V30，17 条真实 inventory 命令全部 SUCCEEDED，非成功命令和
+两条跨边界订单外键均为 0，未删除或重建命名卷。本批仍未创建 inventory-service/inventory-db，也未启动
+PostgreSQL。

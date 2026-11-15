@@ -47,7 +47,4 @@ public interface InventoryMapper {
                       @Param("productId") Long productId, @Param("movementType") String movementType,
                       @Param("quantity") int quantity, @Param("inventory") ProductInventory inventory,
                       @Param("detail") String detail);
-
-
-  Long customerId(Long orderId);
 }

@@ -97,10 +97,4 @@
     ]]>
   </insert>
 
-  <select id="customerId" resultType="java.lang.Long">
-    <![CDATA[
-      SELECT customer_id FROM shop_orders WHERE id=#{orderId}
-    ]]>
-  </select>
-
 </mapper>

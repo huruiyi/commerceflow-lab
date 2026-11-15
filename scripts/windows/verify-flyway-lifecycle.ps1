@@ -54,8 +54,8 @@ try {
   Start-MySql $upgradeDb
 
   Migrate $emptyDb
-  if ((Sql $emptyDb 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;') -ne '29') {
-    throw 'Empty database did not migrate through V29'
+  if ((Sql $emptyDb 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;') -ne '30') {
+    throw 'Empty database did not migrate through V30'
   }
   if ((Sql $emptyDb "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name IN ('scheduled_tasks','shipment_records','inventory_reservations');") -ne '3') {
     throw 'Empty database is missing current lifecycle tables'
@@ -78,12 +78,18 @@ try {
   if ((Sql $emptyDb "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name='catalog_event_outbox';") -ne '1') {
     throw 'V29 did not create the catalog event outbox'
   }
+  if ((Sql $emptyDb "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name='inventory_command_inbox';") -ne '1') {
+    throw 'V30 did not create the inventory command Inbox'
+  }
+  if ((Sql $emptyDb "SELECT COUNT(*) FROM information_schema.referential_constraints WHERE constraint_schema='commerceflow' AND constraint_name IN ('fk_inventory_reservation_order','fk_inventory_movement_order');") -ne '0') {
+    throw 'V30 left inventory foreign keys pointing to ordering tables'
+  }
 
   Migrate $upgradeDb '16'
   Sql $upgradeDb "INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,created_at,updated_at) SELECT 'LEGACY-UPGRADE-$suffix',id,'PENDING_PAYMENT',42.00,'CNY','2026-01-01 00:00:00','2026-01-01 00:00:00' FROM app_users WHERE email='demo@example.com';" | Out-Null
   Migrate $upgradeDb
-  if ((Sql $upgradeDb 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;') -ne '29') {
-    throw 'Legacy database did not upgrade through V29'
+  if ((Sql $upgradeDb 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;') -ne '30') {
+    throw 'Legacy database did not upgrade through V30'
   }
   if ((Sql $upgradeDb "SELECT TIMESTAMPDIFF(SECOND,created_at,payment_due_at) FROM shop_orders WHERE order_number='LEGACY-UPGRADE-$suffix';") -ne '1800') {
     throw 'V17 did not backfill the legacy payment deadline by 30 minutes'
@@ -103,11 +109,17 @@ try {
   if ((Sql $upgradeDb "SELECT COUNT(*) FROM products WHERE lifecycle_status='ACTIVE' AND business_version=1;") -ne (Sql $upgradeDb 'SELECT COUNT(*) FROM products;')) {
     throw 'Legacy V29 upgrade did not initialize catalog lifecycle and business versions'
   }
+  if ((Sql $upgradeDb "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name='inventory_command_inbox';") -ne '1') {
+    throw 'Legacy V30 upgrade did not create the inventory command Inbox'
+  }
+  if ((Sql $upgradeDb "SELECT COUNT(*) FROM information_schema.referential_constraints WHERE constraint_schema='commerceflow' AND constraint_name IN ('fk_inventory_reservation_order','fk_inventory_movement_order');") -ne '0') {
+    throw 'Legacy V30 upgrade left inventory foreign keys pointing to ordering tables'
+  }
 
   & docker exec $upgradeDb mysql -N -uroot "-p$password" commerceflow -e "INSERT INTO scheduled_tasks(task_key,task_type,aggregate_type,aggregate_id,payload_json,status,due_at,primary_trigger_snapshot,reconciliation_enabled_snapshot,grace_period_seconds_snapshot,claim_lease_seconds_snapshot,max_attempts,retry_delay_seconds_snapshot,policy_version_snapshot) VALUES('invalid-status','PAYMENT_TIMEOUT','ORDER','1','{}','CORRUPTED',CURRENT_TIMESTAMP,'DATABASE',FALSE,0,30,3,1,1);" 2>$null
   if ($LASTEXITCODE -eq 0) { throw 'Database accepted an illegal scheduled-task status' }
 
-  Write-Host "Flyway lifecycle verification passed: empty V1-V29, legacy V1-V16 -> V29 with catalog ownership, V1 contract metadata/outbox, product snapshots, core comments, and illegal status rejected." -ForegroundColor Green
+  Write-Host "Flyway lifecycle verification passed: empty V1-V30, legacy V1-V16 -> V30 with inventory Inbox and ordering foreign keys removed, catalog ownership, product snapshots, core comments, and illegal status rejected." -ForegroundColor Green
 } finally {
   & docker rm -f $emptyDb $upgradeDb 2>$null | Out-Null
   & docker network rm $network 2>$null | Out-Null

@@ -80,7 +80,11 @@ public class RefundNotificationService {
             throw new IllegalStateException("Refund amount exceeds payment amount");
           if (orders.updateStatus(refund.getOrderId(), "REFUNDING", "REFUNDED") != 1)
             throw new IllegalStateException("Order is not refunding");
-          inventory.refund(refund.getOrderId(), notice.notificationId());
+          inventory.handle(InventoryCommandPort.refund(
+            notice.notificationId() + ":inventory:refund",
+            refund.getOrderId(),
+            notice.notificationId()
+          ));
           refunds.insertEvent(
             refund.getId(), UUID.randomUUID().toString(), "REFUND_SUCCEEDED",
             "PROCESSING", "SUCCEEDED", "Signed refund notification"

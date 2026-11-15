@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "commandId": "inventory-reserve-0001",
+  "commandType": "RESERVE",
+  "occurredAt": "2026-11-16T00:00:00Z",
+  "producer": "ordering",
+  "orderId": 2001,
+  "items": [
+    {
+      "productId": 1,
+      "productName": "Learning Laptop",
+      "quantity": 2
+    }
+  ],
+  "reason": "Checkout inventory reservation",
+  "correlationId": "order-2001",
+  "causationId": "checkout-2001",
+  "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+}

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "commandId": "inventory-refund-0001",
+  "commandType": "REFUND",
+  "occurredAt": "2026-11-16T00:03:00Z",
+  "producer": "refund",
+  "orderId": 2001,
+  "items": [],
+  "reason": "Successful refund returned sold stock",
+  "correlationId": "order-2001",
+  "causationId": "refund-notification-0001",
+  "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+}

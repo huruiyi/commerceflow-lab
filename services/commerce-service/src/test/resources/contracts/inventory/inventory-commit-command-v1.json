@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "commandId": "inventory-commit-0001",
+  "commandType": "COMMIT",
+  "occurredAt": "2026-11-16T00:01:00Z",
+  "producer": "payment",
+  "orderId": 2001,
+  "items": [],
+  "reason": "Payment completed the inventory reservation",
+  "correlationId": "order-2001",
+  "causationId": "payment-notification-0001",
+  "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+}

@@ -1,6 +1,7 @@
 package vip.fairy.commerceflow.commerce.ordering.application;
 
 import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
+import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandPublisher;
 import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
 import vip.fairy.commerceflow.commerce.ordering.infrastructure.ShopOrderMapper;
 import vip.fairy.commerceflow.commerce.payment.application.PaymentCancellationCrashLab;
@@ -27,16 +28,20 @@ public class OrderCancellationService {
   private final TransactionTemplate transactions;
   private final ScheduledTaskMapper scheduledTasks;
   private final PaymentEventPipeline events;
+  private final CustomerNotificationCommandPublisher notifications;
   private final PaymentCancellationCrashLab crashLab;
 
   public OrderCancellationService(ShopOrderMapper orders, PaymentGatewayClient gateway,
                                   TransactionTemplate transactions, ScheduledTaskMapper scheduledTasks,
-                                  PaymentEventPipeline events, PaymentCancellationCrashLab crashLab) {
+                                  PaymentEventPipeline events,
+                                  CustomerNotificationCommandPublisher notifications,
+                                  PaymentCancellationCrashLab crashLab) {
     this.orders = orders;
     this.gateway = gateway;
     this.transactions = transactions;
     this.scheduledTasks = scheduledTasks;
     this.events = events;
+    this.notifications = notifications;
     this.crashLab = crashLab;
   }
 
@@ -122,12 +127,20 @@ public class OrderCancellationService {
       reason, triggerSource, scheduledTaskId);
     Map<String, Object> payload = new LinkedHashMap<>();
     payload.put("orderId", orderId);
+    payload.put("customerId", order.getCustomerId());
     payload.put("reason", reason);
     payload.put("triggerSource", triggerSource);
     if (scheduledTaskId != null) {
       payload.put("scheduledTaskId", scheduledTaskId);
     }
-    events.appendOrder(orderId.toString(), "ORDER_CANCELLED", payload);
+    String eventId = events.appendOrder(orderId.toString(), "ORDER_CANCELLED", payload);
+    notifications.publishOrderCancelled(
+      eventId + ":notification",
+      order.getCustomerId(),
+      orderId,
+      reason,
+      eventId
+    );
     if (scheduledTaskId == null) {
       scheduledTasks.byBusinessKey(ScheduledTaskTypes.PAYMENT_TIMEOUT, "order:" + orderId)
         .ifPresent(task -> {

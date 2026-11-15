@@ -1,29 +1,32 @@
 package vip.fairy.commerceflow.commerce.inventory.application.port;
 
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandV1;
+
 import java.util.List;
 
 public interface InventoryCommandPort {
 
-  void reserve(Long orderId, List<ReservationItem> items);
+  void handle(InventoryCommandV1 command);
 
-  void commit(Long orderId, String eventId);
+  static InventoryCommandV1 reserve(String commandId, Long orderId,
+                                    List<InventoryCommandV1.Item> items) {
+    return InventoryCommandV1.reserve(commandId, orderId, items);
+  }
 
-  void releaseCancelledOrder(Long orderId, String eventId, String reason);
+  static InventoryCommandV1.Item item(Long productId, String productName, int quantity) {
+    return new InventoryCommandV1.Item(productId, productName, quantity);
+  }
 
-  void refund(Long orderId, String eventId);
+  static InventoryCommandV1 commit(String commandId, Long orderId, String causationId) {
+    return InventoryCommandV1.commit(commandId, orderId, causationId);
+  }
 
-  record ReservationItem(Long productId, String productName, int quantity) {
+  static InventoryCommandV1 release(String commandId, Long orderId, String reason,
+                                    String causationId) {
+    return InventoryCommandV1.release(commandId, orderId, reason, causationId);
+  }
 
-    public ReservationItem {
-      if (productId == null) {
-        throw new IllegalArgumentException("Inventory reservation requires productId");
-      }
-      if (productName == null || productName.isBlank()) {
-        throw new IllegalArgumentException("Inventory reservation requires productName");
-      }
-      if (quantity <= 0) {
-        throw new IllegalArgumentException("Inventory reservation quantity must be positive");
-      }
-    }
+  static InventoryCommandV1 refund(String commandId, Long orderId, String causationId) {
+    return InventoryCommandV1.refund(commandId, orderId, causationId);
   }
 }

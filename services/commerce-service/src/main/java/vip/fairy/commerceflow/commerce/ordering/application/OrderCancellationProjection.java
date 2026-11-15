@@ -45,7 +45,8 @@ public class OrderCancellationProjection {
     String reason = payload != null && payload.hasNonNull("reason")
       ? payload.get("reason").asText()
       : "Order cancelled";
-    inventory.releaseCancelledOrder(orderId, eventId, reason);
+    inventory.handle(InventoryCommandPort.release(
+      eventId + ":inventory:release", orderId, reason, eventId));
   }
 
   private String required(JsonNode node, String field) {

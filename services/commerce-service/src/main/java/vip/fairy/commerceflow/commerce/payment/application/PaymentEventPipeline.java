@@ -33,16 +33,18 @@ public class PaymentEventPipeline {
     append("PAYMENT", aggregateId, type, payload);
   }
 
-  public void appendOrder(String aggregateId, String type, Object payload) {
+  public String appendOrder(String aggregateId, String type, Object payload) {
     try {
-      append("ORDER", aggregateId, type, mapper.writeValueAsString(payload));
+      return append("ORDER", aggregateId, type, mapper.writeValueAsString(payload));
     } catch (JacksonException exception) {
       throw new IllegalArgumentException("Order event payload cannot be serialized", exception);
     }
   }
 
-  private void append(String aggregateType, String aggregateId, String type, String payload) {
-    outbox.insert(UUID.randomUUID().toString(), aggregateType, aggregateId, type, topic(type), payload);
+  private String append(String aggregateType, String aggregateId, String type, String payload) {
+    String eventId = UUID.randomUUID().toString();
+    outbox.insert(eventId, aggregateType, aggregateId, type, topic(type), payload);
+    return eventId;
   }
 
   @Scheduled(

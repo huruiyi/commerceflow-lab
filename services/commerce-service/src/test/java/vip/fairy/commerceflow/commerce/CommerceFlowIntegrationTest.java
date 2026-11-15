@@ -45,6 +45,10 @@ import vip.fairy.commerceflow.commerce.notification.infrastructure.persistence.c
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogProductSnapshotV1;
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogProductV1;
 import vip.fairy.commerceflow.commerce.catalog.infrastructure.client.CatalogServiceClient;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandTypeV1;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandV1;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandValidatorV1;
+import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
 import vip.fairy.commerceflow.commerce.ordering.application.PurchaseOrderService;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import vip.fairy.commerceflow.commerce.payment.domain.PaymentChannel;
@@ -64,6 +68,7 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.session.MapSessionRepository;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -147,6 +152,10 @@ class CommerceFlowIntegrationTest {
   @Autowired
   PurchaseOrderService purchaseOrders;
   @Autowired
+  InventoryCommandPort inventoryCommands;
+  @Autowired
+  InventoryCommandValidatorV1 inventoryCommandValidator;
+  @Autowired
   CustomerNotificationCommandRouter notificationRouter;
   @Autowired
   NotificationOutboxDispatcher notificationOutbox;
@@ -210,7 +219,65 @@ class CommerceFlowIntegrationTest {
   }
 
   @Test
+  void inventoryCommandV1FixturesRemainCompatible() throws Exception {
+    Map<String, InventoryCommandTypeV1> fixtures = Map.of(
+      "inventory-reserve-command-v1.json", InventoryCommandTypeV1.RESERVE,
+      "inventory-commit-command-v1.json", InventoryCommandTypeV1.COMMIT,
+      "inventory-release-command-v1.json", InventoryCommandTypeV1.RELEASE,
+      "inventory-refund-command-v1.json", InventoryCommandTypeV1.REFUND
+    );
+    for (Map.Entry<String, InventoryCommandTypeV1> fixture : fixtures.entrySet()) {
+      try (var input = getClass().getResourceAsStream(
+        "/contracts/inventory/" + fixture.getKey())) {
+        org.junit.jupiter.api.Assertions.assertNotNull(input);
+        InventoryCommandV1 command = json.readValue(input, InventoryCommandV1.class);
+        inventoryCommandValidator.validate(command);
+        org.junit.jupiter.api.Assertions.assertEquals(InventoryCommandV1.VERSION,
+          command.schemaVersion());
+        org.junit.jupiter.api.Assertions.assertEquals(fixture.getValue(), command.commandType());
+      }
+    }
+  }
+
+  @Test
+  @Transactional
+  void inventoryCommandInboxMakesReplayIdempotentAndRejectsPayloadReuse() {
+    long orderId = 9_000_000L + Math.abs(UUID.randomUUID().getMostSignificantBits() % 100_000L);
+    String commandId = "inventory-contract-" + UUID.randomUUID();
+    int availableBefore = jdbc.queryForObject(
+      "SELECT stock_available FROM product_inventory WHERE product_id=1", Integer.class);
+    InventoryCommandV1 command = InventoryCommandV1.reserve(
+      commandId,
+      orderId,
+      List.of(new InventoryCommandV1.Item(1L, "Learning Laptop", 1))
+    );
+
+    inventoryCommands.handle(command);
+    inventoryCommands.handle(command);
+
+    org.junit.jupiter.api.Assertions.assertEquals(availableBefore - 1,
+      jdbc.queryForObject(
+        "SELECT stock_available FROM product_inventory WHERE product_id=1", Integer.class));
+    org.junit.jupiter.api.Assertions.assertEquals(1,
+      jdbc.queryForObject(
+        "SELECT COUNT(*) FROM inventory_reservations WHERE order_id=?", Integer.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals("SUCCEEDED",
+      jdbc.queryForObject(
+        "SELECT status FROM inventory_command_inbox WHERE command_id=?", String.class, commandId));
+
+    InventoryCommandV1 conflicting = InventoryCommandV1.reserve(
+      commandId,
+      orderId,
+      List.of(new InventoryCommandV1.Item(1L, "Learning Laptop", 2))
+    );
+    org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+      () -> inventoryCommands.handle(conflicting));
+  }
+
+  @Test
   void notificationKafkaOutboxRecoversAndPropagatesTrace() throws Exception {
+    org.mockito.Mockito.reset(kafka);
+    jdbc.update("DELETE FROM notification_delivery_outbox");
     int originalMaxAttempts = notificationDelivery.getMaxAttempts();
     java.time.Duration originalRetryDelay = notificationDelivery.getRetryDelay();
     try {

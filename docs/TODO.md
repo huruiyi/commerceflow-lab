@@ -511,8 +511,30 @@ Docker 拓扑，也不启动 PostgreSQL。
   回退顺序；明确禁止长期 LOCAL/COMPARE、双写或共享数据库。
 - [x] Java 25 正式构建 30 项测试、Windows 新运行 JAR 快速回归及容器化 Bash 质量/脚本审计通过；跨模块
   实际依赖收紧为 39/109/36/18。Bash 全链路不以工具容器内 Compose 的宿主路径结果冒充通过。
-- [ ] 下一批冻结 RESERVE/COMMIT/RELEASE/REFUND V1 命令与消费者 fixture，移除 inventory 对 ordering/
+- [x] 下一批冻结 RESERVE/COMMIT/RELEASE/REFUND V1 命令与消费者 fixture，移除 inventory 对 ordering/
   notification 的运行依赖和跨边界外键；仍不创建独立 inventory 服务，不启动 PostgreSQL。
+
+### 13.14 M3.4 第二批：inventory V1 命令、Inbox 与跨边界外键清理
+
+本批继续只维护 commerce 内一套库存实现，不创建 inventory-service/inventory-db，不改默认 Docker 拓扑，
+不启动 PostgreSQL。
+
+- [x] 新增分层 `application/contract/v1`，统一冻结 RESERVE、COMMIT、RELEASE、REFUND 的 schemaVersion、
+  commandId、producer、orderId、业务字段、correlation/causation 和 W3C traceparent。
+- [x] 新增四份消费者 fixture 和校验器；非法版本、字段、traceparent、RESERVE 空商品项及非 RESERVE 携带
+  商品项均 fail closed。
+- [x] Flyway V30 新增 inventory 自有 `inventory_command_inbox`；命令领取、余额/reservation/movement 变化和
+  SUCCEEDED 状态在同一事务，重复同载荷不重复执行，同 commandId 异载荷明确拒绝。
+- [x] V30 移除 inventory_reservations/inventory_movements 指向 shop_orders 的跨边界外键；删除
+  `InventoryMapper.customerId`，inventory 不再读取 ordering 表。
+- [x] 取消通知改由订单取消事务写 notification Outbox，并以 order eventId 建立 causation；库存释放不再查询
+  customerId 或发布通知，`inventory -> notification` 运行依赖清零。
+- [x] Windows 与容器化 Bash 均通过空库 V1→V30、旧库 V16→V30，验证 inventory Inbox 存在和两条 ordering
+  外键消失；Java 25 正式构建 32 项测试、Windows 快速回归和双平台质量/脚本契约审计通过。
+- [x] 默认 Docker 持久库升级到 V30 后完成真实链路复核：17 条 inventory 命令全部 SUCCEEDED（RESERVE 8、
+  COMMIT 5、RELEASE 3、REFUND 1），非成功命令和两条跨边界订单外键均为 0；未删除或重建命名卷。
+- [ ] 下一批实现 catalog V1 事件到 inventory 商品快照的 Inbox、businessVersion、有限重试/DEAD 与 fixture；
+  仍不创建独立 inventory 服务，不启动 PostgreSQL。
 
 ## 14. 实施记录模板
 

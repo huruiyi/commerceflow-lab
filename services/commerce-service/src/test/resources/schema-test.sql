@@ -233,6 +233,16 @@ CREATE TABLE inventory_movements
   detail          VARCHAR(300) NOT NULL,
   created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE inventory_command_inbox
+(
+  command_id         VARCHAR(100) PRIMARY KEY,
+  command_type       VARCHAR(24) NOT NULL,
+  order_id           BIGINT      NOT NULL,
+  payload_fingerprint CHAR(64)   NOT NULL,
+  status             VARCHAR(20) NOT NULL DEFAULT 'PROCESSING',
+  created_at         TIMESTAMP            DEFAULT CURRENT_TIMESTAMP,
+  processed_at       TIMESTAMP
+);
 CREATE TABLE customer_notifications
 (
   id                BIGINT AUTO_INCREMENT PRIMARY KEY,
