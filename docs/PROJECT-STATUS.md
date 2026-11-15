@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.2 第二批实现与验收收口完成：notification-service 已成为唯一通知读写实现 |
-| 下一候选阶段 | 独立提交推送本批；随后再评审下一个服务边界 |
+| 当前阶段 | M3.2 已以提交 `88d22c6` 推送冻结：notification-service 已成为唯一通知读写实现 |
+| 下一候选阶段 | M3.3 catalog-service 边界准入治理；先治理所有权与依赖，不启动独立进程 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -224,4 +224,4 @@ Angular 改用 eventId 已读并在 503 时显示重试。commerce 内本地通�
 通知、已读落库、独立服务停机 503、核心商城健康与恢复；交接时 commerce 历史通知为 0 行，Kafka 三分区
 lag 均为 0。Windows/Bash 通知专项、快速回归、质量审计和 41 对脚本契约均已通过；Windows 完整验收通过。
 Bash 等价全链路通过全部业务阶段，告警尾段在 Git Bash 排除容器路径的 MSYS 参数转换后补验，结果为 3 个
-健康采集目标、10 条规则和 1 次 Watchdog 投递。本批仅剩独立提交推送。
+健康采集目标、10 条规则和 1 次 Watchdog 投递。本批已以 `88d22c6` 独立提交并推送。

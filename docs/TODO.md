@@ -435,7 +435,7 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
   MSYS 参数转换后单独补验告警尾段。277/21/198/4 质量审计、287 个 Java 类声明空行及 41 对脚本契约通过。
 - 边界：仍使用 MySQL；M3 清单中的 notification、catalog、inventory、order、payment-orchestration、
   fulfillment 全部完成单一所有权切换并逐一验收前，不评审、不启动、不迁移 PostgreSQL，也不建立数据库
-  方言分支；后续新增待拆服务同样纳入该门禁。本批只剩独立提交推送。
+  方言分支；后续新增待拆服务同样纳入该门禁。本批已以 `88d22c6` 独立提交并推送。
 
 ### 2026-11-15：M3.2 首批——notification-service 独立影子进程
 

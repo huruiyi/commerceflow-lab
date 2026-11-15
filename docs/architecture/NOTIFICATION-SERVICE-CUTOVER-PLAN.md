@@ -1,6 +1,6 @@
 # notification-service 单一所有权切换计划
 
-> 实施状态（2026-11-15）：代码、Windows/Bash 通知专项、快速回归、Windows 完整验收、Bash 等价全链路与最终复核已完成；待独立提交推送。
+> 实施状态（2026-11-15）：代码、Windows/Bash 通知专项、快速回归、Windows 完整验收、Bash 等价全链路与最终复核已完成；提交 `88d22c6` 已推送。
 > 当前继续使用独立 MySQL。PostgreSQL 必须等 M3 清单中的 notification、catalog、inventory、order、
 > payment-orchestration、fulfillment 以及后续新增待拆服务全部独立并验收后，另立专项实施。
 

@@ -32,7 +32,7 @@ M3.1 前置审计和 M3.2 notification 单一所有权切换已完成实现，�
 [M3-PRE-SPLIT-AUDIT.md](M3-PRE-SPLIT-AUDIT.md)。notification-service 默认启动并独占消费、存储和通知业务
 API；commerce 原公开路径只做身份薄代理，旧通知读写、数据源、投影和回填运行代码已删除。
 
-切换边界与证据见 [单一所有权切换计划](NOTIFICATION-SERVICE-CUTOVER-PLAN.md)。下一步先独立提交推送该批，
-再单独评审 `catalog-service`；每次仍只拆一个边界。PostgreSQL 不属于拆分步骤，必须等 notification、
+切换边界与证据见 [单一所有权切换计划](NOTIFICATION-SERVICE-CUTOVER-PLAN.md)，冻结提交为 `88d22c6`。
+下一步单独评审 `catalog-service`；每次仍只拆一个边界。PostgreSQL 不属于拆分步骤，必须等 notification、
 catalog、inventory、order、payment-orchestration、fulfillment 以及后续新增待拆服务全部完成单一所有权切换
 并验收后另立专项。
