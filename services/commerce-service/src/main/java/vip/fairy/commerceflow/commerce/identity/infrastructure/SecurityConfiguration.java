@@ -109,7 +109,8 @@ public class SecurityConfiguration {
         .ignoringRequestMatchers(
           "/api/payment-notifications/**",
           "/api/refund-notifications/**",
-          "/api/logistics-notifications/**"))
+          "/api/logistics-notifications/**",
+          "/internal/v1/inventory/catalog-events"))
       .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
       .rememberMe(remember -> remember.rememberMeServices(rememberMeServices))
       .authorizeHttpRequests(authorize -> authorize
@@ -120,6 +121,7 @@ public class SecurityConfiguration {
           "/api/payment-notifications/**",
           "/api/refund-notifications/**",
           "/api/logistics-notifications/**",
+          "/internal/v1/inventory/catalog-events",
           "/actuator/health",
           "/actuator/info",
           "/actuator/prometheus")

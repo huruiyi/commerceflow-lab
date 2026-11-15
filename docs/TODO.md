@@ -533,8 +533,30 @@ Docker 拓扑，也不启动 PostgreSQL。
   外键消失；Java 25 正式构建 32 项测试、Windows 快速回归和双平台质量/脚本契约审计通过。
 - [x] 默认 Docker 持久库升级到 V30 后完成真实链路复核：17 条 inventory 命令全部 SUCCEEDED（RESERVE 8、
   COMMIT 5、RELEASE 3、REFUND 1），非成功命令和两条跨边界订单外键均为 0；未删除或重建命名卷。
-- [ ] 下一批实现 catalog V1 事件到 inventory 商品快照的 Inbox、businessVersion、有限重试/DEAD 与 fixture；
+- [x] 下一批实现 catalog V1 事件到 inventory 商品快照的 Inbox、businessVersion、有限重试/DEAD 与 fixture；
   仍不创建独立 inventory 服务，不启动 PostgreSQL。
+
+### 13.15 M3.4 第三批：catalog 事件驱动的 inventory 商品快照
+
+本批只补齐独立 catalog-service 到 commerce 内 inventory 的单向事件投影，不把库存数量写回 catalog，
+不创建 inventory-service/inventory-db，不启动 PostgreSQL。
+
+- [x] catalog-service 增加分层 Outbox Dispatcher 和可配置批量、重试间隔、最大 5 次尝试；投递成功标记
+  PUBLISHED，暂时失败进入 RETRY，达到上限进入 DEAD，测试覆盖第五次失败的终态。
+- [x] 投递使用 HMAC 服务身份、时间窗、requestId 和已签名的 SHA-256 载荷摘要；commerce 内部端点同时校验
+  签名与真实请求体摘要，未签名请求返回 401。
+- [x] inventory 冻结 catalog V1 消费契约与 fixture；V31 新增 `inventory_catalog_event_inbox`，eventId 重放
+  幂等，同 eventId 异载荷拒绝，旧版本记为 STALE，版本缺口回滚领取并由 catalog Outbox 重试。
+- [x] `product_inventory` 增加 catalog 生命周期和 businessVersion；profile/price/status 仅更新商品快照字段，
+  translation 只推进版本，任何事件均不改可售/预占/已售数量；INACTIVE 商品禁止新预占。
+- [x] Java 25 正式构建通过 catalog-service 5 项和 commerce-service 35 项测试；真实 Docker 投递完成
+  businessVersion 1→2，catalog Outbox PUBLISHED、inventory Inbox APPLIED。
+- [x] Windows/容器化 Bash 均通过空库 V1→V31、旧库 V16→V31；Windows 快速回归和双平台质量/脚本契约
+  审计通过。
+- [x] 真实停机恢复通过：commerce-service 停机时事件进入 RETRY，恢复后第 4 次尝试 PUBLISHED，inventory
+  同一 eventId 仅应用一次并推进到 businessVersion 3；未删除或重建命名卷。
+- [ ] 下一批冻结 RESERVE/COMMIT/RELEASE/REFUND 跨进程投递的生产端 Outbox、结果确认、超时与补偿语义，
+  通过准入评审后再决定是否创建独立 inventory-service；仍不启动 PostgreSQL。
 
 ## 14. 实施记录模板
 

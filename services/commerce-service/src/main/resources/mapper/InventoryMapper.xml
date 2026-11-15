@@ -6,8 +6,27 @@
     <![CDATA[
       UPDATE product_inventory
     SET stock_available=stock_available-#{quantity},stock_reserved=stock_reserved+#{quantity}
-    WHERE product_id=#{productId} AND stock_available>=#{quantity}
+    WHERE product_id=#{productId} AND catalog_lifecycle_status='ACTIVE'
+      AND stock_available>=#{quantity}
     ]]>
+  </update>
+
+  <select id="catalogBusinessVersion" resultType="java.lang.Long">
+    SELECT catalog_business_version FROM product_inventory WHERE product_id=#{productId}
+  </select>
+
+  <update id="updateCatalogSnapshot">
+    UPDATE product_inventory
+    SET merchant_id=#{merchantId},product_name=#{productName},thumbnail_url=#{thumbnailUrl},
+      unit_price=#{unitPrice},catalog_lifecycle_status=#{lifecycleStatus},
+      catalog_business_version=#{businessVersion}
+    WHERE product_id=#{productId} AND catalog_business_version&lt;#{businessVersion}
+  </update>
+
+  <update id="advanceCatalogVersion">
+    UPDATE product_inventory
+    SET catalog_business_version=#{businessVersion}
+    WHERE product_id=#{productId} AND catalog_business_version&lt;#{businessVersion}
   </update>
 
   <insert id="insertReservation">

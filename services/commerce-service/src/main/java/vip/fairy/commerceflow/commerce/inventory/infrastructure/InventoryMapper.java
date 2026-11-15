@@ -3,6 +3,7 @@ package vip.fairy.commerceflow.commerce.inventory.infrastructure;
 import vip.fairy.commerceflow.commerce.inventory.domain.ProductInventory;
 
 import java.util.List;
+import java.math.BigDecimal;
 
 import vip.fairy.commerceflow.commerce.inventory.domain.InventoryReservation;
 import org.apache.ibatis.annotations.Param;
@@ -10,6 +11,19 @@ import org.apache.ibatis.annotations.Param;
 public interface InventoryMapper {
 
   int reserve(@Param("productId") Long productId, @Param("quantity") int quantity);
+
+  Long catalogBusinessVersion(Long productId);
+
+  int updateCatalogSnapshot(@Param("productId") Long productId,
+                            @Param("merchantId") Long merchantId,
+                            @Param("productName") String productName,
+                            @Param("thumbnailUrl") String thumbnailUrl,
+                            @Param("unitPrice") BigDecimal unitPrice,
+                            @Param("lifecycleStatus") String lifecycleStatus,
+                            @Param("businessVersion") long businessVersion);
+
+  int advanceCatalogVersion(@Param("productId") Long productId,
+                            @Param("businessVersion") long businessVersion);
 
 
   void insertReservation(@Param("orderId") Long orderId, @Param("productId") Long productId,

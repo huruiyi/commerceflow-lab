@@ -64,7 +64,7 @@
 - MySQL + Flyway、Redis/Spring Session、Kafka/Outbox、RabbitMQ 分桶延迟任务、RocketMQ 5.x 原生延时任务 Profile、ShedLock。
 - Angular/Vue 前端、三个 Spring Boot 服务和 Docker Compose。
 - `scripts/windows/` 与 `scripts/linux/` 保留同名验收脚本结构。
-- `verify-flyway-lifecycle` 使用与后端一致的 Flyway `12.4.0` 和隔离 MySQL 8.4，Windows/容器化 Bash 均已验证空库 V1–V30、V16→V30 升级、V17 历史订单 30 分钟截止时间回填、V24 核心注释、V28 catalog/inventory 所有权分离、V29 catalog 版本/Outbox 元数据、V30 inventory Inbox/跨边界外键清理和任务状态 `CHECK` 约束。脚本只删除自己的随机命名容器/网络，不使用或清空开发数据卷。
+- `verify-flyway-lifecycle` 使用与后端一致的 Flyway `12.4.0` 和隔离 MySQL 8.4，Windows/容器化 Bash 均已验证空库 V1–V31、V16→V31 升级、V17 历史订单 30 分钟截止时间回填、V24 核心注释、V28 catalog/inventory 所有权分离、V29 catalog 版本/Outbox 元数据、V30 inventory 命令 Inbox/跨边界外键清理、V31 catalog-event Inbox/版本化快照和任务状态 `CHECK` 约束。脚本只删除自己的随机命名容器/网络，不使用或清空开发数据卷。
 
 ## 7. 通用定时任务底座（阶段 1）
 
@@ -142,6 +142,11 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   inventory→notification 依赖清零。Java 25 的 32 项测试、双平台 V1→V30/V16→V30 演练及 Windows 快速回归
   通过；默认 Docker 持久库的 17 条真实命令全部 SUCCEEDED，非成功命令和跨边界订单外键均为 0。独立服务、
   独立数据库与 PostgreSQL 仍未启动。
+- M3.4 第三批打通 catalog-service Outbox 到 inventory 商品快照的 HMAC HTTP 投递，签名包含请求体
+  SHA-256；V31 增加 catalog-event Inbox、生命周期和 businessVersion。重复/异载荷、STALE、版本缺口、
+  翻译事件和 INACTIVE 预占门禁均有测试；catalog 最多 5 次后 DEAD。真实 Docker 已验证正常 PUBLISHED，
+  以及 commerce 停机 RETRY、恢复后第 4 次尝试成功且 inventory 单次 APPLIED。catalog 5 项、commerce
+  35 项测试、双平台 V31 迁移和 Windows 快速回归通过；inventory-service/inventory-db 与 PostgreSQL 仍未启动。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

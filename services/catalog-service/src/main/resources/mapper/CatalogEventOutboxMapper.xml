@@ -9,4 +9,25 @@
       #{event.businessVersion},#{event.occurredAt},#{event.correlationId},
       #{event.causationId},#{payload})
   </insert>
+
+  <select id="pending" resultType="vip.fairy.commerceflow.catalog.domain.CatalogEventOutbox">
+    SELECT id,event_id,payload,attempts
+    FROM catalog_event_outbox
+    WHERE status IN ('NEW','RETRY') AND next_attempt_at&lt;=CURRENT_TIMESTAMP
+    ORDER BY id
+    LIMIT #{batchSize}
+  </select>
+
+  <update id="published">
+    UPDATE catalog_event_outbox
+    SET status='PUBLISHED',attempts=attempts+1,published_at=CURRENT_TIMESTAMP,last_error=NULL
+    WHERE id=#{id} AND status IN ('NEW','RETRY')
+  </update>
+
+  <update id="failed">
+    UPDATE catalog_event_outbox
+    SET status=CASE WHEN attempts+1&gt;=#{maxAttempts} THEN 'DEAD' ELSE 'RETRY' END,
+      attempts=attempts+1,next_attempt_at=#{nextAttemptAt},last_error=#{error}
+    WHERE id=#{id} AND status IN ('NEW','RETRY')
+  </update>
 </mapper>

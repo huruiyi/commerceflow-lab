@@ -49,6 +49,9 @@ import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.Invento
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandV1;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandValidatorV1;
 import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
+import vip.fairy.commerceflow.commerce.inventory.application.InventoryCatalogEventHandlerV1;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.CatalogProductEventV1;
+import vip.fairy.commerceflow.commerce.inventory.infrastructure.security.CatalogEventRequestSignature;
 import vip.fairy.commerceflow.commerce.ordering.application.PurchaseOrderService;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import vip.fairy.commerceflow.commerce.payment.domain.PaymentChannel;
@@ -155,6 +158,10 @@ class CommerceFlowIntegrationTest {
   InventoryCommandPort inventoryCommands;
   @Autowired
   InventoryCommandValidatorV1 inventoryCommandValidator;
+  @Autowired
+  InventoryCatalogEventHandlerV1 inventoryCatalogEvents;
+  @Autowired
+  CatalogEventRequestSignature catalogEventSignatures;
   @Autowired
   CustomerNotificationCommandRouter notificationRouter;
   @Autowired
@@ -272,6 +279,121 @@ class CommerceFlowIntegrationTest {
     );
     org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
       () -> inventoryCommands.handle(conflicting));
+  }
+
+  @Test
+  @Transactional
+  void inventoryCatalogEventFixtureIsIdempotentAndRejectsOutOfOrderOverwrite() throws Exception {
+    CatalogProductEventV1 profile;
+    try (var input = getClass().getResourceAsStream(
+      "/contracts/inventory/catalog-product-profile-updated-v1.json")) {
+      org.junit.jupiter.api.Assertions.assertNotNull(input);
+      profile = json.readValue(input, CatalogProductEventV1.class);
+    }
+    org.junit.jupiter.api.Assertions.assertEquals(CatalogProductEventV1.VERSION,
+      profile.schemaVersion());
+
+    inventoryCatalogEvents.handle(profile);
+    inventoryCatalogEvents.handle(profile);
+
+    org.junit.jupiter.api.Assertions.assertEquals("Learning Laptop V2",
+      jdbc.queryForObject("SELECT product_name FROM product_inventory WHERE product_id=1",
+        String.class));
+    org.junit.jupiter.api.Assertions.assertEquals(2L,
+      jdbc.queryForObject(
+        "SELECT catalog_business_version FROM product_inventory WHERE product_id=1", Long.class));
+    org.junit.jupiter.api.Assertions.assertEquals("APPLIED",
+      jdbc.queryForObject(
+        "SELECT status FROM inventory_catalog_event_inbox WHERE event_id=?", String.class,
+        profile.eventId()));
+
+    CatalogProductEventV1 stale = catalogEvent(UUID.randomUUID().toString(),
+      "PRODUCT_PRICE_CHANGED", 1, "Stale name", new BigDecimal("1.00"), null);
+    inventoryCatalogEvents.handle(stale);
+    org.junit.jupiter.api.Assertions.assertEquals("STALE",
+      jdbc.queryForObject(
+        "SELECT status FROM inventory_catalog_event_inbox WHERE event_id=?", String.class,
+        stale.eventId()));
+    org.junit.jupiter.api.Assertions.assertEquals(new BigDecimal("1399.00"),
+      jdbc.queryForObject("SELECT unit_price FROM product_inventory WHERE product_id=1",
+        BigDecimal.class));
+
+    CatalogProductEventV1 translation = catalogEvent(UUID.randomUUID().toString(),
+      "PRODUCT_TRANSLATION_UPDATED", 3, "学习笔记本电脑", new BigDecimal("1399.00"), "zh-CN");
+    inventoryCatalogEvents.handle(translation);
+    org.junit.jupiter.api.Assertions.assertEquals("Learning Laptop V2",
+      jdbc.queryForObject("SELECT product_name FROM product_inventory WHERE product_id=1",
+        String.class));
+    org.junit.jupiter.api.Assertions.assertEquals(3L,
+      jdbc.queryForObject(
+        "SELECT catalog_business_version FROM product_inventory WHERE product_id=1", Long.class));
+
+    CatalogProductEventV1 conflicting = new CatalogProductEventV1(
+      profile.schemaVersion(), profile.eventId(), profile.eventType(), profile.occurredAt(),
+      profile.productId(), profile.merchantId(), profile.businessVersion(), "Conflicting name",
+      profile.brief(), profile.description(), profile.price(), profile.imageUrl(),
+      profile.thumbnailUrl(), profile.lifecycleStatus(), profile.locale(),
+      profile.correlationId(), profile.causationId());
+    org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+      () -> inventoryCatalogEvents.handle(conflicting));
+  }
+
+  @Test
+  void inventoryCatalogVersionGapRollsBackInboxClaim() {
+    long currentVersion = jdbc.queryForObject(
+      "SELECT catalog_business_version FROM product_inventory WHERE product_id=1", Long.class);
+    CatalogProductEventV1 gap = catalogEvent(UUID.randomUUID().toString(),
+      "PRODUCT_PRICE_CHANGED", currentVersion + 2, "Future name",
+      new BigDecimal("1599.00"), null);
+
+    org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+      () -> inventoryCatalogEvents.handle(gap));
+    org.junit.jupiter.api.Assertions.assertEquals(0,
+      jdbc.queryForObject(
+        "SELECT COUNT(*) FROM inventory_catalog_event_inbox WHERE event_id=?", Integer.class,
+        gap.eventId()));
+  }
+
+  private CatalogProductEventV1 catalogEvent(String eventId, String eventType,
+                                             long businessVersion, String name,
+                                             BigDecimal price, String locale) {
+    return new CatalogProductEventV1(
+      1, eventId, eventType, Instant.now(), 1L, 5L, businessVersion, name,
+      "Catalog event test", "Catalog event test", price, "image", "thumb-v2", "ACTIVE",
+      locale, "catalog-event-test", "catalog-event-cause");
+  }
+
+  @Test
+  @Transactional
+  void inventoryCatalogEventEndpointRequiresSignedPayloadHash() throws Exception {
+    CatalogProductEventV1 event = catalogEvent(UUID.randomUUID().toString(),
+      "PRODUCT_PRICE_CHANGED", 2, "Learning Laptop", new BigDecimal("1499.00"), null);
+    String payload = json.writeValueAsString(event);
+    String target = "/internal/v1/inventory/catalog-events";
+
+    mvc.perform(post(target).contentType("application/json").content(payload))
+      .andExpect(status().isUnauthorized());
+
+    String timestamp = Long.toString(Instant.now().getEpochSecond());
+    String requestId = UUID.randomUUID().toString();
+    String contentHash = java.util.HexFormat.of().formatHex(
+      java.security.MessageDigest.getInstance("SHA-256")
+        .digest(payload.getBytes(StandardCharsets.UTF_8)));
+    mvc.perform(post(target)
+        .header("X-CommerceFlow-Service", "catalog-service")
+        .header("X-CommerceFlow-Timestamp", timestamp)
+        .header("X-CommerceFlow-Request-Id", requestId)
+        .header("X-CommerceFlow-Content-SHA256", contentHash)
+        .header("X-CommerceFlow-Signature", catalogEventSignatures.sign(
+          "POST", target, timestamp, requestId, contentHash))
+        .contentType("application/json")
+        .content(payload))
+      .andExpect(status().isNoContent());
+
+    org.junit.jupiter.api.Assertions.assertEquals("APPLIED",
+      jdbc.queryForObject(
+        "SELECT status FROM inventory_catalog_event_inbox WHERE event_id=?", String.class,
+        event.eventId()));
   }
 
   @Test

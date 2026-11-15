@@ -2,7 +2,7 @@
 
 ## 1. 本批结论
 
-`inventory-service` 已完成前两批准入治理，但**尚未获准创建独立进程或独立 Schema**。
+`inventory-service` 已完成前三批准入治理，但**尚未获准创建独立进程或独立 Schema**。
 当前只在 `commerce-service` 内保留一套库存实现，并完成以下收敛：
 
 - ordering、payment、refund 只能依赖 `inventory/application/port`，不能注入 `InventoryService`、库存领域对象或 Mapper；
@@ -10,11 +10,15 @@
 - 商家库存应用服务只接收 `merchantId`，不再接收 identity 的 `AppUser`；
 - V30 新增 inventory 自有 `inventory_command_inbox`，同一本地事务完成命令领取、余额变更和处理状态；
 - V30 移除 reservation/movement 指向 `shop_orders` 的外键，InventoryMapper 不再查询 ordering 表；
+- V31 新增 inventory 自有 `inventory_catalog_event_inbox`，按 eventId 与载荷指纹幂等消费 catalog V1 事件；
+- `product_inventory` 以 lifecycle/businessVersion 维护商品履行快照，catalog 事件不修改库存数量；
+- catalog-service Outbox 通过 HMAC 和载荷摘要投递，失败有限重试并在第 5 次进入 DEAD；
 - 取消通知由订单取消事务写入 notification Outbox，库存释放不再承担客户身份查询或通知副作用；
 - ArchUnit 门禁禁止库存以外的模块重新依赖库存 API、领域、基础设施或具体应用实现；
 - 跨模块现状为 39 个方向、109 个 import、35 个源码文件，跨模块 infrastructure 引用仍为 18。
 
-这表示本地 V1 命令和幂等边界已稳定，不表示远程传输、catalog 事件消费、事务补偿或数据交接已经完成。
+这表示本地 V1 命令、幂等边界和 catalog 单向投影已稳定，不表示四类库存命令的远程结果、事务补偿或
+数据交接已经完成。
 
 ## 2. 唯一数据所有权
 
@@ -24,6 +28,7 @@
 | `inventory_reservations` | inventory | 每个订单商品的预占状态与版本 |
 | `inventory_movements` | inventory | 余额变化后的不可变流水，eventId 唯一 |
 | `inventory_command_inbox` | inventory | commandId 去重、语义载荷指纹和本地处理结果 |
+| `inventory_catalog_event_inbox` | inventory | catalog eventId 去重、载荷指纹、APPLIED/STALE 处理结果 |
 | `products`、`product_translations` | catalog-service | 商品资料、翻译、生命周期和业务版本；不得回流库存 |
 | `shop_orders`、`order_items` | ordering | 订单及下单快照；inventory 只能保存稳定 orderId/productId |
 
@@ -65,18 +70,21 @@ reservation 状态机处理；跨进程超时、Broker 重投和并发消费要�
 
 catalog-service 已是商品资料唯一所有者。inventory 只能消费 catalog V1 事件维护必要履行快照：
 
-- `PRODUCT_CREATED` 初始化唯一库存聚合，初始数量由明确的初始化命令提供；初始化完成前 catalog 不开放商品创建；
-- profile、price、status 事件按 `businessVersion` 顺序更新 productName、thumbnailUrl、unitPrice 等快照；
-- eventId 重复返回已处理，旧版本记为 STALE，版本缺口进入有限重试/DEAD，不覆盖数量字段；
+- catalog 当前不开放商品创建；未来 `PRODUCT_CREATED` 必须由明确的库存初始化命令提供初始数量；
+- profile、price、status 事件按 `businessVersion` 顺序更新 productName、thumbnailUrl、unitPrice 和生命周期；
+- translation 事件只推进版本，不用本地化名称覆盖 inventory 主快照；
+- eventId 重复返回已处理，同 ID 异载荷拒绝，旧版本记为 STALE，版本缺口回滚并进入有限重试/DEAD；
 - catalog 停机不影响既有商品的库存扣减，inventory 停机也不得把数量写回 catalog。
 
-该入口需要 inventory 自有 catalog-event Inbox、失败恢复和跨进程 Trace。本批未创建这些表和消费者。
+该入口现已通过 V31 Inbox 和 HMAC HTTP 投递落地。签名覆盖时间窗、requestId 和请求体 SHA-256；真实 Docker
+已验证正常 PUBLISHED，以及 inventory 停机时 RETRY、恢复后单次 APPLIED。当前未把该链路描述为完整
+跨进程 Trace 验收，后续独立 inventory-service 切换时仍要与四类命令一起验证 Trace。
 
 ## 6. 切换顺序与回退
 
 后续严格一次只推进一个门禁：
 
-1. 冻结并实现 catalog 事件消费 fixture、businessVersion 门禁、独立 Inbox 和有限重试/DEAD；
+1. [已完成] 冻结并实现 catalog 事件消费 fixture、businessVersion 门禁、独立 Inbox 和有限重试/DEAD；
 2. 明确 checkout/payment/refund 的跨进程结果与补偿协议，再评审独立服务启动；
 3. 在独立 MySQL Schema 创建分层 `inventory-service`，完成一次性计数、余额总和和内容指纹迁移；
 4. 停写窗口内追平增量，整体切换调用方，验证并发、重复、乱序、超时、停机恢复和跨进程 Trace；

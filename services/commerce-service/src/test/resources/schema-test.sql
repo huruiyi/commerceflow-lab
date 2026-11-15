@@ -68,6 +68,8 @@ CREATE TABLE product_inventory
   product_name    VARCHAR(160) NOT NULL,
   thumbnail_url   VARCHAR(500) NOT NULL,
   unit_price      DECIMAL(12, 2) NOT NULL,
+  catalog_lifecycle_status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+  catalog_business_version BIGINT NOT NULL DEFAULT 1,
   stock_available INT NOT NULL DEFAULT 100,
   stock_reserved  INT NOT NULL DEFAULT 0,
   stock_sold      INT NOT NULL DEFAULT 0,
@@ -242,6 +244,16 @@ CREATE TABLE inventory_command_inbox
   status             VARCHAR(20) NOT NULL DEFAULT 'PROCESSING',
   created_at         TIMESTAMP            DEFAULT CURRENT_TIMESTAMP,
   processed_at       TIMESTAMP
+);
+CREATE TABLE inventory_catalog_event_inbox
+(
+  event_id            VARCHAR(100) PRIMARY KEY,
+  product_id          BIGINT      NOT NULL,
+  business_version    BIGINT      NOT NULL,
+  payload_fingerprint CHAR(64)    NOT NULL,
+  status              VARCHAR(20) NOT NULL DEFAULT 'PROCESSING',
+  created_at          TIMESTAMP            DEFAULT CURRENT_TIMESTAMP,
+  processed_at        TIMESTAMP
 );
 CREATE TABLE customer_notifications
 (
