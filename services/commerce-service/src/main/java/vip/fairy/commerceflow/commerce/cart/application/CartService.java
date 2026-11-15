@@ -1,11 +1,10 @@
 package vip.fairy.commerceflow.commerce.cart.application;
 
-import vip.fairy.commerceflow.commerce.catalog.domain.Product;
+import vip.fairy.commerceflow.commerce.catalog.application.CatalogProductLookup;
 import vip.fairy.commerceflow.commerce.cart.api.OrderRequest;
 import vip.fairy.commerceflow.commerce.cart.api.OrderResponse;
 import vip.fairy.commerceflow.commerce.cart.api.QuantityUpdateRequest;
 import vip.fairy.commerceflow.commerce.cart.infrastructure.CartMapper;
-import vip.fairy.commerceflow.commerce.catalog.infrastructure.ProductMapper;
 import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
@@ -17,26 +16,23 @@ import java.util.List;
 public class CartService {
 
   private final CartMapper carts;
-  private final ProductMapper products;
+  private final CatalogProductLookup products;
 
-  public CartService(CartMapper carts, ProductMapper products) {
+  public CartService(CartMapper carts, CatalogProductLookup products) {
     this.carts = carts;
     this.products = products;
   }
 
   @Transactional
   public OrderResponse add(AppUser user, OrderRequest request) {
-    Product product = products.selectById(request.getProductId());
-    if (product == null) {
-      throw new ResourceNotFoundException("Product not found");
-    }
+    CatalogProductLookup.ProductSnapshot product = products.require(request.getProductId());
     carts.ensureCart(user.getId());
     carts.add(
       carts.cartId(user.getId()),
       request.getProductId(),
       request.getQuantity() == null ? 1 : request.getQuantity());
     return carts.list(user.getId()).stream()
-      .filter(item -> item.getProductName().equals(product.getName()))
+      .filter(item -> item.getProductName().equals(product.name()))
       .findFirst()
       .map(OrderResponse::from)
       .orElseThrow(() -> new ResourceNotFoundException("Cart item not found"));

@@ -418,6 +418,21 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
 - [x] 执行 Windows 完整验收、Bash 等价全链路与告警补验并完成文档收口；不启动 PostgreSQL，不拆第二个服务。
 - [x] 本批独立提交并推送。
 
+### 13.9 M3.3 首批：catalog-service 边界准入治理
+
+详细边界见 [catalog-service 单一所有权演进计划](architecture/CATALOG-SERVICE-EVOLUTION-PLAN.md)。本批只在
+commerce 模块化单体内建立应用端口并收紧依赖基线，不创建 catalog-service/catalog-db，不移动表，不启动
+inventory-service 或 PostgreSQL。
+
+- [x] 新增 `CatalogProductLookup` 最小商品快照端口，cart/order 不再直接注入 `ProductMapper`。
+- [x] 新增 `ProductReviewCatalogQuery`，catalog 不再直接注入 `ReviewMapper` 或暴露 review 持久化对象。
+- [x] 以 `CatalogCacheInvalidator` 隔离 review 对具体目录 Service 的反向依赖。
+- [x] 将 `cart -> catalog`、`catalog -> review` 跨模块 infrastructure 引用上限从 2/1 收紧为 0/0。
+- [x] Java 25 正式镜像 29 项测试、Windows/Bash 快速回归和质量/脚本契约审计通过。
+- [x] 复核文档并独立提交推送。
+- [ ] 下一批冻结 products 商品资料与 inventory 数量的最终表归属、商品快照和跨库 join 消除方案；仍不
+  启动独立服务。
+
 ## 14. 实施记录模板
 
 ### 2026-11-15：M3.2 第二批——notification 单一所有权切换

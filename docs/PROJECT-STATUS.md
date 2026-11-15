@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.2 已以提交 `88d22c6` 推送冻结：notification-service 已成为唯一通知读写实现 |
-| 下一候选阶段 | M3.3 catalog-service 边界准入治理；先治理所有权与依赖，不启动独立进程 |
+| 当前阶段 | M3.3 catalog-service 边界准入治理首批已完成并独立提交推送 |
+| 下一候选阶段 | M3.3 第二批：冻结 products 商品资料与 inventory 数量的最终归属、商品快照及跨库 join 消除方案 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -32,6 +32,7 @@
 | Angular/Vue 界面 | Angular 主流程和订单页视觉收尾已实现 | 订单详情与支付信息已扁平化，商品图有失败回退；通知菜单使用中性列表和细滚动条，支持外部点击、`Esc`、关闭按钮和选择通知后关闭；语言切换使用图标；导航与 1480 px 正文容器对齐，桌面与 390 px 窄屏已验收 |
 | Flyway 数据库生命周期 | 空卷和迁移层已验收 | 当前商城库 V27；notification 独立 Schema V1→V3 已隔离及实际运行验收 |
 | notification 独立服务 | 单一所有权切换已实现 | 默认拓扑启动独立 MySQL/Kafka 服务；commerce 仅签名代理，故障稳定返回 503，无本地数据库回退 |
+| catalog 拆分准入 | 首批应用端口治理已实现 | cart/catalog/review 不再跨模块注入 ProductMapper/ReviewMapper；独立服务和数据迁移尚未启动 |
 | 告警与监控 | 本地端到端管道已实现 | 三服务 Prometheus 抓取、10 条规则、Alertmanager、Grafana 数据源和可替换 Webhook；真实通知供应商与高可用部署不在本地学习验收内 |
 
 ## 3. M1 冻结结论

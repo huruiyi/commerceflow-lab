@@ -1,6 +1,6 @@
 package vip.fairy.commerceflow.commerce.review.application;
 
-import vip.fairy.commerceflow.commerce.catalog.application.ProductCatalogService;
+import vip.fairy.commerceflow.commerce.catalog.application.CatalogCacheInvalidator;
 import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
 import vip.fairy.commerceflow.commerce.ordering.api.ShopOrderResponse;
 import vip.fairy.commerceflow.commerce.ordering.application.PurchaseOrderService;
@@ -20,12 +20,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReceiptReviewService {
 
   private final ReviewMapper reviews;
-  private final ProductCatalogService catalog;
+  private final CatalogCacheInvalidator catalog;
   private final PurchaseOrderService purchaseOrders;
   private final OrderReceiptLifecycleService receiptLifecycle;
 
   public ReceiptReviewService(ReviewMapper reviews,
-                              ProductCatalogService catalog, PurchaseOrderService purchaseOrders,
+                              CatalogCacheInvalidator catalog, PurchaseOrderService purchaseOrders,
                               OrderReceiptLifecycleService receiptLifecycle) {
     this.reviews = reviews;
     this.catalog = catalog;

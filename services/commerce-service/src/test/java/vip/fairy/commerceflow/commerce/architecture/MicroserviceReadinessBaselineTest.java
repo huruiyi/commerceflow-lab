@@ -145,9 +145,9 @@ class MicroserviceReadinessBaselineTest {
 
   private static Map<String, DependencyLimit> dependencyBaseline() {
     return Map.ofEntries(
-      dependency("cart", "catalog", 5, 2),
+      dependency("cart", "catalog", 5, 0),
       dependency("cart", "identity", 5, 0),
-      dependency("catalog", "review", 3, 1),
+      dependency("catalog", "review", 1, 0),
       dependency("customer", "cart", 1, 1),
       dependency("customer", "identity", 2, 0),
       dependency("fulfillment", "identity", 2, 0),

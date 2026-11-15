@@ -10,8 +10,8 @@ HTTP、Kafka、RabbitMQ 和 RocketMQ 跨进程追踪。commerce 只保留订单�
 本轮冻结的是审计基线，不是微服务实现：
 
 - 42 张商城表均声明当前唯一责任模块；新增表必须同步声明所有者。
-- 当前存在 41 组跨模块 Java 依赖、118 个导入引用，涉及 38 个源码文件。
-- 其中 21 个引用直接指向其他模块的 `infrastructure`，属于拆分前必须消除的硬阻塞项。
+- 当前存在 41 组跨模块 Java 依赖、113 个导入引用，涉及 37 个源码文件。
+- 其中 18 个引用直接指向其他模块的 `infrastructure`，属于拆分前必须消除的硬阻塞项。
 - 新增的 `MicroserviceReadinessBaselineTest` 允许依赖减少，但禁止出现未经评审的新依赖方向、引用数量增长、
   跨模块基础设施引用增长或未声明所有者的新表。
 
@@ -42,9 +42,9 @@ HTTP、Kafka、RabbitMQ 和 RocketMQ 跨进程追踪。commerce 只保留订单�
 | 指标 | 当前值 |
 | --- | ---: |
 | 跨模块依赖方向 | 41 |
-| 跨模块 import 引用 | 118 |
-| 涉及源码文件 | 38 |
-| 指向其他模块 `infrastructure` 的引用 | 21 |
+| 跨模块 import 引用 | 113 |
+| 涉及源码文件 | 37 |
+| 指向其他模块 `infrastructure` 的引用 | 18 |
 
 引用最多的方向为 `ordering -> payment`（16）、`refund -> payment`（8）、
 `fulfillment -> ordering`（7）、`cart -> catalog`（5）、`cart -> identity`（5）和
@@ -54,9 +54,7 @@ HTTP、Kafka、RabbitMQ 和 RocketMQ 跨进程追踪。commerce 只保留订单�
 
 当前跨模块 Mapper/基础设施依赖集中在以下边界：
 
-- `cart -> catalog`：购物车和早期订单服务直接使用 `ProductMapper`。
 - `customer -> cart`：地址删除规则直接查询 `CartMapper`。
-- `catalog -> review`：商品目录直接使用 `ReviewMapper` 计算评价摘要。
 - `ordering -> cart/payment/refund/scheduling`：下单、取消和支付编排直接访问四个模块的 Mapper。
 - `payment -> ordering`：支付回调直接使用 `ShopOrderMapper`。
 - `refund -> payment/ordering`：退款直接使用支付签名与订单 Mapper。
@@ -75,9 +73,9 @@ inbound/outbound port。
 
 拆分前优先固化以下应用接口：
 
-1. notification：V1 契约、独立 Inbox、异步恢复、投影窗口、独立运行 Schema 和可逆切换均已完成；
-   下一步仅在单独授权后启动 notification-service 影子进程，并继续保留单体回退。
-2. catalog/inventory：商品资料查询与库存预占/转正/释放分离，明确 `products` 中库存列的迁移归属。
+1. notification：单一所有权切换已完成，独立服务是唯一通知读写实现，commerce 只保留 Outbox 和身份薄代理。
+2. catalog/inventory：首批已消除 cart 对 ProductMapper、catalog 对 ReviewMapper 的直接依赖；下一步分离商品
+   资料与库存预占/转正/释放，明确 `products` 中库存列的迁移归属和跨库 join 消除方案。
 3. ordering：订单状态查询、条件迁移和订单快照接口，不暴露 `ShopOrderMapper` 或跨服务行锁。
 4. payment/refund：支付结果、退款请求及回调投影使用版本化命令/事件，不跨模块更新支付记录。
 5. fulfillment/logistics/receipt：以履约命令和状态事件连接，保留重复、迟到和乱序保护。
@@ -136,9 +134,9 @@ taskId 查询到同一 Trace 的 publish/process Span，并验证 Tempo 停机�
 - [x] HTTP 与 Kafka 已具备可查询的跨进程 Trace、日志关联和追踪后端故障降级证据。
 - [x] RabbitMQ/RocketMQ 已具备真实跨消息 Trace 和追踪后端故障降级证据。
 
-M3.1 条件及 M3.2 本地追踪准入门禁均已满足，notification-service 影子进程已在单独授权后创建并完成
-双平台实时消费、停机恢复和跨进程 Trace 验收。这仍不代表客户读流量已迁出、单体路径可删除或具备
-生产级可观测性；下一门禁是独立 API、一次性数据交接、公开入口切换和单体通知读写实现删除。
+M3.2 已完成 notification 单一所有权切换：独立服务承接客户读写，commerce 只保留事务 Outbox 和身份薄
+代理。M3.3 catalog 首批进一步消除 cart 对 ProductMapper、catalog 对 ReviewMapper 的直接依赖；商品资料与
+库存数量的物理分离、跨库 join 消除和独立服务切换仍是后续门禁。
 
 ## 8. 自动基线
 
@@ -148,5 +146,5 @@ M3.1 条件及 M3.2 本地追踪准入门禁均已满足，notification-service 
 - 从商城 Flyway 迁移读取 `CREATE TABLE`，当前 42 张表的任何新增/移除都必须同步评审所有权；独立
   notification Schema 的迁移目录单独演练，不混入商城表所有权计数。
 - 从 Java package/import 读取跨模块依赖；现有依赖可减少，不允许未经评审增加方向、引用或基础设施耦合。
-- 当前基线为 41 组方向、118 个 import、38 个涉及文件和 21 个基础设施引用；基线不是白名单式“合格证明”，
+- 当前基线为 41 组方向、113 个 import、37 个涉及文件和 18 个基础设施引用；基线不是白名单式“合格证明”，
   已记录的基础设施耦合仍是待消减债务。

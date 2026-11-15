@@ -114,6 +114,10 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   fulfillment 尚未拆分。PostgreSQL 专项必须等 M3 清单中的全部服务完成单一所有权切换并验收后才允许
   启动；后续新增待拆服务也必须先完成。M3.1 初始审计盘点了 37 张表、40 组跨模块依赖方向、
   Outbox/Inbox、消费者契约和追踪缺口，并以 2 项 Maven 基线测试阻止所有权和依赖债务继续增长。
+- M3.3 catalog 准入首批已建立 `CatalogProductLookup`、`CatalogCacheInvalidator` 和
+  `ProductReviewCatalogQuery` 应用边界；cart/order 不再注入 `ProductMapper`，catalog 不再注入
+  `ReviewMapper`。跨模块基线由 41/118/38/21 降至 41/113/37/18，相关 infrastructure 引用上限收紧为 0。
+  Java 25 正式镜像 29 项测试和 Windows/Bash 快速回归通过；尚未创建 catalog-service、独立 Schema 或迁移数据。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。
