@@ -30,7 +30,8 @@ for url in \
   http://localhost:18081/actuator/health \
   http://localhost:18082/actuator/health \
   http://localhost:18083/actuator/health \
-  http://localhost:18086/actuator/health;do
+  http://localhost:18086/actuator/health \
+  http://localhost:18087/actuator/health;do
   [[ "$(curl -fsS "$url"|jq -r .status)" == UP ]]||{ echo "Health check failed: $url" >&2;exit 1; }
 done
 summary='Quick regression passed: code quality, contracts, build/start, auth/i18n, cancellation, payment race, '

@@ -467,8 +467,31 @@ commerce 内实现，通过稳定边界为下一批整体切换做准备。
 - [x] Java 25 正式镜像 32 项测试、Windows/Bash V1→V29 与 V16→V29 隔离升级、真实 Docker V1 API、
   Windows/Bash 快速回归和质量/脚本契约审计通过。
 - [x] 文档收口并独立提交推送。
-- [ ] 下一批创建独立 catalog-service/MySQL Schema，完成一次性迁移、调用方整体切换、停机/恢复和
+- [x] 下一批创建独立 catalog-service/MySQL Schema，完成一次性迁移、调用方整体切换、停机/恢复和
   跨进程 Trace 验收；验收后删除 commerce catalog Mapper/表访问，不保留 LOCAL/COMPARE 或数据库回退。
+
+### 13.12 M3.3 第四批：catalog 单一所有权切换
+
+本批只保留一套独立微服务实现：`catalog-service` 与 `catalog-db` 是商品资料、翻译、业务版本和 catalog
+Outbox 的唯一运行所有者；commerce 仅保留公开 API、Session/RBAC、评价组合和签名 HTTP 薄代理。commerce
+数据库中的 V1–V29 历史表不改写，供 Git 级回退核对，但没有运行时 Mapper、双读、双写或数据库回退。
+
+- [x] 新增按 `api/application/domain/infrastructure` 子目录分层的独立 Spring Boot 服务、MySQL/Flyway Schema、
+  MyBatis 持久化、商家乐观锁写入和同事务 catalog Outbox；内部 API 只接受 commerce-service 的 HMAC 请求。
+- [x] commerce 的列表、详情、购物车/轻量订单商品快照、商家维护整体切到 2 秒连接/3 秒读取的签名 HTTP
+  客户端；404/409 保持原语义，其余连接失败稳定返回 `503/CATALOG_SERVICE_UNAVAILABLE`。
+- [x] 删除 commerce 的 Product/Translation Mapper、XML、catalog Outbox 写入、过渡事件与 inventory 同步投影；
+  公开目录继续由 commerce 组合 review，自主服务不读取 review 或 identity 数据库。
+- [x] 一次性迁移要求 commerce Flyway 至少 V29，复制 6 条商品、6 条翻译和已有 Outbox，以计数和 CRC32
+  XOR 指纹核对后写 `catalog-v29-single-owner=COMPLETE`；重复运行只读 COMPLETE 并拒绝覆盖新库。
+- [x] 真实 Docker 非破坏切换完成；首次演练发现 mysqldump 字符集问题时门禁写 FAILED 并阻止切换，清理仅限
+  可从源库恢复的失败目标行，补 `utf8mb4` 后计数/指纹一致并完成切换，未删除任何命名卷。
+- [x] catalog 4 项、commerce 29 项 Java 25 镜像测试通过；Windows 运行门禁验证中英文代理、重复迁移、
+  catalog 停机稳定 503 与 commerce 健康隔离；Trace `c04f5e90fb3e4162b28968ffc6b78b4b` 同时包含
+  `commerce-service` 和 `catalog-service`。
+- [x] 完成 Windows/Bash 快速回归、304 个 Java 类声明空行/294 个 Java 文件质量审计、42 对脚本契约审计、
+  文档收口和本批独立提交推送。
+- [ ] 下一批只启动 inventory-service 准入评审与边界治理；不同时拆 inventory，不启动 PostgreSQL。
 
 ## 14. 实施记录模板
 

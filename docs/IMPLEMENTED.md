@@ -110,7 +110,7 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   运行态 i18n/权限专项已验证；支付 Web 的 24 个基线文件完成机械格式化，格式检查、无用例 Vitest、
   TypeScript/Vite 生产构建、正式镜像和 `14201/healthz`/Vue 入口运行态已验证。
 - 新空卷验收已通过：Flyway 商城/支付/物流为 V24/V4/V5，完成登录→下单→支付→履约→物流→收货→完成→评价；Windows 快速回归同时通过。
-- notification-service 已完成首个独立边界切换；catalog、inventory、order、payment-orchestration、
+- notification-service 与 catalog-service 已完成独立边界切换；inventory、order、payment-orchestration、
   fulfillment 尚未拆分。PostgreSQL 专项必须等 M3 清单中的全部服务完成单一所有权切换并验收后才允许
   启动；后续新增待拆服务也必须先完成。M3.1 初始审计盘点了 37 张表、40 组跨模块依赖方向、
   Outbox/Inbox、消费者契约和追踪缺口，并以 2 项 Maven 基线测试阻止所有权和依赖债务继续增长。
@@ -126,6 +126,10 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   契约；expectedVersion 冲突返回稳定错误，写事务同时保存 catalog Outbox 并同步 inventory 展示快照。
   五类事件 V1、fixture、eventId 去重与 businessVersion 乱序/缺口规则已冻结。Java 25 正式镜像 32 项测试、
   双平台生命周期/快速回归和真实 Docker V1 查询通过；创建 API、独立 catalog-service/Schema 尚未启动。
+- M3.3 第四批新增独立 catalog-service/catalog-db、HMAC 内部 API、2 秒连接/3 秒读取的 commerce HTTP
+  代理和一次性 V29 数据交接。6 条商品与 6 条翻译通过计数/内容指纹后标记 COMPLETE，重复迁移拒绝覆盖；
+  commerce 已删除 catalog Mapper/XML/Outbox 写入和过渡投影。catalog 停机返回稳定 503 且 commerce
+  健康隔离，commerce→catalog 跨进程 Trace 已验证；inventory-service 与 PostgreSQL 继续冻结。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

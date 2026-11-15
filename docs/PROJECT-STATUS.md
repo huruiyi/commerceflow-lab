@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.3 第三批 catalog V1 API、事件契约与失败语义已完成并独立提交推送 |
-| 下一候选阶段 | M3.3 第四批：独立 catalog-service/MySQL Schema 一次性迁移与单一所有权切换 |
+| 当前阶段 | M3.3 第四批 catalog-service/MySQL 单一所有权切换及双平台总回归已完成并独立提交推送 |
+| 下一候选阶段 | inventory-service 准入评审与边界治理；本批不直接启动拆分 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -32,7 +32,7 @@
 | Angular/Vue 界面 | Angular 主流程和订单页视觉收尾已实现 | 订单详情与支付信息已扁平化，商品图有失败回退；通知菜单使用中性列表和细滚动条，支持外部点击、`Esc`、关闭按钮和选择通知后关闭；语言切换使用图标；导航与 1480 px 正文容器对齐，桌面与 390 px 窄屏已验收 |
 | Flyway 数据库生命周期 | 空卷和迁移层已验收 | 当前商城库 V29；notification 独立 Schema V1→V3 已隔离及实际运行验收 |
 | notification 独立服务 | 单一所有权切换已实现 | 默认拓扑启动独立 MySQL/Kafka 服务；commerce 仅签名代理，故障稳定返回 503，无本地数据库回退 |
-| catalog 拆分准入 | 第三批 V1 契约已实现 | 查询/批量快照/商家维护、业务版本、五类事件及 Outbox 已冻结；独立服务和独立数据库尚未启动 |
+| catalog 拆分准入 | 单一所有权已切换 | catalog-service/catalog-db 独占资料、翻译、版本和 Outbox；commerce 只保留鉴权、签名代理与 review 组合 |
 | 告警与监控 | 本地端到端管道已实现 | 三服务 Prometheus 抓取、10 条规则、Alertmanager、Grafana 数据源和可替换 Webhook；真实通知供应商与高可用部署不在本地学习验收内 |
 
 ## 3. M1 冻结结论
@@ -248,3 +248,11 @@ expectedVersion，成功后 businessVersion 加一，并在同一事务写 catal
 当前商城所有权基线为 44 张表，依赖基线仍为 41/113/37/18；HTTP 为 20 个 Controller、66 个操作。
 Java 25 正式镜像 32 项测试、双平台 V1→V29/V16→V29 生命周期及快速回归通过；真实 Docker V1 中文详情、
 批量快照和 6 条商家目录已验证。catalog-service、独立数据库、inventory-service 与 PostgreSQL 均未启动。
+
+第四批已创建独立 `catalog-service` 和 `catalog-db`，按 api/application/domain/infrastructure 分层承接商品
+资料、翻译、业务版本和 catalog Outbox。一次性迁移以 commerce V29 为源门槛，复制 6 条商品、6 条翻译和
+既有 Outbox，计数与内容指纹一致后写入 `catalog-v29-single-owner=COMPLETE`；重复运行只读取 COMPLETE，
+不会用陈旧 commerce 表覆盖独立库。首次真实演练的字符集差异被 FAILED 门禁阻止，补齐 utf8mb4 后完成，
+未删除命名卷。commerce 已删除 catalog Mapper/XML/本地写路径与 shared 过渡投影，只通过 HMAC HTTP 访问；
+catalog 停机稳定返回 503，commerce 核心健康保持 UP，跨进程 Trace 同时出现 commerce-service 与
+catalog-service。inventory-service 与 PostgreSQL 均未启动。

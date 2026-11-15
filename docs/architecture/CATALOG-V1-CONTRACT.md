@@ -2,8 +2,8 @@
 
 ## 1. 适用范围
 
-本契约是 commerce 模块化单体切换到独立 catalog-service 时保持不变的边界。当前实现仍运行于
-commerce-service 与 MySQL；它不是第二套实现，也不代表 catalog-service 或 catalog-db 已启动。
+本契约由独立 catalog-service 与 catalog-db 单一实现。外部路径仍由 commerce 提供，commerce 完成身份鉴权、
+签名转发和 review 组合；内部 `/internal/v1/**` 只接受 commerce-service 的 HMAC 请求。
 
 ## 2. 查询 API
 
@@ -46,7 +46,8 @@ commerce-service 与 MySQL；它不是第二套实现，也不代表 catalog-ser
 
 信封固定包含 `schemaVersion`、UUID `eventId`、`eventType`、`occurredAt`、productId、merchantId、
 `businessVersion`、商品状态/快照、可选 locale、correlationId 和 causationId。fixture 位于
-`services/commerce-service/src/test/resources/contracts/catalog-product-profile-updated-v1.json`。
+事件 JSON 由 catalog-service 的同事务 Outbox 保存；兼容 fixture 位于
+`services/catalog-service/src/test/resources/contracts/catalog-product-profile-updated-v1.json`。
 
 ## 5. 重复、乱序和失败语义
 
@@ -61,8 +62,7 @@ Outbox 状态固定为 `NEW → RETRY → PUBLISHED`，超过有限次数进入 
 productId 重读 businessVersion，不能盲目重放。服务不可用时返回稳定 503，commerce 不回退本地 Mapper，
 不建立 LOCAL/COMPARE、长期双读或双写。
 
-## 6. 模块化单体过渡行为
+## 6. 切换后行为
 
-profile/price 更新在提交前通过 shared 过渡事件同步 inventory 的展示快照，失败则整个事务回滚；catalog
-事件 Outbox 与商品版本也不会单独提交。独立服务切换时，该同步事件由 catalog V1 事件消费者替代并删除，
-inventory 的数量所有权不回流 catalog。
+commerce 不再写 catalog 表，也不通过 shared 过渡事件同步 inventory。inventory 继续独占数量及其必要商品
+快照；后续在 inventory-service 准入评审中单独实现 catalog V1 事件消费，不把数量所有权回流 catalog。

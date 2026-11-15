@@ -34,6 +34,23 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  catalog-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: catalog
+      MYSQL_USER: ${CATALOG_DATABASE_USERNAME:-catalog}
+      MYSQL_PASSWORD: ${CATALOG_DATABASE_PASSWORD:-catalog-password}
+      MYSQL_ROOT_PASSWORD: ${CATALOG_MYSQL_ROOT_PASSWORD:-local-catalog-root-password}
+    volumes:
+      - catalog-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
   commerce-redis:
     image: redis:7.4-alpine
     command: ["redis-server", "--appendonly", "yes"]
@@ -442,6 +459,8 @@ services:
       NOTIFICATION_PUBLISH_DELAY: ${NOTIFICATION_PUBLISH_DELAY:-1s}
       NOTIFICATION_SERVICE_BASE_URL: http://notification-service:8080
       NOTIFICATION_INTERNAL_SECRET: ${NOTIFICATION_INTERNAL_SECRET:-demo-notification-internal-secret}
+      CATALOG_SERVICE_BASE_URL: http://catalog-service:8080
+      CATALOG_INTERNAL_SECRET: ${CATALOG_INTERNAL_SECRET:-demo-catalog-internal-secret}
       SCHEDULING_POOL_SIZE: ${SCHEDULING_POOL_SIZE:-4}
       RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq-broker}
       RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
@@ -502,6 +521,8 @@ services:
         condition: service_healthy
       notification-service:
         condition: service_healthy
+      catalog-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
       interval: 5s
@@ -539,6 +560,47 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  catalog-service:
+    build:
+      context: ./services/catalog-service
+    environment:
+      DATABASE_URL: jdbc:mysql://catalog-db:3306/catalog?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DATABASE_USERNAME: ${CATALOG_DATABASE_USERNAME:-catalog}
+      DATABASE_PASSWORD: ${CATALOG_DATABASE_PASSWORD:-catalog-password}
+      CATALOG_INTERNAL_SECRET: ${CATALOG_INTERNAL_SECRET:-demo-catalog-internal-secret}
+      TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
+      TRACING_OTLP_ENDPOINT: ${TRACING_OTLP_ENDPOINT:-http://tempo:4318/v1/traces}
+      TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1.0}
+    ports:
+      - "18087:8080"
+    depends_on:
+      catalog-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
+  catalog-data-migrator:
+    image: mysql:8.4
+    entrypoint: ["sh", "/migration/migrate-catalog-data.sh"]
+    environment:
+      SOURCE_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
+      TARGET_ROOT_PASSWORD: ${CATALOG_MYSQL_ROOT_PASSWORD:-local-catalog-root-password}
+    volumes:
+      - ./infrastructure/catalog/migrate-catalog-data.sh:/migration/migrate-catalog-data.sh:ro
+    depends_on:
+      commerce-db:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+      commerce-service:
+        condition: service_started
+    restart: "no"
+
   commerce-portal-angular:
     build:
       context: ./web/commerce-portal/angular
@@ -547,6 +609,8 @@ services:
     depends_on:
       commerce-service:
         condition: service_healthy
+      catalog-data-migrator:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
       interval: 5s
@@ -558,6 +622,7 @@ services:
 volumes:
   commerce-db-data:
   notification-db-data:
+  catalog-db-data:
   commerce-redis-data:
   payment-simulator-db-data:
   payment-simulator-redis-data:

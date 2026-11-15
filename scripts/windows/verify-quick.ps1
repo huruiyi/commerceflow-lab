@@ -39,6 +39,7 @@ $healthUrls=@(
   'http://localhost:18082/actuator/health',
   'http://localhost:18083/actuator/health'
   'http://localhost:18086/actuator/health'
+  'http://localhost:18087/actuator/health'
 )
 foreach($url in $healthUrls){
   $health=Invoke-RestMethod $url

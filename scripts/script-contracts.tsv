@@ -4,6 +4,7 @@ verify-all	BaseUrl,SkipBuild	@base-url,@skip-build
 verify-authorization	BaseUrl	BASE_URL=1
 verify-auto-lifecycle	BaseUrl	BASE_URL=1
 verify-auto-lifecycle-mq-failures	BaseUrl,MaxWaitSeconds	BASE_URL=1,MAX_WAIT_SECONDS=2
+verify-catalog-runtime-cutover	BaseUrl,MaxWaitSeconds	BASE_URL=1,MAX_WAIT_SECONDS=2
 verify-flyway-lifecycle	MaxWaitSeconds	MAX_WAIT=1
 verify-notification-schema-split	MaxWaitSeconds	MAX_WAIT=1
 verify-notification-runtime-cutover	BaseUrl,MaxWaitSeconds	BASE_URL=1,MAX_WAIT_SECONDS=2

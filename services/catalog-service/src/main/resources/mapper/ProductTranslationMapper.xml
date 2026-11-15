@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.catalog.infrastructure.persistence.ProductTranslationMapper">
+  <insert id="upsert">
+    INSERT INTO product_translations(product_id,locale,name,brief,description)
+    VALUES (#{productId},#{locale},#{name},#{brief},#{description})
+    ON DUPLICATE KEY UPDATE name=#{name},brief=#{brief},description=#{description}
+  </insert>
+</mapper>

@@ -1,6 +1,5 @@
 package vip.fairy.commerceflow.commerce.inventory.application;
 
-import vip.fairy.commerceflow.commerce.catalog.domain.Product;
 import vip.fairy.commerceflow.commerce.inventory.domain.ProductInventory;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandPublisher;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;

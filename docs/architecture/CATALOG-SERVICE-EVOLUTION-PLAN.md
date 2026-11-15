@@ -1,8 +1,8 @@
 # catalog-service 单一所有权演进计划
 
-> 实施状态（2026-11-15）：M3.3 前三批已完成应用边界治理、catalog/inventory 物理表责任分离、商品快照
-> 固化、V1 API/事件契约和双平台回归；尚未创建 catalog-service 或独立数据库。
-> 当前继续由 commerce-service 和 MySQL 承载商品目录，PostgreSQL 仍处于全服务拆分完成后的冻结阶段。
+> 实施状态（2026-11-16）：M3.3 第四批已完成独立 catalog-service/catalog-db 的一次性迁移和单一所有权
+> 切换。commerce 只保留签名 HTTP 薄代理与 review 组合；没有 LOCAL/COMPARE、双写或数据库回退。
+> 当前仍使用 MySQL，PostgreSQL 继续冻结到 M3 清单全部服务独立验收之后。
 
 ## 1. 目标边界
 
@@ -14,14 +14,13 @@ catalog-service 最终只负责商品主数据、标准售价、展示图片、�
 - inventory 独占可售、预占、已售数量和库存流水；
 - review 独占评价明细，目录需要的评分摘要通过应用查询契约或事件投影获得。
 
-## 2. 当前状态与剩余阻塞
+## 2. 当前状态
 
 1. V28 已把数量和必要商品快照迁入 inventory 自有 `product_inventory`，`products` 不再保存库存列。
 2. cart/customer order 已持久化名称、图片和单价快照，结算锁定、订单读取和商家库存查询不再 join
    `products`；现有跨库 join 阻塞已解除。
-3. `products.merchant_id` 仅保留稳定标识，已删除指向 identity 的数据库外键；独立服务仍需冻结授权契约。
-4. 旧公开商品列表仍同步组合 review 摘要；V1 服务契约已主动排除评价结构，独立切换时需决定由网关组合还是
-   单独查询 review，不允许 catalog-service 访问 review 数据库。
+3. `products.merchant_id` 仅保留稳定标识；commerce 完成 Session/RBAC 后把 merchantId 作为签名内部请求头传递。
+4. 公开商品列表由 commerce 调 catalog V1 后组合本地 review 摘要；catalog-service 不访问 review 数据库。
 5. `customer_orders` 的快照完整性已满足切换要求，但该早期轻量订单模型仍需明确长期保留或退役策略。
 
 ## 3. M3.3 第一批：应用边界治理
@@ -54,18 +53,16 @@ catalog-service 最终只负责商品主数据、标准售价、展示图片、�
 - 已固定 eventId、schemaVersion、occurredAt、correlationId、causationId 和 businessVersion；
 - 已明确 expectedVersion 冲突、缓存失效、eventId 去重、旧事件忽略和版本缺口重试语义，并增加 fixture。
 
-### 4.3 单一所有权切换
+### 4.3 单一所有权切换（已完成）
 
-- 创建独立 catalog-service 和独立 MySQL Schema；
-- 执行一次性数据迁移、数量核对和调用方切换；
-- 切换完成后删除 commerce 的 catalog Mapper、表访问和回退路径；
-- 验证中英文目录、购物车、下单快照、商家维护、缓存、停机错误、恢复和跨进程 Trace；
+- 已创建独立 catalog-service 和独立 MySQL Schema；
+- 一次性迁移以 V29、记录数和内容指纹为门禁，并以 COMPLETE 标记禁止陈旧源数据再次覆盖；
+- commerce 已删除 catalog Mapper、XML、Outbox 写入和过渡投影，全部调用改为签名 HTTP；
+- 已验证中英文目录、停机 503、核心健康隔离、恢复和 commerce→catalog 跨进程 Trace；
 - 不建立长期双读、双写或 LOCAL/COMPARE 模式。
 
-## 5. 本阶段明确不做
+## 5. 当前后续边界
 
-- 不启动 catalog-service 或 catalog-db；
-- 不把 `products`、`product_translations` 或库存数据迁入独立服务数据库；
 - 不同时拆 inventory-service；
 - 不引入 PostgreSQL、方言分支、注册中心或 Kubernetes；
 - 不改变商品 API JSON、订单状态机或支付/物流流程。

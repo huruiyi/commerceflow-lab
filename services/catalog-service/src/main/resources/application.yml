@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: catalog-service
+  datasource:
+    url: ${DATABASE_URL:jdbc:mysql://localhost:3308/catalog?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${DATABASE_USERNAME:catalog}
+    password: ${DATABASE_PASSWORD:catalog-password}
+  flyway:
+    baseline-on-migrate: true
+    baseline-version: 0
+
+server:
+  port: 8080
+
+management:
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+    export:
+      otlp:
+        enabled: ${TRACING_EXPORT_ENABLED:false}
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${TRACING_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+          timeout: ${TRACING_EXPORT_TIMEOUT:3s}
+          transport: http
+  otlp:
+    metrics:
+      export:
+        enabled: false
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  pattern:
+    correlation: "[${spring.application.name:},%X{traceId:-},%X{spanId:-}] "
+  include-application-name: false
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+
+commerceflow:
+  internal-api:
+    secret: ${CATALOG_INTERNAL_SECRET:demo-catalog-internal-secret}

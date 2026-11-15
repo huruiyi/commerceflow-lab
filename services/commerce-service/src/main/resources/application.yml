@@ -112,6 +112,10 @@ security:
     validity-seconds: ${REMEMBER_ME_VALIDITY_SECONDS:1209600}
 
 commerceflow:
+  catalog:
+    service:
+      base-url: ${CATALOG_SERVICE_BASE_URL:http://localhost:18087}
+      secret: ${CATALOG_INTERNAL_SECRET:demo-catalog-internal-secret}
   notification:
     delivery:
       topic: ${NOTIFICATION_DELIVERY_TOPIC:customer-notification-commands}
