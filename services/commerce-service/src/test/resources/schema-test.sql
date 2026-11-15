@@ -37,7 +37,29 @@ CREATE TABLE products
   price           DECIMAL(12, 2),
   image_url       VARCHAR(500),
   thumbnail_url   VARCHAR(500),
-  merchant_id     BIGINT
+  merchant_id     BIGINT,
+  lifecycle_status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+  business_version BIGINT NOT NULL DEFAULT 1,
+  updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE catalog_event_outbox
+(
+  id               BIGINT AUTO_INCREMENT PRIMARY KEY,
+  event_id         VARCHAR(100) NOT NULL UNIQUE,
+  event_type       VARCHAR(50) NOT NULL,
+  aggregate_id     BIGINT NOT NULL,
+  schema_version   INT NOT NULL,
+  business_version BIGINT NOT NULL,
+  occurred_at      TIMESTAMP NOT NULL,
+  correlation_id   VARCHAR(100) NOT NULL,
+  causation_id     VARCHAR(100) NOT NULL,
+  payload          CLOB NOT NULL,
+  status           VARCHAR(20) NOT NULL DEFAULT 'NEW',
+  attempts         INT NOT NULL DEFAULT 0,
+  next_attempt_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_error       VARCHAR(500),
+  created_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  published_at     TIMESTAMP
 );
 CREATE TABLE product_inventory
 (

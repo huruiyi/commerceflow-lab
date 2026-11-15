@@ -64,7 +64,7 @@
 - MySQL + Flyway、Redis/Spring Session、Kafka/Outbox、RabbitMQ 分桶延迟任务、RocketMQ 5.x 原生延时任务 Profile、ShedLock。
 - Angular/Vue 前端、三个 Spring Boot 服务和 Docker Compose。
 - `scripts/windows/` 与 `scripts/linux/` 保留同名验收脚本结构。
-- `verify-flyway-lifecycle` 使用与后端一致的 Flyway `12.4.0` 和隔离 MySQL 8.4，Windows/容器化 Bash 均已验证空库 V1–V28、V16→V28 升级、V17 历史订单 30 分钟截止时间回填、V24 核心注释、V28 catalog/inventory 所有权分离和任务状态 `CHECK` 约束。脚本只删除自己的随机命名容器/网络，不使用或清空开发数据卷。
+- `verify-flyway-lifecycle` 使用与后端一致的 Flyway `12.4.0` 和隔离 MySQL 8.4，Windows/容器化 Bash 均已验证空库 V1–V29、V16→V29 升级、V17 历史订单 30 分钟截止时间回填、V24 核心注释、V28 catalog/inventory 所有权分离、V29 catalog 版本/Outbox 元数据和任务状态 `CHECK` 约束。脚本只删除自己的随机命名容器/网络，不使用或清空开发数据卷。
 
 ## 7. 通用定时任务底座（阶段 1）
 
@@ -122,6 +122,10 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   cart/customer order 固化创建时商品快照，库存、购物车、结算和订单读取不再跨边界 join `products`。
   现有库 6 条库存记录及 642/1/65 数量总和保持不变，空库/旧库双平台升级门禁通过；仍未创建 catalog-service、
   inventory-service 或独立数据库，PostgreSQL 继续冻结。
+- M3.3 第三批以 V29 和分层 `api/v1`、`api/merchant` 固定列表、详情、批量快照、商家资料/价格/状态/翻译
+  契约；expectedVersion 冲突返回稳定错误，写事务同时保存 catalog Outbox 并同步 inventory 展示快照。
+  五类事件 V1、fixture、eventId 去重与 businessVersion 乱序/缺口规则已冻结。Java 25 正式镜像 32 项测试、
+  双平台生命周期/快速回归和真实 Docker V1 查询通过；创建 API、独立 catalog-service/Schema 尚未启动。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

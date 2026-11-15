@@ -1,7 +1,7 @@
 # catalog-service 单一所有权演进计划
 
-> 实施状态（2026-11-15）：M3.3 前两批已完成应用边界治理、catalog/inventory 物理表责任分离、商品快照
-> 固化和双平台回归；尚未创建 catalog-service 或独立数据库。
+> 实施状态（2026-11-15）：M3.3 前三批已完成应用边界治理、catalog/inventory 物理表责任分离、商品快照
+> 固化、V1 API/事件契约和双平台回归；尚未创建 catalog-service 或独立数据库。
 > 当前继续由 commerce-service 和 MySQL 承载商品目录，PostgreSQL 仍处于全服务拆分完成后的冻结阶段。
 
 ## 1. 目标边界
@@ -20,7 +20,8 @@ catalog-service 最终只负责商品主数据、标准售价、展示图片、�
 2. cart/customer order 已持久化名称、图片和单价快照，结算锁定、订单读取和商家库存查询不再 join
    `products`；现有跨库 join 阻塞已解除。
 3. `products.merchant_id` 仅保留稳定标识，已删除指向 identity 的数据库外键；独立服务仍需冻结授权契约。
-4. 商品列表仍同步组合 review 摘要；虽然 Mapper 直连已消除，远程查询/事件投影和缓存失效契约尚未冻结。
+4. 旧公开商品列表仍同步组合 review 摘要；V1 服务契约已主动排除评价结构，独立切换时需决定由网关组合还是
+   单独查询 review，不允许 catalog-service 访问 review 数据库。
 5. `customer_orders` 的快照完整性已满足切换要求，但该早期轻量订单模型仍需明确长期保留或退役策略。
 
 ## 3. M3.3 第一批：应用边界治理
@@ -46,12 +47,12 @@ catalog-service 最终只负责商品主数据、标准售价、展示图片、�
 - cart/customer order 保存创建时商品快照，ordering 已使用订单项快照，运行查询不再跨边界 join 商品表。
 - `customer_orders` 暂时保留；其退役决策不再阻塞 catalog 数据切换，但必须在独立服务切换前记录。
 
-### 4.2 V1 契约与失败语义
+### 4.2 V1 契约与失败语义（已完成）
 
-- 冻结列表、详情、批量快照和商家维护 V1 API；
-- 定义商品创建、资料更新、价格变化、上下架和翻译更新事件；
-- 固定 eventId、版本、occurredAt、correlationId、causationId 和业务版本；
-- 明确超时、重试、缓存失效、重复和乱序语义，并增加消费者契约 fixture。
+- 已冻结列表、详情、批量快照和商家资料/价格/状态/翻译维护 V1 API；
+- 已定义商品创建、资料更新、价格变化、状态变化和翻译更新事件；创建入口等待 inventory 初始化命令；
+- 已固定 eventId、schemaVersion、occurredAt、correlationId、causationId 和 businessVersion；
+- 已明确 expectedVersion 冲突、缓存失效、eventId 去重、旧事件忽略和版本缺口重试语义，并增加 fixture。
 
 ### 4.3 单一所有权切换
 

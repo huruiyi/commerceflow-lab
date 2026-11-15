@@ -1,6 +1,7 @@
 package vip.fairy.commerceflow.commerce.shared.api;
 
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
+import vip.fairy.commerceflow.commerce.shared.application.OptimisticVersionConflictException;
 import vip.fairy.commerceflow.commerce.identity.application.LoginRateLimitException;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import vip.fairy.commerceflow.commerce.shared.application.ExternalServiceUnavailableException;
@@ -31,6 +32,13 @@ public class ApiExceptionHandler {
   @ExceptionHandler(BusinessRuleException.class)
   ResponseEntity<Map<String, Object>> businessRule(BusinessRuleException exception) {
     return response(HttpStatus.CONFLICT, "BUSINESS_RULE", exception.getMessage());
+  }
+
+  @ExceptionHandler(OptimisticVersionConflictException.class)
+  ResponseEntity<Map<String, Object>> optimisticVersionConflict(
+    OptimisticVersionConflictException exception
+  ) {
+    return response(HttpStatus.CONFLICT, exception.errorCode(), exception.getMessage());
   }
 
   @ExceptionHandler(TransientDataAccessException.class)

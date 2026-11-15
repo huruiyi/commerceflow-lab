@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 /**
  * 商品主数据持久化实体，记录展示信息与标准售价。
@@ -45,6 +46,18 @@ public class Product {
    * 当前商品所属商家的稳定内部标识；服务化后不依赖 identity 数据库外键。
    */
   private Long merchantId;
+  /**
+   * 商品对外可见状态；当前只允许 ACTIVE 与 INACTIVE。
+   */
+  private String lifecycleStatus;
+  /**
+   * 商家维护使用的乐观并发版本，也是商品事件的业务版本。
+   */
+  private long businessVersion;
+  /**
+   * 商品主数据最后更新时间。
+   */
+  private Instant updatedAt;
 
   protected Product() {
   }
@@ -89,5 +102,17 @@ public class Product {
 
   public Long getMerchantId() {
     return merchantId;
+  }
+
+  public String getLifecycleStatus() {
+    return lifecycleStatus;
+  }
+
+  public long getBusinessVersion() {
+    return businessVersion;
+  }
+
+  public Instant getUpdatedAt() {
+    return updatedAt;
   }
 }

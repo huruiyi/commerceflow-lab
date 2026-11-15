@@ -243,6 +243,85 @@ class CommerceFlowIntegrationTest {
   }
 
   @Test
+  void catalogV1SupportsSnapshotsMerchantVersioningEventsAndVisibility() throws Exception {
+    CsrfContext merchant = login("merchant@example.com", false);
+    long productId = 1L;
+    long initialVersion = jdbc.queryForObject(
+      "SELECT business_version FROM products WHERE id=?", Long.class, productId);
+
+    mvc.perform(get("/api/catalog/v1/products/{id}", productId).session(merchant.session()))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.schemaVersion").value(1))
+      .andExpect(jsonPath("$.businessVersion").value(initialVersion));
+    mvc.perform(post("/api/catalog/v1/products/snapshots")
+        .session(merchant.session()).cookie(merchant.cookie())
+        .header("X-XSRF-TOKEN", merchant.token()).contentType("application/json")
+        .content("{\"productIds\":[1,1]}"))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.length()").value(1))
+      .andExpect(jsonPath("$[0].productId").value(1));
+
+    mvc.perform(put("/api/merchant/catalog/v1/products/{id}/price", productId)
+        .session(merchant.session()).cookie(merchant.cookie())
+        .header("X-XSRF-TOKEN", merchant.token())
+        .header("X-Correlation-Id", "catalog-contract-test")
+        .header("X-Causation-Id", "merchant-price-test")
+        .contentType("application/json")
+        .content("{\"expectedVersion\":" + initialVersion + ",\"unitPrice\":99.99}"))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.businessVersion").value(initialVersion + 1))
+      .andExpect(jsonPath("$.unitPrice").value(99.99));
+    org.junit.jupiter.api.Assertions.assertEquals("99.99", jdbc.queryForObject(
+      "SELECT CAST(unit_price AS VARCHAR) FROM product_inventory WHERE product_id=?",
+      String.class, productId));
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+      "SELECT COUNT(*) FROM catalog_event_outbox WHERE aggregate_id=? "
+        + "AND event_type='PRODUCT_PRICE_CHANGED' AND business_version=? "
+        + "AND correlation_id='catalog-contract-test' AND causation_id='merchant-price-test'",
+      Integer.class, productId, initialVersion + 1));
+
+    mvc.perform(put("/api/merchant/catalog/v1/products/{id}/price", productId)
+        .session(merchant.session()).cookie(merchant.cookie())
+        .header("X-XSRF-TOKEN", merchant.token()).contentType("application/json")
+        .content("{\"expectedVersion\":" + initialVersion + ",\"unitPrice\":88.88}"))
+      .andExpect(status().isConflict())
+      .andExpect(jsonPath("$.code").value("CATALOG_VERSION_CONFLICT"));
+
+    mvc.perform(put("/api/merchant/catalog/v1/products/{id}/translations/{locale}", productId, "zh-CN")
+        .session(merchant.session()).cookie(merchant.cookie())
+        .header("X-XSRF-TOKEN", merchant.token()).contentType("application/json")
+        .content("{\"expectedVersion\":" + (initialVersion + 1)
+          + ",\"name\":\"学习笔记本电脑\",\"brief\":\"适合编程实验的实用笔记本电脑\""
+          + ",\"description\":\"用于 Java、Angular 和 Docker 学习的工作站。\"}"))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.businessVersion").value(initialVersion + 2));
+    org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+      "SELECT COUNT(*) FROM catalog_event_outbox WHERE aggregate_id=? "
+        + "AND event_type='PRODUCT_TRANSLATION_UPDATED' AND business_version=?",
+      Integer.class, productId, initialVersion + 2));
+
+    mvc.perform(put("/api/merchant/catalog/v1/products/{id}/status", productId)
+        .session(merchant.session()).cookie(merchant.cookie())
+        .header("X-XSRF-TOKEN", merchant.token()).contentType("application/json")
+        .content("{\"expectedVersion\":" + (initialVersion + 2) + ",\"status\":\"INACTIVE\"}"))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.lifecycleStatus").value("INACTIVE"));
+    mvc.perform(get("/api/products/{id}", productId)).andExpect(status().isNotFound());
+    mvc.perform(put("/api/merchant/catalog/v1/products/{id}/status", productId)
+        .session(merchant.session()).cookie(merchant.cookie())
+        .header("X-XSRF-TOKEN", merchant.token()).contentType("application/json")
+        .content("{\"expectedVersion\":" + (initialVersion + 3) + ",\"status\":\"ACTIVE\"}"))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.lifecycleStatus").value("ACTIVE"));
+    mvc.perform(put("/api/merchant/catalog/v1/products/{id}/price", productId)
+        .session(merchant.session()).cookie(merchant.cookie())
+        .header("X-XSRF-TOKEN", merchant.token()).contentType("application/json")
+        .content("{\"expectedVersion\":" + (initialVersion + 4) + ",\"unitPrice\":1299.00}"))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.unitPrice").value(1299.00));
+  }
+
+  @Test
   void customerCartDeduplicationQuantityRemovalAndAuthorizationWork() throws Exception {
     CsrfContext csrf = login("demo@example.com", true);
     Long customerId = jdbc.queryForObject(

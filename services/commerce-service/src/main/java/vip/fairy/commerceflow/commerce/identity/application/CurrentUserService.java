@@ -5,9 +5,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import vip.fairy.commerceflow.commerce.identity.infrastructure.AppUserMapper;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import vip.fairy.commerceflow.commerce.shared.application.CurrentActorIdResolver;
 
 @Service
-public class CurrentUserService {
+public class CurrentUserService implements CurrentActorIdResolver {
 
   private final AppUserMapper users;
 
@@ -27,6 +28,7 @@ public class CurrentUserService {
     return user;
   }
 
+  @Override
   public Long requireId(Authentication authentication) {
     return require(authentication).getId();
   }

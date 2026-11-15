@@ -54,7 +54,9 @@ public class ProductCatalogService implements CatalogProductLookup, CatalogCache
     } catch (Exception ignored) {
     }
     List<ProductResponse> result = products.selectList(
-        new LambdaQueryWrapper<Product>().orderByAsc(Product::getId))
+        new LambdaQueryWrapper<Product>()
+          .eq(Product::getLifecycleStatus, "ACTIVE")
+          .orderByAsc(Product::getId))
       .stream()
       .map(product -> response(product, locale))
       .toList();
@@ -68,7 +70,7 @@ public class ProductCatalogService implements CatalogProductLookup, CatalogCache
   @Override
   public ProductSnapshot require(Long productId) {
     Product product = products.selectById(productId);
-    if (product == null) {
+    if (product == null || !"ACTIVE".equals(product.getLifecycleStatus())) {
       throw new ResourceNotFoundException("Product not found");
     }
     return new ProductSnapshot(
@@ -77,6 +79,17 @@ public class ProductCatalogService implements CatalogProductLookup, CatalogCache
       product.getName(),
       product.getPrice(),
       product.getThumbnailUrl());
+  }
+
+  public ProductResponse detail(Long productId, String requestedLocale) {
+    Product product = products.selectById(productId);
+    if (product == null || !"ACTIVE".equals(product.getLifecycleStatus())) {
+      throw new ResourceNotFoundException("Product not found");
+    }
+    String locale = requestedLocale != null && requestedLocale.toLowerCase().startsWith("zh")
+      ? "zh-CN"
+      : "en";
+    return response(product, locale);
   }
 
   @Override

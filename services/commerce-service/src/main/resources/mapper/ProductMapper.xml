@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.catalog.infrastructure.ProductMapper">
+
+  <select id="selectForMerchant"
+          resultType="vip.fairy.commerceflow.commerce.catalog.domain.Product">
+    SELECT id,name,brief,description,price,image_url,thumbnail_url,merchant_id,
+           lifecycle_status,business_version,updated_at
+    FROM products
+    WHERE merchant_id=#{merchantId}
+    ORDER BY id
+  </select>
+
+  <update id="updateProfile">
+    UPDATE products
+    SET name=#{name},brief=#{brief},description=#{description},image_url=#{imageUrl},
+        thumbnail_url=#{thumbnailUrl},business_version=business_version+1
+    WHERE id=#{productId} AND merchant_id=#{merchantId} AND business_version=#{expectedVersion}
+  </update>
+
+  <update id="updatePrice">
+    UPDATE products
+    SET price=#{price},business_version=business_version+1
+    WHERE id=#{productId} AND merchant_id=#{merchantId} AND business_version=#{expectedVersion}
+  </update>
+
+  <update id="updateStatus">
+    UPDATE products
+    SET lifecycle_status=#{status},business_version=business_version+1
+    WHERE id=#{productId} AND merchant_id=#{merchantId} AND business_version=#{expectedVersion}
+  </update>
+
+  <update id="advanceVersion">
+    UPDATE products
+    SET business_version=business_version+1
+    WHERE id=#{productId} AND merchant_id=#{merchantId} AND business_version=#{expectedVersion}
+  </update>
+</mapper>

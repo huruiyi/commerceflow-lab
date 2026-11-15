@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.3 第二批 catalog/inventory 数据所有权冻结已完成并独立提交推送 |
-| 下一候选阶段 | M3.3 第三批：冻结 catalog V1 API、商品变更事件和失败语义，再评审独立 catalog-service |
+| 当前阶段 | M3.3 第三批 catalog V1 API、事件契约与失败语义已完成并独立提交推送 |
+| 下一候选阶段 | M3.3 第四批：独立 catalog-service/MySQL Schema 一次性迁移与单一所有权切换 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -30,9 +30,9 @@
 | 收货、自动收货和自动完成 | M1 可靠性门禁已通过 | 重放、重启/租约恢复、RabbitMQ/RocketMQ 停机恢复和双平台 120 秒/12 并发竞态压测均通过 |
 | 库存与商家库存中心 | 已实现 | 可售/预占/已售、转正/释放/退款回补、调整流水 |
 | Angular/Vue 界面 | Angular 主流程和订单页视觉收尾已实现 | 订单详情与支付信息已扁平化，商品图有失败回退；通知菜单使用中性列表和细滚动条，支持外部点击、`Esc`、关闭按钮和选择通知后关闭；语言切换使用图标；导航与 1480 px 正文容器对齐，桌面与 390 px 窄屏已验收 |
-| Flyway 数据库生命周期 | 空卷和迁移层已验收 | 当前商城库 V28；notification 独立 Schema V1→V3 已隔离及实际运行验收 |
+| Flyway 数据库生命周期 | 空卷和迁移层已验收 | 当前商城库 V29；notification 独立 Schema V1→V3 已隔离及实际运行验收 |
 | notification 独立服务 | 单一所有权切换已实现 | 默认拓扑启动独立 MySQL/Kafka 服务；commerce 仅签名代理，故障稳定返回 503，无本地数据库回退 |
-| catalog 拆分准入 | 第二批数据所有权冻结已实现 | 商品资料与库存数量已分表，cart/order 使用持久快照且无商品跨边界 join；独立服务和独立数据库尚未启动 |
+| catalog 拆分准入 | 第三批 V1 契约已实现 | 查询/批量快照/商家维护、业务版本、五类事件及 Outbox 已冻结；独立服务和独立数据库尚未启动 |
 | 告警与监控 | 本地端到端管道已实现 | 三服务 Prometheus 抓取、10 条规则、Alertmanager、Grafana 数据源和可替换 Webhook；真实通知供应商与高可用部署不在本地学习验收内 |
 
 ## 3. M1 冻结结论
@@ -237,3 +237,14 @@ customer_orders 固化名称、图片和单价，购物车、轻量订单、结�
 移除 products→identity 及 cart/order/review→catalog 的跨边界外键。现有库 6 条库存记录和 642/1/65 数量
 总和保持不变，Windows/容器化 Bash 的空库 V1→V28、旧库 V16→V28 隔离升级均通过。当前所有权基线为
 43 张表，依赖基线保持 41/113/37/18；catalog-service、inventory-service、独立数据库及 PostgreSQL 均未启动。
+
+第三批以商城 Flyway V29 冻结 catalog V1 边界。认证查询提供 ACTIVE 列表、详情和最多 100 个 ID 的批量
+快照；商家 API 按 `api/merchant` 子目录分层，支持本人商品资料、价格、状态和翻译维护。每次写入携带
+expectedVersion，成功后 businessVersion 加一，并在同一事务写 catalog 自有 Outbox；并发旧版本稳定返回
+`409/CATALOG_VERSION_CONFLICT`。profile/price 更新提交前同步 inventory 展示快照，失败则商品与事件一起回滚。
+
+五类事件 V1 已固定 schema/event/业务版本、发生时间、correlation/causation 与商品快照，fixture 和版本门禁
+覆盖 APPLY、STALE 与版本缺口重试。商品创建事件已冻结，但创建 API 等 inventory 初始化命令后才开放。
+当前商城所有权基线为 44 张表，依赖基线仍为 41/113/37/18；HTTP 为 20 个 Controller、66 个操作。
+Java 25 正式镜像 32 项测试、双平台 V1→V29/V16→V29 生命周期及快速回归通过；真实 Docker V1 中文详情、
+批量快照和 6 条商家目录已验证。catalog-service、独立数据库、inventory-service 与 PostgreSQL 均未启动。

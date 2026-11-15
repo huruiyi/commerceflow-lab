@@ -448,8 +448,27 @@ catalog-service、inventory-service 或独立数据库，不引入双读/双写�
   V16→V28 的 Windows/Bash 隔离生命周期演练均通过。
 - [x] Java 25 正式镜像 29 项测试、Windows/Bash 快速回归和质量/脚本契约审计通过。
 - [x] 复核文档并独立提交推送。
-- [ ] 下一批冻结 catalog V1 列表、详情、批量快照、商家维护 API 与商品变更事件契约，再评审独立
+- [x] 下一批冻结 catalog V1 列表、详情、批量快照、商家维护 API 与商品变更事件契约，再评审独立
   catalog-service；仍不启动 inventory-service 或 PostgreSQL。
+
+### 13.11 M3.3 第三批：catalog V1 契约与失败语义
+
+详细契约见 [catalog V1 API 与商品事件契约](architecture/CATALOG-V1-CONTRACT.md)。本批仍只维护一套
+commerce 内实现，通过稳定边界为下一批整体切换做准备。
+
+- [x] 冻结认证后的 V1 列表、详情和最多 100 个 ID 的去重批量快照；只返回 ACTIVE 商品，批量缺失时
+  整体 404，快照不混入 review 持久化结构。
+- [x] 新增按 `api/merchant` 子目录分层的商家目录维护 API，支持本人商品资料、价格、ACTIVE/INACTIVE
+  状态和翻译更新；全部写请求使用 expectedVersion，冲突稳定返回 `CATALOG_VERSION_CONFLICT`。
+- [x] Flyway V29 增加 lifecycle/businessVersion 和 catalog 自有 Outbox；资料/价格更新在同一事务同步
+  inventory 展示快照，任一失败整体回滚。
+- [x] 冻结五类商品事件 V1、fixture、eventId 去重和按 businessVersion 处理 APPLY/STALE/版本缺口重试的
+  消费规则；创建事件已定义，但创建 API 等 inventory 初始化命令后再开放。
+- [x] Java 25 正式镜像 32 项测试、Windows/Bash V1→V29 与 V16→V29 隔离升级、真实 Docker V1 API、
+  Windows/Bash 快速回归和质量/脚本契约审计通过。
+- [x] 文档收口并独立提交推送。
+- [ ] 下一批创建独立 catalog-service/MySQL Schema，完成一次性迁移、调用方整体切换、停机/恢复和
+  跨进程 Trace 验收；验收后删除 commerce catalog Mapper/表访问，不保留 LOCAL/COMPARE 或数据库回退。
 
 ## 14. 实施记录模板
 

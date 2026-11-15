@@ -25,6 +25,13 @@
     ]]>
   </update>
 
+  <update id="updateCatalogSnapshot">
+    UPDATE product_inventory
+    SET merchant_id=#{merchantId},product_name=#{productName},thumbnail_url=#{thumbnailUrl},
+        unit_price=#{unitPrice}
+    WHERE product_id=#{productId}
+  </update>
+
   <select id="movements" resultType="vip.fairy.commerceflow.commerce.inventory.domain.InventoryMovementView">
     <![CDATA[
       SELECT m.id,m.order_id,m.product_id,m.movement_type,m.quantity,m.available_after,

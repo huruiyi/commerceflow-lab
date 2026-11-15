@@ -4,6 +4,7 @@ import vip.fairy.commerceflow.commerce.catalog.application.ProductCatalogService
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -24,5 +25,13 @@ public class ProductController {
                              @RequestHeader(value = "Accept-Language", required = false)
                              String acceptLanguage) {
     return catalog.list(lang != null ? lang : acceptLanguage);
+  }
+
+  @GetMapping("/{productId}")
+  ProductResponse detail(@PathVariable Long productId,
+                         @RequestParam(required = false) String lang,
+                         @RequestHeader(value = "Accept-Language", required = false)
+                         String acceptLanguage) {
+    return catalog.detail(productId, lang != null ? lang : acceptLanguage);
   }
 }
