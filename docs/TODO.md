@@ -577,8 +577,28 @@ Docker 拓扑，也不启动 PostgreSQL。
   上限进入 RECONCILIATION_REQUIRED。
 - [x] Windows/容器化 Bash 均通过空库 V1→V32、旧库 V16→V32；Windows 快速回归和双平台质量/脚本契约
   审计通过。默认持久库为 V32，32 条本批命令全部形成 SUCCEEDED/ACKNOWLEDGED 配对证据，未决投递为 0。
-- [ ] 下一批评审并实现远程切换前的订单等待库存状态、履约阻断、退款库存待对账状态和管理端恢复入口；
+- [x] 下一批评审并实现远程切换前的订单等待库存状态、履约阻断、退款库存待对账状态和管理端恢复入口；
   门禁完成前不创建独立 inventory-service，不启动 PostgreSQL。
+
+### 13.17 M3.4 第五批：inventory 业务等待态与人工恢复门禁
+
+- [x] V33 为订单增加独立库存状态：WAITING_RESERVATION、RESERVED、WAITING_COMMIT、COMMITTED、
+  RELEASED、REFUND_PENDING、REFUNDED 和 RECONCILIATION_REQUIRED；不把传输状态混入订单主状态机。
+- [x] checkout、支付成功、取消释放和退款成功分别推进库存业务状态；客户与商家订单响应公开 inventoryStatus，
+  便于界面明确展示等待、完成或待对账，而不是把未知结果冒充成功。
+- [x] 商家发货前强制要求 inventoryStatus=COMMITTED；即使订单已 CONFIRMED，只要库存提交结果未知仍禁止履约。
+- [x] 退款记录增加 NOT_STARTED、WAITING、REFUNDED、RECONCILIATION_REQUIRED；财务退款状态与库存归还状态
+  分开表达，为远程结果未知时保留独立人工对账事实。
+- [x] 超时达到上限时通过 StateProjection 同步订单/退款待对账状态；ADMIN API 可列出待恢复命令并使用原
+  commandId/原 payload 重试，成功后恢复 ACKNOWLEDGED 及对应业务状态，不生成新业务命令；V34 强制记录
+  恢复操作者、原因和时间。
+- [x] Java 25 commerce-service 38 项测试通过，覆盖 COMMIT 超时、订单待对账、同 commandId 管理恢复、
+  履约阻断和
+  COMMITTED 收口；质量门禁覆盖 317 个 Java 文件、24 个 Mapper XML 和 221 个映射语句。
+- [x] 双平台 V1→V34/V16→V34、Windows 快速回归和真实持久库升级通过；现有订单分布为 COMMITTED 124、
+  RELEASED 118、REFUNDED 21，21 条退款均已 REFUNDED，53 条命令全部 ACKNOWLEDGED，无等待或待对账残留。
+- [ ] 下一批执行 inventory-service 最终准入评审：核对数据搬迁清单、停写/增量追平、单一远程适配器、
+  跨进程 Trace 和失败回退运行手册；评审通过后才可创建独立 MySQL inventory-service，仍不启动 PostgreSQL。
 
 ## 14. 实施记录模板
 

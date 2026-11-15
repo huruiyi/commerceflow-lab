@@ -54,6 +54,10 @@ public interface RefundMapper {
 
   int addRefundedAmount(@Param("paymentId") Long paymentId, @Param("amount") BigDecimal amount);
 
+  int updateInventoryStatus(@Param("orderId") Long orderId,
+                            @Param("fromStatus") String fromStatus,
+                            @Param("toStatus") String toStatus);
+
   void insertEvent(
     @Param("refundId") Long refundId,
     @Param("eventId") String eventId,

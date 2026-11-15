@@ -12,6 +12,7 @@ public record MerchantOrderResponse(
   Long id,
   String orderNumber,
   String status,
+  String inventoryStatus,
   BigDecimal totalAmount,
   String currency,
   Instant createdAt,

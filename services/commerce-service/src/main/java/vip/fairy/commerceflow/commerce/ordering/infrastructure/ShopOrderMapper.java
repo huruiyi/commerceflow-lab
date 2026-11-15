@@ -113,6 +113,10 @@ public interface ShopOrderMapper {
                    @Param("fromStatus") String fromStatus,
                    @Param("toStatus") String toStatus);
 
+  int updateInventoryStatus(@Param("id") Long id,
+                            @Param("fromStatus") String fromStatus,
+                            @Param("toStatus") String toStatus);
+
   int startCancellation(@Param("id") Long id, @Param("reason") String reason);
 
   int finishCancellation(Long id);

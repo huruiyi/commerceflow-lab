@@ -56,4 +56,45 @@
     WHERE status='IN_FLIGHT' AND result_deadline_at&lt;=CURRENT_TIMESTAMP(6)
   </update>
 
+  <select id="expiredForReconciliation"
+          resultType="vip.fairy.commerceflow.commerce.inventory.infrastructure.DeliveryRecoveryView">
+    SELECT command_id,command_type,order_id,status,attempts,last_error,recovered_by,
+      recovery_reason,recovered_at,created_at
+    FROM inventory_command_delivery_outbox
+    WHERE status='IN_FLIGHT' AND result_deadline_at&lt;=CURRENT_TIMESTAMP(6)
+      AND attempts&gt;=#{maxAttempts}
+    ORDER BY created_at,command_id
+  </select>
+
+  <select id="reconciliationRequired"
+          resultType="vip.fairy.commerceflow.commerce.inventory.infrastructure.DeliveryRecoveryView">
+    SELECT command_id,command_type,order_id,status,attempts,last_error,recovered_by,
+      recovery_reason,recovered_at,created_at
+    FROM inventory_command_delivery_outbox
+    WHERE status='RECONCILIATION_REQUIRED'
+    ORDER BY created_at,command_id
+    LIMIT #{limit}
+  </select>
+
+  <select id="byCommandId"
+          resultType="vip.fairy.commerceflow.commerce.inventory.infrastructure.DeliveryRecoveryView">
+    SELECT command_id,command_type,order_id,status,attempts,last_error,recovered_by,
+      recovery_reason,recovered_at,created_at
+    FROM inventory_command_delivery_outbox
+    WHERE command_id=#{commandId}
+  </select>
+
+  <select id="payload" resultType="java.lang.String">
+    SELECT payload
+    FROM inventory_command_delivery_outbox
+    WHERE command_id=#{commandId}
+  </select>
+
+  <update id="reopen">
+    UPDATE inventory_command_delivery_outbox
+    SET status='RETRY',next_attempt_at=CURRENT_TIMESTAMP(6),result_deadline_at=NULL,last_error=NULL,
+      recovered_by=#{recoveredBy},recovery_reason=#{recoveryReason},recovered_at=CURRENT_TIMESTAMP(6)
+    WHERE command_id=#{commandId} AND status='RECONCILIATION_REQUIRED'
+  </update>
+
 </mapper>

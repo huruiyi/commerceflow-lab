@@ -14,6 +14,8 @@
 - `product_inventory` 以 lifecycle/businessVersion 维护商品履行快照，catalog 事件不修改库存数量；
 - catalog-service Outbox 通过 HMAC 和载荷摘要投递，失败有限重试并在第 5 次进入 DEAD；
 - V32 增加命令 delivery Outbox、结果 Inbox 和 Result V1；当前本地适配器留下 ACK 证据，远程传输未启用；
+- V33 增加订单/退款自有 inventoryStatus、履约阻断及原命令人工恢复门禁；
+- V34 为每次受控恢复保留操作者、原因和时间，禁止无理由重试；
 - 取消通知由订单取消事务写入 notification Outbox，库存释放不再承担客户身份查询或通知副作用；
 - ArchUnit 门禁禁止库存以外的模块重新依赖库存 API、领域、基础设施或具体应用实现；
 - 跨模块现状为 39 个方向、109 个 import、35 个源码文件，跨模块 infrastructure 引用仍为 18。
@@ -89,7 +91,7 @@ catalog-service 已是商品资料唯一所有者。inventory 只能消费 catal
 
 1. [已完成] 冻结并实现 catalog 事件消费 fixture、businessVersion 门禁、独立 Inbox 和有限重试/DEAD；
 2. [已完成] 明确 checkout/payment/refund 的跨进程结果与补偿协议；
-3. 实现订单等待库存状态、履约阻断、退款库存待对账和管理恢复入口，再评审独立服务启动；
+3. [已完成] 实现订单等待库存状态、履约阻断、退款库存待对账和管理恢复入口；
 4. 在独立 MySQL Schema 创建分层 `inventory-service`，完成一次性计数、余额总和和内容指纹迁移；
 5. 停写窗口内追平增量，整体切换调用方，验证并发、重复、乱序、超时、停机恢复和跨进程 Trace；
 6. 删除 commerce 的库存 Mapper/XML/运行表访问，只保留必要的公开身份/RBAC 薄代理，不保留 LOCAL/COMPARE、

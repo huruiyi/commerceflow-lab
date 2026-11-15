@@ -8,6 +8,13 @@ public interface InventoryCommandPort {
 
   void handle(InventoryCommandV1 command);
 
+  interface StateProjection {
+
+    void succeeded(InventoryCommandV1 command);
+
+    void reconciliationRequired(InventoryCommandV1 command);
+  }
+
   static InventoryCommandV1 reserve(String commandId, Long orderId,
                                     List<InventoryCommandV1.Item> items) {
     return InventoryCommandV1.reserve(commandId, orderId, items);

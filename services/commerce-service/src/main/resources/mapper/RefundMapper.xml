@@ -166,6 +166,17 @@
     ]]>
   </update>
 
+  <update id="updateInventoryStatus">
+    <![CDATA[
+      UPDATE refund_records
+      SET inventory_status = #{toStatus},
+          updated_at = CURRENT_TIMESTAMP,
+          version = version + 1
+      WHERE order_id = #{orderId}
+        AND inventory_status = #{fromStatus}
+    ]]>
+  </update>
+
   <insert id="insertEvent">
     <![CDATA[
       INSERT INTO refund_events(refund_id, event_id, event_type, from_status, to_status, detail)

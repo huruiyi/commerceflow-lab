@@ -25,6 +25,10 @@ public class ShopOrderView {
    */
   private String status;
   /**
+   * 库存命令业务状态；只有 COMMITTED 才允许进入履约。
+   */
+  private String inventoryStatus;
+  /**
    * 订单应付总金额，币种由 {@link #currency} 指定。
    */
   private BigDecimal totalAmount;
@@ -95,6 +99,10 @@ public class ShopOrderView {
 
   public String getStatus() {
     return status;
+  }
+
+  public String getInventoryStatus() {
+    return inventoryStatus;
   }
 
   public BigDecimal getTotalAmount() {

@@ -14,11 +14,15 @@
 
   <select id="lock" resultType="vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView">
     <![CDATA[
-      SELECT DISTINCT o.*
+      SELECT o.*
       FROM shop_orders o
-      JOIN order_items i ON i.order_id = o.id
       WHERE o.id = #{orderId}
-        AND i.merchant_id = #{merchantId}
+        AND EXISTS (
+          SELECT 1
+          FROM order_items i
+          WHERE i.order_id = o.id
+            AND i.merchant_id = #{merchantId}
+        )
       FOR UPDATE
     ]]>
   </select>

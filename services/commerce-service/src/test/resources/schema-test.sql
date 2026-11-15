@@ -154,6 +154,7 @@ CREATE TABLE shop_orders
   order_number           VARCHAR(64),
   customer_id            BIGINT    NOT NULL,
   status                 VARCHAR(40),
+  inventory_status       VARCHAR(40) NOT NULL DEFAULT 'WAITING_RESERVATION',
   total_amount           DECIMAL(12, 2),
   currency               VARCHAR(3),
   payment_due_at         TIMESTAMP NOT NULL,
@@ -258,6 +259,9 @@ CREATE TABLE inventory_command_delivery_outbox
   next_attempt_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   result_deadline_at TIMESTAMP,
   last_error         VARCHAR(500),
+  recovered_by       VARCHAR(100),
+  recovery_reason    VARCHAR(300),
+  recovered_at       TIMESTAMP,
   created_at         TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   acknowledged_at    TIMESTAMP
 );
@@ -462,6 +466,7 @@ CREATE TABLE refund_records
   reason_code                VARCHAR(50)    NOT NULL,
   reason_detail              VARCHAR(500)   NOT NULL,
   status                     VARCHAR(30)    NOT NULL,
+  inventory_status           VARCHAR(40)    NOT NULL DEFAULT 'NOT_STARTED',
   order_status_before_refund VARCHAR(40)    NOT NULL,
   channel_refund_no          VARCHAR(100),
   failure_reason             VARCHAR(300)   NOT NULL DEFAULT '',

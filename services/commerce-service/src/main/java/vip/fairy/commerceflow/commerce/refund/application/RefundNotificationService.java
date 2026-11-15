@@ -1,6 +1,8 @@
 package vip.fairy.commerceflow.commerce.refund.application;
 
 import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandTypeV1;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandV1;
 import vip.fairy.commerceflow.commerce.payment.application.PaymentEventPipeline;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.commerce.payment.domain.PaymentView;
@@ -25,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
-public class RefundNotificationService {
+public class RefundNotificationService implements InventoryCommandPort.StateProjection {
 
   private final RefundMapper refunds;
   private final ShopOrderMapper orders;
@@ -80,11 +82,17 @@ public class RefundNotificationService {
             throw new IllegalStateException("Refund amount exceeds payment amount");
           if (orders.updateStatus(refund.getOrderId(), "REFUNDING", "REFUNDED") != 1)
             throw new IllegalStateException("Order is not refunding");
+          if (refunds.updateInventoryStatus(refund.getOrderId(), "NOT_STARTED", "WAITING") != 1)
+            throw new IllegalStateException("Refund inventory state changed concurrently");
+          orders.updateInventoryStatus(refund.getOrderId(), "COMMITTED", "REFUND_PENDING");
           inventory.handle(InventoryCommandPort.refund(
             notice.notificationId() + ":inventory:refund",
             refund.getOrderId(),
             notice.notificationId()
           ));
+          if (refunds.updateInventoryStatus(refund.getOrderId(), "WAITING", "REFUNDED") != 1)
+            throw new IllegalStateException("Refund inventory confirmation changed concurrently");
+          orders.updateInventoryStatus(refund.getOrderId(), "REFUND_PENDING", "REFUNDED");
           refunds.insertEvent(
             refund.getId(), UUID.randomUUID().toString(), "REFUND_SUCCEEDED",
             "PROCESSING", "SUCCEEDED", "Signed refund notification"
@@ -138,6 +146,26 @@ public class RefundNotificationService {
       );
     } catch (Exception exception) {
       return false;
+    }
+  }
+
+  @Override
+  public void succeeded(InventoryCommandV1 command) {
+    if (command.commandType() == InventoryCommandTypeV1.REFUND) {
+      requireInventoryTransition(command.orderId(), "RECONCILIATION_REQUIRED", "REFUNDED");
+    }
+  }
+
+  @Override
+  public void reconciliationRequired(InventoryCommandV1 command) {
+    if (command.commandType() == InventoryCommandTypeV1.REFUND) {
+      requireInventoryTransition(command.orderId(), "WAITING", "RECONCILIATION_REQUIRED");
+    }
+  }
+
+  private void requireInventoryTransition(Long orderId, String fromStatus, String toStatus) {
+    if (refunds.updateInventoryStatus(orderId, fromStatus, toStatus) != 1) {
+      throw new IllegalStateException("Refund inventory recovery state changed concurrently");
     }
   }
 

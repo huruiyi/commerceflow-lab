@@ -64,7 +64,7 @@
 - MySQL + Flyway、Redis/Spring Session、Kafka/Outbox、RabbitMQ 分桶延迟任务、RocketMQ 5.x 原生延时任务 Profile、ShedLock。
 - Angular/Vue 前端、三个 Spring Boot 服务和 Docker Compose。
 - `scripts/windows/` 与 `scripts/linux/` 保留同名验收脚本结构。
-- `verify-flyway-lifecycle` 使用与后端一致的 Flyway `12.4.0` 和隔离 MySQL 8.4，Windows/容器化 Bash 均已验证空库 V1–V32、V16→V32 升级、V17 历史订单 30 分钟截止时间回填、V24 核心注释、V28 catalog/inventory 所有权分离、V29 catalog 版本/Outbox 元数据、V30 inventory 命令 Inbox/跨边界外键清理、V31 catalog-event Inbox/版本化快照、V32 命令投递/结果协议表和任务状态 `CHECK` 约束。脚本只删除自己的随机命名容器/网络，不使用或清空开发数据卷。
+- `verify-flyway-lifecycle` 使用与后端一致的 Flyway `12.4.0` 和隔离 MySQL 8.4，Windows/容器化 Bash 均验证空库 V1–V34、V16→V34 升级、V17 历史订单截止时间回填、V24 核心注释、V28 catalog/inventory 所有权分离、V29 catalog 版本/Outbox 元数据、V30 inventory 命令 Inbox/跨边界外键清理、V31 catalog-event Inbox/版本化快照、V32 命令投递/结果协议表、V33 业务恢复状态及 V34 人工恢复审计。脚本只删除自己的随机容器/网络，不使用或清空开发数据卷。
 
 ## 7. 通用定时任务底座（阶段 1）
 
@@ -154,6 +154,12 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   双平台 V32 生命周期、Windows 快速回归和双平台质量/脚本审计通过。默认持久库 32 条协议命令全部形成
   SUCCEEDED/ACKNOWLEDGED 配对证据，未决投递为 0；远程传输、独立 inventory-service/inventory-db 和
   PostgreSQL 均未启动。
+- M3.4 第五批通过 V33 增加订单与退款自有 inventoryStatus。订单显式经历等待预占、等待提交、已提交、
+  退款等待或待对账，发货门禁只接受 COMMITTED；退款财务状态不再替代库存归还状态。超时状态机通过端口
+  投影 RECONCILIATION_REQUIRED，ADMIN 恢复入口以原 commandId/原 payload 重试并收口 ACK 与业务状态，
+  V34 保留操作者、原因与时间。Java 25 正式镜像 38 项测试、双平台 V34 生命周期、Windows 快速回归和质量
+  门禁通过；真实持久库 53 条命令
+  全部 ACKNOWLEDGED，订单/退款无等待或待对账残留。独立 inventory-service 与 PostgreSQL 未启动。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

@@ -107,14 +107,18 @@ public class PaymentNotificationService {
     Long customerId = order.getCustomerId();
     if ("PENDING_PAYMENT".equals(order.getStatus())
       && orders.updateStatus(orderId, "PENDING_PAYMENT", "PAID") == 1) {
+      requireInventoryTransition(orderId, "RESERVED", "WAITING_COMMIT");
       inventory.handle(InventoryCommandPort.commit(
         notificationId + ":inventory:commit", orderId, notificationId));
+      requireInventoryTransition(orderId, "WAITING_COMMIT", "COMMITTED");
       orders.insertEventDetailed(orderId, customerId, "PAYMENT_SUCCEEDED", "PENDING_PAYMENT", "PAID",
         "Signed asynchronous notification applied", "PAYMENT_CALLBACK", null);
     } else if ("CANCELLING".equals(order.getStatus())
       && orders.restorePaidAfterCancellationRace(orderId) == 1) {
+      requireInventoryTransition(orderId, "RESERVED", "WAITING_COMMIT");
       inventory.handle(InventoryCommandPort.commit(
         notificationId + ":inventory:commit", orderId, notificationId));
+      requireInventoryTransition(orderId, "WAITING_COMMIT", "COMMITTED");
       orders.insertEventDetailed(orderId, customerId, "CANCELLATION_LOST_PAYMENT_RACE", "CANCELLING", "PAID",
         "Payment callback won the cancellation race", "PAYMENT_CALLBACK", null);
     } else if ("CANCELLED".equals(order.getStatus())
@@ -123,6 +127,12 @@ public class PaymentNotificationService {
         "Late successful payment restored the order and queued an automatic refund",
         "PAYMENT_CALLBACK", null);
       refunds.queueAutomatic(orderId, notificationId);
+    }
+  }
+
+  private void requireInventoryTransition(Long orderId, String fromStatus, String toStatus) {
+    if (orders.updateInventoryStatus(orderId, fromStatus, toStatus) != 1) {
+      throw new IllegalStateException("Order inventory state changed concurrently");
     }
   }
 

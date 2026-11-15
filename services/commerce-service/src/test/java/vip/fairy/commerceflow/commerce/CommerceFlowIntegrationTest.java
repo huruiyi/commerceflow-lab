@@ -51,9 +51,13 @@ import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.Invento
 import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
 import vip.fairy.commerceflow.commerce.inventory.application.InventoryCatalogEventHandlerV1;
 import vip.fairy.commerceflow.commerce.inventory.application.InventoryCommandDeliveryStateMachine;
+import vip.fairy.commerceflow.commerce.inventory.application.InventoryCommandRecoveryService;
+import vip.fairy.commerceflow.commerce.fulfillment.application.MerchantFulfillmentService;
+import vip.fairy.commerceflow.commerce.fulfillment.api.FulfillmentRequest;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.CatalogProductEventV1;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandResultOutcomeV1;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandResultV1;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandSemantics;
 import vip.fairy.commerceflow.commerce.inventory.infrastructure.security.CatalogEventRequestSignature;
 import vip.fairy.commerceflow.commerce.ordering.application.PurchaseOrderService;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
@@ -167,6 +171,10 @@ class CommerceFlowIntegrationTest {
   CatalogEventRequestSignature catalogEventSignatures;
   @Autowired
   InventoryCommandDeliveryStateMachine inventoryDeliveryStateMachine;
+  @Autowired
+  InventoryCommandRecoveryService inventoryCommandRecoveries;
+  @Autowired
+  MerchantFulfillmentService merchantFulfillment;
   @Autowired
   CustomerNotificationCommandRouter notificationRouter;
   @Autowired
@@ -313,11 +321,21 @@ class CommerceFlowIntegrationTest {
 
   @Test
   @Transactional
-  void inventoryCommandResultTimeoutRequiresReconciliationAfterAttemptLimit() {
+  void inventoryCommandResultTimeoutRequiresReconciliationAfterAttemptLimit() throws Exception {
     String commandId = "inventory-timeout-" + UUID.randomUUID();
+    Long customerId = jdbc.queryForObject(
+      "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
+    String orderNumber = "INVENTORY-TIMEOUT-" + UUID.randomUUID();
+    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,inventory_status,total_amount,"
+        + "currency,payment_due_at,created_at,updated_at) VALUES(?,?,'PAID','WAITING_COMMIT',1.00,"
+        + "'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", orderNumber, customerId);
+    Long orderId = jdbc.queryForObject(
+      "SELECT id FROM shop_orders WHERE order_number=?", Long.class, orderNumber);
+    InventoryCommandV1 command = InventoryCommandV1.commit(commandId, orderId, commandId);
+    String payload = json.writeValueAsString(command);
     jdbc.update("INSERT INTO inventory_command_delivery_outbox(command_id,command_type,producer,"
         + "order_id,payload_fingerprint,payload,status) VALUES(?,?,?,?,?,?,?)",
-      commandId, "COMMIT", "payment", 2001L, "a".repeat(64), "{}", "NEW");
+      commandId, "COMMIT", "payment", orderId, InventoryCommandSemantics.fingerprint(command), payload, "NEW");
 
     org.junit.jupiter.api.Assertions.assertEquals(1,
       inventoryDeliveryStateMachine.markInFlight(commandId, java.time.Duration.ofSeconds(1)));
@@ -331,6 +349,38 @@ class CommerceFlowIntegrationTest {
       jdbc.queryForObject(
         "SELECT status FROM inventory_command_delivery_outbox WHERE command_id=?", String.class,
         commandId));
+    org.junit.jupiter.api.Assertions.assertEquals("RECONCILIATION_REQUIRED",
+      jdbc.queryForObject("SELECT inventory_status FROM shop_orders WHERE id=?", String.class, orderId));
+
+    org.junit.jupiter.api.Assertions.assertEquals("ACKNOWLEDGED",
+      inventoryCommandRecoveries.retry(commandId, "admin@example.com", "Verified remote result").status());
+    org.junit.jupiter.api.Assertions.assertEquals("COMMITTED",
+      jdbc.queryForObject("SELECT inventory_status FROM shop_orders WHERE id=?", String.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals("admin@example.com|Verified remote result",
+      jdbc.queryForObject("SELECT CONCAT(recovered_by,'|',recovery_reason) "
+        + "FROM inventory_command_delivery_outbox WHERE command_id=?", String.class, commandId));
+  }
+
+  @Test
+  @Transactional
+  void fulfillmentIsBlockedUntilInventoryCommitIsConfirmed() {
+    Long customerId = jdbc.queryForObject(
+      "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
+    Long merchantId = jdbc.queryForObject(
+      "SELECT id FROM app_users WHERE email='merchant@example.com'", Long.class);
+    String orderNumber = "INVENTORY-GATE-" + UUID.randomUUID();
+    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,inventory_status,total_amount,"
+        + "currency,payment_due_at,created_at,updated_at) VALUES(?,?,'CONFIRMED','WAITING_COMMIT',1.00,"
+        + "'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", orderNumber, customerId);
+    Long orderId = jdbc.queryForObject(
+      "SELECT id FROM shop_orders WHERE order_number=?", Long.class, orderNumber);
+    jdbc.update("INSERT INTO order_items(order_id,product_id,merchant_id,product_name,thumbnail_url,"
+        + "unit_price,quantity,subtotal) VALUES(?,?,?,?,?,1.00,1,1.00)",
+      orderId, 1L, merchantId, "Inventory gate", "");
+
+    org.junit.jupiter.api.Assertions.assertThrows(BusinessRuleException.class,
+      () -> merchantFulfillment.ship(users.selectById(merchantId), orderId,
+        new FulfillmentRequest("SF", "BLOCKED")));
   }
 
   @Test
@@ -874,7 +924,9 @@ class CommerceFlowIntegrationTest {
     String suffix = UUID.randomUUID().toString().replace("-", "");
     String orderNumber = "ORDER-RACE-" + suffix;
     String transactionNo = "TX-RACE-" + suffix;
-    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,created_at,updated_at) VALUES(?,?,'PENDING_PAYMENT',66.00,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,inventory_status,total_amount,"
+        + "currency,payment_due_at,created_at,updated_at) VALUES(?,?,'PENDING_PAYMENT','RESERVED',66.00,"
+        + "'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
       orderNumber, customerId);
     Long orderId = jdbc.queryForObject(
       "SELECT id FROM shop_orders WHERE order_number=?", Long.class, orderNumber);

@@ -92,6 +92,9 @@ public class PurchaseOrderService {
           item.getProductId(), item.getProductName(), item.getQuantity()))
         .toList()
     ));
+    if (orders.updateInventoryStatus(order.getId(), "WAITING_RESERVATION", "RESERVED") != 1) {
+      throw new IllegalStateException("Order inventory reservation state changed concurrently");
+    }
     orders.insertAddress(order.getId(), address);
     orders.insertEvent(order.getId(), user.getId(), "ORDER_CREATED", "CART", "PENDING_PAYMENT",
       "Checkout created from cart");
@@ -176,6 +179,7 @@ public class PurchaseOrderService {
       order.getId(),
       order.getOrderNumber(),
       order.getStatus(),
+      order.getInventoryStatus(),
       order.getTotalAmount(),
       order.getCurrency(),
       order.getCreatedAt(),

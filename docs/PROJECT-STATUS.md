@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.4 第四批 inventory 命令投递、结果与补偿协议已完成；远程传输和独立库存服务尚未启动 |
-| 下一候选阶段 | 订单等待库存状态、履约阻断、退款库存待对账状态和管理恢复入口 |
+| 当前阶段 | M3.4 第五批 inventory 业务等待态、履约阻断和人工恢复门禁已完成；独立库存服务尚未启动 |
+| 下一候选阶段 | inventory-service 最终准入评审与独立 MySQL 切换运行手册 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -30,7 +30,7 @@
 | 收货、自动收货和自动完成 | M1 可靠性门禁已通过 | 重放、重启/租约恢复、RabbitMQ/RocketMQ 停机恢复和双平台 120 秒/12 并发竞态压测均通过 |
 | 库存与商家库存中心 | 已实现 | 可售/预占/已售、转正/释放/退款回补、调整流水 |
 | Angular/Vue 界面 | Angular 主流程和订单页视觉收尾已实现 | 订单详情与支付信息已扁平化，商品图有失败回退；通知菜单使用中性列表和细滚动条，支持外部点击、`Esc`、关闭按钮和选择通知后关闭；语言切换使用图标；导航与 1480 px 正文容器对齐，桌面与 390 px 窄屏已验收 |
-| Flyway 数据库生命周期 | 空卷和迁移层已验收 | 商城迁移 V32；notification 独立 Schema V1→V3 已隔离及实际运行验收 |
+| Flyway 数据库生命周期 | 空卷和迁移层已验收 | 商城迁移 V34；notification 独立 Schema V1→V3 已隔离及实际运行验收 |
 | notification 独立服务 | 单一所有权切换已实现 | 默认拓扑启动独立 MySQL/Kafka 服务；commerce 仅签名代理，故障稳定返回 503，无本地数据库回退 |
 | catalog 拆分准入 | 单一所有权已切换 | catalog-service/catalog-db 独占资料、翻译、版本和 Outbox；commerce 只保留鉴权、签名代理与 review 组合 |
 | inventory 拆分准入 | 第二批命令边界完成 | V1 命令、自有 Inbox、无 ordering 外键/通知依赖；独立进程、Schema 与数据迁移尚未启动 |
@@ -292,3 +292,12 @@ Handler，不维护双实现。`InventoryCommandResultV1`、成功/拒绝 fixtur
 到 V32，32 条新协议命令均为 SUCCEEDED/ACKNOWLEDGED，未决投递为 0。当前尚未启用远程传输；订单等待库存、
 履约阻断、退款库存待对账和管理恢复入口仍是独立服务前门禁，inventory-service/inventory-db 与 PostgreSQL
 均未启动。
+
+第九批补齐生产侧业务等待态和人工恢复门禁。V33 将订单主状态与 inventoryStatus 分离，checkout、支付提交、
+取消释放和退款归还均留下明确状态；只有 COMMITTED 才允许发货。退款财务结果与库存归还结果独立表达，未知
+结果进入 RECONCILIATION_REQUIRED。ADMIN 恢复入口只用原 commandId/原 payload 重试，成功后同步恢复
+ACKNOWLEDGED 和业务状态；V34 记录操作者、原因和时间。Java 25 正式镜像 38 项测试通过；
+inventory-service/inventory-db 与 PostgreSQL 仍未启动。双平台 V34 生命周期和 Windows 快速回归通过；默认
+持久库 124 条订单 COMMITTED、118 条 RELEASED、21 条 REFUNDED，21 条退款库存状态均已收口，53 条命令
+全部 ACKNOWLEDGED。下一步先做独立服务
+最终准入评审。

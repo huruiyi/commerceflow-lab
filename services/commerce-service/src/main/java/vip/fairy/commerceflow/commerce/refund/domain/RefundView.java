@@ -32,6 +32,8 @@ public class RefundView {
   private String reasonDetail;
   /** 退款状态：PROCESSING、SUCCEEDED 或 FAILED。 */
   private String status;
+  /** 财务退款后的库存归还状态，允许独立进入人工对账。 */
+  private String inventoryStatus;
   /** 进入 REFUNDING 之前的订单状态，用于失败回滚。 */
   private String orderStatusBeforeRefund;
   /** 支付渠道返回的退款单号。 */
@@ -97,6 +99,10 @@ public class RefundView {
 
   public String getStatus() {
     return status;
+  }
+
+  public String getInventoryStatus() {
+    return inventoryStatus;
   }
 
   public String getOrderStatusBeforeRefund() {

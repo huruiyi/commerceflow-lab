@@ -1,6 +1,7 @@
 package vip.fairy.commerceflow.commerce.inventory.infrastructure;
 
 import java.time.Instant;
+import java.util.List;
 
 import org.apache.ibatis.annotations.Param;
 
@@ -35,4 +36,17 @@ public interface InventoryCommandDeliveryMapper {
 
   int recoverExpired(@Param("maxAttempts") int maxAttempts,
                      @Param("nextAttemptAt") Instant nextAttemptAt);
+
+  List<DeliveryRecoveryView> expiredForReconciliation(int maxAttempts);
+
+  List<DeliveryRecoveryView> reconciliationRequired(int limit);
+
+  DeliveryRecoveryView byCommandId(String commandId);
+
+  String payload(String commandId);
+
+  int reopen(@Param("commandId") String commandId,
+             @Param("recoveredBy") String recoveredBy,
+             @Param("recoveryReason") String recoveryReason);
+
 }

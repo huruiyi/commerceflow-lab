@@ -75,6 +75,7 @@ public class MerchantFulfillmentService {
       if (!"CONFIRMED".equals(order.getStatus())) {
         throw new BusinessRuleException("Only confirmed orders can be shipped");
       }
+      requireInventoryCommitted(order);
       shipments.prepare(id, "CFL-ORDER-" + id, carrier, tracking);
       return order;
     });
@@ -131,6 +132,12 @@ public class MerchantFulfillmentService {
       .orElseThrow(() -> new ResourceNotFoundException("Merchant order not found"));
   }
 
+  private void requireInventoryCommitted(ShopOrderView order) {
+    if (!"COMMITTED".equals(order.getInventoryStatus())) {
+      throw new BusinessRuleException("Inventory confirmation is required before fulfillment");
+    }
+  }
+
   private MerchantOrderResponse response(ShopOrderView order) {
     RefundResponse refund = refunds.byOrder(order.getId())
       .map(value -> RefundResponse.from(value, refunds.events(value.getId())))
@@ -149,6 +156,7 @@ public class MerchantFulfillmentService {
       order.getId(),
       order.getOrderNumber(),
       order.getStatus(),
+      order.getInventoryStatus(),
       order.getTotalAmount(),
       order.getCurrency(),
       order.getCreatedAt(),

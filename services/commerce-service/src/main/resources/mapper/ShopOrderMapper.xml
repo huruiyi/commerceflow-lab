@@ -45,11 +45,12 @@
   <insert id="insertOrder" useGeneratedKeys="true" keyProperty="id">
     <![CDATA[
       INSERT INTO shop_orders(
-        order_number, customer_id, status, total_amount, currency, payment_due_at, created_at, updated_at
+        order_number, customer_id, status, inventory_status, total_amount, currency, payment_due_at,
+        created_at, updated_at
       )
       VALUES (
-        #{orderNumber}, #{customerId}, 'PENDING_PAYMENT', #{totalAmount}, #{currency}, #{paymentDueAt},
-        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        #{orderNumber}, #{customerId}, 'PENDING_PAYMENT', 'WAITING_RESERVATION', #{totalAmount},
+        #{currency}, #{paymentDueAt}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
     ]]>
   </insert>
@@ -324,6 +325,16 @@
           updated_at = CURRENT_TIMESTAMP
       WHERE id = #{id}
         AND status = #{fromStatus}
+    ]]>
+  </update>
+
+  <update id="updateInventoryStatus">
+    <![CDATA[
+      UPDATE shop_orders
+      SET inventory_status = #{toStatus},
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = #{id}
+        AND inventory_status = #{fromStatus}
     ]]>
   </update>
 
