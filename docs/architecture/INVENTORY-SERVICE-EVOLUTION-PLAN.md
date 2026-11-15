@@ -2,7 +2,7 @@
 
 ## 1. 本批结论
 
-`inventory-service` 已完成前三批准入治理，但**尚未获准创建独立进程或独立 Schema**。
+`inventory-service` 已完成前四批准入治理，但**尚未获准创建独立进程或独立 Schema**。
 当前只在 `commerce-service` 内保留一套库存实现，并完成以下收敛：
 
 - ordering、payment、refund 只能依赖 `inventory/application/port`，不能注入 `InventoryService`、库存领域对象或 Mapper；
@@ -13,6 +13,7 @@
 - V31 新增 inventory 自有 `inventory_catalog_event_inbox`，按 eventId 与载荷指纹幂等消费 catalog V1 事件；
 - `product_inventory` 以 lifecycle/businessVersion 维护商品履行快照，catalog 事件不修改库存数量；
 - catalog-service Outbox 通过 HMAC 和载荷摘要投递，失败有限重试并在第 5 次进入 DEAD；
+- V32 增加命令 delivery Outbox、结果 Inbox 和 Result V1；当前本地适配器留下 ACK 证据，远程传输未启用；
 - 取消通知由订单取消事务写入 notification Outbox，库存释放不再承担客户身份查询或通知副作用；
 - ArchUnit 门禁禁止库存以外的模块重新依赖库存 API、领域、基础设施或具体应用实现；
 - 跨模块现状为 39 个方向、109 个 import、35 个源码文件，跨模块 infrastructure 引用仍为 18。
@@ -29,6 +30,8 @@
 | `inventory_movements` | inventory | 余额变化后的不可变流水，eventId 唯一 |
 | `inventory_command_inbox` | inventory | commandId 去重、语义载荷指纹和本地处理结果 |
 | `inventory_catalog_event_inbox` | inventory | catalog eventId 去重、载荷指纹、APPLIED/STALE 处理结果 |
+| `inventory_command_delivery_outbox` | inventory 集成边界 | 当前统一网关的命令投递状态；未来拆分时迁回各生产者事务 |
+| `inventory_command_result_inbox` | inventory 集成边界 | commandId 唯一的 SUCCEEDED/REJECTED 结果证据 |
 | `products`、`product_translations` | catalog-service | 商品资料、翻译、生命周期和业务版本；不得回流库存 |
 | `shop_orders`、`order_items` | ordering | 订单及下单快照；inventory 只能保存稳定 orderId/productId |
 
@@ -85,12 +88,13 @@ catalog-service 已是商品资料唯一所有者。inventory 只能消费 catal
 后续严格一次只推进一个门禁：
 
 1. [已完成] 冻结并实现 catalog 事件消费 fixture、businessVersion 门禁、独立 Inbox 和有限重试/DEAD；
-2. 明确 checkout/payment/refund 的跨进程结果与补偿协议，再评审独立服务启动；
-3. 在独立 MySQL Schema 创建分层 `inventory-service`，完成一次性计数、余额总和和内容指纹迁移；
-4. 停写窗口内追平增量，整体切换调用方，验证并发、重复、乱序、超时、停机恢复和跨进程 Trace；
-5. 删除 commerce 的库存 Mapper/XML/运行表访问，只保留必要的公开身份/RBAC 薄代理，不保留 LOCAL/COMPARE、
+2. [已完成] 明确 checkout/payment/refund 的跨进程结果与补偿协议；
+3. 实现订单等待库存状态、履约阻断、退款库存待对账和管理恢复入口，再评审独立服务启动；
+4. 在独立 MySQL Schema 创建分层 `inventory-service`，完成一次性计数、余额总和和内容指纹迁移；
+5. 停写窗口内追平增量，整体切换调用方，验证并发、重复、乱序、超时、停机恢复和跨进程 Trace；
+6. 删除 commerce 的库存 Mapper/XML/运行表访问，只保留必要的公开身份/RBAC 薄代理，不保留 LOCAL/COMPARE、
    双写或数据库回退；
-6. 以 Git 提交和可恢复数据备份作为回退边界，失败时停止切换，不覆盖已接收新写入的独立库。
+7. 以 Git 提交和可恢复数据备份作为回退边界，失败时停止切换，不覆盖已接收新写入的独立库。
 
 ## 7. 明确不在本批实施
 

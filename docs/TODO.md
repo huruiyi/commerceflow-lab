@@ -555,8 +555,30 @@ Docker 拓扑，也不启动 PostgreSQL。
   审计通过。
 - [x] 真实停机恢复通过：commerce-service 停机时事件进入 RETRY，恢复后第 4 次尝试 PUBLISHED，inventory
   同一 eventId 仅应用一次并推进到 businessVersion 3；未删除或重建命名卷。
-- [ ] 下一批冻结 RESERVE/COMMIT/RELEASE/REFUND 跨进程投递的生产端 Outbox、结果确认、超时与补偿语义，
+- [x] 下一批冻结 RESERVE/COMMIT/RELEASE/REFUND 跨进程投递的生产端 Outbox、结果确认、超时与补偿语义，
   通过准入评审后再决定是否创建独立 inventory-service；仍不启动 PostgreSQL。
+
+### 13.16 M3.4 第四批：inventory 命令投递、结果与补偿协议
+
+详细协议见 [inventory V1 命令投递、结果与补偿协议](architecture/INVENTORY-COMMAND-DELIVERY-PROTOCOL.md)。
+本批不启用远程传输，不创建 inventory-service/inventory-db。
+
+- [x] 新增 `InventoryCommandGateway` 作为四类命令唯一入口；现有调用方不再直接注入 Handler，Handler 仍是
+  唯一库存实现，不维护 LOCAL/COMPARE 或双写分支。
+- [x] V32 新增生产端 `inventory_command_delivery_outbox` 和结果端 `inventory_command_result_inbox`；成功事务
+  同时留下 inventory 消费 Inbox、库存变化、SUCCEEDED 结果和 ACKNOWLEDGED 投递证据。
+- [x] 新增 `InventoryCommandResultV1`、SUCCEEDED/REJECTED fixture 和校验；共享语义指纹忽略重试时可变的
+  occurredAt/traceparent，保留同 commandId 异业务载荷拒绝。
+- [x] 冻结 NEW→IN_FLIGHT→RETRY/ACKNOWLEDGED/RECONCILIATION_REQUIRED 状态机；达到尝试上限但结果未知时
+  不伪造 REJECTED，也不自动执行相反补偿。
+- [x] 明确 RESERVE、COMMIT、RELEASE、REFUND 的成功、拒绝和未知结果矩阵；COMMIT 未确认阻止履约，财务
+  REFUND 成功不因库存未知而自动撤销。
+- [x] Java 25 commerce-service 37 项测试通过，覆盖 Outbox/结果 Inbox 证据、结果 fixture、重复命令和超时达到
+  上限进入 RECONCILIATION_REQUIRED。
+- [x] Windows/容器化 Bash 均通过空库 V1→V32、旧库 V16→V32；Windows 快速回归和双平台质量/脚本契约
+  审计通过。默认持久库为 V32，32 条本批命令全部形成 SUCCEEDED/ACKNOWLEDGED 配对证据，未决投递为 0。
+- [ ] 下一批评审并实现远程切换前的订单等待库存状态、履约阻断、退款库存待对账状态和管理端恢复入口；
+  门禁完成前不创建独立 inventory-service，不启动 PostgreSQL。
 
 ## 14. 实施记录模板
 

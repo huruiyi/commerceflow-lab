@@ -119,6 +119,8 @@ class MicroserviceReadinessBaselineTest {
       Map.entry("inventory_reservations", "inventory"),
       Map.entry("inventory_movements", "inventory"),
       Map.entry("inventory_command_inbox", "inventory"),
+      Map.entry("inventory_command_delivery_outbox", "inventory"),
+      Map.entry("inventory_command_result_inbox", "inventory"),
       Map.entry("inventory_catalog_event_inbox", "inventory"),
       Map.entry("product_reviews", "review"),
       Map.entry("customer_notifications", "notification"),

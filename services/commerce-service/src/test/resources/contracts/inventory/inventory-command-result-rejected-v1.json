@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "resultId": "88888888-2222-4333-8444-555555555555",
+  "commandId": "order:2002:reserve",
+  "commandType": "RESERVE",
+  "outcome": "REJECTED",
+  "occurredAt": "2026-11-16T12:00:01Z",
+  "errorCode": "INSUFFICIENT_STOCK",
+  "message": "Inventory reservation was rejected",
+  "correlationId": "order-2002",
+  "causationId": "order:2002:reserve",
+  "traceparent": "00-5bf92f3577b34da6a3ce929d0e0e4736-10f067aa0ba902b7-01"
+}

@@ -50,7 +50,10 @@ import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.Invento
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandValidatorV1;
 import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
 import vip.fairy.commerceflow.commerce.inventory.application.InventoryCatalogEventHandlerV1;
+import vip.fairy.commerceflow.commerce.inventory.application.InventoryCommandDeliveryStateMachine;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.CatalogProductEventV1;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandResultOutcomeV1;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandResultV1;
 import vip.fairy.commerceflow.commerce.inventory.infrastructure.security.CatalogEventRequestSignature;
 import vip.fairy.commerceflow.commerce.ordering.application.PurchaseOrderService;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
@@ -163,6 +166,8 @@ class CommerceFlowIntegrationTest {
   @Autowired
   CatalogEventRequestSignature catalogEventSignatures;
   @Autowired
+  InventoryCommandDeliveryStateMachine inventoryDeliveryStateMachine;
+  @Autowired
   CustomerNotificationCommandRouter notificationRouter;
   @Autowired
   NotificationOutboxDispatcher notificationOutbox;
@@ -247,6 +252,23 @@ class CommerceFlowIntegrationTest {
   }
 
   @Test
+  void inventoryCommandResultV1FixturesRemainCompatible() throws Exception {
+    Map<String, InventoryCommandResultOutcomeV1> fixtures = Map.of(
+      "inventory-command-result-succeeded-v1.json", InventoryCommandResultOutcomeV1.SUCCEEDED,
+      "inventory-command-result-rejected-v1.json", InventoryCommandResultOutcomeV1.REJECTED
+    );
+    for (Map.Entry<String, InventoryCommandResultOutcomeV1> fixture : fixtures.entrySet()) {
+      try (var input = getClass().getResourceAsStream(
+        "/contracts/inventory/" + fixture.getKey())) {
+        org.junit.jupiter.api.Assertions.assertNotNull(input);
+        InventoryCommandResultV1 result = json.readValue(input, InventoryCommandResultV1.class);
+        result.validate();
+        org.junit.jupiter.api.Assertions.assertEquals(fixture.getValue(), result.outcome());
+      }
+    }
+  }
+
+  @Test
   @Transactional
   void inventoryCommandInboxMakesReplayIdempotentAndRejectsPayloadReuse() {
     long orderId = 9_000_000L + Math.abs(UUID.randomUUID().getMostSignificantBits() % 100_000L);
@@ -271,6 +293,14 @@ class CommerceFlowIntegrationTest {
     org.junit.jupiter.api.Assertions.assertEquals("SUCCEEDED",
       jdbc.queryForObject(
         "SELECT status FROM inventory_command_inbox WHERE command_id=?", String.class, commandId));
+    org.junit.jupiter.api.Assertions.assertEquals("ACKNOWLEDGED",
+      jdbc.queryForObject(
+        "SELECT status FROM inventory_command_delivery_outbox WHERE command_id=?", String.class,
+        commandId));
+    org.junit.jupiter.api.Assertions.assertEquals("SUCCEEDED",
+      jdbc.queryForObject(
+        "SELECT outcome FROM inventory_command_result_inbox WHERE command_id=?", String.class,
+        commandId));
 
     InventoryCommandV1 conflicting = InventoryCommandV1.reserve(
       commandId,
@@ -279,6 +309,28 @@ class CommerceFlowIntegrationTest {
     );
     org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
       () -> inventoryCommands.handle(conflicting));
+  }
+
+  @Test
+  @Transactional
+  void inventoryCommandResultTimeoutRequiresReconciliationAfterAttemptLimit() {
+    String commandId = "inventory-timeout-" + UUID.randomUUID();
+    jdbc.update("INSERT INTO inventory_command_delivery_outbox(command_id,command_type,producer,"
+        + "order_id,payload_fingerprint,payload,status) VALUES(?,?,?,?,?,?,?)",
+      commandId, "COMMIT", "payment", 2001L, "a".repeat(64), "{}", "NEW");
+
+    org.junit.jupiter.api.Assertions.assertEquals(1,
+      inventoryDeliveryStateMachine.markInFlight(commandId, java.time.Duration.ofSeconds(1)));
+    jdbc.update("UPDATE inventory_command_delivery_outbox "
+      + "SET result_deadline_at=DATEADD('SECOND',-1,CURRENT_TIMESTAMP) WHERE command_id=?",
+      commandId);
+    org.junit.jupiter.api.Assertions.assertEquals(1,
+      inventoryDeliveryStateMachine.recoverExpired(1, java.time.Duration.ZERO));
+
+    org.junit.jupiter.api.Assertions.assertEquals("RECONCILIATION_REQUIRED",
+      jdbc.queryForObject(
+        "SELECT status FROM inventory_command_delivery_outbox WHERE command_id=?", String.class,
+        commandId));
   }
 
   @Test

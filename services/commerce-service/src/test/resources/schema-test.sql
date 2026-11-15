@@ -245,6 +245,36 @@ CREATE TABLE inventory_command_inbox
   created_at         TIMESTAMP            DEFAULT CURRENT_TIMESTAMP,
   processed_at       TIMESTAMP
 );
+CREATE TABLE inventory_command_delivery_outbox
+(
+  command_id         VARCHAR(100) PRIMARY KEY,
+  command_type       VARCHAR(24)  NOT NULL,
+  producer           VARCHAR(50)  NOT NULL,
+  order_id           BIGINT       NOT NULL,
+  payload_fingerprint CHAR(64)    NOT NULL,
+  payload            CLOB         NOT NULL,
+  status             VARCHAR(30)  NOT NULL DEFAULT 'NEW',
+  attempts           INT          NOT NULL DEFAULT 0,
+  next_attempt_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  result_deadline_at TIMESTAMP,
+  last_error         VARCHAR(500),
+  created_at         TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  acknowledged_at    TIMESTAMP
+);
+CREATE TABLE inventory_command_result_inbox
+(
+  result_id      VARCHAR(100) PRIMARY KEY,
+  command_id     VARCHAR(100) NOT NULL UNIQUE,
+  command_type   VARCHAR(24)  NOT NULL,
+  outcome        VARCHAR(20)  NOT NULL,
+  occurred_at    TIMESTAMP    NOT NULL,
+  error_code     VARCHAR(80),
+  message        VARCHAR(500) NOT NULL,
+  correlation_id VARCHAR(100) NOT NULL,
+  causation_id   VARCHAR(100) NOT NULL,
+  traceparent    VARCHAR(55)  NOT NULL,
+  received_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE inventory_catalog_event_inbox
 (
   event_id            VARCHAR(100) PRIMARY KEY,

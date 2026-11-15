@@ -1,22 +1,16 @@
 package vip.fairy.commerceflow.commerce.inventory.application;
 
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandTypeV1;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandSemantics;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandV1;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandValidatorV1;
-import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
 import vip.fairy.commerceflow.commerce.inventory.infrastructure.InventoryCommandInboxMapper;
-
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class InventoryCommandHandlerV1 implements InventoryCommandPort {
+public class InventoryCommandHandlerV1 {
 
   private final InventoryCommandValidatorV1 validator;
   private final InventoryCommandInboxMapper inbox;
@@ -30,11 +24,10 @@ public class InventoryCommandHandlerV1 implements InventoryCommandPort {
     this.inventory = inventory;
   }
 
-  @Override
   @Transactional
   public void handle(InventoryCommandV1 command) {
     validator.validate(command);
-    String fingerprint = fingerprint(command);
+    String fingerprint = InventoryCommandSemantics.fingerprint(command);
     if (inbox.claim(command.commandId(), command.commandType().name(), command.orderId(), fingerprint) != 1) {
       String existing = inbox.payloadFingerprint(command.commandId());
       if (!fingerprint.equals(existing)) {
@@ -58,21 +51,4 @@ public class InventoryCommandHandlerV1 implements InventoryCommandPort {
     }
   }
 
-  private String fingerprint(InventoryCommandV1 command) {
-    String items = command.items().stream()
-      .map(item -> item.productId() + ":" + field(item.productName()) + ":" + item.quantity())
-      .collect(Collectors.joining("\n"));
-    String semanticPayload = command.commandType() + "\n" + field(command.producer()) + "\n"
-      + command.orderId() + "\n" + field(command.reason()) + "\n" + items;
-    try {
-      return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-        .digest(semanticPayload.getBytes(StandardCharsets.UTF_8)));
-    } catch (NoSuchAlgorithmException exception) {
-      throw new IllegalStateException("SHA-256 is unavailable", exception);
-    }
-  }
-
-  private String field(String value) {
-    return value == null ? "-1:" : value.length() + ":" + value;
-  }
 }

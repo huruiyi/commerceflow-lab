@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "resultId": "77777777-2222-4333-8444-555555555555",
+  "commandId": "order:2001:reserve",
+  "commandType": "RESERVE",
+  "outcome": "SUCCEEDED",
+  "occurredAt": "2026-11-16T12:00:01Z",
+  "errorCode": null,
+  "message": "Inventory command applied",
+  "correlationId": "order-2001",
+  "causationId": "order:2001:reserve",
+  "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+}

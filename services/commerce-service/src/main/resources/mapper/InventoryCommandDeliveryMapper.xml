@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.inventory.infrastructure.InventoryCommandDeliveryMapper">
+
+  <insert id="enqueue">
+    INSERT IGNORE INTO inventory_command_delivery_outbox(
+      command_id,command_type,producer,order_id,payload_fingerprint,payload,status
+    ) VALUES(
+      #{commandId},#{commandType},#{producer},#{orderId},#{payloadFingerprint},
+      CAST(#{payload} AS JSON),'NEW'
+    )
+  </insert>
+
+  <select id="payloadFingerprint" resultType="java.lang.String">
+    SELECT payload_fingerprint
+    FROM inventory_command_delivery_outbox
+    WHERE command_id=#{commandId}
+  </select>
+
+  <select id="status" resultType="java.lang.String">
+    SELECT status
+    FROM inventory_command_delivery_outbox
+    WHERE command_id=#{commandId}
+  </select>
+
+  <update id="markInFlight">
+    UPDATE inventory_command_delivery_outbox
+    SET status='IN_FLIGHT',attempts=attempts+1,result_deadline_at=#{resultDeadlineAt},
+      last_error=NULL
+    WHERE command_id=#{commandId} AND status IN ('NEW','RETRY')
+  </update>
+
+  <update id="acknowledge">
+    UPDATE inventory_command_delivery_outbox
+    SET status='ACKNOWLEDGED',acknowledged_at=CURRENT_TIMESTAMP(6),
+      result_deadline_at=NULL,last_error=NULL
+    WHERE command_id=#{commandId} AND status IN ('NEW','IN_FLIGHT','RETRY')
+  </update>
+
+  <insert id="recordResult">
+    INSERT IGNORE INTO inventory_command_result_inbox(
+      result_id,command_id,command_type,outcome,occurred_at,error_code,message,correlation_id,
+      causation_id,traceparent
+    ) VALUES(
+      #{resultId},#{commandId},#{commandType},#{outcome},#{occurredAt},#{errorCode},
+      #{message},#{correlationId},#{causationId},#{traceparent}
+    )
+  </insert>
+
+  <update id="recoverExpired">
+    UPDATE inventory_command_delivery_outbox
+    SET status=CASE WHEN attempts&gt;=#{maxAttempts}
+        THEN 'RECONCILIATION_REQUIRED' ELSE 'RETRY' END,
+      next_attempt_at=#{nextAttemptAt},result_deadline_at=NULL,
+      last_error='Inventory command result deadline expired'
+    WHERE status='IN_FLIGHT' AND result_deadline_at&lt;=CURRENT_TIMESTAMP(6)
+  </update>
+
+</mapper>
