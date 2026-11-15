@@ -6,6 +6,6 @@ public interface CatalogProductLookup {
 
   ProductSnapshot require(Long productId);
 
-  record ProductSnapshot(Long id, String name, BigDecimal price, String thumbnailUrl) {
+  record ProductSnapshot(Long id, Long merchantId, String name, BigDecimal price, String thumbnailUrl) {
   }
 }

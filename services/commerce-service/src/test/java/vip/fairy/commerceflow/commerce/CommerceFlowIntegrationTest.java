@@ -245,6 +245,9 @@ class CommerceFlowIntegrationTest {
   @Test
   void customerCartDeduplicationQuantityRemovalAndAuthorizationWork() throws Exception {
     CsrfContext csrf = login("demo@example.com", true);
+    Long customerId = jdbc.queryForObject(
+      "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
+    jdbc.update("DELETE FROM cart_items WHERE cart_id IN (SELECT id FROM carts WHERE user_id=?)", customerId);
     mvc.perform(get("/api/auth/me").session(csrf.session())).andExpect(status().isOk())
       .andExpect(jsonPath("$.role").value("CUSTOMER"));
     mvc.perform(post("/api/cart/items").session(csrf.session()).cookie(csrf.cookie())
@@ -474,14 +477,16 @@ class CommerceFlowIntegrationTest {
     Long merchantId = jdbc.queryForObject(
       "SELECT id FROM app_users WHERE email='admin@example.com'", Long.class);
     jdbc.update("UPDATE products SET merchant_id=? WHERE id=1", merchantId);
+    jdbc.update("UPDATE product_inventory SET merchant_id=? WHERE product_id=1", merchantId);
     jdbc.update("MERGE INTO carts(user_id,created_at,updated_at) KEY(user_id) VALUES(?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", customerId);
     Long cartId = jdbc.queryForObject("SELECT id FROM carts WHERE user_id=?", Long.class, customerId);
     jdbc.update("DELETE FROM cart_items WHERE cart_id=?", cartId);
-    jdbc.update("INSERT INTO cart_items(cart_id,product_id,quantity,created_at,updated_at) VALUES(?,1,2,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", cartId);
+    jdbc.update("INSERT INTO cart_items(cart_id,product_id,merchant_id,product_name,thumbnail_url,unit_price,quantity,created_at,updated_at) VALUES(?,1,?,'Learning Laptop','thumb',1299,2,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", cartId, merchantId);
     jdbc.update("INSERT INTO shipping_addresses(user_id,recipient_name,phone,country_code,state_province,city,district,address_line1,address_line2,postal_code,label,is_default,created_at,updated_at) VALUES(?,'Inventory Customer','13800000000','CN','Shanghai','Shanghai','Pudong','Stock Road','','200000','Inventory',TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", customerId);
     Long addressId = jdbc.queryForObject("SELECT MAX(id) FROM shipping_addresses WHERE user_id=?", Long.class, customerId);
     jdbc.update("UPDATE carts SET selected_address_id=? WHERE id=?", addressId, cartId);
-    int availableBefore = jdbc.queryForObject("SELECT stock_available FROM products WHERE id=1", Integer.class);
+    int availableBefore = jdbc.queryForObject(
+      "SELECT stock_available FROM product_inventory WHERE product_id=1", Integer.class);
 
     CsrfContext customer = login("demo@example.com", false);
     MvcResult checkout = mvc.perform(post("/api/purchase-orders/checkout")
@@ -489,9 +494,9 @@ class CommerceFlowIntegrationTest {
       .andExpect(status().isOk()).andReturn();
     long orderId = json.readTree(checkout.getResponse().getContentAsString()).get("id").asLong();
     org.junit.jupiter.api.Assertions.assertEquals(availableBefore - 2,
-      jdbc.queryForObject("SELECT stock_available FROM products WHERE id=1", Integer.class));
+      jdbc.queryForObject("SELECT stock_available FROM product_inventory WHERE product_id=1", Integer.class));
     org.junit.jupiter.api.Assertions.assertEquals(2,
-      jdbc.queryForObject("SELECT stock_reserved FROM products WHERE id=1", Integer.class));
+      jdbc.queryForObject("SELECT stock_reserved FROM product_inventory WHERE product_id=1", Integer.class));
     org.junit.jupiter.api.Assertions.assertEquals("RESERVED", jdbc.queryForObject(
       "SELECT status FROM inventory_reservations WHERE order_id=? AND product_id=1", String.class, orderId));
 
@@ -514,9 +519,9 @@ class CommerceFlowIntegrationTest {
     orderCancellationProjection.process("order-events", envelope);
 
     org.junit.jupiter.api.Assertions.assertEquals(availableBefore,
-      jdbc.queryForObject("SELECT stock_available FROM products WHERE id=1", Integer.class));
+      jdbc.queryForObject("SELECT stock_available FROM product_inventory WHERE product_id=1", Integer.class));
     org.junit.jupiter.api.Assertions.assertEquals(0,
-      jdbc.queryForObject("SELECT stock_reserved FROM products WHERE id=1", Integer.class));
+      jdbc.queryForObject("SELECT stock_reserved FROM product_inventory WHERE product_id=1", Integer.class));
     org.junit.jupiter.api.Assertions.assertEquals("RELEASED", jdbc.queryForObject(
       "SELECT status FROM inventory_reservations WHERE order_id=? AND product_id=1", String.class, orderId));
     org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
@@ -654,8 +659,8 @@ class CommerceFlowIntegrationTest {
   void merchantCanAuditAndAdjustOnlyOwnedAvailableInventory() throws Exception {
     Long merchantId = jdbc.queryForObject(
       "SELECT id FROM app_users WHERE email='merchant@example.com'", Long.class);
-    jdbc.update("UPDATE products SET merchant_id=?,stock_available=40 WHERE id=1",
-      merchantId);
+    jdbc.update("UPDATE products SET merchant_id=? WHERE id=1", merchantId);
+    jdbc.update("UPDATE product_inventory SET merchant_id=?,stock_available=40 WHERE product_id=1", merchantId);
     CsrfContext merchant = login("merchant@example.com", false);
 
     mvc.perform(get("/api/merchant/inventory").session(merchant.session()))
@@ -675,7 +680,7 @@ class CommerceFlowIntegrationTest {
     mvc.perform(get("/api/merchant/inventory").session(customer.session()))
       .andExpect(status().isForbidden());
     org.junit.jupiter.api.Assertions.assertEquals(45,
-      jdbc.queryForObject("SELECT stock_available FROM products WHERE id=1", Integer.class));
+      jdbc.queryForObject("SELECT stock_available FROM product_inventory WHERE product_id=1", Integer.class));
     org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
       "SELECT COUNT(*) FROM inventory_movements WHERE product_id=1 AND movement_type='MANUAL_INCREASE'",
       Integer.class));
@@ -913,9 +918,10 @@ class CommerceFlowIntegrationTest {
   @Test
   void customerCannotAccessAnotherCustomersCartAddressOrOrder() throws Exception {
     Long ownerId = jdbc.queryForObject("SELECT id FROM app_users WHERE email='customer2@example.com'", Long.class);
+    Long merchantId = jdbc.queryForObject("SELECT merchant_id FROM products WHERE id=1", Long.class);
     jdbc.update("MERGE INTO carts(user_id,created_at,updated_at) KEY(user_id) VALUES(?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", ownerId);
     Long cartId = jdbc.queryForObject("SELECT id FROM carts WHERE user_id=?", Long.class, ownerId);
-    jdbc.update("MERGE INTO cart_items(cart_id,product_id,quantity,created_at,updated_at) KEY(cart_id,product_id) VALUES(?,1,3,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", cartId);
+    jdbc.update("MERGE INTO cart_items(cart_id,product_id,merchant_id,product_name,thumbnail_url,unit_price,quantity,created_at,updated_at) KEY(cart_id,product_id) VALUES(?,1,?,'Learning Laptop','thumb',1299,3,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", cartId, merchantId);
     Long cartItemId = jdbc.queryForObject("SELECT id FROM cart_items WHERE cart_id=? AND product_id=1", Long.class, cartId);
     jdbc.update("INSERT INTO shipping_addresses(user_id,recipient_name,phone,country_code,state_province,city,district,address_line1,address_line2,postal_code,label,is_default,created_at,updated_at) VALUES(?,'Owner','13800000000','CN','Shanghai','Shanghai','Pudong','Owner Road','','200000','Home',TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", ownerId);
     Long addressId = jdbc.queryForObject("SELECT MAX(id) FROM shipping_addresses WHERE user_id=?", Long.class, ownerId);

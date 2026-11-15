@@ -22,11 +22,10 @@
 
   <select id="lockCartItems" resultType="vip.fairy.commerceflow.commerce.cart.domain.CheckoutCartItem">
     <![CDATA[
-      SELECT i.product_id, p.merchant_id, p.name AS product_name, p.thumbnail_url,
-             p.price AS unit_price, i.quantity
+      SELECT i.product_id, i.merchant_id, i.product_name, i.thumbnail_url,
+             i.unit_price, i.quantity
       FROM cart_items i
       JOIN carts c ON c.id = i.cart_id
-      JOIN products p ON p.id = i.product_id
       WHERE c.user_id = #{userId}
       ORDER BY i.id
       FOR UPDATE

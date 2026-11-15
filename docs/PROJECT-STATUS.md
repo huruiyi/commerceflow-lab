@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.3 catalog-service 边界准入治理首批已完成并独立提交推送 |
-| 下一候选阶段 | M3.3 第二批：冻结 products 商品资料与 inventory 数量的最终归属、商品快照及跨库 join 消除方案 |
+| 当前阶段 | M3.3 第二批 catalog/inventory 数据所有权冻结已完成并独立提交推送 |
+| 下一候选阶段 | M3.3 第三批：冻结 catalog V1 API、商品变更事件和失败语义，再评审独立 catalog-service |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -30,9 +30,9 @@
 | 收货、自动收货和自动完成 | M1 可靠性门禁已通过 | 重放、重启/租约恢复、RabbitMQ/RocketMQ 停机恢复和双平台 120 秒/12 并发竞态压测均通过 |
 | 库存与商家库存中心 | 已实现 | 可售/预占/已售、转正/释放/退款回补、调整流水 |
 | Angular/Vue 界面 | Angular 主流程和订单页视觉收尾已实现 | 订单详情与支付信息已扁平化，商品图有失败回退；通知菜单使用中性列表和细滚动条，支持外部点击、`Esc`、关闭按钮和选择通知后关闭；语言切换使用图标；导航与 1480 px 正文容器对齐，桌面与 390 px 窄屏已验收 |
-| Flyway 数据库生命周期 | 空卷和迁移层已验收 | 当前商城库 V27；notification 独立 Schema V1→V3 已隔离及实际运行验收 |
+| Flyway 数据库生命周期 | 空卷和迁移层已验收 | 当前商城库 V28；notification 独立 Schema V1→V3 已隔离及实际运行验收 |
 | notification 独立服务 | 单一所有权切换已实现 | 默认拓扑启动独立 MySQL/Kafka 服务；commerce 仅签名代理，故障稳定返回 503，无本地数据库回退 |
-| catalog 拆分准入 | 首批应用端口治理已实现 | cart/catalog/review 不再跨模块注入 ProductMapper/ReviewMapper；独立服务和数据迁移尚未启动 |
+| catalog 拆分准入 | 第二批数据所有权冻结已实现 | 商品资料与库存数量已分表，cart/order 使用持久快照且无商品跨边界 join；独立服务和独立数据库尚未启动 |
 | 告警与监控 | 本地端到端管道已实现 | 三服务 Prometheus 抓取、10 条规则、Alertmanager、Grafana 数据源和可替换 Webhook；真实通知供应商与高可用部署不在本地学习验收内 |
 
 ## 3. M1 冻结结论
@@ -226,3 +226,14 @@ Angular 改用 eventId 已读并在 503 时显示重试。commerce 内本地通�
 lag 均为 0。Windows/Bash 通知专项、快速回归、质量审计和 41 对脚本契约均已通过；Windows 完整验收通过。
 Bash 等价全链路通过全部业务阶段，告警尾段在 Git Bash 排除容器路径的 MSYS 参数转换后补验，结果为 3 个
 健康采集目标、10 条规则和 1 次 Watchdog 投递。本批已以 `88d22c6` 独立提交并推送。
+
+第十批开始 M3.3 catalog 拆分准入。首批建立 `CatalogProductLookup`、`CatalogCacheInvalidator` 和
+`ProductReviewCatalogQuery` 应用边界，cart/order/catalog/review 不再跨模块注入 ProductMapper/ReviewMapper，
+依赖基线由 41/118/38/21 收紧为 41/113/37/18，并以 `587a75d` 独立提交推送。
+
+第二批以商城 Flyway V28 完成数据所有权冻结：catalog 的 `products` 只保存商品资料，inventory 自有
+`product_inventory` 独占可售、预占、已售数量并保存履行快照；库存预占/流水外键已改接新表。cart_items、
+customer_orders 固化名称、图片和单价，购物车、轻量订单、结算锁定和商家库存不再 join `products`；同时
+移除 products→identity 及 cart/order/review→catalog 的跨边界外键。现有库 6 条库存记录和 642/1/65 数量
+总和保持不变，Windows/容器化 Bash 的空库 V1→V28、旧库 V16→V28 隔离升级均通过。当前所有权基线为
+43 张表，依赖基线保持 41/113/37/18；catalog-service、inventory-service、独立数据库及 PostgreSQL 均未启动。

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
@@ -26,6 +27,18 @@ public class CustomerOrder {
    */
   private Long productId;
   /**
+   * 创建订单时固化的商品名称，避免历史查询依赖实时目录。
+   */
+  private String productName;
+  /**
+   * 创建订单时固化的商品缩略图。
+   */
+  private String thumbnailUrl;
+  /**
+   * 创建订单时固化的商品单价。
+   */
+  private BigDecimal unitPrice;
+  /**
    * 记录创建时间。
    */
   private Instant createdAt;
@@ -41,9 +54,13 @@ public class CustomerOrder {
   protected CustomerOrder() {
   }
 
-  public CustomerOrder(Long userId, Long productId, Instant createdAt, String note, int quantity) {
+  public CustomerOrder(Long userId, Long productId, String productName, String thumbnailUrl,
+                       BigDecimal unitPrice, Instant createdAt, String note, int quantity) {
     this.userId = userId;
     this.productId = productId;
+    this.productName = productName;
+    this.thumbnailUrl = thumbnailUrl;
+    this.unitPrice = unitPrice;
     this.createdAt = createdAt;
     this.note = note;
     this.quantity = quantity;
@@ -59,6 +76,18 @@ public class CustomerOrder {
 
   public Long getProductId() {
     return productId;
+  }
+
+  public String getProductName() {
+    return productName;
+  }
+
+  public String getThumbnailUrl() {
+    return thumbnailUrl;
+  }
+
+  public BigDecimal getUnitPrice() {
+    return unitPrice;
   }
 
   public Instant getCreatedAt() {

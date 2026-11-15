@@ -37,10 +37,19 @@ CREATE TABLE products
   price           DECIMAL(12, 2),
   image_url       VARCHAR(500),
   thumbnail_url   VARCHAR(500),
+  merchant_id     BIGINT
+);
+CREATE TABLE product_inventory
+(
+  product_id      BIGINT PRIMARY KEY,
   merchant_id     BIGINT,
+  product_name    VARCHAR(160) NOT NULL,
+  thumbnail_url   VARCHAR(500) NOT NULL,
+  unit_price      DECIMAL(12, 2) NOT NULL,
   stock_available INT NOT NULL DEFAULT 100,
   stock_reserved  INT NOT NULL DEFAULT 0,
-  stock_sold      INT NOT NULL DEFAULT 0
+  stock_sold      INT NOT NULL DEFAULT 0,
+  updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE product_translations
 (
@@ -56,6 +65,9 @@ CREATE TABLE customer_orders
   id         BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id    BIGINT       NOT NULL,
   product_id BIGINT       NOT NULL,
+  product_name VARCHAR(160) NOT NULL,
+  thumbnail_url VARCHAR(500) NOT NULL,
+  unit_price DECIMAL(12, 2) NOT NULL,
   created_at TIMESTAMP    NOT NULL,
   note       VARCHAR(500) NOT NULL,
   quantity   INT          NOT NULL DEFAULT 1,
@@ -85,6 +97,10 @@ CREATE TABLE cart_items
   id         BIGINT AUTO_INCREMENT PRIMARY KEY,
   cart_id    BIGINT NOT NULL,
   product_id BIGINT NOT NULL,
+  merchant_id BIGINT,
+  product_name VARCHAR(160) NOT NULL,
+  thumbnail_url VARCHAR(500) NOT NULL,
+  unit_price DECIMAL(12, 2) NOT NULL,
   quantity   INT    NOT NULL,
   created_at TIMESTAMP,
   updated_at TIMESTAMP,
@@ -572,5 +588,13 @@ WHERE u.email = 'customer2@example.com'
   AND r.code = 'CUSTOMER';
 INSERT INTO products(name, brief, description, price, image_url, thumbnail_url)
 VALUES ('Learning Laptop', 'Coding laptop', 'Learning workstation', 1299, 'image', 'thumb');
+UPDATE products
+SET merchant_id=(SELECT id FROM app_users WHERE email='merchant@example.com')
+WHERE id=1;
+INSERT INTO product_inventory(
+  product_id,merchant_id,product_name,thumbnail_url,unit_price,
+  stock_available,stock_reserved,stock_sold
+)
+SELECT id,merchant_id,name,thumbnail_url,price,100,0,0 FROM products;
 INSERT INTO product_translations(product_id, locale, name, brief, description)
 VALUES (1, 'zh-CN', '学习笔记本电脑', '编程电脑', '学习工作站');

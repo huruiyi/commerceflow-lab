@@ -9,7 +9,7 @@ HTTP、Kafka、RabbitMQ 和 RocketMQ 跨进程追踪。commerce 只保留订单�
 
 本轮冻结的是审计基线，不是微服务实现：
 
-- 42 张商城表均声明当前唯一责任模块；新增表必须同步声明所有者。
+- 43 张商城表均声明当前唯一责任模块；新增表必须同步声明所有者。
 - 当前存在 41 组跨模块 Java 依赖、113 个导入引用，涉及 37 个源码文件。
 - 其中 18 个引用直接指向其他模块的 `infrastructure`，属于拆分前必须消除的硬阻塞项。
 - 新增的 `MicroserviceReadinessBaselineTest` 允许依赖减少，但禁止出现未经评审的新依赖方向、引用数量增长、
@@ -20,14 +20,14 @@ HTTP、Kafka、RabbitMQ 和 RocketMQ 跨进程追踪。commerce 只保留订单�
 | 当前责任模块 | 表 | 拆分前注意事项 |
 | --- | --- | --- |
 | `identity` | `app_users`、`roles`、`user_roles`、`persistent_logins` | 其他模块广泛直接使用 `AppUser`；需改为调用方需要的身份快照或查询端口。 |
-| `catalog` | `products`、`product_translations` | `products` 同时保存库存列，是 catalog/inventory 的混合聚合。 |
-| `cart` | `carts`、`cart_items`、`customer_orders` | `customer_orders` 是早期模型；需确认保留、迁移或退役策略。 |
+| `catalog` | `products`、`product_translations` | 只持有商品主数据、标准售价和翻译；merchantId 是稳定标识，不使用 identity 数据库外键。 |
+| `cart` | `carts`、`cart_items`、`customer_orders` | 两类明细均已固化商品快照；`customer_orders` 是早期模型，仍需确认长期保留或退役策略。 |
 | `customer` | `shipping_addresses` | 下单同时读取地址并写订单地址快照，服务化后只能传快照，不能跨库读取。 |
 | `ordering` | `shop_orders`、`order_items`、`order_shipping_addresses`、`order_events` | 当前是支付、退款、履约、物流、收货和评价的共享事实中心。 |
 | `payment` | `payment_records`、`payment_merchant_accounts`、`payment_notifications`、`payment_events`、`payment_idempotency_locks`、`payment_reconciliation_issue`、`payment_outbox`、`kafka_consumed_event` | `kafka_consumed_event` 实际承担 Inbox 去重，但由支付 Mapper 管理，不能直接作为所有未来消费者的共享表。 |
 | `refund` | `refund_records`、`refund_events`、`refund_notifications` | 直接锁定/更新支付记录并读取订单，尚未形成独立事务边界。 |
 | `logistics` | `shipment_records`、`shipment_events`、`shipment_notifications` | 商城侧投影已有独立表，但仍直接读写订单并调用收货模块。 |
-| `inventory` | `inventory_reservations`、`inventory_movements` | 可售、预占、已售数量仍位于 `products`，所有权尚未真正独立。 |
+| `inventory` | `product_inventory`、`inventory_reservations`、`inventory_movements` | 独占可售、预占、已售数量及其流水；商品名称、图片、单价仅是履行展示所需快照。 |
 | `review` | `product_reviews` | 查询跨订单、商品和用户表，拆分时需要只读快照或组合查询边界。 |
 | `notification` | commerce 仅运行 `notification_delivery_outbox`；独立 Schema 持有通知、Inbox 及历史切换证据表 | notification-service 是唯一运行读写实现；commerce 历史 Flyway 表保留但无运行代码访问。 |
 | `scheduling` | `scheduled_task_policies`、`scheduled_tasks`、`scheduled_task_events`、`scheduled_task_policy_events`、`shedlock` | 调度记录可独立，但 Handler 仍同步调用 ordering/receipt。 |
@@ -74,8 +74,8 @@ inbound/outbound port。
 拆分前优先固化以下应用接口：
 
 1. notification：单一所有权切换已完成，独立服务是唯一通知读写实现，commerce 只保留 Outbox 和身份薄代理。
-2. catalog/inventory：首批已消除 cart 对 ProductMapper、catalog 对 ReviewMapper 的直接依赖；下一步分离商品
-   资料与库存预占/转正/释放，明确 `products` 中库存列的迁移归属和跨库 join 消除方案。
+2. catalog/inventory：已消除 cart 对 ProductMapper、catalog 对 ReviewMapper 的直接依赖，并将商品资料与
+   库存数量分表、固化 cart/order 商品快照、移除运行时商品跨边界 join；下一步冻结 V1 API/事件契约。
 3. ordering：订单状态查询、条件迁移和订单快照接口，不暴露 `ShopOrderMapper` 或跨服务行锁。
 4. payment/refund：支付结果、退款请求及回调投影使用版本化命令/事件，不跨模块更新支付记录。
 5. fulfillment/logistics/receipt：以履约命令和状态事件连接，保留重复、迟到和乱序保护。
@@ -135,15 +135,15 @@ taskId 查询到同一 Trace 的 publish/process Span，并验证 Tempo 停机�
 - [x] RabbitMQ/RocketMQ 已具备真实跨消息 Trace 和追踪后端故障降级证据。
 
 M3.2 已完成 notification 单一所有权切换：独立服务承接客户读写，commerce 只保留事务 Outbox 和身份薄
-代理。M3.3 catalog 首批进一步消除 cart 对 ProductMapper、catalog 对 ReviewMapper 的直接依赖；商品资料与
-库存数量的物理分离、跨库 join 消除和独立服务切换仍是后续门禁。
+代理。M3.3 前两批进一步消除 cart 对 ProductMapper、catalog 对 ReviewMapper 的直接依赖，并完成商品资料与
+库存数量的物理分离及跨边界 join 消除；V1 契约和独立服务切换仍是后续门禁。
 
 ## 8. 自动基线
 
 [`MicroserviceReadinessBaselineTest`](../../services/commerce-service/src/test/java/vip/fairy/commerceflow/commerce/architecture/MicroserviceReadinessBaselineTest.java)
 已接入商城 Maven 测试：
 
-- 从商城 Flyway 迁移读取 `CREATE TABLE`，当前 42 张表的任何新增/移除都必须同步评审所有权；独立
+- 从商城 Flyway 迁移读取 `CREATE TABLE`，当前 43 张表的任何新增/移除都必须同步评审所有权；独立
   notification Schema 的迁移目录单独演练，不混入商城表所有权计数。
 - 从 Java package/import 读取跨模块依赖；现有依赖可减少，不允许未经评审增加方向、引用或基础设施耦合。
 - 当前基线为 41 组方向、113 个 import、37 个涉及文件和 18 个基础设施引用；基线不是白名单式“合格证明”，

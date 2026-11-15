@@ -92,6 +92,7 @@ class MicroserviceReadinessBaselineTest {
       Map.entry("persistent_logins", "identity"),
       Map.entry("products", "catalog"),
       Map.entry("product_translations", "catalog"),
+      Map.entry("product_inventory", "inventory"),
       Map.entry("carts", "cart"),
       Map.entry("cart_items", "cart"),
       Map.entry("customer_orders", "cart"),

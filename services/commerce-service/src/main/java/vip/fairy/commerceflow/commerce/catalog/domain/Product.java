@@ -41,6 +41,10 @@ public class Product {
    * 商品列表缩略图地址。
    */
   private String thumbnailUrl;
+  /**
+   * 当前商品所属商家的稳定内部标识；服务化后不依赖 identity 数据库外键。
+   */
+  private Long merchantId;
 
   protected Product() {
   }
@@ -81,5 +85,9 @@ public class Product {
 
   public String getThumbnailUrl() {
     return thumbnailUrl;
+  }
+
+  public Long getMerchantId() {
+    return merchantId;
   }
 }

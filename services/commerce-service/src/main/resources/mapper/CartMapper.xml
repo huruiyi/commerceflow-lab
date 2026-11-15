@@ -20,10 +20,20 @@
 
   <insert id="add">
     <![CDATA[
-      INSERT INTO cart_items (cart_id, product_id, quantity, created_at, updated_at)
-      VALUES (#{cartId}, #{productId}, #{quantity}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      INSERT INTO cart_items (
+        cart_id, product_id, merchant_id, product_name, thumbnail_url, unit_price,
+        quantity, created_at, updated_at
+      )
+      VALUES (
+        #{cartId}, #{productId}, #{merchantId}, #{productName}, #{thumbnailUrl}, #{unitPrice},
+        #{quantity}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
       ON DUPLICATE KEY UPDATE
         quantity = LEAST(quantity + #{quantity}, 99),
+        merchant_id = #{merchantId},
+        product_name = #{productName},
+        thumbnail_url = #{thumbnailUrl},
+        unit_price = #{unitPrice},
         updated_at = CURRENT_TIMESTAMP
     ]]>
   </insert>
@@ -31,10 +41,9 @@
   <select id="list" resultType="vip.fairy.commerceflow.commerce.cart.domain.OrderView">
     <![CDATA[
       SELECT i.id, i.product_id, i.updated_at AS created_at, '' AS note, i.quantity,
-             p.name AS product_name, p.price, p.thumbnail_url
+             i.product_name, i.unit_price AS price, i.thumbnail_url
       FROM cart_items i
       JOIN carts c ON c.id = i.cart_id
-      JOIN products p ON p.id = i.product_id
       WHERE c.user_id = #{userId}
       ORDER BY i.created_at, i.id
     ]]>
@@ -43,10 +52,9 @@
   <select id="view" resultType="vip.fairy.commerceflow.commerce.cart.domain.OrderView">
     <![CDATA[
       SELECT i.id, i.product_id, i.updated_at AS created_at, '' AS note, i.quantity,
-             p.name AS product_name, p.price, p.thumbnail_url
+             i.product_name, i.unit_price AS price, i.thumbnail_url
       FROM cart_items i
       JOIN carts c ON c.id = i.cart_id
-      JOIN products p ON p.id = i.product_id
       WHERE c.user_id = #{userId} AND i.id = #{itemId}
     ]]>
   </select>

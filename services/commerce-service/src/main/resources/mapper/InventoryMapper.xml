@@ -4,9 +4,9 @@
 
   <update id="reserve">
     <![CDATA[
-      UPDATE products
+      UPDATE product_inventory
     SET stock_available=stock_available-#{quantity},stock_reserved=stock_reserved+#{quantity}
-    WHERE id=#{productId} AND stock_available>=#{quantity}
+    WHERE product_id=#{productId} AND stock_available>=#{quantity}
     ]]>
   </update>
 
@@ -25,33 +25,33 @@
 
   <update id="commitReserved">
     <![CDATA[
-      UPDATE products
+      UPDATE product_inventory
     SET stock_reserved=stock_reserved-#{quantity},stock_sold=stock_sold+#{quantity}
-    WHERE id=#{productId} AND stock_reserved>=#{quantity}
+    WHERE product_id=#{productId} AND stock_reserved>=#{quantity}
     ]]>
   </update>
 
   <update id="commitReleased">
     <![CDATA[
-      UPDATE products
+      UPDATE product_inventory
     SET stock_available=stock_available-#{quantity},stock_sold=stock_sold+#{quantity}
-    WHERE id=#{productId} AND stock_available>=#{quantity}
+    WHERE product_id=#{productId} AND stock_available>=#{quantity}
     ]]>
   </update>
 
   <update id="release">
     <![CDATA[
-      UPDATE products
+      UPDATE product_inventory
     SET stock_available=stock_available+#{quantity},stock_reserved=stock_reserved-#{quantity}
-    WHERE id=#{productId} AND stock_reserved>=#{quantity}
+    WHERE product_id=#{productId} AND stock_reserved>=#{quantity}
     ]]>
   </update>
 
   <update id="refund">
     <![CDATA[
-      UPDATE products
+      UPDATE product_inventory
     SET stock_available=stock_available+#{quantity},stock_sold=stock_sold-#{quantity}
-    WHERE id=#{productId} AND stock_sold>=#{quantity}
+    WHERE product_id=#{productId} AND stock_sold>=#{quantity}
     ]]>
   </update>
 
@@ -83,7 +83,8 @@
 
   <select id="inventory" resultType="vip.fairy.commerceflow.commerce.inventory.domain.ProductInventory">
     <![CDATA[
-      SELECT id,stock_available,stock_reserved,stock_sold FROM products WHERE id=#{productId}
+      SELECT product_id AS id,stock_available,stock_reserved,stock_sold
+      FROM product_inventory WHERE product_id=#{productId}
     ]]>
   </select>
 

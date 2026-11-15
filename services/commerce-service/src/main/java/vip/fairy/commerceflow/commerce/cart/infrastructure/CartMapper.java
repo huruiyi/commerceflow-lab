@@ -3,6 +3,7 @@ package vip.fairy.commerceflow.commerce.cart.infrastructure;
 import vip.fairy.commerceflow.commerce.cart.domain.OrderView;
 import org.apache.ibatis.annotations.Param;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -12,7 +13,13 @@ public interface CartMapper {
 
   Long cartId(Long userId);
 
-  void add(@Param("cartId") Long cartId, @Param("productId") Long productId, @Param("quantity") int quantity);
+  void add(@Param("cartId") Long cartId,
+           @Param("productId") Long productId,
+           @Param("merchantId") Long merchantId,
+           @Param("productName") String productName,
+           @Param("thumbnailUrl") String thumbnailUrl,
+           @Param("unitPrice") BigDecimal unitPrice,
+           @Param("quantity") int quantity);
 
   List<OrderView> list(Long userId);
 

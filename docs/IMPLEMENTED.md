@@ -64,7 +64,7 @@
 - MySQL + Flyway、Redis/Spring Session、Kafka/Outbox、RabbitMQ 分桶延迟任务、RocketMQ 5.x 原生延时任务 Profile、ShedLock。
 - Angular/Vue 前端、三个 Spring Boot 服务和 Docker Compose。
 - `scripts/windows/` 与 `scripts/linux/` 保留同名验收脚本结构。
-- `verify-flyway-lifecycle` 使用与后端一致的 Flyway `12.4.0` 和隔离 MySQL 8.4，Windows/容器化 Bash 均已验证空库 V1–V27、V16→V27 升级、V17 历史订单 30 分钟截止时间回填、V24 核心注释和任务状态 `CHECK` 约束。脚本只删除自己的随机命名容器/网络，不使用或清空开发数据卷。
+- `verify-flyway-lifecycle` 使用与后端一致的 Flyway `12.4.0` 和隔离 MySQL 8.4，Windows/容器化 Bash 均已验证空库 V1–V28、V16→V28 升级、V17 历史订单 30 分钟截止时间回填、V24 核心注释、V28 catalog/inventory 所有权分离和任务状态 `CHECK` 约束。脚本只删除自己的随机命名容器/网络，不使用或清空开发数据卷。
 
 ## 7. 通用定时任务底座（阶段 1）
 
@@ -118,6 +118,10 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   `ProductReviewCatalogQuery` 应用边界；cart/order 不再注入 `ProductMapper`，catalog 不再注入
   `ReviewMapper`。跨模块基线由 41/118/38/21 降至 41/113/37/18，相关 infrastructure 引用上限收紧为 0。
   Java 25 正式镜像 29 项测试和 Windows/Bash 快速回归通过；尚未创建 catalog-service、独立 Schema 或迁移数据。
+- M3.3 第二批以 V28 新建 inventory 自有 `product_inventory`，将数量和必要商品快照从 `products` 分离；
+  cart/customer order 固化创建时商品快照，库存、购物车、结算和订单读取不再跨边界 join `products`。
+  现有库 6 条库存记录及 642/1/65 数量总和保持不变，空库/旧库双平台升级门禁通过；仍未创建 catalog-service、
+  inventory-service 或独立数据库，PostgreSQL 继续冻结。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。
@@ -194,7 +198,7 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 
 ## 9. 库存预占与商家库存中心
 
-- 商品保存可售、预占和已售三个余额；结算原子扣减可售并增加预占，支付成功转为已售，取消事件幂等释放预占。
+- inventory 自有 `product_inventory` 保存可售、预占和已售三个余额；结算原子扣减可售并增加预占，支付成功转为已售，取消事件幂等释放预占。
 - 每次预占、转正、释放和人工调整均写库存流水及调整后余额；人工调整不能将可售库存降为负数。
 - 商家库存 API 只允许查询和调整自己名下的商品，人工调整必须填写原因。
 - Angular 商家端使用 Sim UI 卡片、徽章和按钮展示库存汇总、商品余额、调整表单及最近流水。

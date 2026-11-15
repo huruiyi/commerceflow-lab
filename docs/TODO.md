@@ -430,8 +430,26 @@ inventory-service 或 PostgreSQL。
 - [x] 将 `cart -> catalog`、`catalog -> review` 跨模块 infrastructure 引用上限从 2/1 收紧为 0/0。
 - [x] Java 25 正式镜像 29 项测试、Windows/Bash 快速回归和质量/脚本契约审计通过。
 - [x] 复核文档并独立提交推送。
-- [ ] 下一批冻结 products 商品资料与 inventory 数量的最终表归属、商品快照和跨库 join 消除方案；仍不
+- [x] 下一批冻结 products 商品资料与 inventory 数量的最终表归属、商品快照和跨库 join 消除方案；仍不
   启动独立服务。
+
+### 13.10 M3.3 第二批：catalog/inventory 数据所有权冻结
+
+本批继续运行于 commerce 模块化单体和同一 MySQL 实例，只拆清物理表责任与持久化访问，不创建
+catalog-service、inventory-service 或独立数据库，不引入双读/双写和 PostgreSQL。
+
+- [x] 新增 Flyway V28：将可售、预占、已售数量迁入 inventory 自有 `product_inventory`，保留稳定
+  productId、merchantId 和必要商品快照，并删除 `products` 的三个库存列。
+- [x] 将库存预占与流水外键切到 `product_inventory`；删除 catalog 对 identity、cart/order/review 对
+  catalog 的跨边界数据库外键，服务化后不依赖共享数据库约束。
+- [x] 为 `cart_items`、`customer_orders` 固化创建时的名称、图片和单价快照；购物车、轻量订单、结算锁定
+  和商家库存查询不再跨模块 join `products`。
+- [x] 现有 MySQL 非破坏升级保留 6 条库存记录和 642/1/65 可售/预占/已售总量；空库 V1→V28、旧库
+  V16→V28 的 Windows/Bash 隔离生命周期演练均通过。
+- [x] Java 25 正式镜像 29 项测试、Windows/Bash 快速回归和质量/脚本契约审计通过。
+- [x] 复核文档并独立提交推送。
+- [ ] 下一批冻结 catalog V1 列表、详情、批量快照、商家维护 API 与商品变更事件契约，再评审独立
+  catalog-service；仍不启动 inventory-service 或 PostgreSQL。
 
 ## 14. 实施记录模板
 

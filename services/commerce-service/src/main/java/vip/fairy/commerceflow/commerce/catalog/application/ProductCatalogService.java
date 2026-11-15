@@ -73,6 +73,7 @@ public class ProductCatalogService implements CatalogProductLookup, CatalogCache
     }
     return new ProductSnapshot(
       product.getId(),
+      product.getMerchantId(),
       product.getName(),
       product.getPrice(),
       product.getThumbnailUrl());

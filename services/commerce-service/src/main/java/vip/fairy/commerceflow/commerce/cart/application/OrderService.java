@@ -30,7 +30,15 @@ public class OrderService {
     CatalogProductLookup.ProductSnapshot product = products.require(request.getProductId());
     String note = request.getNote() == null ? "" : request.getNote().trim();
     int quantity = request.getQuantity() == null ? 1 : request.getQuantity();
-    CustomerOrder order = new CustomerOrder(user.getId(), product.id(), Instant.now(), note, quantity);
+    CustomerOrder order = new CustomerOrder(
+      user.getId(),
+      product.id(),
+      product.name(),
+      product.thumbnailUrl(),
+      product.price(),
+      Instant.now(),
+      note,
+      quantity);
     orders.insert(order);
     return OrderResponse.from(order, product);
   }

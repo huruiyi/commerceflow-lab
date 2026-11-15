@@ -29,7 +29,11 @@ public class CartService {
     carts.ensureCart(user.getId());
     carts.add(
       carts.cartId(user.getId()),
-      request.getProductId(),
+      product.id(),
+      product.merchantId(),
+      product.name(),
+      product.thumbnailUrl(),
+      product.price(),
       request.getQuantity() == null ? 1 : request.getQuantity());
     return carts.list(user.getId()).stream()
       .filter(item -> item.getProductName().equals(product.name()))
