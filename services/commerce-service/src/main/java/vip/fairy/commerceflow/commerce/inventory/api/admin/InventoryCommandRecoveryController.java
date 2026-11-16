@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import vip.fairy.commerceflow.commerce.inventory.application.InventoryCommandRecoveryService;
 import vip.fairy.commerceflow.commerce.inventory.application.InventoryCommandRecoveryService.RecoveryView;
+import vip.fairy.commerceflow.commerce.inventory.application.InventoryRemoteRehearsalService;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandResultV1;
 
 @RestController
 @RequestMapping("/api/admin/inventory-command-recoveries")
@@ -22,9 +24,12 @@ import vip.fairy.commerceflow.commerce.inventory.application.InventoryCommandRec
 public class InventoryCommandRecoveryController {
 
   private final InventoryCommandRecoveryService recoveries;
+  private final InventoryRemoteRehearsalService rehearsals;
 
-  public InventoryCommandRecoveryController(InventoryCommandRecoveryService recoveries) {
+  public InventoryCommandRecoveryController(InventoryCommandRecoveryService recoveries,
+                                            InventoryRemoteRehearsalService rehearsals) {
     this.recoveries = recoveries;
+    this.rehearsals = rehearsals;
   }
 
   @GetMapping
@@ -37,6 +42,11 @@ public class InventoryCommandRecoveryController {
                      @Valid @RequestBody RetryRequest request,
                      Authentication authentication) {
     return recoveries.retry(commandId, authentication.getName(), request.reason());
+  }
+
+  @PostMapping("/{commandId}/remote-rehearsal")
+  InventoryCommandResultV1 rehearse(@PathVariable String commandId) {
+    return rehearsals.replayAcknowledged(commandId);
   }
 
   public record RetryRequest(@NotBlank String reason) {

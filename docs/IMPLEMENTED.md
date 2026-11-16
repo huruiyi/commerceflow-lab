@@ -171,6 +171,12 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   字段指纹一致。
   Java 25 的 2 项测试、双平台影子验收、扩展后的质量和 43 组脚本契约门禁通过。commerce/catalog 未改指向，
   独立库未接收业务新写，CUTOVER 与 PostgreSQL 继续冻结。
+- M3.4 第八批新增统一库存停写门禁和 commerce 唯一 HMAC HTTP 远程客户端。默认关闭的管理预演入口只重放
+  已 ACKNOWLEDGED 的原命令/原 payload，并将 Result V1 幂等确认到生产端 Inbox；连接失败稳定返回 503，
+  不引入 LOCAL/COMPARE、双写或数据库回退。Windows/Git Bash 实机均通过最终追平、历史 COMMIT 重复不改账、
+  inventory-service 停机/恢复；Windows 快速回归后 generation 23/24 五表指纹连续一致。Java 25 的 40 项测试、
+  372 个 Java、385 个类声明空行和 44 对脚本门禁通过。真实业务切换、四类 Tempo Trace、超时/结果丢失仍未
+  验收，三个开关恢复默认关闭，CUTOVER 与 PostgreSQL 继续冻结。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

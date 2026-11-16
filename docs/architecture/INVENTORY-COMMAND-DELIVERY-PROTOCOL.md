@@ -6,8 +6,9 @@
 `inventory_command_delivery_outbox`，通过当前唯一的本地 Handler 执行库存事务，记录
 `inventory_command_result_inbox`，最后把投递状态标记为 `ACKNOWLEDGED`。
 
-当前没有远程 inventory-service，也没有第二套库存实现；Outbox 与结果 Inbox 用于冻结将来的跨进程协议和
-保留真实运行证据。切换远程适配器前，不能把当前状态描述为异步投递或独立服务验收完成。
+独立 inventory-service 已存在，commerce 也已具备唯一 HMAC HTTP 客户端；但该客户端只由默认关闭的管理员
+预演入口调用，业务 Gateway 仍走当前本地 Handler。Outbox 与结果 Inbox 用于冻结跨进程协议和保留真实运行
+证据。当前没有第二套长期运行模式，也不能把历史命令预演描述为异步生产投递或 CUTOVER 完成。
 
 V33 已补齐生产侧业务等待态：订单和退款各自持有 inventoryStatus，传输状态仍只属于 delivery Outbox。
 达到重试上限时业务状态投影为 RECONCILIATION_REQUIRED，管理员只能使用原 commandId 和原 payload 恢复。
@@ -49,11 +50,12 @@ V34 要求恢复请求携带原因，并在 delivery 记录保存操作者、原
 当前本地适配器在一个数据库事务中完成生产端 Outbox、inventory Inbox、余额/流水、结果 Inbox 和 ACK，任何
 业务异常整体回滚，保持现有 checkout、支付、取消和退款语义。
 
-V33 已完成订单等待库存结果、COMMIT 履约阻断、退款库存待对账和管理恢复入口。远程切换前仍须完成：
+V33 已完成订单等待库存结果、COMMIT 履约阻断、退款库存待对账和管理恢复入口；第八批已完成短暂停写、
+最终追平、原命令远程重放、服务停机 503 和恢复预演。生产远程切换前仍须完成：
 
 1. 将各生产者 Outbox 放回其未来所属服务事务，不能让多个独立服务共享 commerce 表；
 2. 实测重复、乱序、消费者提交后响应丢失、生产者重启、消费者停机、DLT 和对账恢复；
 3. 完成跨进程 Trace 和指标；
-4. 以上门禁通过后才允许创建独立 inventory-service/inventory-db，仍使用 MySQL。
+4. 四类命令整体切换后删除 commerce 的库存 Mapper/XML 与源表运行权限，不保留本地回退。
 
 PostgreSQL 继续受全服务单一所有权完成后的总门禁约束。

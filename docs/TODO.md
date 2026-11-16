@@ -642,8 +642,27 @@ Docker 拓扑，也不启动 PostgreSQL。
   6 个 POM；脚本契约为 43 组。
 - [x] 本批未切换任何流量、未让独立库接收新业务写入、未删除 commerce 库存实现；CUTOVER 和 PostgreSQL
   继续冻结。
-- [ ] 下一批实现停写控制与最终增量追平演练，补齐 commerce 生产端远程传输/结果确认但保持切换开关关闭，
-  再验证四类命令跨进程 Trace、重复、乱序、超时、结果丢失和服务/数据库停机恢复。
+- [x] 下一批先实现停写控制、最终增量追平和生产端远程传输预演；业务切换保持关闭，不能把预演描述为 CUTOVER。
+
+### 13.20 M3.4 第八批：停写、最终追平与远程传输预演
+
+- [x] `InventoryWriteFreezeGate` 统一阻止 RESERVE、COMMIT、RELEASE、REFUND 新写；默认关闭，仅在短暂停写窗口
+  通过 `INVENTORY_WRITE_FROZEN=true` 启用，不增加 LOCAL/COMPARE 或数据库回退分支。
+- [x] commerce 新增唯一 HMAC HTTP 客户端，复用原 V1 payload、commandId、correlationId、causationId 和
+  `traceparent`；连接/读取超时分别为 2/3 秒，远端不可达统一返回 HTTP 503。
+- [x] 管理端远程预演只允许重放已 ACKNOWLEDGED 的原命令、原 payload，并把 Result V1 幂等写回生产端结果
+  Inbox；`INVENTORY_REMOTE_REHEARSAL_ENABLED` 默认关闭，不替换当前生产写入口。
+- [x] Windows 与 Git Bash 实机完成“停写 -> generation 21/22 最终追平 -> 开启独立服务流量 -> 历史 COMMIT
+  重放 -> 重复不改账 -> 服务停机 503 -> 恢复成功”；独立库统计始终为 `579|1|128|565|104`。
+- [x] Windows 快速回归通过；随后 generation 23/24 再次连续追平，最终五表指纹为库存
+  `6|575|1|132|1824707114`、预占 `279|279|2231803732`、流水 `582|688|2202142859`、命令 Inbox
+  `121|2961863654`、catalog Inbox `2|2798068318`。
+- [x] Java 25 正式镜像 40 项测试通过；质量门禁覆盖 372 个 Java、385 个类声明空行、30 个 Mapper XML、
+  252 个语句和 6 个 POM，脚本契约扩展为 44 对。演练退出后停写、远程预演、独立接流量三项开关均为 false。
+- [x] 本批没有让新业务走远程库存、没有删除 commerce 本地库存实现，也没有启动 PostgreSQL；CUTOVER 仍未获准。
+- [ ] 下一批实现唯一生产 Outbox 异步派发器并整体切换四类命令，逐类验证真实新写的跨进程 Tempo Trace、重复、
+  乱序、超时、消费者已提交但结果丢失、服务/数据库停机恢复；全部通过后才删除 commerce 库存 Mapper/XML 和
+  源表运行权限，禁止长期保留本地回退。
 
 ## 14. 实施记录模板
 

@@ -2,8 +2,8 @@
 
 ## 1. 本批结论
 
-`inventory-service` 已完成最终创建准入评审，并已创建不接流量的独立进程和 MySQL Schema，但尚未获得
-CUTOVER 准入。具体迁移与演练顺序见
+`inventory-service` 已完成最终创建准入评审，并已创建默认不接流量的独立进程和 MySQL Schema；停写、最终
+追平与远程历史命令预演也已完成，但尚未获得 CUTOVER 准入。具体迁移与演练顺序见
 [创建准入与单一所有权切换运行手册](INVENTORY-SERVICE-CUTOVER-RUNBOOK.md)。
 当前 `commerce-service` 仍是唯一业务写路径；独立 `inventory-service` 已在默认关闭流量的 shadow Profile 中
 启动并持有可重复快照，但 commerce/catalog 均未改指向。已完成以下收敛：
@@ -99,10 +99,11 @@ catalog-service 已是商品资料唯一所有者。inventory 只能消费 catal
 3. [已完成] 实现订单等待库存状态、履约阻断、退款库存待对账和管理恢复入口；
 4. [已完成] 最终 CREATE 准入评审，冻结五表迁移、停写/追平、唯一远程适配器、Trace 和回退手册；
 5. [已完成] 在独立 MySQL Schema 创建分层 `inventory-service`，完成可重复计数、余额总和和完整内容指纹快照；
-6. 停写窗口内追平增量，整体切换调用方，验证并发、重复、乱序、超时、停机恢复和跨进程 Trace；
-7. 删除 commerce 的库存 Mapper/XML/运行表访问，只保留必要的公开身份/RBAC 薄代理，不保留 LOCAL/COMPARE、
+6. [已完成预演] 停写窗口内追平增量，并用原命令验证远程幂等、服务停机 503 与恢复；尚未整体切换调用方；
+7. 整体切换调用方，验证四类真实新写的并发、重复、乱序、超时、结果丢失、停机恢复和跨进程 Trace；
+8. 删除 commerce 的库存 Mapper/XML/运行表访问，只保留必要的公开身份/RBAC 薄代理，不保留 LOCAL/COMPARE、
    双写或数据库回退；
-8. 以 Git 提交和可恢复数据备份作为回退边界，失败时停止切换，不覆盖已接收新写入的独立库。
+9. 以 Git 提交和可恢复数据备份作为回退边界，失败时停止切换，不覆盖已接收新写入的独立库。
 
 ## 7. 明确不在本批实施
 

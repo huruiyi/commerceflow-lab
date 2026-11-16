@@ -10,6 +10,7 @@ import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.Invento
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandValidatorV1;
 import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
 import vip.fairy.commerceflow.commerce.inventory.infrastructure.InventoryCommandDeliveryMapper;
+import vip.fairy.commerceflow.commerce.inventory.infrastructure.transport.InventoryWriteFreezeGate;
 
 @Service
 public class InventoryCommandGateway implements InventoryCommandPort {
@@ -18,20 +19,24 @@ public class InventoryCommandGateway implements InventoryCommandPort {
   private final InventoryCommandHandlerV1 handler;
   private final InventoryCommandDeliveryMapper delivery;
   private final ObjectMapper mapper;
+  private final InventoryWriteFreezeGate writeFreeze;
 
   public InventoryCommandGateway(InventoryCommandValidatorV1 validator,
                                  InventoryCommandHandlerV1 handler,
                                  InventoryCommandDeliveryMapper delivery,
-                                 ObjectMapper mapper) {
+                                 ObjectMapper mapper,
+                                 InventoryWriteFreezeGate writeFreeze) {
     this.validator = validator;
     this.handler = handler;
     this.delivery = delivery;
     this.mapper = mapper;
+    this.writeFreeze = writeFreeze;
   }
 
   @Override
   @Transactional
   public void handle(InventoryCommandV1 command) {
+    writeFreeze.requireWritable();
     validator.validate(command);
     String fingerprint = InventoryCommandSemantics.fingerprint(command);
     String payload = payload(command);

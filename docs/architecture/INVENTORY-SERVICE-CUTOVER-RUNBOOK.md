@@ -8,7 +8,8 @@
 - **CUTOVER 准入**：只有独立进程完成数据追平、跨进程 Trace、并发/重复/乱序/超时/停机恢复和回退演练后，才允许整体切换调用方。
 
 CREATE 阶段现已完成：独立服务/Schema 在 `inventory-shadow` Profile 中运行，可重复快照已验证；流量门禁默认
-关闭，commerce/catalog 未改指向。这不代表最终追平或 CUTOVER 已批准。PostgreSQL 继续冻结。
+关闭。第八批又完成短暂停写、最终追平和历史命令远程重放预演；commerce 生产 Gateway 与 catalog 仍未改
+指向。这不代表四类真实新写、跨进程 Trace 或 CUTOVER 已批准。PostgreSQL 继续冻结。
 
 ## 2. 数据搬迁清单
 
@@ -92,11 +93,14 @@ payment-orchestration、fulfillment 以及 M3 清单中所有待拆服务全部�
 
 ```powershell
 .\scripts\windows\audit-inventory-service-admission.ps1
+.\scripts\windows\verify-inventory-remote-rehearsal.ps1
 ```
 
 ```bash
 ./scripts/linux/audit-inventory-service-admission.sh
+./scripts/linux/verify-inventory-remote-rehearsal.sh
 ```
 
-脚本只启动已有 `commerce-db`（如尚未运行）并执行只读查询，不创建 inventory-db、不切流、不清理数据卷。
-输出的五行基线必须保存到后续迁移验收记录，并在导入和最终追平后逐行比较。
+`audit-*` 只启动已有 `commerce-db`（如尚未运行）并执行只读查询。`verify-inventory-remote-rehearsal` 会临时重建
+commerce/inventory 进程并切换停写、预演和接流量开关，验证结束后全部恢复 false；两类脚本都不清理数据卷，
+也都不执行生产 CUTOVER。输出的五行基线必须保存到后续验收记录并逐行比较。
