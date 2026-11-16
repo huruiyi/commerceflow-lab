@@ -18,7 +18,7 @@ inventory_sql() {
 }
 
 restart_runtimes() {
-  docker compose --profile inventory-shadow up -d --force-recreate --wait \
+  docker compose up -d --force-recreate --wait \
     inventory-service commerce-service >/dev/null
 }
 
@@ -27,7 +27,7 @@ cleanup() {
   set +e
   export INVENTORY_WRITE_FROZEN=false
   export INVENTORY_REMOTE_REHEARSAL_ENABLED=false
-  export INVENTORY_ACCEPTING_TRAFFIC=false
+  export INVENTORY_ACCEPTING_TRAFFIC=true
   restart_runtimes >/dev/null 2>&1
   unset INVENTORY_WRITE_FROZEN INVENTORY_REMOTE_REHEARSAL_ENABLED INVENTORY_ACCEPTING_TRAFFIC
   rm -rf -- "$temp_dir"
@@ -41,7 +41,7 @@ export INVENTORY_REMOTE_REHEARSAL_ENABLED=false
 export INVENTORY_ACCEPTING_TRAFFIC=false
 restart_runtimes
 [[ "$(docker compose exec -T commerce-service printenv INVENTORY_WRITE_FROZEN)" == true ]]
-docker compose --profile inventory-shadow run --rm inventory-data-migrator
+docker compose --profile inventory-migration run --rm inventory-data-migrator
 
 command_id="$(commerce_sql "SELECT command_id FROM inventory_command_delivery_outbox WHERE status='ACKNOWLEDGED' ORDER BY created_at DESC LIMIT 1;")"
 [[ -n "$command_id" ]]
@@ -74,7 +74,7 @@ outage="$(curl -sS -o /dev/null -w '%{http_code}' -X POST -c "$cookie_jar" -b "$
   -H "$header: $token" "$rehearsal_url")"
 [[ "$outage" == 503 ]]
 docker compose start inventory-service >/dev/null
-docker compose --profile inventory-shadow up -d --wait inventory-service >/dev/null
+docker compose up -d --wait inventory-service >/dev/null
 result="$(curl -fsS -X POST -c "$cookie_jar" -b "$cookie_jar" -H "$header: $token" "$rehearsal_url")"
 [[ "$result" == *'"outcome":"SUCCEEDED"'* ]]
 

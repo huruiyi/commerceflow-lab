@@ -7,9 +7,19 @@ BASE_URL="${1:-http://localhost:18088}"
 SECRET='demo-inventory-internal-secret'
 
 cd "$PROJECT_ROOT"
-docker compose --profile inventory-shadow up -d --build --wait inventory-service >/dev/null
-docker compose --profile inventory-shadow run --rm inventory-data-migrator
-docker compose --profile inventory-shadow run --rm inventory-data-migrator
+cleanup() {
+  local status=$?
+  set +e
+  export INVENTORY_ACCEPTING_TRAFFIC=true
+  docker compose up -d --force-recreate --wait inventory-service >/dev/null 2>&1
+  unset INVENTORY_ACCEPTING_TRAFFIC
+  exit "$status"
+}
+trap cleanup EXIT
+export INVENTORY_ACCEPTING_TRAFFIC=false
+docker compose up -d --build --force-recreate --wait inventory-service >/dev/null
+docker compose --profile inventory-migration run --rm inventory-data-migrator
+docker compose --profile inventory-migration run --rm inventory-data-migrator
 
 health="$(curl -sS -o /dev/null -w '%{http_code}' "$BASE_URL/actuator/health")"
 [[ "$health" == 200 ]]
@@ -39,4 +49,4 @@ closed="$(curl -sS -o /dev/null -w '%{http_code}' -H 'Content-Type: application/
 state="$(docker compose exec -T inventory-db mysql -N -uinventory -pinventory-password inventory \
   -e "SELECT CONCAT(status,'|',generation) FROM inventory_migration_state WHERE migration_key='inventory-v34-shadow-snapshot';" 2>/dev/null)"
 [[ "$state" =~ ^READY\|([2-9]|[1-9][0-9]+)$ ]]
-echo "Inventory shadow runtime passed: health UP, migration $state, unsigned 401, signed gate 503."
+echo "Inventory gated runtime passed: health UP, migration $state, unsigned 401, signed gate 503."

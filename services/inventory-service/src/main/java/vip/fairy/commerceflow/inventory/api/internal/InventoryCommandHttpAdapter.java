@@ -14,6 +14,7 @@ import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryCommand
 import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryCommandV1;
 import vip.fairy.commerceflow.inventory.application.port.InventoryCommandUseCase;
 import vip.fairy.commerceflow.inventory.infrastructure.transport.InventoryTrafficGate;
+import vip.fairy.commerceflow.inventory.infrastructure.transport.InventoryResultDelayLab;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
@@ -24,13 +25,16 @@ public class InventoryCommandHttpAdapter {
   private final InventoryTrafficGate trafficGate;
   private final InventoryCommandUseCase commands;
   private final ObjectMapper mapper;
+  private final InventoryResultDelayLab resultDelay;
 
   public InventoryCommandHttpAdapter(InventoryTrafficGate trafficGate,
                                      InventoryCommandUseCase commands,
-                                     ObjectMapper mapper) {
+                                     ObjectMapper mapper,
+                                     InventoryResultDelayLab resultDelay) {
     this.trafficGate = trafficGate;
     this.commands = commands;
     this.mapper = mapper;
+    this.resultDelay = resultDelay;
   }
 
   @PostMapping
@@ -41,7 +45,10 @@ public class InventoryCommandHttpAdapter {
       throw new IllegalArgumentException("Inventory command payload hash is invalid");
     }
     try {
-      return commands.handle(mapper.readValue(payload, InventoryCommandV1.class));
+      InventoryCommandResultV1 result = commands.handle(
+        mapper.readValue(payload, InventoryCommandV1.class));
+      resultDelay.pauseAfterCommit();
+      return result;
     } catch (JacksonException exception) {
       throw new IllegalArgumentException("Inventory command payload is invalid", exception);
     }

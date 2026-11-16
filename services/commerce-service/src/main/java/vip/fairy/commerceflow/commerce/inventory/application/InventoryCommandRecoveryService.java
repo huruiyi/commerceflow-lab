@@ -16,16 +16,13 @@ public class InventoryCommandRecoveryService {
   private final InventoryCommandDeliveryMapper delivery;
   private final InventoryCommandPort commands;
   private final ObjectMapper mapper;
-  private final List<InventoryCommandPort.StateProjection> projections;
 
   public InventoryCommandRecoveryService(InventoryCommandDeliveryMapper delivery,
                                          InventoryCommandPort commands,
-                                         ObjectMapper mapper,
-                                         List<InventoryCommandPort.StateProjection> projections) {
+                                         ObjectMapper mapper) {
     this.delivery = delivery;
     this.commands = commands;
     this.mapper = mapper;
-    this.projections = projections;
   }
 
   public List<RecoveryView> reconciliationRequired(int limit) {
@@ -45,7 +42,6 @@ public class InventoryCommandRecoveryService {
       throw new IllegalStateException("Inventory command is not awaiting reconciliation");
     }
     commands.handle(command);
-    projections.forEach(projection -> projection.succeeded(command));
     return RecoveryView.from(delivery.byCommandId(commandId));
   }
 

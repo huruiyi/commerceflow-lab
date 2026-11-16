@@ -16,7 +16,7 @@
 | 商城服务 Maven artifactId | `commerce-service` |
 | 通知服务 Maven artifactId | `notification-service`（默认启动、唯一通知读写实现） |
 | 商品服务 Maven artifactId | `catalog-service`（默认启动、唯一商品资料读写实现） |
-| 库存服务 Maven artifactId | `inventory-service`（仅 `inventory-shadow` Profile，业务流量门禁关闭） |
+| 库存服务 Maven artifactId | `inventory-service`（默认启动，四类库存命令唯一远程执行端） |
 | 命名迁移策略 | 不混用两套名称；按 [命名规范](docs/NAMING-CONVENTIONS.md) 独立迁移 |
 
 ## 技术架构
@@ -28,10 +28,8 @@
             ├─ Angular 22.2.6 + SimUI 1.8.0 / Spartan UI 静态页面
             └─ /api/* → commerce-service → MySQL 8.4 / Redis 7.4
                          └─ 通知身份薄代理 → notification-service → 独立 MySQL 8.4
-                         └─ 商品身份薄代理 → catalog-service → 独立 MySQL 8.4
-
-inventory-shadow Profile
-  └─ inventory-service → 独立 MySQL 8.4（可重复快照；不接业务流量）
+                         ├─ 商品身份薄代理 → catalog-service → 独立 MySQL 8.4
+                         └─ 库存命令 Outbox → inventory-service → 独立 MySQL 8.4
 
 支付平台浏览器 http://localhost:14201
   └─ Vue 3.5.45 + Ant Design Vue Next + VXE-Table + Nginx
@@ -44,7 +42,8 @@ inventory-shadow Profile
 - `services/notification-service/`：独立 MySQL/Kafka 通知服务，是通知查询、未读统计和已读状态的唯一实现；
   commerce 只保留 Session/RBAC/HMAC 薄代理与订单事务侧通知 Outbox。
 - `services/catalog-service/`：独立 MySQL 商品资料服务，commerce 只保留鉴权、签名代理与评价组合。
-- `services/inventory-service/`：分层库存影子服务，独立 MySQL 保存五张所有权表；默认门禁关闭且尚未切流。
+- `services/inventory-service/`：分层库存服务，独立 MySQL 保存五张所有权表；默认接收 RESERVE、COMMIT、
+  RELEASE、REFUND。commerce 仍保留生产端 Outbox/结果 Inbox；商家库存管理 API 的迁出是下一批待办。
 - `simulators/payment-platform/service/`：独立支付数据库、后台安全、商户凭据和三渠道交易服务。
 - `simulators/logistics-platform/service/`：独立物流数据库、运单推进、异常与可靠回调模拟服务。
 - `simulators/payment-platform/web/`：Vue 3.5.45、Ant Design Vue Next 和 VXE-Table 支付管理后台与模拟收银台。
@@ -84,16 +83,16 @@ docker compose ps
 - 模拟物流健康检查：`http://localhost:18083/actuator/health`
 - 通知服务健康检查：`http://localhost:18086/actuator/health`
 - 商品服务健康检查：`http://localhost:18087/actuator/health`
-- 库存影子服务健康检查：`http://localhost:18088/actuator/health`
+- 库存服务健康检查：`http://localhost:18088/actuator/health`
 - 物流 MySQL：`localhost:13308`
 - Kafka UI：`http://localhost:14202`
 
 `notification-db` 与 `notification-service` 属于默认拓扑。浏览器继续访问原 `/api/notifications`，commerce
 从 Session 提取 customerId 并签名转发；它不访问通知表，也不在独立服务故障时回退到本地数据。
 
-库存影子运行时不会随默认拓扑启动。使用
-`docker compose --profile inventory-shadow up -d --build --wait inventory-service` 启动后，仍因
-`INVENTORY_ACCEPTING_TRAFFIC=false` 拒绝业务写入；它只用于建表、迁移和切换前演练。
+`inventory-db` 与 `inventory-service` 属于默认拓扑。commerce 在业务事务中只写库存命令 Outbox，由唯一
+异步派发器向独立服务发送，未知结果使用原 commandId 有限重试，不回退本地 Handler。历史数据复跑使用
+`inventory-migration` Profile；它不是长期运行路径。
 
 可选告警与监控栈使用 `docker compose --profile observability up -d --wait` 启动：
 

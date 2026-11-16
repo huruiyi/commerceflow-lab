@@ -100,15 +100,14 @@ catalog-service 已是商品资料唯一所有者。inventory 只能消费 catal
 4. [已完成] 最终 CREATE 准入评审，冻结五表迁移、停写/追平、唯一远程适配器、Trace 和回退手册；
 5. [已完成] 在独立 MySQL Schema 创建分层 `inventory-service`，完成可重复计数、余额总和和完整内容指纹快照；
 6. [已完成预演] 停写窗口内追平增量，并用原命令验证远程幂等、服务停机 503 与恢复；尚未整体切换调用方；
-7. 整体切换调用方，验证四类真实新写的并发、重复、乱序、超时、结果丢失、停机恢复和跨进程 Trace；
-8. 删除 commerce 的库存 Mapper/XML/运行表访问，只保留必要的公开身份/RBAC 薄代理，不保留 LOCAL/COMPARE、
+7. [已完成命令切换] 整体切换四类命令调用方，验证真实新写的重复、顺序、超时、结果丢失、停机恢复和跨进程 Trace；
+8. 先把商家库存查询/调整迁入独立服务，再删除 commerce 的库存 Handler、Mapper/XML/运行表访问，只保留必要的公开身份/RBAC 薄代理，不保留 LOCAL/COMPARE、
    双写或数据库回退；
 9. 以 Git 提交和可恢复数据备份作为回退边界，失败时停止切换，不覆盖已接收新写入的独立库。
 
 ## 7. 明确不在本批实施
 
-- 不启用 inventory 业务流量，不让独立库接收新业务写入；
-- 不删除 commerce 库存表/Mapper，不把 shadow 快照描述成最终切换；
+- 四类库存命令已启用独立服务流量；商家库存管理边界迁出前不删除仍被使用的 commerce Mapper；
 - 不同时启动 order/payment-orchestration/fulfillment 拆分；
 - 不引入 PostgreSQL 或 MySQL/PostgreSQL 双方言。只有 M3 清单中的 notification、catalog、inventory、order、
   payment-orchestration、fulfillment 全部完成单一所有权切换并逐一验收后，才允许单独启动 PostgreSQL 专项。

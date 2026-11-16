@@ -7,7 +7,7 @@
       command_id,command_type,producer,order_id,payload_fingerprint,payload,status
     ) VALUES(
       #{commandId},#{commandType},#{producer},#{orderId},#{payloadFingerprint},
-      CAST(#{payload} AS JSON),'NEW'
+      #{payload},'NEW'
     )
   </insert>
 
@@ -21,6 +21,14 @@
     SELECT status
     FROM inventory_command_delivery_outbox
     WHERE command_id=#{commandId}
+  </select>
+
+  <select id="dispatchable" resultType="java.lang.String">
+    SELECT command_id
+    FROM inventory_command_delivery_outbox
+    WHERE status IN ('NEW','RETRY') AND next_attempt_at&lt;=CURRENT_TIMESTAMP(6)
+    ORDER BY created_at,command_id
+    LIMIT #{limit}
   </select>
 
   <update id="markInFlight">

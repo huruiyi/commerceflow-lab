@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.4 第八批停写、最终增量追平与生产端远程传输预演已完成；生产切换仍关闭 |
-| 下一候选阶段 | 唯一生产 Outbox 异步派发与四类命令整体 CUTOVER 验收 |
+| 当前阶段 | M3.4 第九批库存命令生产切换与故障恢复已完成；四类命令只写独立库存服务 |
+| 下一候选阶段 | 迁出商家库存查询/调整，删除 commerce 本地库存 Handler/Mapper/XML 与源表权限 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -322,3 +322,11 @@ generation 23/24 再次得到相同五表指纹：`6|575|1|132|1824707114`、`27
 `582|688|2202142859`、`121|2961863654`、`2|2798068318`。Java 25 正式镜像 40 项测试、372 个 Java、
 385 个类声明空行和 44 对脚本门禁通过；三个运行开关已恢复 false。真实新写仍走 commerce 本地路径，四类
 Tempo Trace、超时/结果丢失及整体 CUTOVER 仍待下一批，PostgreSQL 继续冻结。
+
+第十三批完成库存命令生产切换。commerce 业务事务只写 delivery Outbox，唯一异步派发器远程发送四类命令，
+Result V1 确认后再推进订单/退款库存状态；inventory-service/inventory-db 已进入默认拓扑并独占新库存事实写入。
+返回结果丢失、服务停机、数据库停机均以原 commandId 恢复且只记一条流水；跨进程 Trace
+逐类证明 RESERVE/COMMIT/RELEASE/REFUND 均同时包含 commerce/inventory。完整 Windows 验收后 commerce
+源流水仍为 582，独立库增至 627；42 项 Java 25 测试、374/30/253/6 质量门禁、388 个类声明空行及 45 对脚本契约通过。
+本批只完成四类命令所有权切换：商家库存查询/调整仍使用 commerce Mapper，所以下一批必须先迁出该管理边界，
+再删除本地 Handler/Mapper/XML 和源表权限。PostgreSQL 继续冻结。

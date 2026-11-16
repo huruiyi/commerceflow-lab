@@ -4,7 +4,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
-import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandResultV1;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandSemantics;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandV1;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandValidatorV1;
@@ -16,18 +15,15 @@ import vip.fairy.commerceflow.commerce.inventory.infrastructure.transport.Invent
 public class InventoryCommandGateway implements InventoryCommandPort {
 
   private final InventoryCommandValidatorV1 validator;
-  private final InventoryCommandHandlerV1 handler;
   private final InventoryCommandDeliveryMapper delivery;
   private final ObjectMapper mapper;
   private final InventoryWriteFreezeGate writeFreeze;
 
   public InventoryCommandGateway(InventoryCommandValidatorV1 validator,
-                                 InventoryCommandHandlerV1 handler,
                                  InventoryCommandDeliveryMapper delivery,
                                  ObjectMapper mapper,
                                  InventoryWriteFreezeGate writeFreeze) {
     this.validator = validator;
-    this.handler = handler;
     this.delivery = delivery;
     this.mapper = mapper;
     this.writeFreeze = writeFreeze;
@@ -48,15 +44,6 @@ public class InventoryCommandGateway implements InventoryCommandPort {
       if ("ACKNOWLEDGED".equals(delivery.status(command.commandId()))) {
         return;
       }
-    }
-    handler.handle(command);
-    InventoryCommandResultV1 result = InventoryCommandResultV1.succeeded(command);
-    result.validate();
-    delivery.recordResult(result.resultId(), result.commandId(), result.commandType().name(),
-      result.outcome().name(), result.occurredAt(), result.errorCode(), result.message(),
-      result.correlationId(), result.causationId(), result.traceparent());
-    if (delivery.acknowledge(command.commandId()) != 1) {
-      throw new IllegalStateException("Inventory command delivery changed concurrently");
     }
   }
 

@@ -90,9 +90,6 @@ public class RefundNotificationService implements InventoryCommandPort.StateProj
             refund.getOrderId(),
             notice.notificationId()
           ));
-          if (refunds.updateInventoryStatus(refund.getOrderId(), "WAITING", "REFUNDED") != 1)
-            throw new IllegalStateException("Refund inventory confirmation changed concurrently");
-          orders.updateInventoryStatus(refund.getOrderId(), "REFUND_PENDING", "REFUNDED");
           refunds.insertEvent(
             refund.getId(), UUID.randomUUID().toString(), "REFUND_SUCCEEDED",
             "PROCESSING", "SUCCEEDED", "Signed refund notification"
@@ -152,7 +149,10 @@ public class RefundNotificationService implements InventoryCommandPort.StateProj
   @Override
   public void succeeded(InventoryCommandV1 command) {
     if (command.commandType() == InventoryCommandTypeV1.REFUND) {
-      requireInventoryTransition(command.orderId(), "RECONCILIATION_REQUIRED", "REFUNDED");
+      String current = refunds.byOrder(command.orderId()).orElseThrow().getInventoryStatus();
+      if (!"REFUNDED".equals(current)) {
+        requireInventoryTransition(command.orderId(), current, "REFUNDED");
+      }
     }
   }
 

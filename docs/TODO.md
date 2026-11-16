@@ -660,9 +660,30 @@ Docker 拓扑，也不启动 PostgreSQL。
 - [x] Java 25 正式镜像 40 项测试通过；质量门禁覆盖 372 个 Java、385 个类声明空行、30 个 Mapper XML、
   252 个语句和 6 个 POM，脚本契约扩展为 44 对。演练退出后停写、远程预演、独立接流量三项开关均为 false。
 - [x] 本批没有让新业务走远程库存、没有删除 commerce 本地库存实现，也没有启动 PostgreSQL；CUTOVER 仍未获准。
-- [ ] 下一批实现唯一生产 Outbox 异步派发器并整体切换四类命令，逐类验证真实新写的跨进程 Tempo Trace、重复、
-  乱序、超时、消费者已提交但结果丢失、服务/数据库停机恢复；全部通过后才删除 commerce 库存 Mapper/XML 和
-  源表运行权限，禁止长期保留本地回退。
+- [x] 下一批实现唯一生产 Outbox 异步派发器并整体切换四类命令，逐类验证真实新写的跨进程 Tempo Trace、重复、
+  乱序、超时、消费者已提交但结果丢失、服务/数据库停机恢复；命令链路已全部通过且没有本地回退。commerce
+  库存 Mapper/XML 尚由商家库存管理 API 使用，必须先完成下一批管理边界迁出，不能误删或虚报完整单一所有权。
+
+### 13.21 M3.4 第九批：库存命令生产切换与故障恢复
+
+- [x] commerce 的唯一 `InventoryCommandGateway` 改为只在调用方事务内写生产 Outbox；唯一异步派发器按
+  NEW/RETRY 顺序发送 RESERVE、COMMIT、RELEASE、REFUND，Result V1 幂等写入结果 Inbox 后才推进订单/退款
+  inventoryStatus。不存在 LOCAL/COMPARE、同步本地 Handler、双写或数据库回退。
+- [x] inventory-service 与 inventory-db 进入默认拓扑并默认接流量；catalog-service 也只把 catalog 事件投向
+  inventory-service。历史五表迁移器移到 `inventory-migration` Profile，不成为第二套长期运行路径。
+- [x] 实机真实新写四类命令均 ACKNOWLEDGED；commerce 源库存流水保持 582，独立库由 591 增至 627，证明
+  切换后新库存事实只写目标库。订单/退款无等待或待对账残留。
+- [x] 返回结果延迟 8 秒时，inventory 已提交而 commerce 保持 IN_FLIGHT；恢复后原 commandId 重试并 ACK，
+  目标库只有一条流水。inventory-service 停机和 inventory-db 停机也均以原命令恢复，尝试次数增加且不重复记账。
+- [x] 异步 Trace 使用命令信封的 W3C 远端父级；RESERVE/COMMIT/RELEASE/REFUND Trace 分别为
+  `1e5b4f8812a5827adb5bf187e54d3d5e`、`9d6b51b825fd32561c72fccd9c9aedd8`、
+  `30efbc4bbb617d4293fab2c145c58169`、`d67e97040c552e15220d6315ec397d38`，每条均同时包含
+  commerce-service/inventory-service。Windows 可复跑脚本完整通过，Bash 等价脚本通过语法与 45 对契约审计。
+- [x] Java 25 干净构建 42 项测试通过；质量门禁覆盖 374 个 Java、30 个 Mapper XML、253 个语句、6 个 POM
+  和 388 个 Java 源文件类声明空行。本批没有启动或迁移 PostgreSQL。
+- [ ] 下一批先把商家库存查询/调整迁入 inventory-service，以 commerce Session/RBAC/HMAC 薄代理访问；完成
+  真实验收后删除本地 Inventory Handler、Mapper/XML 与源表运行权限，冻结 inventory 完整单一所有权。不得
+  在这一清理批次并行拆 order、payment-orchestration、fulfillment，也不得启动 PostgreSQL。
 
 ## 14. 实施记录模板
 

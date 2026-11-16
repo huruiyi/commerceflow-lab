@@ -5,6 +5,9 @@ import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
+
 public record InventoryCommandV1(
   int schemaVersion,
   String commandId,
@@ -73,6 +76,11 @@ public record InventoryCommandV1(
   }
 
   private static String randomTraceparent() {
+    SpanContext current = Span.current().getSpanContext();
+    if (current.isValid()) {
+      return "00-" + current.getTraceId() + "-" + current.getSpanId() + "-"
+        + current.getTraceFlags().asHex();
+    }
     String traceId = UUID.randomUUID().toString().replace("-", "");
     String spanId = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
     return "00-" + traceId + "-" + spanId + "-01";

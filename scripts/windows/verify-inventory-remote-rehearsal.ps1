@@ -20,7 +20,7 @@ function Inventory-Sql([string]$Query) {
 }
 
 function Restart-Runtimes {
-  & docker compose --profile inventory-shadow up -d --force-recreate --wait `
+  & docker compose up -d --force-recreate --wait `
     inventory-service commerce-service | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'Could not restart inventory rehearsal runtimes' }
 }
@@ -50,7 +50,7 @@ try {
   Restart-Runtimes
   $frozen = & docker compose exec -T commerce-service printenv INVENTORY_WRITE_FROZEN
   if ($frozen -ne 'true') { throw 'Commerce inventory write freeze was not applied' }
-  & docker compose --profile inventory-shadow run --rm inventory-data-migrator | Out-Host
+  & docker compose --profile inventory-migration run --rm inventory-data-migrator | Out-Host
   if ($LASTEXITCODE -ne 0) { throw 'Frozen final catch-up failed' }
 
   $commandId = Commerce-Sql "SELECT command_id FROM inventory_command_delivery_outbox WHERE status='ACKNOWLEDGED' ORDER BY created_at DESC LIMIT 1;"
@@ -76,14 +76,14 @@ try {
   }
   if (-not $unavailable) { throw 'Inventory outage did not return HTTP 503' }
   & docker compose start inventory-service | Out-Null
-  & docker compose --profile inventory-shadow up -d --wait inventory-service | Out-Null
+  & docker compose up -d --wait inventory-service | Out-Null
   $result = Invoke-Rehearsal $commandId $auth
   if ($result.outcome -ne 'SUCCEEDED') { throw 'Recovered replay did not succeed' }
   Write-Host "Inventory remote rehearsal passed: freeze/catch-up, command=$commandId, idempotent=$after, outage=503, recovery=SUCCEEDED." -ForegroundColor Green
 } finally {
   $env:INVENTORY_WRITE_FROZEN = 'false'
   $env:INVENTORY_REMOTE_REHEARSAL_ENABLED = 'false'
-  $env:INVENTORY_ACCEPTING_TRAFFIC = 'false'
+  $env:INVENTORY_ACCEPTING_TRAFFIC = 'true'
   try { Restart-Runtimes } catch { Write-Warning $_ }
   Remove-Item Env:INVENTORY_WRITE_FROZEN,Env:INVENTORY_REMOTE_REHEARSAL_ENABLED,Env:INVENTORY_ACCEPTING_TRAFFIC -ErrorAction SilentlyContinue
 }

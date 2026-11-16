@@ -53,7 +53,6 @@ services:
 
   inventory-db:
     image: mysql:8.4
-    profiles: ["inventory-shadow"]
     environment:
       MYSQL_DATABASE: inventory
       MYSQL_USER: ${INVENTORY_DATABASE_USERNAME:-inventory}
@@ -545,6 +544,8 @@ services:
         condition: service_healthy
       catalog-service:
         condition: service_healthy
+      inventory-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
       interval: 5s
@@ -591,6 +592,7 @@ services:
       DATABASE_PASSWORD: ${CATALOG_DATABASE_PASSWORD:-catalog-password}
       CATALOG_INTERNAL_SECRET: ${CATALOG_INTERNAL_SECRET:-demo-catalog-internal-secret}
       COMMERCE_SERVICE_INTERNAL_URL: http://commerce-service:8080
+      INVENTORY_SERVICE_INTERNAL_URL: http://inventory-service:8080
       CATALOG_EVENT_DELIVERY_MAX_ATTEMPTS: ${CATALOG_EVENT_DELIVERY_MAX_ATTEMPTS:-5}
       CATALOG_EVENT_DELIVERY_RETRY_DELAY: ${CATALOG_EVENT_DELIVERY_RETRY_DELAY:-5s}
       TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
@@ -600,6 +602,8 @@ services:
       - "18087:8080"
     depends_on:
       catalog-db:
+        condition: service_healthy
+      inventory-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
@@ -629,12 +633,12 @@ services:
   inventory-service:
     build:
       context: ./services/inventory-service
-    profiles: ["inventory-shadow"]
     environment:
       DATABASE_URL: jdbc:mysql://inventory-db:3306/inventory?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       DATABASE_USERNAME: ${INVENTORY_DATABASE_USERNAME:-inventory}
       DATABASE_PASSWORD: ${INVENTORY_DATABASE_PASSWORD:-inventory-password}
-      INVENTORY_ACCEPTING_TRAFFIC: ${INVENTORY_ACCEPTING_TRAFFIC:-false}
+      INVENTORY_ACCEPTING_TRAFFIC: ${INVENTORY_ACCEPTING_TRAFFIC:-true}
+      INVENTORY_RESULT_DELAY_LAB: ${INVENTORY_RESULT_DELAY_LAB:-0s}
       INVENTORY_INTERNAL_SECRET: ${INVENTORY_INTERNAL_SECRET:-demo-inventory-internal-secret}
       CATALOG_INTERNAL_SECRET: ${CATALOG_INTERNAL_SECRET:-demo-catalog-internal-secret}
       TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
@@ -655,7 +659,7 @@ services:
 
   inventory-data-migrator:
     image: mysql:8.4
-    profiles: ["inventory-shadow"]
+    profiles: ["inventory-migration"]
     entrypoint: ["sh", "/migration/migrate-inventory-data.sh"]
     environment:
       SOURCE_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}

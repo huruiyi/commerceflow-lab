@@ -102,7 +102,9 @@ import static org.mockito.Mockito.when;
   "commerceflow.reconciliation.delay=3600000",
   "commerceflow.scheduling.database-scan.initial-delay=1h",
   "commerceflow.scheduling.lease-recovery.initial-delay=1h",
-  "commerceflow.scheduling.reconciliation.initial-delay=1h"
+  "commerceflow.scheduling.reconciliation.initial-delay=1h",
+  "commerceflow.inventory.delivery.dispatch-initial-delay=1h",
+  "commerceflow.inventory.delivery.recovery-initial-delay=1h"
 })
 @AutoConfigureMockMvc
 @Import(CommerceFlowIntegrationTest.TestSessions.class)
@@ -278,7 +280,7 @@ class CommerceFlowIntegrationTest {
 
   @Test
   @Transactional
-  void inventoryCommandInboxMakesReplayIdempotentAndRejectsPayloadReuse() {
+  void inventoryDeliveryOutboxMakesReplayIdempotentAndRejectsPayloadReuse() {
     long orderId = 9_000_000L + Math.abs(UUID.randomUUID().getMostSignificantBits() % 100_000L);
     String commandId = "inventory-contract-" + UUID.randomUUID();
     int availableBefore = jdbc.queryForObject(
@@ -292,22 +294,15 @@ class CommerceFlowIntegrationTest {
     inventoryCommands.handle(command);
     inventoryCommands.handle(command);
 
-    org.junit.jupiter.api.Assertions.assertEquals(availableBefore - 1,
+    org.junit.jupiter.api.Assertions.assertEquals(availableBefore,
       jdbc.queryForObject(
         "SELECT stock_available FROM product_inventory WHERE product_id=1", Integer.class));
-    org.junit.jupiter.api.Assertions.assertEquals(1,
+    org.junit.jupiter.api.Assertions.assertEquals(0,
       jdbc.queryForObject(
         "SELECT COUNT(*) FROM inventory_reservations WHERE order_id=?", Integer.class, orderId));
-    org.junit.jupiter.api.Assertions.assertEquals("SUCCEEDED",
-      jdbc.queryForObject(
-        "SELECT status FROM inventory_command_inbox WHERE command_id=?", String.class, commandId));
-    org.junit.jupiter.api.Assertions.assertEquals("ACKNOWLEDGED",
+    org.junit.jupiter.api.Assertions.assertEquals("NEW",
       jdbc.queryForObject(
         "SELECT status FROM inventory_command_delivery_outbox WHERE command_id=?", String.class,
-        commandId));
-    org.junit.jupiter.api.Assertions.assertEquals("SUCCEEDED",
-      jdbc.queryForObject(
-        "SELECT outcome FROM inventory_command_result_inbox WHERE command_id=?", String.class,
         commandId));
 
     InventoryCommandV1 conflicting = InventoryCommandV1.reserve(
@@ -352,8 +347,11 @@ class CommerceFlowIntegrationTest {
     org.junit.jupiter.api.Assertions.assertEquals("RECONCILIATION_REQUIRED",
       jdbc.queryForObject("SELECT inventory_status FROM shop_orders WHERE id=?", String.class, orderId));
 
-    org.junit.jupiter.api.Assertions.assertEquals("ACKNOWLEDGED",
+    org.junit.jupiter.api.Assertions.assertEquals("RETRY",
       inventoryCommandRecoveries.retry(commandId, "admin@example.com", "Verified remote result").status());
+    org.junit.jupiter.api.Assertions.assertEquals(1,
+      inventoryDeliveryStateMachine.markInFlight(commandId, java.time.Duration.ofSeconds(1)));
+    inventoryDeliveryStateMachine.acknowledge(command, InventoryCommandResultV1.succeeded(command));
     org.junit.jupiter.api.Assertions.assertEquals("COMMITTED",
       jdbc.queryForObject("SELECT inventory_status FROM shop_orders WHERE id=?", String.class, orderId));
     org.junit.jupiter.api.Assertions.assertEquals("admin@example.com|Verified remote result",
@@ -796,7 +794,7 @@ class CommerceFlowIntegrationTest {
   }
 
   @Test
-  void checkoutReservesInventoryAndCancellationEventReleasesItIdempotently() throws Exception {
+  void checkoutAndCancellationEnqueueInventoryCommandsIdempotently() throws Exception {
     Long customerId = jdbc.queryForObject(
       "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
     Long merchantId = jdbc.queryForObject(
@@ -818,12 +816,13 @@ class CommerceFlowIntegrationTest {
         .session(customer.session()).cookie(customer.cookie()).header("X-XSRF-TOKEN", customer.token()))
       .andExpect(status().isOk()).andReturn();
     long orderId = json.readTree(checkout.getResponse().getContentAsString()).get("id").asLong();
-    org.junit.jupiter.api.Assertions.assertEquals(availableBefore - 2,
+    org.junit.jupiter.api.Assertions.assertEquals(availableBefore,
       jdbc.queryForObject("SELECT stock_available FROM product_inventory WHERE product_id=1", Integer.class));
-    org.junit.jupiter.api.Assertions.assertEquals(2,
-      jdbc.queryForObject("SELECT stock_reserved FROM product_inventory WHERE product_id=1", Integer.class));
-    org.junit.jupiter.api.Assertions.assertEquals("RESERVED", jdbc.queryForObject(
-      "SELECT status FROM inventory_reservations WHERE order_id=? AND product_id=1", String.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals("WAITING_RESERVATION", jdbc.queryForObject(
+      "SELECT inventory_status FROM shop_orders WHERE id=?", String.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals("NEW", jdbc.queryForObject(
+      "SELECT status FROM inventory_command_delivery_outbox WHERE command_id=?", String.class,
+      "order:" + orderId + ":reserve"));
 
     mvc.perform(post("/api/purchase-orders/{id}/cancel", orderId)
         .session(customer.session()).cookie(customer.cookie()).header("X-XSRF-TOKEN", customer.token())
@@ -843,14 +842,11 @@ class CommerceFlowIntegrationTest {
     orderCancellationProjection.process("order-events", envelope);
     orderCancellationProjection.process("order-events", envelope);
 
-    org.junit.jupiter.api.Assertions.assertEquals(availableBefore,
-      jdbc.queryForObject("SELECT stock_available FROM product_inventory WHERE product_id=1", Integer.class));
-    org.junit.jupiter.api.Assertions.assertEquals(0,
-      jdbc.queryForObject("SELECT stock_reserved FROM product_inventory WHERE product_id=1", Integer.class));
-    org.junit.jupiter.api.Assertions.assertEquals("RELEASED", jdbc.queryForObject(
-      "SELECT status FROM inventory_reservations WHERE order_id=? AND product_id=1", String.class, orderId));
+    org.junit.jupiter.api.Assertions.assertEquals(2, jdbc.queryForObject(
+      "SELECT COUNT(*) FROM inventory_command_delivery_outbox WHERE order_id=?", Integer.class, orderId));
     org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
-      "SELECT COUNT(*) FROM inventory_movements WHERE order_id=? AND movement_type='RELEASED'", Integer.class, orderId));
+      "SELECT COUNT(*) FROM inventory_command_delivery_outbox WHERE order_id=? AND command_type='RELEASE'",
+      Integer.class, orderId));
     String notificationEventId = outbox.get("EVENT_ID") + ":notification";
     when(notificationServiceClient.list(customerId)).thenReturn(List.of(
       new CustomerNotification(1L, notificationEventId, orderId, "ORDER_CANCELLED",

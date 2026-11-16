@@ -53,7 +53,7 @@ commerceflow:
     secret: ${CATALOG_INTERNAL_SECRET:demo-catalog-internal-secret}
   catalog-event-delivery:
     enabled: ${CATALOG_EVENT_DELIVERY_ENABLED:true}
-    inventory-base-url: ${COMMERCE_SERVICE_INTERNAL_URL:http://localhost:18081}
+    inventory-base-url: ${INVENTORY_SERVICE_INTERNAL_URL:http://localhost:18088}
     secret: ${CATALOG_INTERNAL_SECRET:demo-catalog-internal-secret}
     max-attempts: ${CATALOG_EVENT_DELIVERY_MAX_ATTEMPTS:5}
     batch-size: ${CATALOG_EVENT_DELIVERY_BATCH_SIZE:50}

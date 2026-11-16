@@ -119,6 +119,15 @@ commerceflow:
       rehearsal-enabled: ${INVENTORY_REMOTE_REHEARSAL_ENABLED:false}
       base-url: ${INVENTORY_SERVICE_BASE_URL:http://localhost:18088}
       secret: ${INVENTORY_INTERNAL_SECRET:demo-inventory-internal-secret}
+    delivery:
+      dispatch-delay: ${INVENTORY_DELIVERY_DISPATCH_DELAY:250ms}
+      dispatch-initial-delay: ${INVENTORY_DELIVERY_DISPATCH_INITIAL_DELAY:1s}
+      recovery-delay: ${INVENTORY_DELIVERY_RECOVERY_DELAY:1s}
+      recovery-initial-delay: ${INVENTORY_DELIVERY_RECOVERY_INITIAL_DELAY:2s}
+      result-timeout: ${INVENTORY_DELIVERY_RESULT_TIMEOUT:5s}
+      retry-delay: ${INVENTORY_DELIVERY_RETRY_DELAY:1s}
+      max-attempts: ${INVENTORY_DELIVERY_MAX_ATTEMPTS:5}
+      batch-size: ${INVENTORY_DELIVERY_BATCH_SIZE:50}
   catalog:
     service:
       base-url: ${CATALOG_SERVICE_BASE_URL:http://localhost:18087}

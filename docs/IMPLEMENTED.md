@@ -177,6 +177,13 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   inventory-service 停机/恢复；Windows 快速回归后 generation 23/24 五表指纹连续一致。Java 25 的 40 项测试、
   372 个 Java、385 个类声明空行和 44 对脚本门禁通过。真实业务切换、四类 Tempo Trace、超时/结果丢失仍未
   验收，三个开关恢复默认关闭，CUTOVER 与 PostgreSQL 继续冻结。
+- M3.4 第九批把 RESERVE、COMMIT、RELEASE、REFUND 的生产入口整体切到 Outbox→独立 inventory-service。
+  业务事务不再调用本地库存 Handler，只有远端 Result V1 确认后才推进订单/退款 inventoryStatus；未知结果保留
+  IN_FLIGHT 并用原 commandId 有限重试，不存在 LOCAL/COMPARE、双写或本地回退。Windows 实机验证四类 ACK、
+  8 秒结果丢失、服务/数据库停机恢复及四类命令各自的 commerce/inventory 同 Trace；源库存流水保持 582，
+  目标增至 627。
+  Java 25 干净构建 42 项测试、374/30/253/6 质量门禁、388 个类声明空行和 45 对脚本契约通过。商家库存管理
+  API 仍使用 commerce Mapper，因此完整单一所有权与删除源表权限明确留到下一批；PostgreSQL 未启动。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

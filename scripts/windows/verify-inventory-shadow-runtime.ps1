@@ -21,12 +21,14 @@ function Get-Hmac([string]$Value) {
 }
 
 Set-Location $ProjectRoot
-& docker compose --profile inventory-shadow up -d --build --wait inventory-service | Out-Null
-if ($LASTEXITCODE -ne 0) { throw 'Inventory shadow runtime did not start' }
-& docker compose --profile inventory-shadow run --rm inventory-data-migrator | Out-Host
-if ($LASTEXITCODE -ne 0) { throw 'First inventory shadow migration failed' }
-& docker compose --profile inventory-shadow run --rm inventory-data-migrator | Out-Host
-if ($LASTEXITCODE -ne 0) { throw 'Second inventory shadow migration failed' }
+try {
+  $env:INVENTORY_ACCEPTING_TRAFFIC = 'false'
+  & docker compose up -d --build --force-recreate --wait inventory-service | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw 'Inventory gated runtime did not start' }
+  & docker compose --profile inventory-migration run --rm inventory-data-migrator | Out-Host
+  if ($LASTEXITCODE -ne 0) { throw 'First inventory migration failed' }
+  & docker compose --profile inventory-migration run --rm inventory-data-migrator | Out-Host
+  if ($LASTEXITCODE -ne 0) { throw 'Second inventory migration failed' }
 
 if ((Invoke-RestMethod "$BaseUrl/actuator/health").status -ne 'UP') {
   throw 'Inventory shadow health is not UP'
@@ -57,5 +59,10 @@ $state = & docker compose exec -T inventory-db mysql -N -uinventory -pinventory-
 if ($LASTEXITCODE -ne 0 -or $state -notmatch '^READY\|([2-9]|[1-9][0-9]+)$') {
   throw "Inventory migration state is not repeatably READY: $state"
 }
-Write-Host "Inventory shadow runtime passed: health UP, migration $state, unsigned 401, signed gate 503." `
-  -ForegroundColor Green
+  Write-Host "Inventory gated runtime passed: health UP, migration $state, unsigned 401, signed gate 503." `
+    -ForegroundColor Green
+} finally {
+  $env:INVENTORY_ACCEPTING_TRAFFIC = 'true'
+  & docker compose up -d --force-recreate --wait inventory-service | Out-Null
+  Remove-Item Env:INVENTORY_ACCEPTING_TRAFFIC -ErrorAction SilentlyContinue
+}

@@ -18,6 +18,8 @@ public interface InventoryCommandDeliveryMapper {
 
   String status(String commandId);
 
+  List<String> dispatchable(int limit);
+
   int markInFlight(@Param("commandId") String commandId,
                    @Param("resultDeadlineAt") Instant resultDeadlineAt);
 
@@ -48,5 +50,4 @@ public interface InventoryCommandDeliveryMapper {
   int reopen(@Param("commandId") String commandId,
              @Param("recoveredBy") String recoveredBy,
              @Param("recoveryReason") String recoveryReason);
-
 }

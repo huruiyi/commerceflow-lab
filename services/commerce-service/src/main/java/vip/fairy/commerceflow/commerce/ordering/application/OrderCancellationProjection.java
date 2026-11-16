@@ -51,37 +51,39 @@ public class OrderCancellationProjection implements InventoryCommandPort.StatePr
       : "Order cancelled";
     inventory.handle(InventoryCommandPort.release(
       eventId + ":inventory:release", orderId, reason, eventId));
-    orders.updateInventoryStatus(orderId, "RESERVED", "RELEASED");
   }
 
   @Override
   public void succeeded(InventoryCommandV1 command) {
-    switch (command.commandType()) {
-      case RESERVE -> requireTransition(command.orderId(), "RECONCILIATION_REQUIRED", "RESERVED");
-      case COMMIT -> requireTransition(command.orderId(), "RECONCILIATION_REQUIRED", "COMMITTED");
-      case RELEASE -> requireTransition(command.orderId(), "RECONCILIATION_REQUIRED", "RELEASED");
-      case REFUND -> requireTransition(command.orderId(), "RECONCILIATION_REQUIRED", "REFUNDED");
+    String current = orders.lockById(command.orderId()).orElseThrow().getInventoryStatus();
+    String target = switch (command.commandType()) {
+      case RESERVE -> "RESERVED";
+      case COMMIT -> "COMMITTED";
+      case RELEASE -> "RELEASED";
+      case REFUND -> "REFUNDED";
+    };
+    if (current.equals(target)) {
+      return;
     }
+    if (command.commandType() == vip.fairy.commerceflow.commerce.inventory.application.contract.v1
+        .InventoryCommandTypeV1.RESERVE && "WAITING_COMMIT".equals(current)) {
+      return;
+    }
+    requireTransition(command.orderId(), current, target);
   }
 
   @Override
   public void reconciliationRequired(InventoryCommandV1 command) {
-    requireTransition(command.orderId(), currentState(command), "RECONCILIATION_REQUIRED");
+    String current = orders.lockById(command.orderId()).orElseThrow().getInventoryStatus();
+    if (!"RECONCILIATION_REQUIRED".equals(current)) {
+      requireTransition(command.orderId(), current, "RECONCILIATION_REQUIRED");
+    }
   }
 
   private void requireTransition(Long orderId, String fromStatus, String toStatus) {
     if (orders.updateInventoryStatus(orderId, fromStatus, toStatus) != 1) {
       throw new IllegalStateException("Order inventory recovery state changed concurrently");
     }
-  }
-
-  private String currentState(InventoryCommandV1 command) {
-    return switch (command.commandType()) {
-      case RESERVE -> "WAITING_RESERVATION";
-      case COMMIT -> "WAITING_COMMIT";
-      case RELEASE -> "RESERVED";
-      case REFUND -> "REFUND_PENDING";
-    };
   }
 
   private String required(JsonNode node, String field) {
