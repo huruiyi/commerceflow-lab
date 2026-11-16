@@ -135,9 +135,10 @@ taskId 查询到同一 Trace 的 publish/process Span，并验证 Tempo 停机�
 - [x] RabbitMQ/RocketMQ 已具备真实跨消息 Trace 和追踪后端故障降级证据。
 
 M3.2 已完成 notification 单一所有权切换，M3.3 已完成 catalog 独立 Schema、数据交接和单一所有权切换。
-M3.4 前四批进一步建立 inventory application port、V1 命令及自有 Inbox，移除 ordering 外键和 notification
-运行依赖，完成 catalog V1 事件投影，并冻结命令 delivery Outbox、Result V1 和未知结果补偿语义；订单/履约/
-退款的远程等待状态、数据迁移和单一所有权切换仍是后续门禁。
+M3.4 已建立 inventory application port、V1 命令及自有 Inbox，移除 ordering 外键和 notification 运行依赖，
+完成 catalog V1 事件投影、命令 delivery/Result 协议、订单/退款等待态、履约阻断和人工恢复门禁。最终 CREATE
+准入评审已冻结五表迁移、停写追平、唯一远程适配器、Trace 和失败回退手册；下一批只允许创建不接流量的
+独立 MySQL 服务，数据迁移、故障演练和 CUTOVER 仍未完成。
 
 ## 8. 自动基线
 

@@ -597,8 +597,31 @@ Docker 拓扑，也不启动 PostgreSQL。
   COMMITTED 收口；质量门禁覆盖 317 个 Java 文件、24 个 Mapper XML 和 221 个映射语句。
 - [x] 双平台 V1→V34/V16→V34、Windows 快速回归和真实持久库升级通过；现有订单分布为 COMMITTED 124、
   RELEASED 118、REFUNDED 21，21 条退款均已 REFUNDED，53 条命令全部 ACKNOWLEDGED，无等待或待对账残留。
-- [ ] 下一批执行 inventory-service 最终准入评审：核对数据搬迁清单、停写/增量追平、单一远程适配器、
+- [x] 下一批执行 inventory-service 最终准入评审：核对数据搬迁清单、停写/增量追平、单一远程适配器、
   跨进程 Trace 和失败回退运行手册；评审通过后才可创建独立 MySQL inventory-service，仍不启动 PostgreSQL。
+
+### 13.18 M3.4 第六批：inventory-service 最终创建准入评审
+
+本批只授予创建独立服务和 MySQL Schema 的资格，不创建服务、不搬迁数据、不切换流量。详细步骤见
+[inventory-service 创建准入与单一所有权切换运行手册](architecture/INVENTORY-SERVICE-CUTOVER-RUNBOOK.md)。
+
+- [x] 明确五张 inventory 所有权表必须迁入独立库：`product_inventory`、`inventory_reservations`、
+  `inventory_movements`、`inventory_command_inbox`、`inventory_catalog_event_inbox`；生产端 delivery Outbox
+  和结果 Inbox 留在 commerce，禁止把七张边界表机械地全部搬走。
+- [x] 冻结快照导入、在线增量追平、短暂停写、未决事实归零、最终指纹核对和整体切换顺序；禁止分命令、
+  分租户或按比例保留本地分支。
+- [x] 冻结唯一远程适配器与跨进程 Trace 门禁：四类命令保持原 commandId，并以 correlationId、
+  causationId、traceparent 串联生产 Outbox、传输、inventory Inbox、库存事务、结果和生产侧 Inbox。
+- [x] 冻结失败规则：超时只进入等待/待对账，不改调本地 Handler；独立库接收新写后不得静默回旧库，
+  必须先停写并对独立新增事实执行受控正向或反向对账。
+- [x] 新增 Windows/Bash 只读准入审计，验证 V34、七张边界表、跨边界外键、非负余额、预占/已售汇总、
+  Inbox/Outbox 闭环、业务等待态和单一 Gateway；两套实跑结果一致。
+- [x] 当前五表基线为：库存聚合 `6|583|1|124|2141700697`，预占 `263|263|3058818985`，流水
+  `548|654|3893075855`，命令 Inbox `87|2727443420`，catalog Inbox `2|4254278571`；未决与待对账均为 0。
+- [x] CREATE 准入通过；CUTOVER 仍未获准。当前没有 inventory-service/inventory-db，没有远程库存写入，
+  PostgreSQL 继续冻结。
+- [ ] 下一批创建分层 `inventory-service` 与独立 MySQL `inventory-db`，实现五张所有权表及唯一远程适配器；
+  先以不接流量状态启动并完成可重复迁移工具，未通过最终追平和故障演练前不得切流。
 
 ## 14. 实施记录模板
 

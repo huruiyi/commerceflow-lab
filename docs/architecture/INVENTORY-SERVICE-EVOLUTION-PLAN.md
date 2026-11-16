@@ -2,7 +2,9 @@
 
 ## 1. 本批结论
 
-`inventory-service` 已完成前四批准入治理，但**尚未获准创建独立进程或独立 Schema**。
+`inventory-service` 已完成最终创建准入评审，**允许下一批创建不接流量的独立进程和 MySQL Schema**，但
+尚未获得 CUTOVER 准入。具体迁移与演练顺序见
+[创建准入与单一所有权切换运行手册](INVENTORY-SERVICE-CUTOVER-RUNBOOK.md)。
 当前只在 `commerce-service` 内保留一套库存实现，并完成以下收敛：
 
 - ordering、payment、refund 只能依赖 `inventory/application/port`，不能注入 `InventoryService`、库存领域对象或 Mapper；
@@ -16,6 +18,7 @@
 - V32 增加命令 delivery Outbox、结果 Inbox 和 Result V1；当前本地适配器留下 ACK 证据，远程传输未启用；
 - V33 增加订单/退款自有 inventoryStatus、履约阻断及原命令人工恢复门禁；
 - V34 为每次受控恢复保留操作者、原因和时间，禁止无理由重试；
+- 双平台只读审计已确认 V34、七张边界表、零跨域外键、余额不变量、命令闭环和零待对账；
 - 取消通知由订单取消事务写入 notification Outbox，库存释放不再承担客户身份查询或通知副作用；
 - ArchUnit 门禁禁止库存以外的模块重新依赖库存 API、领域、基础设施或具体应用实现；
 - 跨模块现状为 39 个方向、109 个 import、35 个源码文件，跨模块 infrastructure 引用仍为 18。
@@ -92,15 +95,16 @@ catalog-service 已是商品资料唯一所有者。inventory 只能消费 catal
 1. [已完成] 冻结并实现 catalog 事件消费 fixture、businessVersion 门禁、独立 Inbox 和有限重试/DEAD；
 2. [已完成] 明确 checkout/payment/refund 的跨进程结果与补偿协议；
 3. [已完成] 实现订单等待库存状态、履约阻断、退款库存待对账和管理恢复入口；
-4. 在独立 MySQL Schema 创建分层 `inventory-service`，完成一次性计数、余额总和和内容指纹迁移；
-5. 停写窗口内追平增量，整体切换调用方，验证并发、重复、乱序、超时、停机恢复和跨进程 Trace；
-6. 删除 commerce 的库存 Mapper/XML/运行表访问，只保留必要的公开身份/RBAC 薄代理，不保留 LOCAL/COMPARE、
+4. [已完成] 最终 CREATE 准入评审，冻结五表迁移、停写/追平、唯一远程适配器、Trace 和回退手册；
+5. 在独立 MySQL Schema 创建分层 `inventory-service`，完成一次性计数、余额总和和内容指纹迁移；
+6. 停写窗口内追平增量，整体切换调用方，验证并发、重复、乱序、超时、停机恢复和跨进程 Trace；
+7. 删除 commerce 的库存 Mapper/XML/运行表访问，只保留必要的公开身份/RBAC 薄代理，不保留 LOCAL/COMPARE、
    双写或数据库回退；
-7. 以 Git 提交和可恢复数据备份作为回退边界，失败时停止切换，不覆盖已接收新写入的独立库。
+8. 以 Git 提交和可恢复数据备份作为回退边界，失败时停止切换，不覆盖已接收新写入的独立库。
 
 ## 7. 明确不在本批实施
 
-- 不创建或启动 `inventory-service`、`inventory-db`；
+- 本批不创建或启动 `inventory-service`、`inventory-db`；下一批只允许以不接流量状态创建；
 - 不迁移库存表、不创建独立数据库、不改 Docker 默认拓扑；
 - 不同时启动 order/payment-orchestration/fulfillment 拆分；
 - 不引入 PostgreSQL 或 MySQL/PostgreSQL 双方言。只有 M3 清单中的 notification、catalog、inventory、order、

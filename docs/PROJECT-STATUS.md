@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.4 第五批 inventory 业务等待态、履约阻断和人工恢复门禁已完成；独立库存服务尚未启动 |
-| 下一候选阶段 | inventory-service 最终准入评审与独立 MySQL 切换运行手册 |
+| 当前阶段 | M3.4 第六批 inventory-service CREATE 最终准入评审已通过；CUTOVER 尚未获准，独立库存服务未启动 |
+| 下一候选阶段 | 创建分层 inventory-service/独立 MySQL，先完成不接流量启动与可重复迁移工具 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -299,5 +299,11 @@ Handler，不维护双实现。`InventoryCommandResultV1`、成功/拒绝 fixtur
 ACKNOWLEDGED 和业务状态；V34 记录操作者、原因和时间。Java 25 正式镜像 38 项测试通过；
 inventory-service/inventory-db 与 PostgreSQL 仍未启动。双平台 V34 生命周期和 Windows 快速回归通过；默认
 持久库 124 条订单 COMMITTED、118 条 RELEASED、21 条 REFUNDED，21 条退款库存状态均已收口，53 条命令
-全部 ACKNOWLEDGED。下一步先做独立服务
-最终准入评审。
+全部 ACKNOWLEDGED；该项的后续最终准入评审已由第十批完成。
+
+第十批完成 inventory-service 最终创建准入评审。运行手册明确五张 inventory 所有权表迁入独立库，生产端
+delivery Outbox 和结果 Inbox 留在 commerce；冻结快照、增量追平、短暂停写、最终指纹核对、整体切换、
+跨进程 Trace 与独立库新写后的受控回退规则。Windows/Bash 只读审计均通过 V34、七张边界表、零跨域外键、
+余额/预占/已售汇总、Inbox/Outbox 闭环、零业务等待态和唯一 Gateway。当前基线为库存聚合 6 条、预占
+263 条、流水 548 条、命令 Inbox 87 条、catalog Inbox 2 条，未决与待对账均为 0。本批仅授予 CREATE
+资格；没有创建 inventory-service/inventory-db 或切换流量，CUTOVER 与 PostgreSQL 继续冻结。

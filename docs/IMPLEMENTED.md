@@ -160,6 +160,11 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   V34 保留操作者、原因与时间。Java 25 正式镜像 38 项测试、双平台 V34 生命周期、Windows 快速回归和质量
   门禁通过；真实持久库 53 条命令
   全部 ACKNOWLEDGED，订单/退款无等待或待对账残留。独立 inventory-service 与 PostgreSQL 未启动。
+- M3.4 第六批完成 inventory-service 最终 CREATE 准入评审。运行手册区分迁入独立库的五张所有权表与留在
+  commerce 的生产端 delivery Outbox/结果 Inbox，冻结快照、增量追平、短暂停写、最终指纹、唯一远程
+  适配器、跨进程 Trace 和独立新写后的受控回退规则。Windows/Bash 只读审计均通过 V34、七张边界表、
+  零跨域外键、余额不变量、命令闭环、零待对账及单一 Gateway；五表基线分别为 6、263、548、87、2 行。
+  本批未创建 inventory-service/inventory-db、未迁移或切流；CUTOVER 与 PostgreSQL 继续冻结。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

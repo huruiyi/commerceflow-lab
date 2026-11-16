@@ -9,6 +9,7 @@
 | [NOTIFICATION-SERVICE-CUTOVER-PLAN.md](NOTIFICATION-SERVICE-CUTOVER-PLAN.md) | notification 单一所有权、完整 API、一次性数据交接和单体运行路径删除门禁 |
 | [CATALOG-SERVICE-EVOLUTION-PLAN.md](CATALOG-SERVICE-EVOLUTION-PLAN.md) | catalog 应用端口、数据所有权、V1 契约和单一所有权切换门禁 |
 | [INVENTORY-SERVICE-EVOLUTION-PLAN.md](INVENTORY-SERVICE-EVOLUTION-PLAN.md) | inventory 准入、命令边界与单一所有权演进门禁 |
+| [INVENTORY-SERVICE-CUTOVER-RUNBOOK.md](INVENTORY-SERVICE-CUTOVER-RUNBOOK.md) | inventory 创建准入、五表迁移、停写追平、Trace、故障与回退运行手册 |
 | [DATABASE-EVOLUTION-PLAN.md](DATABASE-EVOLUTION-PLAN.md) | MySQL 现状、PostgreSQL 迁移评估和数据库演进门禁 |
 
 业务功能、UI 和当前交付顺序仍以 `docs/TODO.md` 为准。
