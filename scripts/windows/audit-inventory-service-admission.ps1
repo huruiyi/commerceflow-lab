@@ -102,24 +102,32 @@ Write-Host '  PASS one InventoryCommandPort implementation and no LOCAL/COMPARE 
 $fingerprints = Invoke-CommerceSql @"
 SELECT CONCAT('product_inventory|',COUNT(*),'|',COALESCE(SUM(stock_available),0),'|',
   COALESCE(SUM(stock_reserved),0),'|',COALESCE(SUM(stock_sold),0),'|',
-  COALESCE(BIT_XOR(CAST(CRC32(CONCAT_WS('#',product_id,COALESCE(merchant_id,''),product_name,
+  COALESCE(BIT_XOR(CAST(CRC32(CONCAT_WS('|',product_id,COALESCE(merchant_id,''),product_name,
     thumbnail_url,unit_price,catalog_lifecycle_status,catalog_business_version,
-    stock_available,stock_reserved,stock_sold)) AS UNSIGNED)),0)) FROM product_inventory
+    stock_available,stock_reserved,stock_sold,DATE_FORMAT(updated_at,'%Y-%m-%d %H:%i:%s.%f')))
+    AS UNSIGNED)),0)) FROM product_inventory
 UNION ALL
 SELECT CONCAT('inventory_reservations|',COUNT(*),'|',COALESCE(SUM(quantity),0),'|',
-  COALESCE(BIT_XOR(CAST(CRC32(CONCAT_WS('#',id,order_id,product_id,quantity,status,version,
-    reserved_at,COALESCE(committed_at,''),COALESCE(released_at,''))) AS UNSIGNED)),0)) FROM inventory_reservations
+  COALESCE(BIT_XOR(CAST(CRC32(CONCAT_WS('|',id,order_id,product_id,quantity,status,version,
+    DATE_FORMAT(reserved_at,'%Y-%m-%d %H:%i:%s.%f'),
+    COALESCE(DATE_FORMAT(committed_at,'%Y-%m-%d %H:%i:%s.%f'),''),
+    COALESCE(DATE_FORMAT(released_at,'%Y-%m-%d %H:%i:%s.%f'),''))) AS UNSIGNED)),0)) FROM inventory_reservations
 UNION ALL
 SELECT CONCAT('inventory_movements|',COUNT(*),'|',COALESCE(SUM(quantity),0),'|',
-  COALESCE(BIT_XOR(CAST(CRC32(CONCAT_WS('#',id,event_id,COALESCE(order_id,''),product_id,movement_type,
-    quantity,available_after,reserved_after)) AS UNSIGNED)),0)) FROM inventory_movements
+  COALESCE(BIT_XOR(CAST(CRC32(CONCAT_WS('|',id,event_id,COALESCE(order_id,''),product_id,movement_type,
+    quantity,available_after,reserved_after,sold_after,detail,
+    DATE_FORMAT(created_at,'%Y-%m-%d %H:%i:%s.%f'))) AS UNSIGNED)),0)) FROM inventory_movements
 UNION ALL
 SELECT CONCAT('inventory_command_inbox|',COUNT(*),'|',
-  COALESCE(BIT_XOR(CAST(CRC32(CONCAT_WS('#',command_id,command_type,order_id,payload_fingerprint,status))
+  COALESCE(BIT_XOR(CAST(CRC32(CONCAT_WS('|',command_id,command_type,order_id,payload_fingerprint,status,
+    DATE_FORMAT(created_at,'%Y-%m-%d %H:%i:%s.%f'),
+    COALESCE(DATE_FORMAT(processed_at,'%Y-%m-%d %H:%i:%s.%f'),'')))
     AS UNSIGNED)),0)) FROM inventory_command_inbox
 UNION ALL
 SELECT CONCAT('inventory_catalog_event_inbox|',COUNT(*),'|',
-  COALESCE(BIT_XOR(CAST(CRC32(CONCAT_WS('#',event_id,product_id,business_version,payload_fingerprint,status))
+  COALESCE(BIT_XOR(CAST(CRC32(CONCAT_WS('|',event_id,product_id,business_version,payload_fingerprint,status,
+    DATE_FORMAT(created_at,'%Y-%m-%d %H:%i:%s.%f'),
+    COALESCE(DATE_FORMAT(processed_at,'%Y-%m-%d %H:%i:%s.%f'),'')))
     AS UNSIGNED)),0)) FROM inventory_catalog_event_inbox;
 "@
 

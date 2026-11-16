@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryCatalogEventInboxMapper">
+
+  <insert id="claim">
+    INSERT IGNORE INTO inventory_catalog_event_inbox(
+      event_id,product_id,business_version,payload_fingerprint,status
+    ) VALUES(#{eventId},#{productId},#{businessVersion},#{payloadFingerprint},'PROCESSING')
+  </insert>
+
+  <select id="payloadFingerprint" resultType="java.lang.String">
+    SELECT payload_fingerprint FROM inventory_catalog_event_inbox WHERE event_id=#{eventId}
+  </select>
+
+  <update id="complete">
+    UPDATE inventory_catalog_event_inbox
+    SET status=#{status},processed_at=CURRENT_TIMESTAMP(6)
+    WHERE event_id=#{eventId} AND status='PROCESSING'
+  </update>
+
+</mapper>

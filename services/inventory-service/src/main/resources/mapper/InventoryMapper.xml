@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryMapper">
+
+  <update id="reserve">
+    UPDATE product_inventory
+    SET stock_available=stock_available-#{quantity},stock_reserved=stock_reserved+#{quantity}
+    WHERE product_id=#{productId} AND catalog_lifecycle_status='ACTIVE'
+      AND stock_available&gt;=#{quantity}
+  </update>
+
+  <insert id="insertReservation">
+    INSERT INTO inventory_reservations(order_id,product_id,quantity,status)
+    VALUES(#{orderId},#{productId},#{quantity},'RESERVED')
+  </insert>
+
+  <select id="lockByOrder"
+          resultType="vip.fairy.commerceflow.inventory.domain.InventoryReservation">
+    SELECT id,product_id AS productId,quantity,status
+    FROM inventory_reservations
+    WHERE order_id=#{orderId}
+    ORDER BY id
+    FOR UPDATE
+  </select>
+
+  <update id="commitReserved">
+    UPDATE product_inventory
+    SET stock_reserved=stock_reserved-#{quantity},stock_sold=stock_sold+#{quantity}
+    WHERE product_id=#{productId} AND stock_reserved&gt;=#{quantity}
+  </update>
+
+  <update id="commitReleased">
+    UPDATE product_inventory
+    SET stock_available=stock_available-#{quantity},stock_sold=stock_sold+#{quantity}
+    WHERE product_id=#{productId} AND stock_available&gt;=#{quantity}
+  </update>
+
+  <update id="release">
+    UPDATE product_inventory
+    SET stock_available=stock_available+#{quantity},stock_reserved=stock_reserved-#{quantity}
+    WHERE product_id=#{productId} AND stock_reserved&gt;=#{quantity}
+  </update>
+
+  <update id="refund">
+    UPDATE product_inventory
+    SET stock_available=stock_available+#{quantity},stock_sold=stock_sold-#{quantity}
+    WHERE product_id=#{productId} AND stock_sold&gt;=#{quantity}
+  </update>
+
+  <update id="markCommitted">
+    UPDATE inventory_reservations
+    SET status='COMMITTED',committed_at=CURRENT_TIMESTAMP(6),
+      released_at=CASE WHEN #{fromStatus}='RELEASED' THEN NULL ELSE released_at END,
+      version=version+1
+    WHERE id=#{id} AND status=#{fromStatus}
+  </update>
+
+  <update id="markReleased">
+    UPDATE inventory_reservations
+    SET status='RELEASED',released_at=CURRENT_TIMESTAMP(6),version=version+1
+    WHERE id=#{id} AND status='RESERVED'
+  </update>
+
+  <update id="markRefunded">
+    UPDATE inventory_reservations
+    SET status='REFUNDED',version=version+1
+    WHERE id=#{id} AND status='COMMITTED'
+  </update>
+
+  <select id="inventory" resultType="vip.fairy.commerceflow.inventory.domain.ProductInventory">
+    SELECT product_id AS id,stock_available AS stockAvailable,
+      stock_reserved AS stockReserved,stock_sold AS stockSold
+    FROM product_inventory
+    WHERE product_id=#{productId}
+  </select>
+
+  <insert id="insertMovement">
+    INSERT INTO inventory_movements(event_id,order_id,product_id,movement_type,quantity,
+      available_after,reserved_after,sold_after,detail)
+    VALUES(#{eventId},#{orderId},#{productId},#{movementType},#{quantity},
+      #{inventory.stockAvailable},#{inventory.stockReserved},#{inventory.stockSold},#{detail})
+  </insert>
+
+  <select id="catalogBusinessVersion" resultType="java.lang.Long">
+    SELECT catalog_business_version FROM product_inventory WHERE product_id=#{productId}
+  </select>
+
+  <update id="updateCatalogSnapshot">
+    UPDATE product_inventory
+    SET merchant_id=#{merchantId},product_name=#{productName},thumbnail_url=#{thumbnailUrl},
+      unit_price=#{unitPrice},catalog_lifecycle_status=#{lifecycleStatus},
+      catalog_business_version=#{businessVersion}
+    WHERE product_id=#{productId} AND catalog_business_version&lt;#{businessVersion}
+  </update>
+
+  <update id="advanceCatalogVersion">
+    UPDATE product_inventory
+    SET catalog_business_version=#{businessVersion}
+    WHERE product_id=#{productId} AND catalog_business_version&lt;#{businessVersion}
+  </update>
+
+</mapper>

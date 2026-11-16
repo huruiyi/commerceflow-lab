@@ -20,24 +20,32 @@ check_max_line_length(){
 java_roots=(
   "$PROJECT_ROOT/services/commerce-service/src/main/java"
   "$PROJECT_ROOT/services/notification-service/src/main/java"
+  "$PROJECT_ROOT/services/catalog-service/src/main/java"
+  "$PROJECT_ROOT/services/inventory-service/src/main/java"
   "$PROJECT_ROOT/simulators/payment-platform/service/src/main/java"
   "$PROJECT_ROOT/simulators/logistics-platform/service/src/main/java"
 )
 java_source_roots=(
   "$PROJECT_ROOT/services/commerce-service/src"
   "$PROJECT_ROOT/services/notification-service/src"
+  "$PROJECT_ROOT/services/catalog-service/src"
+  "$PROJECT_ROOT/services/inventory-service/src"
   "$PROJECT_ROOT/simulators/payment-platform/service/src"
   "$PROJECT_ROOT/simulators/logistics-platform/service/src"
 )
 mapper_roots=(
   "$PROJECT_ROOT/services/commerce-service/src/main/resources/mapper"
   "$PROJECT_ROOT/services/notification-service/src/main/resources/mapper"
+  "$PROJECT_ROOT/services/catalog-service/src/main/resources/mapper"
+  "$PROJECT_ROOT/services/inventory-service/src/main/resources/mapper"
   "$PROJECT_ROOT/simulators/payment-platform/service/src/main/resources/mapper"
   "$PROJECT_ROOT/simulators/logistics-platform/service/src/main/resources/mapper"
 )
 pom_files=(
   "$PROJECT_ROOT/services/commerce-service/pom.xml"
   "$PROJECT_ROOT/services/notification-service/pom.xml"
+  "$PROJECT_ROOT/services/catalog-service/pom.xml"
+  "$PROJECT_ROOT/services/inventory-service/pom.xml"
   "$PROJECT_ROOT/simulators/payment-platform/service/pom.xml"
   "$PROJECT_ROOT/simulators/logistics-platform/service/pom.xml"
 )
@@ -161,7 +169,7 @@ for mapper_file in "${mapper_files[@]}"; do
 done
 
 summary="Code quality audit passed: ${#java_files[@]} Java files, ${#mapper_files[@]} Mapper XML files, "
-summary+="$statement_count mapped statements, 4 Maven POM files; class spacing across ${#all_java_files[@]} Java sources, "
+summary+="$statement_count mapped statements, ${#pom_files[@]} Maven POM files; class spacing across ${#all_java_files[@]} Java sources, "
 summary+='format rules, service layers, notification migration parity, inline SQL boundary and '
 summary+='Mapper contracts are valid.'
 echo "$summary"

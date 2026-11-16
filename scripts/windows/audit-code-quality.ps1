@@ -8,6 +8,8 @@ function Fail([string]$Message) {
 $javaRoots = @(
   'services\commerce-service\src\main\java',
   'services\notification-service\src\main\java',
+  'services\catalog-service\src\main\java',
+  'services\inventory-service\src\main\java',
   'simulators\payment-platform\service\src\main\java',
   'simulators\logistics-platform\service\src\main\java'
 ) | ForEach-Object { Join-Path $ProjectRoot $_ }
@@ -15,6 +17,8 @@ $javaRoots = @(
 $javaSourceRoots = @(
   'services\commerce-service\src',
   'services\notification-service\src',
+  'services\catalog-service\src',
+  'services\inventory-service\src',
   'simulators\payment-platform\service\src',
   'simulators\logistics-platform\service\src'
 ) | ForEach-Object { Join-Path $ProjectRoot $_ }
@@ -22,6 +26,8 @@ $javaSourceRoots = @(
 $mapperRoots = @(
   'services\commerce-service\src\main\resources\mapper',
   'services\notification-service\src\main\resources\mapper',
+  'services\catalog-service\src\main\resources\mapper',
+  'services\inventory-service\src\main\resources\mapper',
   'simulators\payment-platform\service\src\main\resources\mapper',
   'simulators\logistics-platform\service\src\main\resources\mapper'
 ) | ForEach-Object { Join-Path $ProjectRoot $_ }
@@ -29,6 +35,8 @@ $mapperRoots = @(
 $pomFiles = @(
   'services\commerce-service\pom.xml',
   'services\notification-service\pom.xml',
+  'services\catalog-service\pom.xml',
+  'services\inventory-service\pom.xml',
   'simulators\payment-platform\service\pom.xml',
   'simulators\logistics-platform\service\pom.xml'
 ) | ForEach-Object { Join-Path $ProjectRoot $_ }
@@ -198,7 +206,7 @@ foreach ($mapperFile in $mapperFiles) {
 
 $message = (
   "Code quality audit passed: {0} Java files, {1} Mapper XML files, {2} mapped statements, " +
-  "4 Maven POM files; class spacing across {3} Java sources, format rules, service layers, " +
+  "{3} Maven POM files; class spacing across {4} Java sources, format rules, service layers, " +
   "notification migration parity, inline SQL boundary and Mapper contracts are valid."
-) -f $javaFiles.Count, $mapperFiles.Count, $statementCount, $allJavaFiles.Count
+) -f $javaFiles.Count, $mapperFiles.Count, $statementCount, $pomFiles.Count, $allJavaFiles.Count
 Write-Host $message -ForegroundColor Green

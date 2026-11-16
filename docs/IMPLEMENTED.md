@@ -165,6 +165,12 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   适配器、跨进程 Trace 和独立新写后的受控回退规则。Windows/Bash 只读审计均通过 V34、七张边界表、
   零跨域外键、余额不变量、命令闭环、零待对账及单一 Gateway；五表基线分别为 6、263、548、87、2 行。
   本批未创建 inventory-service/inventory-db、未迁移或切流；CUTOVER 与 PostgreSQL 继续冻结。
+- M3.4 第七批新增分层 inventory-service、独立 MySQL 和默认关闭流量的 `inventory-shadow` Profile。V1
+  创建五张所有权表，命令/catalog HTTP 适配器复用冻结的 Inbox、指纹、余额状态机、HMAC 和 Trace 信封；
+  未签名请求 401，已签名请求在关闭门禁下稳定 503。可重复迁移连续至少 20 代 READY，快速回归后的五表完整
+  字段指纹一致。
+  Java 25 的 2 项测试、双平台影子验收、扩展后的质量和 43 组脚本契约门禁通过。commerce/catalog 未改指向，
+  独立库未接收业务新写，CUTOVER 与 PostgreSQL 继续冻结。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

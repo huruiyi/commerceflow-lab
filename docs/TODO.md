@@ -616,12 +616,34 @@ Docker 拓扑，也不启动 PostgreSQL。
   必须先停写并对独立新增事实执行受控正向或反向对账。
 - [x] 新增 Windows/Bash 只读准入审计，验证 V34、七张边界表、跨边界外键、非负余额、预占/已售汇总、
   Inbox/Outbox 闭环、业务等待态和单一 Gateway；两套实跑结果一致。
-- [x] 当前五表基线为：库存聚合 `6|583|1|124|2141700697`，预占 `263|263|3058818985`，流水
-  `548|654|3893075855`，命令 Inbox `87|2727443420`，catalog Inbox `2|4254278571`；未决与待对账均为 0。
+- [x] 完整字段五表基线为：库存聚合 `6|583|1|124|578381528`，预占 `263|263|1295838566`，流水
+  `548|654|231355256`，命令 Inbox `87|673468363`，catalog Inbox `2|2798068318`；未决与待对账均为 0。
 - [x] CREATE 准入通过；CUTOVER 仍未获准。当前没有 inventory-service/inventory-db，没有远程库存写入，
   PostgreSQL 继续冻结。
-- [ ] 下一批创建分层 `inventory-service` 与独立 MySQL `inventory-db`，实现五张所有权表及唯一远程适配器；
+- [x] 下一批创建分层 `inventory-service` 与独立 MySQL `inventory-db`，实现五张所有权表及唯一远程适配器；
   先以不接流量状态启动并完成可重复迁移工具，未通过最终追平和故障演练前不得切流。
+
+### 13.19 M3.4 第七批：inventory-service 影子运行时与可重复快照
+
+- [x] 新增独立 `services/inventory-service`，按 `api/internal`、`application/port`、`application/service`、
+  `domain`、`infrastructure/persistence`、`infrastructure/transport` 分层；普通 class 声明与首字段之间保留空行。
+- [x] 独立 MySQL V1 创建五张所有权表及 migration state；不复制 delivery Outbox/结果 Inbox，不建立 ordering、
+  catalog 或 identity 跨库外键。
+- [x] 实现唯一命令 HTTP 适配器和 catalog 事件适配器，复用冻结的 V1 幂等指纹、Inbox、余额状态机、HMAC
+  身份和 W3C Trace 信封；没有 LOCAL/COMPARE、双写或数据库回退分支。
+- [x] `inventory-shadow` Profile 默认 `INVENTORY_ACCEPTING_TRAFFIC=false`；服务健康但已签名命令稳定返回 503，
+  未签名命令返回 401。commerce 与 catalog 均未指向该服务，现有业务仍只有原本地路径。
+- [x] 可重复迁移器只复制五张所有权表；每次先拒绝未决事实，再以完整字段、微秒时间戳、数量总和及 CRC
+  指纹比较源/目标。连续至少 20 代快照均 READY 且指纹一致，未删除或重建任何命名卷。
+- [x] 快速回归后的最终基线：库存 `6|579|1|128|828737161`、预占 `271|271|2545664639`、流水
+  `565|671|815919868`、命令 Inbox `104|530920418`、catalog Inbox `2|2798068318`。
+- [x] Java 25 正式镜像 2 项测试通过；Windows 与 Git Bash 影子运行验收均通过健康、双代迁移、401 和
+  已签名 503。质量门禁扩大到 catalog/inventory，共覆盖 368 个 Java、30 个 Mapper XML、252 个语句和
+  6 个 POM；脚本契约为 43 组。
+- [x] 本批未切换任何流量、未让独立库接收新业务写入、未删除 commerce 库存实现；CUTOVER 和 PostgreSQL
+  继续冻结。
+- [ ] 下一批实现停写控制与最终增量追平演练，补齐 commerce 生产端远程传输/结果确认但保持切换开关关闭，
+  再验证四类命令跨进程 Trace、重复、乱序、超时、结果丢失和服务/数据库停机恢复。
 
 ## 14. 实施记录模板
 

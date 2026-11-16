@@ -7,7 +7,8 @@
 - **CREATE 准入**：允许下一批创建分层 `inventory-service` 与独立 MySQL `inventory-db`，实现唯一远程适配器和迁移工具；
 - **CUTOVER 准入**：只有独立进程完成数据追平、跨进程 Trace、并发/重复/乱序/超时/停机恢复和回退演练后，才允许整体切换调用方。
 
-当前评审只授予 CREATE 准入。它不代表已经迁移数据、已经启动独立服务或已经批准切流。PostgreSQL 继续冻结。
+CREATE 阶段现已完成：独立服务/Schema 在 `inventory-shadow` Profile 中运行，可重复快照已验证；流量门禁默认
+关闭，commerce/catalog 未改指向。这不代表最终追平或 CUTOVER 已批准。PostgreSQL 继续冻结。
 
 ## 2. 数据搬迁清单
 

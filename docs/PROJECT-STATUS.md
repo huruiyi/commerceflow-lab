@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.4 第六批 inventory-service CREATE 最终准入评审已通过；CUTOVER 尚未获准，独立库存服务未启动 |
-| 下一候选阶段 | 创建分层 inventory-service/独立 MySQL，先完成不接流量启动与可重复迁移工具 |
+| 当前阶段 | M3.4 第七批 inventory-service 影子运行时与独立 MySQL 可重复快照已完成；默认流量门禁关闭 |
+| 下一候选阶段 | 停写/最终追平演练及生产端远程传输与结果确认，切换开关仍保持关闭 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -33,7 +33,7 @@
 | Flyway 数据库生命周期 | 空卷和迁移层已验收 | 商城迁移 V34；notification 独立 Schema V1→V3 已隔离及实际运行验收 |
 | notification 独立服务 | 单一所有权切换已实现 | 默认拓扑启动独立 MySQL/Kafka 服务；commerce 仅签名代理，故障稳定返回 503，无本地数据库回退 |
 | catalog 拆分准入 | 单一所有权已切换 | catalog-service/catalog-db 独占资料、翻译、版本和 Outbox；commerce 只保留鉴权、签名代理与 review 组合 |
-| inventory 拆分准入 | 第二批命令边界完成 | V1 命令、自有 Inbox、无 ordering 外键/通知依赖；独立进程、Schema 与数据迁移尚未启动 |
+| inventory 拆分准入 | 影子运行时与可重复快照完成 | 独立 MySQL/五表/唯一远程入口已运行但流量门禁关闭；最终追平、故障演练和 CUTOVER 待完成 |
 | 告警与监控 | 本地端到端管道已实现 | 三服务 Prometheus 抓取、10 条规则、Alertmanager、Grafana 数据源和可替换 Webhook；真实通知供应商与高可用部署不在本地学习验收内 |
 
 ## 3. M1 冻结结论
@@ -307,3 +307,10 @@ delivery Outbox 和结果 Inbox 留在 commerce；冻结快照、增量追平、
 余额/预占/已售汇总、Inbox/Outbox 闭环、零业务等待态和唯一 Gateway。当前基线为库存聚合 6 条、预占
 263 条、流水 548 条、命令 Inbox 87 条、catalog Inbox 2 条，未决与待对账均为 0。本批仅授予 CREATE
 资格；没有创建 inventory-service/inventory-db 或切换流量，CUTOVER 与 PostgreSQL 继续冻结。
+
+第十一批创建分层 inventory-service、独立 MySQL 和 `inventory-shadow` Profile。V1 只持有五张 inventory
+所有权表与迁移状态；唯一命令 HTTP 适配器和 catalog 事件适配器复用 V1 Inbox、幂等指纹、余额状态机、
+HMAC 与 Trace 信封。默认流量门禁关闭，健康检查为 UP，未签名请求 401、已签名请求 503，commerce/catalog
+均未改指向。可重复迁移连续至少 20 代 READY，快速回归后的源/目标完整字段指纹一致。Java 25 的 2 项测试、Windows/Git Bash
+影子验收、368 个 Java/30 个 XML/252 个语句/6 个 POM 的质量门禁及 43 组脚本契约通过。未切流、未接收独立
+业务新写、未删除 commerce 本地实现；CUTOVER 与 PostgreSQL 继续冻结。
