@@ -1,19 +1,22 @@
 package vip.fairy.commerceflow.commerce.ordering.application;
 
+import vip.fairy.commerceflow.commerce.cart.domain.CheckoutAddressSnapshot;
 import vip.fairy.commerceflow.commerce.cart.domain.CheckoutCartItem;
-import vip.fairy.commerceflow.commerce.cart.domain.NewShopOrder;
-import vip.fairy.commerceflow.commerce.cart.infrastructure.CartMapper;
-import vip.fairy.commerceflow.commerce.customer.domain.ShippingAddress;
+import vip.fairy.commerceflow.commerce.cart.application.port.CheckoutCartPort;
 import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
 import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
 import vip.fairy.commerceflow.commerce.logistics.application.LogisticsService;
 import vip.fairy.commerceflow.commerce.ordering.api.ShopOrderResponse;
+import vip.fairy.commerceflow.commerce.ordering.domain.NewOrder;
+import vip.fairy.commerceflow.commerce.ordering.domain.OrderAddressSnapshot;
+import vip.fairy.commerceflow.commerce.ordering.domain.OrderItemSnapshot;
 import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
 import vip.fairy.commerceflow.commerce.ordering.infrastructure.OrderLifecycleProperties;
 import vip.fairy.commerceflow.commerce.ordering.infrastructure.ShopOrderMapper;
 import vip.fairy.commerceflow.commerce.payment.api.PaymentRequest;
 import vip.fairy.commerceflow.commerce.payment.application.PaymentGatewayClient;
 import vip.fairy.commerceflow.commerce.payment.application.RedisIdempotencyService;
+import vip.fairy.commerceflow.commerce.payment.application.port.OrderPaymentRecordPort;
 import vip.fairy.commerceflow.commerce.payment.domain.PaymentMerchantAccount;
 import vip.fairy.commerceflow.commerce.payment.domain.PaymentView;
 import vip.fairy.commerceflow.commerce.refund.api.RefundResponse;
@@ -41,7 +44,8 @@ import java.util.UUID;
 public class PurchaseOrderService {
 
   private final ShopOrderMapper orders;
-  private final CartMapper carts;
+  private final CheckoutCartPort carts;
+  private final OrderPaymentRecordPort payments;
   private final PaymentGatewayClient gateway;
   private final RedisIdempotencyService redisIdempotency;
   private final RefundMapper refunds;
@@ -50,13 +54,15 @@ public class PurchaseOrderService {
   private final LogisticsService logistics;
   private final InventoryCommandPort inventory;
 
-  public PurchaseOrderService(ShopOrderMapper orders, CartMapper carts, PaymentGatewayClient gateway,
+  public PurchaseOrderService(ShopOrderMapper orders, CheckoutCartPort carts,
+                              OrderPaymentRecordPort payments, PaymentGatewayClient gateway,
                               RedisIdempotencyService redisIdempotency, RefundMapper refunds,
                               OrderLifecycleProperties lifecycle, ScheduledTaskService scheduledTasks,
                               LogisticsService logistics,
                               InventoryCommandPort inventory) {
     this.orders = orders;
     this.carts = carts;
+    this.payments = payments;
     this.gateway = gateway;
     this.redisIdempotency = redisIdempotency;
     this.refunds = refunds;
@@ -68,11 +74,11 @@ public class PurchaseOrderService {
 
   @Transactional
   public ShopOrderResponse checkout(AppUser user) {
-    List<CheckoutCartItem> items = orders.lockCartItems(user.getId());
+    List<CheckoutCartItem> items = carts.lockItems(user.getId());
     if (items.isEmpty()) {
       throw new BusinessRuleException("Cart is empty");
     }
-    ShippingAddress address = orders.selectedAddress(user.getId());
+    CheckoutAddressSnapshot address = carts.selectedAddress(user.getId());
     if (address == null) {
       throw new BusinessRuleException("Select a valid shipping address before checkout");
     }
@@ -81,9 +87,10 @@ public class PurchaseOrderService {
     }
     BigDecimal total = items.stream().map(CheckoutCartItem::subtotal).reduce(BigDecimal.ZERO, BigDecimal::add);
     Instant paymentDueAt = Instant.now().plus(lifecycle.getPaymentTimeout());
-    NewShopOrder order = new NewShopOrder(number("ORD"), user.getId(), total, "CNY", paymentDueAt);
+    NewOrder order = new NewOrder(number("ORD"), user.getId(), total, "CNY", paymentDueAt);
     orders.insertOrder(order);
-    items.forEach(item -> orders.insertItem(order.getId(), item, item.subtotal()));
+    items.stream().map(OrderItemSnapshot::from)
+      .forEach(item -> orders.insertItem(order.getId(), item, item.subtotal()));
     inventory.handle(InventoryCommandPort.reserve(
       "order:" + order.getId() + ":reserve",
       order.getId(),
@@ -92,7 +99,7 @@ public class PurchaseOrderService {
           item.getProductId(), item.getProductName(), item.getQuantity()))
         .toList()
     ));
-    orders.insertAddress(order.getId(), address);
+    orders.insertAddress(order.getId(), OrderAddressSnapshot.from(address));
     orders.insertEvent(order.getId(), user.getId(), "ORDER_CREATED", "CART", "PENDING_PAYMENT",
       "Checkout created from cart");
     scheduledTasks.schedule(ScheduledTaskTypes.PAYMENT_TIMEOUT, "order:" + order.getId(), "ORDER",
@@ -118,12 +125,11 @@ public class PurchaseOrderService {
   public ShopOrderResponse pay(AppUser user, Long id, PaymentRequest request) {
     ShopOrderView order = orders.lock(user.getId(), id)
       .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
-    PaymentMerchantAccount merchant = orders.merchantAccount(request.channel())
+    PaymentMerchantAccount merchant = payments.merchantAccount(request.channel())
       .orElseThrow(() -> new BusinessRuleException("Payment channel is disabled"));
     String fingerprint = fingerprint(user.getId(), order, request);
-    orders.ensurePaymentIdempotencyKey(request.idempotencyKey());
-    orders.lockPaymentIdempotencyKey(request.idempotencyKey());
-    Optional<PaymentView> existing = orders.paymentByKey(request.idempotencyKey());
+    payments.lockIdempotencyKey(request.idempotencyKey());
+    Optional<PaymentView> existing = payments.byKey(request.idempotencyKey());
     if (existing.isPresent()) {
       PaymentView payment = existing.get();
       if (!payment.getOrderId().equals(id)
@@ -150,17 +156,17 @@ public class PurchaseOrderService {
       order.getTotalAmount(),
       order.getCurrency(),
       "NONE");
-    orders.insertPayment(id, merchant.getId(), number("PAY"), request.idempotencyKey(), request.channel(),
+    payments.create(id, merchant.getId(), number("PAY"), request.idempotencyKey(), request.channel(),
       order.getCurrency(), fingerprint, remote.channelTransactionNo(), order.getTotalAmount(), status, reason,
       null, remote.expiresInstant());
-    PaymentView payment = orders.paymentByKey(request.idempotencyKey()).orElseThrow();
-    orders.updateCheckout(payment.getId(), remote.checkoutUrl(), remote.actionType(), remote.qrPayload());
-    orders.insertPaymentEvent(payment.getId(), UUID.randomUUID().toString(), "PAYMENT_PENDING", "CREATED",
+    PaymentView payment = payments.byKey(request.idempotencyKey()).orElseThrow();
+    payments.checkout(payment.getId(), remote.checkoutUrl(), remote.actionType(), remote.qrPayload());
+    payments.event(payment.getId(), UUID.randomUUID().toString(), "PAYMENT_PENDING", "CREATED",
       status, "Waiting for signed asynchronous notification");
     redisIdempotency.rememberPayment(request.idempotencyKey(), payment.getPaymentNumber());
     return assemble(
       orders.find(user.getId(), id).orElseThrow(),
-      orders.paymentByKey(request.idempotencyKey()).orElseThrow());
+      payments.byKey(request.idempotencyKey()).orElseThrow());
   }
 
   private ShopOrderResponse assemble(ShopOrderView order, PaymentView payment) {
@@ -168,7 +174,7 @@ public class PurchaseOrderService {
       .stream()
       .map(ShopOrderResponse.Item::from)
       .toList();
-    PaymentView resolved = payment != null ? payment : orders.latestPayment(order.getId()).orElse(null);
+    PaymentView resolved = payment != null ? payment : payments.latest(order.getId()).orElse(null);
     RefundResponse refund = refunds.byOrder(order.getId())
       .map(value -> RefundResponse.from(value, refunds.events(value.getId())))
       .orElse(null);

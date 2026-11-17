@@ -145,7 +145,7 @@ M3.4 已建立 inventory application port、V1 命令及自有 Inbox，移除 or
 [`MicroserviceReadinessBaselineTest`](../../services/commerce-service/src/test/java/vip/fairy/commerceflow/commerce/architecture/MicroserviceReadinessBaselineTest.java)
 已接入商城 Maven 测试：
 
-- 从商城 Flyway 迁移读取 `CREATE TABLE`，当前 48 张表的任何新增/移除都必须同步评审所有权；独立
+- 从商城 Flyway 迁移读取 `CREATE TABLE`，当前 51 张表的任何新增/移除都必须同步评审所有权；独立
   notification Schema 的迁移目录单独演练，不混入商城表所有权计数。
 - 从 Java package/import 读取跨模块依赖；现有依赖可减少，不允许未经评审增加方向、引用或基础设施耦合。
 - 当前实际为 39 组方向、109 个 import、35 个涉及文件和 18 个基础设施引用；基线不是白名单式“合格证明”，

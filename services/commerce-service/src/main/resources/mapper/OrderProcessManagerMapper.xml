@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.ordering.infrastructure.OrderProcessManagerMapper">
+
+  <select id="lockProcess" resultType="vip.fairy.commerceflow.commerce.ordering.domain.OrderProcessView">
+    <![CDATA[
+      SELECT * FROM order_process_managers WHERE process_id = #{processId} FOR UPDATE
+    ]]>
+  </select>
+
+  <select id="lockActive" resultType="vip.fairy.commerceflow.commerce.ordering.domain.OrderProcessView">
+    <![CDATA[
+      SELECT * FROM order_process_managers
+      WHERE order_id = #{orderId} AND waiting_for = #{waitingFor}
+        AND status = 'WAITING_RESULT'
+      ORDER BY created_at DESC LIMIT 1 FOR UPDATE
+    ]]>
+  </select>
+
+  <insert id="insertProcess">
+    <![CDATA[
+      INSERT INTO order_process_managers(
+        process_id, order_id, process_type, status, current_step, waiting_for, command_id,
+        command_fingerprint, correlation_id, causation_id, traceparent, result_deadline_at,
+        next_check_at, created_at, updated_at
+      ) VALUES (
+        #{processId}, #{orderId}, #{processType}, 'WAITING_RESULT', #{processType},
+        #{waitingFor}, #{commandId}, #{fingerprint}, #{correlationId}, #{causationId},
+        #{traceparent}, #{deadline}, #{deadline}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+    ]]>
+  </insert>
+
+  <insert id="insertOutbox">
+    <![CDATA[
+      INSERT INTO order_command_outbox(
+        command_id, process_id, order_id, target_service, command_type, payload,
+        payload_fingerprint, status, result_deadline_at, correlation_id, causation_id,
+        traceparent, created_at
+      ) VALUES (
+        #{commandId}, #{processId}, #{orderId}, #{target}, #{commandType}, #{payload},
+        #{fingerprint}, 'NEW', #{deadline}, #{correlationId}, #{causationId}, #{traceparent},
+        CURRENT_TIMESTAMP
+      )
+    ]]>
+  </insert>
+
+  <select id="result" resultType="vip.fairy.commerceflow.commerce.ordering.domain.OrderResultInboxView">
+    <![CDATA[
+      SELECT result_id, payload_fingerprint, processing_status
+      FROM order_result_inbox WHERE result_id = #{resultId}
+    ]]>
+  </select>
+
+  <insert id="insertResult">
+    <![CDATA[
+      INSERT INTO order_result_inbox(
+        result_id, order_id, result_type, outcome, payload_fingerprint, payload,
+        processing_status, correlation_id, causation_id, traceparent, received_at
+      ) VALUES (
+        #{resultId}, #{orderId}, #{resultType}, #{outcome}, #{fingerprint}, #{payload},
+        'RECEIVED', #{correlationId}, #{causationId}, #{traceparent}, CURRENT_TIMESTAMP
+      )
+    ]]>
+  </insert>
+
+  <update id="attachResult">
+    <![CDATA[
+      UPDATE order_result_inbox
+      SET process_id = #{processId}, processing_status = #{status},
+          error_detail = #{detail}, processed_at = CURRENT_TIMESTAMP
+      WHERE result_id = #{resultId} AND processing_status = 'RECEIVED'
+    ]]>
+  </update>
+
+  <update id="finishProcess">
+    <![CDATA[
+      UPDATE order_process_managers
+      SET status = #{status}, last_error = #{error}, version = version + 1,
+          completed_at = CASE WHEN #{status} = 'COMPLETED' THEN CURRENT_TIMESTAMP ELSE NULL END,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE process_id = #{processId} AND status = 'WAITING_RESULT'
+    ]]>
+  </update>
+
+  <update id="acknowledgeCommand">
+    <![CDATA[
+      UPDATE order_command_outbox
+      SET status = 'ACKNOWLEDGED', acknowledged_at = CURRENT_TIMESTAMP, lease_until = NULL
+      WHERE command_id = #{commandId} AND status IN ('NEW','IN_FLIGHT','RETRY')
+    ]]>
+  </update>
+
+  <update id="markExpired">
+    <![CDATA[
+      UPDATE order_process_managers
+      SET status = 'RECONCILIATION_REQUIRED',
+          last_error = 'Result deadline expired; remote outcome remains unknown',
+          version = version + 1, updated_at = CURRENT_TIMESTAMP
+      WHERE status = 'WAITING_RESULT' AND result_deadline_at <= #{now}
+    ]]>
+  </update>
+
+  <update id="recover">
+    <![CDATA[
+      UPDATE order_process_managers
+      SET status = 'WAITING_RESULT', attempts = attempts + 1, next_check_at = #{nextCheckAt},
+          recovered_by = #{operator}, recovery_reason = #{reason},
+          recovered_at = CURRENT_TIMESTAMP, last_error = NULL,
+          version = version + 1, updated_at = CURRENT_TIMESTAMP
+      WHERE process_id = #{processId}
+        AND status IN ('COMPENSATION_REQUIRED','RECONCILIATION_REQUIRED')
+    ]]>
+  </update>
+</mapper>

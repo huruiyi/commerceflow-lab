@@ -64,7 +64,7 @@
 - MySQL + Flyway、Redis/Spring Session、Kafka/Outbox、RabbitMQ 分桶延迟任务、RocketMQ 5.x 原生延时任务 Profile、ShedLock。
 - Angular/Vue 前端、三个 Spring Boot 服务和 Docker Compose。
 - `scripts/windows/` 与 `scripts/linux/` 保留同名验收脚本结构。
-- `verify-flyway-lifecycle` 使用与后端一致的 Flyway `12.4.0` 和隔离 MySQL 8.4，Windows/容器化 Bash 均验证空库 V1–V34、V16→V34 升级、V17 历史订单截止时间回填、V24 核心注释、V28 catalog/inventory 所有权分离、V29 catalog 版本/Outbox 元数据、V30 inventory 命令 Inbox/跨边界外键清理、V31 catalog-event Inbox/版本化快照、V32 命令投递/结果协议表、V33 业务恢复状态及 V34 人工恢复审计。脚本只删除自己的随机容器/网络，不使用或清空开发数据卷。
+- `verify-flyway-lifecycle` 使用与后端一致的 Flyway `12.4.0` 和隔离 MySQL 8.4，验证空库 V1–V35、V16→V35 升级、V17 历史订单截止时间回填、V24 核心注释、V28 catalog/inventory 所有权分离、V29 catalog 版本/Outbox 元数据、V30 inventory 命令 Inbox/跨边界外键清理、V31 catalog-event Inbox/版本化快照、V32 命令投递/结果协议表、V33 业务恢复状态、V34 人工恢复审计及 V35 order Process Manager/跨边界外键清理。脚本只删除自己的随机容器/网络，不使用或清空开发数据卷。
 
 ## 7. 通用定时任务底座（阶段 1）
 
@@ -202,6 +202,13 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   未知结果与补偿语义。Java 25 正式镜像 44 项测试、380/28/232/6 质量门禁和 396 个 Java 源文件类声明
   空行通过，双平台 order 准入审计及 Windows 快速回归通过；回归后订单/商品项/地址各 321 条、事件 1521 条，
   金额 416979.00 且错误计数均为 0。当前仍是本地适配器，不代表独立服务或远程 Saga 已完成。
+- M3.5 第三批通过 order-service 最终 CREATE 准入。cart/address/payment SQL 已从 `ShopOrderMapper` 迁回
+  各自边界端口和 Mapper；Flyway V35 删除 9 条跨边界外键，新增持久化 Process Manager、命令 Outbox 和
+  结果 Inbox。流程支持同事务启动、payload 指纹幂等、冲突拒绝、未知结果待对账、拒绝待补偿和审计化人工
+  恢复。Java 25 正式镜像 45 项测试、394/31/243/6 质量门禁、410 个 Java 源文件 class 字段空行、双路径
+  Flyway 生命周期、Windows 快速回归及 Windows/Git Bash 准入审计通过；最终 329 笔订单、1565 条事件、
+  金额 427371.00，所有错误与待恢复计数均为 0。CREATE 已授权但 CUTOVER 未授权；尚未创建 order-service/
+  order-db，PostgreSQL 未启动。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

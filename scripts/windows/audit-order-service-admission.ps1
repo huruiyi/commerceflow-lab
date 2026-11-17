@@ -24,25 +24,26 @@ docker compose up -d --wait commerce-db | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Could not start commerce-db' }
 
 Assert-Scalar 'Flyway schema version' `
-  "SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1;" '34'
+  "SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1;" '35'
 Assert-Scalar 'order-owned table count' @"
 SELECT COUNT(*) FROM information_schema.tables
 WHERE table_schema='commerceflow'
-  AND table_name IN ('shop_orders','order_items','order_shipping_addresses','order_events');
-"@ '4'
-Assert-Scalar 'order outbound cross-boundary foreign keys frozen' @"
+  AND table_name IN ('shop_orders','order_items','order_shipping_addresses','order_events',
+    'order_process_managers','order_command_outbox','order_result_inbox');
+"@ '7'
+Assert-Scalar 'order outbound cross-boundary foreign keys' @"
 SELECT COUNT(*) FROM information_schema.key_column_usage
 WHERE table_schema='commerceflow'
   AND table_name IN ('shop_orders','order_items','order_shipping_addresses','order_events')
   AND referenced_table_name IS NOT NULL
   AND referenced_table_name NOT IN ('shop_orders','order_items','order_shipping_addresses','order_events');
-"@ '4'
-Assert-Scalar 'order inbound cross-boundary foreign keys frozen' @"
+"@ '0'
+Assert-Scalar 'order inbound cross-boundary foreign keys' @"
 SELECT COUNT(*) FROM information_schema.key_column_usage
 WHERE table_schema='commerceflow'
   AND referenced_table_name IN ('shop_orders','order_items','order_shipping_addresses','order_events')
   AND table_name NOT IN ('shop_orders','order_items','order_shipping_addresses','order_events');
-"@ '5'
+"@ '0'
 Assert-Scalar 'duplicate order numbers' `
   'SELECT COUNT(*) FROM (SELECT order_number FROM shop_orders GROUP BY order_number HAVING COUNT(*)>1) d;' '0'
 Assert-Scalar 'orders without items' @"
@@ -75,6 +76,10 @@ SELECT COUNT(*) FROM shop_orders
 WHERE status IN ('PENDING_PAYMENT','CANCELLING')
    OR inventory_status IN ('WAITING_RESERVATION','WAITING_COMMIT','REFUND_PENDING','RECONCILIATION_REQUIRED');
 "@ '0'
+Assert-Scalar 'order processes requiring recovery' @"
+SELECT COUNT(*) FROM order_process_managers
+WHERE status IN ('COMPENSATION_REQUIRED','RECONCILIATION_REQUIRED');
+"@ '0'
 foreach ($table in @('order_items', 'order_shipping_addresses', 'order_events', 'payment_records',
     'refund_records', 'shipment_records')) {
   Assert-Scalar "$table orphan rows" `
@@ -93,6 +98,13 @@ if ($LASTEXITCODE -eq 0 -or $coordinators.Count -gt 0) {
   throw "Global transaction coordinator found: $coordinators"
 }
 Write-Host '  PASS external ShopOrderMapper consumers = 0; Seata/DTM/XA coordinator absent'
+$foreignMapperTables = @(rg -n `
+  '\b(cart_items|carts|shipping_addresses|payment_merchant_accounts|payment_idempotency_locks|payment_records|payment_events|payment_notifications)\b' `
+  services/commerce-service/src/main/resources/mapper/ShopOrderMapper.xml 2>$null)
+if ($LASTEXITCODE -eq 0 -or $foreignMapperTables.Count -gt 0) {
+  throw "ShopOrderMapper still accesses foreign tables: $foreignMapperTables"
+}
+Write-Host '  PASS ShopOrderMapper foreign table responsibilities = 0'
 
 $snapshot = Invoke-CommerceSql @"
 SELECT CONCAT('orders|',COUNT(*),'|',COALESCE(SUM(total_amount),0),'|',
@@ -106,7 +118,10 @@ UNION ALL
 SELECT CONCAT('addresses|',COUNT(*)) FROM order_shipping_addresses
 UNION ALL
 SELECT CONCAT('events|',COUNT(*)) FROM order_events;
+SELECT CONCAT('processes|',COUNT(*)) FROM order_process_managers;
+SELECT CONCAT('command-outbox|',COUNT(*)) FROM order_command_outbox;
+SELECT CONCAT('result-inbox|',COUNT(*)) FROM order_result_inbox;
 "@
 Write-Host 'Order ownership baseline:'
 Write-Host $snapshot
-Write-Host 'Order-service admission audit passed: data is consistent; CREATE remains denied until nine cross-boundary foreign keys and remaining foreign-table responsibilities are removed.' -ForegroundColor Green
+Write-Host 'Order-service CREATE admission passed: zero cross-boundary foreign keys, zero external Mapper consumers, zero foreign-table Mapper responsibilities and a clean persistent process baseline.' -ForegroundColor Green

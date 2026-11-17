@@ -2,8 +2,8 @@
 
 ## 1. 适用边界
 
-本契约冻结未来 `order-service` 接收的业务命令和跨服务结果信封。当前 M3.5 第二批只建立 Java V1 类型、
-兼容 fixture 和模块内 application port，不开放远程 HTTP/Kafka 入口，不创建 order-service/order-db。
+本契约冻结未来 `order-service` 接收的业务命令和跨服务结果信封。M3.5 已建立 Java V1 类型、兼容 fixture、
+模块内 application port 和持久化 Process Manager/Outbox/Inbox；CREATE 准入已通过，但尚未开放远程入口。
 
 命令表示调用方希望 order 执行的业务意图；结果表示 inventory、payment、refund 或 logistics 已经提交的
 权威事实。两者都不是远程 Mapper，也不允许调用方指定任意目标状态。
@@ -68,6 +68,6 @@
 
 ## 6. 下一步门禁
 
-下一批先把 `ShopOrderMapper` 中 cart/address/payment 的剩余外部表职责迁到各自边界端口，再建立 order 侧持久化
-Process Manager、命令 Outbox、结果 Inbox、超时待对账和人工恢复模型。完成以前仍不创建独立服务，不解除
-跨边界外键，不启动 PostgreSQL。
+下一批允许创建分层 `order-service` 与独立 MySQL `order-db`，只做无流量影子运行、可重复数据迁移和远程契约
+适配。跨进程 Trace、重复/乱序/超时/结果丢失、停机恢复、最终追平和回退演练完成以前不得 CUTOVER；
+PostgreSQL 仍等待 M3 全部服务完成单一所有权切换并验收。

@@ -7,6 +7,7 @@ import vip.fairy.commerceflow.commerce.ordering.infrastructure.ShopOrderMapper;
 import vip.fairy.commerceflow.commerce.payment.application.PaymentCancellationCrashLab;
 import vip.fairy.commerceflow.commerce.payment.application.PaymentEventPipeline;
 import vip.fairy.commerceflow.commerce.payment.application.PaymentGatewayClient;
+import vip.fairy.commerceflow.commerce.payment.application.port.OrderPaymentRecordPort;
 import vip.fairy.commerceflow.commerce.payment.domain.PaymentView;
 import vip.fairy.commerceflow.commerce.payment.infrastructure.PaymentCancellationCrashLabProperties.Phase;
 import vip.fairy.commerceflow.commerce.scheduling.application.ScheduledTaskTypes;
@@ -24,6 +25,7 @@ import java.util.Map;
 public class OrderCancellationService {
 
   private final ShopOrderMapper orders;
+  private final OrderPaymentRecordPort payments;
   private final PaymentGatewayClient gateway;
   private final TransactionTemplate transactions;
   private final ScheduledTaskMapper scheduledTasks;
@@ -31,12 +33,14 @@ public class OrderCancellationService {
   private final CustomerNotificationCommandPublisher notifications;
   private final PaymentCancellationCrashLab crashLab;
 
-  public OrderCancellationService(ShopOrderMapper orders, PaymentGatewayClient gateway,
+  public OrderCancellationService(ShopOrderMapper orders, OrderPaymentRecordPort payments,
+                                  PaymentGatewayClient gateway,
                                   TransactionTemplate transactions, ScheduledTaskMapper scheduledTasks,
                                   PaymentEventPipeline events,
                                   CustomerNotificationCommandPublisher notifications,
                                   PaymentCancellationCrashLab crashLab) {
     this.orders = orders;
+    this.payments = payments;
     this.gateway = gateway;
     this.transactions = transactions;
     this.scheduledTasks = scheduledTasks;
@@ -95,7 +99,7 @@ public class OrderCancellationService {
       orders.insertEventDetailed(orderId, actorId, "ORDER_CANCELLING", "PENDING_PAYMENT", "CANCELLING",
         reason, triggerSource, scheduledTaskId);
     }
-    return new Begin(false, orders.pendingPayments(orderId));
+    return new Begin(false, payments.pending(orderId));
   }
 
   private void finish(Long orderId, List<PaymentView> pendingPayments, Long actorId, String reason,
@@ -108,15 +112,15 @@ public class OrderCancellationService {
     if (!"CANCELLING".equals(order.getStatus())) {
       throw new BusinessRuleException("Order status changed while closing payments");
     }
-    if (orders.successfulPaymentCount(orderId) > 0) {
+    if (payments.successfulCount(orderId) > 0) {
       orders.restorePaidAfterCancellationRace(orderId);
       orders.insertEventDetailed(orderId, actorId, "CANCELLATION_LOST_PAYMENT_RACE", "CANCELLING", "PAID",
         "A successful payment was observed while cancelling", triggerSource, scheduledTaskId);
       return;
     }
     for (PaymentView payment : pendingPayments) {
-      if (orders.closePendingPayment(payment.getId(), reason) == 1) {
-        orders.insertPaymentEvent(payment.getId(), java.util.UUID.randomUUID().toString(),
+      if (payments.close(payment.getId(), reason)) {
+        payments.event(payment.getId(), java.util.UUID.randomUUID().toString(),
           "PAYMENT_CLOSED_BY_ORDER", "PENDING", "CLOSED", reason);
       }
     }

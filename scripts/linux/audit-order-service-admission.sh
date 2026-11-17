@@ -27,13 +27,13 @@ cd "$PROJECT_ROOT"
 docker compose up -d --wait commerce-db >/dev/null
 
 assert_scalar 'Flyway schema version' \
-  "SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1;" 34
+  "SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1;" 35
 assert_scalar 'order-owned table count' \
-  "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name IN ('shop_orders','order_items','order_shipping_addresses','order_events');" 4
-assert_scalar 'order outbound cross-boundary foreign keys frozen' \
-  "SELECT COUNT(*) FROM information_schema.key_column_usage WHERE table_schema='commerceflow' AND table_name IN ('shop_orders','order_items','order_shipping_addresses','order_events') AND referenced_table_name IS NOT NULL AND referenced_table_name NOT IN ('shop_orders','order_items','order_shipping_addresses','order_events');" 4
-assert_scalar 'order inbound cross-boundary foreign keys frozen' \
-  "SELECT COUNT(*) FROM information_schema.key_column_usage WHERE table_schema='commerceflow' AND referenced_table_name IN ('shop_orders','order_items','order_shipping_addresses','order_events') AND table_name NOT IN ('shop_orders','order_items','order_shipping_addresses','order_events');" 5
+  "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name IN ('shop_orders','order_items','order_shipping_addresses','order_events','order_process_managers','order_command_outbox','order_result_inbox');" 7
+assert_scalar 'order outbound cross-boundary foreign keys' \
+  "SELECT COUNT(*) FROM information_schema.key_column_usage WHERE table_schema='commerceflow' AND table_name IN ('shop_orders','order_items','order_shipping_addresses','order_events') AND referenced_table_name IS NOT NULL AND referenced_table_name NOT IN ('shop_orders','order_items','order_shipping_addresses','order_events');" 0
+assert_scalar 'order inbound cross-boundary foreign keys' \
+  "SELECT COUNT(*) FROM information_schema.key_column_usage WHERE table_schema='commerceflow' AND referenced_table_name IN ('shop_orders','order_items','order_shipping_addresses','order_events') AND table_name NOT IN ('shop_orders','order_items','order_shipping_addresses','order_events');" 0
 assert_scalar 'duplicate order numbers' \
   'SELECT COUNT(*) FROM (SELECT order_number FROM shop_orders GROUP BY order_number HAVING COUNT(*)>1) d;' 0
 assert_scalar 'orders without items' \
@@ -50,6 +50,8 @@ assert_scalar 'invalid inventory projections' \
   "SELECT COUNT(*) FROM shop_orders WHERE inventory_status NOT IN ('WAITING_RESERVATION','RESERVED','WAITING_COMMIT','COMMITTED','RELEASED','REFUND_PENDING','REFUNDED','RECONCILIATION_REQUIRED');" 0
 assert_scalar 'orders requiring workflow recovery' \
   "SELECT COUNT(*) FROM shop_orders WHERE status IN ('PENDING_PAYMENT','CANCELLING') OR inventory_status IN ('WAITING_RESERVATION','WAITING_COMMIT','REFUND_PENDING','RECONCILIATION_REQUIRED');" 0
+assert_scalar 'order processes requiring recovery' \
+  "SELECT COUNT(*) FROM order_process_managers WHERE status IN ('COMPENSATION_REQUIRED','RECONCILIATION_REQUIRED');" 0
 for table in order_items order_shipping_addresses order_events payment_records refund_records shipment_records; do
   assert_scalar "$table orphan rows" \
     "SELECT COUNT(*) FROM $table child LEFT JOIN shop_orders parent ON parent.id=child.order_id WHERE parent.id IS NULL;" 0
@@ -65,6 +67,11 @@ if grep -REn 'org\.apache\.seata|io\.seata|dtm-labs|GlobalTransactional|TwoPhase
   fail 'global transaction coordinator found'
 fi
 echo '  PASS external ShopOrderMapper consumers = 0; Seata/DTM/XA coordinator absent'
+if grep -En '\b(cart_items|carts|shipping_addresses|payment_merchant_accounts|payment_idempotency_locks|payment_records|payment_events|payment_notifications)\b' \
+    services/commerce-service/src/main/resources/mapper/ShopOrderMapper.xml >/dev/null 2>&1; then
+  fail 'ShopOrderMapper still accesses foreign tables'
+fi
+echo '  PASS ShopOrderMapper foreign table responsibilities = 0'
 
 echo 'Order ownership baseline:'
 sql "
@@ -74,6 +81,9 @@ SELECT CONCAT('items|',COUNT(*),'|',COALESCE(SUM(quantity),0),'|',COALESCE(SUM(s
 UNION ALL
 SELECT CONCAT('addresses|',COUNT(*)) FROM order_shipping_addresses
 UNION ALL
-SELECT CONCAT('events|',COUNT(*)) FROM order_events;"
+SELECT CONCAT('events|',COUNT(*)) FROM order_events;
+SELECT CONCAT('processes|',COUNT(*)) FROM order_process_managers;
+SELECT CONCAT('command-outbox|',COUNT(*)) FROM order_command_outbox;
+SELECT CONCAT('result-inbox|',COUNT(*)) FROM order_result_inbox;"
 
-echo 'Order-service admission audit passed: data is consistent; CREATE remains denied until nine cross-boundary foreign keys and remaining foreign-table responsibilities are removed.'
+echo 'Order-service CREATE admission passed: zero cross-boundary foreign keys, zero external Mapper consumers, zero foreign-table Mapper responsibilities and a clean persistent process baseline.'

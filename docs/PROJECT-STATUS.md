@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.5 第二批已完成；7 个外部 Mapper 消费者归零，order V1 命令/结果契约冻结 |
-| 下一候选阶段 | M3.5 第三批 Mapper 外部表职责与持久化 Saga 基线；不直接建服务 |
+| 当前阶段 | M3.5 最终 CREATE 准入已通过；V35、7 张 order 表和持久化 Process Manager 基线冻结 |
+| 下一候选阶段 | 创建无流量的分层 order-service 与独立 MySQL，先做影子迁移和远程契约验证 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -30,7 +30,7 @@
 | 收货、自动收货和自动完成 | M1 可靠性门禁已通过 | 重放、重启/租约恢复、RabbitMQ/RocketMQ 停机恢复和双平台 120 秒/12 并发竞态压测均通过 |
 | 库存与商家库存中心 | 已实现 | 可售/预占/已售、转正/释放/退款回补、调整流水 |
 | Angular/Vue 界面 | Angular 主流程和订单页视觉收尾已实现 | 订单详情与支付信息已扁平化，商品图有失败回退；通知菜单使用中性列表和细滚动条，支持外部点击、`Esc`、关闭按钮和选择通知后关闭；语言切换使用图标；导航与 1480 px 正文容器对齐，桌面与 390 px 窄屏已验收 |
-| Flyway 数据库生命周期 | 空卷和迁移层已验收 | 商城迁移 V34；notification 独立 Schema V1→V3 已隔离及实际运行验收 |
+| Flyway 数据库生命周期 | 空卷和迁移层已验收 | 商城迁移 V35；notification 独立 Schema V1→V3 已隔离及实际运行验收 |
 | notification 独立服务 | 单一所有权切换已实现 | 默认拓扑启动独立 MySQL/Kafka 服务；commerce 仅签名代理，故障稳定返回 503，无本地数据库回退 |
 | catalog 拆分准入 | 单一所有权已切换 | catalog-service/catalog-db 独占资料、翻译、版本和 Outbox；commerce 只保留鉴权、签名代理与 review 组合 |
 | inventory 拆分准入 | 完整单一所有权已切换 | inventory-service/inventory-db 独占五表、四类命令与商家库存管理；commerce 仅保留生产 Outbox/Result Inbox 和 Session/RBAC/HMAC 薄代理，运行账号无源表权限 |
@@ -357,3 +357,12 @@ ID、前置状态、失败码、correlation/causation/W3C Trace，以及“超�
 cart/address/payment 表职责及持久化 Saga 尚未完成而冻结；未创建服务/数据库，PostgreSQL 未启动。
 本批 Windows 快速回归完整通过后，最新一致性审计为订单/商品项/地址各 321 条、事件 1521 条、金额
 416979.00，指纹 `orders|321|416979.00|832328281`；所有错误计数仍为 0。
+
+M3.5 第三批完成最终 CREATE 准入。cart/address/payment SQL 从 `ShopOrderMapper` 迁回各自边界端口和 Mapper，
+订单 Mapper 只访问四张核心表；Flyway V35 删除 4 条出站、5 条入站跨边界外键，并新增 order Process Manager、
+命令 Outbox 和结果 Inbox 三张表。流程基线覆盖同事务启动、命令/结果 payload 指纹幂等、冲突拒绝、超时未知
+进入待对账、拒绝进入待补偿及带操作者/原因/时间的人工恢复。空库 V1→V35、遗留 V16→V35、Java 25 正式
+镜像 45 项测试、394/31/243/6 质量门禁、410 个 Java 源文件 class 字段空行、Windows 快速回归和 Windows/
+Git Bash 准入审计均通过。最终持久卷为订单/商品项/地址各 329 条、事件 1565 条、金额 427371.00，流程/
+命令 Outbox/结果 Inbox 为 0，双向跨边界外键、外部 Mapper 消费者、Mapper 外部表职责和所有一致性错误均为 0。
+CREATE 已授权，CUTOVER 仍冻结；下一批才创建无流量影子 order-service/order-db，本批未启动 PostgreSQL。

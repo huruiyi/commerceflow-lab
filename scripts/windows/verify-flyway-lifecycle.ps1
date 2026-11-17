@@ -54,8 +54,8 @@ try {
   Start-MySql $upgradeDb
 
   Migrate $emptyDb
-  if ((Sql $emptyDb 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;') -ne '34') {
-    throw 'Empty database did not migrate through V34'
+  if ((Sql $emptyDb 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;') -ne '35') {
+    throw 'Empty database did not migrate through V35'
   }
   if ((Sql $emptyDb "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name IN ('scheduled_tasks','shipment_records','inventory_reservations');") -ne '3') {
     throw 'Empty database is missing current lifecycle tables'
@@ -99,12 +99,18 @@ try {
   if ((Sql $emptyDb "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='commerceflow' AND table_name='inventory_command_delivery_outbox' AND column_name IN ('recovered_by','recovery_reason','recovered_at');") -ne '3') {
     throw 'V34 did not create inventory recovery audit fields'
   }
+  if ((Sql $emptyDb "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name IN ('order_process_managers','order_command_outbox','order_result_inbox');") -ne '3') {
+    throw 'V35 did not create the order process-manager protocol tables'
+  }
+  if ((Sql $emptyDb "SELECT COUNT(*) FROM information_schema.referential_constraints WHERE constraint_schema='commerceflow' AND constraint_name IN ('fk_shop_orders_customer','fk_order_items_merchant','fk_order_events_actor','fk_order_events_scheduled_task','fk_customer_notification_order','fk_payment_order','fk_review_item','fk_refund_order','fk_storefront_shipment_order');") -ne '0') {
+    throw 'V35 left cross-boundary foreign keys attached to ordering tables'
+  }
 
   Migrate $upgradeDb '16'
   Sql $upgradeDb "INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,created_at,updated_at) SELECT 'LEGACY-UPGRADE-$suffix',id,'PENDING_PAYMENT',42.00,'CNY','2026-01-01 00:00:00','2026-01-01 00:00:00' FROM app_users WHERE email='demo@example.com';" | Out-Null
   Migrate $upgradeDb
-  if ((Sql $upgradeDb 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;') -ne '34') {
-    throw 'Legacy database did not upgrade through V34'
+  if ((Sql $upgradeDb 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;') -ne '35') {
+    throw 'Legacy database did not upgrade through V35'
   }
   if ((Sql $upgradeDb "SELECT TIMESTAMPDIFF(SECOND,created_at,payment_due_at) FROM shop_orders WHERE order_number='LEGACY-UPGRADE-$suffix';") -ne '1800') {
     throw 'V17 did not backfill the legacy payment deadline by 30 minutes'
@@ -142,11 +148,17 @@ try {
   if ((Sql $upgradeDb "SELECT inventory_status FROM shop_orders WHERE order_number='LEGACY-UPGRADE-$suffix';") -ne 'RESERVED') {
     throw 'Legacy V33 upgrade did not backfill the order inventory state'
   }
+  if ((Sql $upgradeDb "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name IN ('order_process_managers','order_command_outbox','order_result_inbox');") -ne '3') {
+    throw 'Legacy V35 upgrade did not create the order process-manager protocol tables'
+  }
+  if ((Sql $upgradeDb "SELECT COUNT(*) FROM information_schema.referential_constraints WHERE constraint_schema='commerceflow' AND constraint_name IN ('fk_shop_orders_customer','fk_order_items_merchant','fk_order_events_actor','fk_order_events_scheduled_task','fk_customer_notification_order','fk_payment_order','fk_review_item','fk_refund_order','fk_storefront_shipment_order');") -ne '0') {
+    throw 'Legacy V35 upgrade left cross-boundary foreign keys attached to ordering tables'
+  }
 
   & docker exec $upgradeDb mysql -N -uroot "-p$password" commerceflow -e "INSERT INTO scheduled_tasks(task_key,task_type,aggregate_type,aggregate_id,payload_json,status,due_at,primary_trigger_snapshot,reconciliation_enabled_snapshot,grace_period_seconds_snapshot,claim_lease_seconds_snapshot,max_attempts,retry_delay_seconds_snapshot,policy_version_snapshot) VALUES('invalid-status','PAYMENT_TIMEOUT','ORDER','1','{}','CORRUPTED',CURRENT_TIMESTAMP,'DATABASE',FALSE,0,30,3,1,1);" 2>$null
   if ($LASTEXITCODE -eq 0) { throw 'Database accepted an illegal scheduled-task status' }
 
-  Write-Host "Flyway lifecycle verification passed: empty V1-V34, legacy V1-V16 -> V34 with inventory recovery audit, business recovery gates, command delivery/result protocol, command/catalog-event Inboxes, versioned product snapshots, ordering foreign keys removed, core comments, and illegal status rejected." -ForegroundColor Green
+  Write-Host "Flyway lifecycle verification passed: empty V1-V35, legacy V1-V16 -> V35 with order process-manager protocol, cross-boundary ordering foreign keys removed, inventory recovery audit, business recovery gates, command delivery/result protocol, command/catalog-event Inboxes, versioned product snapshots, core comments, and illegal status rejected." -ForegroundColor Green
 } finally {
   & docker rm -f $emptyDb $upgradeDb 2>$null | Out-Null
   & docker network rm $network 2>$null | Out-Null

@@ -709,9 +709,19 @@ Docker 拓扑，也不启动 PostgreSQL。
   命令/结果 fixture 通过 Java 25 兼容测试；当前仍是同进程本地适配器，不虚报远程 Saga 已完成。
 - [x] Java 25 正式镜像 44 项测试、双平台 order 准入审计和 Windows 快速回归通过；回归后的四表关联、
   状态、金额和孤儿审计均为 0 异常，外部 `ShopOrderMapper` 消费者保持为 0。
-- [ ] 下一批清除 `ShopOrderMapper` 对 cart/address/payment 的剩余外部表职责，并建立 order 持久化 Process
-  Manager、命令 Outbox、结果 Inbox、超时待对账和人工恢复基线；不得直接创建 order-service/order-db，
-  不得并行拆 payment-orchestration/fulfillment，全部服务验收前仍不得启动 PostgreSQL。
+- [x] M3.5 第三批清除 `ShopOrderMapper` 对 cart/address/payment 的外部表职责；cart checkout 和 payment record
+  分别通过自有端口/Mapper 访问，order 仅持久化订单核心事实与地址/商品快照。
+- [x] Flyway V35 删除 4 条出站、5 条入站跨边界外键，创建 `order_process_managers`、
+  `order_command_outbox`、`order_result_inbox`；同事务启动流程、命令/结果 payload 指纹幂等、冲突拒绝、
+  未知结果截止时间、待补偿/待对账和带操作者/原因/时间的人工恢复均有集成测试。
+- [x] 最终 CREATE 准入通过：Windows/Git Bash 审计确认 7 张所有权表、双向跨边界外键 0、外部 Mapper
+  消费者 0、Mapper 外部表职责 0、需恢复订单/流程 0；Java 25 正式镜像 45 项测试、394/31/243/6 质量门禁、
+  410 个 Java 源文件 class 字段空行、空库 V1→V35、遗留 V16→V35 及 Windows 快速回归通过。
+- [x] 回归后最终指纹为订单/商品项/地址各 329 条、事件 1565 条、金额 427371.00；process/command-outbox/
+  result-inbox 当前均为 0，所有一致性错误计数为 0。当前未创建 order-service/order-db、未切流、未启动 PostgreSQL。
+- [ ] 下一批创建分层 `order-service` 与独立 MySQL `order-db`，仅无流量影子运行；实现可重复快照、增量追平、
+  水位/核对/孤儿隔离和远程 V1 适配。跨进程 Trace、重复/乱序/超时/结果丢失、停机恢复、最终追平和整体
+  回退完成前不得 CUTOVER；不得并行拆 payment-orchestration/fulfillment，全部服务验收前不得启动 PostgreSQL。
 
 ## 14. 实施记录模板
 

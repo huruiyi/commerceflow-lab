@@ -40,12 +40,9 @@ class OrderServiceAdmissionBaselineTest {
   }
 
   @Test
-  void shopOrderMapperMustNotAcquireMoreForeignTableResponsibilities() throws IOException {
+  void shopOrderMapperMustOnlyAccessOrderOwnedTables() throws IOException {
     Set<String> ownedTables = Set.of(
       "shop_orders", "order_items", "order_shipping_addresses", "order_events");
-    Set<String> allowedForeignTables = Set.of(
-      "cart_items", "carts", "shipping_addresses", "payment_merchant_accounts",
-      "payment_idempotency_locks", "payment_records", "payment_events");
     String mapper = Files.readString(MODULE_ROOT.resolve(
       "src/main/resources/mapper/ShopOrderMapper.xml"));
     Set<String> actualForeignTables = new HashSet<>();
@@ -57,8 +54,8 @@ class OrderServiceAdmissionBaselineTest {
       }
     }
 
-    assertTrue(allowedForeignTables.containsAll(actualForeignTables),
-      () -> "ShopOrderMapper acquired another module's table: " + actualForeignTables);
+    assertTrue(actualForeignTables.isEmpty(),
+      () -> "ShopOrderMapper accessed another module's table: " + actualForeignTables);
   }
 
   @Test

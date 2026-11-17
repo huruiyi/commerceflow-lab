@@ -209,6 +209,69 @@ CREATE TABLE order_events
   scheduled_task_id BIGINT,
   created_at        TIMESTAMP   DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE order_process_managers
+(
+  process_id          VARCHAR(100) PRIMARY KEY,
+  order_id            BIGINT       NOT NULL,
+  process_type        VARCHAR(50)  NOT NULL,
+  status              VARCHAR(40)  NOT NULL,
+  current_step        VARCHAR(50)  NOT NULL,
+  waiting_for         VARCHAR(30)  NOT NULL,
+  command_id          VARCHAR(100) NOT NULL UNIQUE,
+  command_fingerprint VARCHAR(64)  NOT NULL,
+  correlation_id      VARCHAR(100) NOT NULL,
+  causation_id        VARCHAR(100) NOT NULL,
+  traceparent         VARCHAR(100) NOT NULL,
+  attempts            INT          NOT NULL DEFAULT 0,
+  result_deadline_at  TIMESTAMP    NOT NULL,
+  next_check_at       TIMESTAMP    NOT NULL,
+  last_error          VARCHAR(500),
+  recovered_by        VARCHAR(100),
+  recovery_reason     VARCHAR(300),
+  recovered_at        TIMESTAMP,
+  version             BIGINT       NOT NULL DEFAULT 0,
+  created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  completed_at        TIMESTAMP
+);
+CREATE TABLE order_command_outbox
+(
+  command_id         VARCHAR(100) PRIMARY KEY,
+  process_id         VARCHAR(100) NOT NULL,
+  order_id           BIGINT       NOT NULL,
+  target_service     VARCHAR(50)  NOT NULL,
+  command_type       VARCHAR(50)  NOT NULL,
+  payload_fingerprint VARCHAR(64) NOT NULL,
+  payload            CLOB         NOT NULL,
+  status             VARCHAR(30)  NOT NULL DEFAULT 'NEW',
+  attempts           INT          NOT NULL DEFAULT 0,
+  next_attempt_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  result_deadline_at TIMESTAMP    NOT NULL,
+  lease_until        TIMESTAMP,
+  last_error         VARCHAR(500),
+  correlation_id     VARCHAR(100) NOT NULL,
+  causation_id       VARCHAR(100) NOT NULL,
+  traceparent        VARCHAR(100) NOT NULL,
+  created_at         TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  acknowledged_at    TIMESTAMP
+);
+CREATE TABLE order_result_inbox
+(
+  result_id           VARCHAR(100) PRIMARY KEY,
+  process_id          VARCHAR(100),
+  order_id            BIGINT       NOT NULL,
+  result_type         VARCHAR(30)  NOT NULL,
+  outcome             VARCHAR(30)  NOT NULL,
+  payload_fingerprint VARCHAR(64)  NOT NULL,
+  payload             CLOB         NOT NULL,
+  processing_status   VARCHAR(30)  NOT NULL,
+  error_detail        VARCHAR(500),
+  correlation_id      VARCHAR(100) NOT NULL,
+  causation_id        VARCHAR(100) NOT NULL,
+  traceparent         VARCHAR(100) NOT NULL,
+  received_at         TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  processed_at        TIMESTAMP
+);
 CREATE TABLE inventory_reservations
 (
   id           BIGINT AUTO_INCREMENT PRIMARY KEY,
