@@ -22,6 +22,7 @@ verify-mq-scheduling-redelivery	BaseUrl,MaxWaitSeconds	BASE_URL=1,MAX_WAIT=2
 verify-order-cancellation	BaseUrl	BASE_URL=1
 verify-order-remote-protocol	BaseUrl,TempoUrl	BASE_URL=1,TEMPO_URL=2
 verify-order-precutover-rehearsal	BaseUrl	BASE_URL=1
+verify-order-runtime-cutover	BaseUrl,MaxWaitSeconds	BASE_URL=1,MAX_WAIT_SECONDS=2
 verify-order-shadow-runtime	BaseUrl	BASE_URL=1
 verify-payment	BaseUrl	ARG=1
 verify-payment-attempt-deadline	BaseUrl,PaymentUrl,MaxWaitSeconds	BASE_URL=1,PAYMENT_URL=2,MAX_WAIT=3

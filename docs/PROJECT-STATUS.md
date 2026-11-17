@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.5 第五批远程 Order V1 故障语义与预切换整体回退演练已完成；仍为无业务流量影子运行 |
-| 下一候选阶段 | 单独批准后冻结实际源写、最终追平并一次性 CUTOVER；当前仍未授权 |
+| 当前阶段 | M3.5 第六批 order-service 一次性 CUTOVER 与单一所有权验收已完成 |
+| 下一候选阶段 | `payment-orchestration-service`，须另批评审且不得与 fulfillment 并行拆分 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -385,3 +385,10 @@ Tempo 验证真实 trace，覆盖重复、冲突、乱序、超时、丢失、�
 MATCH；临时账号验证
 源端权限冻结和恢复、order-service 停机及源端唯一所有者回退。实际 commerce 账号未冻结，未 CUTOVER，
 PostgreSQL 与后续两个服务拆分均未启动。
+
+M3.5 第六批在 commerce 停写后完成 generation 21 / 水位 236 的最终快照和 7 表 MATCH，再一次性切换订单
+读写。commerce 删除订单 Mapper、本地 Process Manager 与源表 SQL，生产运行只经远程 Order Store V1；
+Compose 默认打开业务门、关闭影子复制，order-service 不再持有源库连接。`commerce_runtime` 对库存和订单
+源表权限均被撤销。专项验收确认新订单只写 order-db，源端保持 345/448155.00；order-service 停机时返回
+503，恢复后健康。完整快速回归后 order-db 为 359/359/359/1710、金额 466341.00，协议表与 OPEN 孤儿均为
+0；413/28/204/7 质量门禁、431 个 Java 源文件空行和 50 对脚本契约通过。本批未拆后续服务，未启动 PostgreSQL。

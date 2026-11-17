@@ -10,6 +10,12 @@ function Invoke-DbScalar([string]$Sql){
   if($LASTEXITCODE-ne0){throw 'Database verification command failed'}
   return (($value|Select-Object -Last 1)-as[string]).Trim()
 }
+function Invoke-OrderDbScalar([string]$Sql){
+  $value=docker compose --project-directory $ProjectRoot exec -T order-db mysql --batch --skip-column-names `
+    --user=orders --password=orders-password orders -e $Sql
+  if($LASTEXITCODE-ne0){throw 'Order database verification command failed'}
+  return (($value|Select-Object -Last 1)-as[string]).Trim()
+}
 function Get-Order([long]$Id){Invoke-RestMethod "$BaseUrl/api/purchase-orders/$Id" -WebSession $script:customer}
 function Wait-OrderStatus([long]$Id,[string]$Expected,[int]$Seconds=40){
   $deadline=(Get-Date).AddSeconds($Seconds)
@@ -52,7 +58,7 @@ Invoke-DbScalar "UPDATE scheduled_tasks SET due_at=DATE_SUB(UTC_TIMESTAMP(6),INT
 $completed=Wait-OrderStatus $automatic.id 'COMPLETED'
 if(-not$completed.completedAt-or-not$completed.payment-or$completed.logistics.status-ne'DELIVERED'-or$completed.availableActions-notcontains'REVIEW_ITEM'){throw 'COMPLETED order lost completion time, payment, logistics or review action'}
 if((Invoke-DbScalar "SELECT status FROM scheduled_tasks WHERE task_type='AUTO_COMPLETE' AND task_key='order:$($automatic.id)'")-ne'SUCCEEDED'){throw 'AUTO_COMPLETE task did not succeed'}
-$autoEvents=[int](Invoke-DbScalar "SELECT COUNT(*) FROM order_events WHERE order_id=$($automatic.id) AND event_type IN ('ORDER_AUTO_RECEIVED','ORDER_AUTO_COMPLETED')")
+$autoEvents=[int](Invoke-OrderDbScalar "SELECT COUNT(*) FROM order_events WHERE order_id=$($automatic.id) AND event_type IN ('ORDER_AUTO_RECEIVED','ORDER_AUTO_COMPLETED')")
 if($autoEvents-ne2){throw "Expected two automatic lifecycle events, found $autoEvents"}
 
 $item=$completed.items[0]
@@ -73,7 +79,7 @@ try{
 }
 Wait-TaskStatus $completeTaskId 'SUCCEEDED' 90
 $leaseEvents=[int](Invoke-DbScalar "SELECT COUNT(*) FROM scheduled_task_events WHERE task_id=$completeTaskId AND event_type='TASK_LEASE_EXPIRED'")
-$completionEvents=[int](Invoke-DbScalar "SELECT COUNT(*) FROM order_events WHERE order_id=$($automatic.id) AND event_type='ORDER_AUTO_COMPLETED'")
+$completionEvents=[int](Invoke-OrderDbScalar "SELECT COUNT(*) FROM order_events WHERE order_id=$($automatic.id) AND event_type='ORDER_AUTO_COMPLETED'")
 if($leaseEvents-lt1-or$completionEvents-ne1){throw "Crash recovery was not idempotent (leaseEvents=$leaseEvents, completionEvents=$completionEvents)"}
 
 Write-Host "Automatic lifecycle verification passed: manual receipt cancels AUTO_RECEIVE; DELIVERED -> AUTO_RECEIVE -> RECEIVED -> AUTO_COMPLETE -> COMPLETED; expired lease recovered after commerce-service restart without duplicate completion; payment/logistics/review remain available (order=$($completed.orderNumber))" -ForegroundColor Green

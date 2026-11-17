@@ -32,8 +32,7 @@ if(-not$?){throw 'verify-payment-cancellation-race.ps1 failed'}
 RunBase 'verify-refunds.ps1'
 RunBase 'verify-auto-lifecycle.ps1'
 RunBase 'verify-redis-business.ps1'
-& (Join-Path $PSScriptRoot 'verify-order-shadow-runtime.ps1')
-if(-not$?){throw 'verify-order-shadow-runtime.ps1 failed'}
+RunBase 'verify-order-runtime-cutover.ps1'
 
 $healthUrls=@(
   "$BaseUrl/healthz",

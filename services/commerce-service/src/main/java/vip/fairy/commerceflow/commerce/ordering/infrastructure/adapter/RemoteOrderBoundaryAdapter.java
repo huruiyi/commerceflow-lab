@@ -5,11 +5,11 @@ import vip.fairy.commerceflow.commerce.ordering.application.port.OrderLogisticsP
 import vip.fairy.commerceflow.commerce.ordering.application.port.OrderPaymentPort;
 import vip.fairy.commerceflow.commerce.ordering.application.port.OrderReceiptPort;
 import vip.fairy.commerceflow.commerce.ordering.application.port.OrderRefundPort;
+import vip.fairy.commerceflow.commerce.ordering.application.port.OrderStorePort;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderAddressView;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderEventView;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderItemView;
 import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
-import vip.fairy.commerceflow.commerce.ordering.infrastructure.ShopOrderMapper;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -17,12 +17,12 @@ import java.util.List;
 import java.util.Optional;
 
 @Component
-public class LocalOrderBoundaryAdapter implements OrderFulfillmentPort, OrderLogisticsPort,
+public class RemoteOrderBoundaryAdapter implements OrderFulfillmentPort, OrderLogisticsPort,
   OrderPaymentPort, OrderReceiptPort, OrderRefundPort {
 
-  private final ShopOrderMapper orders;
+  private final OrderStorePort orders;
 
-  public LocalOrderBoundaryAdapter(ShopOrderMapper orders) {
+  public RemoteOrderBoundaryAdapter(OrderStorePort orders) {
     this.orders = orders;
   }
 

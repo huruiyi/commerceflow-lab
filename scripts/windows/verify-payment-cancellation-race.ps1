@@ -165,15 +165,28 @@ if ($AuditDockerDatabase) {
   $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
   $databaseUser = if ($env:DATABASE_USERNAME) { $env:DATABASE_USERNAME } else { 'commerceflow' }
   $databasePassword = if ($env:DATABASE_PASSWORD) { $env:DATABASE_PASSWORD } else { 'commerceflow-password' }
+  $orderUser = if ($env:ORDER_DATABASE_USERNAME) { $env:ORDER_DATABASE_USERNAME } else { 'orders' }
+  $orderPassword = if ($env:ORDER_DATABASE_PASSWORD) { $env:ORDER_DATABASE_PASSWORD } else { 'orders-password' }
   $ids = $orderIds -join ','
-  $query = "SELECT COUNT(DISTINCT o.id),COUNT(p.id),SUM(CASE WHEN (o.status='CANCELLED' AND p.status='CLOSED') OR (o.status IN ('PAID','REFUNDING','REFUNDED') AND p.status='SUCCESS') THEN 0 ELSE 1 END) FROM shop_orders o LEFT JOIN payment_records p ON p.order_id=o.id WHERE o.id IN ($ids);"
-  $audit = & docker compose --project-directory $projectRoot exec -T commerce-db mysql -N `
-    "-u$databaseUser" "-p$databasePassword" commerceflow -e $query
-  if ($LASTEXITCODE -ne 0) { throw 'Docker MySQL consistency audit failed to execute' }
-  $values = (($audit | Select-Object -Last 1) -split '\s+')
-  if ($values.Count -lt 3 -or [int]$values[0] -ne $iteration -or
-      [int]$values[1] -ne $iteration -or [int]$values[2] -ne 0) {
-    throw "Docker MySQL consistency audit failed: $($values -join '/')"
+  $orderRows = & docker compose --project-directory $projectRoot exec -T order-db mysql -N `
+    "-u$orderUser" "-p$orderPassword" orders -e "SELECT id,status FROM shop_orders WHERE id IN ($ids);"
+  if ($LASTEXITCODE -ne 0) { throw 'Order database consistency audit failed to execute' }
+  $paymentRows = & docker compose --project-directory $projectRoot exec -T commerce-db mysql -N `
+    "-u$databaseUser" "-p$databasePassword" commerceflow `
+    -e "SELECT order_id,status FROM payment_records WHERE order_id IN ($ids);"
+  if ($LASTEXITCODE -ne 0) { throw 'Payment database consistency audit failed to execute' }
+  $payments = @{}
+  foreach ($row in $paymentRows) { $parts = $row -split '\s+'; $payments[[long]$parts[0]] = $parts[1] }
+  $contradictions = 0
+  foreach ($row in $orderRows) {
+    $parts = $row -split '\s+'; $status = $parts[1]; $payment = $payments[[long]$parts[0]]
+    if (-not (($status -eq 'CANCELLED' -and $payment -eq 'CLOSED') -or
+      ($status -in @('PAID','REFUNDING','REFUNDED') -and $payment -eq 'SUCCESS'))) {
+      $contradictions++
+    }
+  }
+  if (@($orderRows).Count -ne $iteration -or $payments.Count -ne $iteration -or $contradictions -ne 0) {
+    throw "Docker MySQL consistency audit failed: $(@($orderRows).Count)/$($payments.Count)/$contradictions"
   }
 }
 

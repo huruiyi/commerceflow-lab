@@ -2,7 +2,7 @@ package vip.fairy.commerceflow.commerce.ordering.application;
 
 import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandV1;
-import vip.fairy.commerceflow.commerce.ordering.infrastructure.ShopOrderMapper;
+import vip.fairy.commerceflow.commerce.ordering.application.port.OrderStorePort;
 import vip.fairy.commerceflow.commerce.payment.infrastructure.OutboxMapper;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -19,10 +19,10 @@ public class OrderCancellationProjection implements InventoryCommandPort.StatePr
   private final ObjectMapper mapper;
   private final OutboxMapper outbox;
   private final InventoryCommandPort inventory;
-  private final ShopOrderMapper orders;
+  private final OrderStorePort orders;
 
   public OrderCancellationProjection(ObjectMapper mapper, OutboxMapper outbox,
-                                     InventoryCommandPort inventory, ShopOrderMapper orders) {
+                                     InventoryCommandPort inventory, OrderStorePort orders) {
     this.mapper = mapper;
     this.outbox = outbox;
     this.inventory = inventory;

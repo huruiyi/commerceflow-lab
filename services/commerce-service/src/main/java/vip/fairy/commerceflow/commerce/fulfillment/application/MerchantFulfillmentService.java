@@ -2,13 +2,13 @@ package vip.fairy.commerceflow.commerce.fulfillment.application;
 
 import vip.fairy.commerceflow.commerce.fulfillment.api.FulfillmentRequest;
 import vip.fairy.commerceflow.commerce.fulfillment.api.MerchantOrderResponse;
-import vip.fairy.commerceflow.commerce.fulfillment.infrastructure.MerchantOrderMapper;
 import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
 import vip.fairy.commerceflow.commerce.logistics.application.LogisticsGatewayClient;
 import vip.fairy.commerceflow.commerce.logistics.domain.ShipmentRecordView;
 import vip.fairy.commerceflow.commerce.logistics.infrastructure.ShipmentMapper;
 import vip.fairy.commerceflow.commerce.ordering.api.ShopOrderResponse;
 import vip.fairy.commerceflow.commerce.ordering.application.port.OrderFulfillmentPort;
+import vip.fairy.commerceflow.commerce.ordering.application.port.OrderStorePort;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderEventView;
 import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
 import vip.fairy.commerceflow.commerce.refund.api.RefundResponse;
@@ -26,20 +26,20 @@ import java.util.Objects;
 @Service
 public class MerchantFulfillmentService {
 
-  private final MerchantOrderMapper merchants;
+  private final OrderStorePort orderStore;
   private final OrderFulfillmentPort orders;
   private final RefundMapper refunds;
   private final ShipmentMapper shipments;
   private final LogisticsGatewayClient logistics;
   private final TransactionTemplate transactions;
 
-  public MerchantFulfillmentService(MerchantOrderMapper merchants,
+  public MerchantFulfillmentService(OrderStorePort orderStore,
                                     OrderFulfillmentPort orders,
                                     RefundMapper refunds,
                                     ShipmentMapper shipments,
                                     LogisticsGatewayClient logistics,
                                     PlatformTransactionManager manager) {
-    this.merchants = merchants;
+    this.orderStore = orderStore;
     this.orders = orders;
     this.refunds = refunds;
     this.shipments = shipments;
@@ -48,7 +48,7 @@ public class MerchantFulfillmentService {
   }
 
   public List<MerchantOrderResponse> list(AppUser merchant) {
-    return merchants.list(merchant.getId())
+    return orderStore.listMerchant(merchant.getId())
       .stream()
       .map(this::response)
       .toList();
@@ -57,7 +57,7 @@ public class MerchantFulfillmentService {
   @Transactional
   public MerchantOrderResponse confirm(AppUser merchant, Long id) {
     require(merchant, id);
-    if (merchants.confirm(id) != 1) {
+    if (orderStore.merchantConfirm(id) != 1) {
       throw new BusinessRuleException("Only paid orders can be confirmed");
     }
     orders.merchantConfirmed(id, merchant.getId());
@@ -86,7 +86,7 @@ public class MerchantFulfillmentService {
       shipments.attach(shipment.getId(), remote.platformShipmentNo(), remote.carrier(),
         remote.trackingNumber(), remote.status());
       if ("CONFIRMED".equals(order.getStatus())) {
-        if (merchants.ship(id, carrier, tracking) != 1) {
+        if (orderStore.merchantShip(id, carrier, tracking) != 1) {
           throw new BusinessRuleException("Order status changed while shipping");
         }
         orders.shipped(id, merchant.getId(), carrier, tracking);
@@ -108,7 +108,7 @@ public class MerchantFulfillmentService {
     }
     logistics.update(id, carrier, tracking);
     transactions.executeWithoutResult(status -> {
-      if (merchants.updateShipment(id, carrier, tracking) != 1) {
+      if (orderStore.updateShipment(id, carrier, tracking) != 1) {
         throw new BusinessRuleException("Only shipped orders can update shipment details");
       }
       shipments.updateDetails(id, carrier, tracking);
@@ -124,11 +124,11 @@ public class MerchantFulfillmentService {
   }
 
   private MerchantOrderResponse current(AppUser merchant, Long id) {
-    return response(merchants.lock(merchant.getId(), id).orElseThrow());
+    return response(orderStore.findMerchant(merchant.getId(), id).orElseThrow());
   }
 
   private ShopOrderView require(AppUser merchant, Long id) {
-    return merchants.lock(merchant.getId(), id)
+    return orderStore.findMerchant(merchant.getId(), id)
       .orElseThrow(() -> new ResourceNotFoundException("Merchant order not found"));
   }
 

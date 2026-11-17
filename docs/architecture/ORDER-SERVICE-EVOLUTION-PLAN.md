@@ -2,14 +2,12 @@
 
 ## 1. 当前结论
 
-M3.5 第五批已经在分层的独立 `order-service` 和独立 MySQL `order-db` 上完成远程协议及预切换演练，当前仍
-只作为无业务流量的影子进程：
-不得切换生产读写、不得删除 commerce 本地路径、不得并行拆 `payment-orchestration-service` 或
-`fulfillment-service`。
+M3.5 第六批已完成一次性 CUTOVER：分层的独立 `order-service` 和 MySQL `order-db` 是 7 张订单表的唯一
+运行时所有者；commerce 只通过远程 Order Store V1 读写，不再包含订单 Mapper 或源库回退路径。
 
-CREATE 不等于 CUTOVER。只有影子库完成可重复快照、增量追平、跨进程 Trace、重复/乱序/超时/结果丢失、
-服务与数据库停机恢复、人工恢复和整体回退演练后，才可单独评审 CUTOVER。当前仍使用 MySQL 8.4；M3 清单中的
-所有服务以及以后新增的待拆服务完成单一所有权切换并逐一验收后，才可另立 PostgreSQL 专项。
+CUTOVER 前已完成可重复快照、增量追平、跨进程 Trace、重复/乱序/超时/结果丢失、服务与数据库停机恢复、
+人工恢复和整体回退演练；停写后的 generation 21 / 水位 236 最终审计为 7 表 MATCH。当前仍使用 MySQL 8.4；
+后续服务须逐一完成单一所有权切换并验收，之后才可另立 PostgreSQL 专项。
 
 ## 2. 唯一所有权
 
@@ -36,8 +34,8 @@ CREATE 不等于 CUTOVER。只有影子库完成可重复快照、增量追平�
   冲突拒绝、待补偿/待对账和带操作者/原因/时间的人工恢复。
 - 项目不引入 Seata、DTM、XA、TCC 或全局事务协调器。
 
-当前 `PurchaseOrderService` 仍在模块化单体内组合多个 application port；这些本地适配器不是远程调用已完成。
-下一批必须复用稳定契约，不得把通用 Mapper、当前大事务或本地数据库回退复制到跨进程边界。
+`PurchaseOrderService` 仍在 commerce 内编排购物车、支付等边界，但订单持久化只经远程 `OrderStorePort`；
+commerce 生产代码不保留本地订单适配器、订单 Mapper 或源表 SQL。
 
 ## 4. 分布式事务与恢复规则
 
@@ -62,11 +60,10 @@ CREATE 不等于 CUTOVER。只有影子库完成可重复快照、增量追平�
 2. **已完成**：实现一致性可重复全量快照、提交顺序增量追平、水位、逐字段核对审计和孤儿隔离/重放。
 3. **已完成**：命令 Inbox/Outbox、结果 Inbox、跨进程 Trace、重复、冲突、乱序、超时、结果丢失、人工恢复
    和服务停机恢复已通过；不维护 LOCAL/COMPARE 双实现。
-4. **已完成演练，未实际冻结**：临时账号验证源端权限冻结/拒绝、最终增量追平、零差异审计及整体回退。
-   实际 commerce 运行账号只有在单独批准 CUTOVER 后才可冻结。
-5. 一次性切换订单读写；失败只允许通过预演的整体回退恢复，不允许数据库或本地代码静默回退。
-6. 稳定窗通过后删除 commerce 的 order 运行路径和源表权限，冻结单一所有权。
-7. order 完成后再进入 `payment-orchestration-service`、`fulfillment-service` 及新增候选边界。
+4. **已完成**：停写后执行 generation 21 最终快照、增量追平及 7 表零差异审计。
+5. **已完成**：一次性切换订单读写；故障返回稳定 503，不允许数据库或本地代码静默回退。
+6. **已完成**：删除 commerce 的 order 运行路径，并撤销 `commerce_runtime` 对订单源表的权限。
+7. **待另批评审**：进入 `payment-orchestration-service`；不得与 `fulfillment-service` 并行拆分。
 
 ## 6. CREATE 验收证据与复跑
 
@@ -140,4 +137,24 @@ PostgreSQL 仍受各自门禁约束。
 ```bash
 ./scripts/linux/verify-order-remote-protocol.sh
 ./scripts/linux/verify-order-precutover-rehearsal.sh
+```
+
+## 9. 第六批 CUTOVER 证据
+
+- 停止 commerce 新写后执行 generation 21 / 水位 236 的最终快照与追平；源端 345 笔订单、345 条商品项、
+  345 份地址和 1653 条事件在 7 张表审计中全部 `MATCH`，OPEN 孤儿为 0。
+- commerce 删除订单 Mapper、Process Manager 本地实现及其 XML；生产 Mapper 对 7 张订单源表引用为 0，
+  `RemoteOrderStoreAdapter` 是唯一订单存储适配器。
+- Compose 默认 `ORDER_ACCEPTING_TRAFFIC=true`、`ORDER_SHADOW_ENABLED=false`；order-service 不再配置源库，
+  commerce 依赖其健康状态。逐表授权脚本撤销 `commerce_runtime` 对库存和订单源表的全部权限。
+- 切换验收创建的新订单只增加 order-db，源端保持 345/448155.00；完整快速回归后 order-db 为
+  359/359/359/1710、金额 466341.00，协议表与 OPEN 孤儿均为 0。order-service 停机期间查询返回 503，
+  恢复后健康，不存在 LOCAL/COMPARE 或源库回退。
+
+```powershell
+.\scripts\windows\verify-order-runtime-cutover.ps1
+```
+
+```bash
+./scripts/linux/verify-order-runtime-cutover.sh
 ```

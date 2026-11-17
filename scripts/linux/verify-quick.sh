@@ -25,6 +25,7 @@ compose up -d --wait
 "$SCRIPT_DIR/verify-refunds.sh" "$BASE_URL" http://localhost:14201
 "$SCRIPT_DIR/verify-auto-lifecycle.sh" "$BASE_URL"
 "$SCRIPT_DIR/verify-redis-business.sh" "$BASE_URL"
+"$SCRIPT_DIR/verify-order-runtime-cutover.sh" "$BASE_URL"
 curl -fsS "$BASE_URL/healthz" >/dev/null
 for url in \
   http://localhost:18081/actuator/health \

@@ -198,15 +198,15 @@ bash ./scripts/linux/audit-order-service-admission.sh
 当前结论和后续收口顺序见
 [order-service 准入与单一所有权演进计划](docs/architecture/ORDER-SERVICE-EVOLUTION-PLAN.md)。
 
-order-service 当前仅做无业务流量影子运行；以下入口会重复执行一致性快照、制造一条无值变化的源端增量、
-等待水位追平、核对 7 张表、确认无 OPEN 孤儿并确认远程 V1 流量门返回 503，不清空数据卷：
+order-service 已完成一次性 CUTOVER 并独占订单运行时读写。以下入口验证新订单只写 order-db、源端计数不变、
+commerce 运行账号无源表权限，以及 order-service 停机时明确返回 503、恢复后重新健康：
 
 ```powershell
-./scripts/windows/verify-order-shadow-runtime.ps1
+./scripts/windows/verify-order-runtime-cutover.ps1
 ```
 
 ```bash
-bash ./scripts/linux/verify-order-shadow-runtime.sh
+bash ./scripts/linux/verify-order-runtime-cutover.sh
 ```
 
 远程 Order V1 故障语义使用合成订单在独立库内演练；脚本临时打开协议门，验证 HMAC/摘要/防重放、Tempo
@@ -222,7 +222,7 @@ bash ./scripts/linux/verify-order-remote-protocol.sh
 bash ./scripts/linux/verify-order-precutover-rehearsal.sh
 ```
 
-预切换脚本只使用临时 MySQL 账号演练源写冻结和整体回退，不修改 commerce 实际运行账号，不执行 CUTOVER。
+影子与预切换脚本保留为历史取证入口；默认运行时关闭影子复制且不再配置源库，不应重新开放源端权限。
 
 Angular 商城门户和支付模拟器 Web 都使用模块本地 Prettier 只读门禁：
 

@@ -731,9 +731,14 @@ Docker 拓扑，也不启动 PostgreSQL。
 - [x] 预切换演练完成可重复最终快照、7 表零差异、临时账号源端 order 权限冻结/拒绝、整体回退到源端唯一
   所有者及 order-service 停机恢复；最终快速回归后 generation 20、水位 236、345/345/345/1653、金额
   448155.00 和三张空协议表全部 MATCH。该演练没有冻结实际 commerce 运行账号，也没有 CUTOVER。
-- [ ] 下一批须单独批准 CUTOVER：冻结实际源端 order 新写后再次追平并核对，再一次性切换订单读写；稳定窗
-  通过后才删除 commerce order 运行路径和源表权限。不得维护 LOCAL/COMPARE，不得并行拆
-  payment-orchestration/fulfillment，全部服务验收前不得启动 PostgreSQL。
+- [x] M3.5 第六批在停写窗口完成 generation 21、水位 236 的最终快照和 7 表 MATCH 后一次性 CUTOVER。
+  commerce 的订单查询/写入统一使用远程 Order Store V1，生产 Mapper 对 7 张源表引用归零；实际
+  `commerce_runtime` 对库存与订单源表权限均已撤销，不存在 LOCAL/COMPARE 或数据库回退。
+- [x] 切换验收覆盖新订单仅写 order-db、源订单保持 345/448155.00 不变、支付/取消竞态、退款、履约、物流、
+  自动收货/完成、评论、租约恢复、Redis 故障及 order-service 停机 503/恢复。验收后 order-db 为
+  359/359/359/1710、金额 466341.00，三张协议表和 OPEN 孤儿均为 0；50 对脚本契约与快速回归通过。
+- [ ] 下一候选阶段为 `payment-orchestration-service`，须另批评审；本批未拆 payment-orchestration/fulfillment，
+  未启动 PostgreSQL。历史影子与预切换脚本仅用于取证，不得在默认运行时重新打开源端复制权限。
 
 ## 14. 实施记录模板
 

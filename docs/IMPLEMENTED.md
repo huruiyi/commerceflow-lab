@@ -227,6 +227,13 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   水位 236、345/345/345/1653、金额 448155.00、7 表零差异，并完成临时源权限冻结/恢复与 order-service
   停机回退。默认流量门已恢复 503，commerce
   仍不依赖 order-service；没有业务流量、CUTOVER、LOCAL/COMPARE、后续服务拆分或 PostgreSQL。
+- M3.5 第六批完成一次性 CUTOVER。停写后的 generation 21 / 水位 236 最终快照在 7 张表全部 MATCH；
+  commerce 删除订单 Mapper、本地 Process Manager 和源表 SQL，唯一经远程 Order Store V1 读写。Compose
+  默认打开 order 业务门并关闭影子复制，order-service 不再持有源库配置；`commerce_runtime` 对库存与订单
+  源表权限均已撤销。运行验收确认新订单只写 order-db、源端保持 345/448155.00，order-service 停机返回
+  503 且恢复正常。快速回归后 order-db 为 359/359/359/1710、金额 466341.00，协议表和 OPEN 孤儿均为 0；
+  413/28/204/7 质量门禁、431 个 Java 源文件空行和 50 对脚本契约通过。未保留 LOCAL/COMPARE，未拆
+  payment-orchestration/fulfillment，未启动 PostgreSQL。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

@@ -3,7 +3,7 @@ package vip.fairy.commerceflow.commerce.ordering.application;
 import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandPublisher;
 import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
-import vip.fairy.commerceflow.commerce.ordering.infrastructure.ShopOrderMapper;
+import vip.fairy.commerceflow.commerce.ordering.application.port.OrderStorePort;
 import vip.fairy.commerceflow.commerce.payment.application.PaymentCancellationCrashLab;
 import vip.fairy.commerceflow.commerce.payment.application.PaymentEventPipeline;
 import vip.fairy.commerceflow.commerce.payment.application.PaymentGatewayClient;
@@ -24,7 +24,7 @@ import java.util.Map;
 @Service
 public class OrderCancellationService {
 
-  private final ShopOrderMapper orders;
+  private final OrderStorePort orders;
   private final OrderPaymentRecordPort payments;
   private final PaymentGatewayClient gateway;
   private final TransactionTemplate transactions;
@@ -33,7 +33,7 @@ public class OrderCancellationService {
   private final CustomerNotificationCommandPublisher notifications;
   private final PaymentCancellationCrashLab crashLab;
 
-  public OrderCancellationService(ShopOrderMapper orders, OrderPaymentRecordPort payments,
+  public OrderCancellationService(OrderStorePort orders, OrderPaymentRecordPort payments,
                                   PaymentGatewayClient gateway,
                                   TransactionTemplate transactions, ScheduledTaskMapper scheduledTasks,
                                   PaymentEventPipeline events,

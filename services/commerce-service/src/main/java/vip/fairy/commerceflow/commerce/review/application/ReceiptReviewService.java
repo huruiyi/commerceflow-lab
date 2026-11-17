@@ -4,12 +4,12 @@ import vip.fairy.commerceflow.commerce.catalog.application.CatalogCacheInvalidat
 import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
 import vip.fairy.commerceflow.commerce.ordering.api.ShopOrderResponse;
 import vip.fairy.commerceflow.commerce.ordering.application.PurchaseOrderService;
+import vip.fairy.commerceflow.commerce.ordering.application.port.OrderStorePort;
 import vip.fairy.commerceflow.commerce.receipt.application.OrderReceiptLifecycleService;
 import vip.fairy.commerceflow.commerce.review.api.ProductReviewResponse;
 import vip.fairy.commerceflow.commerce.review.api.ReviewRequest;
 import vip.fairy.commerceflow.commerce.review.domain.ProductReview;
 import vip.fairy.commerceflow.commerce.review.domain.ProductReviewView;
-import vip.fairy.commerceflow.commerce.review.domain.ReviewableItem;
 import vip.fairy.commerceflow.commerce.review.infrastructure.ReviewMapper;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import org.springframework.dao.DuplicateKeyException;
@@ -23,14 +23,17 @@ public class ReceiptReviewService {
   private final CatalogCacheInvalidator catalog;
   private final PurchaseOrderService purchaseOrders;
   private final OrderReceiptLifecycleService receiptLifecycle;
+  private final OrderStorePort orders;
 
   public ReceiptReviewService(ReviewMapper reviews,
                               CatalogCacheInvalidator catalog, PurchaseOrderService purchaseOrders,
-                              OrderReceiptLifecycleService receiptLifecycle) {
+                              OrderReceiptLifecycleService receiptLifecycle,
+                              OrderStorePort orders) {
     this.reviews = reviews;
     this.catalog = catalog;
     this.purchaseOrders = purchaseOrders;
     this.receiptLifecycle = receiptLifecycle;
+    this.orders = orders;
   }
 
   @Transactional
@@ -41,12 +44,12 @@ public class ReceiptReviewService {
 
   @Transactional
   public ProductReviewResponse review(AppUser user, Long itemId, ReviewRequest request) {
-    ReviewableItem item = reviews.reviewable(user.getId(), itemId)
+    var item = orders.reviewable(user.getId(), itemId)
       .orElseThrow(() -> new BusinessRuleException("Only received order items can be reviewed"));
     try {
       reviews.insert(new ProductReview(
         itemId,
-        item.getProductId(),
+        item.productId(),
         user.getId(),
         request.rating(),
         request.comment()));

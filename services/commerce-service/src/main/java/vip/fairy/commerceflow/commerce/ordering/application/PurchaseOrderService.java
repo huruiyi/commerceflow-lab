@@ -11,8 +11,8 @@ import vip.fairy.commerceflow.commerce.ordering.domain.NewOrder;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderAddressSnapshot;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderItemSnapshot;
 import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
+import vip.fairy.commerceflow.commerce.ordering.application.port.OrderStorePort;
 import vip.fairy.commerceflow.commerce.ordering.infrastructure.OrderLifecycleProperties;
-import vip.fairy.commerceflow.commerce.ordering.infrastructure.ShopOrderMapper;
 import vip.fairy.commerceflow.commerce.payment.api.PaymentRequest;
 import vip.fairy.commerceflow.commerce.payment.application.PaymentGatewayClient;
 import vip.fairy.commerceflow.commerce.payment.application.RedisIdempotencyService;
@@ -43,7 +43,7 @@ import java.util.UUID;
 @Service
 public class PurchaseOrderService {
 
-  private final ShopOrderMapper orders;
+  private final OrderStorePort orders;
   private final CheckoutCartPort carts;
   private final OrderPaymentRecordPort payments;
   private final PaymentGatewayClient gateway;
@@ -54,7 +54,7 @@ public class PurchaseOrderService {
   private final LogisticsService logistics;
   private final InventoryCommandPort inventory;
 
-  public PurchaseOrderService(ShopOrderMapper orders, CheckoutCartPort carts,
+  public PurchaseOrderService(OrderStorePort orders, CheckoutCartPort carts,
                               OrderPaymentRecordPort payments, PaymentGatewayClient gateway,
                               RedisIdempotencyService redisIdempotency, RefundMapper refunds,
                               OrderLifecycleProperties lifecycle, ScheduledTaskService scheduledTasks,
@@ -88,9 +88,8 @@ public class PurchaseOrderService {
     BigDecimal total = items.stream().map(CheckoutCartItem::subtotal).reduce(BigDecimal.ZERO, BigDecimal::add);
     Instant paymentDueAt = Instant.now().plus(lifecycle.getPaymentTimeout());
     NewOrder order = new NewOrder(number("ORD"), user.getId(), total, "CNY", paymentDueAt);
-    orders.insertOrder(order);
-    items.stream().map(OrderItemSnapshot::from)
-      .forEach(item -> orders.insertItem(order.getId(), item, item.subtotal()));
+    List<OrderItemSnapshot> orderItems = items.stream().map(OrderItemSnapshot::from).toList();
+    orders.insertOrder(order, orderItems, OrderAddressSnapshot.from(address), user.getId());
     inventory.handle(InventoryCommandPort.reserve(
       "order:" + order.getId() + ":reserve",
       order.getId(),
@@ -99,9 +98,6 @@ public class PurchaseOrderService {
           item.getProductId(), item.getProductName(), item.getQuantity()))
         .toList()
     ));
-    orders.insertAddress(order.getId(), OrderAddressSnapshot.from(address));
-    orders.insertEvent(order.getId(), user.getId(), "ORDER_CREATED", "CART", "PENDING_PAYMENT",
-      "Checkout created from cart");
     scheduledTasks.schedule(ScheduledTaskTypes.PAYMENT_TIMEOUT, "order:" + order.getId(), "ORDER",
       order.getId().toString(), paymentDueAt, Map.of("orderId", order.getId()));
     carts.clear(user.getId());

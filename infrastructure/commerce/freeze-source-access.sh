@@ -32,7 +32,16 @@ grant_statements=$(${root_mysql} -e "
       'inventory_reservations',
       'inventory_movements',
       'inventory_command_inbox',
-      'inventory_catalog_event_inbox'
+      'inventory_catalog_event_inbox',
+      'shop_orders',
+      'order_items',
+      'order_shipping_addresses',
+      'order_events',
+      'order_process_managers',
+      'order_command_outbox',
+      'order_result_inbox',
+      'order_shadow_change_log',
+      'order_shadow_clock'
     )
   ORDER BY table_name;
 ")
@@ -49,7 +58,16 @@ for source_table in \
   inventory_reservations \
   inventory_movements \
   inventory_command_inbox \
-  inventory_catalog_event_inbox
+  inventory_catalog_event_inbox \
+  shop_orders \
+  order_items \
+  order_shipping_addresses \
+  order_events \
+  order_process_managers \
+  order_command_outbox \
+  order_result_inbox \
+  order_shadow_change_log \
+  order_shadow_clock
 do
   forbidden=$(${root_mysql} -e "
     SELECT COUNT(*)
@@ -64,4 +82,4 @@ do
   fi
 done
 
-echo "Commerce runtime grants exclude all five inventory source tables."
+echo "Commerce runtime grants exclude all inventory and order source tables."

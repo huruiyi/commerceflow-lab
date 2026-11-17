@@ -193,7 +193,7 @@ class MicroserviceReadinessBaselineTest {
       dependency("refund", "payment", 8, 1),
       dependency("review", "catalog", 1, 0),
       dependency("review", "identity", 2, 0),
-      dependency("review", "ordering", 3, 0),
+      dependency("review", "ordering", 4, 0),
       dependency("review", "receipt", 1, 0),
       dependency("scheduling", "ordering", 1, 0),
       dependency("scheduling", "receipt", 2, 0),

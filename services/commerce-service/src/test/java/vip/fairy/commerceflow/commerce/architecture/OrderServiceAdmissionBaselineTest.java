@@ -6,9 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -19,43 +16,19 @@ class OrderServiceAdmissionBaselineTest {
   private static final Path MODULE_ROOT = locateModuleRoot();
   private static final Path JAVA_ROOT = MODULE_ROOT.resolve(
     "src/main/java/vip/fairy/commerceflow/commerce");
-  private static final Pattern SQL_TABLE = Pattern.compile(
-    "(?im)^\\s*(?:FROM|(?:LEFT\\s+)?JOIN|INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\s+([a-z_]+)");
+  private static final Pattern ORDER_TABLE = Pattern.compile(
+    "(?i)\\b(shop_orders|order_items|order_shipping_addresses|order_events|"
+      + "order_process_managers|order_command_outbox|order_result_inbox)\\b");
 
   @Test
-  void externalModulesMustUseOrderApplicationPorts() throws IOException {
-    Set<String> actualConsumers = new HashSet<>();
-    try (Stream<Path> sources = Files.walk(JAVA_ROOT)) {
-      for (Path source : sources.filter(path -> path.toString().endsWith(".java")).toList()) {
-        String relative = JAVA_ROOT.relativize(source).toString().replace('\\', '/');
-        if (!relative.startsWith("ordering/") && Files.readString(source).contains(
-          "import vip.fairy.commerceflow.commerce.ordering.infrastructure.ShopOrderMapper;")) {
-          actualConsumers.add(relative);
-        }
+  void commerceMappersMustNotAccessOrderOwnedTablesAfterCutover() throws IOException {
+    Path mapperRoot = MODULE_ROOT.resolve("src/main/resources/mapper");
+    try (Stream<Path> mappers = Files.walk(mapperRoot)) {
+      for (Path mapper : mappers.filter(path -> path.toString().endsWith(".xml")).toList()) {
+        assertFalse(ORDER_TABLE.matcher(Files.readString(mapper)).find(),
+          () -> "Commerce mapper still accesses order-owned data: " + mapper.getFileName());
       }
     }
-
-    assertTrue(actualConsumers.isEmpty(),
-      () -> "External modules must not bypass order application ports: " + actualConsumers);
-  }
-
-  @Test
-  void shopOrderMapperMustOnlyAccessOrderOwnedTables() throws IOException {
-    Set<String> ownedTables = Set.of(
-      "shop_orders", "order_items", "order_shipping_addresses", "order_events");
-    String mapper = Files.readString(MODULE_ROOT.resolve(
-      "src/main/resources/mapper/ShopOrderMapper.xml"));
-    Set<String> actualForeignTables = new HashSet<>();
-    Matcher matcher = SQL_TABLE.matcher(mapper);
-    while (matcher.find()) {
-      String table = matcher.group(1);
-      if (!ownedTables.contains(table)) {
-        actualForeignTables.add(table);
-      }
-    }
-
-    assertTrue(actualForeignTables.isEmpty(),
-      () -> "ShopOrderMapper accessed another module's table: " + actualForeignTables);
   }
 
   @Test

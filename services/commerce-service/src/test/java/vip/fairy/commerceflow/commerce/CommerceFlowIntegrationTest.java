@@ -31,11 +31,7 @@ import vip.fairy.commerceflow.commerce.identity.infrastructure.AppUserMapper;
 import vip.fairy.commerceflow.commerce.ordering.application.OrderCancellationService;
 import vip.fairy.commerceflow.commerce.receipt.application.OrderReceiptLifecycleService;
 import vip.fairy.commerceflow.commerce.ordering.application.OrderCancellationProjection;
-import vip.fairy.commerceflow.commerce.ordering.application.OrderProcessManagerService;
 import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderCommandV1;
-import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderCommandTypeV1;
-import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderResultOutcomeV1;
-import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderResultTypeV1;
 import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderResultV1;
 import vip.fairy.commerceflow.commerce.logistics.application.LogisticsNotificationService;
 import vip.fairy.commerceflow.commerce.logistics.application.LogisticsGatewayClient;
@@ -79,6 +75,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.session.MapSessionRepository;
@@ -88,6 +85,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import vip.fairy.commerceflow.commerce.ordering.application.port.OrderStorePort;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -110,8 +108,7 @@ import static org.mockito.Mockito.when;
   "commerceflow.scheduling.lease-recovery.initial-delay=1h",
   "commerceflow.scheduling.reconciliation.initial-delay=1h",
   "commerceflow.inventory.delivery.dispatch-initial-delay=1h",
-  "commerceflow.inventory.delivery.recovery-initial-delay=1h",
-  "commerceflow.order-process.recovery-initial-delay=1h"
+  "commerceflow.inventory.delivery.recovery-initial-delay=1h"
 })
 @AutoConfigureMockMvc
 @Import(CommerceFlowIntegrationTest.TestSessions.class)
@@ -128,6 +125,12 @@ class CommerceFlowIntegrationTest {
     @Bean
     AtomicInteger reminderExecutions() {
       return new AtomicInteger();
+    }
+
+    @Bean
+    @Primary
+    OrderStorePort testOrderStore(JdbcTemplate jdbc) {
+      return new TestOrderStoreAdapter(jdbc);
     }
 
     @Bean
@@ -164,8 +167,6 @@ class CommerceFlowIntegrationTest {
   LogisticsNotificationService logisticsNotifications;
   @Autowired
   OrderCancellationProjection orderCancellationProjection;
-  @Autowired
-  OrderProcessManagerService orderProcesses;
   @Autowired
   PaymentNotificationService paymentNotifications;
   @Autowired
@@ -286,85 +287,6 @@ class CommerceFlowIntegrationTest {
       org.junit.jupiter.api.Assertions.assertEquals(OrderResultV1.VERSION,
         result.schemaVersion());
     }
-  }
-
-  @Test
-  void orderProcessManagerPersistsIdempotencyUnknownResultsAndRecovery() {
-    String commandId = UUID.randomUUID().toString();
-    long orderId = 8_000_000L + Math.abs(UUID.randomUUID().getMostSignificantBits() % 100_000L);
-    String traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
-    OrderCommandV1 command = new OrderCommandV1(
-      1, commandId, OrderCommandTypeV1.SHIP, Instant.now(), "fulfillment", orderId, 5L,
-      "CONFIRMED", "Merchant shipped", "SF Express", "SF-" + orderId,
-      "order-" + orderId, "ship-" + orderId, traceparent
-    );
-    Instant deadline = Instant.now().plusSeconds(300);
-    var started = orderProcesses.start(command, OrderResultTypeV1.LOGISTICS,
-      "logistics-service", deadline);
-    org.junit.jupiter.api.Assertions.assertTrue(started.created());
-    org.junit.jupiter.api.Assertions.assertFalse(orderProcesses.start(command,
-      OrderResultTypeV1.LOGISTICS, "logistics-service", deadline).created());
-
-    OrderCommandV1 conflicting = new OrderCommandV1(
-      1, commandId, OrderCommandTypeV1.SHIP, command.occurredAt(), "fulfillment", orderId, 5L,
-      "CONFIRMED", "Merchant shipped", "SF Express", "DIFFERENT",
-      command.correlationId(), command.causationId(), traceparent
-    );
-    org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
-      () -> orderProcesses.start(conflicting, OrderResultTypeV1.LOGISTICS,
-        "logistics-service", deadline));
-
-    String resultId = UUID.randomUUID().toString();
-    OrderResultV1 result = new OrderResultV1(
-      1, resultId, OrderResultTypeV1.LOGISTICS, OrderResultOutcomeV1.SUCCEEDED,
-      Instant.now(), "logistics", orderId, "shipment-" + orderId, "CREATED", null,
-      "Shipment accepted", command.correlationId(), commandId, traceparent
-    );
-    org.junit.jupiter.api.Assertions.assertEquals(OrderProcessManagerService.Acceptance.APPLIED,
-      orderProcesses.accept(result));
-    org.junit.jupiter.api.Assertions.assertEquals(OrderProcessManagerService.Acceptance.DUPLICATE,
-      orderProcesses.accept(result));
-    org.junit.jupiter.api.Assertions.assertEquals("COMPLETED", jdbc.queryForObject(
-      "SELECT status FROM order_process_managers WHERE process_id=?", String.class, commandId));
-    org.junit.jupiter.api.Assertions.assertEquals("ACKNOWLEDGED", jdbc.queryForObject(
-      "SELECT status FROM order_command_outbox WHERE command_id=?", String.class, commandId));
-
-    OrderResultV1 conflictingResult = new OrderResultV1(
-      1, resultId, OrderResultTypeV1.LOGISTICS, OrderResultOutcomeV1.SUCCEEDED,
-      result.occurredAt(), "logistics", orderId, result.externalReference(), "DELIVERED", null,
-      "Different payload", result.correlationId(), result.causationId(), traceparent
-    );
-    org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
-      () -> orderProcesses.accept(conflictingResult));
-
-    OrderResultV1 unsolicited = new OrderResultV1(
-      1, UUID.randomUUID().toString(), OrderResultTypeV1.PAYMENT,
-      OrderResultOutcomeV1.SUCCEEDED, Instant.now(), "payment", orderId,
-      "payment-" + orderId, "SUCCESS", null, "Unsolicited result",
-      command.correlationId(), commandId, traceparent
-    );
-    org.junit.jupiter.api.Assertions.assertEquals(OrderProcessManagerService.Acceptance.IGNORED,
-      orderProcesses.accept(unsolicited));
-
-    String recoveryCommandId = UUID.randomUUID().toString();
-    OrderCommandV1 recoveryCommand = new OrderCommandV1(
-      1, recoveryCommandId, OrderCommandTypeV1.CANCEL, Instant.now(), "ordering", orderId + 1,
-      2L, "PENDING_PAYMENT", "Customer cancelled", null, null,
-      "order-" + (orderId + 1), "cancel-" + (orderId + 1), traceparent
-    );
-    orderProcesses.start(recoveryCommand, OrderResultTypeV1.PAYMENT,
-      "payment-orchestration-service", Instant.now().plusSeconds(300));
-    jdbc.update("UPDATE order_process_managers SET result_deadline_at=? WHERE process_id=?",
-      java.sql.Timestamp.from(Instant.now().minusSeconds(1)), recoveryCommandId);
-    orderProcesses.markExpiredUnknownResults();
-    org.junit.jupiter.api.Assertions.assertEquals("RECONCILIATION_REQUIRED", jdbc.queryForObject(
-      "SELECT status FROM order_process_managers WHERE process_id=?", String.class,
-      recoveryCommandId));
-    orderProcesses.recover(recoveryCommandId, "admin", "Remote result checked",
-      Instant.now().plusSeconds(30));
-    org.junit.jupiter.api.Assertions.assertEquals("WAITING_RESULT", jdbc.queryForObject(
-      "SELECT status FROM order_process_managers WHERE process_id=?", String.class,
-      recoveryCommandId));
   }
 
   @Test

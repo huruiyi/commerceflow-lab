@@ -32,15 +32,15 @@ services:
         condition: service_healthy
     restart: "no"
 
-  commerce-inventory-source-access-freezer:
+  commerce-source-access-freezer:
     image: mysql:8.4
-    entrypoint: ["sh", "/access/freeze-inventory-source-access.sh"]
+    entrypoint: ["sh", "/access/freeze-source-access.sh"]
     environment:
       SOURCE_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
       RUNTIME_DATABASE_USERNAME: ${COMMERCE_RUNTIME_DATABASE_USERNAME:-commerce_runtime}
       RUNTIME_DATABASE_PASSWORD: ${COMMERCE_RUNTIME_DATABASE_PASSWORD:-commerce-runtime-password}
     volumes:
-      - ./infrastructure/commerce/freeze-inventory-source-access.sh:/access/freeze-inventory-source-access.sh:ro
+      - ./infrastructure/commerce/freeze-source-access.sh:/access/freeze-source-access.sh:ro
     depends_on:
       commerce-schema-migrator:
         condition: service_completed_successfully
@@ -529,6 +529,8 @@ services:
       INVENTORY_REMOTE_REHEARSAL_ENABLED: ${INVENTORY_REMOTE_REHEARSAL_ENABLED:-false}
       INVENTORY_SERVICE_BASE_URL: ${INVENTORY_SERVICE_BASE_URL:-http://inventory-service:8080}
       INVENTORY_INTERNAL_SECRET: ${INVENTORY_INTERNAL_SECRET:-demo-inventory-internal-secret}
+      ORDER_SERVICE_BASE_URL: ${ORDER_SERVICE_BASE_URL:-http://order-service:8080}
+      ORDER_INTERNAL_SECRET: ${ORDER_INTERNAL_SECRET:-demo-order-internal-secret}
       SCHEDULING_POOL_SIZE: ${SCHEDULING_POOL_SIZE:-4}
       RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq-broker}
       RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
@@ -577,7 +579,7 @@ services:
     ports:
       - "18081:8080"
     depends_on:
-      commerce-inventory-source-access-freezer:
+      commerce-source-access-freezer:
         condition: service_completed_successfully
       commerce-redis:
         condition: service_healthy
@@ -592,6 +594,8 @@ services:
       catalog-service:
         condition: service_healthy
       inventory-service:
+        condition: service_healthy
+      order-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
@@ -711,11 +715,8 @@ services:
       DATABASE_URL: jdbc:mysql://order-db:3306/orders?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       DATABASE_USERNAME: ${ORDER_DATABASE_USERNAME:-orders}
       DATABASE_PASSWORD: ${ORDER_DATABASE_PASSWORD:-orders-password}
-      ORDER_SOURCE_DATABASE_URL: jdbc:mysql://commerce-db:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      ORDER_SOURCE_DATABASE_USERNAME: ${DATABASE_USERNAME:-commerceflow}
-      ORDER_SOURCE_DATABASE_PASSWORD: ${DATABASE_PASSWORD:-commerceflow-password}
-      ORDER_ACCEPTING_TRAFFIC: ${ORDER_ACCEPTING_TRAFFIC:-false}
-      ORDER_SHADOW_ENABLED: ${ORDER_SHADOW_ENABLED:-true}
+      ORDER_ACCEPTING_TRAFFIC: ${ORDER_ACCEPTING_TRAFFIC:-true}
+      ORDER_SHADOW_ENABLED: ${ORDER_SHADOW_ENABLED:-false}
       ORDER_SHADOW_BATCH_SIZE: ${ORDER_SHADOW_BATCH_SIZE:-500}
       ORDER_INTERNAL_SECRET: ${ORDER_INTERNAL_SECRET:-demo-order-internal-secret}
       TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
@@ -726,8 +727,6 @@ services:
     depends_on:
       order-db:
         condition: service_healthy
-      commerce-schema-migrator:
-        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
       interval: 5s

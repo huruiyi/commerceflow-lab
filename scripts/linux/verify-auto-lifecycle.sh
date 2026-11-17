@@ -7,6 +7,7 @@ db_user="${DATABASE_USERNAME:-commerceflow}"
 db_password="${DATABASE_PASSWORD:-commerceflow-password}"
 
 db_scalar(){ compose exec -T commerce-db mysql --batch --skip-column-names "-u$db_user" "-p$db_password" commerceflow -e "$1" | tail -n 1 | tr -d '\r'; }
+order_db_scalar(){ compose exec -T order-db mysql --batch --skip-column-names --user=orders --password=orders-password orders -e "$1" | tail -n 1 | tr -d '\r'; }
 wait_order_status(){
   local id="$1" expected="$2" deadline=$((SECONDS+40)) order
   while ((SECONDS<deadline));do
@@ -51,7 +52,7 @@ db_scalar "UPDATE scheduled_tasks SET due_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 
 completed="$(wait_order_status "$automatic_id" COMPLETED)"
 jq -e '.completedAt!=null and .payment!=null and .logistics.status=="DELIVERED" and (.availableActions|index("REVIEW_ITEM")!=null)'<<<"$completed">/dev/null||{ echo 'COMPLETED order lost completion time, payment, logistics or review action'>&2;exit 1; }
 [[ "$(db_scalar "SELECT status FROM scheduled_tasks WHERE task_type='AUTO_COMPLETE' AND task_key='order:$automatic_id'")" == SUCCEEDED ]]||{ echo 'AUTO_COMPLETE task did not succeed'>&2;exit 1; }
-[[ "$(db_scalar "SELECT COUNT(*) FROM order_events WHERE order_id=$automatic_id AND event_type IN ('ORDER_AUTO_RECEIVED','ORDER_AUTO_COMPLETED')")" == 2 ]]||{ echo 'Automatic lifecycle event count is invalid'>&2;exit 1; }
+[[ "$(order_db_scalar "SELECT COUNT(*) FROM order_events WHERE order_id=$automatic_id AND event_type IN ('ORDER_AUTO_RECEIVED','ORDER_AUTO_COMPLETED')")" == 2 ]]||{ echo 'Automatic lifecycle event count is invalid'>&2;exit 1; }
 item_id="$(jq -r '.items[0].id'<<<"$completed")"
 review="$(json_request POST "$BASE_URL/api/order-items/$item_id/reviews" "$customer_jar" "$csrf_header" "$csrf_token" '{"rating":5,"comment":"Completed order remains reviewable"}')"
 [[ "$(jq -r .rating<<<"$review")" == 5 ]]||{ echo 'COMPLETED order could not be reviewed'>&2;exit 1; }
@@ -69,6 +70,6 @@ compose up -d --wait commerce-service >/dev/null
 restart_required=false
 wait_task_status "$complete_task_id" SUCCEEDED
 lease_events="$(db_scalar "SELECT COUNT(*) FROM scheduled_task_events WHERE task_id=$complete_task_id AND event_type='TASK_LEASE_EXPIRED'")"
-completion_events="$(db_scalar "SELECT COUNT(*) FROM order_events WHERE order_id=$automatic_id AND event_type='ORDER_AUTO_COMPLETED'")"
+completion_events="$(order_db_scalar "SELECT COUNT(*) FROM order_events WHERE order_id=$automatic_id AND event_type='ORDER_AUTO_COMPLETED'")"
 ((lease_events>=1&&completion_events==1))||{ echo "Crash recovery was not idempotent (leaseEvents=$lease_events, completionEvents=$completion_events)" >&2;exit 1; }
 echo "Automatic lifecycle verification passed: manual receipt cancels AUTO_RECEIVE; DELIVERED -> AUTO_RECEIVE -> RECEIVED -> AUTO_COMPLETE -> COMPLETED; expired lease recovered after commerce-service restart without duplicate completion; payment/logistics/review remain available (order=$(jq -r .orderNumber<<<"$completed"))"
