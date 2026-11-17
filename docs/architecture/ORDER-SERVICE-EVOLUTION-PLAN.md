@@ -2,7 +2,8 @@
 
 ## 1. 当前结论
 
-M3.5 第四批已经创建分层的独立 `order-service` 和独立 MySQL `order-db`，当前只作为无业务流量的影子进程：
+M3.5 第五批已经在分层的独立 `order-service` 和独立 MySQL `order-db` 上完成远程协议及预切换演练，当前仍
+只作为无业务流量的影子进程：
 不得切换生产读写、不得删除 commerce 本地路径、不得并行拆 `payment-orchestration-service` 或
 `fulfillment-service`。
 
@@ -59,10 +60,10 @@ CREATE 不等于 CUTOVER。只有影子库完成可重复快照、增量追平�
 
 1. **已完成**：创建分层 `order-service` 与独立 MySQL `order-db`，仅影子运行，不接业务流量。
 2. **已完成**：实现一致性可重复全量快照、提交顺序增量追平、水位、逐字段核对审计和孤儿隔离/重放。
-3. **部分完成**：服务与数据库停机恢复已通过；后续仍需验证命令 Outbox/结果 Inbox、跨进程 Trace、重复、
-   乱序、超时和结果丢失；不维护
-   LOCAL/COMPARE 双实现。
-4. 先冻结源端 order 新写，再完成最终增量追平和零差异审计，之后才可单独申请 CUTOVER。
+3. **已完成**：命令 Inbox/Outbox、结果 Inbox、跨进程 Trace、重复、冲突、乱序、超时、结果丢失、人工恢复
+   和服务停机恢复已通过；不维护 LOCAL/COMPARE 双实现。
+4. **已完成演练，未实际冻结**：临时账号验证源端权限冻结/拒绝、最终增量追平、零差异审计及整体回退。
+   实际 commerce 运行账号只有在单独批准 CUTOVER 后才可冻结。
 5. 一次性切换订单读写；失败只允许通过预演的整体回退恢复，不允许数据库或本地代码静默回退。
 6. 稳定窗通过后删除 commerce 的 order 运行路径和源表权限，冻结单一所有权。
 7. order 完成后再进入 `payment-orchestration-service`、`fulfillment-service` 及新增候选边界。
@@ -116,4 +117,27 @@ PostgreSQL 仍受各自门禁约束。
 
 ```bash
 ./scripts/linux/verify-order-shadow-runtime.sh
+```
+
+## 8. 第五批远程协议与预切换演练证据
+
+- `/commands`、`/results` 和人工恢复端点要求 commerce HMAC-SHA256 签名、正文 SHA-256、5 分钟时间窗和持久
+  requestId 防重放；同 messageId/resultId 同指纹返回幂等结果，异指纹返回 409。
+- 取消命令以条件状态更新创建 Process Manager 和 payment/inventory 两条 Outbox；结果 Inbox 可任意顺序接收
+  两个成功结果且不允许状态倒退。缺失结果到期进入 `WAITING_RECONCILIATION`，人工 RETRY 保存操作者、原因、
+  时间并重新安排 Outbox，不把超时推断为业务失败。
+- Windows 合成订单演练验证真实 Tempo trace、HTTP 重放、命令重复/冲突/乱序、结果重复、结果丢失、超时和
+  人工恢复；结束清理订单、事件和协议记录，并把 `ORDER_ACCEPTING_TRAFFIC` 恢复为 `false`。
+- 预切换演练以临时数据库账号证明源端 order 权限可冻结且整体回退可恢复源端唯一所有者；order-service 停机
+  后源数据仍完整，重启后 7 表再次 MATCH。最终快速回归后 generation 20、水位 236，345/345/345/1653、
+  金额 448155.00 与三张空协议表全部 MATCH。实际 commerce 账号未冻结，因此这不是 CUTOVER。
+
+```powershell
+.\scripts\windows\verify-order-remote-protocol.ps1
+.\scripts\windows\verify-order-precutover-rehearsal.ps1
+```
+
+```bash
+./scripts/linux/verify-order-remote-protocol.sh
+./scripts/linux/verify-order-precutover-rehearsal.sh
 ```

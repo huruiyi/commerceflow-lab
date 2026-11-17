@@ -42,8 +42,25 @@ $command = @{
   correlationId = 'closed-gate'; causationId = 'closed-gate'
   traceparent = '00-0123456789abcdef0123456789abcdef-0123456789abcdef-01'
 } | ConvertTo-Json
+$target = '/internal/v1/orders/commands'
+$timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds().ToString()
+$requestId = [guid]::NewGuid().ToString()
+$bodyBytes = [Text.Encoding]::UTF8.GetBytes($command)
+$contentHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bodyBytes)).ToLowerInvariant()
+$canonical = "POST`n$target`n$timestamp`n$requestId`n$contentHash"
+$hmac = [Security.Cryptography.HMACSHA256]::new(
+  [Text.Encoding]::UTF8.GetBytes('demo-order-internal-secret'))
 try {
-  Invoke-WebRequest -Method Post "$BaseUrl/internal/v1/orders/commands" `
+  $signature = [Convert]::ToHexString(
+    $hmac.ComputeHash([Text.Encoding]::UTF8.GetBytes($canonical))).ToLowerInvariant()
+} finally { $hmac.Dispose() }
+$headers = @{
+  'X-CommerceFlow-Service'='commerce-service'; 'X-CommerceFlow-Timestamp'=$timestamp
+  'X-CommerceFlow-Request-Id'=$requestId; 'X-CommerceFlow-Content-SHA256'=$contentHash
+  'X-CommerceFlow-Signature'=$signature
+}
+try {
+  Invoke-WebRequest -Method Post "$BaseUrl$target" -Headers $headers `
     -ContentType 'application/json' -Body $command | Out-Null
   Fail 'remote V1 traffic gate accepted a business command'
 } catch {

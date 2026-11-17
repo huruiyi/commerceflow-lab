@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.5 第四批无流量 order-service/order-db 影子运行已完成；V36 变更水位与 7 表核对通过 |
-| 下一候选阶段 | 远程 Order V1 故障语义、最终冻结追平与整体回退演练；CUTOVER 仍未授权 |
+| 当前阶段 | M3.5 第五批远程 Order V1 故障语义与预切换整体回退演练已完成；仍为无业务流量影子运行 |
+| 下一候选阶段 | 单独批准后冻结实际源写、最终追平并一次性 CUTOVER；当前仍未授权 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -375,3 +375,13 @@ V36 用单例提交顺序时钟和 21 个触发器记录 7 张所有权表增量
 RESOLVED，OPEN 0。order-service 和 order-db 分别停机期间产生的增量均在恢复后追平。当前 407/31/243/7
 质量门禁与 424 个 Java 源文件类声明空行通过；PostgreSQL、payment-orchestration/fulfillment 拆分和 CUTOVER
 均未启动。
+
+M3.5 第五批把远程 Order V1 从只校验推进为可恢复协议适配器。内部请求使用 HMAC-SHA256、正文 SHA-256、
+5 分钟时间窗和持久 requestId 防重放；命令以 messageId/payload 指纹 Inbox 去重，条件状态更新与事件、取消
+Process Manager 及两条下游命令 Outbox 在 order-db 本地事务提交。结果 Inbox 拒绝同 ID 异载荷和乱序结果，
+丢失结果到期只进入 `WAITING_RECONCILIATION`，人工 RETRY 记录操作者、原因和时间。Windows 合成订单演练在
+Tempo 验证真实 trace，覆盖重复、冲突、乱序、超时、丢失、两阶段取消结果和恢复；结束自动清理并恢复默认
+503 门。最终快速回归后 generation 20、水位 236，345/345/345/1653、金额 448155.00 及三张空协议表全部
+MATCH；临时账号验证
+源端权限冻结和恢复、order-service 停机及源端唯一所有者回退。实际 commerce 账号未冻结，未 CUTOVER，
+PostgreSQL 与后续两个服务拆分均未启动。

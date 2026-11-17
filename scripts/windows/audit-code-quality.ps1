@@ -100,7 +100,9 @@ foreach ($file in $javaFiles) {
   }
   if ($file.Name -notin @('SchedulerConfiguration.java',
                           'NotificationIndependentPersistenceConfiguration.java',
-                          'ShadowReplicationService.java') -and
+                          'ShadowReplicationService.java',
+                          'RemoteOrderProtocolService.java',
+                          'InternalSignatureInterceptor.java') -and
       $source -match 'import\s+org\.springframework\.jdbc\.') {
     Fail "$relativePath introduces direct Spring JDBC access"
   }

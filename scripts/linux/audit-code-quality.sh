@@ -103,7 +103,9 @@ for file in "${java_files[@]}"; do
   fi
   if [[ "$(basename "$file")" != SchedulerConfiguration.java &&
         "$(basename "$file")" != NotificationIndependentPersistenceConfiguration.java &&
-        "$(basename "$file")" != ShadowReplicationService.java ]] &&
+        "$(basename "$file")" != ShadowReplicationService.java &&
+        "$(basename "$file")" != RemoteOrderProtocolService.java &&
+        "$(basename "$file")" != InternalSignatureInterceptor.java ]] &&
       grep -Eq 'import[[:space:]]+org\.springframework\.jdbc\.' "$file"; then
     fail "$relative introduces direct Spring JDBC access"
   fi

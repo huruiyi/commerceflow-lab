@@ -220,6 +220,13 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   1 条孤儿演练记录已 RESOLVED、OPEN 0，服务和数据库停机恢复均最终追平。远程 Order V1 适配器复用冻结
   契约与 payload 指纹，但流量门默认 503，commerce 未连接它；未 CUTOVER、未引入 LOCAL/COMPARE、未拆后续
   服务、未启动 PostgreSQL。Java 25 镜像 2 项新增契约测试和 407/31/243/7 质量门禁通过。
+- M3.5 第五批实现远程 Order V1 的 HMAC-SHA256、正文摘要、时间窗和持久 requestId 防重放；命令 Inbox、
+  取消 Process Manager、两条命令 Outbox 与结果 Inbox 使用稳定 ID 和 payload 指纹处理重复、冲突及乱序。
+  结果超时进入 `WAITING_RECONCILIATION`，不推断失败；人工 RETRY 保存操作者、原因和时间。合成订单的真实
+  跨进程演练在 Tempo 找到 W3C trace，并覆盖结果丢失、两阶段取消完成和清理。最终快速回归后 generation 20、
+  水位 236、345/345/345/1653、金额 448155.00、7 表零差异，并完成临时源权限冻结/恢复与 order-service
+  停机回退。默认流量门已恢复 503，commerce
+  仍不依赖 order-service；没有业务流量、CUTOVER、LOCAL/COMPARE、后续服务拆分或 PostgreSQL。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

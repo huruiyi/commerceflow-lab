@@ -725,8 +725,14 @@ Docker 拓扑，也不启动 PostgreSQL。
   核对审计和孤儿隔离/重放。远程 Order V1 适配器复用冻结契约，但 `ORDER_ACCEPTING_TRAFFIC=false`，commerce
   未配置远程 order 依赖，不维护 LOCAL/COMPARE。双平台专项复跑后 generation 8、水位 120，337/337/337/1609
   与三张空协议表全部 MATCH；孤儿演练 1 条已 RESOLVED、OPEN 0，服务与 order-db 停机期间增量均在恢复后追平。
-- [ ] 下一批验证真实跨进程 Trace、重复/乱序/超时/结果丢失、命令 Outbox/结果 Inbox 和人工恢复；随后先冻结
-  源端 order 新写，完成最终增量追平、零差异审计和整体回退演练，再单独申请 CUTOVER。不得并行拆
+- [x] M3.5 第五批完成远程 Order V1 的 HMAC/正文摘要/持久防重放、真实跨进程 Trace、命令 Inbox、命令
+  Outbox、结果 Inbox、条件状态推进及重复/冲突/乱序/超时/结果丢失验证；超时只进入未知结果待对账，人工
+  RETRY 留下操作者、原因和时间。合成订单演练后自动清理并恢复默认 503 流量门，未接业务流量。
+- [x] 预切换演练完成可重复最终快照、7 表零差异、临时账号源端 order 权限冻结/拒绝、整体回退到源端唯一
+  所有者及 order-service 停机恢复；最终快速回归后 generation 20、水位 236、345/345/345/1653、金额
+  448155.00 和三张空协议表全部 MATCH。该演练没有冻结实际 commerce 运行账号，也没有 CUTOVER。
+- [ ] 下一批须单独批准 CUTOVER：冻结实际源端 order 新写后再次追平并核对，再一次性切换订单读写；稳定窗
+  通过后才删除 commerce order 运行路径和源表权限。不得维护 LOCAL/COMPARE，不得并行拆
   payment-orchestration/fulfillment，全部服务验收前不得启动 PostgreSQL。
 
 ## 14. 实施记录模板

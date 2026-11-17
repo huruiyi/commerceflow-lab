@@ -34,9 +34,15 @@ open_orphans="$(docker compose exec -T order-db mysql -uorders -porders-password
   "SELECT COUNT(*) FROM order_shadow_orphan_quarantine WHERE status='OPEN'")"
 [[ "$open_orphans" == 0 ]] || fail "$open_orphans orphan rows remain open"
 
-status="$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
-  -H 'Content-Type: application/json' "$BASE_URL/internal/v1/orders/commands" \
-  --data '{"schemaVersion":1,"commandId":"7ef4f485-f326-4cd2-91bf-d589e78f4d80","commandType":"CANCEL","occurredAt":"2026-11-17T00:00:00Z","producer":"commerce-service","orderId":1,"actorId":1,"expectedStatus":"PENDING_PAYMENT","reason":"closed-gate-check","correlationId":"closed-gate","causationId":"closed-gate","traceparent":"00-0123456789abcdef0123456789abcdef-0123456789abcdef-01"}')"
+payload='{"schemaVersion":1,"commandId":"7ef4f485-f326-4cd2-91bf-d589e78f4d80","commandType":"CANCEL","occurredAt":"2026-11-17T00:00:00Z","producer":"commerce-service","orderId":1,"actorId":1,"expectedStatus":"PENDING_PAYMENT","reason":"closed-gate-check","correlationId":"closed-gate","causationId":"closed-gate","traceparent":"00-0123456789abcdef0123456789abcdef-0123456789abcdef-01"}'
+target='/internal/v1/orders/commands'; timestamp="$(date +%s)"; request_id="closed-gate-$timestamp-$$"
+content_hash="$(printf '%s' "$payload" | openssl dgst -sha256 -r | awk '{print $1}')"
+canonical="$(printf 'POST\n%s\n%s\n%s\n%s' "$target" "$timestamp" "$request_id" "$content_hash")"
+signature="$(printf '%s' "$canonical" | openssl dgst -sha256 -hmac 'demo-order-internal-secret' -r | awk '{print $1}')"
+status="$(curl -sS -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' \
+  -H 'X-CommerceFlow-Service: commerce-service' -H "X-CommerceFlow-Timestamp: $timestamp" \
+  -H "X-CommerceFlow-Request-Id: $request_id" -H "X-CommerceFlow-Content-SHA256: $content_hash" \
+  -H "X-CommerceFlow-Signature: $signature" "$BASE_URL$target" --data "$payload")"
 [[ "$status" == 503 ]] || fail "remote V1 gate returned HTTP $status"
 
 echo "Order shadow verification passed: generation $snapshot_generation, watermark $target_sequence, 7 table audits MATCH, no open orphan, remote V1 gate closed."

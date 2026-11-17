@@ -209,6 +209,21 @@ order-service 当前仅做无业务流量影子运行；以下入口会重复执
 bash ./scripts/linux/verify-order-shadow-runtime.sh
 ```
 
+远程 Order V1 故障语义使用合成订单在独立库内演练；脚本临时打开协议门，验证 HMAC/摘要/防重放、Tempo
+Trace、重复/冲突/乱序、命令 Outbox/结果 Inbox、超时未知结果和人工恢复，随后清理合成数据并恢复 503：
+
+```powershell
+./scripts/windows/verify-order-remote-protocol.ps1
+./scripts/windows/verify-order-precutover-rehearsal.ps1
+```
+
+```bash
+bash ./scripts/linux/verify-order-remote-protocol.sh
+bash ./scripts/linux/verify-order-precutover-rehearsal.sh
+```
+
+预切换脚本只使用临时 MySQL 账号演练源写冻结和整体回退，不修改 commerce 实际运行账号，不执行 CUTOVER。
+
 Angular 商城门户和支付模拟器 Web 都使用模块本地 Prettier 只读门禁：
 
 ```powershell
