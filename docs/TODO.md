@@ -681,9 +681,28 @@ Docker 拓扑，也不启动 PostgreSQL。
   commerce-service/inventory-service。Windows 可复跑脚本完整通过，Bash 等价脚本通过语法与 45 对契约审计。
 - [x] Java 25 干净构建 42 项测试通过；质量门禁覆盖 374 个 Java、30 个 Mapper XML、253 个语句、6 个 POM
   和 388 个 Java 源文件类声明空行。本批没有启动或迁移 PostgreSQL。
-- [ ] 下一批先把商家库存查询/调整迁入 inventory-service，以 commerce Session/RBAC/HMAC 薄代理访问；完成
+- [x] 下一批先把商家库存查询/调整迁入 inventory-service，以 commerce Session/RBAC/HMAC 薄代理访问；完成
   真实验收后删除本地 Inventory Handler、Mapper/XML 与源表运行权限，冻结 inventory 完整单一所有权。不得
   在这一清理批次并行拆 order、payment-orchestration、fulfillment，也不得启动 PostgreSQL。
+
+### 13.22 M3.4 第十批：商家库存管理迁出与完整单一所有权
+
+- [x] inventory-service 新增按 merchantId 隔离的库存列表、人工调整和流水查询用例与内部 HMAC HTTP 适配器；
+  人工调整继续执行非零、不可减为负数、原因必填和商家所有权校验，并在 inventory-db 写余额后流水。
+- [x] commerce 公开 API 保留原 Session、CSRF 与 MERCHANT RBAC，只通过 2 秒连接/3 秒读取超时的 HMAC 薄代理
+  调用独立服务；400/404/409 保留业务语义，连接或独立服务故障 fail-closed 为 503，不存在本地回退。
+- [x] 删除 commerce 的本地 Inventory Handler、catalog event/command Handler、库存领域余额对象、四个 Mapper
+  与 XML、旧内部 catalog 入口及专用签名拦截器；生产侧只保留命令 Outbox/Result Inbox 与公开身份薄代理。
+- [x] Compose 在 commerce 启动前先用迁移账号完成 Flyway V34，再创建显式逐表授权的 `commerce_runtime`。
+  运行账号可访问 commerce 自有表，但对五张库存源表均收到 MySQL 1142；源表保留为历史证据，不再是运行路径。
+- [x] Java 25 正式镜像共 44 项测试通过（commerce 39、inventory 5）；代码质量门禁覆盖 368 个主源码 Java、
+  27 个 Mapper XML、231 个映射语句、6 个 POM，并校验全部 383 个 Java 源文件类声明空行。
+- [x] Windows 实机验收通过商品 1 的 `72 -> 73 -> 72` 调账恢复、目标流水、未签名 401、服务停机 503 与恢复；
+  commerce 源流水保持 582，inventory 目标流水增至 641；随后 Windows 快速回归完整通过。Bash 对等脚本语法
+  和 46 对参数/安全契约审计通过。
+- [ ] 下一批进入 M3.5 order-service 边界准入治理：先盘点订单状态机、事务所有权、跨模块表访问、事件、
+  Saga/补偿和迁移阻塞项，只形成准入结论与后续顺序；不得同时拆 payment-orchestration/fulfillment，全部服务
+  完成单一所有权切换并逐一验收前仍不得启动 PostgreSQL。
 
 ## 14. 实施记录模板
 

@@ -110,8 +110,8 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   运行态 i18n/权限专项已验证；支付 Web 的 24 个基线文件完成机械格式化，格式检查、无用例 Vitest、
   TypeScript/Vite 生产构建、正式镜像和 `14201/healthz`/Vue 入口运行态已验证。
 - 新空卷验收已通过：Flyway 商城/支付/物流为 V24/V4/V5，完成登录→下单→支付→履约→物流→收货→完成→评价；Windows 快速回归同时通过。
-- notification-service 与 catalog-service 已完成独立边界切换；inventory、order、payment-orchestration、
-  fulfillment 尚未拆分。PostgreSQL 专项必须等 M3 清单中的全部服务完成单一所有权切换并验收后才允许
+- notification-service、catalog-service 与 inventory-service 已完成独立边界切换；order、
+  payment-orchestration、fulfillment 尚未拆分。PostgreSQL 专项必须等 M3 清单中的全部服务完成单一所有权切换并验收后才允许
   启动；后续新增待拆服务也必须先完成。M3.1 初始审计盘点了 37 张表、40 组跨模块依赖方向、
   Outbox/Inbox、消费者契约和追踪缺口，并以 2 项 Maven 基线测试阻止所有权和依赖债务继续增长。
 - M3.3 catalog 准入首批已建立 `CatalogProductLookup`、`CatalogCacheInvalidator` 和
@@ -184,6 +184,12 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   目标增至 627。
   Java 25 干净构建 42 项测试、374/30/253/6 质量门禁、388 个类声明空行和 45 对脚本契约通过。商家库存管理
   API 仍使用 commerce Mapper，因此完整单一所有权与删除源表权限明确留到下一批；PostgreSQL 未启动。
+- M3.4 第十批把商家库存列表、人工调整和流水查询迁入 inventory-service。commerce 公开路径只保留
+  Session/CSRF/MERCHANT RBAC 与 HMAC 薄代理，独立服务故障返回 503；本地库存 Handler、四个 Mapper/XML、
+  旧内部入口和专用签名实现已删除，不存在数据库回退。Compose 使用 Flyway 迁移账号与逐表授权的
+  `commerce_runtime` 运行账号，后者对五张库存源表均被 MySQL 1142 拒绝。Windows 实机完成调账恢复、401、
+  停机 503 与恢复，源流水保持 582、目标增至 641，随后 Windows 快速回归完整通过；Java 25 共 44 项测试，368/27/231/6 质量门禁、全部
+  383 个 Java 源文件类声明空行和 46 对脚本契约通过，Bash 对等脚本语法通过。PostgreSQL 未启动。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

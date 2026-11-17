@@ -16,7 +16,7 @@
 | 商城服务 Maven artifactId | `commerce-service` |
 | 通知服务 Maven artifactId | `notification-service`（默认启动、唯一通知读写实现） |
 | 商品服务 Maven artifactId | `catalog-service`（默认启动、唯一商品资料读写实现） |
-| 库存服务 Maven artifactId | `inventory-service`（默认启动，四类库存命令唯一远程执行端） |
+| 库存服务 Maven artifactId | `inventory-service`（默认启动，库存命令和商家库存管理的唯一实现） |
 | 命名迁移策略 | 不混用两套名称；按 [命名规范](docs/NAMING-CONVENTIONS.md) 独立迁移 |
 
 ## 技术架构
@@ -29,7 +29,7 @@
             └─ /api/* → commerce-service → MySQL 8.4 / Redis 7.4
                          └─ 通知身份薄代理 → notification-service → 独立 MySQL 8.4
                          ├─ 商品身份薄代理 → catalog-service → 独立 MySQL 8.4
-                         └─ 库存命令 Outbox → inventory-service → 独立 MySQL 8.4
+                         └─ 库存 Outbox / 身份薄代理 → inventory-service → 独立 MySQL 8.4
 
 支付平台浏览器 http://localhost:14201
   └─ Vue 3.5.45 + Ant Design Vue Next + VXE-Table + Nginx
@@ -43,7 +43,8 @@
   commerce 只保留 Session/RBAC/HMAC 薄代理与订单事务侧通知 Outbox。
 - `services/catalog-service/`：独立 MySQL 商品资料服务，commerce 只保留鉴权、签名代理与评价组合。
 - `services/inventory-service/`：分层库存服务，独立 MySQL 保存五张所有权表；默认接收 RESERVE、COMMIT、
-  RELEASE、REFUND。commerce 仍保留生产端 Outbox/结果 Inbox；商家库存管理 API 的迁出是下一批待办。
+  RELEASE、REFUND，并独占商家库存查询、调账和流水。commerce 只保留生产端 Outbox/结果 Inbox 与
+  Session/RBAC/HMAC 薄代理，其运行数据库账号无五张库存源表权限。
 - `simulators/payment-platform/service/`：独立支付数据库、后台安全、商户凭据和三渠道交易服务。
 - `simulators/logistics-platform/service/`：独立物流数据库、运单推进、异常与可靠回调模拟服务。
 - `simulators/payment-platform/web/`：Vue 3.5.45、Ant Design Vue Next 和 VXE-Table 支付管理后台与模拟收银台。
@@ -263,6 +264,7 @@ bash ./scripts/linux/verify-all.sh --skip-build
 | `verify-payment-cancellation-crash-recovery` | 定点 SIGKILL 验证取消中间态、渠道已关窗口、回调事务回滚与迟到回调 | commerce-service `18081`、商城/支付 MySQL；钩子默认关闭，不删卷 |
 | `verify-kafka-payment` | 支付回调、Kafka Topic、Outbox 发布和消费记录 | 商城 `14200` |
 | `verify-notification-runtime-cutover` | notification 单一所有权、签名代理、eventId 已读、停机 503 与核心商城隔离 | 商城 `18081`、通知服务 `18086`、通知 MySQL |
+| `verify-inventory-single-owner` | 商家库存签名代理、调账恢复、五张源表权限拒绝、未签名 401、停机 503 与恢复 | 商城 `18081`、库存服务 `18088`、商城/库存 MySQL |
 | `verify-payment-outcomes` | 失败、余额不足、取消和超时四类支付结果 | 商城 `14200` |
 | `verify-refunds` | 全额退款、资金账一致性、请求/通知幂等、重复申请和伪造通知拒绝 | 商城 `14200` |
 | `verify-merchant-fulfillment` | 已支付订单的商家确认、发货及客户越权拒绝 | 商城 `14200` |

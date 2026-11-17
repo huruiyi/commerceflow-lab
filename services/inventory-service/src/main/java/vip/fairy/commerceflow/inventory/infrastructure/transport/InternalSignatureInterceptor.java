@@ -23,7 +23,9 @@ public class InternalSignatureInterceptor implements HandlerInterceptor {
     String requestId = request.getHeader("X-CommerceFlow-Request-Id");
     String contentHash = request.getHeader("X-CommerceFlow-Content-SHA256");
     String signature = request.getHeader("X-CommerceFlow-Signature");
-    boolean allowedService = request.getRequestURI().endsWith("/commands")
+    boolean commerceEndpoint = request.getRequestURI().endsWith("/commands")
+      || request.getRequestURI().contains("/inventory/merchants/");
+    boolean allowedService = commerceEndpoint
       ? "commerce-service".equals(service) : "catalog-service".equals(service);
     if (!allowedService || timestamp == null || requestId == null || contentHash == null
         || signature == null || !signatures.verify(service, request.getMethod(),

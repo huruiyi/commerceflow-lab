@@ -18,9 +18,10 @@
 | [ALERTING.md](ALERTING.md) | Prometheus 规则、Alertmanager 路由、本地 Webhook、阈值和生产边界 | 指标、规则、通知路由或验收入口变更时更新 |
 | [architecture/](architecture/README.md) | 微服务和数据库演进等架构层待办 | 不与当前业务 `TODO.md` 混用 |
 
-M3.2 notification 与 M3.3 catalog 已完成单一所有权切换。当前 M3.4 已创建默认关闭流量的 inventory 影子
-服务和独立 MySQL，并完成可重复五表快照；最终追平、故障演练和 CUTOVER 仍按
-[inventory-service 切换运行手册](architecture/INVENTORY-SERVICE-CUTOVER-RUNBOOK.md)推进，不建立长期双实现。
+M3.2 notification、M3.3 catalog 与 M3.4 inventory 已完成单一所有权切换。inventory 的四类命令和商家
+库存管理均只访问独立服务/独立 MySQL，commerce 运行账号无五张库存源表权限；验收与复跑入口见
+[inventory-service 切换运行手册](architecture/INVENTORY-SERVICE-CUTOVER-RUNBOOK.md)。下一批只进入
+order-service 边界准入治理，不建立长期双实现，也不提前启动 PostgreSQL。
 
 ## 专题参考 `reference/`
 

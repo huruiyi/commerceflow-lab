@@ -4,12 +4,12 @@
 
 | 项目 | 当前值 |
 | --- | --- |
-| 快照日期 | 2026-11-16 |
+| 快照日期 | 2026-11-17 |
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.4 第九批库存命令生产切换与故障恢复已完成；四类命令只写独立库存服务 |
-| 下一候选阶段 | 迁出商家库存查询/调整，删除 commerce 本地库存 Handler/Mapper/XML 与源表权限 |
+| 当前阶段 | M3.4 第十批已完成；inventory-service 独占命令、商家管理 API 与五张库存事实表 |
+| 下一候选阶段 | M3.5 order-service 边界准入治理；先审计所有权、事务、事件和补偿，不直接建服务 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -33,7 +33,7 @@
 | Flyway 数据库生命周期 | 空卷和迁移层已验收 | 商城迁移 V34；notification 独立 Schema V1→V3 已隔离及实际运行验收 |
 | notification 独立服务 | 单一所有权切换已实现 | 默认拓扑启动独立 MySQL/Kafka 服务；commerce 仅签名代理，故障稳定返回 503，无本地数据库回退 |
 | catalog 拆分准入 | 单一所有权已切换 | catalog-service/catalog-db 独占资料、翻译、版本和 Outbox；commerce 只保留鉴权、签名代理与 review 组合 |
-| inventory 拆分准入 | 影子运行时与可重复快照完成 | 独立 MySQL/五表/唯一远程入口已运行但流量门禁关闭；最终追平、故障演练和 CUTOVER 待完成 |
+| inventory 拆分准入 | 完整单一所有权已切换 | inventory-service/inventory-db 独占五表、四类命令与商家库存管理；commerce 仅保留生产 Outbox/Result Inbox 和 Session/RBAC/HMAC 薄代理，运行账号无源表权限 |
 | 告警与监控 | 本地端到端管道已实现 | 三服务 Prometheus 抓取、10 条规则、Alertmanager、Grafana 数据源和可替换 Webhook；真实通知供应商与高可用部署不在本地学习验收内 |
 
 ## 3. M1 冻结结论
@@ -330,3 +330,12 @@ Result V1 确认后再推进订单/退款库存状态；inventory-service/invent
 源流水仍为 582，独立库增至 627；42 项 Java 25 测试、374/30/253/6 质量门禁、388 个类声明空行及 45 对脚本契约通过。
 本批只完成四类命令所有权切换：商家库存查询/调整仍使用 commerce Mapper，所以下一批必须先迁出该管理边界，
 再删除本地 Handler/Mapper/XML 和源表权限。PostgreSQL 继续冻结。
+
+第十四批完成 inventory 完整单一所有权。商家库存列表、调账与流水查询迁入 inventory-service，commerce
+公开 API 只保留 Session/CSRF/MERCHANT RBAC 和 HMAC 薄代理；独立服务停机稳定返回 503，不回退本地表。
+commerce 本地库存 Handler、领域余额对象、四个 Mapper/XML、旧 catalog 内部入口及专用签名代码已删除。
+Compose 先以迁移账号执行 Flyway，再为 `commerce_runtime` 逐表授权；该账号可访问 commerce 自有表，但五张
+库存源表均被 MySQL 1142 拒绝。Windows 实机完成 `72 -> 73 -> 72` 调账恢复、未签名 401、停机 503 和恢复，
+源流水保持 582，目标流水增至 641。Java 25 共 44 项测试，368/27/231/6 质量门禁、383 个 Java 源文件类声明
+空行及 46 对脚本契约通过；Bash 对等脚本已通过语法审计。本批未启动 PostgreSQL，下一步是 order-service
+边界准入治理，不直接创建服务或数据库。

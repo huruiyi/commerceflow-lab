@@ -85,7 +85,9 @@ Angular 管理员可从导航栏“定时任务”进入 `/admin/scheduling` 操
 | 库存流水 | `GET /api/merchant/inventory/{productId}/movements` | 返回当前商家指定商品最近 100 条流水 |
 | 人工调整 | `POST /api/merchant/inventory/{productId}/adjustments` | 请求体为 `delta` 与必填 `reason`，只调整可售库存且不能减为负数 |
 
-库存接口只允许 `MERCHANT` 角色访问，并以商品的 `merchant_id` 再做资源归属校验。人工调整和订单库存变化使用同一流水模型。
+库存接口只允许 `MERCHANT` 角色访问。commerce-service 完成 Session/CSRF/RBAC 后，以 merchantId 和 HMAC
+调用 inventory-service；后者在独立 inventory-db 中再次执行商品归属校验。人工调整和订单库存变化使用同一
+流水模型，独立服务不可用时返回 503，不读取 commerce 源库存表。
 
 ## 模拟物流 API
 

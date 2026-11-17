@@ -37,6 +37,7 @@ verify-mq-distributed-tracing	BaseUrl,TempoUrl,MaxWaitSeconds,SkipBuild	BASE_URL
 verify-inventory-shadow-runtime	BaseUrl	BASE_URL=1
 verify-inventory-remote-rehearsal	BaseUrl	BASE_URL=1
 verify-inventory-runtime-cutover	BaseUrl,TempoUrl,MaxWaitSeconds	BASE_URL=1,TEMPO_URL=2,MAX_WAIT_SECONDS=3
+verify-inventory-single-owner	BaseUrl,MaxWaitSeconds	BASE_URL=1,MAX_WAIT_SECONDS=2
 verify-receipt-reviews	BaseUrl	BASE_URL=1
 verify-redis-business	BaseUrl	BASE_URL=1
 verify-refunds	BaseUrl,PaymentBaseUrl	BASE_URL=1,PAYMENT_BASE_URL=2

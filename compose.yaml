@@ -17,6 +17,35 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  commerce-schema-migrator:
+    image: redgate/flyway:12.4.0
+    command:
+      - -url=jdbc:mysql://commerce-db:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      - -user=${DATABASE_USERNAME:-commerceflow}
+      - -password=${DATABASE_PASSWORD:-commerceflow-password}
+      - -connectRetries=60
+      - migrate
+    volumes:
+      - ./services/commerce-service/src/main/resources/db/migration:/flyway/sql:ro
+    depends_on:
+      commerce-db:
+        condition: service_healthy
+    restart: "no"
+
+  commerce-inventory-source-access-freezer:
+    image: mysql:8.4
+    entrypoint: ["sh", "/access/freeze-inventory-source-access.sh"]
+    environment:
+      SOURCE_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
+      RUNTIME_DATABASE_USERNAME: ${COMMERCE_RUNTIME_DATABASE_USERNAME:-commerce_runtime}
+      RUNTIME_DATABASE_PASSWORD: ${COMMERCE_RUNTIME_DATABASE_PASSWORD:-commerce-runtime-password}
+    volumes:
+      - ./infrastructure/commerce/freeze-inventory-source-access.sh:/access/freeze-inventory-source-access.sh:ro
+    depends_on:
+      commerce-schema-migrator:
+        condition: service_completed_successfully
+    restart: "no"
+
   notification-db:
     image: mysql:8.4
     environment:
@@ -444,8 +473,9 @@ services:
       context: ./services/commerce-service
     environment:
       DATABASE_URL: jdbc:mysql://commerce-db:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&sessionVariables=innodb_lock_wait_timeout=${DATABASE_LOCK_WAIT_TIMEOUT_SECONDS:-5}
-      DATABASE_USERNAME: ${DATABASE_USERNAME:-commerceflow}
-      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-commerceflow-password}
+      DATABASE_USERNAME: ${COMMERCE_RUNTIME_DATABASE_USERNAME:-commerce_runtime}
+      DATABASE_PASSWORD: ${COMMERCE_RUNTIME_DATABASE_PASSWORD:-commerce-runtime-password}
+      SPRING_FLYWAY_ENABLED: "false"
       REMEMBER_ME_KEY: ${REMEMBER_ME_KEY:-commerceflow-demo-remember-me-key-change-in-production}
       REDIS_HOST: commerce-redis
       REDIS_PORT: 6379
@@ -530,8 +560,8 @@ services:
     ports:
       - "18081:8080"
     depends_on:
-      commerce-db:
-        condition: service_healthy
+      commerce-inventory-source-access-freezer:
+        condition: service_completed_successfully
       commerce-redis:
         condition: service_healthy
       payment-simulator-service:

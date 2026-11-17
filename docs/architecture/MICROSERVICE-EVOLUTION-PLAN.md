@@ -32,10 +32,11 @@ M3.1 前置审计和 M3.2 notification 单一所有权切换已完成实现，�
 [M3-PRE-SPLIT-AUDIT.md](M3-PRE-SPLIT-AUDIT.md)。notification-service 默认启动并独占消费、存储和通知业务
 API；commerce 原公开路径只做身份薄代理，旧通知读写、数据源、投影和回填运行代码已删除。
 
-notification 与 catalog 已完成单一所有权切换；inventory 已创建默认关闭流量的独立 MySQL 影子服务并完成
-可重复快照，最终追平、故障演练与 CUTOVER 门禁见
+notification、catalog 与 inventory 已完成单一所有权切换；inventory 的命令与商家管理边界均只访问独立
+服务/独立 MySQL，commerce 运行账号无五张库存源表权限。完整门禁与复跑入口见
 [inventory-service 准入与单一所有权演进计划](INVENTORY-SERVICE-EVOLUTION-PLAN.md)和
-[inventory-service 切换运行手册](INVENTORY-SERVICE-CUTOVER-RUNBOOK.md)。每次仍只拆一个
-边界。PostgreSQL 不属于拆分步骤，必须等 notification、
+[inventory-service 切换运行手册](INVENTORY-SERVICE-CUTOVER-RUNBOOK.md)。下一批按候选顺序进入
+order-service 边界准入治理，先冻结状态机、事务、事件和补偿协议，不直接建库切流。每次仍只拆一个边界。
+PostgreSQL 不属于拆分步骤，必须等 notification、
 catalog、inventory、order、payment-orchestration、fulfillment 以及后续新增待拆服务全部完成单一所有权切换
 并验收后另立专项。

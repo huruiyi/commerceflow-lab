@@ -2,11 +2,10 @@
 
 ## 1. 本批结论
 
-`inventory-service` 已完成最终创建准入评审，并已创建默认不接流量的独立进程和 MySQL Schema；停写、最终
-追平与远程历史命令预演也已完成，但尚未获得 CUTOVER 准入。具体迁移与演练顺序见
+`inventory-service` 已完成最终创建、命令 CUTOVER、商家库存管理迁出与完整单一所有权验收。具体迁移与演练顺序见
 [创建准入与单一所有权切换运行手册](INVENTORY-SERVICE-CUTOVER-RUNBOOK.md)。
-当前 `commerce-service` 仍是唯一业务写路径；独立 `inventory-service` 已在默认关闭流量的 shadow Profile 中
-启动并持有可重复快照，但 commerce/catalog 均未改指向。已完成以下收敛：
+当前 `inventory-service` 是五张库存事实表、四类命令与商家库存管理的唯一实现；commerce 只保留生产端
+Outbox/Result Inbox 和身份薄代理，catalog 事件也只投递独立服务。已完成以下收敛：
 
 - ordering、payment、refund 只能依赖 `inventory/application/port`，不能注入 `InventoryService`、库存领域对象或 Mapper；
 - 四类写入统一为 `InventoryCommandV1`，预占输入使用库存自有 `Item`，不再接收 cart DTO；
@@ -101,13 +100,13 @@ catalog-service 已是商品资料唯一所有者。inventory 只能消费 catal
 5. [已完成] 在独立 MySQL Schema 创建分层 `inventory-service`，完成可重复计数、余额总和和完整内容指纹快照；
 6. [已完成预演] 停写窗口内追平增量，并用原命令验证远程幂等、服务停机 503 与恢复；尚未整体切换调用方；
 7. [已完成命令切换] 整体切换四类命令调用方，验证真实新写的重复、顺序、超时、结果丢失、停机恢复和跨进程 Trace；
-8. 先把商家库存查询/调整迁入独立服务，再删除 commerce 的库存 Handler、Mapper/XML/运行表访问，只保留必要的公开身份/RBAC 薄代理，不保留 LOCAL/COMPARE、
-   双写或数据库回退；
+8. [已完成完整单一所有权] 商家库存查询/调整迁入独立服务，commerce 的库存 Handler、Mapper/XML/运行表访问
+   已删除，只保留公开身份/RBAC/HMAC 薄代理，不保留 LOCAL/COMPARE、双写或数据库回退；
 9. 以 Git 提交和可恢复数据备份作为回退边界，失败时停止切换，不覆盖已接收新写入的独立库。
 
 ## 7. 明确不在本批实施
 
-- 四类库存命令已启用独立服务流量；商家库存管理边界迁出前不删除仍被使用的 commerce Mapper；
+- 四类库存命令和商家库存管理均已启用独立服务流量；commerce 源表仅保留历史证据，运行账号无访问权限；
 - 不同时启动 order/payment-orchestration/fulfillment 拆分；
 - 不引入 PostgreSQL 或 MySQL/PostgreSQL 双方言。只有 M3 清单中的 notification、catalog、inventory、order、
   payment-orchestration、fulfillment 全部完成单一所有权切换并逐一验收后，才允许单独启动 PostgreSQL 专项。

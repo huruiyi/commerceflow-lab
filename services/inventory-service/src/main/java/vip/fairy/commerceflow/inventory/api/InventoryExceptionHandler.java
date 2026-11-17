@@ -4,6 +4,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import vip.fairy.commerceflow.inventory.application.service.InventoryBusinessRuleException;
+import vip.fairy.commerceflow.inventory.application.service.InventoryNotFoundException;
 
 @RestControllerAdvice
 public class InventoryExceptionHandler {
@@ -16,6 +18,16 @@ public class InventoryExceptionHandler {
   @ExceptionHandler(IllegalStateException.class)
   ProblemDetail businessConflict(IllegalStateException exception) {
     return problem(HttpStatus.CONFLICT, "INVENTORY_STATE_CONFLICT", exception.getMessage());
+  }
+
+  @ExceptionHandler(InventoryBusinessRuleException.class)
+  ProblemDetail businessRule(InventoryBusinessRuleException exception) {
+    return problem(HttpStatus.CONFLICT, "INVENTORY_BUSINESS_RULE", exception.getMessage());
+  }
+
+  @ExceptionHandler(InventoryNotFoundException.class)
+  ProblemDetail notFound(InventoryNotFoundException exception) {
+    return problem(HttpStatus.NOT_FOUND, "INVENTORY_NOT_FOUND", exception.getMessage());
   }
 
   private ProblemDetail problem(HttpStatus status, String code, String detail) {
