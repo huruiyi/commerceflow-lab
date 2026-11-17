@@ -54,6 +54,11 @@ public class RemoteOrderEffectClient {
       null, null, null, null, null, null, null, null));
   }
 
+  public int startInventoryCommit(String mutationId, Long orderId) {
+    return mutate(new Mutation(mutationId, "START_INVENTORY_COMMIT", orderId, null, null, null,
+      null, null, null, null, null, null, null, null));
+  }
+
   public int restore(String mutationId, Long orderId, boolean cancelled) {
     String type = cancelled ? "RESTORE_PAID_LATE_SUCCESS" : "RESTORE_PAID_CANCELLATION_RACE";
     return mutate(new Mutation(mutationId, type, orderId, null, null, null, null, null, null,

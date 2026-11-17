@@ -8,7 +8,7 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.6 第七批跨边界副作用与退款恢复闭环已完成；普通业务流量未切换 |
+| 当前阶段 | M3.6 第八批退款入口契约收口与一次性切换顺序已完成；普通业务流量未切换 |
 | 下一候选阶段 | 消除回调、本地路径和源权限阻塞后重新评审一次性 payment-orchestration CUTOVER；未经评审不得执行 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
@@ -450,3 +450,14 @@ M3.6 第七批在独立服务补齐远程 Order V1、Inventory COMMIT/REFUND、�
 库存零写入，随后精确清理并恢复默认门禁。commerce 本地路径、渠道回调和源表权限未切换，CUTOVER 审计继续
 `REJECTED`。payment 服务 6 项 Java 25 测试、468/30/220/8 质量门禁、493 个 Java 源文件空行、54 对脚本契约
 和完整快速回归通过；未维护 LOCAL/COMPARE、未拆 fulfillment、未启动 PostgreSQL。
+
+M3.6 第八批把客户退款 POST 收口到 `RefundCreateCommandV1 -> PaymentOrchestrationV1`，但
+`LocalPaymentOrchestrationAdapter` 仍是唯一 Bean，继续复用原退款事务，因此没有远程切流或双实现。commerce
+56 项测试和真实全额退款、重放、冲突、签名拒绝专项通过。评审更正 `RefundController` 为切流后应保留的身份薄
+入口，把本地 `RefundService/RefundMapper` 明确为删除对象；一次性运行手册冻结停写、最终追平、唯一远程适配器、
+回调切换、源表撤权和开门顺序。由于本地实现、旧回调及源权限仍在，CUTOVER 继续 `REJECTED`。
+
+本批最终完整快速回归发现支付成功与库存预留结果并发到达时，两次远程条件更新之间可能发生状态漂移。现已用
+Order V1 原子 `START_INVENTORY_COMMIT` 同时接受 `RESERVED/WAITING_RESERVATION`，并允许同一成功回调重放修复
+`PAID` 但库存尚未提交的部分结果。两笔历史测试样本均恢复为 `PAID/COMMITTED`；order 2 项、commerce 56 项、
+payment 6 项 Java 25 测试，以及 469/30/220/8 质量门禁、495 个 Java 源文件空行、54 对脚本契约和完整快速回归通过。

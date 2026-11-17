@@ -77,8 +77,7 @@ class PaymentEffectDispatcherTest {
 
     InOrder effects = inOrder(orders, inventory);
     effects.verify(orders).status("result-41:order:paid", 41L, "PENDING_PAYMENT", "PAID");
-    effects.verify(orders).inventory("result-41:order:inventory-wait", 41L, "RESERVED",
-      "WAITING_COMMIT");
+    effects.verify(orders).startInventoryCommit("result-41:order:inventory-wait", 41L);
     effects.verify(inventory).commit("result-41:inventory:commit", 41L, "result-41", TRACE);
     effects.verify(orders).inventory("result-41:order:inventory-committed", 41L,
       "WAITING_COMMIT", "COMMITTED");

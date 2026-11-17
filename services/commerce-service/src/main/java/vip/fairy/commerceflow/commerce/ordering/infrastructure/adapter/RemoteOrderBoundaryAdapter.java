@@ -96,6 +96,11 @@ public class RemoteOrderBoundaryAdapter implements OrderFulfillmentPort, OrderLo
   }
 
   @Override
+  public boolean startInventoryCommit(Long orderId) {
+    return orders.startInventoryCommit(orderId) == 1;
+  }
+
+  @Override
   public boolean moveInventory(Long orderId, String fromStatus, String toStatus) {
     return orders.updateInventoryStatus(orderId, fromStatus, toStatus) == 1;
   }

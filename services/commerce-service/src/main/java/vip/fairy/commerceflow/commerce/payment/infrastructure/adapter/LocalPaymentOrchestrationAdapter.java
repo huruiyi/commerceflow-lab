@@ -19,11 +19,15 @@ import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentSn
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentOrchestrationV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentQueryV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.RefundSnapshotV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.RefundCreateCommandV1;
 import vip.fairy.commerceflow.commerce.payment.application.port.OrderPaymentRecordPort;
 import vip.fairy.commerceflow.commerce.payment.domain.PaymentChannel;
 import vip.fairy.commerceflow.commerce.payment.domain.PaymentView;
 import vip.fairy.commerceflow.commerce.refund.domain.RefundEventView;
 import vip.fairy.commerceflow.commerce.refund.domain.RefundView;
+import vip.fairy.commerceflow.commerce.refund.api.RefundRequest;
+import vip.fairy.commerceflow.commerce.refund.api.RefundResponse;
+import vip.fairy.commerceflow.commerce.refund.application.RefundService;
 import vip.fairy.commerceflow.commerce.refund.infrastructure.RefundMapper;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import vip.fairy.commerceflow.commerce.shared.application.PaymentCancellationCrashProbe;
@@ -35,17 +39,20 @@ public class LocalPaymentOrchestrationAdapter implements PaymentOrchestrationV1 
   private final PaymentGatewayClient gateway;
   private final RedisIdempotencyService redisIdempotency;
   private final RefundMapper refunds;
+  private final RefundService refundService;
   private final PaymentCancellationCrashProbe crashLab;
 
   public LocalPaymentOrchestrationAdapter(OrderPaymentRecordPort payments,
                                           PaymentGatewayClient gateway,
                                           RedisIdempotencyService redisIdempotency,
                                           RefundMapper refunds,
+                                          RefundService refundService,
                                           PaymentCancellationCrashProbe crashLab) {
     this.payments = payments;
     this.gateway = gateway;
     this.redisIdempotency = redisIdempotency;
     this.refunds = refunds;
+    this.refundService = refundService;
     this.crashLab = crashLab;
   }
 
@@ -94,6 +101,14 @@ public class LocalPaymentOrchestrationAdapter implements PaymentOrchestrationV1 
   public Optional<RefundSnapshotV1> refund(PaymentQueryV1 query) {
     query.validate();
     return refunds.byOrder(query.orderId()).map(this::refundSnapshot);
+  }
+
+  @Override
+  public RefundSnapshotV1 requestRefund(RefundCreateCommandV1 command) {
+    command.validate();
+    RefundResponse response = refundService.request(command.customerId(), command.orderId(),
+      new RefundRequest(command.idempotencyKey(), command.reasonCode(), command.reasonDetail()));
+    return refundSnapshot(response);
   }
 
   @Override
@@ -150,6 +165,16 @@ public class LocalPaymentOrchestrationAdapter implements PaymentOrchestrationV1 
       refund.getChannelRefundNo(), refund.getFailureReason(), refund.getRequestedAt(),
       refund.getSucceededAt(), refund.getFailedAt(), refunds.events(refund.getId()).stream()
         .map(this::refundEvent)
+        .toList());
+  }
+
+  private RefundSnapshotV1 refundSnapshot(RefundResponse refund) {
+    return new RefundSnapshotV1(RefundSnapshotV1.VERSION, refund.refundNumber(), refund.orderId(),
+      refund.status(), refund.inventoryStatus(), refund.amount(), refund.currency(),
+      refund.reasonCode(), refund.reasonDetail(), refund.channelRefundNo(), refund.failureReason(),
+      refund.requestedAt(), refund.succeededAt(), refund.failedAt(), refund.events().stream()
+        .map(event -> new RefundSnapshotV1.Event(event.id(), event.eventType(), event.fromStatus(),
+          event.toStatus(), event.detail(), event.createdAt()))
         .toList());
   }
 

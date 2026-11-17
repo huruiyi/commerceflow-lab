@@ -777,6 +777,14 @@ Docker 拓扑，也不启动 PostgreSQL。
   副作用门默认关闭，影子复制开启时即使误开前两门也拒绝正式副作用。
 - [x] Windows 与 Ubuntu 26.04 WSL 缺失订单演练均确认 Order V1 鉴权后进入可恢复 RETRY、库存零写入，并精确
   清理合成记录、恢复 `false/false/true` 三门状态；本批未迁移真实业务流量。
+- [x] M3.6 第八批先收口退款发起入口：客户退款 POST 只组装 `RefundCreateCommandV1` 并调用唯一
+  `PaymentOrchestrationV1`；Local 适配器继续作为唯一运行实现，56 项 commerce 测试和真实全额退款专项通过。
+  评审将 `RefundController` 更正为应保留的身份薄入口，本地 `RefundService/RefundMapper` 才是 CUTOVER 删除对象。
+- [x] 新增 [payment-orchestration 一次性切换运行手册](architecture/PAYMENT-ORCHESTRATION-CUTOVER-RUNBOOK.md)，
+  冻结停写、最终追平、唯一远程适配器、回调切换、源表撤权、开门、烟雾验收和不可直接回旧库的原子顺序。
+- [x] 完整快速回归发现并关闭支付成功与库存预留结果并发到达的竞态：Order V1 新增原子
+  `START_INVENTORY_COMMIT`，一次更新兼容 `RESERVED/WAITING_RESERVATION`；支付已成功但库存仍停留在预留态时，
+  重放同一签名回调会补发幂等 COMMIT。两笔历史测试样本均恢复为 `PAID/COMMITTED`，最终完整快速回归通过。
 - [ ] 上述阻塞全部归零后重新评审，并在一个受控变更窗口内停写、最终追平核对、切换 Payment V1 与渠道回调、
   删除 commerce 本地支付/退款运行路径并撤销源表权限；不保留长期双实现或数据库回退。
 

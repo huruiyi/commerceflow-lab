@@ -153,6 +153,9 @@ public class OrderStoreService {
       case UPDATE_INVENTORY_STATUS -> jdbc.update("UPDATE shop_orders SET inventory_status=?,"
         + "updated_at=CURRENT_TIMESTAMP(6) WHERE id=? AND inventory_status=?",
         value.toStatus(), value.orderId(), value.fromStatus());
+      case START_INVENTORY_COMMIT -> jdbc.update("UPDATE shop_orders SET "
+        + "inventory_status='WAITING_COMMIT',updated_at=CURRENT_TIMESTAMP(6) WHERE id=? "
+        + "AND inventory_status IN ('RESERVED','WAITING_RESERVATION')", value.orderId());
       case START_CANCELLATION -> jdbc.update("UPDATE shop_orders SET status='CANCELLING',cancel_reason=?,"
         + "updated_at=CURRENT_TIMESTAMP(6) WHERE id=? AND status='PENDING_PAYMENT'",
         value.reason(), value.orderId());

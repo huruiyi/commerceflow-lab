@@ -128,20 +128,21 @@ public class PaymentNotificationService {
       orders.resultApplied(orderId, customerId, "LATE_PAYMENT_AFTER_CANCELLATION", "CANCELLED",
         "Late successful payment restored the order and queued an automatic refund");
       refunds.queueAutomatic(orderId, notificationId);
-    }
-  }
-
-  private void requireInventoryTransition(Long orderId, String fromStatus, String toStatus) {
-    if (!orders.moveInventory(orderId, fromStatus, toStatus)) {
-      throw new IllegalStateException("Order inventory state changed concurrently");
+    } else if ("PAID".equals(order.getStatus())
+      && ("RESERVED".equals(order.getInventoryStatus())
+      || "WAITING_RESERVATION".equals(order.getInventoryStatus()))) {
+      requireWaitingCommit(orderId);
+      inventory.handle(InventoryCommandPort.commit(
+        notificationId + ":inventory:commit", orderId, notificationId));
+      orders.resultApplied(orderId, customerId, "PAYMENT_INVENTORY_COMMIT_RECOVERED", "PAID",
+        "Recovered inventory commit after a prior cross-service partial payment result");
     }
   }
 
   private void requireWaitingCommit(Long orderId) {
-    if (orders.moveInventory(orderId, "RESERVED", "WAITING_COMMIT")) {
-      return;
+    if (!orders.startInventoryCommit(orderId)) {
+      throw new IllegalStateException("Order inventory state cannot start commit");
     }
-    requireInventoryTransition(orderId, "WAITING_RESERVATION", "WAITING_COMMIT");
   }
 
   private boolean valid(String raw, String signature) {

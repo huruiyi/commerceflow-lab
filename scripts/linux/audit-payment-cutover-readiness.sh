@@ -32,14 +32,19 @@ assert_file 'independent payment Outbox dispatcher' \
   'services/payment-orchestration-service/src/main/java/vip/fairy/commerceflow/payment/application/PaymentEffectDispatcher.java'
 assert_file 'independent refund initiation command endpoint' \
   'services/payment-orchestration-service/src/main/java/vip/fairy/commerceflow/payment/api/RefundCommandController.java'
+assert_contains 'commerce refund ingress uses Payment V1' \
+  'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/refund/api/RefundController.java' \
+  'PaymentOrchestrationV1'
 
 echo 'Payment CUTOVER blockers:'
 assert_file 'commerce local payment implementation' \
   'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/payment/infrastructure/adapter/LocalPaymentOrchestrationAdapter.java'
 assert_file 'commerce payment callback owner' \
   'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/payment/api/PaymentNotificationController.java'
-assert_file 'commerce refund initiation owner' \
-  'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/refund/api/RefundController.java'
+assert_file 'commerce local refund implementation' \
+  'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/refund/application/RefundService.java'
+assert_file 'commerce local refund mapper' \
+  'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/refund/infrastructure/RefundMapper.java'
 assert_file 'commerce refund callback owner' \
   'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/refund/api/RefundNotificationController.java'
 assert_contains 'payment callback still targets commerce' 'compose.yaml' \

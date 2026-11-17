@@ -12,7 +12,7 @@ public interface OrderPaymentPort {
 
   boolean paidAfterLateSuccess(Long orderId);
 
-  boolean moveInventory(Long orderId, String fromStatus, String toStatus);
+  boolean startInventoryCommit(Long orderId);
 
   void resultApplied(Long orderId, Long customerId, String eventType,
                      String fromStatus, String detail);

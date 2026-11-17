@@ -154,6 +154,11 @@ public class RemoteOrderStoreAdapter implements OrderStorePort {
   }
 
   @Override
+  public int startInventoryCommit(Long id) {
+    return simple("START_INVENTORY_COMMIT", id);
+  }
+
+  @Override
   public int startCancellation(Long id, String reason) {
     return mutation("START_CANCELLATION", id, null, null, null, reason, null, null,
       null, null, null, null, null);

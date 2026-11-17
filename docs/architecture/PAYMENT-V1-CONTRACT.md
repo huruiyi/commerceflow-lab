@@ -3,7 +3,7 @@
 ## 1. 目的与当前边界
 
 Payment V1 是商城主服务与独立支付编排服务之间的第一版稳定交互格式。它覆盖创建支付、按订单查询支付/退款、
-关闭待支付记录，以及支付或退款回调处理结果。`payment-orchestration-service`、`payment-db` 和远程 HTTP 入口
+关闭待支付记录、发起全额退款，以及支付或退款回调处理结果。`payment-orchestration-service`、`payment-db` 和远程 HTTP 入口
 已经创建，并以合成订单完成真实渠道创建/关闭、回调、竞态、结果丢失和回退演练；普通业务流量门仍关闭，
 commerce 当前仍由唯一的本地适配器处理正式支付。以后 CUTOVER 时整体替换该适配器，不保留 LOCAL/COMPARE
 双实现。
@@ -40,7 +40,13 @@ commerce 当前仍由唯一的本地适配器处理正式支付。以后 CUTOVER
 
 命令重复执行必须收敛到相同业务事实。网络超时不是 `CLOSED`，必须进入重试、查询或人工恢复。
 
-## 5. 支付与退款结果
+## 5. 发起退款命令
+
+`RefundCreateCommandV1` 包含稳定命令编号、订单/客户 ID、业务幂等键、原因和追踪信封。commerce 的客户退款
+POST 只负责 Session/RBAC 和组装该命令；当前仍由唯一 Local 适配器执行，CUTOVER 时整体替换为远程适配器。
+相同 commandId 异正文、相同支付不同幂等意图必须拒绝；远程超时表示结果未知，应按订单查询原退款事实。
+
+## 6. 支付与退款结果
 
 `PaymentResultV1` 用于跨进程结果投递，结果类型覆盖支付创建/成功/失败/关闭和退款成功/失败；结果结论为
 `SUCCEEDED`、`REJECTED` 或 `RECONCILIATION_REQUIRED`。每条结果必须携带稳定 `resultId`、支付单号、来源状态、
@@ -49,7 +55,7 @@ commerce 当前仍由唯一的本地适配器处理正式支付。以后 CUTOVER
 结果消费者必须以 `resultId + payload fingerprint` 实现幂等：完全重复可返回原处理结果，同一 resultId 不同载荷
 必须拒绝并告警。迟到成功不能被订单取消结果覆盖。
 
-## 6. 兼容性证据
+## 7. 兼容性证据
 
 兼容样例位于 commerce 与 payment-orchestration-service 各自的测试资源目录：
 

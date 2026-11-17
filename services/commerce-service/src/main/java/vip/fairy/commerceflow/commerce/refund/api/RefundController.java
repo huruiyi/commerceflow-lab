@@ -3,8 +3,11 @@ package vip.fairy.commerceflow.commerce.refund.api;
 import jakarta.validation.Valid;
 import vip.fairy.commerceflow.commerce.identity.application.CurrentUserService;
 import vip.fairy.commerceflow.commerce.refund.application.RefundService;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentOrchestrationV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.RefundCreateCommandV1;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -21,10 +24,13 @@ public class RefundController {
 
   private final CurrentUserService users;
   private final RefundService refunds;
+  private final PaymentOrchestrationV1 payments;
 
-  public RefundController(CurrentUserService users, RefundService refunds) {
+  public RefundController(CurrentUserService users, RefundService refunds,
+                          PaymentOrchestrationV1 payments) {
     this.users = users;
     this.refunds = refunds;
+    this.payments = payments;
   }
 
   @PostMapping("/api/purchase-orders/{orderId}/refunds")
@@ -35,7 +41,13 @@ public class RefundController {
     @Valid @RequestBody RefundRequest request,
     Authentication authentication
   ) {
-    return refunds.request(users.require(authentication), orderId, request);
+    var user = users.require(authentication);
+    String commandId = UUID.randomUUID().toString();
+    String correlationId = UUID.randomUUID().toString();
+    RefundCreateCommandV1 command = new RefundCreateCommandV1(RefundCreateCommandV1.VERSION,
+      commandId, orderId, user.getId(), request.idempotencyKey(), request.reasonCode(),
+      request.reasonDetail(), correlationId, correlationId, traceparent());
+    return RefundResponse.from(payments.requestRefund(command));
   }
 
   @GetMapping("/api/purchase-orders/{orderId}/refunds")
@@ -54,5 +66,11 @@ public class RefundController {
   @PreAuthorize("hasRole('MERCHANT')")
   RefundResponse merchant(@PathVariable Long orderId, Authentication authentication) {
     return refunds.forMerchantOrder(users.require(authentication), orderId);
+  }
+
+  private String traceparent() {
+    String traceId = UUID.randomUUID().toString().replace("-", "");
+    String spanId = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+    return "00-" + traceId + "-" + spanId + "-01";
   }
 }

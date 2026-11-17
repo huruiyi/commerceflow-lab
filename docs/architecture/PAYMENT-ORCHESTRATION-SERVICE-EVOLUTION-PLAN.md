@@ -148,7 +148,8 @@ OPEN 孤儿和待恢复流程均为 0。payment-db Flyway V2 无失败；payment
 `PAYMENT_ACCEPTING_TRAFFIC=false`，Compose 没有 PostgreSQL。第六批评审识别出以下阻塞；第七批只关闭其中
 第 3 至 5 项，当前仍不得承接真实流量：
 
-1. commerce 仍拥有唯一 `LocalPaymentOrchestrationAdapter`、支付/退款回调 Controller 和退款发起入口。
+1. commerce 仍拥有唯一 `LocalPaymentOrchestrationAdapter`、本地 `RefundService/RefundMapper` 和支付/退款回调
+   Controller；`RefundController` 已收口为 Payment V1 薄入口，切流后保留。
 2. 支付模拟平台的支付、退款回调地址仍指向 commerce。
 3. **第七批已关闭**：独立服务已有远程 Order V1 与 Inventory 命令客户端，跨边界副作用使用稳定命令 ID。
 4. **第七批已关闭**：`payment_outbox` 已有带租约、有限退避和失败证据的独立投递器。
@@ -184,3 +185,22 @@ Windows 与 Ubuntu 26.04 WSL 均用单条精确合成 Outbox 验证缺失订单�
 CUTOVER 阻塞，审计结论继续为 `REJECTED`。未增加 LOCAL/REMOTE/COMPARE，未拆 fulfillment，未启动 PostgreSQL。
 payment 服务 6 项 Java 25 测试、468/30/220/8 质量门禁、493 个 Java 源文件空行、54 对脚本契约和完整快速
 回归通过；真实 payment-db Flyway 最新版本为 V3 且成功，合成副作用残留为 0。
+
+## 13. 第八批退款入口收口与再次评审
+
+commerce 的客户退款 POST 已改为组装 `RefundCreateCommandV1` 并调用唯一 `PaymentOrchestrationV1`。当前
+`LocalPaymentOrchestrationAdapter` 仍是唯一 Bean 和唯一正式路径，内部继续复用原 `RefundService`，所以这不是
+远程切流，也没有 LOCAL/REMOTE/COMPARE。commerce 56 项 Java 25 测试及真实全额退款、重复通知、幂等冲突和
+签名拒绝专项通过。
+
+最终完整快速回归还暴露了支付成功回调与库存预留结果并发到达的窗口：旧实现先尝试
+`RESERVED -> WAITING_COMMIT`，再尝试 `WAITING_RESERVATION -> WAITING_COMMIT`，状态可能在两次远程条件更新之间变化。
+Order V1 因此增加原子 `START_INVENTORY_COMMIT`，由单条条件更新同时接受两个前置状态；回调重放也能对
+`PAID + RESERVED/WAITING_RESERVATION` 的跨服务部分结果补发幂等 COMMIT。两笔回归遗留样本恢复到
+`PAID/COMMITTED` 后，最终完整快速回归通过；order 2 项、commerce 56 项、payment 6 项 Java 25 测试通过，
+469/30/220/8 质量门禁、495 个 Java 源文件空行和 54 对脚本契约通过。
+
+再次评审同时更正了阻塞定义：`RefundController` 应在切流后作为 Session/RBAC 薄入口保留；真正需要在原子窗口
+删除的是本地 `RefundService/RefundMapper`、本地支付适配器、两类旧回调与资金对账运行路径。切换步骤已冻结在
+[一次性切换运行手册](PAYMENT-ORCHESTRATION-CUTOVER-RUNBOOK.md)。由于唯一远程适配器尚未替换、本地实现和旧回调
+仍在、源表权限尚未撤销，当前结论继续为 `REJECTED`，本批没有 CUTOVER。

@@ -57,6 +57,8 @@ public interface OrderStorePort {
 
   int updateInventoryStatus(Long id, String fromStatus, String toStatus);
 
+  int startInventoryCommit(Long id);
+
   int startCancellation(Long id, String reason);
 
   int finishCancellation(Long id);

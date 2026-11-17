@@ -50,11 +50,16 @@ public class RefundService {
   }
 
   public RefundResponse request(AppUser user, Long orderId, RefundRequest request) {
-    Prepared prepared = transactions.execute(status -> prepare(user, orderId, request));
+    return request(user.getId(), orderId, request);
+  }
+
+  public RefundResponse request(Long customerId, Long orderId, RefundRequest request) {
+    Prepared prepared = transactions.execute(status -> prepare(customerId, orderId, request));
     if (prepared == null) throw new IllegalStateException("Refund transaction did not return a result");
     if (!prepared.created()) return response(prepared.refund());
     dispatch(prepared);
-    return get(user, prepared.refund().getRefundNumber());
+    return response(refunds.byCustomerNumber(customerId, prepared.refund().getRefundNumber())
+      .orElseThrow(() -> new ResourceNotFoundException("Refund not found")));
   }
 
   public void queueAutomatic(Long orderId, String paymentNotificationId) {
@@ -94,8 +99,8 @@ public class RefundService {
     return refunds.byOrder(orderId).map(this::response).orElse(null);
   }
 
-  private Prepared prepare(AppUser user, Long orderId, RefundRequest request) {
-    ShopOrderView order = orders.lock(user.getId(), orderId)
+  private Prepared prepare(Long customerId, Long orderId, RefundRequest request) {
+    ShopOrderView order = orders.lock(customerId, orderId)
       .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
     PaymentView payment = refunds.lockSuccessfulPayment(orderId)
       .orElseThrow(() -> new BusinessRuleException("Successful payment not found"));

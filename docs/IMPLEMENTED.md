@@ -269,6 +269,12 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   `false/false/true`。commerce 本地路径、渠道回调和源权限仍未切换，故 CUTOVER 继续拒绝；未拆 fulfillment、
   未启动 PostgreSQL。payment 服务 6 项测试、468/30/220/8 质量门禁、493 个 Java 源文件空行、54 对脚本契约
   和完整快速回归通过。
+- M3.6 第八批将客户退款 POST 收口为 `RefundCreateCommandV1 -> PaymentOrchestrationV1`，当前仍只有 Local
+  适配器，56 项 commerce 测试及真实退款专项通过。新增一次性切换运行手册并更正边界：保留
+  `RefundController` 身份薄入口，切流窗口删除本地 Refund Service/Mapper、支付适配器和旧回调。源权限和回调
+  尚未切换，故仍未 CUTOVER、未拆 fulfillment、未启动 PostgreSQL。最终回归另以 Order V1 原子
+  `START_INVENTORY_COMMIT` 关闭支付回调/库存预留并发状态漂移，并支持重放成功回调补齐 `PAID` 部分结果；两笔
+  历史样本恢复为 `PAID/COMMITTED`，order 2 项、commerce 56 项、payment 6 项测试及完整快速回归通过。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。
