@@ -37,6 +37,19 @@
   opacity: 0.85;
 }
 
+.page-heading .btn {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.page-heading .btn:hover,
+.page-heading .btn:focus-visible {
+  color: #0f4c5c;
+  border-color: #fff;
+  background: #fff;
+}
+
 .panel {
   background: #fff;
   border: 1px solid #dfe7f1;
@@ -62,16 +75,25 @@
 
 .policy-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
 }
 
 .policy-card {
+  min-width: 0;
   border: 1px solid #dfe7f1;
   border-radius: 14px;
   padding: 18px;
   display: grid;
   gap: 13px;
+}
+
+.policy-head {
+  align-items: flex-start;
+}
+
+.policy-head > div {
+  min-width: 0;
 }
 
 .policy-head strong,
@@ -85,7 +107,12 @@ table small {
   color: #718096;
 }
 
+.policy-head strong {
+  overflow-wrap: anywhere;
+}
+
 .policy-head span {
+  flex: 0 0 auto;
   font-size: 0.75rem;
   border-radius: 999px;
   padding: 5px 9px;
@@ -115,21 +142,32 @@ table small {
 .filters input,
 .filters select,
 .add-policy input {
+  min-width: 0;
   border: 1px solid #cbd6e4;
   border-radius: 8px;
   padding: 8px 10px;
   background: #fff;
 }
 
+.policy-card input:not([type='checkbox']),
+.policy-card select {
+  width: 100%;
+}
+
 .numeric-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
 .actions {
   justify-content: flex-start;
   flex-wrap: wrap;
+}
+
+.actions .btn {
+  flex: 1 1 110px;
+  white-space: nowrap;
 }
 
 .policy-audit {
@@ -152,6 +190,11 @@ table small {
 .filters,
 .add-policy {
   justify-content: flex-end;
+}
+
+.filters > *,
+.add-policy > * {
+  min-width: 0;
 }
 
 .table th {
@@ -195,6 +238,18 @@ table small {
 
 .event-row small {
   color: #66758a;
+}
+
+@media (max-width: 1200px) {
+  .policy-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 960px) {
+  .policy-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 800px) {
