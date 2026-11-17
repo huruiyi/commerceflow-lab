@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.6 第五批远程 Payment V1 与切流前故障/回退演练已完成；普通业务流量未切换 |
-| 下一候选阶段 | 单独评审一次性 payment-orchestration CUTOVER；未经评审不得执行 |
+| 当前阶段 | M3.6 第七批跨边界副作用与退款恢复闭环已完成；普通业务流量未切换 |
+| 下一候选阶段 | 消除回调、本地路径和源权限阻塞后重新评审一次性 payment-orchestration CUTOVER；未经评审不得执行 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -441,4 +441,12 @@ M3.6 第六批完成一次性 CUTOVER 评审，结论为不通过。独立服务
 远程 Order V1/Inventory 命令客户端、支付 Outbox 投递器和退款发起入口；支付/退款回调仍指向 commerce，
 commerce 本地实现与源表权限仍是唯一正式路径。新增 Windows 与 WSL/Linux 对等审计，成功结果表示这些安全门禁
 和阻塞基线未漂移，最终结论固定为 `REJECTED`。本批未切流、未删除本地路径、未撤销支付源表权限、未拆
-fulfillment，也未启动 PostgreSQL。下一批只在关闭流量门下补齐跨边界副作用与退款恢复闭环。
+fulfillment，也未启动 PostgreSQL。第七批随后只在关闭流量门下补齐跨边界副作用与退款恢复闭环。
+
+M3.6 第七批在独立服务补齐远程 Order V1、Inventory COMMIT/REFUND、可靠 payment Outbox 投递器、退款发起和
+退款渠道命令闭环。Flyway V3 在真实 payment-db 增加 Outbox 失败证据；稳定命令 ID、条件状态推进、租约、退避
+重试和退款持久 Inbox/Outbox 防止重复副作用。正式副作用受流量门与副作用门共同保护，且影子复制开启时强制
+拒绝；默认仍为流量关、副作用关、影子开。Windows 与 Ubuntu 26.04 WSL 缺失订单演练均得到可恢复 RETRY、
+库存零写入，随后精确清理并恢复默认门禁。commerce 本地路径、渠道回调和源表权限未切换，CUTOVER 审计继续
+`REJECTED`。payment 服务 6 项 Java 25 测试、468/30/220/8 质量门禁、493 个 Java 源文件空行、54 对脚本契约
+和完整快速回归通过；未维护 LOCAL/COMPARE、未拆 fulfillment、未启动 PostgreSQL。

@@ -770,8 +770,13 @@ Docker 拓扑，也不启动 PostgreSQL。
 - [x] M3.6 第六批完成一次性 payment-orchestration CUTOVER 评审，结论为不通过：独立服务尚无远程 Order V1/
   Inventory 命令适配器、支付 Outbox 投递器和退款发起命令；支付/退款回调仍指向 commerce，本地支付/退款路径及
   源表权限仍在。双平台自动审计已冻结这些阻塞，普通业务流量继续留在 commerce。
-- [ ] 下一批只在关闭流量门下补齐独立服务的订单/库存副作用、可靠 Outbox/Inbox、退款发起和恢复闭环；不得增加
+- [x] M3.6 第七批只在关闭流量门下补齐独立服务的订单/库存副作用、可靠 Outbox/Inbox、退款发起和恢复闭环；不得增加
   LOCAL/REMOTE/COMPARE，不得切换回调、删除本地路径、撤销源表权限、并行拆 fulfillment 或启动 PostgreSQL。
+- [x] payment-db Flyway V3 为 Outbox 增加失败证据；支付/退款结果使用稳定命令 ID 条件推进远程 Order V1 和
+  Inventory COMMIT/REFUND，失败进入带退避的 RETRY，退款发起及渠道命令复用持久 Inbox/Outbox。流量门、
+  副作用门默认关闭，影子复制开启时即使误开前两门也拒绝正式副作用。
+- [x] Windows 与 Ubuntu 26.04 WSL 缺失订单演练均确认 Order V1 鉴权后进入可恢复 RETRY、库存零写入，并精确
+  清理合成记录、恢复 `false/false/true` 三门状态；本批未迁移真实业务流量。
 - [ ] 上述阻塞全部归零后重新评审，并在一个受控变更窗口内停写、最终追平核对、切换 Payment V1 与渠道回调、
   删除 commerce 本地支付/退款运行路径并撤销源表权限；不保留长期双实现或数据库回退。
 

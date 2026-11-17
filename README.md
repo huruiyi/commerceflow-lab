@@ -47,7 +47,8 @@
   RELEASE、REFUND，并独占商家库存查询、调账和流水。commerce 只保留生产端 Outbox/结果 Inbox 与
   Session/RBAC/HMAC 薄代理，其运行数据库账号无五张库存源表权限。
 - `services/payment-orchestration-service/`：独立 MySQL 支付/退款边界；已完成 14 张所有权表的影子迁移、远程
-  Payment V1、渠道回调和故障/回退演练，普通业务流量门关闭，尚未 CUTOVER。
+  Payment V1、跨边界订单/库存副作用、可靠 Outbox、退款命令和故障/回退演练，普通业务流量门与副作用门关闭，
+  尚未 CUTOVER。
 - `simulators/payment-platform/service/`：独立支付数据库、后台安全、商户凭据和三渠道交易服务。
 - `simulators/logistics-platform/service/`：独立物流数据库、运单推进、异常与可靠回调模拟服务。
 - `simulators/payment-platform/web/`：Vue 3.5.45、Ant Design Vue Next 和 VXE-Table 支付管理后台与模拟收银台。
@@ -248,8 +249,9 @@ bash ./scripts/linux/audit-payment-orchestration-admission.sh
 准入之后已完成无业务流量影子服务、远程协议和切流前故障/回退演练；commerce 仍只有本地正式路径，这仍不能
 描述成已经切换独立支付服务。
 
-一次性 CUTOVER 评审当前为 `REJECTED`：独立服务还缺订单/库存副作用、支付 Outbox 投递和退款发起闭环，渠道
-回调与源表权限也尚未切换。以下审计通过表示拒绝原因和安全门禁没有漂移，不表示允许切流：
+一次性 CUTOVER 评审当前仍为 `REJECTED`：订单/库存副作用、支付 Outbox 投递和退款发起已在关闭流量门下补齐，
+但 commerce 本地运行路径、渠道回调与源表权限尚未切换。以下审计通过表示剩余拒绝原因和安全门禁没有漂移，
+不表示允许切流：
 
 ```powershell
 ./scripts/windows/audit-payment-cutover-readiness.ps1
@@ -257,6 +259,17 @@ bash ./scripts/linux/audit-payment-orchestration-admission.sh
 
 ```bash
 bash ./scripts/linux/audit-payment-cutover-readiness.sh
+```
+
+支付副作用演练只插入一条精确合成 Outbox，验证远程失败进入可恢复 RETRY 且不产生库存写入；结束时删除该事件并
+恢复流量关、副作用关、影子开：
+
+```powershell
+./scripts/windows/verify-payment-effects-rehearsal.ps1
+```
+
+```bash
+bash ./scripts/linux/verify-payment-effects-rehearsal.sh
 ```
 
 支付影子运行专项会执行可重复快照、增量水位、14 表指纹核对和可恢复孤儿演练，不清空现有卷：

@@ -19,7 +19,19 @@ docker compose config --quiet
 echo 'Payment CUTOVER safety gates:'
 assert_contains 'independent service traffic defaults to closed' 'compose.yaml' \
   'PAYMENT_ACCEPTING_TRAFFIC: \$\{PAYMENT_ACCEPTING_TRAFFIC:-false\}'
+assert_contains 'downstream effects default to closed' 'compose.yaml' \
+  'PAYMENT_EFFECTS_ENABLED: \$\{PAYMENT_EFFECTS_ENABLED:-false\}'
 assert_absent 'PostgreSQL is not configured' '(postgres|jdbc:postgresql)' compose.yaml compose.ha.yaml
+
+echo 'Payment CUTOVER prerequisite closure:'
+assert_file 'independent remote Order V1 effect client' \
+  'services/payment-orchestration-service/src/main/java/vip/fairy/commerceflow/payment/infrastructure/RemoteOrderEffectClient.java'
+assert_file 'independent remote Inventory command client' \
+  'services/payment-orchestration-service/src/main/java/vip/fairy/commerceflow/payment/infrastructure/RemoteInventoryEffectClient.java'
+assert_file 'independent payment Outbox dispatcher' \
+  'services/payment-orchestration-service/src/main/java/vip/fairy/commerceflow/payment/application/PaymentEffectDispatcher.java'
+assert_file 'independent refund initiation command endpoint' \
+  'services/payment-orchestration-service/src/main/java/vip/fairy/commerceflow/payment/api/RefundCommandController.java'
 
 echo 'Payment CUTOVER blockers:'
 assert_file 'commerce local payment implementation' \
@@ -34,15 +46,6 @@ assert_contains 'payment callback still targets commerce' 'compose.yaml' \
   'PAYMENT_CALLBACK_URL: http://commerce-service:8080/api/payment-notifications/callback'
 assert_contains 'refund callback still targets commerce' 'compose.yaml' \
   'REFUND_CALLBACK_URL: http://commerce-service:8080/api/refund-notifications/callback'
-assert_absent 'independent service has no remote Order V1 or Inventory command client' \
-  '(OrderStore|RemoteOrder|OrderV1Client|InventoryCommandClient|RemoteInventory)' \
-  services/payment-orchestration-service/src/main/java
-assert_absent 'independent service has no payment Outbox dispatcher' \
-  '(FROM|UPDATE)[[:space:]]+payment_outbox|PaymentOutboxDispatcher' \
-  services/payment-orchestration-service/src/main/java
-assert_absent 'independent service has no refund initiation command endpoint' \
-  'PostMapping\("/refunds?"\)' \
-  services/payment-orchestration-service/src/main/java/vip/fairy/commerceflow/payment/api
 assert_absent 'commerce runtime grant freezer still grants payment source tables' \
   "'payment_records'|'refund_records'|'payment_outbox'" \
   infrastructure/commerce/freeze-source-access.sh

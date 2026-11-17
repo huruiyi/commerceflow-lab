@@ -45,8 +45,19 @@ commerceflow:
   payment-platform:
     base-url: ${PAYMENT_PLATFORM_BASE_URL:http://localhost:18082}
     callback-secret: ${PAYMENT_CALLBACK_SECRET:demo-platform-callback-secret}
+  order:
+    remote:
+      base-url: ${ORDER_SERVICE_BASE_URL:http://localhost:18089}
+      secret: ${PAYMENT_ORDER_INTERNAL_SECRET:demo-payment-order-internal-secret}
+  inventory:
+    remote:
+      base-url: ${INVENTORY_SERVICE_BASE_URL:http://localhost:18088}
+      secret: ${PAYMENT_INVENTORY_INTERNAL_SECRET:demo-payment-inventory-internal-secret}
   payment:
     accepting-traffic: ${PAYMENT_ACCEPTING_TRAFFIC:false}
+    effects:
+      enabled: ${PAYMENT_EFFECTS_ENABLED:false}
+      batch-size: ${PAYMENT_EFFECTS_BATCH_SIZE:20}
     protocol:
       timeout-scan-delay: ${PAYMENT_PROTOCOL_TIMEOUT_SCAN_DELAY:5s}
     shadow:

@@ -106,6 +106,8 @@ foreach ($file in $javaFiles) {
                           'ShadowReplicationService.java',
                           'RemoteOrderProtocolService.java',
                           'RemotePaymentProtocolService.java',
+                          'PaymentEffectDispatcher.java',
+                          'RefundApplicationService.java',
                           'OrderStoreService.java',
                           'InternalSignatureInterceptor.java') -and
       $source -match 'import\s+org\.springframework\.jdbc\.') {

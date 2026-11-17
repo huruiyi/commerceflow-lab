@@ -54,4 +54,5 @@ commerceflow:
     result-delay-lab: ${INVENTORY_RESULT_DELAY_LAB:0s}
   internal-api:
     commerce-secret: ${INVENTORY_INTERNAL_SECRET:demo-inventory-internal-secret}
+    payment-secret: ${PAYMENT_INVENTORY_INTERNAL_SECRET:demo-payment-inventory-internal-secret}
     catalog-secret: ${CATALOG_INTERNAL_SECRET:demo-catalog-internal-secret}

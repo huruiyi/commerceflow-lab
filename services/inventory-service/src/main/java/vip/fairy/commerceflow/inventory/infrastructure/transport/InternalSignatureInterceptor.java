@@ -26,7 +26,8 @@ public class InternalSignatureInterceptor implements HandlerInterceptor {
     boolean commerceEndpoint = request.getRequestURI().endsWith("/commands")
       || request.getRequestURI().contains("/inventory/merchants/");
     boolean allowedService = commerceEndpoint
-      ? "commerce-service".equals(service) : "catalog-service".equals(service);
+      ? "commerce-service".equals(service) || "payment-orchestration-service".equals(service)
+      : "catalog-service".equals(service);
     if (!allowedService || timestamp == null || requestId == null || contentHash == null
         || signature == null || !signatures.verify(service, request.getMethod(),
         request.getRequestURI(), timestamp, requestId, contentHash, signature)) {

@@ -27,7 +27,8 @@ public class ShadowAdminController {
 
   @GetMapping("/mode")
   Mode mode() {
-    return new Mode(properties.acceptingTraffic(), properties.shadow().enabled());
+    return new Mode(properties.acceptingTraffic(), properties.effects().enabled(),
+      properties.shadow().enabled());
   }
 
   @GetMapping("/watermark")
@@ -60,6 +61,6 @@ public class ShadowAdminController {
     }
   }
 
-  public record Mode(boolean acceptingTraffic, boolean shadowEnabled) {
+  public record Mode(boolean acceptingTraffic, boolean effectsEnabled, boolean shadowEnabled) {
   }
 }

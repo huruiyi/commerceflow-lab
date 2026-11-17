@@ -60,6 +60,25 @@ public class ChannelGatewayClient {
       .retrieve().body(Result.class);
   }
 
+  public RefundResult refund(String refundNumber, PaymentChannelV1 channel,
+                             String channelTransactionNo, BigDecimal amount,
+                             String currency, String reasonCode) {
+    String path = "/api/channel/refunds";
+    String body = mapper.writeValueAsString(Map.of(
+      "merchantRefundNo", refundNumber,
+      "channelTransactionNo", channelTransactionNo,
+      "amount", amount,
+      "currency", currency,
+      "reasonCode", reasonCode,
+      "faultScenario", "NONE"));
+    Credentials credentials = credentials(channel);
+    RefundResult result = client.post().uri(baseUrl + path).contentType(MediaType.APPLICATION_JSON)
+      .headers(headers -> sign(headers, "POST", path, body, credentials))
+      .body(body).retrieve().body(RefundResult.class);
+    if (result == null) throw new IllegalStateException("Payment platform returned no refund");
+    return result;
+  }
+
   private Credentials credentials(PaymentChannelV1 channel) {
     String name = channel.name().toLowerCase().replace('_', '-');
     return new Credentials("commerceflow-" + name, "demo-" + name + "-secret");
@@ -102,5 +121,9 @@ public class ChannelGatewayClient {
     public Instant expiresInstant() {
       return expiresAt.toInstant(ZoneOffset.UTC);
     }
+  }
+
+  public record RefundResult(String channelRefundNo, String merchantRefundNo, String status,
+                             String failureReason) {
   }
 }

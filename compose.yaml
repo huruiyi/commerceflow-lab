@@ -740,6 +740,7 @@ services:
       INVENTORY_ACCEPTING_TRAFFIC: ${INVENTORY_ACCEPTING_TRAFFIC:-true}
       INVENTORY_RESULT_DELAY_LAB: ${INVENTORY_RESULT_DELAY_LAB:-0s}
       INVENTORY_INTERNAL_SECRET: ${INVENTORY_INTERNAL_SECRET:-demo-inventory-internal-secret}
+      PAYMENT_INVENTORY_INTERNAL_SECRET: ${PAYMENT_INVENTORY_INTERNAL_SECRET:-demo-payment-inventory-internal-secret}
       CATALOG_INTERNAL_SECRET: ${CATALOG_INTERNAL_SECRET:-demo-catalog-internal-secret}
       TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
       TRACING_OTLP_ENDPOINT: ${TRACING_OTLP_ENDPOINT:-http://tempo:4318/v1/traces}
@@ -769,6 +770,7 @@ services:
       ORDER_SHADOW_ENABLED: ${ORDER_SHADOW_ENABLED:-false}
       ORDER_SHADOW_BATCH_SIZE: ${ORDER_SHADOW_BATCH_SIZE:-500}
       ORDER_INTERNAL_SECRET: ${ORDER_INTERNAL_SECRET:-demo-order-internal-secret}
+      PAYMENT_ORDER_INTERNAL_SECRET: ${PAYMENT_ORDER_INTERNAL_SECRET:-demo-payment-order-internal-secret}
       TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
       TRACING_OTLP_ENDPOINT: ${TRACING_OTLP_ENDPOINT:-http://tempo:4318/v1/traces}
       TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1.0}
@@ -794,11 +796,17 @@ services:
       DATABASE_USERNAME: ${PAYMENT_ORCHESTRATION_DATABASE_USERNAME:-payments}
       DATABASE_PASSWORD: ${PAYMENT_ORCHESTRATION_DATABASE_PASSWORD:-payments-password}
       PAYMENT_ACCEPTING_TRAFFIC: ${PAYMENT_ACCEPTING_TRAFFIC:-false}
+      PAYMENT_EFFECTS_ENABLED: ${PAYMENT_EFFECTS_ENABLED:-false}
+      PAYMENT_EFFECTS_BATCH_SIZE: ${PAYMENT_EFFECTS_BATCH_SIZE:-20}
       PAYMENT_SHADOW_ENABLED: ${PAYMENT_SHADOW_ENABLED:-true}
       PAYMENT_SHADOW_BATCH_SIZE: ${PAYMENT_SHADOW_BATCH_SIZE:-500}
       PAYMENT_INTERNAL_SECRET: ${PAYMENT_INTERNAL_SECRET:-demo-payment-internal-secret}
       PAYMENT_CALLBACK_SECRET: ${PAYMENT_CALLBACK_SECRET:-demo-platform-callback-secret}
       PAYMENT_PLATFORM_BASE_URL: http://payment-simulator-service:8080
+      ORDER_SERVICE_BASE_URL: ${ORDER_SERVICE_BASE_URL:-http://order-service:8080}
+      PAYMENT_ORDER_INTERNAL_SECRET: ${PAYMENT_ORDER_INTERNAL_SECRET:-demo-payment-order-internal-secret}
+      INVENTORY_SERVICE_BASE_URL: ${INVENTORY_SERVICE_BASE_URL:-http://inventory-service:8080}
+      PAYMENT_INVENTORY_INTERNAL_SECRET: ${PAYMENT_INVENTORY_INTERNAL_SECRET:-demo-payment-inventory-internal-secret}
       PAYMENT_SOURCE_DATABASE_URL: jdbc:mysql://commerce-db:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       PAYMENT_SOURCE_DATABASE_USERNAME: ${DATABASE_USERNAME:-commerceflow}
       PAYMENT_SOURCE_DATABASE_PASSWORD: ${DATABASE_PASSWORD:-commerceflow-password}
@@ -813,6 +821,10 @@ services:
       commerce-schema-migrator:
         condition: service_completed_successfully
       payment-simulator-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+      inventory-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]

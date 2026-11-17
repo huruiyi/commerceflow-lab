@@ -59,7 +59,7 @@ order、inventory、identity 与 fulfillment 只保留稳定 ID、版本化命�
    普通业务流量仍未切换，CUTOVER 必须单独评审。
 6. **已完成，评审不通过**：一次性 CUTOVER 评审确认订单/库存副作用、支付 Outbox 投递、退款发起、回调归属、
    commerce 本地运行路径和源表权限尚未闭环，普通流量继续留在 commerce。
-7. 只在关闭流量门下补齐独立服务的远程 Order V1、Inventory 命令、可靠 Outbox/Inbox、退款发起与恢复闭环；
+7. **已完成**：只在关闭流量门下补齐独立服务的远程 Order V1、Inventory 命令、可靠 Outbox/Inbox、退款发起与恢复闭环；
    不增加 LOCAL/REMOTE/COMPARE，也不提前切换回调。
 8. 阻塞归零后重新评审；通过后在同一个受控窗口完成停写、最终追平核对、Payment V1/渠道回调切换、本地路径
    删除和源表权限撤销，不保留长期双实现或数据库回退。
@@ -145,13 +145,14 @@ OPEN 孤儿和待恢复流程均为 0。payment-db Flyway V2 无失败；payment
 ## 11. 第六批 CUTOVER 评审结论
 
 2026-11-18 的一次性切换评审结论为 **不通过**。安全门禁仍成立：独立服务默认
-`PAYMENT_ACCEPTING_TRAFFIC=false`，Compose 没有 PostgreSQL。以下阻塞使当前版本不能承接真实流量：
+`PAYMENT_ACCEPTING_TRAFFIC=false`，Compose 没有 PostgreSQL。第六批评审识别出以下阻塞；第七批只关闭其中
+第 3 至 5 项，当前仍不得承接真实流量：
 
 1. commerce 仍拥有唯一 `LocalPaymentOrchestrationAdapter`、支付/退款回调 Controller 和退款发起入口。
 2. 支付模拟平台的支付、退款回调地址仍指向 commerce。
-3. 独立服务没有远程 Order V1 或 Inventory 命令客户端，支付成功、关闭和退款完成后的跨边界副作用不能闭环。
-4. `payment_outbox` 只有事务写入，没有独立服务投递器；服务停机后的副作用无法可靠恢复。
-5. 独立服务只有退款结果/回调处理，没有创建退款的命令入口。
+3. **第七批已关闭**：独立服务已有远程 Order V1 与 Inventory 命令客户端，跨边界副作用使用稳定命令 ID。
+4. **第七批已关闭**：`payment_outbox` 已有带租约、有限退避和失败证据的独立投递器。
+5. **第七批已关闭**：独立服务已有受双门禁保护的退款创建入口和持久退款命令 Outbox。
 6. `commerce_runtime` 权限冻结脚本尚未排除 14 张支付/退款源表。
 
 Windows 与 WSL/Linux 对等审计入口为：
@@ -164,5 +165,22 @@ Windows 与 WSL/Linux 对等审计入口为：
 ./scripts/linux/audit-payment-cutover-readiness.sh
 ```
 
-审计成功表示“阻塞识别与安全门禁没有漂移”，最终输出必须是 `REJECTED`，不表示已经具备切换资格。下一批只在
-关闭流量门下补齐上述运行闭环；阻塞全部归零后必须替换这份拒绝基线并重新评审，不能通过删除审计脚本绕过门禁。
+审计成功表示“阻塞识别与安全门禁没有漂移”，最终输出必须是 `REJECTED`，不表示已经具备切换资格。第七批只在
+关闭流量门下补齐第 3 至 5 项；剩余阻塞归零后必须替换这份拒绝基线并重新评审，不能通过删除审计脚本绕过门禁。
+
+## 12. 第七批跨边界副作用闭环证据
+
+payment-orchestration-service 新增远程 Order V1 条件状态/库存状态/事件适配器和 Inventory COMMIT/REFUND
+适配器。支付成功、取消竞态、迟到成功、退款发起与退款结果均先写本库事实和 Outbox，再由独立投递器以稳定命令
+ID 执行；失败记录 `last_error` 并按退避进入 RETRY。Flyway V3 已在真实 `payment-db` 执行。退款创建入口继续
+复用 HMAC、正文摘要、requestId 防重放和业务 payload 指纹，渠道退款通过持久命令 Outbox 投递。
+
+正式副作用必须同时满足流量门打开、副作用门打开、影子复制关闭；默认值保持
+`PAYMENT_ACCEPTING_TRAFFIC=false`、`PAYMENT_EFFECTS_ENABLED=false`、`PAYMENT_SHADOW_ENABLED=true`。
+Windows 与 Ubuntu 26.04 WSL 均用单条精确合成 Outbox 验证缺失订单：远程 Order V1 鉴权成功后进入 RETRY，
+`last_error` 留证，订单和库存均无业务写；脚本只删除本次事件并恢复三门默认值。
+
+第七批没有改动 commerce 的唯一正式支付/退款路径、支付平台回调地址或源表权限，因此第 1、2、6 项仍是
+CUTOVER 阻塞，审计结论继续为 `REJECTED`。未增加 LOCAL/REMOTE/COMPARE，未拆 fulfillment，未启动 PostgreSQL。
+payment 服务 6 项 Java 25 测试、468/30/220/8 质量门禁、493 个 Java 源文件空行、54 对脚本契约和完整快速
+回归通过；真实 payment-db Flyway 最新版本为 V3 且成功，合成副作用残留为 0。

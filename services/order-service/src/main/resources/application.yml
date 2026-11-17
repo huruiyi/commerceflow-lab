@@ -42,6 +42,7 @@ management:
 commerceflow:
   internal-api:
     commerce-secret: ${ORDER_INTERNAL_SECRET:demo-order-internal-secret}
+    payment-secret: ${PAYMENT_ORDER_INTERNAL_SECRET:demo-payment-order-internal-secret}
   order:
     accepting-traffic: ${ORDER_ACCEPTING_TRAFFIC:false}
     shadow:
