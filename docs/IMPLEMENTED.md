@@ -114,8 +114,9 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   运行态 i18n/权限专项已验证；支付 Web 的 24 个基线文件完成机械格式化，格式检查、无用例 Vitest、
   TypeScript/Vite 生产构建、正式镜像和 `14201/healthz`/Vue 入口运行态已验证。
 - 新空卷验收已通过：Flyway 商城/支付/物流为 V24/V4/V5，完成登录→下单→支付→履约→物流→收货→完成→评价；Windows 快速回归同时通过。
-- notification-service、catalog-service 与 inventory-service 已完成独立边界切换；order、
-  payment-orchestration、fulfillment 尚未拆分。PostgreSQL 专项必须等 M3 清单中的全部服务完成单一所有权切换并验收后才允许
+- notification-service、catalog-service、inventory-service 与 order-service 已完成独立边界切换；
+  payment-orchestration 已完成远程协议和切流前演练但尚未 CUTOVER，fulfillment 尚未拆分。PostgreSQL 专项必须等
+  M3 清单中的全部服务完成单一所有权切换并验收后才允许
   启动；后续新增待拆服务也必须先完成。M3.1 初始审计盘点了 37 张表、40 组跨模块依赖方向、
   Outbox/Inbox、消费者契约和追踪缺口，并以 2 项 Maven 基线测试阻止所有权和依赖债务继续增长。
 - M3.3 catalog 准入首批已建立 `CatalogProductLookup`、`CatalogCacheInvalidator` 和
@@ -252,6 +253,12 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   仍只使用唯一的本地 Payment V1 适配器。V38 用提交顺序水位和 42 个触发器捕获 14 张表变更；独立服务完成
   一致性可重复快照、增量追平、逐字段 SHA-256 核对和孤儿隔离/重放。Windows/WSL 实机专项及快速回归后
   generation 3、水位 83，14 张表全部 MATCH，两次孤儿演练 RESOLVED、OPEN 0；未 CUTOVER、未拆 fulfillment、未启动 PostgreSQL。
+- M3.6 第五批实现受流量门保护的远程 Payment V1、真实签名渠道创建/关闭、支付/退款回调、
+  HMAC/摘要/持久防重放、Trace、结果未知和
+  人工恢复。Windows/WSL 合成专项覆盖重复/冲突、支付关闭竞态、退款、结果丢失、服务/数据库停机和源权限冻结/
+  整体回退；结束后清理合成数据并恢复关闭流量。最终 generation 13、水位 160、14 表 MATCH、OPEN 孤儿/恢复 0；
+  payment-db Flyway V2、2 项支付服务测试、461/30/220/8 质量门禁、484 个 Java 源文件空行、53 对脚本契约及
+  快速回归通过。commerce 仍只有本地正式路径，未 CUTOVER、未拆 fulfillment、未启动 PostgreSQL。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

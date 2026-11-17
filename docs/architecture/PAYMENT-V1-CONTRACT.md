@@ -2,10 +2,11 @@
 
 ## 1. 目的与当前边界
 
-Payment V1 是商城主服务与未来支付编排服务之间的第一版稳定交互格式。它覆盖创建支付、按订单查询支付/退款、
-关闭待支付记录，以及支付或退款回调处理结果。当前仍由 commerce 内唯一的本地适配器实现，尚未创建
-payment-orchestration-service、payment-db 或远程 HTTP 入口；以后创建独立服务时整体替换该适配器，不保留
-LOCAL/COMPARE 双实现。
+Payment V1 是商城主服务与独立支付编排服务之间的第一版稳定交互格式。它覆盖创建支付、按订单查询支付/退款、
+关闭待支付记录，以及支付或退款回调处理结果。`payment-orchestration-service`、`payment-db` 和远程 HTTP 入口
+已经创建，并以合成订单完成真实渠道创建/关闭、回调、竞态、结果丢失和回退演练；普通业务流量门仍关闭，
+commerce 当前仍由唯一的本地适配器处理正式支付。以后 CUTOVER 时整体替换该适配器，不保留 LOCAL/COMPARE
+双实现。
 
 退款属于同一个资金边界，不另建 refund-service。ordering 与 fulfillment 只能依赖本文件描述的 V1 数据结构，
 不得导入 payment/refund 的 application、domain、infrastructure 或 Mapper。
@@ -41,7 +42,7 @@ LOCAL/COMPARE 双实现。
 
 ## 5. 支付与退款结果
 
-`PaymentResultV1` 用于未来跨进程结果投递，结果类型覆盖支付创建/成功/失败/关闭和退款成功/失败；结果结论为
+`PaymentResultV1` 用于跨进程结果投递，结果类型覆盖支付创建/成功/失败/关闭和退款成功/失败；结果结论为
 `SUCCEEDED`、`REJECTED` 或 `RECONCILIATION_REQUIRED`。每条结果必须携带稳定 `resultId`、支付单号、来源状态、
 关联/因果编号和 Trace；退款结果还必须携带退款单号。非成功结论必须有稳定错误码。
 
@@ -50,12 +51,12 @@ LOCAL/COMPARE 双实现。
 
 ## 6. 兼容性证据
 
-兼容样例位于 `services/commerce-service/src/test/resources/contracts/payment/`：
+兼容样例位于 commerce 与 payment-orchestration-service 各自的测试资源目录：
 
 - `payment-create-command-v1.json`
 - `payment-close-command-v1.json`
 - `payment-close-result-v1.json`
 - `payment-success-result-v1.json`
 
-集成测试会反序列化、校验必填字段并计算稳定 SHA-256 指纹。当前本地适配器只是一条迁移接缝，不代表已完成远程
-调用、影子迁移或正式业务切换。
+两侧测试会反序列化、校验必填字段并计算稳定 SHA-256 指纹。远程协议和影子迁移已完成切流前演练，但当前本地
+适配器仍是唯一正式业务路径；上述证据不代表已完成正式业务切换。

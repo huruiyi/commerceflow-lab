@@ -55,7 +55,8 @@ order、inventory、identity 与 fulfillment 只保留稳定 ID、版本化命�
 3. **已完成**：删除跨 identity 外键，处置 OPEN 对账记录，收口订单事件 Outbox/Inbox 临时适配器，建立支付/退款
    Process Manager、命令 Outbox、结果 Inbox 与人工恢复门禁，取得 CREATE 准入。
 4. **已完成**：创建分层独立服务和 MySQL `payment-db`，仅无业务流量影子迁移与核对。
-5. 完成回调、支付/取消竞态、退款、结果丢失、服务/数据库停机和整体回退演练后，单独评审 CUTOVER。
+5. **已完成**：远程 Payment V1、回调、支付/取消竞态、退款、结果丢失、服务/数据库停机和整体回退演练；
+   普通业务流量仍未切换，CUTOVER 必须单独评审。
 6. 稳定窗通过后删除 commerce 支付/退款运行路径与源表权限，再进入 fulfillment-service。
 
 ## 6. 首批证据
@@ -111,3 +112,26 @@ Windows 与 Ubuntu 26.04 WSL 对等专项均通过。最终快速回归并追平
 commerce-service 55 项与 payment-orchestration-service 1 项 Java 25 测试、442/30/220/8 质量门禁、
 464 个 Java 源文件空行、51 对脚本契约、完整快速回归和
 关闭流量门均已验证；本批未 CUTOVER、未拆 fulfillment、未启动 PostgreSQL。
+
+## 10. 第五批远程协议与回退证据
+
+独立服务新增 Flyway V2 持久命令 Inbox 和内部 requestId 防重放表，并实现 Payment V1 创建、查询、关闭、结果、
+恢复入口及支付/退款渠道回调。支付创建和关闭使用原渠道 HMAC/Nonce/请求 ID 签名真实调用
+`payment-simulator-service`，不再生成虚构收银台地址。内部调用使用 HMAC-SHA256、正文 SHA-256、5 分钟时间窗和持久 requestId；业务
+命令/结果使用稳定 ID 与 payload 指纹去重，同 ID 异正文返回冲突。渠道回调继续验证原 HMAC 签名，支付成功事实
+可覆盖先到的关闭结果，已成功支付不会被迟到关闭覆盖。
+
+Windows 与 Ubuntu 26.04 WSL 对等专项均通过：相同创建命令重放、冲突正文、伪造签名、HTTP 重放、支付成功先到、
+关闭先到后迟到成功、全额退款及重复通知、结果丢失转 `RECONCILIATION_REQUIRED`、带操作人/原因的人工重试和
+最终结果去重。payment-orchestration-service 与 payment-db 分别停机后均恢复原事实，Trace 可在 Tempo 查询。
+专项只临时开启独立服务流量门并使用合成订单，结束时删除合成事实、恢复关闭流量和影子追平；commerce 没有新增
+远程生产适配器或 LOCAL/REMOTE/COMPARE 选择器。
+
+预切换演练使用临时数据库账号验证源支付表权限冻结会被拒绝，再恢复源端访问并在独立服务停机时确认源事实不变。
+最终快速回归后 generation 13、水位 160；支付 360、商户 3、通知 253、支付事件 720、幂等锁 360、对账 2、
+Outbox/Kafka Inbox 各 333、退款 41、退款事件/通知各 82，三张恢复协议表为空，14 张表计数和指纹全部 MATCH，
+OPEN 孤儿和待恢复流程均为 0。payment-db Flyway V2 无失败；payment 服务 2 项 Java 25 测试、461/30/220/8
+质量门禁、484 个 Java 源文件空行、53 对脚本契约和完整快速回归通过；PostgreSQL 容器为 0。
+
+本批没有 CUTOVER。下一步只能先评审一次性切换方案；评审通过前 commerce 的唯一
+`LocalPaymentOrchestrationAdapter`、源表权限和普通业务流量路径保持不变，也不开始 fulfillment-service。

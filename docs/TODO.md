@@ -760,8 +760,15 @@ Docker 拓扑，也不启动 PostgreSQL。
   一致性可重复快照、批量增量、逐字段 SHA-256 审计和外键孤儿隔离/重放。Windows 与 WSL 实机专项后
   generation 3、水位 83，353/3/248/706/353/2/326/326/40/80/80 与三张空协议表全部 MATCH；两次孤儿演练
   均为 RESOLVED，OPEN 为 0。
-- [ ] M3.6 下一批完成远程 Payment V1、回调、支付/取消竞态、退款、结果丢失、服务/数据库停机与整体回退
-  演练；通过后另行评审 CUTOVER。本批仍不得提前切流、并行拆 fulfillment 或启动 PostgreSQL。
+- [x] M3.6 第五批在独立服务实现受流量门保护的远程 Payment V1 创建/查询/关闭/结果入口、真实签名渠道创建/关闭、
+  支付/退款渠道回调、
+  HMAC/正文摘要/持久防重放和 W3C Trace；合成数据覆盖同 ID 异正文冲突、支付成功优先、关闭后迟到成功、退款、
+  结果丢失转人工核对和带操作人/原因的重试，不在 commerce 中增加 LOCAL/REMOTE/COMPARE 选择器。
+- [x] Windows 与 Ubuntu 26.04 WSL 对等专项完成 payment-service/payment-db 停机恢复、临时源权限冻结拒绝和
+  源端唯一所有者回退；结束后清理合成数据并恢复 `PAYMENT_ACCEPTING_TRAFFIC=false`。最终 generation 13、
+  水位 160，360/3/253/720/360/2/333/333/41/82/82 与三张空恢复协议表全部 MATCH，OPEN 孤儿/恢复均为 0。
+- [ ] 另行评审一次性 payment-orchestration CUTOVER；评审通过前不得切换普通业务流量、撤销 commerce 支付源表
+  权限、删除本地运行路径、并行拆 fulfillment 或启动 PostgreSQL。
 
 ## 14. 实施记录模板
 

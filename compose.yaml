@@ -796,6 +796,9 @@ services:
       PAYMENT_ACCEPTING_TRAFFIC: ${PAYMENT_ACCEPTING_TRAFFIC:-false}
       PAYMENT_SHADOW_ENABLED: ${PAYMENT_SHADOW_ENABLED:-true}
       PAYMENT_SHADOW_BATCH_SIZE: ${PAYMENT_SHADOW_BATCH_SIZE:-500}
+      PAYMENT_INTERNAL_SECRET: ${PAYMENT_INTERNAL_SECRET:-demo-payment-internal-secret}
+      PAYMENT_CALLBACK_SECRET: ${PAYMENT_CALLBACK_SECRET:-demo-platform-callback-secret}
+      PAYMENT_PLATFORM_BASE_URL: http://payment-simulator-service:8080
       PAYMENT_SOURCE_DATABASE_URL: jdbc:mysql://commerce-db:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       PAYMENT_SOURCE_DATABASE_USERNAME: ${DATABASE_USERNAME:-commerceflow}
       PAYMENT_SOURCE_DATABASE_PASSWORD: ${DATABASE_PASSWORD:-commerceflow-password}
@@ -809,6 +812,8 @@ services:
         condition: service_healthy
       commerce-schema-migrator:
         condition: service_completed_successfully
+      payment-simulator-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
       interval: 5s

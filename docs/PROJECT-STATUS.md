@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.6 第四批独立支付编排影子服务已完成；无业务流量，CUTOVER 冻结 |
-| 下一候选阶段 | 远程 Payment V1、竞态/退款/结果丢失、停机恢复与整体回退演练 |
+| 当前阶段 | M3.6 第五批远程 Payment V1 与切流前故障/回退演练已完成；普通业务流量未切换 |
+| 下一候选阶段 | 单独评审一次性 payment-orchestration CUTOVER；未经评审不得执行 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -424,3 +424,15 @@ Flyway V38 以 42 个触发器和提交顺序水位捕获 14 张所有权表变�
 generation 3、水位 83，支付 353、商户 3、通知 248、支付事件 706、幂等锁 353、对账 2、
 Outbox/Kafka Inbox 各 326、退款 40、退款事件/通知各 80，三张恢复协议表为空，14 张表全部 MATCH；两次孤儿演练均 RESOLVED，OPEN 0。
 本批没有业务流量、CUTOVER、LOCAL/COMPARE、fulfillment 拆分或 PostgreSQL。
+
+M3.6 第五批在独立服务实现受流量门保护的 Payment V1 创建、查询、关闭、结果和恢复入口，以及支付/退款渠道
+回调；创建与关闭会用原签名协议真实调用 payment-simulator-service。Flyway V2 持久化命令 Inbox 和内部请求防重放；HMAC、正文摘要、时间窗、requestId、payload 指纹与 W3C
+Trace 均有专项门禁。同命令重放返回原结果，同 ID 异正文拒绝；支付成功先到或关闭后迟到成功都保持资金成功优先。
+结果丢失会进入人工核对，恢复重试保存操作人、原因和时间。Windows/Ubuntu 26.04 WSL 均实跑服务/数据库停机、
+退款、重复通知、临时源权限冻结拒绝和整体回退，结束后删除合成数据并恢复关闭流量。
+
+完整快速回归并最终追平后 payment-db Flyway V2 无失败，generation 13、水位 160；支付/商户/通知/事件/幂等锁/
+对账/Outbox/Kafka Inbox/退款/退款事件/退款通知为 360/3/253/720/360/2/333/333/41/82/82，三张恢复协议表为空，
+14 张表全部 MATCH，OPEN 孤儿和待恢复流程均为 0。payment 服务 2 项 Java 25 测试、461/30/220/8 质量门禁、
+484 个 Java 源文件空行和 53 对脚本契约通过。commerce 仍只有本地正式实现，未 CUTOVER、未拆 fulfillment，
+PostgreSQL 容器为 0。

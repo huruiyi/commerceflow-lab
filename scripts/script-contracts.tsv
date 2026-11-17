@@ -34,6 +34,8 @@ verify-payment-notifications	BaseUrl,PaymentBaseUrl	BASE_URL=1,PAYMENT_BASE_URL=
 verify-payment-outcomes	BaseUrl	BASE_URL=1
 verify-payment-security	BaseUrl	BASE_URL=1
 verify-payment-shadow-runtime	BaseUrl	BASE_URL=1
+verify-payment-remote-protocol	BaseUrl,TempoUrl	BASE_URL=1,TEMPO_URL=2
+verify-payment-precutover-rehearsal	BaseUrl	BASE_URL=1
 verify-quick	BaseUrl,SkipBuild	@base-url,@skip-build
 verify-rabbitmq-scheduling	BaseUrl,MaxWaitSeconds	BASE_URL=1,MAX_WAIT_SECONDS=2
 verify-receipt-lifecycle-stress	BaseUrl,RabbitManagementUrl,DurationSeconds,MinimumRounds,Concurrency,RequestsPerWorker,MaxWaitSeconds	BASE_URL=1,RABBIT_URL=2,DURATION_SECONDS=3,MINIMUM_ROUNDS=4,CONCURRENCY=5,REQUESTS_PER_WORKER=6,MAX_WAIT_SECONDS=7

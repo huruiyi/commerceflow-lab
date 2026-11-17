@@ -40,8 +40,15 @@ management:
         enabled: true
 
 commerceflow:
+  internal-api:
+    commerce-secret: ${PAYMENT_INTERNAL_SECRET:demo-payment-internal-secret}
+  payment-platform:
+    base-url: ${PAYMENT_PLATFORM_BASE_URL:http://localhost:18082}
+    callback-secret: ${PAYMENT_CALLBACK_SECRET:demo-platform-callback-secret}
   payment:
     accepting-traffic: ${PAYMENT_ACCEPTING_TRAFFIC:false}
+    protocol:
+      timeout-scan-delay: ${PAYMENT_PROTOCOL_TIMEOUT_SCAN_DELAY:5s}
     shadow:
       enabled: ${PAYMENT_SHADOW_ENABLED:true}
       initial-delay: ${PAYMENT_SHADOW_INITIAL_DELAY:2s}
