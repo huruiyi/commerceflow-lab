@@ -9,6 +9,7 @@ import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCl
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCloseOutcomeV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCloseResultV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentOrchestrationV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentWriteAdmissionV1;
 import vip.fairy.commerceflow.commerce.scheduling.application.ScheduledTaskTypes;
 import vip.fairy.commerceflow.commerce.scheduling.infrastructure.ScheduledTaskMapper;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
@@ -27,6 +28,7 @@ public class OrderCancellationService {
 
   private final OrderStorePort orders;
   private final PaymentOrchestrationV1 payments;
+  private final PaymentWriteAdmissionV1 paymentWrites;
   private final TransactionTemplate transactions;
   private final ScheduledTaskMapper scheduledTasks;
   private final OrderEventPublisherPort events;
@@ -34,12 +36,14 @@ public class OrderCancellationService {
   private final PaymentCancellationCrashProbe crashLab;
 
   public OrderCancellationService(OrderStorePort orders, PaymentOrchestrationV1 payments,
+                                  PaymentWriteAdmissionV1 paymentWrites,
                                   TransactionTemplate transactions, ScheduledTaskMapper scheduledTasks,
                                   OrderEventPublisherPort events,
                                   CustomerNotificationCommandPublisher notifications,
                                   PaymentCancellationCrashProbe crashLab) {
     this.orders = orders;
     this.payments = payments;
+    this.paymentWrites = paymentWrites;
     this.transactions = transactions;
     this.scheduledTasks = scheduledTasks;
     this.events = events;
@@ -58,6 +62,7 @@ public class OrderCancellationService {
 
   private void cancel(Long orderId, Long actorId, String reason, String triggerSource,
                       Long scheduledTaskId, boolean customerRequest) {
+    paymentWrites.requireWritable();
     Begin begin = transactions.execute(status -> begin(orderId, actorId, reason, triggerSource,
       scheduledTaskId, customerRequest));
     if (begin == null || begin.done()) {

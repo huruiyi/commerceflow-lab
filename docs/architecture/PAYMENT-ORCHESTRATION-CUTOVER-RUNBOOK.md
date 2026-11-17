@@ -20,7 +20,8 @@ Outbox 已具备；commerce 的退款 POST 已先收口到同一个 `PaymentOrch
 
 ## 3. 单窗口原子顺序
 
-1. 进入停写：阻止新支付、订单取消中的支付关闭和退款发起；等待当前资金事务结束。
+1. 进入停写：以 `PAYMENT_WRITE_FROZEN=true` 重启 commerce，阻止新支付、订单取消中的支付关闭和退款发起；
+   等待当前资金事务结束。支付/退款签名回调不经过该闸门，必须继续排空。
 2. 保持 payment 的流量门和副作用门关闭，执行最后一次快照/增量追平和 14 表水位、指纹、孤儿核对。
 3. 停止 commerce-service，确保旧回调 Controller 和本地调度任务不再消费新请求。
 4. 部署只含唯一远程 `PaymentOrchestrationV1` 适配器的 commerce 镜像；同时删除本地支付/退款 Service、Mapper、
@@ -54,5 +55,9 @@ Outbox 已具备；commerce 的退款 POST 已先收口到同一个 `PaymentOrch
 | 可靠性 | 重复、超时、结果丢失、服务/数据库重启均以原业务 ID 收敛 |
 | 副作用 | 支付、取消竞态、退款的订单和库存状态正确且可恢复 |
 | 回归 | Java、Flyway、Windows/Bash、快速回归和代码质量全部通过 |
+
+停写闸门必须先于订单 `CANCELLING` 状态变更生效。使用
+`verify-payment-write-freeze.ps1/.sh` 验证创建、关闭、退款均返回 503、业务事实不变且旧回调可继续收敛；脚本退出时
+必须恢复 `PAYMENT_WRITE_FROZEN=false`。
 
 任一门禁失败都停止切换。不得用打开本地兜底、恢复源表权限或同时运行两套回调来绕过失败。

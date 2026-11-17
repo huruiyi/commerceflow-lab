@@ -35,6 +35,17 @@ assert_file 'independent refund initiation command endpoint' \
 assert_contains 'commerce refund ingress uses Payment V1' \
   'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/refund/api/RefundController.java' \
   'PaymentOrchestrationV1'
+assert_contains 'commerce payment write freeze defaults open' 'compose.yaml' \
+  'PAYMENT_WRITE_FROZEN: \$\{PAYMENT_WRITE_FROZEN:-false\}'
+assert_contains 'payment write admission protects cancellation before mutation' \
+  'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/ordering/application/OrderCancellationService.java' \
+  'paymentWrites.requireWritable()'
+assert_contains 'payment write admission protects payment creation' \
+  'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/ordering/application/PurchaseOrderService.java' \
+  'paymentWrites.requireWritable()'
+assert_contains 'payment write admission protects refund creation' \
+  'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/refund/api/RefundController.java' \
+  'paymentWrites.requireWritable()'
 
 echo 'Payment CUTOVER blockers:'
 assert_file 'commerce local payment implementation' \

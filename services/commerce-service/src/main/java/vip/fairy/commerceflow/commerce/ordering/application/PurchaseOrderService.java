@@ -18,6 +18,7 @@ import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCr
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentSnapshotV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentOrchestrationV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentQueryV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentWriteAdmissionV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.RefundSnapshotV1;
 import vip.fairy.commerceflow.commerce.scheduling.application.ScheduledTaskService;
 import vip.fairy.commerceflow.commerce.scheduling.application.ScheduledTaskTypes;
@@ -39,6 +40,7 @@ public class PurchaseOrderService {
   private final OrderStorePort orders;
   private final CheckoutCartPort carts;
   private final PaymentOrchestrationV1 payments;
+  private final PaymentWriteAdmissionV1 paymentWrites;
   private final OrderLifecycleProperties lifecycle;
   private final ScheduledTaskService scheduledTasks;
   private final LogisticsService logistics;
@@ -46,12 +48,14 @@ public class PurchaseOrderService {
 
   public PurchaseOrderService(OrderStorePort orders, CheckoutCartPort carts,
                               PaymentOrchestrationV1 payments,
+                              PaymentWriteAdmissionV1 paymentWrites,
                               OrderLifecycleProperties lifecycle, ScheduledTaskService scheduledTasks,
                               LogisticsService logistics,
                               InventoryCommandPort inventory) {
     this.orders = orders;
     this.carts = carts;
     this.payments = payments;
+    this.paymentWrites = paymentWrites;
     this.lifecycle = lifecycle;
     this.scheduledTasks = scheduledTasks;
     this.logistics = logistics;
@@ -104,6 +108,7 @@ public class PurchaseOrderService {
   }
 
   public ShopOrderResponse pay(AppUser user, Long id, CreatePaymentRequest request) {
+    paymentWrites.requireWritable();
     ShopOrderView order = orders.find(user.getId(), id)
       .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
     if (!"PENDING_PAYMENT".equals(order.getStatus())) {

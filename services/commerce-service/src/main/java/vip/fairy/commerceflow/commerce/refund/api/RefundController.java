@@ -5,6 +5,7 @@ import vip.fairy.commerceflow.commerce.identity.application.CurrentUserService;
 import vip.fairy.commerceflow.commerce.refund.application.RefundService;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentOrchestrationV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.RefundCreateCommandV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentWriteAdmissionV1;
 
 import java.util.List;
 import java.util.UUID;
@@ -25,12 +26,14 @@ public class RefundController {
   private final CurrentUserService users;
   private final RefundService refunds;
   private final PaymentOrchestrationV1 payments;
+  private final PaymentWriteAdmissionV1 paymentWrites;
 
   public RefundController(CurrentUserService users, RefundService refunds,
-                          PaymentOrchestrationV1 payments) {
+                          PaymentOrchestrationV1 payments, PaymentWriteAdmissionV1 paymentWrites) {
     this.users = users;
     this.refunds = refunds;
     this.payments = payments;
+    this.paymentWrites = paymentWrites;
   }
 
   @PostMapping("/api/purchase-orders/{orderId}/refunds")
@@ -41,6 +44,7 @@ public class RefundController {
     @Valid @RequestBody RefundRequest request,
     Authentication authentication
   ) {
+    paymentWrites.requireWritable();
     var user = users.require(authentication);
     String commandId = UUID.randomUUID().toString();
     String correlationId = UUID.randomUUID().toString();

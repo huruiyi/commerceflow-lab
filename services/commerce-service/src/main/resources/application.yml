@@ -112,6 +112,9 @@ security:
     validity-seconds: ${REMEMBER_ME_VALIDITY_SECONDS:1209600}
 
 commerceflow:
+  payment:
+    cutover:
+      write-frozen: ${PAYMENT_WRITE_FROZEN:false}
   order:
     remote:
       base-url: ${ORDER_SERVICE_BASE_URL:http://localhost:18089}

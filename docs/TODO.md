@@ -785,6 +785,10 @@ Docker 拓扑，也不启动 PostgreSQL。
 - [x] 完整快速回归发现并关闭支付成功与库存预留结果并发到达的竞态：Order V1 新增原子
   `START_INVENTORY_COMMIT`，一次更新兼容 `RESERVED/WAITING_RESERVATION`；支付已成功但库存仍停留在预留态时，
   重放同一签名回调会补发幂等 COMMIT。两笔历史测试样本均恢复为 `PAID/COMMITTED`，最终完整快速回归通过。
+- [x] M3.6 第九批补齐原子切换前的 commerce 停写闸门：`PAYMENT_WRITE_FROZEN=true` 通过稳定
+  `PaymentWriteAdmissionV1` 在订单进入 `CANCELLING` 前拒绝创建支付、关闭支付和发起退款，查询及签名回调继续排空。
+  Windows 真实演练确认三类新写均为 503、业务事实不变、已有回调仍收敛为 `PAID/SUCCESS`，退出后恢复默认 false；
+  Ubuntu 26.04 WSL 已通过 Bash 语法，实际脚本因发行版缺少 jq 未执行。
 - [ ] 上述阻塞全部归零后重新评审，并在一个受控变更窗口内停写、最终追平核对、切换 Payment V1 与渠道回调、
   删除 commerce 本地支付/退款运行路径并撤销源表权限；不保留长期双实现或数据库回退。
 

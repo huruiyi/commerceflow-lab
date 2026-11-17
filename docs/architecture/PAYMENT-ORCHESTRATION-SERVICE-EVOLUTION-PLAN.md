@@ -204,3 +204,14 @@ Order V1 因此增加原子 `START_INVENTORY_COMMIT`，由单条条件更新同�
 删除的是本地 `RefundService/RefundMapper`、本地支付适配器、两类旧回调与资金对账运行路径。切换步骤已冻结在
 [一次性切换运行手册](PAYMENT-ORCHESTRATION-CUTOVER-RUNBOOK.md)。由于唯一远程适配器尚未替换、本地实现和旧回调
 仍在、源表权限尚未撤销，当前结论继续为 `REJECTED`，本批没有 CUTOVER。
+
+## 14. 第九批切换前停写闸门
+
+commerce 新增默认关闭的 `PAYMENT_WRITE_FROZEN`，由稳定 `PaymentWriteAdmissionV1` 在创建支付、订单取消触发支付
+关闭、客户发起退款之前统一检查。尤其订单取消必须先检查再进入 `CANCELLING`，避免停写拒绝留下跨服务半状态；
+查询和支付/退款签名回调不受影响，可以在最终追平窗口继续排空。
+
+Windows 真实演练确认冻结期间创建、关闭和退款均返回 503，订单/支付事实未被拒绝请求改变，冻结前的 PENDING
+支付仍能由签名回调收敛到 `PAID/SUCCESS`，finally 恢复默认 false。Ubuntu 26.04 WSL 完成 Bash 语法校验，但该
+发行版缺少 jq，因此未虚报 Linux 运行态通过。commerce 58 项 Java 25 测试和 55 对脚本契约通过。该闸门只是
+单窗口步骤 1 的前置能力；唯一远程适配器、回调改址、本地实现删除和源表撤权仍未执行，CUTOVER 继续拒绝。

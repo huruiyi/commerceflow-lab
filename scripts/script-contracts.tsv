@@ -35,6 +35,7 @@ verify-payment-notifications	BaseUrl,PaymentBaseUrl	BASE_URL=1,PAYMENT_BASE_URL=
 verify-payment-outcomes	BaseUrl	BASE_URL=1
 verify-payment-security	BaseUrl	BASE_URL=1
 verify-payment-shadow-runtime	BaseUrl	BASE_URL=1
+verify-payment-write-freeze	BaseUrl,PaymentBaseUrl	BASE_URL=1,PAYMENT_BASE_URL=2
 verify-payment-remote-protocol	BaseUrl,TempoUrl	BASE_URL=1,TEMPO_URL=2
 verify-payment-precutover-rehearsal	BaseUrl	BASE_URL=1
 verify-quick	BaseUrl,SkipBuild	@base-url,@skip-build
