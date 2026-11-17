@@ -29,10 +29,12 @@ docker compose config --quiet
 if ($LASTEXITCODE -ne 0) { throw 'Compose configuration is invalid' }
 
 Write-Host 'Payment CUTOVER safety gates:'
-Assert-Contains 'independent service traffic defaults to closed' 'compose.yaml' `
-  'PAYMENT_ACCEPTING_TRAFFIC: \$\{PAYMENT_ACCEPTING_TRAFFIC:-false\}'
-Assert-Contains 'downstream effects default to closed' 'compose.yaml' `
-  'PAYMENT_EFFECTS_ENABLED: \$\{PAYMENT_EFFECTS_ENABLED:-false\}'
+Assert-Contains 'independent service owns ordinary traffic' 'compose.yaml' `
+  'PAYMENT_ACCEPTING_TRAFFIC: \$\{PAYMENT_ACCEPTING_TRAFFIC:-true\}'
+Assert-Contains 'independent service owns downstream effects' 'compose.yaml' `
+  'PAYMENT_EFFECTS_ENABLED: \$\{PAYMENT_EFFECTS_ENABLED:-true\}'
+Assert-Contains 'shadow replication defaults to disabled after CUTOVER' 'compose.yaml' `
+  'PAYMENT_SHADOW_ENABLED: \$\{PAYMENT_SHADOW_ENABLED:-false\}'
 Assert-Absent 'PostgreSQL is not configured' @('compose.yaml', 'compose.ha.yaml') `
   '(?i)postgres|jdbc:postgresql'
 
@@ -60,23 +62,19 @@ Assert-Contains 'payment write admission protects refund creation' `
   'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/refund/api/RefundController.java' `
   'paymentWrites.requireWritable()'
 
-Write-Host 'Payment CUTOVER blockers:'
-Assert-File 'commerce local payment implementation' `
-  'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/payment/infrastructure/adapter/LocalPaymentOrchestrationAdapter.java'
-Assert-File 'commerce payment callback owner' `
-  'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/payment/api/PaymentNotificationController.java'
-Assert-File 'commerce local refund implementation' `
-  'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/refund/application/RefundService.java'
-Assert-File 'commerce local refund mapper' `
-  'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/refund/infrastructure/RefundMapper.java'
-Assert-File 'commerce refund callback owner' `
-  'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/refund/api/RefundNotificationController.java'
-Assert-Contains 'payment callback still targets commerce' 'compose.yaml' `
-  'PAYMENT_CALLBACK_URL: http://commerce-service:8080/api/payment-notifications/callback'
-Assert-Contains 'refund callback still targets commerce' 'compose.yaml' `
-  'REFUND_CALLBACK_URL: http://commerce-service:8080/api/refund-notifications/callback'
-Assert-Absent 'commerce runtime grant freezer still grants payment source tables' `
-  @('infrastructure/commerce/freeze-source-access.sh') `
-  "'payment_records'|'refund_records'|'payment_outbox'"
+Write-Host 'Payment CUTOVER single-owner proof:'
+Assert-File 'commerce remote Payment V1 adapter' `
+  'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/payment/infrastructure/remote/RemotePaymentOrchestrationAdapter.java'
+Assert-Absent 'commerce local payment and refund runtime is absent' `
+  @('services/commerce-service/src/main/java') `
+  'LocalPaymentOrchestrationAdapter|PaymentNotificationController|RefundNotificationController|class RefundService|interface RefundMapper'
+Assert-Contains 'payment callback targets independent service' 'compose.yaml' `
+  'PAYMENT_CALLBACK_URL: http://payment-orchestration-service:8080/api/payment-notifications/callback'
+Assert-Contains 'refund callback targets independent service' 'compose.yaml' `
+  'REFUND_CALLBACK_URL: http://payment-orchestration-service:8080/api/refund-notifications/callback'
+Assert-Contains 'commerce runtime grant freezer denies payment source tables' `
+  'infrastructure/commerce/freeze-source-access.sh' "'payment_records'"
+Assert-Contains 'commerce runtime grant freezer denies refund source tables' `
+  'infrastructure/commerce/freeze-source-access.sh' "'refund_records'"
 
-Write-Host 'CUTOVER review result: REJECTED. Keep ordinary traffic on commerce until every blocker is removed in one reviewed change.' -ForegroundColor Yellow
+Write-Host 'CUTOVER review result: APPROVED. Payment orchestration has one remote owner.' -ForegroundColor Green

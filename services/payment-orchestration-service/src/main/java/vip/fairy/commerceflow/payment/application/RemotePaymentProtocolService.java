@@ -24,6 +24,7 @@ import vip.fairy.commerceflow.payment.application.contract.v1.PaymentCloseResult
 import vip.fairy.commerceflow.payment.application.contract.v1.PaymentContractSemantics;
 import vip.fairy.commerceflow.payment.application.contract.v1.PaymentCreateCommandV1;
 import vip.fairy.commerceflow.payment.application.contract.v1.PaymentQueryV1;
+import vip.fairy.commerceflow.payment.application.contract.v1.RefundQueryV1;
 import vip.fairy.commerceflow.payment.application.contract.v1.PaymentResultOutcomeV1;
 import vip.fairy.commerceflow.payment.application.contract.v1.PaymentResultTypeV1;
 import vip.fairy.commerceflow.payment.application.contract.v1.PaymentResultV1;
@@ -117,17 +118,27 @@ public class RemotePaymentProtocolService {
     List<Map<String,Object>> rows = jdbc.queryForList("SELECT * FROM refund_records "
       + "WHERE order_id=? ORDER BY id DESC LIMIT 1", query.orderId());
     if (rows.isEmpty()) return Optional.empty();
-    Map<String,Object> row = rows.getFirst();
+    return Optional.of(refundSnapshot(rows.getFirst()));
+  }
+
+  public Optional<RefundSnapshot> refund(RefundQueryV1 query) {
+    query.validate();
+    List<Map<String,Object>> rows = jdbc.queryForList("SELECT * FROM refund_records "
+      + "WHERE refund_number=? LIMIT 1", query.refundNumber());
+    return rows.isEmpty() ? Optional.empty() : Optional.of(refundSnapshot(rows.getFirst()));
+  }
+
+  private RefundSnapshot refundSnapshot(Map<String,Object> row) {
     List<RefundEvent> events = jdbc.query("SELECT id,event_type,from_status,to_status,detail,created_at "
         + "FROM refund_events WHERE refund_id=? ORDER BY id",
       (result, index) -> new RefundEvent(result.getLong("id"), result.getString("event_type"),
         result.getString("from_status"), result.getString("to_status"), result.getString("detail"),
         result.getTimestamp("created_at").toInstant()), number(row.get("id")));
-    return Optional.of(new RefundSnapshot(1, text(row, "refund_number"), number(row.get("order_id")),
+    return new RefundSnapshot(1, text(row, "refund_number"), number(row.get("order_id")),
       text(row, "status"), text(row, "inventory_status"), decimal(row, "amount"),
       text(row, "currency"), text(row, "reason_code"), text(row, "reason_detail"),
       nullableText(row, "channel_refund_no"), text(row, "failure_reason"),
-      instant(row, "requested_at"), instant(row, "succeeded_at"), instant(row, "failed_at"), events));
+      instant(row, "requested_at"), instant(row, "succeeded_at"), instant(row, "failed_at"), events);
   }
 
   public PaymentCloseResultV1 close(PaymentCloseCommandV1 command) {
@@ -158,6 +169,11 @@ public class RemotePaymentProtocolService {
           }
         }
       }
+      boolean alreadyClosed = !payments.isEmpty()
+        && payments.stream().allMatch(payment -> "CLOSED".equals(payment.get("status")));
+      if (!succeeded && (closed > 0 || alreadyClosed)) {
+        completeClosedPaymentProcesses(command.orderId());
+      }
       PaymentCloseOutcomeV1 outcome = succeeded ? PaymentCloseOutcomeV1.PAYMENT_ALREADY_SUCCEEDED
         : PaymentCloseOutcomeV1.CLOSED;
       PaymentCloseResultV1 result = new PaymentCloseResultV1(1,
@@ -167,6 +183,18 @@ public class RemotePaymentProtocolService {
         command.correlationId(), command.commandId(), command.traceparent());
       return finish(command.commandId(), fingerprint, outcome.name(), result, null);
     });
+  }
+
+  private void completeClosedPaymentProcesses(Long orderId) {
+    jdbc.update("UPDATE payment_command_outbox SET status='ACKNOWLEDGED',"
+        + "acknowledged_at=COALESCE(acknowledged_at,CURRENT_TIMESTAMP(6)),last_error=NULL "
+        + "WHERE process_id IN (SELECT process_id FROM payment_process_managers "
+        + "WHERE order_id=? AND process_type='PAYMENT_CREATE') "
+        + "AND status IN ('NEW','IN_FLIGHT','RETRY','DEAD')", orderId);
+    jdbc.update("UPDATE payment_process_managers SET status='COMPLETED',last_error=NULL,"
+        + "completed_at=COALESCE(completed_at,CURRENT_TIMESTAMP(6)),"
+        + "updated_at=CURRENT_TIMESTAMP(6),version=version+1 "
+        + "WHERE order_id=? AND process_type='PAYMENT_CREATE' AND status<>'COMPLETED'", orderId);
   }
 
   public ContractReceipt result(PaymentResultV1 result) {

@@ -39,7 +39,7 @@ public class DemoMerchantInitializer implements ApplicationRunner {
       m.setSecretLastFour(secret.substring(secret.length() - 4));
       m.setCredentialVersion(1);
       m.setSigningAlgorithm("HMAC_SHA256");
-      m.setNotifyUrl("http://commerce-service:8080/api/payment-notifications/callback");
+      m.setNotifyUrl("http://payment-orchestration-service:8080/api/payment-notifications/callback");
       m.setEnabled(true);
       m.setCreatedBy(1L);
       m.setUpdatedBy(1L);

@@ -41,7 +41,21 @@ grant_statements=$(${root_mysql} -e "
       'order_command_outbox',
       'order_result_inbox',
       'order_shadow_change_log',
-      'order_shadow_clock'
+      'order_shadow_clock',
+      'payment_records',
+      'payment_merchant_accounts',
+      'payment_notifications',
+      'payment_events',
+      'payment_idempotency_locks',
+      'payment_reconciliation_issue',
+      'payment_outbox',
+      'kafka_consumed_event',
+      'payment_process_managers',
+      'payment_command_outbox',
+      'payment_result_inbox',
+      'refund_records',
+      'refund_events',
+      'refund_notifications'
     )
   ORDER BY table_name;
 ")
@@ -67,7 +81,21 @@ for source_table in \
   order_command_outbox \
   order_result_inbox \
   order_shadow_change_log \
-  order_shadow_clock
+  order_shadow_clock \
+  payment_records \
+  payment_merchant_accounts \
+  payment_notifications \
+  payment_events \
+  payment_idempotency_locks \
+  payment_reconciliation_issue \
+  payment_outbox \
+  kafka_consumed_event \
+  payment_process_managers \
+  payment_command_outbox \
+  payment_result_inbox \
+  refund_records \
+  refund_events \
+  refund_notifications
 do
   forbidden=$(${root_mysql} -e "
     SELECT COUNT(*)
@@ -82,4 +110,4 @@ do
   fi
 done
 
-echo "Commerce runtime grants exclude all inventory and order source tables."
+echo "Commerce runtime grants exclude all inventory, order, payment, and refund source tables."

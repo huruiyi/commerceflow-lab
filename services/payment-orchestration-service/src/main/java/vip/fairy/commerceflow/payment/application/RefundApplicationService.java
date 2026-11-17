@@ -38,6 +38,15 @@ public class RefundApplicationService {
     if (!command.orderId().equals(order.id()) || !command.customerId().equals(order.customerId())) {
       throw new ProtocolConflictException("Refund command does not match the order owner");
     }
+    List<Map<String,Object>> existing = jdbc.queryForList(
+      "SELECT * FROM refund_records WHERE order_id=? ORDER BY id DESC LIMIT 1", command.orderId());
+    if (!existing.isEmpty()) {
+      Map<String,Object> row = existing.getFirst();
+      if (!command.idempotencyKey().equals(row.get("idempotency_key"))) {
+        throw new ProtocolConflictException("Payment already has a different refund request");
+      }
+      return receipt(row);
+    }
     if (!List.of("PAID", "CONFIRMED").contains(order.status())) {
       throw new ProtocolConflictException("Only paid or confirmed orders can be refunded");
     }

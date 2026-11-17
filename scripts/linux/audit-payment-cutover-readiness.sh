@@ -17,10 +17,12 @@ cd "$PROJECT_ROOT"
 docker compose config --quiet
 
 echo 'Payment CUTOVER safety gates:'
-assert_contains 'independent service traffic defaults to closed' 'compose.yaml' \
-  'PAYMENT_ACCEPTING_TRAFFIC: \$\{PAYMENT_ACCEPTING_TRAFFIC:-false\}'
-assert_contains 'downstream effects default to closed' 'compose.yaml' \
-  'PAYMENT_EFFECTS_ENABLED: \$\{PAYMENT_EFFECTS_ENABLED:-false\}'
+assert_contains 'independent service owns ordinary traffic' 'compose.yaml' \
+  'PAYMENT_ACCEPTING_TRAFFIC: \$\{PAYMENT_ACCEPTING_TRAFFIC:-true\}'
+assert_contains 'independent service owns downstream effects' 'compose.yaml' \
+  'PAYMENT_EFFECTS_ENABLED: \$\{PAYMENT_EFFECTS_ENABLED:-true\}'
+assert_contains 'shadow replication defaults to disabled after CUTOVER' 'compose.yaml' \
+  'PAYMENT_SHADOW_ENABLED: \$\{PAYMENT_SHADOW_ENABLED:-false\}'
 assert_absent 'PostgreSQL is not configured' '(postgres|jdbc:postgresql)' compose.yaml compose.ha.yaml
 
 echo 'Payment CUTOVER prerequisite closure:'
@@ -47,23 +49,19 @@ assert_contains 'payment write admission protects refund creation' \
   'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/refund/api/RefundController.java' \
   'paymentWrites.requireWritable()'
 
-echo 'Payment CUTOVER blockers:'
-assert_file 'commerce local payment implementation' \
-  'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/payment/infrastructure/adapter/LocalPaymentOrchestrationAdapter.java'
-assert_file 'commerce payment callback owner' \
-  'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/payment/api/PaymentNotificationController.java'
-assert_file 'commerce local refund implementation' \
-  'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/refund/application/RefundService.java'
-assert_file 'commerce local refund mapper' \
-  'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/refund/infrastructure/RefundMapper.java'
-assert_file 'commerce refund callback owner' \
-  'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/refund/api/RefundNotificationController.java'
-assert_contains 'payment callback still targets commerce' 'compose.yaml' \
-  'PAYMENT_CALLBACK_URL: http://commerce-service:8080/api/payment-notifications/callback'
-assert_contains 'refund callback still targets commerce' 'compose.yaml' \
-  'REFUND_CALLBACK_URL: http://commerce-service:8080/api/refund-notifications/callback'
-assert_absent 'commerce runtime grant freezer still grants payment source tables' \
-  "'payment_records'|'refund_records'|'payment_outbox'" \
-  infrastructure/commerce/freeze-source-access.sh
+echo 'Payment CUTOVER single-owner proof:'
+assert_file 'commerce remote Payment V1 adapter' \
+  'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/payment/infrastructure/remote/RemotePaymentOrchestrationAdapter.java'
+assert_absent 'commerce local payment and refund runtime is absent' \
+  'LocalPaymentOrchestrationAdapter|PaymentNotificationController|RefundNotificationController|class RefundService|interface RefundMapper' \
+  services/commerce-service/src/main/java
+assert_contains 'payment callback targets independent service' 'compose.yaml' \
+  'PAYMENT_CALLBACK_URL: http://payment-orchestration-service:8080/api/payment-notifications/callback'
+assert_contains 'refund callback targets independent service' 'compose.yaml' \
+  'REFUND_CALLBACK_URL: http://payment-orchestration-service:8080/api/refund-notifications/callback'
+assert_contains 'commerce runtime grant freezer denies payment source tables' \
+  'infrastructure/commerce/freeze-source-access.sh' "'payment_records'"
+assert_contains 'commerce runtime grant freezer denies refund source tables' \
+  'infrastructure/commerce/freeze-source-access.sh' "'refund_records'"
 
-echo 'CUTOVER review result: REJECTED. Keep ordinary traffic on commerce until every blocker is removed in one reviewed change.'
+echo 'CUTOVER review result: APPROVED. Payment orchestration has one remote owner.'

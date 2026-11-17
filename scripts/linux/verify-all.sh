@@ -29,13 +29,11 @@ required_services=(
   commerce-db commerce-redis kafka-broker payment-simulator-db payment-simulator-redis
   payment-simulator-service payment-simulator-web logistics-simulator-db logistics-simulator-service
   notification-db notification-service catalog-db catalog-service inventory-db inventory-service
-  order-db order-service commerce-service commerce-portal-angular
+  order-db order-service payment-db payment-orchestration-service commerce-service commerce-portal-angular
 )
 for service in "${required_services[@]}"; do
   grep -Fxq "$service" <<<"$services" || { echo "Required service is not running: $service" >&2; exit 1; }
 done
-
-bash "$SCRIPT_DIR/verify-order-shadow-runtime.sh"
 
 inventory_temp="$(new_temp_dir)"
 trap 'rm -rf -- "$inventory_temp"' EXIT
@@ -49,9 +47,9 @@ fi
 
 verification_scripts=(
   verify-i18n.sh verify-authorization.sh verify-scheduling.sh verify-order-cancellation.sh
-  verify-payment-cancellation-race.sh verify-payment-outcomes.sh verify-kafka-payment.sh verify-refunds.sh
+  verify-payment-runtime-cutover.sh
   verify-logistics-automation.sh verify-logistics-reliability.sh verify-logistics-callback-governance.sh
-  verify-auto-lifecycle.sh verify-receipt-reviews.sh verify-redis-business.sh
+  verify-auto-lifecycle.sh verify-receipt-reviews.sh verify-redis-business.sh verify-order-runtime-cutover.sh
 )
 for script in "${verification_scripts[@]}"; do
   echo
@@ -69,7 +67,11 @@ while ((SECONDS < deadline)); do
     && [[ "$(curl -fsS --max-time 5 http://localhost:18081/actuator/health | jq -r .status)" == UP ]] \
     && [[ "$(curl -fsS --max-time 5 http://localhost:18082/actuator/health | jq -r .status)" == UP ]] \
     && [[ "$(curl -fsS --max-time 5 http://localhost:18083/actuator/health | jq -r .status)" == UP ]] \
-    && [[ "$(curl -fsS --max-time 5 http://localhost:18086/actuator/health | jq -r .status)" == UP ]]; then
+    && [[ "$(curl -fsS --max-time 5 http://localhost:18086/actuator/health | jq -r .status)" == UP ]] \
+    && [[ "$(curl -fsS --max-time 5 http://localhost:18087/actuator/health | jq -r .status)" == UP ]] \
+    && [[ "$(curl -fsS --max-time 5 http://localhost:18088/actuator/health | jq -r .status)" == UP ]] \
+    && [[ "$(curl -fsS --max-time 5 http://localhost:18089/actuator/health | jq -r .status)" == UP ]] \
+    && [[ "$(curl -fsS --max-time 5 http://localhost:18090/actuator/health | jq -r .status)" == UP ]]; then
     healthy=true; break
   fi
   sleep 2
@@ -77,6 +79,6 @@ done
 [[ "$healthy" == true ]] || { echo 'Final health check did not recover within 60 seconds' >&2; exit 1; }
 echo
 summary='Complete Docker acceptance passed: code quality, build, startup, auth, scheduling governance, i18n, '
-summary+='payment outcomes, Kafka, refunds, signed logistics callbacks, fulfillment, reviews, Redis fallback, '
+summary+='remote payment/refund, signed logistics callbacks, fulfillment, reviews, Redis fallback, '
 summary+='alerting and health.'
 echo "$summary"

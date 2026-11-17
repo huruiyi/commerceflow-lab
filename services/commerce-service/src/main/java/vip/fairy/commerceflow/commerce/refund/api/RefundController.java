@@ -2,10 +2,13 @@ package vip.fairy.commerceflow.commerce.refund.api;
 
 import jakarta.validation.Valid;
 import vip.fairy.commerceflow.commerce.identity.application.CurrentUserService;
-import vip.fairy.commerceflow.commerce.refund.application.RefundService;
+import vip.fairy.commerceflow.commerce.ordering.application.port.OrderRefundPort;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentQueryV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentOrchestrationV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.RefundQueryV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.RefundCreateCommandV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentWriteAdmissionV1;
+import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
 
 import java.util.List;
 import java.util.UUID;
@@ -24,14 +27,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class RefundController {
 
   private final CurrentUserService users;
-  private final RefundService refunds;
+  private final OrderRefundPort orders;
   private final PaymentOrchestrationV1 payments;
   private final PaymentWriteAdmissionV1 paymentWrites;
 
-  public RefundController(CurrentUserService users, RefundService refunds,
+  public RefundController(CurrentUserService users, OrderRefundPort orders,
                           PaymentOrchestrationV1 payments, PaymentWriteAdmissionV1 paymentWrites) {
     this.users = users;
-    this.refunds = refunds;
+    this.orders = orders;
     this.payments = payments;
     this.paymentWrites = paymentWrites;
   }
@@ -57,19 +60,32 @@ public class RefundController {
   @GetMapping("/api/purchase-orders/{orderId}/refunds")
   @PreAuthorize("hasRole('CUSTOMER')")
   List<RefundResponse> forOrder(@PathVariable Long orderId, Authentication authentication) {
-    return refunds.forOrder(users.require(authentication), orderId);
+    var user = users.require(authentication);
+    orders.find(user.getId(), orderId)
+      .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+    return payments.refund(new PaymentQueryV1(PaymentQueryV1.VERSION, orderId))
+      .map(value -> List.of(RefundResponse.from(value))).orElseGet(List::of);
   }
 
   @GetMapping("/api/refunds/{refundNumber}")
   @PreAuthorize("hasRole('CUSTOMER')")
   RefundResponse get(@PathVariable String refundNumber, Authentication authentication) {
-    return refunds.get(users.require(authentication), refundNumber);
+    var user = users.require(authentication);
+    var refund = payments.refund(new RefundQueryV1(RefundQueryV1.VERSION, refundNumber))
+      .orElseThrow(() -> new ResourceNotFoundException("Refund not found"));
+    orders.find(user.getId(), refund.orderId())
+      .orElseThrow(() -> new ResourceNotFoundException("Refund not found"));
+    return RefundResponse.from(refund);
   }
 
   @GetMapping("/api/merchant/orders/{orderId}/refunds")
   @PreAuthorize("hasRole('MERCHANT')")
   RefundResponse merchant(@PathVariable Long orderId, Authentication authentication) {
-    return refunds.forMerchantOrder(users.require(authentication), orderId);
+    var merchant = users.require(authentication);
+    orders.items(orderId).stream().filter(item -> merchant.getId().equals(item.getMerchantId()))
+      .findAny().orElseThrow(() -> new ResourceNotFoundException("Merchant order not found"));
+    return payments.refund(new PaymentQueryV1(PaymentQueryV1.VERSION, orderId))
+      .map(RefundResponse::from).orElse(null);
   }
 
   private String traceparent() {

@@ -10,6 +10,8 @@ public interface PaymentOrchestrationV1 {
 
   Optional<RefundSnapshotV1> refund(PaymentQueryV1 query);
 
+  Optional<RefundSnapshotV1> refund(RefundQueryV1 query);
+
   RefundSnapshotV1 requestRefund(RefundCreateCommandV1 command);
 
   PaymentCloseResultV1 closePending(PaymentCloseCommandV1 command);

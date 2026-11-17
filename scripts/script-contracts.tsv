@@ -31,7 +31,7 @@ verify-payment-cancellation-lock-timeout	BaseUrl,LockWaitTimeoutSeconds,LockHold
 verify-payment-cancellation-race	BaseUrl,PaymentBaseUrl,Iterations,DurationSeconds,Seed,InterIterationDelayMilliseconds,AuditDockerDatabase	BASE_URL=1,PAYMENT_BASE_URL=2,ITERATIONS=3,DURATION_SECONDS=4,SEED=5,PACING_MILLISECONDS=6,AUDIT_DATABASE=7
 verify-payment-cancellation-stress	BaseUrl,PaymentBaseUrl,DurationSeconds,MinimumIterations,Seed,InterIterationDelayMilliseconds,InventoryFloor	BASE_URL=1,PAYMENT_BASE_URL=2,DURATION_SECONDS=3,MINIMUM_ITERATIONS=4,SEED=5,PACING_MILLISECONDS=6,INVENTORY_FLOOR=7
 verify-payment-effects-rehearsal	BaseUrl	BASE_URL=1
-verify-payment-notifications	BaseUrl,PaymentBaseUrl	BASE_URL=1,PAYMENT_BASE_URL=2
+verify-payment-notifications	BaseUrl,PaymentBaseUrl,PaymentOrchestrationUrl	BASE_URL=1,PAYMENT_BASE_URL=2,PAYMENT_ORCHESTRATION_URL=3
 verify-payment-outcomes	BaseUrl	BASE_URL=1
 verify-payment-security	BaseUrl	BASE_URL=1
 verify-payment-shadow-runtime	BaseUrl	BASE_URL=1
@@ -50,6 +50,7 @@ verify-inventory-single-owner	BaseUrl,MaxWaitSeconds	BASE_URL=1,MAX_WAIT_SECONDS
 verify-receipt-reviews	BaseUrl	BASE_URL=1
 verify-redis-business	BaseUrl	BASE_URL=1
 verify-refunds	BaseUrl,PaymentBaseUrl	BASE_URL=1,PAYMENT_BASE_URL=2
+verify-payment-runtime-cutover	BaseUrl,PaymentUrl	BASE_URL=1,PAYMENT_URL=2
 verify-rocketmq-reconciliation	BaseUrl,MaxWaitSeconds	BASE_URL=1,MAX_WAIT=2
 verify-rocketmq-scheduling	BaseUrl,MaxWaitSeconds	BASE_URL=1,MAX_WAIT_SECONDS=2
 verify-scheduling	BaseUrl	BASE_URL=1

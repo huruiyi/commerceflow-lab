@@ -1,5 +1,6 @@
 param([string]$BaseUrl = 'http://localhost:14200')
 $ErrorActionPreference = 'Stop'
+$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 
 function New-Session([string]$Email) {
   $session = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
@@ -62,5 +63,10 @@ $pending = Invoke-RestMethod "$BaseUrl/api/purchase-orders/$($orderWithPayment.i
 if ($pending.payment.status -ne 'PENDING') { throw 'Acceptance payment was not pending' }
 $closed = Invoke-RestMethod "$BaseUrl/api/purchase-orders/$($orderWithPayment.id)/cancel" -Method Post -WebSession $customer.Session -Headers $customer.Headers -ContentType application/json -Body '{"reason":"close pending transaction"}'
 if ($closed.status -ne 'CANCELLED' -or $closed.payment.status -ne 'CLOSED') { throw 'Pending channel transaction was not closed before order cancellation' }
+$pendingProcesses = docker compose --project-directory $ProjectRoot exec -T -e MYSQL_PWD=payments-password `
+  payment-db mysql -upayments -Nse "SELECT COUNT(*) FROM payment_process_managers WHERE order_id=$($orderWithPayment.id) AND status<>'COMPLETED'; SELECT COUNT(*) FROM payment_command_outbox WHERE order_id=$($orderWithPayment.id) AND status<>'ACKNOWLEDGED';" payments
+if ($LASTEXITCODE -ne 0 -or @($pendingProcesses | Where-Object { $_ -ne '0' }).Count -ne 0) {
+  throw 'Closing a pending payment did not complete its process and command outbox'
+}
 
-Write-Host 'Order cancellation verification passed: available actions, deadline task, Outbox-backed cancellation, versioned notification consumption and pending channel close.' -ForegroundColor Green
+Write-Host 'Order cancellation verification passed: available actions, deadline task, Outbox-backed cancellation, versioned notification consumption and completed pending-payment process.' -ForegroundColor Green

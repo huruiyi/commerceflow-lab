@@ -26,10 +26,7 @@ if($LASTEXITCODE-ne0){throw 'Default stack did not become healthy'}
 RunBase 'verify-authorization.ps1'
 RunBase 'verify-i18n.ps1'
 RunBase 'verify-order-cancellation.ps1'
-& (Join-Path $PSScriptRoot 'verify-payment-cancellation-race.ps1') `
-  -BaseUrl $BaseUrl -Iterations 2 -DurationSeconds 0 -Seed 20261113 -AuditDockerDatabase
-if(-not$?){throw 'verify-payment-cancellation-race.ps1 failed'}
-RunBase 'verify-refunds.ps1'
+RunBase 'verify-payment-runtime-cutover.ps1'
 RunBase 'verify-auto-lifecycle.ps1'
 RunBase 'verify-redis-business.ps1'
 RunBase 'verify-order-runtime-cutover.ps1'
@@ -43,12 +40,13 @@ $healthUrls=@(
   'http://localhost:18087/actuator/health'
   'http://localhost:18088/actuator/health'
   'http://localhost:18089/actuator/health'
+  'http://localhost:18090/actuator/health'
 )
 foreach($url in $healthUrls){
   $health=Invoke-RestMethod $url
   if($url.EndsWith('/healthz')){if(-not$health){throw "Health check failed: $url"}}
   elseif($health.status-ne'UP'){throw "Health check failed: $url"}
 }
-$summary='Quick regression passed: code quality, contracts, build/start, auth/i18n, cancellation, payment race, '
-$summary+='refund, logistics, receipt/completion/review, lease recovery, Redis fallback and health.'
+$summary='Quick regression passed: code quality, contracts, build/start, auth/i18n, cancellation, remote payment/refund, '
+$summary+='logistics, receipt/completion/review, lease recovery, Redis fallback and health.'
 Write-Host $summary -ForegroundColor Green

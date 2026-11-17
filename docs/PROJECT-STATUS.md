@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.6 第十批最终 GO/NO-GO 评审完成，结论 NO-GO；普通业务流量未切换 |
-| 下一候选阶段 | 获得明确 CUTOVER 授权后，在单一受控窗口原子替换本地实现、回调和源权限；未经授权不得执行 |
+| 当前阶段 | M3.6 第十一批 payment-orchestration 一次性 CUTOVER 完成；独立服务为唯一资金所有者 |
+| 下一候选阶段 | 独立观察切流后运行证据，再单独评审 fulfillment-service；不得并行拆分或启动 PostgreSQL |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -470,3 +470,10 @@ Windows Docker CLI 的 Compose 路径/环境透传后完成同等运行态验收
 M3.6 第十批完成最终 GO/NO-GO：generation 15、水位 603、14 表 MATCH，OPEN 孤儿、待投递 Payment/Command
 Outbox、未完成 Process Manager 均为 0；权限冻结恢复和目标停机恢复通过。由于本地实现、旧回调、源权限和唯一
 远程适配器原子替换仍待同一窗口完成，结论为 NO-GO，CUTOVER 审计继续 `REJECTED`。
+
+M3.6 第十一批在明确授权的受控窗口完成一次性 CUTOVER。商城停止后完成 generation 16、水位 610 的最终快照，
+14 表全部 MATCH，OPEN 孤儿、Payment/Command Outbox 和 Process Manager 未决项均为 0。commerce 现在只有
+`RemotePaymentOrchestrationAdapter`，本地支付/退款 Service、Mapper/XML、渠道 Gateway、旧回调和对账路径已删除；
+支付平台回调只指向 payment-orchestration-service，影子默认关闭且流量/副作用默认开启，`commerce_runtime` 对
+14 张旧源表授权为 0。受控订单 486 的支付、退款及两类幂等重放通过，最终为
+`REFUNDED/SUCCEEDED/REFUNDED`，独立库未决项归零，旧源库没有该订单支付记录。未拆 fulfillment，未启动 PostgreSQL。

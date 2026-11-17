@@ -30,6 +30,7 @@ import vip.fairy.commerceflow.payment.application.contract.v1.PaymentCreateComma
 import vip.fairy.commerceflow.payment.application.contract.v1.PaymentQueryV1;
 import vip.fairy.commerceflow.payment.application.contract.v1.PaymentResultV1;
 import vip.fairy.commerceflow.payment.application.contract.v1.PaymentSnapshotV1;
+import vip.fairy.commerceflow.payment.application.contract.v1.RefundQueryV1;
 import vip.fairy.commerceflow.payment.infrastructure.PaymentShadowProperties;
 
 @RestController
@@ -63,6 +64,12 @@ public class RemotePaymentV1Controller {
     response.put("payment", protocol.latest(query).orElse(null));
     response.put("refund", protocol.refund(query).orElse(null));
     return response;
+  }
+
+  @PostMapping("/refund-query")
+  Object refundQuery(@RequestBody String payload, HttpServletRequest request) {
+    requireTrafficAndHash(payload, request);
+    return protocol.refund(mapper.readValue(payload, RefundQueryV1.class)).orElse(null);
   }
 
   @PostMapping("/close")

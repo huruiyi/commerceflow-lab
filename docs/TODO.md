@@ -792,8 +792,11 @@ Docker 拓扑，也不启动 PostgreSQL。
 - [x] M3.6 第十批完成[最终 GO/NO-GO 评审](architecture/PAYMENT-CUTOVER-GO-NO-GO-REVIEW.md)：generation 15、
   水位 603、14 表 MATCH，OPEN 孤儿、待投递 Payment/Command Outbox 和未完成 Process Manager 均为 0；Windows/WSL
   停写排空、权限冻结恢复及目标停机恢复通过。因本地实现、旧回调和源权限仍在，结论为 NO-GO/`REJECTED`。
-- [ ] 上述阻塞全部归零后重新评审，并在一个受控变更窗口内停写、最终追平核对、切换 Payment V1 与渠道回调、
-  删除 commerce 本地支付/退款运行路径并撤销源表权限；不保留长期双实现或数据库回退。
+- [x] M3.6 第十一批经明确授权完成一次性 CUTOVER：商城停止写入后执行 generation 16、水位 610 的最终快照，
+  14 表全部 MATCH，OPEN 孤儿及 Payment/Command Outbox、Process Manager 未决项均为 0；commerce 仅保留唯一远程
+  Payment V1 适配器，旧支付/退款 Service、Mapper、Gateway、回调和对账路径已删除，渠道回调改投独立服务，
+  `commerce_runtime` 对 14 张源表权限为 0。受控订单 486 的支付/退款及两类幂等重放通过，订单、退款和库存均
+  收敛为 `REFUNDED/SUCCEEDED/REFUNDED`，旧源库无该订单支付记录；未拆 fulfillment，未启动 PostgreSQL。
 
 ## 14. 实施记录模板
 

@@ -107,8 +107,6 @@ public class SecurityConfiguration {
         .csrfTokenRepository(csrfRepository)
         .csrfTokenRequestHandler(csrfRequestHandler)
         .ignoringRequestMatchers(
-          "/api/payment-notifications/**",
-          "/api/refund-notifications/**",
           "/api/logistics-notifications/**",
           "/internal/v1/inventory/catalog-events"))
       .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
@@ -118,8 +116,6 @@ public class SecurityConfiguration {
           "/api/auth/login",
           "/api/auth/csrf",
           "/api/products/**",
-          "/api/payment-notifications/**",
-          "/api/refund-notifications/**",
           "/api/logistics-notifications/**",
           "/internal/v1/inventory/catalog-events",
           "/actuator/health",

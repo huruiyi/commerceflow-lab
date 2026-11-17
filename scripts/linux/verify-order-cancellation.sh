@@ -50,5 +50,7 @@ pending="$(json_request POST "$BASE_URL/api/purchase-orders/$paid_order_id/payme
 jq -e '.payment.status == "PENDING"' <<<"$pending" >/dev/null || { echo 'Acceptance payment was not pending' >&2; exit 1; }
 closed="$(json_request POST "$BASE_URL/api/purchase-orders/$paid_order_id/cancel" "$customer_jar" "$customer_header" "$customer_token" '{"reason":"close pending transaction"}')"
 jq -e '.status == "CANCELLED" and .payment.status == "CLOSED"' <<<"$closed" >/dev/null || { echo 'Pending transaction was not closed' >&2; exit 1; }
+pending_processes="$(compose exec -T -e MYSQL_PWD=payments-password payment-db mysql -upayments -Nse "SELECT COUNT(*) FROM payment_process_managers WHERE order_id=$paid_order_id AND status<>'COMPLETED'; SELECT COUNT(*) FROM payment_command_outbox WHERE order_id=$paid_order_id AND status<>'ACKNOWLEDGED';" payments)"
+[[ "$(tr -d '0\r\n' <<<"$pending_processes")" == '' ]] || { echo 'Closing a pending payment did not complete its process and command outbox' >&2; exit 1; }
 
-echo 'Order cancellation verification passed: available actions, deadline task, Outbox-backed cancellation, versioned notification consumption and pending channel close.'
+echo 'Order cancellation verification passed: available actions, deadline task, Outbox-backed cancellation, versioned notification consumption and completed pending-payment process.'

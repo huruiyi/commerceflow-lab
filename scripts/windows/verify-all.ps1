@@ -43,6 +43,8 @@ $expected = @(
   'inventory-service',
   'order-db',
   'order-service',
+  'payment-db',
+  'payment-orchestration-service',
   'commerce-service',
   'commerce-portal-angular'
 )
@@ -72,18 +74,14 @@ Invoke-ChapterVerification 'verify-i18n.ps1'
 Invoke-ChapterVerification 'verify-authorization.ps1'
 Invoke-ChapterVerification 'verify-scheduling.ps1'
 Invoke-ChapterVerification 'verify-order-cancellation.ps1'
-Invoke-ChapterVerification 'verify-payment-cancellation-race.ps1' -Arguments @('-Iterations', 6)
-Invoke-ChapterVerification 'verify-payment-outcomes.ps1'
-Invoke-ChapterVerification 'verify-kafka-payment.ps1'
-Invoke-ChapterVerification 'verify-refunds.ps1'
+Invoke-ChapterVerification 'verify-payment-runtime-cutover.ps1'
 Invoke-ChapterVerification 'verify-logistics-automation.ps1'
 Invoke-ChapterVerification 'verify-logistics-reliability.ps1'
 Invoke-ChapterVerification 'verify-logistics-callback-governance.ps1'
 Invoke-ChapterVerification 'verify-auto-lifecycle.ps1'
 Invoke-ChapterVerification 'verify-receipt-reviews.ps1'
 Invoke-ChapterVerification 'verify-redis-business.ps1'
-& (Join-Path $PSScriptRoot 'verify-order-shadow-runtime.ps1')
-if (-not $?) { throw 'verify-order-shadow-runtime.ps1 failed' }
+Invoke-ChapterVerification 'verify-order-runtime-cutover.ps1'
 Write-Host "`n==> verify-alerting.ps1" -ForegroundColor Cyan
 & (Join-Path $PSScriptRoot 'verify-alerting.ps1')
 if (-not $?) { throw 'verify-alerting.ps1 failed' }
@@ -96,12 +94,20 @@ do {
     $paymentHealth = Invoke-RestMethod 'http://localhost:18082/actuator/health' -TimeoutSec 5
     $logisticsHealth = Invoke-RestMethod 'http://localhost:18083/actuator/health' -TimeoutSec 5
     $notificationHealth = Invoke-RestMethod 'http://localhost:18086/actuator/health' -TimeoutSec 5
+    $catalogHealth = Invoke-RestMethod 'http://localhost:18087/actuator/health' -TimeoutSec 5
+    $inventoryHealth = Invoke-RestMethod 'http://localhost:18088/actuator/health' -TimeoutSec 5
+    $orderHealth = Invoke-RestMethod 'http://localhost:18089/actuator/health' -TimeoutSec 5
+    $paymentOrchestrationHealth = Invoke-RestMethod 'http://localhost:18090/actuator/health' -TimeoutSec 5
     $healthy = (
       $webHealth.StatusCode -eq 200 -and
       $backendHealth.status -eq 'UP' -and
       $paymentHealth.status -eq 'UP' -and
       $logisticsHealth.status -eq 'UP' -and
-      $notificationHealth.status -eq 'UP'
+      $notificationHealth.status -eq 'UP' -and
+      $catalogHealth.status -eq 'UP' -and
+      $inventoryHealth.status -eq 'UP' -and
+      $orderHealth.status -eq 'UP' -and
+      $paymentOrchestrationHealth.status -eq 'UP'
     )
   } catch {
     $healthy = $false
@@ -111,6 +117,6 @@ do {
 if (-not $healthy) { throw 'Final health check did not recover within 60 seconds' }
 
 $summary = "`nComplete Docker acceptance passed: code quality, build, startup, auth, scheduling governance, i18n, "
-$summary += 'payment outcomes, Kafka, refunds, signed logistics callbacks, fulfillment, reviews, Redis fallback, '
+$summary += 'remote payment/refund, signed logistics callbacks, fulfillment, reviews, Redis fallback, '
 $summary += 'alerting and health.'
 Write-Host $summary -ForegroundColor Green

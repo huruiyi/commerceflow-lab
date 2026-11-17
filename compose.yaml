@@ -429,8 +429,8 @@ services:
       PAYMENT_CHECKOUT_BASE_URL: http://localhost:14201
       REDIS_HOST: payment-simulator-redis
       REDIS_PORT: 6379
-      PAYMENT_CALLBACK_URL: http://commerce-service:8080/api/payment-notifications/callback
-      REFUND_CALLBACK_URL: http://commerce-service:8080/api/refund-notifications/callback
+      PAYMENT_CALLBACK_URL: http://payment-orchestration-service:8080/api/payment-notifications/callback
+      REFUND_CALLBACK_URL: http://payment-orchestration-service:8080/api/refund-notifications/callback
       PAYMENT_CALLBACK_SECRET: ${PAYMENT_CALLBACK_SECRET:-demo-platform-callback-secret}
       TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
       TRACING_OTLP_ENDPOINT: ${TRACING_OTLP_ENDPOINT:-http://tempo:4318/v1/traces}
@@ -541,13 +541,9 @@ services:
       REMEMBER_ME_KEY: ${REMEMBER_ME_KEY:-commerceflow-demo-remember-me-key-change-in-production}
       REDIS_HOST: commerce-redis
       REDIS_PORT: 6379
-      PAYMENT_PLATFORM_BASE_URL: http://payment-simulator-service:8080
-      PAYMENT_CALLBACK_SECRET: ${PAYMENT_CALLBACK_SECRET:-demo-platform-callback-secret}
       PAYMENT_WRITE_FROZEN: ${PAYMENT_WRITE_FROZEN:-false}
-      PAYMENT_CANCELLATION_CRASH_LAB_ENABLED: ${PAYMENT_CANCELLATION_CRASH_LAB_ENABLED:-false}
-      PAYMENT_CANCELLATION_CRASH_LAB_ORDER_ID: ${PAYMENT_CANCELLATION_CRASH_LAB_ORDER_ID:-1}
-      PAYMENT_CANCELLATION_CRASH_LAB_PHASE: ${PAYMENT_CANCELLATION_CRASH_LAB_PHASE:-AFTER_CANCELLATION_BEGIN}
-      PAYMENT_CANCELLATION_CRASH_LAB_PAUSE: ${PAYMENT_CANCELLATION_CRASH_LAB_PAUSE:-5m}
+      COMMERCEFLOW_PAYMENT_REMOTE_BASE_URL: ${PAYMENT_SERVICE_BASE_URL:-http://payment-orchestration-service:8080}
+      COMMERCEFLOW_PAYMENT_REMOTE_SECRET: ${PAYMENT_INTERNAL_SECRET:-demo-payment-internal-secret}
       LOGISTICS_PLATFORM_BASE_URL: http://logistics-simulator-service:8080
       LOGISTICS_APP_ID: ${LOGISTICS_APP_ID:-commerceflow-storefront}
       LOGISTICS_REQUEST_SECRET: ${LOGISTICS_REQUEST_SECRET:-demo-logistics-request-secret}
@@ -642,6 +638,8 @@ services:
       inventory-service:
         condition: service_healthy
       order-service:
+        condition: service_healthy
+      payment-orchestration-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
@@ -796,10 +794,10 @@ services:
       DATABASE_URL: jdbc:mysql://payment-db:3306/payments?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       DATABASE_USERNAME: ${PAYMENT_ORCHESTRATION_DATABASE_USERNAME:-payments}
       DATABASE_PASSWORD: ${PAYMENT_ORCHESTRATION_DATABASE_PASSWORD:-payments-password}
-      PAYMENT_ACCEPTING_TRAFFIC: ${PAYMENT_ACCEPTING_TRAFFIC:-false}
-      PAYMENT_EFFECTS_ENABLED: ${PAYMENT_EFFECTS_ENABLED:-false}
+      PAYMENT_ACCEPTING_TRAFFIC: ${PAYMENT_ACCEPTING_TRAFFIC:-true}
+      PAYMENT_EFFECTS_ENABLED: ${PAYMENT_EFFECTS_ENABLED:-true}
       PAYMENT_EFFECTS_BATCH_SIZE: ${PAYMENT_EFFECTS_BATCH_SIZE:-20}
-      PAYMENT_SHADOW_ENABLED: ${PAYMENT_SHADOW_ENABLED:-true}
+      PAYMENT_SHADOW_ENABLED: ${PAYMENT_SHADOW_ENABLED:-false}
       PAYMENT_SHADOW_BATCH_SIZE: ${PAYMENT_SHADOW_BATCH_SIZE:-500}
       PAYMENT_INTERNAL_SECRET: ${PAYMENT_INTERNAL_SECRET:-demo-payment-internal-secret}
       PAYMENT_CALLBACK_SECRET: ${PAYMENT_CALLBACK_SECRET:-demo-platform-callback-secret}

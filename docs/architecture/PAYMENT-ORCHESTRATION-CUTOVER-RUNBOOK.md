@@ -2,10 +2,9 @@
 
 ## 1. 当前评审结论
 
-截至 M3.6 第八批，CUTOVER 仍为 **REJECTED**，普通支付/退款流量继续由 commerce 的唯一
-`LocalPaymentOrchestrationAdapter` 处理。远程 Payment V1、退款发起、Order V1/Inventory 副作用和可靠
-Outbox 已具备；commerce 的退款 POST 已先收口到同一个 `PaymentOrchestrationV1` 契约，但没有增加远程实现、
-选择器或双写。
+M3.6 第十一批已在明确授权的受控窗口完成 **CUTOVER**。普通支付/退款流量、渠道回调和资金副作用现在由
+`payment-orchestration-service` 唯一处理；commerce 只保留身份薄入口、稳定 Payment V1 契约和唯一远程适配器，
+不保留本地实现、选择器、双写或数据库回退。
 
 真正切换必须在一个受控窗口内原子完成，不能拆成“先开回调”“先开远程写”或“保留本地兜底”几个长期阶段。
 
@@ -61,3 +60,13 @@ Outbox 已具备；commerce 的退款 POST 已先收口到同一个 `PaymentOrch
 必须恢复 `PAYMENT_WRITE_FROZEN=false`。
 
 任一门禁失败都停止切换。不得用打开本地兜底、恢复源表权限或同时运行两套回调来绕过失败。
+
+## 6. 2026-11-18 实际切换证据
+
+- 强停写后最终快照为 generation 16、水位 610，14 张表逐表行数和指纹全部 `MATCH`。
+- OPEN 孤儿、待发布 Payment Outbox、待处理 Command Outbox、未完成 Process Manager 均为 0。
+- payment 模式为 `acceptingTraffic=true/effectsEnabled=true/shadowEnabled=false`；两类回调只指向独立服务。
+- `commerce_runtime` 对 14 张旧源表的表权限计数为 0，直接 SELECT 返回 MySQL 1142。
+- 受控订单 486 完成支付、支付重放、全额退款、退款重放；最终订单 `REFUNDED`、退款 `SUCCEEDED`、库存
+  `REFUNDED`，独立库未决项为 0，commerce 旧源表没有该订单支付记录。
+- 独立库已接收新业务写，旧库仅作历史证据，不再是运行回退路径。

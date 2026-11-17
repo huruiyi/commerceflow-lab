@@ -21,8 +21,7 @@ compose up -d --wait
 "$SCRIPT_DIR/verify-authorization.sh" "$BASE_URL"
 "$SCRIPT_DIR/verify-i18n.sh" "$BASE_URL"
 "$SCRIPT_DIR/verify-order-cancellation.sh" "$BASE_URL"
-"$SCRIPT_DIR/verify-payment-cancellation-race.sh" "$BASE_URL" http://localhost:14201 2 0 20261113 0 true
-"$SCRIPT_DIR/verify-refunds.sh" "$BASE_URL" http://localhost:14201
+"$SCRIPT_DIR/verify-payment-runtime-cutover.sh" "$BASE_URL" http://localhost:14201
 "$SCRIPT_DIR/verify-auto-lifecycle.sh" "$BASE_URL"
 "$SCRIPT_DIR/verify-redis-business.sh" "$BASE_URL"
 "$SCRIPT_DIR/verify-order-runtime-cutover.sh" "$BASE_URL"
@@ -32,9 +31,12 @@ for url in \
   http://localhost:18082/actuator/health \
   http://localhost:18083/actuator/health \
   http://localhost:18086/actuator/health \
-  http://localhost:18087/actuator/health;do
+  http://localhost:18087/actuator/health \
+  http://localhost:18088/actuator/health \
+  http://localhost:18089/actuator/health \
+  http://localhost:18090/actuator/health;do
   [[ "$(curl -fsS "$url"|jq -r .status)" == UP ]]||{ echo "Health check failed: $url" >&2;exit 1; }
 done
-summary='Quick regression passed: code quality, contracts, build/start, auth/i18n, cancellation, payment race, '
-summary+='refund, logistics, receipt/completion/review, lease recovery, Redis fallback and health.'
+summary='Quick regression passed: code quality, contracts, build/start, auth/i18n, cancellation, remote payment/refund, '
+summary+='logistics, receipt/completion/review, lease recovery, Redis fallback and health.'
 echo "$summary"

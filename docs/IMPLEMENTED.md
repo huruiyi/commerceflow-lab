@@ -283,6 +283,10 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - M3.6 第十批最终预切换核对为 generation 15、水位 603、14 表 MATCH，OPEN 孤儿、待投递 Payment/Command
   Outbox 和未完成 Process Manager 均为 0；权限冻结恢复与目标停机恢复通过。最终 GO/NO-GO 仍为 NO-GO，因为
   本地实现、旧回调和源权限只能在获准的原子窗口内一起替换。
+- M3.6 第十一批经明确授权完成 payment-orchestration 一次性 CUTOVER。最终 generation 16、水位 610、14 表
+  MATCH，四类未决项均为 0；commerce 删除本地资金实现并只保留签名远程 Payment V1 适配器，支付/退款回调
+  改投独立服务，运行账号对 14 张旧源表授权为 0。订单 486 的支付、退款、两类幂等重放和库存退款闭环通过，
+  独立库未决项归零且旧源库无新支付记录。未维护双实现、未拆 fulfillment、未启动 PostgreSQL。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

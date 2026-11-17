@@ -14,7 +14,6 @@ import vip.fairy.commerceflow.commerce.scheduling.application.ScheduledTaskTypes
 import vip.fairy.commerceflow.commerce.scheduling.infrastructure.ScheduledTaskMapper;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
-import vip.fairy.commerceflow.commerce.shared.application.PaymentCancellationCrashProbe;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -33,14 +32,12 @@ public class OrderCancellationService {
   private final ScheduledTaskMapper scheduledTasks;
   private final OrderEventPublisherPort events;
   private final CustomerNotificationCommandPublisher notifications;
-  private final PaymentCancellationCrashProbe crashLab;
 
   public OrderCancellationService(OrderStorePort orders, PaymentOrchestrationV1 payments,
                                   PaymentWriteAdmissionV1 paymentWrites,
                                   TransactionTemplate transactions, ScheduledTaskMapper scheduledTasks,
                                   OrderEventPublisherPort events,
-                                  CustomerNotificationCommandPublisher notifications,
-                                  PaymentCancellationCrashProbe crashLab) {
+                                  CustomerNotificationCommandPublisher notifications) {
     this.orders = orders;
     this.payments = payments;
     this.paymentWrites = paymentWrites;
@@ -48,7 +45,6 @@ public class OrderCancellationService {
     this.scheduledTasks = scheduledTasks;
     this.events = events;
     this.notifications = notifications;
-    this.crashLab = crashLab;
   }
 
   public void cancelByCustomer(AppUser customer, Long orderId, String reason) {
@@ -69,7 +65,6 @@ public class OrderCancellationService {
       return;
     }
 
-    crashLab.pause(orderId, PaymentCancellationCrashProbe.Phase.AFTER_CANCELLATION_BEGIN);
     String commandId = UUID.randomUUID().toString();
     String correlationId = UUID.randomUUID().toString();
     PaymentCloseResultV1 result = payments.closePending(new PaymentCloseCommandV1(
