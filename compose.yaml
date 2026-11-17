@@ -121,6 +121,24 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  payment-db:
+    container_name: fairy-commerceflow-payment-db
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: payments
+      MYSQL_USER: ${PAYMENT_ORCHESTRATION_DATABASE_USERNAME:-payments}
+      MYSQL_PASSWORD: ${PAYMENT_ORCHESTRATION_DATABASE_PASSWORD:-payments-password}
+      MYSQL_ROOT_PASSWORD: ${PAYMENT_ORCHESTRATION_MYSQL_ROOT_PASSWORD:-local-payments-root-password}
+    volumes:
+      - payment-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
   commerce-redis:
     container_name: fairy-commerceflow-commerce-redis
     image: redis:7.4-alpine
@@ -767,6 +785,38 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  payment-orchestration-service:
+    container_name: fairy-commerceflow-payment-orchestration-service
+    build:
+      context: ./services/payment-orchestration-service
+    environment:
+      DATABASE_URL: jdbc:mysql://payment-db:3306/payments?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DATABASE_USERNAME: ${PAYMENT_ORCHESTRATION_DATABASE_USERNAME:-payments}
+      DATABASE_PASSWORD: ${PAYMENT_ORCHESTRATION_DATABASE_PASSWORD:-payments-password}
+      PAYMENT_ACCEPTING_TRAFFIC: ${PAYMENT_ACCEPTING_TRAFFIC:-false}
+      PAYMENT_SHADOW_ENABLED: ${PAYMENT_SHADOW_ENABLED:-true}
+      PAYMENT_SHADOW_BATCH_SIZE: ${PAYMENT_SHADOW_BATCH_SIZE:-500}
+      PAYMENT_SOURCE_DATABASE_URL: jdbc:mysql://commerce-db:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      PAYMENT_SOURCE_DATABASE_USERNAME: ${DATABASE_USERNAME:-commerceflow}
+      PAYMENT_SOURCE_DATABASE_PASSWORD: ${DATABASE_PASSWORD:-commerceflow-password}
+      TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
+      TRACING_OTLP_ENDPOINT: ${TRACING_OTLP_ENDPOINT:-http://tempo:4318/v1/traces}
+      TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1.0}
+    ports:
+      - "18090:8080"
+    depends_on:
+      payment-db:
+        condition: service_healthy
+      commerce-schema-migrator:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
   inventory-data-migrator:
     container_name: fairy-commerceflow-inventory-data-migrator
     image: mysql:8.4
@@ -809,6 +859,7 @@ volumes:
   catalog-db-data:
   inventory-db-data:
   order-db-data:
+  payment-db-data:
   commerce-redis-data:
   payment-simulator-db-data:
   payment-simulator-redis-data:

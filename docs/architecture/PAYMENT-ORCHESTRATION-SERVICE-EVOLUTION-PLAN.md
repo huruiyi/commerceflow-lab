@@ -54,7 +54,7 @@ order、inventory、identity 与 fulfillment 只保留稳定 ID、版本化命�
 2. **已完成**：收口 ordering/fulfillment 对 payment/refund 内部实现的依赖，冻结 Payment V1 契约。
 3. **已完成**：删除跨 identity 外键，处置 OPEN 对账记录，收口订单事件 Outbox/Inbox 临时适配器，建立支付/退款
    Process Manager、命令 Outbox、结果 Inbox 与人工恢复门禁，取得 CREATE 准入。
-4. 创建分层独立服务和 MySQL `payment-db`，仅无业务流量影子迁移与核对。
+4. **已完成**：创建分层独立服务和 MySQL `payment-db`，仅无业务流量影子迁移与核对。
 5. 完成回调、支付/取消竞态、退款、结果丢失、服务/数据库停机和整体回退演练后，单独评审 CUTOVER。
 6. 稳定窗通过后删除 commerce 支付/退款运行路径与源表权限，再进入 fulfillment-service。
 
@@ -94,3 +94,20 @@ ordering/fulfillment 对 payment/refund 的 application、domain、infrastructur
 新增 6 项恢复协议测试固定命令/结果同 ID 重放、异 payload 冲突、超时转人工核对和带操作人/原因的人工重试；
 commerce-service 共 55 项测试通过。CREATE 已准入，CUTOVER 仍冻结。下一批只创建独立服务与 `payment-db`
 进行无业务流量影子快照、增量追平、水位核对和孤儿隔离。
+
+## 9. 第四批影子运行证据
+
+已创建按 `api/application/domain/infrastructure` 分层的 `payment-orchestration-service` 和独立 MySQL
+`payment-db`。commerce 的支付/退款业务流量仍由唯一 `LocalPaymentOrchestrationAdapter` 承担；独立服务只开放
+影子管理端点，`PAYMENT_ACCEPTING_TRAFFIC=false`，没有远程业务入口、LOCAL/COMPARE 或数据库回退。
+
+Flyway V38 使用单例提交顺序水位和 42 个触发器捕获 14 张 payment/refund 所有权表变更。独立服务在
+REPEATABLE READ 一致性视图中完成可重复快照，按水位增量追平，并对固定列序列执行逐字段 SHA-256 核对；
+目标端外键缺失会进入 `payment_shadow_orphan_quarantine`，父记录恢复后使用原源记录重放并留下解析时间。
+
+Windows 与 Ubuntu 26.04 WSL 对等专项均通过。最终快速回归并追平后 generation 3、水位 83；支付 353、
+商户 3、通知 248、支付事件 706、幂等锁 353、对账 2、Outbox 326、Kafka Inbox 326、退款 40、退款事件/通知各 80，三张恢复
+协议表为空，14 张表计数和指纹全部 MATCH。两次孤儿演练均为 RESOLVED，OPEN 为 0。V38 真实 MySQL、
+commerce-service 55 项与 payment-orchestration-service 1 项 Java 25 测试、442/30/220/8 质量门禁、
+464 个 Java 源文件空行、51 对脚本契约、完整快速回归和
+关闭流量门均已验证；本批未 CUTOVER、未拆 fulfillment、未启动 PostgreSQL。

@@ -16,7 +16,7 @@ assert_scalar(){ local label="$1" query="$2" expected="$3" actual;actual="$(sql 
 cd "$PROJECT_ROOT"
 docker compose up -d --wait commerce-db >/dev/null
 tables="'payment_records','payment_merchant_accounts','payment_notifications','payment_events','payment_idempotency_locks','payment_reconciliation_issue','payment_outbox','kafka_consumed_event','payment_process_managers','payment_command_outbox','payment_result_inbox','refund_records','refund_events','refund_notifications'"
-assert_scalar 'Flyway schema version' "SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1;" 37
+assert_scalar 'Flyway V37 payment admission migration' "SELECT COUNT(*) FROM flyway_schema_history WHERE version='37' AND success=1;" 1
 assert_scalar 'payment-orchestration owned table count' "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name IN ($tables);" 14
 assert_scalar 'internal foreign keys' "SELECT COUNT(*) FROM information_schema.key_column_usage WHERE table_schema='commerceflow' AND table_name IN ($tables) AND referenced_table_name IN ($tables);" 7
 assert_scalar 'outbound cross-boundary foreign keys' "SELECT COUNT(*) FROM information_schema.key_column_usage WHERE table_schema='commerceflow' AND table_name IN ($tables) AND referenced_table_name IS NOT NULL AND referenced_table_name NOT IN ($tables);" 0

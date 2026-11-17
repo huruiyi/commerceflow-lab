@@ -248,6 +248,10 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   OPEN 对账；179 条订单事件 Outbox/Inbox 迁入 ordering 自有表，payment 不再承载订单主题。新增 Process
   Manager、命令 Outbox、结果 Inbox、未知结果/超时人工核对和带审计信息的人工重试门禁。真实 MySQL V37
   迁移与 55 项测试通过；未创建独立服务/数据库、未 CUTOVER、未并行拆 fulfillment、未启动 PostgreSQL。
+- M3.6 第四批创建分层 `payment-orchestration-service` 与独立 `payment-db`，但业务流量门保持关闭，commerce
+  仍只使用唯一的本地 Payment V1 适配器。V38 用提交顺序水位和 42 个触发器捕获 14 张表变更；独立服务完成
+  一致性可重复快照、增量追平、逐字段 SHA-256 核对和孤儿隔离/重放。Windows/WSL 实机专项及快速回归后
+  generation 3、水位 83，14 张表全部 MATCH，两次孤儿演练 RESOLVED、OPEN 0；未 CUTOVER、未拆 fulfillment、未启动 PostgreSQL。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

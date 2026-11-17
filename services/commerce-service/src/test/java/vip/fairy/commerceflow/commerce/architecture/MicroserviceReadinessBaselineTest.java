@@ -124,6 +124,8 @@ class MicroserviceReadinessBaselineTest {
       Map.entry("payment_process_managers", "payment"),
       Map.entry("payment_command_outbox", "payment"),
       Map.entry("payment_result_inbox", "payment"),
+      Map.entry("payment_shadow_change_clock", "payment"),
+      Map.entry("payment_shadow_change_log", "payment"),
       Map.entry("refund_records", "refund"),
       Map.entry("refund_events", "refund"),
       Map.entry("refund_notifications", "refund"),

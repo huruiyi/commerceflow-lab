@@ -753,9 +753,15 @@ Docker 拓扑，也不启动 PostgreSQL。
   Outbox/Inbox，payment Outbox/Inbox 中的订单主题归零。
 - [x] 支付/退款恢复协议建立独立 Process Manager、命令 Outbox、结果 Inbox；同 ID 异 payload 冲突、结果
   未知转人工核对、超时转人工核对、人工重试操作人/原因/时间均有自动门禁。CREATE 准入已通过。
-- [ ] M3.6 下一批创建分层 `payment-orchestration-service` 和独立 MySQL `payment-db`，只进行无业务流量的
-  影子快照、增量追平、水位核对与孤儿隔离；不得 CUTOVER，不得保留 LOCAL/COMPARE 双实现，不得并行拆
-  fulfillment，也不得启动 PostgreSQL。
+- [x] M3.6 第四批已创建分层 `payment-orchestration-service` 和独立 MySQL `payment-db`，只进行无业务流量的
+  影子快照、增量追平、水位核对与孤儿隔离；`PAYMENT_ACCEPTING_TRAFFIC=false`，commerce 仍只使用唯一
+  `LocalPaymentOrchestrationAdapter`，没有 LOCAL/COMPARE、CUTOVER、fulfillment 拆分或 PostgreSQL。
+- [x] Flyway V38 以单例提交顺序时钟和 42 个触发器记录 14 张所有权表变更；独立服务使用 REPEATABLE READ
+  一致性可重复快照、批量增量、逐字段 SHA-256 审计和外键孤儿隔离/重放。Windows 与 WSL 实机专项后
+  generation 3、水位 83，353/3/248/706/353/2/326/326/40/80/80 与三张空协议表全部 MATCH；两次孤儿演练
+  均为 RESOLVED，OPEN 为 0。
+- [ ] M3.6 下一批完成远程 Payment V1、回调、支付/取消竞态、退款、结果丢失、服务/数据库停机与整体回退
+  演练；通过后另行评审 CUTOVER。本批仍不得提前切流、并行拆 fulfillment 或启动 PostgreSQL。
 
 ## 14. 实施记录模板
 

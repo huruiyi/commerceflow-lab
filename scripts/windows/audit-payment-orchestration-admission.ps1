@@ -27,8 +27,8 @@ $tables = "'payment_records','payment_merchant_accounts','payment_notifications'
   "'payment_idempotency_locks','payment_reconciliation_issue','payment_outbox'," +
   "'kafka_consumed_event','payment_process_managers','payment_command_outbox'," +
   "'payment_result_inbox','refund_records','refund_events','refund_notifications'"
-AssertScalar 'Flyway schema version' `
-  "SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1;" '37'
+AssertScalar 'Flyway V37 payment admission migration' `
+  "SELECT COUNT(*) FROM flyway_schema_history WHERE version='37' AND success=1;" '1'
 AssertScalar 'payment-orchestration owned table count' `
   "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name IN ($tables);" '14'
 AssertScalar 'internal foreign keys' `

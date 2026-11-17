@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: payment-orchestration-service
+  datasource:
+    url: ${DATABASE_URL:jdbc:mysql://localhost:3311/payments?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${DATABASE_USERNAME:payments}
+    password: ${DATABASE_PASSWORD:payments-password}
+  flyway:
+    baseline-on-migrate: true
+    baseline-version: 0
+
+server:
+  port: 8080
+
+management:
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+    export:
+      otlp:
+        enabled: ${TRACING_EXPORT_ENABLED:false}
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${TRACING_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+          timeout: ${TRACING_EXPORT_TIMEOUT:3s}
+          transport: http
+  otlp:
+    metrics:
+      export:
+        enabled: false
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+commerceflow:
+  payment:
+    accepting-traffic: ${PAYMENT_ACCEPTING_TRAFFIC:false}
+    shadow:
+      enabled: ${PAYMENT_SHADOW_ENABLED:true}
+      initial-delay: ${PAYMENT_SHADOW_INITIAL_DELAY:2s}
+      fixed-delay: ${PAYMENT_SHADOW_FIXED_DELAY:2s}
+      audit-delay: ${PAYMENT_SHADOW_AUDIT_DELAY:30s}
+      batch-size: ${PAYMENT_SHADOW_BATCH_SIZE:500}
+      source:
+        url: ${PAYMENT_SOURCE_DATABASE_URL:jdbc:mysql://localhost:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+        username: ${PAYMENT_SOURCE_DATABASE_USERNAME:commerceflow}
+        password: ${PAYMENT_SOURCE_DATABASE_PASSWORD:commerceflow-password}

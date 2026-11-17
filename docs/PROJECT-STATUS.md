@@ -4,12 +4,12 @@
 
 | 项目 | 当前值 |
 | --- | --- |
-| 快照日期 | 2026-11-17 |
+| 快照日期 | 2026-11-18 |
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.6 第三批恢复协议与所有权收口已完成；CREATE 已准入，CUTOVER 冻结 |
-| 下一候选阶段 | 删除跨 identity 外键并建立支付/退款可恢复协议门禁 |
+| 当前阶段 | M3.6 第四批独立支付编排影子服务已完成；无业务流量，CUTOVER 冻结 |
+| 下一候选阶段 | 远程 Payment V1、竞态/退款/结果丢失、停机恢复与整体回退演练 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -416,3 +416,11 @@ Process Manager、命令 Outbox、结果 Inbox，以及同 ID 异 payload 冲突
 原因、时间的人工重试门禁。持久卷 Flyway V37 审计为 14 张 payment/refund 所有权表、双向跨边界外键 0、
 OPEN 对账 0、payment 中订单事件 0，179/179 条订单 Outbox/Inbox 完整保留；55 项测试通过。CREATE 已准入，
 CUTOVER 仍冻结；本批没有创建独立服务/数据库、没有并行拆 fulfillment，也没有启动 PostgreSQL。
+
+M3.6 第四批创建分层 `payment-orchestration-service` 和独立 MySQL `payment-db`，但 commerce 仍只使用唯一
+`LocalPaymentOrchestrationAdapter`，独立服务的 `PAYMENT_ACCEPTING_TRAFFIC=false`，只开放影子管理端点。
+Flyway V38 以 42 个触发器和提交顺序水位捕获 14 张所有权表变更；独立服务完成 REPEATABLE READ 可重复快照、
+增量追平、逐字段 SHA-256 核对和外键孤儿隔离/重放。Windows 与 Ubuntu 26.04 WSL 专项及最终快速回归后
+generation 3、水位 83，支付 353、商户 3、通知 248、支付事件 706、幂等锁 353、对账 2、
+Outbox/Kafka Inbox 各 326、退款 40、退款事件/通知各 80，三张恢复协议表为空，14 张表全部 MATCH；两次孤儿演练均 RESOLVED，OPEN 0。
+本批没有业务流量、CUTOVER、LOCAL/COMPARE、fulfillment 拆分或 PostgreSQL。

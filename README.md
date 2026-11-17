@@ -17,6 +17,7 @@
 | 通知服务 Maven artifactId | `notification-service`（默认启动、唯一通知读写实现） |
 | 商品服务 Maven artifactId | `catalog-service`（默认启动、唯一商品资料读写实现） |
 | 库存服务 Maven artifactId | `inventory-service`（默认启动，库存命令和商家库存管理的唯一实现） |
+| 支付编排影子服务 Maven artifactId | `payment-orchestration-service`（无业务流量，仅快照与增量核对） |
 | 命名迁移策略 | 不混用两套名称；按 [命名规范](docs/NAMING-CONVENTIONS.md) 独立迁移 |
 
 ## 技术架构
@@ -45,6 +46,8 @@
 - `services/inventory-service/`：分层库存服务，独立 MySQL 保存五张所有权表；默认接收 RESERVE、COMMIT、
   RELEASE、REFUND，并独占商家库存查询、调账和流水。commerce 只保留生产端 Outbox/结果 Inbox 与
   Session/RBAC/HMAC 薄代理，其运行数据库账号无五张库存源表权限。
+- `services/payment-orchestration-service/`：独立 MySQL 支付/退款影子边界；当前只执行 14 张所有权表的一致性
+  快照、增量追平、水位核对和孤儿隔离，业务流量门关闭，尚未 CUTOVER。
 - `simulators/payment-platform/service/`：独立支付数据库、后台安全、商户凭据和三渠道交易服务。
 - `simulators/logistics-platform/service/`：独立物流数据库、运单推进、异常与可靠回调模拟服务。
 - `simulators/payment-platform/web/`：Vue 3.5.45、Ant Design Vue Next 和 VXE-Table 支付管理后台与模拟收银台。
@@ -85,6 +88,8 @@ docker compose ps
 - 通知服务健康检查：`http://localhost:18086/actuator/health`
 - 商品服务健康检查：`http://localhost:18087/actuator/health`
 - 库存服务健康检查：`http://localhost:18088/actuator/health`
+- 订单服务健康检查：`http://localhost:18089/actuator/health`
+- 支付编排影子服务健康检查：`http://localhost:18090/actuator/health`
 - 物流 MySQL：`localhost:13308`
 - Kafka UI：`http://localhost:14202`
 
@@ -225,7 +230,8 @@ bash ./scripts/linux/verify-order-precutover-rehearsal.sh
 影子与预切换脚本保留为历史取证入口；默认运行时关闭影子复制且不再配置源库，不应重新开放源端权限。
 
 payment-orchestration 准入审计检查 14 张 payment/refund 所有权表、跨边界外键、外部内部实现消费者、
-金额/状态/幂等、独立 Outbox/Inbox 和恢复不变量；当前 CREATE 已准入，但尚未创建服务或数据库，也未 CUTOVER：
+金额/状态/幂等、独立 Outbox/Inbox 和恢复不变量；当前 CREATE 已准入，独立影子服务与数据库已经创建，
+但没有业务流量，也未 CUTOVER：
 
 ```powershell
 ./scripts/windows/audit-payment-orchestration-admission.ps1
@@ -239,7 +245,17 @@ bash ./scripts/linux/audit-payment-orchestration-admission.sh
 [payment-orchestration-service 准入与单一所有权演进计划](docs/architecture/PAYMENT-ORCHESTRATION-SERVICE-EVOLUTION-PLAN.md)。
 创建、查询、关闭和结果的稳定字段与恢复语义见
 [支付第一版远程契约](docs/architecture/PAYMENT-V1-CONTRACT.md)。当前仍由唯一的本地适配器实现；CREATE
-准入只表示允许开始创建无业务流量的影子服务和数据库，不能描述成已经创建或切换了独立支付服务。
+准入之后已完成无业务流量影子服务和数据库；这仍不能描述成已经切换独立支付服务。
+
+支付影子运行专项会执行可重复快照、增量水位、14 表指纹核对和可恢复孤儿演练，不清空现有卷：
+
+```powershell
+./scripts/windows/verify-payment-shadow-runtime.ps1
+```
+
+```bash
+bash ./scripts/linux/verify-payment-shadow-runtime.sh
+```
 
 Angular 商城门户和支付模拟器 Web 都使用模块本地 Prettier 只读门禁：
 
