@@ -14,8 +14,9 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import vip.fairy.commerceflow.commerce.payment.domain.PaymentView;
+import vip.fairy.commerceflow.commerce.payment.infrastructure.PaymentNotificationMapper;
+import vip.fairy.commerceflow.commerce.ordering.application.port.OrderPaymentPort;
 import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
-import vip.fairy.commerceflow.commerce.ordering.infrastructure.ShopOrderMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.TransientDataAccessException;
@@ -28,7 +29,8 @@ import vip.fairy.commerceflow.commerce.payment.infrastructure.PaymentCancellatio
 @Service
 public class PaymentNotificationService {
 
-  private final ShopOrderMapper orders;
+  private final PaymentNotificationMapper payments;
+  private final OrderPaymentPort orders;
   private final ObjectMapper mapper;
   private final String secret;
   private final PaymentEventPipeline events;
@@ -37,7 +39,8 @@ public class PaymentNotificationService {
   private final PaymentCancellationCrashLab crashLab;
 
   public PaymentNotificationService(
-    ShopOrderMapper orders,
+    PaymentNotificationMapper payments,
+    OrderPaymentPort orders,
     ObjectMapper mapper,
     @Value("${commerceflow.payment-platform.callback-secret:demo-platform-callback-secret}") String secret,
     PaymentEventPipeline events,
@@ -45,6 +48,7 @@ public class PaymentNotificationService {
     RefundService refunds,
     PaymentCancellationCrashLab crashLab
   ) {
+    this.payments = payments;
     this.orders = orders;
     this.mapper = mapper;
     this.secret = secret;
@@ -61,13 +65,13 @@ public class PaymentNotificationService {
     }
     try {
       Notice notice = mapper.readValue(raw, Notice.class);
-      PaymentView payment = orders.lockPaymentByTransaction(notice.channelTransactionNo())
+      PaymentView payment = payments.lockByTransaction(notice.channelTransactionNo())
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND"));
       String digest = HexFormat.of().formatHex(
         MessageDigest.getInstance("SHA-256").digest(raw.getBytes(StandardCharsets.UTF_8)));
       if (payment.getAmount().compareTo(notice.amount()) != 0
         || !payment.getCurrency().equals(notice.currency())) {
-        orders.insertNotification(payment.getId(), notice.channel(), notice.notificationId(),
+        payments.insertNotification(payment.getId(), notice.channel(), notice.notificationId(),
           notice.channelTransactionNo(), "REJECTED", digest, "Amount or currency mismatch", notice.status());
         return new Result("REJECTED");
       }
@@ -78,16 +82,16 @@ public class PaymentNotificationService {
       };
       if ("PENDING".equals(target)) return new Result("IGNORED");
 
-      int changed = orders.finishPayment(payment.getId(), target,
+      int changed = payments.finish(payment.getId(), target,
         notice.failureReason() == null ? "" : notice.failureReason());
       if (changed == 1) {
-        orders.insertPaymentEvent(payment.getId(), UUID.randomUUID().toString(), "CALLBACK_" + target,
+        payments.insertEvent(payment.getId(), UUID.randomUUID().toString(), "CALLBACK_" + target,
           "PENDING", target, "Signed asynchronous notification");
         crashLab.pause(payment.getOrderId(), Phase.AFTER_PAYMENT_RECORD);
         if ("SUCCESS".equals(target)) applySuccessfulPayment(payment.getOrderId(), notice.notificationId());
         events.append(payment.getId().toString(), "PAYMENT_CALLBACK_" + target, raw);
       }
-      orders.insertNotification(payment.getId(), notice.channel(), notice.notificationId(),
+      payments.insertNotification(payment.getId(), notice.channel(), notice.notificationId(),
         notice.channelTransactionNo(), changed == 1 ? "PROCESSED" : "DUPLICATE_OR_FINAL", digest, "",
         notice.status());
       return new Result(changed == 1 ? "PROCESSED" : "ACKNOWLEDGED");
@@ -103,39 +107,38 @@ public class PaymentNotificationService {
   }
 
   private void applySuccessfulPayment(Long orderId, String notificationId) {
-    ShopOrderView order = orders.lockById(orderId).orElseThrow();
+    ShopOrderView order = orders.lockForPaymentResult(orderId);
     Long customerId = order.getCustomerId();
     if ("PENDING_PAYMENT".equals(order.getStatus())
-      && orders.updateStatus(orderId, "PENDING_PAYMENT", "PAID") == 1) {
+      && orders.paidFromPending(orderId)) {
       requireWaitingCommit(orderId);
       inventory.handle(InventoryCommandPort.commit(
         notificationId + ":inventory:commit", orderId, notificationId));
-      orders.insertEventDetailed(orderId, customerId, "PAYMENT_SUCCEEDED", "PENDING_PAYMENT", "PAID",
-        "Signed asynchronous notification applied", "PAYMENT_CALLBACK", null);
+      orders.resultApplied(orderId, customerId, "PAYMENT_SUCCEEDED", "PENDING_PAYMENT",
+        "Signed asynchronous notification applied");
     } else if ("CANCELLING".equals(order.getStatus())
-      && orders.restorePaidAfterCancellationRace(orderId) == 1) {
+      && orders.paidAfterCancellationRace(orderId)) {
       requireWaitingCommit(orderId);
       inventory.handle(InventoryCommandPort.commit(
         notificationId + ":inventory:commit", orderId, notificationId));
-      orders.insertEventDetailed(orderId, customerId, "CANCELLATION_LOST_PAYMENT_RACE", "CANCELLING", "PAID",
-        "Payment callback won the cancellation race", "PAYMENT_CALLBACK", null);
+      orders.resultApplied(orderId, customerId, "CANCELLATION_LOST_PAYMENT_RACE", "CANCELLING",
+        "Payment callback won the cancellation race");
     } else if ("CANCELLED".equals(order.getStatus())
-      && orders.restorePaidAfterLateSuccess(orderId) == 1) {
-      orders.insertEventDetailed(orderId, customerId, "LATE_PAYMENT_AFTER_CANCELLATION", "CANCELLED", "PAID",
-        "Late successful payment restored the order and queued an automatic refund",
-        "PAYMENT_CALLBACK", null);
+      && orders.paidAfterLateSuccess(orderId)) {
+      orders.resultApplied(orderId, customerId, "LATE_PAYMENT_AFTER_CANCELLATION", "CANCELLED",
+        "Late successful payment restored the order and queued an automatic refund");
       refunds.queueAutomatic(orderId, notificationId);
     }
   }
 
   private void requireInventoryTransition(Long orderId, String fromStatus, String toStatus) {
-    if (orders.updateInventoryStatus(orderId, fromStatus, toStatus) != 1) {
+    if (!orders.moveInventory(orderId, fromStatus, toStatus)) {
       throw new IllegalStateException("Order inventory state changed concurrently");
     }
   }
 
   private void requireWaitingCommit(Long orderId) {
-    if (orders.updateInventoryStatus(orderId, "RESERVED", "WAITING_COMMIT") == 1) {
+    if (orders.moveInventory(orderId, "RESERVED", "WAITING_COMMIT")) {
       return;
     }
     requireInventoryTransition(orderId, "WAITING_RESERVATION", "WAITING_COMMIT");

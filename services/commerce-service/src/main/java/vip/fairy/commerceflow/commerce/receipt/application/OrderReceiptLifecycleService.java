@@ -1,8 +1,8 @@
 package vip.fairy.commerceflow.commerce.receipt.application;
 
 import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
+import vip.fairy.commerceflow.commerce.ordering.application.port.OrderReceiptPort;
 import vip.fairy.commerceflow.commerce.ordering.infrastructure.OrderLifecycleProperties;
-import vip.fairy.commerceflow.commerce.ordering.infrastructure.ShopOrderMapper;
 import vip.fairy.commerceflow.commerce.scheduling.application.ScheduledTaskService;
 import vip.fairy.commerceflow.commerce.scheduling.application.ScheduledTaskTypes;
 import vip.fairy.commerceflow.commerce.scheduling.infrastructure.ScheduledTaskMapper;
@@ -18,12 +18,12 @@ import java.util.Map;
 @Service
 public class OrderReceiptLifecycleService {
 
-  private final ShopOrderMapper orders;
+  private final OrderReceiptPort orders;
   private final ScheduledTaskMapper taskMapper;
   private final ObjectProvider<ScheduledTaskService> scheduledTasks;
   private final OrderLifecycleProperties properties;
 
-  public OrderReceiptLifecycleService(ShopOrderMapper orders, ScheduledTaskMapper taskMapper,
+  public OrderReceiptLifecycleService(OrderReceiptPort orders, ScheduledTaskMapper taskMapper,
                                       ObjectProvider<ScheduledTaskService> scheduledTasks,
                                       OrderLifecycleProperties properties) {
     this.orders = orders;
@@ -55,8 +55,8 @@ public class OrderReceiptLifecycleService {
       throw new BusinessRuleException("Only shipped orders can be received");
     }
     Instant receivedAt = Instant.now();
-    if (orders.markReceived(orderId, receivedAt) == 1) {
-      orders.insertEventDetailed(orderId, actorId, "ORDER_RECEIVED", "SHIPPED", "RECEIVED",
+    if (orders.received(orderId, receivedAt)) {
+      orders.transitionRecorded(orderId, actorId, "ORDER_RECEIVED", "SHIPPED", "RECEIVED",
         "Customer confirmed receipt", "USER", null);
       cancelPendingAutoReceive(orderId, "Customer confirmed receipt before automatic receipt");
       scheduleAutoComplete(orderId, receivedAt);
@@ -65,7 +65,7 @@ public class OrderReceiptLifecycleService {
 
   @Transactional
   public void autoReceive(Long orderId, Long scheduledTaskId) {
-    ShopOrderView order = orders.lockById(orderId).orElse(null);
+    ShopOrderView order = orders.lock(orderId).orElse(null);
     if (order == null || "COMPLETED".equals(order.getStatus())) {
       return;
     }
@@ -77,8 +77,8 @@ public class OrderReceiptLifecycleService {
       return;
     }
     Instant receivedAt = Instant.now();
-    if (orders.markReceived(orderId, receivedAt) == 1) {
-      orders.insertEventDetailed(orderId, null, "ORDER_AUTO_RECEIVED", "SHIPPED", "RECEIVED",
+    if (orders.received(orderId, receivedAt)) {
+      orders.transitionRecorded(orderId, null, "ORDER_AUTO_RECEIVED", "SHIPPED", "RECEIVED",
         "Automatic receipt after logistics delivery observation period", "SCHEDULED_TASK",
         scheduledTaskId);
       scheduleAutoComplete(orderId, receivedAt);
@@ -87,14 +87,14 @@ public class OrderReceiptLifecycleService {
 
   @Transactional
   public void autoComplete(Long orderId, Long scheduledTaskId) {
-    ShopOrderView order = orders.lockById(orderId).orElse(null);
+    ShopOrderView order = orders.lock(orderId).orElse(null);
     if (order == null || "COMPLETED".equals(order.getStatus())
       || !"RECEIVED".equals(order.getStatus())) {
       return;
     }
     Instant completedAt = Instant.now();
-    if (orders.markCompleted(orderId, completedAt) == 1) {
-      orders.insertEventDetailed(orderId, null, "ORDER_AUTO_COMPLETED", "RECEIVED", "COMPLETED",
+    if (orders.completed(orderId, completedAt)) {
+      orders.transitionRecorded(orderId, null, "ORDER_AUTO_COMPLETED", "RECEIVED", "COMPLETED",
         "Order completed after receipt observation period", "SCHEDULED_TASK", scheduledTaskId);
     }
   }

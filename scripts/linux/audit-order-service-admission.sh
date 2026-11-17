@@ -58,13 +58,13 @@ done
 mapfile -t external_consumers < <(grep -RIl \
   'import vip.fairy.commerceflow.commerce.ordering.infrastructure.ShopOrderMapper;' \
   services/commerce-service/src/main/java | grep -v '/ordering/' || true)
-[[ "${#external_consumers[@]}" == 7 ]] || \
-  fail "expected seven frozen external ShopOrderMapper consumers: ${external_consumers[*]}"
+[[ "${#external_consumers[@]}" == 0 ]] || \
+  fail "external ShopOrderMapper consumers must be zero: ${external_consumers[*]}"
 if grep -REn 'org\.apache\.seata|io\.seata|dtm-labs|GlobalTransactional|TwoPhaseBusinessAction' \
     services/commerce-service/pom.xml services/commerce-service/src/main/java >/dev/null 2>&1; then
   fail 'global transaction coordinator found'
 fi
-echo '  PASS seven external ShopOrderMapper consumers frozen; Seata/DTM/XA coordinator absent'
+echo '  PASS external ShopOrderMapper consumers = 0; Seata/DTM/XA coordinator absent'
 
 echo 'Order ownership baseline:'
 sql "
@@ -76,4 +76,4 @@ SELECT CONCAT('addresses|',COUNT(*)) FROM order_shipping_addresses
 UNION ALL
 SELECT CONCAT('events|',COUNT(*)) FROM order_events;"
 
-echo 'Order-service admission audit passed: data is consistent; CREATE remains denied until nine cross-boundary foreign keys and seven external ShopOrderMapper consumers are removed behind versioned ports.'
+echo 'Order-service admission audit passed: data is consistent; CREATE remains denied until nine cross-boundary foreign keys and remaining foreign-table responsibilities are removed.'

@@ -92,19 +92,6 @@ public interface ShopOrderMapper {
                       @Param("actionType") String actionType,
                       @Param("qrPayload") String qrPayload);
 
-  Optional<PaymentView> lockPaymentByTransaction(String transactionNo);
-
-  void insertNotification(@Param("paymentId") Long paymentId,
-                          @Param("channel") String channel,
-                          @Param("notificationId") String notificationId,
-                          @Param("transactionNo") String transactionNo,
-                          @Param("processingStatus") String processingStatus,
-                          @Param("digest") String digest,
-                          @Param("reason") String reason,
-                          @Param("rawStatus") String rawStatus);
-
-  int finishPayment(@Param("id") Long id, @Param("toStatus") String toStatus, @Param("reason") String reason);
-
   int closePendingPayment(@Param("id") Long id, @Param("reason") String reason);
 
   Long orderCustomerId(Long orderId);

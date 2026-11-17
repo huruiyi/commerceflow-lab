@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.5 第一批已完成；order-service CREATE 准入因 9 条跨边界外键和 7 个外部 Mapper 消费者暂不通过 |
-| 下一候选阶段 | M3.5 第二批 order application port 与 V1 命令/结果契约收口；不直接建服务 |
+| 当前阶段 | M3.5 第二批已完成；7 个外部 Mapper 消费者归零，order V1 命令/结果契约冻结 |
+| 下一候选阶段 | M3.5 第三批 Mapper 外部表职责与持久化 Saga 基线；不直接建服务 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -342,8 +342,18 @@ Compose 先以迁移账号执行 Flyway，再为 `commerce_runtime` 逐表授权
 
 M3.5 第一批完成 order-service 边界审计与自动门禁。order 最终拥有 `shop_orders`、`order_items`、
 `order_shipping_addresses`、`order_events` 四表；当前 4 条出站和 5 条入站跨边界外键、7 个外部
-`ShopOrderMapper` 消费者仍阻止 CREATE。默认持久卷为 Flyway V34，订单/商品项/地址均为 313 条、事件
+`ShopOrderMapper` 消费者仍阻止 CREATE。当批默认持久卷为 Flyway V34，订单/商品项/地址均为 313 条、事件
 1477 条、订单与商品项金额均为 406587.00；重复、孤儿、金额错配、非法状态和待恢复流程均为 0。Windows
 与 Git Bash 审计结果一致，Java 25 正式镜像 42 项测试通过。分布式事务固定为本地事务 + Outbox/Inbox +
 持久化 Saga/Process Manager + 补偿/对账，不引入 Seata、DTM、XA 或全局事务协调器。本批未创建
 order-service/order-db，未并行拆 payment-orchestration/fulfillment，也未启动 PostgreSQL。
+
+M3.5 第二批新增 `ordering/application/port` 和 `ordering/application/contract/v1` 子目录。fulfillment、
+logistics、payment、receipt、refund 只通过五类意图端口访问订单，7 个外部 `ShopOrderMapper` 消费者归零；
+支付回调的锁定、通知、支付状态和事件 SQL 迁入 payment 自有 Mapper。OrderCommandV1/OrderResultV1 固定稳定
+ID、前置状态、失败码、correlation/causation/W3C Trace，以及“超时不是失败”的结果语义，两个兼容 fixture
+通过测试。Windows/Git Bash 审计均保持 V34、9 条跨边界外键和数据指纹一致；Java 25 正式镜像 44 项测试、
+380/28/232/6 质量门禁与全部 396 个 Java 源文件类声明空行通过。CREATE 仍因跨边界外键、Mapper 剩余
+cart/address/payment 表职责及持久化 Saga 尚未完成而冻结；未创建服务/数据库，PostgreSQL 未启动。
+本批 Windows 快速回归完整通过后，最新一致性审计为订单/商品项/地址各 321 条、事件 1521 条、金额
+416979.00，指纹 `orders|321|416979.00|832328281`；所有错误计数仍为 0。

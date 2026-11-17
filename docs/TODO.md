@@ -703,9 +703,15 @@ Docker 拓扑，也不启动 PostgreSQL。
 - [x] M3.5 第一批已完成 order-service 边界准入治理：四张所有权表的数据和状态一致，但 4 条出站、5 条入站
   跨边界外键及 7 个外部 `ShopOrderMapper` 消费者尚未收口，因此 CREATE 准入不通过；详细阻塞、无
   Seata/DTM 的 Saga 基线及后续批次见 `docs/architecture/ORDER-SERVICE-EVOLUTION-PLAN.md`。
-- [ ] 下一批先建立 order application port 与 V1 命令/结果契约，逐步归零外部 Mapper 消费者；不得直接创建
-  order-service/order-db，不得同时拆 payment-orchestration/fulfillment，全部服务完成单一所有权切换并逐一
-  验收前仍不得启动 PostgreSQL。
+- [x] M3.5 第二批已按 fulfillment/logistics/payment/receipt/refund 五种意图建立 order application port，
+  7 个外部 `ShopOrderMapper` 消费者归零；支付通知自有 SQL 迁入 payment Mapper，禁止回流门禁通过。
+- [x] 冻结 OrderCommandV1/OrderResultV1、状态前置条件、稳定 ID、W3C Trace、失败码、未知结果和补偿语义，
+  命令/结果 fixture 通过 Java 25 兼容测试；当前仍是同进程本地适配器，不虚报远程 Saga 已完成。
+- [x] Java 25 正式镜像 44 项测试、双平台 order 准入审计和 Windows 快速回归通过；回归后的四表关联、
+  状态、金额和孤儿审计均为 0 异常，外部 `ShopOrderMapper` 消费者保持为 0。
+- [ ] 下一批清除 `ShopOrderMapper` 对 cart/address/payment 的剩余外部表职责，并建立 order 持久化 Process
+  Manager、命令 Outbox、结果 Inbox、超时待对账和人工恢复基线；不得直接创建 order-service/order-db，
+  不得并行拆 payment-orchestration/fulfillment，全部服务验收前仍不得启动 PostgreSQL。
 
 ## 14. 实施记录模板
 

@@ -185,7 +185,7 @@ bash ./scripts/linux/audit-code-quality.sh
 并校验 Mapper namespace、SQL statement id、Java 方法、内联 SQL 和直接 JDBC 边界。
 
 order-service 的只读 CREATE 准入审计可单独复跑；它检查订单四表、9 条跨边界外键、状态与关联不变量、
-7 个外部 Mapper 消费者以及全局事务协调器缺席门禁，不创建服务、不迁移数据、不清空卷：
+外部 Mapper 消费者保持为 0，以及全局事务协调器缺席门禁，不创建服务、不迁移数据、不清空卷：
 
 ```powershell
 ./scripts/windows/audit-order-service-admission.ps1

@@ -14,7 +14,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 import vip.fairy.commerceflow.commerce.logistics.domain.ShipmentRecordView;
 import vip.fairy.commerceflow.commerce.logistics.infrastructure.ShipmentMapper;
-import vip.fairy.commerceflow.commerce.ordering.infrastructure.ShopOrderMapper;
+import vip.fairy.commerceflow.commerce.ordering.application.port.OrderLogisticsPort;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -30,14 +30,14 @@ public class LogisticsNotificationService {
   );
   private static final List<String> EVENT_TYPES = List.of("PROGRESS", "EXCEPTION", "RECOVERY");
   private final ShipmentMapper shipments;
-  private final ShopOrderMapper orders;
+  private final OrderLogisticsPort orders;
   private final ObjectMapper mapper;
   private final String secret;
   private final OrderReceiptLifecycleService lifecycle;
 
   public LogisticsNotificationService(
     ShipmentMapper shipments,
-    ShopOrderMapper orders,
+    OrderLogisticsPort orders,
     ObjectMapper mapper,
     @Value("${commerceflow.logistics-platform.callback-secret:demo-logistics-callback-secret}") String secret,
     OrderReceiptLifecycleService lifecycle
@@ -108,15 +108,11 @@ public class LogisticsNotificationService {
     if (inserted == 1 && shouldApply(shipment.getStatus(), notice.status(), eventType)) {
       shipments.updateStatus(shipment.getId(), notice.status(), notice.occurredAt());
       if ("DELIVERED".equals(notice.status())) {
-        orders.markLogisticsDelivered(shipment.getOrderId(), notice.occurredAt());
         lifecycle.scheduleAutoReceive(shipment.getOrderId(), notice.occurredAt());
       }
-      orders.insertEventDetailed(
-        shipment.getOrderId(), null, "LOGISTICS_STATUS_UPDATED",
-        orders.status(shipment.getOrderId()), orders.status(shipment.getOrderId()),
-        eventType + " · " + notice.status() + " · " + notice.location() + " · " + notice.description(),
-        source, null
-      );
+      orders.statusUpdated(shipment.getOrderId(), notice.status(), notice.occurredAt(),
+        eventType + " · " + notice.status() + " · " + notice.location() + " · "
+          + notice.description(), source);
     }
     shipments.insertNotification(
       shipment.getId(), notice.notificationId(), inserted == 1 ? processedStatus : "DUPLICATE", digest, ""

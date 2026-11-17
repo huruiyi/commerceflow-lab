@@ -13,9 +13,9 @@ import java.util.UUID;
 import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
 import vip.fairy.commerceflow.commerce.payment.domain.PaymentView;
 import vip.fairy.commerceflow.commerce.refund.domain.RefundView;
+import vip.fairy.commerceflow.commerce.ordering.application.port.OrderRefundPort;
 import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
 import vip.fairy.commerceflow.commerce.refund.infrastructure.RefundMapper;
-import vip.fairy.commerceflow.commerce.ordering.infrastructure.ShopOrderMapper;
 import vip.fairy.commerceflow.commerce.refund.api.RefundRequest;
 import vip.fairy.commerceflow.commerce.refund.api.RefundResponse;
 import org.springframework.dao.DuplicateKeyException;
@@ -31,14 +31,14 @@ public class RefundService {
 
   private static final String AUTO_REASON = "Automatic refund for late payment after cancellation";
 
-  private final ShopOrderMapper orders;
+  private final OrderRefundPort orders;
   private final RefundMapper refunds;
   private final RefundGatewayClient gateway;
   private final PaymentEventPipeline events;
   private final TransactionTemplate transactions;
   private final TransactionTemplate requiresNew;
 
-  public RefundService(ShopOrderMapper orders, RefundMapper refunds, RefundGatewayClient gateway,
+  public RefundService(OrderRefundPort orders, RefundMapper refunds, RefundGatewayClient gateway,
                        PaymentEventPipeline events, PlatformTransactionManager manager) {
     this.orders = orders;
     this.refunds = refunds;
@@ -103,7 +103,7 @@ public class RefundService {
   }
 
   private Prepared prepareAutomatic(Long orderId, String notificationId) {
-    ShopOrderView order = orders.lockById(orderId)
+    ShopOrderView order = orders.lock(orderId)
       .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
     PaymentView payment = refunds.lockSuccessfulPayment(orderId)
       .orElseThrow(() -> new BusinessRuleException("Successful payment not found"));
@@ -127,7 +127,7 @@ public class RefundService {
     if (!List.of("PAID", "CONFIRMED").contains(order.getStatus())) {
       throw new BusinessRuleException("Only paid or confirmed orders can be refunded before shipment");
     }
-    if (orders.updateStatus(order.getId(), order.getStatus(), "REFUNDING") != 1) {
+    if (!orders.start(order.getId(), order.getStatus())) {
       throw new BusinessRuleException("Order status changed while requesting refund");
     }
     String number = number();
@@ -144,7 +144,7 @@ public class RefundService {
     String eventType = automatic ? "AUTO_REFUND_REQUESTED" : "REFUND_REQUESTED";
     refunds.insertEvent(refund.getId(), UUID.randomUUID().toString(), eventType,
       "REQUESTED", "PROCESSING", request.reasonCode());
-    orders.insertEvent(order.getId(), order.getCustomerId(),
+    orders.resultRecorded(order.getId(), order.getCustomerId(),
       automatic ? "ORDER_AUTO_REFUND_REQUESTED" : "ORDER_REFUND_REQUESTED",
       order.getStatus(), "REFUNDING", automatic ? AUTO_REASON : request.reasonCode());
     events.append(refund.getId().toString(), eventType,

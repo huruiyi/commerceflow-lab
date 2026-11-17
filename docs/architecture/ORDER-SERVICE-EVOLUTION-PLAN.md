@@ -2,10 +2,10 @@
 
 ## 1. 当前结论
 
-M3.5 第一批只完成边界审计和基线冻结，`order-service` 的 **CREATE 准入暂不通过**。当前订单数据、
-状态和关联完整性均一致，但共享数据库中仍有 9 条跨边界外键，另有 7 个外部类直接依赖
-`ShopOrderMapper`。在这些依赖收口到版本化应用端口前，不创建 `order-service`、`order-db`，不迁移数据，
-不切换流量。
+M3.5 第一批完成边界审计和基线冻结，第二批已将 7 个外部 `ShopOrderMapper` 消费者归零并冻结
+[order V1 命令/结果契约](ORDER-V1-CONTRACT.md)。`order-service` 的 **CREATE 准入仍暂不通过**：共享数据库中
+仍有 9 条跨边界外键，`ShopOrderMapper` 也仍承担 cart/address/payment 的部分外部表职责。在这些职责和
+持久化 Saga 前置条件收口前，不创建 `order-service`、`order-db`，不迁移数据，不切换流量。
 
 本阶段继续使用 MySQL 8.4。不得并行拆分 `payment-orchestration-service` 或 `fulfillment-service`；
 PostgreSQL 只有在当前规划的全部服务以及以后新增的待拆服务都完成单一所有权切换并逐一验收后，才能另立专项。
@@ -55,7 +55,7 @@ order 四表指向外部边界的 4 条外键：
 
 ### 3.2 七个外部 Mapper 消费者
 
-以下应用服务仍直接依赖 order 的基础设施 Mapper：
+第一批发现的直接依赖如下：
 
 | 模块 | 当前消费者 |
 | --- | --- |
@@ -65,14 +65,15 @@ order 四表指向外部边界的 4 条外键：
 | receipt | `OrderReceiptLifecycleService` |
 | refund | `RefundNotificationService`、`RefundService` |
 
-这些依赖必须逐个改为明确的 order application port。端口应按意图命名，例如支付结果确认、退款结果确认、
-履约状态推进和收货状态推进，不得创建一个远程版通用 `ShopOrderMapper`。
+第二批已按 fulfillment、logistics、payment、receipt、refund 五种意图建立 application port，并由唯一
+`LocalOrderBoundaryAdapter` 在单体内实现；上述 7 个直接依赖现为 0。支付回调自有的支付锁定、通知、状态和
+事件 SQL 已迁入 payment Mapper。门禁现在禁止任何外部模块重新导入 `ShopOrderMapper`，不得创建远程版通用 Mapper。
 
 ### 3.3 Mapper 与编排职责过宽
 
 `ShopOrderMapper.xml` 除四张 order 表外还访问 cart、address 和 payment 表。`PurchaseOrderService` 也直接组合
-购物车、身份、支付、退款、调度、物流和库存能力。下一批必须先拆出应用端口和稳定命令/结果契约，再决定哪些编排
-留在 order Process Manager；禁止把当前单体事务原样包装成一次跨服务同步调用链。
+购物车、身份、支付、退款、调度、物流和库存能力。应用端口和稳定命令/结果契约已经建立；下一批继续迁走
+Mapper 的外部表访问，并决定哪些编排留在 order Process Manager。禁止把当前单体事务原样包装成一次跨服务同步调用链。
 
 ## 4. 分布式事务决策
 
@@ -95,10 +96,12 @@ order 四表指向外部边界的 4 条外键：
 
 ## 5. 后续批次顺序
 
-1. **应用端口收口**：拆分 `ShopOrderMapper` 外部消费者，冻结禁止新增规则，清除 Mapper 对外部表的新访问。
-2. **Order V1 契约与状态机**：冻结创建、支付、取消、退款、履约命令/结果，补齐非法转换和兼容 fixture。
-3. **持久化 Saga 基线**：建立 order 侧 Outbox、结果 Inbox、流程状态、超时待对账和人工恢复入口。
-4. **最终 CREATE 评审**：九条跨边界外键和七个 Mapper 消费者归零，完整回归、故障与数据指纹通过后才允许建服务。
+1. **应用端口收口（已完成）**：7 个外部 Mapper 消费者归零，五类意图端口和禁止回流门禁已建立。
+2. **Order V1 契约（已完成）**：冻结命令/结果信封、前置状态、幂等、未知结果和兼容 fixture。
+3. **Mapper 职责与持久化 Saga 基线**：清除 cart/address/payment 外部表访问，建立 order 侧 Outbox、结果
+   Inbox、流程状态、超时待对账和人工恢复入口。
+4. **最终 CREATE 评审**：九条跨边界外键归零、外部 Mapper 消费者持续为 0，完整回归、故障与数据指纹
+   通过后才允许建服务。
 5. **影子运行与 MySQL 迁移**：创建分层 `order-service` 和独立 MySQL，先不接流量；完成可重复快照和增量追平。
 6. **停写、最终追平与切换**：整体切换订单写入，验证重复、乱序、结果丢失、服务/数据库停机和跨进程 Trace。
 7. **单一所有权冻结**：删除 commerce 中的 order 运行路径和源表权限，不保留 LOCAL/COMPARE、双写或数据库回退。
@@ -106,15 +109,15 @@ order 四表指向外部边界的 4 条外键：
 
 ## 6. 当前验收证据与复跑
 
-2026-11-17 的默认 MySQL 持久卷审计结果：Flyway V34；订单 313、商品项 313、地址快照 313、事件
-1477；订单金额与商品项汇总均为 `406587.00`。重复订单号、孤儿记录、无商品/地址/事件订单、金额不一致、
+2026-11-17 第二批快速回归后的默认 MySQL 持久卷审计结果：Flyway V34；订单 321、商品项 321、地址快照
+321、事件 1521；订单金额与商品项汇总均为 `416979.00`。重复订单号、孤儿记录、无商品/地址/事件订单、金额不一致、
 非法状态、非法库存投影和待恢复流程均为 0。指纹如下：
 
 ```text
-orders|313|406587.00|1799638222
-items|313|313|406587.00
-addresses|313
-events|1477
+orders|321|416979.00|832328281
+items|321|321|416979.00
+addresses|321
+events|1521
 ```
 
 复跑入口：
@@ -127,6 +130,6 @@ events|1477
 ./scripts/linux/audit-order-service-admission.sh
 ```
 
-两套脚本只启动并读取现有 `commerce-db`，不清空卷；同时冻结 4 张所有权表、4+5 条跨边界外键、7 个外部
-Mapper 消费者、状态/关联不变量及 Seata/DTM/XA 缺席门禁。Java 架构测试允许旧依赖逐步减少，但禁止新增消费者、
-新增 Mapper 外部表职责或全局事务协调器。
+两套脚本只启动并读取现有 `commerce-db`，不清空卷；同时冻结 4 张所有权表、4+5 条跨边界外键、外部 Mapper
+消费者为 0、状态/关联不变量及 Seata/DTM/XA 缺席门禁。Java 架构测试禁止消费者回流、新增 Mapper 外部表职责
+或引入全局事务协调器。

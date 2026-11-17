@@ -193,9 +193,15 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   PostgreSQL 未启动。
 - M3.5 第一批完成 order-service 边界审计，不创建服务或数据库。四张 order 所有权表的数据、状态、金额和
   关联完整性通过双平台实机审计；当前仍有 4 条出站、5 条入站跨边界外键和 7 个外部
-  `ShopOrderMapper` 消费者，因此 CREATE 准入明确不通过。新增 Java 门禁禁止扩张直接 Mapper 消费者、
+  `ShopOrderMapper` 消费者，因此当批 CREATE 准入明确不通过。新增 Java 门禁禁止扩张直接 Mapper 消费者、
   Mapper 外部表职责以及 Seata/DTM/XA 协调器；Java 25 正式镜像 42 项测试通过。后续统一使用本地事务、
   Outbox/Inbox、持久化 Saga、条件状态转换和业务补偿/对账，PostgreSQL 继续冻结。
+- M3.5 第二批以五个意图型 order application port 替代 fulfillment/logistics/payment/receipt/refund 对
+  `ShopOrderMapper` 的直接依赖，外部消费者由 7 归零；支付通知 SQL 回到 payment 自有 Mapper。新增
+  OrderCommandV1/OrderResultV1、类型/结果枚举和两份兼容 fixture，明确前置状态、稳定 ID、失败码、Trace、
+  未知结果与补偿语义。Java 25 正式镜像 44 项测试、380/28/232/6 质量门禁和 396 个 Java 源文件类声明
+  空行通过，双平台 order 准入审计及 Windows 快速回归通过；回归后订单/商品项/地址各 321 条、事件 1521 条，
+  金额 416979.00 且错误计数均为 0。当前仍是本地适配器，不代表独立服务或远程 Saga 已完成。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

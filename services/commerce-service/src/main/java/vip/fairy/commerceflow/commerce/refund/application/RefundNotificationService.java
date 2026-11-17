@@ -7,7 +7,7 @@ import vip.fairy.commerceflow.commerce.payment.application.PaymentEventPipeline;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.commerce.payment.domain.PaymentView;
 import vip.fairy.commerceflow.commerce.refund.domain.RefundView;
-import vip.fairy.commerceflow.commerce.ordering.infrastructure.ShopOrderMapper;
+import vip.fairy.commerceflow.commerce.ordering.application.port.OrderRefundPort;
 import vip.fairy.commerceflow.commerce.refund.infrastructure.RefundMapper;
 
 import java.math.BigDecimal;
@@ -30,7 +30,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class RefundNotificationService implements InventoryCommandPort.StateProjection {
 
   private final RefundMapper refunds;
-  private final ShopOrderMapper orders;
+  private final OrderRefundPort orders;
   private final ObjectMapper mapper;
   private final String secret;
   private final PaymentEventPipeline events;
@@ -38,7 +38,7 @@ public class RefundNotificationService implements InventoryCommandPort.StateProj
 
   public RefundNotificationService(
     RefundMapper refunds,
-    ShopOrderMapper orders,
+    OrderRefundPort orders,
     ObjectMapper mapper,
     @Value("${commerceflow.payment-platform.callback-secret:demo-platform-callback-secret}") String secret,
     PaymentEventPipeline events,
@@ -80,11 +80,11 @@ public class RefundNotificationService implements InventoryCommandPort.StateProj
         if (changed == 1) {
           if (refunds.addRefundedAmount(refund.getPaymentId(), refund.getAmount()) != 1)
             throw new IllegalStateException("Refund amount exceeds payment amount");
-          if (orders.updateStatus(refund.getOrderId(), "REFUNDING", "REFUNDED") != 1)
+          if (!orders.complete(refund.getOrderId()))
             throw new IllegalStateException("Order is not refunding");
           if (refunds.updateInventoryStatus(refund.getOrderId(), "NOT_STARTED", "WAITING") != 1)
             throw new IllegalStateException("Refund inventory state changed concurrently");
-          orders.updateInventoryStatus(refund.getOrderId(), "COMMITTED", "REFUND_PENDING");
+          orders.moveInventory(refund.getOrderId(), "COMMITTED", "REFUND_PENDING");
           inventory.handle(InventoryCommandPort.refund(
             notice.notificationId() + ":inventory:refund",
             refund.getOrderId(),
@@ -94,7 +94,7 @@ public class RefundNotificationService implements InventoryCommandPort.StateProj
             refund.getId(), UUID.randomUUID().toString(), "REFUND_SUCCEEDED",
             "PROCESSING", "SUCCEEDED", "Signed refund notification"
           );
-          orders.insertEvent(
+          orders.resultRecorded(
             refund.getOrderId(), refund.getCustomerId(), "ORDER_REFUNDED",
             "REFUNDING", "REFUNDED", "Refund " + refund.getRefundNumber() + " succeeded"
           );
@@ -106,12 +106,12 @@ public class RefundNotificationService implements InventoryCommandPort.StateProj
           notice.failureReason() == null ? "" : notice.failureReason()
         );
         if (changed == 1) {
-          orders.updateStatus(refund.getOrderId(), "REFUNDING", refund.getOrderStatusBeforeRefund());
+          orders.restoreAfterFailure(refund.getOrderId(), refund.getOrderStatusBeforeRefund());
           refunds.insertEvent(
             refund.getId(), UUID.randomUUID().toString(), "REFUND_FAILED", "PROCESSING", "FAILED",
             notice.failureReason() == null ? "" : notice.failureReason()
           );
-          orders.insertEvent(
+          orders.resultRecorded(
             refund.getOrderId(), refund.getCustomerId(), "ORDER_REFUND_FAILED",
             "REFUNDING", refund.getOrderStatusBeforeRefund(), "Refund failed"
           );

@@ -5,6 +5,7 @@ import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 import org.springframework.web.bind.annotation.RestController;
+import vip.fairy.commerceflow.commerce.ordering.infrastructure.ShopOrderMapper;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
@@ -51,4 +52,10 @@ class ModuleArchitectureTest {
       "..inventory.application"
     )
     .because("other modules must call inventory through its application ports");
+
+  @ArchTest
+  static final ArchRule ORDER_MAPPER_STAYS_BEHIND_APPLICATION_PORTS = noClasses()
+    .that().resideOutsideOfPackage("..ordering..")
+    .should().dependOnClassesThat().areAssignableTo(ShopOrderMapper.class)
+    .because("other modules must call ordering through intent-specific application ports");
 }

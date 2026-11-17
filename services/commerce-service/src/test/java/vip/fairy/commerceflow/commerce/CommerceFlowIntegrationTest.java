@@ -31,6 +31,8 @@ import vip.fairy.commerceflow.commerce.identity.infrastructure.AppUserMapper;
 import vip.fairy.commerceflow.commerce.ordering.application.OrderCancellationService;
 import vip.fairy.commerceflow.commerce.receipt.application.OrderReceiptLifecycleService;
 import vip.fairy.commerceflow.commerce.ordering.application.OrderCancellationProjection;
+import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderCommandV1;
+import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderResultV1;
 import vip.fairy.commerceflow.commerce.logistics.application.LogisticsNotificationService;
 import vip.fairy.commerceflow.commerce.logistics.application.LogisticsGatewayClient;
 import vip.fairy.commerceflow.commerce.payment.application.PaymentGatewayClient;
@@ -256,6 +258,26 @@ class CommerceFlowIntegrationTest {
           command.schemaVersion());
         org.junit.jupiter.api.Assertions.assertEquals(fixture.getValue(), command.commandType());
       }
+    }
+  }
+
+  @Test
+  void orderCommandAndResultV1FixturesRemainCompatible() throws Exception {
+    try (var input = getClass().getResourceAsStream(
+      "/contracts/ordering/order-ship-command-v1.json")) {
+      org.junit.jupiter.api.Assertions.assertNotNull(input);
+      OrderCommandV1 command = json.readValue(input, OrderCommandV1.class);
+      command.validate();
+      org.junit.jupiter.api.Assertions.assertEquals(OrderCommandV1.VERSION,
+        command.schemaVersion());
+    }
+    try (var input = getClass().getResourceAsStream(
+      "/contracts/ordering/order-payment-result-v1.json")) {
+      org.junit.jupiter.api.Assertions.assertNotNull(input);
+      OrderResultV1 result = json.readValue(input, OrderResultV1.class);
+      result.validate();
+      org.junit.jupiter.api.Assertions.assertEquals(OrderResultV1.VERSION,
+        result.schemaVersion());
     }
   }
 

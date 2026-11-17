@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.payment.infrastructure.PaymentNotificationMapper">
+
+  <select id="lockByTransaction" resultType="vip.fairy.commerceflow.commerce.payment.domain.PaymentView">
+    <![CDATA[
+      SELECT p.*, m.merchant_no
+      FROM payment_records p
+      LEFT JOIN payment_merchant_accounts m ON m.id = p.merchant_account_id
+      WHERE p.channel_transaction_no = #{transactionNo}
+      FOR UPDATE
+    ]]>
+  </select>
+
+  <insert id="insertNotification">
+    <![CDATA[
+      INSERT INTO payment_notifications(
+        payment_id, channel, notification_id, channel_transaction_no, signature_valid,
+        processing_status, payload_digest, failure_reason, raw_status, received_at, processed_at
+      )
+      VALUES (
+        #{paymentId}, #{channel}, #{notificationId}, #{transactionNo}, TRUE,
+        #{processingStatus}, #{digest}, #{reason}, #{rawStatus}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+    ]]>
+  </insert>
+
+  <update id="finish">
+    <![CDATA[
+      UPDATE payment_records
+      SET status = #{toStatus},
+          failure_reason = #{reason},
+          paid_at = CASE
+            WHEN #{toStatus} = 'SUCCESS' THEN CURRENT_TIMESTAMP
+            ELSE paid_at
+          END,
+          updated_at = CURRENT_TIMESTAMP,
+          version = version + 1
+      WHERE id = #{id}
+        AND status = 'PENDING'
+    ]]>
+  </update>
+
+  <insert id="insertEvent">
+    <![CDATA[
+      INSERT INTO payment_events(
+        payment_id, event_id, event_type, from_status, to_status, detail, created_at
+      )
+      VALUES (
+        #{paymentId}, #{eventId}, #{type}, #{fromStatus}, #{toStatus}, #{detail}, CURRENT_TIMESTAMP
+      )
+    ]]>
+  </insert>
+</mapper>

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "resultId": "8c67fd23-b243-4721-b956-804b8b10a82e",
+  "resultType": "PAYMENT",
+  "outcome": "SUCCEEDED",
+  "occurredAt": "2026-11-17T04:31:00Z",
+  "producer": "payment-orchestration",
+  "orderId": 2001,
+  "externalReference": "PAY-2001-WECHAT",
+  "sourceStatus": "SUCCESS",
+  "errorCode": null,
+  "message": "Signed payment notification confirmed",
+  "correlationId": "order-2001",
+  "causationId": "payment-notification-2001",
+  "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+}

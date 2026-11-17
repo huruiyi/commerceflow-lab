@@ -8,9 +8,9 @@ import vip.fairy.commerceflow.commerce.logistics.application.LogisticsGatewayCli
 import vip.fairy.commerceflow.commerce.logistics.domain.ShipmentRecordView;
 import vip.fairy.commerceflow.commerce.logistics.infrastructure.ShipmentMapper;
 import vip.fairy.commerceflow.commerce.ordering.api.ShopOrderResponse;
+import vip.fairy.commerceflow.commerce.ordering.application.port.OrderFulfillmentPort;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderEventView;
 import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
-import vip.fairy.commerceflow.commerce.ordering.infrastructure.ShopOrderMapper;
 import vip.fairy.commerceflow.commerce.refund.api.RefundResponse;
 import vip.fairy.commerceflow.commerce.refund.infrastructure.RefundMapper;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
@@ -27,14 +27,14 @@ import java.util.Objects;
 public class MerchantFulfillmentService {
 
   private final MerchantOrderMapper merchants;
-  private final ShopOrderMapper orders;
+  private final OrderFulfillmentPort orders;
   private final RefundMapper refunds;
   private final ShipmentMapper shipments;
   private final LogisticsGatewayClient logistics;
   private final TransactionTemplate transactions;
 
   public MerchantFulfillmentService(MerchantOrderMapper merchants,
-                                    ShopOrderMapper orders,
+                                    OrderFulfillmentPort orders,
                                     RefundMapper refunds,
                                     ShipmentMapper shipments,
                                     LogisticsGatewayClient logistics,
@@ -60,7 +60,7 @@ public class MerchantFulfillmentService {
     if (merchants.confirm(id) != 1) {
       throw new BusinessRuleException("Only paid orders can be confirmed");
     }
-    orders.insertEvent(id, merchant.getId(), "MERCHANT_CONFIRMED", "PAID", "CONFIRMED", "Merchant accepted the order");
+    orders.merchantConfirmed(id, merchant.getId());
     return current(merchant, id);
   }
 
@@ -89,7 +89,7 @@ public class MerchantFulfillmentService {
         if (merchants.ship(id, carrier, tracking) != 1) {
           throw new BusinessRuleException("Order status changed while shipping");
         }
-        orders.insertEvent(id, merchant.getId(), "ORDER_SHIPPED", "CONFIRMED", "SHIPPED", carrier + " / " + tracking);
+        orders.shipped(id, merchant.getId(), carrier, tracking);
       }
     });
     return current(merchant, id);
@@ -115,7 +115,7 @@ public class MerchantFulfillmentService {
     });
     String before = shipmentDetail(current.getCarrier(), current.getTrackingNumber());
     String after = shipmentDetail(carrier, tracking);
-    orders.insertEvent(id, merchant.getId(), "SHIPMENT_UPDATED", "SHIPPED", "SHIPPED", before + " -> " + after);
+    orders.shipmentUpdated(id, merchant.getId(), before, after);
     return current(merchant, id);
   }
 

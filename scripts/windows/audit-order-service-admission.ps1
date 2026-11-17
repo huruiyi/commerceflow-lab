@@ -84,15 +84,15 @@ foreach ($table in @('order_items', 'order_shipping_addresses', 'order_events', 
 $externalConsumers = @(rg -l `
   'import vip\.fairy\.commerceflow\.commerce\.ordering\.infrastructure\.ShopOrderMapper;' `
   services/commerce-service/src/main/java | Where-Object { $_ -notmatch '[\\/]ordering[\\/]' })
-if ($externalConsumers.Count -ne 7) {
-  throw "Expected seven frozen external ShopOrderMapper consumers: $externalConsumers"
+if ($externalConsumers.Count -ne 0) {
+  throw "External ShopOrderMapper consumers must be zero: $externalConsumers"
 }
 $coordinators = @(rg -n 'org\.apache\.seata|io\.seata|dtm-labs|GlobalTransactional|TwoPhaseBusinessAction' `
   services/commerce-service/pom.xml services/commerce-service/src/main/java 2>$null)
 if ($LASTEXITCODE -eq 0 -or $coordinators.Count -gt 0) {
   throw "Global transaction coordinator found: $coordinators"
 }
-Write-Host '  PASS seven external ShopOrderMapper consumers frozen; Seata/DTM/XA coordinator absent'
+Write-Host '  PASS external ShopOrderMapper consumers = 0; Seata/DTM/XA coordinator absent'
 
 $snapshot = Invoke-CommerceSql @"
 SELECT CONCAT('orders|',COUNT(*),'|',COALESCE(SUM(total_amount),0),'|',
@@ -109,4 +109,4 @@ SELECT CONCAT('events|',COUNT(*)) FROM order_events;
 "@
 Write-Host 'Order ownership baseline:'
 Write-Host $snapshot
-Write-Host 'Order-service admission audit passed: data is consistent; CREATE remains denied until nine cross-boundary foreign keys and seven external ShopOrderMapper consumers are removed behind versioned ports.' -ForegroundColor Green
+Write-Host 'Order-service admission audit passed: data is consistent; CREATE remains denied until nine cross-boundary foreign keys and remaining foreign-table responsibilities are removed.' -ForegroundColor Green

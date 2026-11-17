@@ -4,23 +4,25 @@ import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundExcept
 import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
 import vip.fairy.commerceflow.commerce.logistics.domain.ShipmentRecordView;
 import vip.fairy.commerceflow.commerce.logistics.infrastructure.ShipmentMapper;
-import vip.fairy.commerceflow.commerce.ordering.infrastructure.ShopOrderMapper;
+import vip.fairy.commerceflow.commerce.ordering.application.port.OrderLogisticsPort;
 import vip.fairy.commerceflow.commerce.logistics.api.LogisticsResponse;
 import org.springframework.stereotype.Service;
 
 @Service
 public class LogisticsService {
 
-  private final ShopOrderMapper orders;
+  private final OrderLogisticsPort orders;
   private final ShipmentMapper shipments;
 
-  public LogisticsService(ShopOrderMapper orders, ShipmentMapper shipments) {
+  public LogisticsService(OrderLogisticsPort orders, ShipmentMapper shipments) {
     this.orders = orders;
     this.shipments = shipments;
   }
 
   public LogisticsResponse require(AppUser customer, Long orderId) {
-    orders.find(customer.getId(), orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+    if (!orders.belongsToCustomer(orderId, customer.getId())) {
+      throw new ResourceNotFoundException("Order not found");
+    }
     ShipmentRecordView value = shipments.byOrder(orderId)
       .orElseThrow(() -> new ResourceNotFoundException("Logistics not found"));
     return LogisticsResponse.from(value, shipments.events(value.getId()));

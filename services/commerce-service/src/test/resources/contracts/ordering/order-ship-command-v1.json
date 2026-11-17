@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "commandId": "3bbcee91-bb0e-4ad7-a267-13e09f61d61b",
+  "commandType": "SHIP",
+  "occurredAt": "2026-11-17T04:30:00Z",
+  "producer": "fulfillment",
+  "orderId": 2001,
+  "actorId": 5,
+  "expectedStatus": "CONFIRMED",
+  "reason": "Merchant handed the parcel to the carrier",
+  "carrier": "SF Express",
+  "trackingNumber": "SF20010001",
+  "correlationId": "order-2001",
+  "causationId": "merchant-ship-2001",
+  "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+}

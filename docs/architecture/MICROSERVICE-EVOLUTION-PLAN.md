@@ -37,8 +37,10 @@ notification、catalog 与 inventory 已完成单一所有权切换；inventory 
 [inventory-service 准入与单一所有权演进计划](INVENTORY-SERVICE-EVOLUTION-PLAN.md)和
 [inventory-service 切换运行手册](INVENTORY-SERVICE-CUTOVER-RUNBOOK.md)。M3.5 第一批已完成
 [order-service 准入审计](ORDER-SERVICE-EVOLUTION-PLAN.md)：数据一致，但 9 条跨边界外键和 7 个外部
-`ShopOrderMapper` 消费者尚未收口，因此 CREATE 准入未通过。下一批先建立 order application port 和 V1
-命令/结果边界，不直接建库切流，不引入 Seata、DTM 或其他全局事务协调器。每次仍只拆一个边界。
+`ShopOrderMapper` 消费者尚未收口，因此 CREATE 准入未通过。M3.5 第二批已用五类 application port 将
+7 个消费者归零，并冻结 [order V1 命令/结果契约](ORDER-V1-CONTRACT.md)。CREATE 仍因 9 条跨边界外键、
+Mapper 剩余外部表职责和持久化 Saga 前置条件未完成而冻结。下一批继续在单体内收口，不直接建库切流，
+不引入 Seata、DTM 或其他全局事务协调器。每次仍只拆一个边界。
 PostgreSQL 不属于拆分步骤，必须等 notification、
 catalog、inventory、order、payment-orchestration、fulfillment 以及后续新增待拆服务全部完成单一所有权切换
 并验收后另立专项。

@@ -23,16 +23,7 @@ class OrderServiceAdmissionBaselineTest {
     "(?im)^\\s*(?:FROM|(?:LEFT\\s+)?JOIN|INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\s+([a-z_]+)");
 
   @Test
-  void noNewModuleMayDependDirectlyOnShopOrderMapper() throws IOException {
-    Set<String> allowedConsumers = Set.of(
-      "fulfillment/application/MerchantFulfillmentService.java",
-      "logistics/application/LogisticsNotificationService.java",
-      "logistics/application/LogisticsService.java",
-      "payment/application/PaymentNotificationService.java",
-      "receipt/application/OrderReceiptLifecycleService.java",
-      "refund/application/RefundNotificationService.java",
-      "refund/application/RefundService.java"
-    );
+  void externalModulesMustUseOrderApplicationPorts() throws IOException {
     Set<String> actualConsumers = new HashSet<>();
     try (Stream<Path> sources = Files.walk(JAVA_ROOT)) {
       for (Path source : sources.filter(path -> path.toString().endsWith(".java")).toList()) {
@@ -44,9 +35,8 @@ class OrderServiceAdmissionBaselineTest {
       }
     }
 
-    assertTrue(allowedConsumers.containsAll(actualConsumers),
-      () -> "New direct ShopOrderMapper consumers require order-service architecture review: "
-        + actualConsumers);
+    assertTrue(actualConsumers.isEmpty(),
+      () -> "External modules must not bypass order application ports: " + actualConsumers);
   }
 
   @Test
@@ -55,8 +45,7 @@ class OrderServiceAdmissionBaselineTest {
       "shop_orders", "order_items", "order_shipping_addresses", "order_events");
     Set<String> allowedForeignTables = Set.of(
       "cart_items", "carts", "shipping_addresses", "payment_merchant_accounts",
-      "payment_idempotency_locks", "payment_records", "payment_events",
-      "payment_notifications");
+      "payment_idempotency_locks", "payment_records", "payment_events");
     String mapper = Files.readString(MODULE_ROOT.resolve(
       "src/main/resources/mapper/ShopOrderMapper.xml"));
     Set<String> actualForeignTables = new HashSet<>();
