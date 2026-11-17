@@ -718,10 +718,16 @@ Docker 拓扑，也不启动 PostgreSQL。
   消费者 0、Mapper 外部表职责 0、需恢复订单/流程 0；Java 25 正式镜像 45 项测试、394/31/243/6 质量门禁、
   410 个 Java 源文件 class 字段空行、空库 V1→V35、遗留 V16→V35 及 Windows 快速回归通过。
 - [x] 回归后最终指纹为订单/商品项/地址各 329 条、事件 1565 条、金额 427371.00；process/command-outbox/
-  result-inbox 当前均为 0，所有一致性错误计数为 0。当前未创建 order-service/order-db、未切流、未启动 PostgreSQL。
-- [ ] 下一批创建分层 `order-service` 与独立 MySQL `order-db`，仅无流量影子运行；实现可重复快照、增量追平、
-  水位/核对/孤儿隔离和远程 V1 适配。跨进程 Trace、重复/乱序/超时/结果丢失、停机恢复、最终追平和整体
-  回退完成前不得 CUTOVER；不得并行拆 payment-orchestration/fulfillment，全部服务验收前不得启动 PostgreSQL。
+  result-inbox 当前均为 0，所有一致性错误计数为 0。第三批结束时尚未创建 order-service/order-db、未切流、
+  未启动 PostgreSQL。
+- [x] M3.5 第四批已创建分层 `order-service` 与独立 MySQL `order-db`，仅无业务流量影子运行；Flyway V36
+  以提交顺序水位记录 7 张 order 所有权表变更，独立服务完成一致性可重复快照、增量追平、逐字段 SHA-256
+  核对审计和孤儿隔离/重放。远程 Order V1 适配器复用冻结契约，但 `ORDER_ACCEPTING_TRAFFIC=false`，commerce
+  未配置远程 order 依赖，不维护 LOCAL/COMPARE。双平台专项复跑后 generation 8、水位 120，337/337/337/1609
+  与三张空协议表全部 MATCH；孤儿演练 1 条已 RESOLVED、OPEN 0，服务与 order-db 停机期间增量均在恢复后追平。
+- [ ] 下一批验证真实跨进程 Trace、重复/乱序/超时/结果丢失、命令 Outbox/结果 Inbox 和人工恢复；随后先冻结
+  源端 order 新写，完成最终增量追平、零差异审计和整体回退演练，再单独申请 CUTOVER。不得并行拆
+  payment-orchestration/fulfillment，全部服务验收前不得启动 PostgreSQL。
 
 ## 14. 实施记录模板
 

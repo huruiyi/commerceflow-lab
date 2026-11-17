@@ -8,6 +8,9 @@
 - `payment-simulator-db` / `payment_platform`
 - `logistics-simulator-db` / `logistics_platform`
 - `notification-db` / `notification`
+- `catalog-db` / `catalog`
+- `inventory-db` / `inventory`
+- `order-db` / `orders`（当前仅无流量影子运行，尚未取得单一所有权）
 
 PostgreSQL 不与任何服务拆分、目录或命名重构同时进行。M3 清单中的全部业务服务尚未独立前，不评审、
 不启动、不建立方言分支；只有 `notification-service`、`catalog-service`、`inventory-service`、

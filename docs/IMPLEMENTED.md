@@ -64,7 +64,11 @@
 - MySQL + Flyway、Redis/Spring Session、Kafka/Outbox、RabbitMQ 分桶延迟任务、RocketMQ 5.x 原生延时任务 Profile、ShedLock。
 - Angular/Vue 前端、三个 Spring Boot 服务和 Docker Compose。
 - `scripts/windows/` 与 `scripts/linux/` 保留同名验收脚本结构。
-- `verify-flyway-lifecycle` 使用与后端一致的 Flyway `12.4.0` 和隔离 MySQL 8.4，验证空库 V1–V35、V16→V35 升级、V17 历史订单截止时间回填、V24 核心注释、V28 catalog/inventory 所有权分离、V29 catalog 版本/Outbox 元数据、V30 inventory 命令 Inbox/跨边界外键清理、V31 catalog-event Inbox/版本化快照、V32 命令投递/结果协议表、V33 业务恢复状态、V34 人工恢复审计及 V35 order Process Manager/跨边界外键清理。脚本只删除自己的随机容器/网络，不使用或清空开发数据卷。
+- `verify-flyway-lifecycle` 使用与后端一致的 Flyway `12.4.0` 和隔离 MySQL 8.4，验证空库 V1–V36、
+  V16→V36 升级、V17 历史订单截止时间回填、V24 核心注释、V28 catalog/inventory 所有权分离、V29 catalog
+  版本/Outbox 元数据、V30 inventory 命令 Inbox/跨边界外键清理、V31 catalog-event Inbox/版本化快照、
+  V32 命令投递/结果协议表、V33 业务恢复状态、V34 人工恢复审计、V35 order Process Manager/跨边界外键清理
+  及 V36 order 影子变更捕获。脚本只删除自己的随机容器/网络，不使用或清空开发数据卷。
 
 ## 7. 通用定时任务底座（阶段 1）
 
@@ -209,6 +213,13 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   Flyway 生命周期、Windows 快速回归及 Windows/Git Bash 准入审计通过；最终 329 笔订单、1565 条事件、
   金额 427371.00，所有错误与待恢复计数均为 0。CREATE 已授权但 CUTOVER 未授权；尚未创建 order-service/
   order-db，PostgreSQL 未启动。
+- M3.5 第四批创建分层 `order-service` 与独立 MySQL `order-db`，仅运行影子复制。commerce V36 记录 7 张
+  order 所有权表的提交顺序变更；独立服务提供 REPEATABLE READ 可重复快照、批次增量追平、水位、7 表逐字段
+  SHA-256 审计及孤儿隔离/重放。双平台专项复跑后 generation 8、水位 120，337/337/337/1609、金额 437763.00 与
+  三张空协议表全部 MATCH；
+  1 条孤儿演练记录已 RESOLVED、OPEN 0，服务和数据库停机恢复均最终追平。远程 Order V1 适配器复用冻结
+  契约与 payload 指纹，但流量门默认 503，commerce 未连接它；未 CUTOVER、未引入 LOCAL/COMPARE、未拆后续
+  服务、未启动 PostgreSQL。Java 25 镜像 2 项新增契约测试和 407/31/243/7 质量门禁通过。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

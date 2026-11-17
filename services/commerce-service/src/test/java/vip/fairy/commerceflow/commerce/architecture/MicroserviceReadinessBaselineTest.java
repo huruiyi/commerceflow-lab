@@ -105,6 +105,8 @@ class MicroserviceReadinessBaselineTest {
       Map.entry("order_process_managers", "ordering"),
       Map.entry("order_command_outbox", "ordering"),
       Map.entry("order_result_inbox", "ordering"),
+      Map.entry("order_shadow_change_clock", "ordering"),
+      Map.entry("order_shadow_change_log", "ordering"),
       Map.entry("payment_records", "payment"),
       Map.entry("payment_merchant_accounts", "payment"),
       Map.entry("payment_notifications", "payment"),

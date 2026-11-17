@@ -10,6 +10,7 @@ $javaRoots = @(
   'services\notification-service\src\main\java',
   'services\catalog-service\src\main\java',
   'services\inventory-service\src\main\java',
+  'services\order-service\src\main\java',
   'simulators\payment-platform\service\src\main\java',
   'simulators\logistics-platform\service\src\main\java'
 ) | ForEach-Object { Join-Path $ProjectRoot $_ }
@@ -19,6 +20,7 @@ $javaSourceRoots = @(
   'services\notification-service\src',
   'services\catalog-service\src',
   'services\inventory-service\src',
+  'services\order-service\src',
   'simulators\payment-platform\service\src',
   'simulators\logistics-platform\service\src'
 ) | ForEach-Object { Join-Path $ProjectRoot $_ }
@@ -37,6 +39,7 @@ $pomFiles = @(
   'services\notification-service\pom.xml',
   'services\catalog-service\pom.xml',
   'services\inventory-service\pom.xml',
+  'services\order-service\pom.xml',
   'simulators\payment-platform\service\pom.xml',
   'simulators\logistics-platform\service\pom.xml'
 ) | ForEach-Object { Join-Path $ProjectRoot $_ }
@@ -96,10 +99,27 @@ foreach ($file in $javaFiles) {
     Fail "$relativePath contains inline MyBatis SQL"
   }
   if ($file.Name -notin @('SchedulerConfiguration.java',
-                          'NotificationIndependentPersistenceConfiguration.java') -and
+                          'NotificationIndependentPersistenceConfiguration.java',
+                          'ShadowReplicationService.java') -and
       $source -match 'import\s+org\.springframework\.jdbc\.') {
     Fail "$relativePath introduces direct Spring JDBC access"
   }
+}
+
+$orderJavaRoot = Join-Path $ProjectRoot (
+  'services\order-service\src\main\java\vip\fairy\commerceflow\order'
+)
+foreach ($layer in @('api', 'application', 'domain', 'infrastructure')) {
+  if (-not (Test-Path (Join-Path $orderJavaRoot $layer) -PathType Container)) {
+    Fail "order service is missing the $layer layer"
+  }
+}
+$unexpectedOrderRootClasses = @(
+  Get-ChildItem $orderJavaRoot -File -Filter '*.java' |
+    Where-Object Name -ne 'OrderServiceApplication.java'
+)
+if ($unexpectedOrderRootClasses.Count -gt 0) {
+  Fail "order service root package contains $($unexpectedOrderRootClasses[0].Name)"
 }
 
 $logisticsJavaRoot = Join-Path $ProjectRoot (

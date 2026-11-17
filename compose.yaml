@@ -21,8 +21,8 @@ services:
     image: redgate/flyway:12.4.0
     command:
       - -url=jdbc:mysql://commerce-db:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      - -user=${DATABASE_USERNAME:-commerceflow}
-      - -password=${DATABASE_PASSWORD:-commerceflow-password}
+      - -user=root
+      - -password=${MYSQL_ROOT_PASSWORD:-local-root-password}
       - -connectRetries=60
       - migrate
     volumes:
@@ -89,6 +89,23 @@ services:
       MYSQL_ROOT_PASSWORD: ${INVENTORY_MYSQL_ROOT_PASSWORD:-local-inventory-root-password}
     volumes:
       - inventory-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
+  order-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: orders
+      MYSQL_USER: ${ORDER_DATABASE_USERNAME:-orders}
+      MYSQL_PASSWORD: ${ORDER_DATABASE_PASSWORD:-orders-password}
+      MYSQL_ROOT_PASSWORD: ${ORDER_MYSQL_ROOT_PASSWORD:-local-order-root-password}
+    volumes:
+      - order-db-data:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
       interval: 5s
@@ -687,6 +704,34 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  order-service:
+    build:
+      context: ./services/order-service
+    environment:
+      DATABASE_URL: jdbc:mysql://order-db:3306/orders?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DATABASE_USERNAME: ${ORDER_DATABASE_USERNAME:-orders}
+      DATABASE_PASSWORD: ${ORDER_DATABASE_PASSWORD:-orders-password}
+      ORDER_SOURCE_DATABASE_URL: jdbc:mysql://commerce-db:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      ORDER_SOURCE_DATABASE_USERNAME: ${DATABASE_USERNAME:-commerceflow}
+      ORDER_SOURCE_DATABASE_PASSWORD: ${DATABASE_PASSWORD:-commerceflow-password}
+      ORDER_ACCEPTING_TRAFFIC: "false"
+      ORDER_SHADOW_ENABLED: "true"
+      ORDER_SHADOW_BATCH_SIZE: ${ORDER_SHADOW_BATCH_SIZE:-500}
+    ports:
+      - "18089:8080"
+    depends_on:
+      order-db:
+        condition: service_healthy
+      commerce-schema-migrator:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
   inventory-data-migrator:
     image: mysql:8.4
     profiles: ["inventory-migration"]
@@ -726,6 +771,7 @@ volumes:
   notification-db-data:
   catalog-db-data:
   inventory-db-data:
+  order-db-data:
   commerce-redis-data:
   payment-simulator-db-data:
   payment-simulator-redis-data:

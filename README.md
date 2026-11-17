@@ -198,6 +198,17 @@ bash ./scripts/linux/audit-order-service-admission.sh
 当前结论和后续收口顺序见
 [order-service 准入与单一所有权演进计划](docs/architecture/ORDER-SERVICE-EVOLUTION-PLAN.md)。
 
+order-service 当前仅做无业务流量影子运行；以下入口会重复执行一致性快照、制造一条无值变化的源端增量、
+等待水位追平、核对 7 张表、确认无 OPEN 孤儿并确认远程 V1 流量门返回 503，不清空数据卷：
+
+```powershell
+./scripts/windows/verify-order-shadow-runtime.ps1
+```
+
+```bash
+bash ./scripts/linux/verify-order-shadow-runtime.sh
+```
+
 Angular 商城门户和支付模拟器 Web 都使用模块本地 Prettier 只读门禁：
 
 ```powershell

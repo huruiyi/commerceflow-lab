@@ -22,6 +22,7 @@ java_roots=(
   "$PROJECT_ROOT/services/notification-service/src/main/java"
   "$PROJECT_ROOT/services/catalog-service/src/main/java"
   "$PROJECT_ROOT/services/inventory-service/src/main/java"
+  "$PROJECT_ROOT/services/order-service/src/main/java"
   "$PROJECT_ROOT/simulators/payment-platform/service/src/main/java"
   "$PROJECT_ROOT/simulators/logistics-platform/service/src/main/java"
 )
@@ -30,6 +31,7 @@ java_source_roots=(
   "$PROJECT_ROOT/services/notification-service/src"
   "$PROJECT_ROOT/services/catalog-service/src"
   "$PROJECT_ROOT/services/inventory-service/src"
+  "$PROJECT_ROOT/services/order-service/src"
   "$PROJECT_ROOT/simulators/payment-platform/service/src"
   "$PROJECT_ROOT/simulators/logistics-platform/service/src"
 )
@@ -46,6 +48,7 @@ pom_files=(
   "$PROJECT_ROOT/services/notification-service/pom.xml"
   "$PROJECT_ROOT/services/catalog-service/pom.xml"
   "$PROJECT_ROOT/services/inventory-service/pom.xml"
+  "$PROJECT_ROOT/services/order-service/pom.xml"
   "$PROJECT_ROOT/simulators/payment-platform/service/pom.xml"
   "$PROJECT_ROOT/simulators/logistics-platform/service/pom.xml"
 )
@@ -99,11 +102,23 @@ for file in "${java_files[@]}"; do
     fail "$relative contains inline MyBatis SQL"
   fi
   if [[ "$(basename "$file")" != SchedulerConfiguration.java &&
-        "$(basename "$file")" != NotificationIndependentPersistenceConfiguration.java ]] &&
+        "$(basename "$file")" != NotificationIndependentPersistenceConfiguration.java &&
+        "$(basename "$file")" != ShadowReplicationService.java ]] &&
       grep -Eq 'import[[:space:]]+org\.springframework\.jdbc\.' "$file"; then
     fail "$relative introduces direct Spring JDBC access"
   fi
 done
+
+order_java_root="$PROJECT_ROOT/services/order-service/src/main/java/vip/fairy/commerceflow/order"
+for layer in api application domain infrastructure; do
+  [[ -d "$order_java_root/$layer" ]] || fail "order service is missing the $layer layer"
+done
+unexpected_order_root_class="$(
+  find "$order_java_root" -maxdepth 1 -type f -name '*.java' \
+    ! -name 'OrderServiceApplication.java' -print -quit
+)"
+[[ -z "$unexpected_order_root_class" ]] ||
+  fail "order service root package contains $(basename "$unexpected_order_root_class")"
 
 logistics_java_root="$PROJECT_ROOT/simulators/logistics-platform/service/src/main/java/vip/fairy/commerceflow/simulator/logistics"
 for layer in api application domain infrastructure; do

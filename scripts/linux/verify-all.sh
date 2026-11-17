@@ -28,11 +28,14 @@ services="$(compose ps --services --filter status=running)"
 required_services=(
   commerce-db commerce-redis kafka-broker payment-simulator-db payment-simulator-redis
   payment-simulator-service payment-simulator-web logistics-simulator-db logistics-simulator-service
-  notification-db notification-service commerce-service commerce-portal-angular
+  notification-db notification-service catalog-db catalog-service inventory-db inventory-service
+  order-db order-service commerce-service commerce-portal-angular
 )
 for service in "${required_services[@]}"; do
   grep -Fxq "$service" <<<"$services" || { echo "Required service is not running: $service" >&2; exit 1; }
 done
+
+bash "$SCRIPT_DIR/verify-order-shadow-runtime.sh"
 
 inventory_temp="$(new_temp_dir)"
 trap 'rm -rf -- "$inventory_temp"' EXIT

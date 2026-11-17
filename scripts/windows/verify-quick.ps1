@@ -32,6 +32,8 @@ if(-not$?){throw 'verify-payment-cancellation-race.ps1 failed'}
 RunBase 'verify-refunds.ps1'
 RunBase 'verify-auto-lifecycle.ps1'
 RunBase 'verify-redis-business.ps1'
+& (Join-Path $PSScriptRoot 'verify-order-shadow-runtime.ps1')
+if(-not$?){throw 'verify-order-shadow-runtime.ps1 failed'}
 
 $healthUrls=@(
   "$BaseUrl/healthz",
@@ -40,6 +42,8 @@ $healthUrls=@(
   'http://localhost:18083/actuator/health'
   'http://localhost:18086/actuator/health'
   'http://localhost:18087/actuator/health'
+  'http://localhost:18088/actuator/health'
+  'http://localhost:18089/actuator/health'
 )
 foreach($url in $healthUrls){
   $health=Invoke-RestMethod $url

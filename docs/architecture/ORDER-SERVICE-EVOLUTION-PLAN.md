@@ -2,9 +2,9 @@
 
 ## 1. 当前结论
 
-M3.5 第三批已经通过 `order-service` 的 **CREATE 准入**。下一批允许创建分层的独立
-`order-service` 和独立 MySQL `order-db`，但只能作为无业务流量的影子进程：不得切换生产读写、不得删除
-commerce 本地路径、不得并行拆 `payment-orchestration-service` 或 `fulfillment-service`。
+M3.5 第四批已经创建分层的独立 `order-service` 和独立 MySQL `order-db`，当前只作为无业务流量的影子进程：
+不得切换生产读写、不得删除 commerce 本地路径、不得并行拆 `payment-orchestration-service` 或
+`fulfillment-service`。
 
 CREATE 不等于 CUTOVER。只有影子库完成可重复快照、增量追平、跨进程 Trace、重复/乱序/超时/结果丢失、
 服务与数据库停机恢复、人工恢复和整体回退演练后，才可单独评审 CUTOVER。当前仍使用 MySQL 8.4；M3 清单中的
@@ -57,9 +57,10 @@ CREATE 不等于 CUTOVER。只有影子库完成可重复快照、增量追平�
 
 ## 5. 后续批次顺序
 
-1. 创建分层 `order-service` 与独立 MySQL `order-db`，仅影子运行，不接业务流量。
-2. 实现可重复全量快照、增量追平、水位、核对审计和孤儿隔离。
-3. 验证命令 Outbox/结果 Inbox、跨进程 Trace、重复、乱序、超时、结果丢失及服务/数据库停机恢复；不维护
+1. **已完成**：创建分层 `order-service` 与独立 MySQL `order-db`，仅影子运行，不接业务流量。
+2. **已完成**：实现一致性可重复全量快照、提交顺序增量追平、水位、逐字段核对审计和孤儿隔离/重放。
+3. **部分完成**：服务与数据库停机恢复已通过；后续仍需验证命令 Outbox/结果 Inbox、跨进程 Trace、重复、
+   乱序、超时和结果丢失；不维护
    LOCAL/COMPARE 双实现。
 4. 先冻结源端 order 新写，再完成最终增量追平和零差异审计，之后才可单独申请 CUTOVER。
 5. 一次性切换订单读写；失败只允许通过预演的整体回退恢复，不允许数据库或本地代码静默回退。
@@ -96,3 +97,23 @@ Maven POM，并检查全部 410 个 Java 源文件的 class 字段空行。Windo
 
 脚本只启动并读取现有 `commerce-db`，不清空数据卷。CREATE 已授权；CUTOVER、源实现删除、后续服务拆分和
 PostgreSQL 仍受各自门禁约束。
+
+## 7. 第四批影子运行证据
+
+- commerce Flyway V36 使用单例时钟和 21 个触发器记录 7 张所有权表的提交顺序变更；并发事务不会因
+  AUTO_INCREMENT 先分配后提交而跳过低水位。
+- order-service 在 REPEATABLE READ 事务中先读取源水位再取快照，目标事务原子替换 7 张表；重复快照从
+  generation 1 推进到 8。增量使用有上界批次追平，服务停机和 order-db 停机期间产生的水位均在恢复后追平。
+- 快速回归后实际持久卷核对为订单/商品项/地址各 337、事件 1609、金额 437763.00，流程/命令 Outbox/
+  结果 Inbox 均为 0；7 张表逐字段 SHA-256 全部 `MATCH`。人为删除影子父订单后，商品项变更进入隔离并在
+  父记录恢复后重放为 `RESOLVED`，OPEN 0。
+- `/internal/v1/orders/commands` 与 `/results` 复用冻结的 Order V1 校验和 payload 指纹；默认流量门返回 503，
+  commerce 没有 order-service 依赖或 LOCAL/COMPARE 选择器，因而当前不是 CUTOVER。
+
+```powershell
+.\scripts\windows\verify-order-shadow-runtime.ps1
+```
+
+```bash
+./scripts/linux/verify-order-shadow-runtime.sh
+```

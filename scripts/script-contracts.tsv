@@ -20,6 +20,7 @@ verify-merchant-fulfillment	BaseUrl	BASE_URL=1
 verify-mq-scheduling-idempotency	BaseUrl,MetricsUrl,RabbitManagementUrl,RabbitUsername,RabbitPassword,MaxWaitSeconds	BASE_URL=1,METRICS_URL=2,RABBIT_URL=3,RABBIT_USER=4,RABBIT_PASSWORD=5,MAX_WAIT=6
 verify-mq-scheduling-redelivery	BaseUrl,MaxWaitSeconds	BASE_URL=1,MAX_WAIT=2
 verify-order-cancellation	BaseUrl	BASE_URL=1
+verify-order-shadow-runtime	BaseUrl	BASE_URL=1
 verify-payment	BaseUrl	ARG=1
 verify-payment-attempt-deadline	BaseUrl,PaymentUrl,MaxWaitSeconds	BASE_URL=1,PAYMENT_URL=2,MAX_WAIT=3
 verify-payment-cancellation-crash-recovery	BaseUrl	BASE_URL=1

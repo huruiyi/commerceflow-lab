@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.5 最终 CREATE 准入已通过；V35、7 张 order 表和持久化 Process Manager 基线冻结 |
-| 下一候选阶段 | 创建无流量的分层 order-service 与独立 MySQL，先做影子迁移和远程契约验证 |
+| 当前阶段 | M3.5 第四批无流量 order-service/order-db 影子运行已完成；V36 变更水位与 7 表核对通过 |
+| 下一候选阶段 | 远程 Order V1 故障语义、最终冻结追平与整体回退演练；CUTOVER 仍未授权 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -30,7 +30,7 @@
 | 收货、自动收货和自动完成 | M1 可靠性门禁已通过 | 重放、重启/租约恢复、RabbitMQ/RocketMQ 停机恢复和双平台 120 秒/12 并发竞态压测均通过 |
 | 库存与商家库存中心 | 已实现 | 可售/预占/已售、转正/释放/退款回补、调整流水 |
 | Angular/Vue 界面 | Angular 主流程和订单页视觉收尾已实现 | 订单详情与支付信息已扁平化，商品图有失败回退；通知菜单使用中性列表和细滚动条，支持外部点击、`Esc`、关闭按钮和选择通知后关闭；语言切换使用图标；导航与 1480 px 正文容器对齐，桌面与 390 px 窄屏已验收 |
-| Flyway 数据库生命周期 | 空卷和迁移层已验收 | 商城迁移 V35；notification 独立 Schema V1→V3 已隔离及实际运行验收 |
+| Flyway 数据库生命周期 | 空卷和迁移层已验收 | 商城迁移 V36；order 独立 Schema V1 已实际运行，notification V1→V3 已验收 |
 | notification 独立服务 | 单一所有权切换已实现 | 默认拓扑启动独立 MySQL/Kafka 服务；commerce 仅签名代理，故障稳定返回 503，无本地数据库回退 |
 | catalog 拆分准入 | 单一所有权已切换 | catalog-service/catalog-db 独占资料、翻译、版本和 Outbox；commerce 只保留鉴权、签名代理与 review 组合 |
 | inventory 拆分准入 | 完整单一所有权已切换 | inventory-service/inventory-db 独占五表、四类命令与商家库存管理；commerce 仅保留生产 Outbox/Result Inbox 和 Session/RBAC/HMAC 薄代理，运行账号无源表权限 |
@@ -365,4 +365,13 @@ M3.5 第三批完成最终 CREATE 准入。cart/address/payment SQL 从 `ShopOrd
 镜像 45 项测试、394/31/243/6 质量门禁、410 个 Java 源文件 class 字段空行、Windows 快速回归和 Windows/
 Git Bash 准入审计均通过。最终持久卷为订单/商品项/地址各 329 条、事件 1565 条、金额 427371.00，流程/
 命令 Outbox/结果 Inbox 为 0，双向跨边界外键、外部 Mapper 消费者、Mapper 外部表职责和所有一致性错误均为 0。
-CREATE 已授权，CUTOVER 仍冻结；下一批才创建无流量影子 order-service/order-db，本批未启动 PostgreSQL。
+CREATE 已授权，CUTOVER 仍冻结；该结论是第三批结束时的历史边界，当批未启动 PostgreSQL。
+
+M3.5 第四批创建独立 `order-service/order-db`，但 commerce 不依赖该服务，Order V1 业务流量门固定关闭。
+V36 用单例提交顺序时钟和 21 个触发器记录 7 张所有权表增量；order-service 以 REPEATABLE READ 一致性快照、
+批次增量、水位、逐字段 SHA-256 审计和孤儿隔离/重放维护影子库。双平台专项复跑后 generation 8、水位 120，
+337 笔订单、337 条商品项、337 份地址、1609 条事件、金额 437763.00 与三张空协议表均 MATCH；一次目标父记录
+缺失演练已隔离并恢复为
+RESOLVED，OPEN 0。order-service 和 order-db 分别停机期间产生的增量均在恢复后追平。当前 407/31/243/7
+质量门禁与 424 个 Java 源文件类声明空行通过；PostgreSQL、payment-orchestration/fulfillment 拆分和 CUTOVER
+均未启动。

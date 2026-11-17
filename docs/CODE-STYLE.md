@@ -51,13 +51,14 @@
 ## 6. 自动检查入口
 
 `scripts/windows/audit-code-quality.ps1` 与 `scripts/linux/audit-code-quality.sh` 是只检查入口，
-不会自动改写文件。当前纳入门禁的是三个后端服务的全部主源码/测试 Java、Mapper XML 和 Maven POM：
+不会自动改写文件。当前纳入门禁的是 commerce/notification/catalog/inventory/order、支付模拟器与物流模拟器
+七个 Maven 模块的全部主源码/测试 Java、Mapper XML 和 POM：
 
 - 文件应使用空格缩进、无行尾空格并以换行结束；编码仍以根目录 `.editorconfig` 的 UTF-8 为准。
 - Java 和 Mapper XML 每行不超过 120 个字符；Java 不允许通配符导入或单行多成员声明。
 - Java 的每个 `class` 声明后必须有空行；物流模拟器根包只保留启动类，业务代码按
   `api/application/domain/infrastructure` 分层放置。
-- 禁止 MyBatis SQL 注解；除 ShedLock 官方适配器配置外，禁止直接引入 Spring JDBC。
+- 禁止 MyBatis SQL 注解；除 ShedLock 官方适配器配置和 order 影子复制基础设施外，禁止直接引入 Spring JDBC。
 - Mapper XML 的 namespace 必须唯一对应 Java Mapper；statement id 必须唯一且存在同名接口方法。
 
 `verify-quick` 与 `verify-all` 会先执行该门禁。默认构建模式随后运行 Maven 测试和商城 ArchUnit

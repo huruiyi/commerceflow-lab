@@ -37,6 +37,12 @@ $expected = @(
   'logistics-simulator-service',
   'notification-db',
   'notification-service',
+  'catalog-db',
+  'catalog-service',
+  'inventory-db',
+  'inventory-service',
+  'order-db',
+  'order-service',
   'commerce-service',
   'commerce-portal-angular'
 )
@@ -76,6 +82,8 @@ Invoke-ChapterVerification 'verify-logistics-callback-governance.ps1'
 Invoke-ChapterVerification 'verify-auto-lifecycle.ps1'
 Invoke-ChapterVerification 'verify-receipt-reviews.ps1'
 Invoke-ChapterVerification 'verify-redis-business.ps1'
+& (Join-Path $PSScriptRoot 'verify-order-shadow-runtime.ps1')
+if (-not $?) { throw 'verify-order-shadow-runtime.ps1 failed' }
 Write-Host "`n==> verify-alerting.ps1" -ForegroundColor Cyan
 & (Join-Path $PSScriptRoot 'verify-alerting.ps1')
 if (-not $?) { throw 'verify-alerting.ps1 failed' }
