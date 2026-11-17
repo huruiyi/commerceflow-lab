@@ -37,11 +37,11 @@ notification、catalog、inventory 与 order 已完成单一所有权切换；in
 [inventory-service 准入与单一所有权演进计划](INVENTORY-SERVICE-EVOLUTION-PLAN.md)和
 [inventory-service 切换运行手册](INVENTORY-SERVICE-CUTOVER-RUNBOOK.md)。M3.5 已通过
 [order-service 计划](ORDER-SERVICE-EVOLUTION-PLAN.md)已完成独立 MySQL、远程 Order V1、CUTOVER 与源权限撤销。
-M3.6 第一批已启动
-[payment-orchestration CREATE 前置审计](PAYMENT-ORCHESTRATION-SERVICE-EVOLUTION-PLAN.md)：11 张候选表的数据
-不变量通过；第二批已将外部 payment/refund 内部实现消费者归零并冻结
-[Payment V1](PAYMENT-V1-CONTRACT.md)。1 条跨 identity 外键、1 条 OPEN 对账记录及尚未建立的恢复协议表仍阻塞
-CREATE。
+M3.6 已通过
+[payment-orchestration CREATE 准入](PAYMENT-ORCHESTRATION-SERVICE-EVOLUTION-PLAN.md)：外部内部实现消费者、
+跨 identity 外键、OPEN 对账和 payment-backed 订单事件均已归零，并已建立 Process Manager、命令 Outbox、
+结果 Inbox 与人工恢复门禁。[Payment V1](PAYMENT-V1-CONTRACT.md)保持冻结。下一步只允许创建独立服务和 MySQL
+影子库并做无流量迁移核对，CUTOVER 仍须单独评审。
 不引入 Seata、DTM 或其他全局事务协调器，每次仍只拆一个边界。
 PostgreSQL 不属于拆分步骤，必须等 notification、
 catalog、inventory、order、payment-orchestration、fulfillment 以及后续新增待拆服务全部完成单一所有权切换

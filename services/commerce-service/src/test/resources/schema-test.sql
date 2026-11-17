@@ -515,6 +515,87 @@ CREATE TABLE kafka_consumed_event
   consumed_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (consumer_group, event_id)
 );
+CREATE TABLE payment_process_managers
+(
+  process_id          VARCHAR(100) PRIMARY KEY,
+  order_id            BIGINT       NOT NULL,
+  process_type        VARCHAR(50)  NOT NULL,
+  status              VARCHAR(40)  NOT NULL,
+  command_id          VARCHAR(100) NOT NULL UNIQUE,
+  command_fingerprint VARCHAR(64)  NOT NULL,
+  correlation_id      VARCHAR(100) NOT NULL,
+  causation_id        VARCHAR(100) NOT NULL,
+  traceparent         VARCHAR(100) NOT NULL,
+  result_deadline_at  TIMESTAMP    NOT NULL,
+  next_check_at       TIMESTAMP    NOT NULL,
+  last_error          VARCHAR(500),
+  recovered_by        VARCHAR(100),
+  recovery_reason     VARCHAR(300),
+  recovered_at        TIMESTAMP,
+  version             BIGINT       NOT NULL DEFAULT 0,
+  created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  completed_at        TIMESTAMP
+);
+CREATE TABLE payment_command_outbox
+(
+  command_id          VARCHAR(100) PRIMARY KEY,
+  process_id          VARCHAR(100) NOT NULL,
+  order_id            BIGINT       NOT NULL,
+  command_type        VARCHAR(50)  NOT NULL,
+  payload_fingerprint VARCHAR(64)  NOT NULL,
+  payload             CLOB         NOT NULL,
+  status              VARCHAR(30)  NOT NULL DEFAULT 'NEW',
+  attempts            INT          NOT NULL DEFAULT 0,
+  next_attempt_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  result_deadline_at  TIMESTAMP    NOT NULL,
+  last_error          VARCHAR(500),
+  correlation_id      VARCHAR(100) NOT NULL,
+  causation_id        VARCHAR(100) NOT NULL,
+  traceparent         VARCHAR(100) NOT NULL,
+  created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  acknowledged_at     TIMESTAMP
+);
+CREATE TABLE payment_result_inbox
+(
+  result_id           VARCHAR(100) PRIMARY KEY,
+  process_id          VARCHAR(100),
+  order_id            BIGINT       NOT NULL,
+  result_type         VARCHAR(40)  NOT NULL,
+  outcome             VARCHAR(40)  NOT NULL,
+  payload_fingerprint VARCHAR(64)  NOT NULL,
+  payload             CLOB         NOT NULL,
+  processing_status   VARCHAR(30)  NOT NULL,
+  error_detail        VARCHAR(500),
+  correlation_id      VARCHAR(100) NOT NULL,
+  causation_id        VARCHAR(100) NOT NULL,
+  traceparent         VARCHAR(100) NOT NULL,
+  received_at         TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  processed_at        TIMESTAMP
+);
+CREATE TABLE order_effect_outbox
+(
+  id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  event_id        VARCHAR(36)  NOT NULL UNIQUE,
+  aggregate_id    VARCHAR(80)  NOT NULL,
+  event_type      VARCHAR(80)  NOT NULL,
+  topic           VARCHAR(100) NOT NULL,
+  payload         JSON         NOT NULL,
+  status          VARCHAR(20)  NOT NULL DEFAULT 'NEW',
+  attempts        INT          NOT NULL DEFAULT 0,
+  next_attempt_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  published_at    TIMESTAMP
+);
+CREATE TABLE order_effect_inbox
+(
+  id             BIGINT AUTO_INCREMENT PRIMARY KEY,
+  consumer_group VARCHAR(100) NOT NULL,
+  event_id       VARCHAR(36)  NOT NULL,
+  topic          VARCHAR(100) NOT NULL,
+  processed_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (consumer_group, event_id)
+);
 CREATE TABLE refund_records
 (
   id                         BIGINT AUTO_INCREMENT PRIMARY KEY,

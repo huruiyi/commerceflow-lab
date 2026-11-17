@@ -6,11 +6,10 @@ M3.6 第一批只完成边界审计和自动门禁，不创建服务或数据库
 支付编排与退款事实，外部 `payment-simulator-service` 仍只是渠道模拟平台，不属于本服务的数据所有权。
 
 当前数据不变量通过，第二批已把 payment/refund 内部类型的外部消费者归零并冻结
-[支付第一版远程契约](PAYMENT-V1-CONTRACT.md)。CREATE 尚未准入：仍有 1 条
-`refund_records.customer_id → app_users.id` 跨边界外键、1 条 OPEN 支付对账记录，以及待建立的 Process Manager、
-结果 Inbox 和人工恢复门禁；当前 payment-backed 的订单事件 Outbox/Inbox 适配器也必须按最终消费者所有权收口。
-上述基线只能减少，不能扩张。不得用共享 commerce Schema、远程行锁、LOCAL/COMPARE 或全局事务协调器
-绕过这些阻塞。
+[支付第一版远程契约](PAYMENT-V1-CONTRACT.md)。第三批已删除 refund→identity 外键，审计式关闭唯一已确认终态的
+OPEN 对账，订单事件迁入 ordering 自有 Outbox/Inbox，并建立 Process Manager、命令 Outbox、结果 Inbox 与
+人工恢复门禁，CREATE 已准入。不得把 CREATE 准入描述为独立服务已创建或已经 CUTOVER；也不得用共享 commerce
+Schema、远程行锁、LOCAL/COMPARE 或全局事务协调器绕过后续迁移门禁。
 
 ## 2. 唯一所有权候选
 
@@ -31,15 +30,15 @@ M3.6 第一批只完成边界审计和自动门禁，不创建服务或数据库
 order、inventory、identity 与 fulfillment 只保留稳定 ID、版本化命令/结果和必要投影，不跨库 join，也不建立
 跨边界外键。退款属于支付编排的同一资金边界，不单独创建 refund-service。
 
-## 3. 当前硬阻塞
+## 3. CREATE 阻塞处置
 
-1. 删除 `refund_records.customer_id` 对 identity 的数据库外键，改由入口身份和稳定 customerId 校验。
+1. **已完成**：删除 `refund_records.customer_id` 对 identity 的数据库外键，保留稳定 customerId。
 2. **已完成**：ordering/fulfillment 不再直接注入支付 application/infrastructure、支付领域对象或退款 Mapper；
    创建、查询、关闭支付与回调结果 V1 契约及兼容样例已冻结。
-3. fulfillment 不再直接读取 `RefundMapper`，改用“是否允许履约”的稳定支付/退款投影契约。
-4. 处理或明确迁移当前 1 条 OPEN `PAYMENT_TIMEOUT` 对账记录，禁止把待处理事实静默丢弃。
-5. 明确 `payment_outbox` 与 `kafka_consumed_event` 的主题、消费者及迁移边界，不能把共享 Inbox 搬入新服务后
-   继续供其他未来服务共用。
+3. **已完成**：fulfillment 不再直接读取 `RefundMapper`，改用稳定支付/退款投影契约。
+4. **已完成**：原 1 条 OPEN `PAYMENT_TIMEOUT` 对应支付已为 `CLOSED`，记录解析码、执行者和终态详情后关闭。
+5. **已完成**：179 条订单事件和消费记录迁入 ordering 自有表，payment Outbox/Inbox 中订单主题归零。
+6. **已完成**：支付/退款 Process Manager、命令 Outbox、结果 Inbox、未知结果和人工恢复门禁已建立。
 
 ## 4. 分布式事务规则
 
@@ -53,8 +52,8 @@ order、inventory、identity 与 fulfillment 只保留稳定 ID、版本化命�
 
 1. **已完成**：11 张候选所有权表、外键、外部消费者、数据不变量与恢复基线审计。
 2. **已完成**：收口 ordering/fulfillment 对 payment/refund 内部实现的依赖，冻结 Payment V1 契约。
-3. 删除跨 identity 外键，处置 OPEN 对账记录，收口订单事件 Outbox/Inbox 临时适配器，建立支付/退款
-   Process Manager、结果 Inbox 与人工恢复门禁，取得 CREATE 准入。
+3. **已完成**：删除跨 identity 外键，处置 OPEN 对账记录，收口订单事件 Outbox/Inbox 临时适配器，建立支付/退款
+   Process Manager、命令 Outbox、结果 Inbox 与人工恢复门禁，取得 CREATE 准入。
 4. 创建分层独立服务和 MySQL `payment-db`，仅无业务流量影子迁移与核对。
 5. 完成回调、支付/取消竞态、退款、结果丢失、服务/数据库停机和整体回退演练后，单独评审 CUTOVER。
 6. 稳定窗通过后删除 commerce 支付/退款运行路径与源表权限，再进入 fulfillment-service。
@@ -85,3 +84,13 @@ ordering/fulfillment 对 payment/refund 的 application、domain、infrastructur
 全部发布、656 条 Kafka Inbox。所有金额、状态、幂等、渠道证据、退款投影、事件和待恢复不变量为 0；仍有
 1 条跨 identity 外键和 1 条 OPEN 对账记录。48 项测试、431/28/204/7 质量门禁、451 个 Java 源文件类声明
 空行、Windows/Linux 审计、50 对脚本契约及完整快速回归通过。
+
+## 8. 第三批证据
+
+真实 MySQL 持久卷已升级到 Flyway V37：14 张 payment/refund 所有权表，内部外键 7，双向跨边界外键均为 0；
+唯一对账记录保留且 OPEN 为 0。payment Outbox 与 Kafka Inbox 中订单事件均为 0，ordering 自有 Outbox/Inbox
+各保留 179 条，未发布为 0。支付进程、命令和结果协议表当前为空，恢复状态不一致为 0。
+
+新增 6 项恢复协议测试固定命令/结果同 ID 重放、异 payload 冲突、超时转人工核对和带操作人/原因的人工重试；
+commerce-service 共 55 项测试通过。CREATE 已准入，CUTOVER 仍冻结。下一批只创建独立服务与 `payment-db`
+进行无业务流量影子快照、增量追平、水位核对和孤儿隔离。

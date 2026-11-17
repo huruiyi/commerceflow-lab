@@ -244,6 +244,10 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   直接导入归零。唯一的本地适配器复用现有业务语义，4 个 JSON 兼容样例固定版本、幂等、关联/因果 ID、Trace、
   payload 指纹、“超时结果未知”和支付成功优先规则；迟到库存预占结果不得倒退已提交状态并有专项测试。
   48 项测试、双平台审计、50 对脚本契约和快速回归通过；未创建独立服务/数据库或双实现，CREATE 继续冻结。
+- M3.6 第三批取得 payment-orchestration CREATE 准入：删除 refund→identity 外键，审计式关闭唯一已确认终态的
+  OPEN 对账；179 条订单事件 Outbox/Inbox 迁入 ordering 自有表，payment 不再承载订单主题。新增 Process
+  Manager、命令 Outbox、结果 Inbox、未知结果/超时人工核对和带审计信息的人工重试门禁。真实 MySQL V37
+  迁移与 55 项测试通过；未创建独立服务/数据库、未 CUTOVER、未并行拆 fulfillment、未启动 PostgreSQL。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

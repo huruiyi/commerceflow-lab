@@ -20,5 +20,7 @@ public interface OutboxMapper {
   List<OutboxEvent> pending();
   int published(Long id);
   void retry(Long id);
-  int consume(@Param("group") String group, @Param("eventId") String eventId, @Param("topic") String topic);
+  int consume(@Param("group") String group,
+              @Param("eventId") String eventId,
+              @Param("topic") String topic);
 }

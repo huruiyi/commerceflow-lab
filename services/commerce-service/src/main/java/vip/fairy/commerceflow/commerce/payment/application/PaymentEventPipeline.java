@@ -1,6 +1,5 @@
 package vip.fairy.commerceflow.commerce.payment.application;
 
-import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.commerce.payment.domain.OutboxEvent;
@@ -33,14 +32,6 @@ public class PaymentEventPipeline {
     append("PAYMENT", aggregateId, type, payload);
   }
 
-  public String appendOrder(String aggregateId, String type, Object payload) {
-    try {
-      return append("ORDER", aggregateId, type, mapper.writeValueAsString(payload));
-    } catch (JacksonException exception) {
-      throw new IllegalArgumentException("Order event payload cannot be serialized", exception);
-    }
-  }
-
   private String append(String aggregateType, String aggregateId, String type, String payload) {
     String eventId = UUID.randomUUID().toString();
     outbox.insert(eventId, aggregateType, aggregateId, type, topic(type), payload);
@@ -64,7 +55,6 @@ public class PaymentEventPipeline {
   @KafkaListener(
     topics = {
       "payment-events",
-      "order-events",
       "payment-callback-events",
       "payment-reconciliation-events",
       "merchant-notification-events"
@@ -86,7 +76,6 @@ public class PaymentEventPipeline {
   }
 
   private String topic(String t) {
-    if (t.startsWith("ORDER")) return "order-events";
     if (t.contains("CALLBACK")) return "payment-callback-events";
     if (t.contains("RECONCIL")) return "payment-reconciliation-events";
     if (t.contains("MERCHANT")) return "merchant-notification-events";

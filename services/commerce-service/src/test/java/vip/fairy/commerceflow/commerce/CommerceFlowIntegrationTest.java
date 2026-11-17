@@ -648,7 +648,7 @@ class CommerceFlowIntegrationTest {
       "SELECT COUNT(*) FROM order_events WHERE order_id=? AND event_type='ORDER_CANCELLED' AND trigger_source='SCHEDULED_TASK' AND scheduled_task_id=?",
       Integer.class, orderId, task.getId()));
     org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
-      "SELECT COUNT(*) FROM payment_outbox WHERE aggregate_type='ORDER' AND aggregate_id=? AND event_type='ORDER_CANCELLED'",
+      "SELECT COUNT(*) FROM order_effect_outbox WHERE aggregate_id=? AND event_type='ORDER_CANCELLED'",
       Integer.class, orderId.toString()));
   }
 
@@ -767,7 +767,7 @@ class CommerceFlowIntegrationTest {
         .contentType("application/json").content("{\"reason\":\"Inventory test cancellation\"}"))
       .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"));
     Map<String, Object> outbox = jdbc.queryForMap(
-      "SELECT event_id,event_type,aggregate_id,payload FROM payment_outbox WHERE aggregate_type='ORDER' AND aggregate_id=? AND event_type='ORDER_CANCELLED' ORDER BY id DESC LIMIT 1",
+      "SELECT event_id,event_type,aggregate_id,payload FROM order_effect_outbox WHERE aggregate_id=? AND event_type='ORDER_CANCELLED' ORDER BY id DESC LIMIT 1",
       Long.toString(orderId));
     Object payloadValue = outbox.get("PAYLOAD");
     String payload = payloadValue instanceof byte[] bytes

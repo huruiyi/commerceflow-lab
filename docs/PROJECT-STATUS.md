@@ -8,7 +8,7 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.6 第二批 Payment V1 契约与依赖收口已完成；CREATE 尚未准入 |
+| 当前阶段 | M3.6 第三批恢复协议与所有权收口已完成；CREATE 已准入，CUTOVER 冻结 |
 | 下一候选阶段 | 删除跨 identity 外键并建立支付/退款可恢复协议门禁 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
@@ -409,3 +409,10 @@ payload 指纹、“超时结果未知”和支付成功优先语义。CREATE �
 回归同时修复迟到 RESERVE 结果把已 COMMITTED 库存倒退为 RESERVED 的竞态，人工核对后的恢复重试仍可推进终态。最终持久卷为 324 笔支付、36 笔退款，外部
 内部实现导入与数据不变量错误均为 0；48 项测试、431/28/204/7 质量门禁、451 个 Java 源文件类声明空行、
 Windows/Linux 审计、50 对脚本契约和完整快速回归通过。本批没有创建服务/数据库或启动 PostgreSQL。
+
+M3.6 第三批删除 refund→identity 外键，并把唯一 OPEN 超时对账依据已为 `CLOSED` 的支付事实审计式关闭。
+179 条历史订单副作用 Outbox/Inbox 已迁入 ordering 自有表，payment 表不再承载 `order-events`。新增支付/退款
+Process Manager、命令 Outbox、结果 Inbox，以及同 ID 异 payload 冲突、未知结果、超时转人工核对和带操作人、
+原因、时间的人工重试门禁。持久卷 Flyway V37 审计为 14 张 payment/refund 所有权表、双向跨边界外键 0、
+OPEN 对账 0、payment 中订单事件 0，179/179 条订单 Outbox/Inbox 完整保留；55 项测试通过。CREATE 已准入，
+CUTOVER 仍冻结；本批没有创建独立服务/数据库、没有并行拆 fulfillment，也没有启动 PostgreSQL。

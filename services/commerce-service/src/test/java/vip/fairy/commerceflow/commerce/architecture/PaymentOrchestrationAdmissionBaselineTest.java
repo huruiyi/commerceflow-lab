@@ -20,7 +20,8 @@ class PaymentOrchestrationAdmissionBaselineTest {
   private static final Pattern OWNED_TABLE = Pattern.compile(
     "(?i)\\b(payment_records|payment_merchant_accounts|payment_notifications|payment_events|"
       + "payment_idempotency_locks|payment_reconciliation_issue|payment_outbox|"
-      + "kafka_consumed_event|refund_records|refund_events|refund_notifications)\\b");
+      + "kafka_consumed_event|payment_process_managers|payment_command_outbox|"
+      + "payment_result_inbox|refund_records|refund_events|refund_notifications)\\b");
   private static final Pattern FOREIGN_TABLE = Pattern.compile(
     "(?i)\\b(app_users|shop_orders|order_items|order_shipping_addresses|order_events|"
       + "product_inventory|inventory_reservations|shipment_records|scheduled_tasks)\\b");

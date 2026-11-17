@@ -747,9 +747,15 @@ Docker 拓扑，也不启动 PostgreSQL。
   未知”、支付成功优先和 payload 指纹语义；4 个 JSON 兼容样例通过测试。当前只有一套本地适配器。
 - [x] 回归发现并修复库存结果乱序：迟到 RESERVE 成功不得把 COMMITTED 倒退为 RESERVED；人工核对后的
   RECONCILIATION_REQUIRED 重试仍可按原命令进入正确终态。48 项测试和完整快速回归通过。
-- [ ] M3.6 下一批删除 refund→identity 外键、处置 1 条 OPEN 对账记录，收口 payment-backed 订单事件
-  Outbox/Inbox 临时适配器，并建立支付/退款 Process Manager、结果 Inbox、未知结果与人工恢复门禁，取得
-  CREATE 准入；仍不得创建共享 Schema 服务、CUTOVER、并行拆 fulfillment 或启动 PostgreSQL。
+- [x] M3.6 第三批删除 refund→identity 外键；原 OPEN `PAYMENT_TIMEOUT` 对应支付已为 `CLOSED`，以
+  `TERMINAL_PAYMENT_CONFIRMED`、迁移执行者和详情审计式关闭，没有静默删除。
+- [x] payment-backed 订单事件临时适配器已删除，179 条历史订单事件与消费记录分别迁入 ordering 自有
+  Outbox/Inbox，payment Outbox/Inbox 中的订单主题归零。
+- [x] 支付/退款恢复协议建立独立 Process Manager、命令 Outbox、结果 Inbox；同 ID 异 payload 冲突、结果
+  未知转人工核对、超时转人工核对、人工重试操作人/原因/时间均有自动门禁。CREATE 准入已通过。
+- [ ] M3.6 下一批创建分层 `payment-orchestration-service` 和独立 MySQL `payment-db`，只进行无业务流量的
+  影子快照、增量追平、水位核对与孤儿隔离；不得 CUTOVER，不得保留 LOCAL/COMPARE 双实现，不得并行拆
+  fulfillment，也不得启动 PostgreSQL。
 
 ## 14. 实施记录模板
 

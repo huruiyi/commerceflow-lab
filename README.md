@@ -224,8 +224,8 @@ bash ./scripts/linux/verify-order-precutover-rehearsal.sh
 
 影子与预切换脚本保留为历史取证入口；默认运行时关闭影子复制且不再配置源库，不应重新开放源端权限。
 
-payment-orchestration 的首批只读准入审计检查 11 张 payment/refund 候选所有权表、跨边界外键、外部
-infrastructure 消费者、金额/状态/幂等/Outbox/恢复不变量；它会明确报告 CREATE 阻塞，不创建服务或数据库：
+payment-orchestration 准入审计检查 14 张 payment/refund 所有权表、跨边界外键、外部内部实现消费者、
+金额/状态/幂等、独立 Outbox/Inbox 和恢复不变量；当前 CREATE 已准入，但尚未创建服务或数据库，也未 CUTOVER：
 
 ```powershell
 ./scripts/windows/audit-payment-orchestration-admission.ps1
@@ -238,8 +238,8 @@ bash ./scripts/linux/audit-payment-orchestration-admission.sh
 当前结论和后续顺序见
 [payment-orchestration-service 准入与单一所有权演进计划](docs/architecture/PAYMENT-ORCHESTRATION-SERVICE-EVOLUTION-PLAN.md)。
 创建、查询、关闭和结果的稳定字段与恢复语义见
-[支付第一版远程契约](docs/architecture/PAYMENT-V1-CONTRACT.md)。当前仍由唯一的本地适配器实现，不能把契约冻结
-描述成已经创建或切换了独立支付服务。
+[支付第一版远程契约](docs/architecture/PAYMENT-V1-CONTRACT.md)。当前仍由唯一的本地适配器实现；CREATE
+准入只表示允许开始创建无业务流量的影子服务和数据库，不能描述成已经创建或切换了独立支付服务。
 
 Angular 商城门户和支付模拟器 Web 都使用模块本地 Prettier 只读门禁：
 
