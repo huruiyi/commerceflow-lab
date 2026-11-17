@@ -277,8 +277,12 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   历史样本恢复为 `PAID/COMMITTED`，order 2 项、commerce 56 项、payment 6 项测试及完整快速回归通过。
 - M3.6 第九批增加默认关闭的 `PAYMENT_WRITE_FROZEN` 和 `PaymentWriteAdmissionV1`：创建支付、关闭支付、发起退款
   在业务状态变更前统一停写，签名回调不受影响。Windows 真实演练确认三类新写均为 503、业务事实不变、已有
-  回调收敛到 `PAID/SUCCESS` 并恢复默认 false；commerce 58 项测试、55 对跨平台脚本契约通过。该能力不代表
+  回调收敛到 `PAID/SUCCESS` 并恢复默认 false；Ubuntu WSL 补齐 jq 和 Compose 兼容后通过同等验收。commerce
+  58 项测试、55 对跨平台脚本契约通过。该能力不代表
   CUTOVER，唯一远程实现、回调切换、本地路径删除和源表撤权仍待同一受控窗口完成。
+- M3.6 第十批最终预切换核对为 generation 15、水位 603、14 表 MATCH，OPEN 孤儿、待投递 Payment/Command
+  Outbox 和未完成 Process Manager 均为 0；权限冻结恢复与目标停机恢复通过。最终 GO/NO-GO 仍为 NO-GO，因为
+  本地实现、旧回调和源权限只能在获准的原子窗口内一起替换。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

@@ -4,6 +4,9 @@ require_commands curl jq openssl
 
 BASE_URL="${1:-http://localhost:14200}"
 PAYMENT_BASE_URL="${2:-${PAYMENT_UI_BASE_URL:-http://localhost:14201}}"
+if [[ -n "${WSL_DISTRO_NAME:-}" ]]; then
+  export WSLENV="${WSLENV:+$WSLENV:}PAYMENT_WRITE_FROZEN"
+fi
 temp_dir="$(new_temp_dir)"
 jar="$temp_dir/customer.cookies"
 

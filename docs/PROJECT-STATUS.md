@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.6 第九批切换前支付停写与回调排空闸门已完成；普通业务流量未切换 |
-| 下一候选阶段 | 消除回调、本地路径和源权限阻塞后重新评审一次性 payment-orchestration CUTOVER；未经评审不得执行 |
+| 当前阶段 | M3.6 第十批最终 GO/NO-GO 评审完成，结论 NO-GO；普通业务流量未切换 |
+| 下一候选阶段 | 获得明确 CUTOVER 授权后，在单一受控窗口原子替换本地实现、回调和源权限；未经授权不得执行 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -464,5 +464,9 @@ payment 6 项 Java 25 测试，以及 469/30/220/8 质量门禁、495 个 Java �
 
 M3.6 第九批新增默认关闭的 `PAYMENT_WRITE_FROZEN` 和稳定 `PaymentWriteAdmissionV1`，在创建支付、订单取消进入
 `CANCELLING`、发起退款之前统一拒绝新资金写，签名回调继续排空。Windows 真实演练确认三类写均返回 503、拒绝
-不改变业务事实、已有支付仍由回调收敛到 `PAID/SUCCESS`，退出后恢复 false。Ubuntu 26.04 WSL 已通过 Bash
-语法，但缺少 jq，未执行 Linux 运行态验收。commerce 58 项测试、55 对脚本契约通过；CUTOVER 仍为 `REJECTED`。
+不改变业务事实、已有支付仍由回调收敛到 `PAID/SUCCESS`，退出后恢复 false。Ubuntu 26.04 WSL 补齐 jq 并修复
+Windows Docker CLI 的 Compose 路径/环境透传后完成同等运行态验收。commerce 58 项测试、55 对脚本契约通过。
+
+M3.6 第十批完成最终 GO/NO-GO：generation 15、水位 603、14 表 MATCH，OPEN 孤儿、待投递 Payment/Command
+Outbox、未完成 Process Manager 均为 0；权限冻结恢复和目标停机恢复通过。由于本地实现、旧回调、源权限和唯一
+远程适配器原子替换仍待同一窗口完成，结论为 NO-GO，CUTOVER 审计继续 `REJECTED`。

@@ -6,7 +6,16 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
 
 compose() {
-  docker compose --project-directory "$PROJECT_ROOT" "$@"
+  local docker_command compose_root compose_file
+  docker_command="$(command -v docker)"
+  compose_root="$PROJECT_ROOT"
+  compose_file="$PROJECT_ROOT/compose.yaml"
+  if [[ -n "${WSL_DISTRO_NAME:-}" && -x "$(dirname "$docker_command")/docker.exe" ]]; then
+    docker_command="$(dirname "$docker_command")/docker.exe"
+    compose_root="$(wslpath -w "$PROJECT_ROOT")"
+    compose_file="${compose_root}\\compose.yaml"
+  fi
+  "$docker_command" compose --project-directory "$compose_root" -f "$compose_file" "$@"
 }
 
 require_commands() {

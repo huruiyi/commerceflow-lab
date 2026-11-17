@@ -211,7 +211,16 @@ commerce 新增默认关闭的 `PAYMENT_WRITE_FROZEN`，由稳定 `PaymentWriteA
 关闭、客户发起退款之前统一检查。尤其订单取消必须先检查再进入 `CANCELLING`，避免停写拒绝留下跨服务半状态；
 查询和支付/退款签名回调不受影响，可以在最终追平窗口继续排空。
 
-Windows 真实演练确认冻结期间创建、关闭和退款均返回 503，订单/支付事实未被拒绝请求改变，冻结前的 PENDING
-支付仍能由签名回调收敛到 `PAID/SUCCESS`，finally 恢复默认 false。Ubuntu 26.04 WSL 完成 Bash 语法校验，但该
-发行版缺少 jq，因此未虚报 Linux 运行态通过。commerce 58 项 Java 25 测试和 55 对脚本契约通过。该闸门只是
+Windows 与 Ubuntu 26.04 WSL 真实演练均确认冻结期间创建、关闭和退款返回 503，订单/支付事实未被拒绝请求改变，
+冻结前的 PENDING 支付仍能由签名回调收敛到 `PAID/SUCCESS`，finally 恢复默认 false。WSL 补齐 jq，并让公共
+Compose 助手兼容 Windows Docker CLI 的路径和环境透传。commerce 58 项 Java 25 测试和 55 对脚本契约通过。该闸门只是
 单窗口步骤 1 的前置能力；唯一远程适配器、回调改址、本地实现删除和源表撤权仍未执行，CUTOVER 继续拒绝。
+
+## 15. 第十批最终 GO/NO-GO 评审
+
+最终预切换演练取得 generation 15、源水位 603，14 张所有权表全部 `MATCH`；OPEN 孤儿、NEW/RETRY/PROCESSING
+支付 Outbox、NEW/RETRY/IN_FLIGHT 命令 Outbox 和未完成 Process Manager 均为 0。合成源权限冻结/恢复、独立服务
+停机/启动恢复，以及 Windows/Ubuntu 停写与回调排空均通过。
+
+详细证据与决策见[最终 GO/NO-GO 评审](PAYMENT-CUTOVER-GO-NO-GO-REVIEW.md)。由于 commerce 本地实现、旧回调、
+14 张源表权限和唯一远程适配器原子替换仍待同一窗口完成，当前结论为 **NO-GO**，自动审计继续 `REJECTED`。

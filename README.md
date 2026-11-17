@@ -246,6 +246,8 @@ bash ./scripts/linux/audit-payment-orchestration-admission.sh
 [payment-orchestration-service 准入与单一所有权演进计划](docs/architecture/PAYMENT-ORCHESTRATION-SERVICE-EVOLUTION-PLAN.md)。
 受控停写、最终追平、唯一远程适配器、回调切换和源表撤权的原子顺序见
 [payment-orchestration 一次性切换运行手册](docs/architecture/PAYMENT-ORCHESTRATION-CUTOVER-RUNBOOK.md)。
+当前最终结论和剩余阻塞见
+[payment-orchestration 最终切换 GO/NO-GO 评审](docs/architecture/PAYMENT-CUTOVER-GO-NO-GO-REVIEW.md)。
 切换窗口使用 `PAYMENT_WRITE_FROZEN=true` 暂停创建支付、关闭支付和发起退款，同时保留签名回调排空；默认必须为
 `false`，该开关本身不表示已经切流。
 创建、查询、关闭和结果的稳定字段与恢复语义见

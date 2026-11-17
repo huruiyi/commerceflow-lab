@@ -788,7 +788,10 @@ Docker 拓扑，也不启动 PostgreSQL。
 - [x] M3.6 第九批补齐原子切换前的 commerce 停写闸门：`PAYMENT_WRITE_FROZEN=true` 通过稳定
   `PaymentWriteAdmissionV1` 在订单进入 `CANCELLING` 前拒绝创建支付、关闭支付和发起退款，查询及签名回调继续排空。
   Windows 真实演练确认三类新写均为 503、业务事实不变、已有回调仍收敛为 `PAID/SUCCESS`，退出后恢复默认 false；
-  Ubuntu 26.04 WSL 已通过 Bash 语法，实际脚本因发行版缺少 jq 未执行。
+  Ubuntu 26.04 WSL 后续补齐 jq，并修复 Windows Docker CLI 下 Compose 路径/环境透传后完成同等运行态验收。
+- [x] M3.6 第十批完成[最终 GO/NO-GO 评审](architecture/PAYMENT-CUTOVER-GO-NO-GO-REVIEW.md)：generation 15、
+  水位 603、14 表 MATCH，OPEN 孤儿、待投递 Payment/Command Outbox 和未完成 Process Manager 均为 0；Windows/WSL
+  停写排空、权限冻结恢复及目标停机恢复通过。因本地实现、旧回调和源权限仍在，结论为 NO-GO/`REJECTED`。
 - [ ] 上述阻塞全部归零后重新评审，并在一个受控变更窗口内停写、最终追平核对、切换 Payment V1 与渠道回调、
   删除 commerce 本地支付/退款运行路径并撤销源表权限；不保留长期双实现或数据库回退。
 
