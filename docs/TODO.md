@@ -9,7 +9,7 @@
 | 合并内容 | 订单超时策略、Database/RabbitMQ/RocketMQ 讨论、截图阶段 4～6 和旧实施计划 |
 | 当前状态 | 通用定时任务底座、Database/RabbitMQ/RocketMQ 主触发与 Database 对账、订单取消、模拟物流、回调 Outbox/主动对账、自动确认收货/自动完成已实现 |
 | UI 边界 | 客户订单中心已改为摘要、当前主操作与可展开详情，支付、退款、物流和时间线保持独立事实展示 |
-| 最后更新 | 2026-11-16 |
+| 最后更新 | 2026-11-17 |
 
 本文档保留已完成勾选和未完成项，用于表示实施顺序和阶段门禁。已实现能力的详细证据见 [IMPLEMENTED.md](IMPLEMENTED.md)，当前快照见 [PROJECT-STATUS.md](PROJECT-STATUS.md)，详细策略见 [通用定时任务策略](reference/SCHEDULED-TASK-STRATEGIES.md)。旧草案和旧实施计划移入 `archive/`，不再同步勾选状态。
 
@@ -700,9 +700,12 @@ Docker 拓扑，也不启动 PostgreSQL。
 - [x] Windows 实机验收通过商品 1 的 `72 -> 73 -> 72` 调账恢复、目标流水、未签名 401、服务停机 503 与恢复；
   commerce 源流水保持 582，inventory 目标流水增至 641；随后 Windows 快速回归完整通过。Bash 对等脚本语法
   和 46 对参数/安全契约审计通过。
-- [ ] 下一批进入 M3.5 order-service 边界准入治理：先盘点订单状态机、事务所有权、跨模块表访问、事件、
-  Saga/补偿和迁移阻塞项，只形成准入结论与后续顺序；不得同时拆 payment-orchestration/fulfillment，全部服务
-  完成单一所有权切换并逐一验收前仍不得启动 PostgreSQL。
+- [x] M3.5 第一批已完成 order-service 边界准入治理：四张所有权表的数据和状态一致，但 4 条出站、5 条入站
+  跨边界外键及 7 个外部 `ShopOrderMapper` 消费者尚未收口，因此 CREATE 准入不通过；详细阻塞、无
+  Seata/DTM 的 Saga 基线及后续批次见 `docs/architecture/ORDER-SERVICE-EVOLUTION-PLAN.md`。
+- [ ] 下一批先建立 order application port 与 V1 命令/结果契约，逐步归零外部 Mapper 消费者；不得直接创建
+  order-service/order-db，不得同时拆 payment-orchestration/fulfillment，全部服务完成单一所有权切换并逐一
+  验收前仍不得启动 PostgreSQL。
 
 ## 14. 实施记录模板
 

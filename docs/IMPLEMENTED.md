@@ -188,8 +188,14 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   Session/CSRF/MERCHANT RBAC 与 HMAC 薄代理，独立服务故障返回 503；本地库存 Handler、四个 Mapper/XML、
   旧内部入口和专用签名实现已删除，不存在数据库回退。Compose 使用 Flyway 迁移账号与逐表授权的
   `commerce_runtime` 运行账号，后者对五张库存源表均被 MySQL 1142 拒绝。Windows 实机完成调账恢复、401、
-  停机 503 与恢复，源流水保持 582、目标增至 641，随后 Windows 快速回归完整通过；Java 25 共 44 项测试，368/27/231/6 质量门禁、全部
-  383 个 Java 源文件类声明空行和 46 对脚本契约通过，Bash 对等脚本语法通过。PostgreSQL 未启动。
+  停机 503 与恢复，源流水保持 582、目标增至 641，随后 Windows 快速回归完整通过；Java 25 共 44 项测试，
+  368/27/231/6 质量门禁、全部 383 个 Java 源文件类声明空行和 46 对脚本契约通过，Bash 对等脚本语法通过。
+  PostgreSQL 未启动。
+- M3.5 第一批完成 order-service 边界审计，不创建服务或数据库。四张 order 所有权表的数据、状态、金额和
+  关联完整性通过双平台实机审计；当前仍有 4 条出站、5 条入站跨边界外键和 7 个外部
+  `ShopOrderMapper` 消费者，因此 CREATE 准入明确不通过。新增 Java 门禁禁止扩张直接 Mapper 消费者、
+  Mapper 外部表职责以及 Seata/DTM/XA 协调器；Java 25 正式镜像 42 项测试通过。后续统一使用本地事务、
+  Outbox/Inbox、持久化 Saga、条件状态转换和业务补偿/对账，PostgreSQL 继续冻结。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。
