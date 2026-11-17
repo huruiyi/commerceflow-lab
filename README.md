@@ -237,6 +237,9 @@ bash ./scripts/linux/audit-payment-orchestration-admission.sh
 
 当前结论和后续顺序见
 [payment-orchestration-service 准入与单一所有权演进计划](docs/architecture/PAYMENT-ORCHESTRATION-SERVICE-EVOLUTION-PLAN.md)。
+创建、查询、关闭和结果的稳定字段与恢复语义见
+[支付第一版远程契约](docs/architecture/PAYMENT-V1-CONTRACT.md)。当前仍由唯一的本地适配器实现，不能把契约冻结
+描述成已经创建或切换了独立支付服务。
 
 Angular 商城门户和支付模拟器 Web 都使用模块本地 Prettier 只读门禁：
 

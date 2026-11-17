@@ -59,11 +59,13 @@ AssertScalar 'refunds requiring recovery' `
 AssertScalar 'open payment reconciliation issues' `
   "SELECT COUNT(*) FROM payment_reconciliation_issue WHERE status='OPEN';" '1'
 
-$externalConsumers = @(rg -l `
-  'import vip\.fairy\.commerceflow\.commerce\.(payment|refund)\.infrastructure\.' `
-  services/commerce-service/src/main/java | Where-Object { $_ -notmatch '[\\/](payment|refund)[\\/]' })
-if ($externalConsumers.Count -gt 5) {
-  throw "External payment/refund infrastructure consumers exceeded baseline: $externalConsumers"
+$internalImportLines = @(rg -n `
+  'import vip\.fairy\.commerceflow\.commerce\.(payment|refund)\.(api|application|domain|infrastructure)\.' `
+  services/commerce-service/src/main/java |
+  Where-Object { $_ -notmatch '[\\/](payment|refund)[\\/]' -and
+    $_ -notmatch '\.payment\.application\.contract\.v1\.' })
+if ($internalImportLines.Count -ne 0) {
+  throw "External code bypasses Payment V1 contracts: $internalImportLines"
 }
 $foreignMapperTables = @(rg -n `
   '\b(app_users|shop_orders|order_items|order_shipping_addresses|order_events|product_inventory|inventory_reservations|shipment_records|scheduled_tasks)\b' `
@@ -75,7 +77,7 @@ $foreignMapperTables = @(rg -n `
 if ($LASTEXITCODE -eq 0 -or $foreignMapperTables.Count -gt 0) {
   throw "Payment-orchestration Mapper accesses foreign tables: $foreignMapperTables"
 }
-Write-Host "  PASS external infrastructure consumer files = $($externalConsumers.Count); foreign-table Mapper responsibilities = 0"
+Write-Host '  PASS external payment/refund internal imports = 0; foreign-table Mapper responsibilities = 0'
 
 Write-Host 'Payment-orchestration ownership baseline:'
 Write-Host (Sql @"
@@ -91,4 +93,4 @@ UNION ALL SELECT CONCAT('refunds|',COUNT(*),'|',COALESCE(SUM(amount),0)) FROM re
 UNION ALL SELECT CONCAT('refund-events|',COUNT(*)) FROM refund_events
 UNION ALL SELECT CONCAT('refund-notifications|',COUNT(*)) FROM refund_notifications;
 "@)
-Write-Host 'Admission audit completed: CREATE remains blocked by 1 outbound identity FK, up to 5 external infrastructure consumers and 1 open reconciliation issue.' -ForegroundColor Yellow
+Write-Host 'Admission audit completed: Payment V1 dependency gate passed; CREATE remains blocked by 1 outbound identity FK, recovery protocol work and 1 open reconciliation issue.' -ForegroundColor Yellow

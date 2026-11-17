@@ -2,46 +2,44 @@ package vip.fairy.commerceflow.commerce.ordering.application;
 
 import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandPublisher;
+import vip.fairy.commerceflow.commerce.ordering.application.port.OrderEventPublisherPort;
 import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
 import vip.fairy.commerceflow.commerce.ordering.application.port.OrderStorePort;
-import vip.fairy.commerceflow.commerce.payment.application.PaymentCancellationCrashLab;
-import vip.fairy.commerceflow.commerce.payment.application.PaymentEventPipeline;
-import vip.fairy.commerceflow.commerce.payment.application.PaymentGatewayClient;
-import vip.fairy.commerceflow.commerce.payment.application.port.OrderPaymentRecordPort;
-import vip.fairy.commerceflow.commerce.payment.domain.PaymentView;
-import vip.fairy.commerceflow.commerce.payment.infrastructure.PaymentCancellationCrashLabProperties.Phase;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCloseCommandV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCloseOutcomeV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCloseResultV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentOrchestrationV1;
 import vip.fairy.commerceflow.commerce.scheduling.application.ScheduledTaskTypes;
 import vip.fairy.commerceflow.commerce.scheduling.infrastructure.ScheduledTaskMapper;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
+import vip.fairy.commerceflow.commerce.shared.application.PaymentCancellationCrashProbe;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
+import java.time.Instant;
+import java.util.UUID;
 
 @Service
 public class OrderCancellationService {
 
   private final OrderStorePort orders;
-  private final OrderPaymentRecordPort payments;
-  private final PaymentGatewayClient gateway;
+  private final PaymentOrchestrationV1 payments;
   private final TransactionTemplate transactions;
   private final ScheduledTaskMapper scheduledTasks;
-  private final PaymentEventPipeline events;
+  private final OrderEventPublisherPort events;
   private final CustomerNotificationCommandPublisher notifications;
-  private final PaymentCancellationCrashLab crashLab;
+  private final PaymentCancellationCrashProbe crashLab;
 
-  public OrderCancellationService(OrderStorePort orders, OrderPaymentRecordPort payments,
-                                  PaymentGatewayClient gateway,
+  public OrderCancellationService(OrderStorePort orders, PaymentOrchestrationV1 payments,
                                   TransactionTemplate transactions, ScheduledTaskMapper scheduledTasks,
-                                  PaymentEventPipeline events,
+                                  OrderEventPublisherPort events,
                                   CustomerNotificationCommandPublisher notifications,
-                                  PaymentCancellationCrashLab crashLab) {
+                                  PaymentCancellationCrashProbe crashLab) {
     this.orders = orders;
     this.payments = payments;
-    this.gateway = gateway;
     this.transactions = transactions;
     this.scheduledTasks = scheduledTasks;
     this.events = events;
@@ -66,15 +64,13 @@ public class OrderCancellationService {
       return;
     }
 
-    crashLab.pause(orderId, Phase.AFTER_CANCELLATION_BEGIN);
-
-    for (PaymentView payment : begin.pendingPayments()) {
-      gateway.close(payment);
-    }
-
-    crashLab.pause(orderId, Phase.AFTER_CHANNEL_CLOSE);
-
-    transactions.executeWithoutResult(status -> finish(orderId, begin.pendingPayments(), actorId,
+    crashLab.pause(orderId, PaymentCancellationCrashProbe.Phase.AFTER_CANCELLATION_BEGIN);
+    String commandId = UUID.randomUUID().toString();
+    String correlationId = UUID.randomUUID().toString();
+    PaymentCloseResultV1 result = payments.closePending(new PaymentCloseCommandV1(
+      PaymentCloseCommandV1.VERSION, commandId, Instant.now(), "commerce-service-ordering",
+      orderId, reason, correlationId, correlationId, traceparent()));
+    transactions.executeWithoutResult(status -> finish(orderId, result, actorId,
       reason, triggerSource, scheduledTaskId, customerRequest));
   }
 
@@ -84,11 +80,11 @@ public class OrderCancellationService {
       ? orders.lock(actorId, orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found"))
       : orders.lockById(orderId).orElse(null);
     if (order == null || "CANCELLED".equals(order.getStatus())) {
-      return new Begin(true, List.of());
+      return new Begin(true);
     }
     if (!"PENDING_PAYMENT".equals(order.getStatus()) && !"CANCELLING".equals(order.getStatus())) {
       if (!customerRequest) {
-        return new Begin(true, List.of());
+        return new Begin(true);
       }
       throw new BusinessRuleException("Only pending orders can be cancelled");
     }
@@ -99,10 +95,10 @@ public class OrderCancellationService {
       orders.insertEventDetailed(orderId, actorId, "ORDER_CANCELLING", "PENDING_PAYMENT", "CANCELLING",
         reason, triggerSource, scheduledTaskId);
     }
-    return new Begin(false, payments.pending(orderId));
+    return new Begin(false);
   }
 
-  private void finish(Long orderId, List<PaymentView> pendingPayments, Long actorId, String reason,
+  private void finish(Long orderId, PaymentCloseResultV1 paymentResult, Long actorId, String reason,
                       String triggerSource, Long scheduledTaskId, boolean customerRequest) {
     ShopOrderView order = orders.lockById(orderId)
       .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
@@ -112,17 +108,11 @@ public class OrderCancellationService {
     if (!"CANCELLING".equals(order.getStatus())) {
       throw new BusinessRuleException("Order status changed while closing payments");
     }
-    if (payments.successfulCount(orderId) > 0) {
+    if (paymentResult.outcome() == PaymentCloseOutcomeV1.PAYMENT_ALREADY_SUCCEEDED) {
       orders.restorePaidAfterCancellationRace(orderId);
       orders.insertEventDetailed(orderId, actorId, "CANCELLATION_LOST_PAYMENT_RACE", "CANCELLING", "PAID",
         "A successful payment was observed while cancelling", triggerSource, scheduledTaskId);
       return;
-    }
-    for (PaymentView payment : pendingPayments) {
-      if (payments.close(payment.getId(), reason)) {
-        payments.event(payment.getId(), java.util.UUID.randomUUID().toString(),
-          "PAYMENT_CLOSED_BY_ORDER", "PENDING", "CLOSED", reason);
-      }
     }
     if (orders.finishCancellation(orderId) != 1) {
       throw new BusinessRuleException("Order status changed before cancellation completed");
@@ -137,7 +127,7 @@ public class OrderCancellationService {
     if (scheduledTaskId != null) {
       payload.put("scheduledTaskId", scheduledTaskId);
     }
-    String eventId = events.appendOrder(orderId.toString(), "ORDER_CANCELLED", payload);
+    String eventId = events.append(orderId, "ORDER_CANCELLED", payload);
     notifications.publishOrderCancelled(
       eventId + ":notification",
       order.getCustomerId(),
@@ -167,6 +157,12 @@ public class OrderCancellationService {
     return value;
   }
 
-  private record Begin(boolean done, List<PaymentView> pendingPayments) {
+  private String traceparent() {
+    String traceId = UUID.randomUUID().toString().replace("-", "");
+    String spanId = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+    return "00-" + traceId + "-" + spanId + "-01";
+  }
+
+  private record Begin(boolean done) {
   }
 }

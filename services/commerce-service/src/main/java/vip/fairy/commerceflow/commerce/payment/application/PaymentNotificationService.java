@@ -24,7 +24,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-import vip.fairy.commerceflow.commerce.payment.infrastructure.PaymentCancellationCrashLabProperties.Phase;
+import vip.fairy.commerceflow.commerce.shared.application.PaymentCancellationCrashProbe.Phase;
 
 @Service
 public class PaymentNotificationService {

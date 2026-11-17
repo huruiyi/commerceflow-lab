@@ -11,8 +11,9 @@ import vip.fairy.commerceflow.commerce.ordering.application.port.OrderFulfillmen
 import vip.fairy.commerceflow.commerce.ordering.application.port.OrderStorePort;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderEventView;
 import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
-import vip.fairy.commerceflow.commerce.refund.api.RefundResponse;
-import vip.fairy.commerceflow.commerce.refund.infrastructure.RefundMapper;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.RefundSnapshotV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentOrchestrationV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentQueryV1;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
@@ -28,20 +29,20 @@ public class MerchantFulfillmentService {
 
   private final OrderStorePort orderStore;
   private final OrderFulfillmentPort orders;
-  private final RefundMapper refunds;
+  private final PaymentOrchestrationV1 payments;
   private final ShipmentMapper shipments;
   private final LogisticsGatewayClient logistics;
   private final TransactionTemplate transactions;
 
   public MerchantFulfillmentService(OrderStorePort orderStore,
                                     OrderFulfillmentPort orders,
-                                    RefundMapper refunds,
+                                    PaymentOrchestrationV1 payments,
                                     ShipmentMapper shipments,
                                     LogisticsGatewayClient logistics,
                                     PlatformTransactionManager manager) {
     this.orderStore = orderStore;
     this.orders = orders;
-    this.refunds = refunds;
+    this.payments = payments;
     this.shipments = shipments;
     this.logistics = logistics;
     this.transactions = new TransactionTemplate(manager);
@@ -139,9 +140,8 @@ public class MerchantFulfillmentService {
   }
 
   private MerchantOrderResponse response(ShopOrderView order) {
-    RefundResponse refund = refunds.byOrder(order.getId())
-      .map(value -> RefundResponse.from(value, refunds.events(value.getId())))
-      .orElse(null);
+    RefundSnapshotV1 refund = payments.refund(
+      new PaymentQueryV1(PaymentQueryV1.VERSION, order.getId())).orElse(null);
     List<ShopOrderResponse.Item> items = orders.items(order.getId())
       .stream()
       .map(ShopOrderResponse.Item::from)

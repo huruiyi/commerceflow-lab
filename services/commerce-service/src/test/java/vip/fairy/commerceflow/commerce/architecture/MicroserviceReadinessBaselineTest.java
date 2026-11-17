@@ -63,6 +63,10 @@ class MicroserviceReadinessBaselineTest {
           if (sourceModule.equals(targetModule) || "shared".equals(targetModule)) {
             continue;
           }
+          if (importMatcher.group(2).startsWith("application.contract.v1.")
+            || samePaymentBoundary(sourceModule, targetModule)) {
+            continue;
+          }
           String key = sourceModule + ">" + targetModule;
           DependencyCount count = actual.computeIfAbsent(key, ignored -> new DependencyCount());
           count.references++;
@@ -183,7 +187,7 @@ class MicroserviceReadinessBaselineTest {
       dependency("ordering", "refund", 3, 1),
       dependency("ordering", "scheduling", 4, 1),
       dependency("payment", "inventory", 1, 0),
-      dependency("payment", "ordering", 2, 1),
+      dependency("payment", "ordering", 4, 1),
       dependency("payment", "refund", 1, 0),
       dependency("receipt", "ordering", 3, 2),
       dependency("receipt", "scheduling", 3, 1),
@@ -199,6 +203,10 @@ class MicroserviceReadinessBaselineTest {
       dependency("scheduling", "receipt", 2, 0),
       dependency("shared", "identity", 1, 0)
     );
+  }
+
+  private static boolean samePaymentBoundary(String sourceModule, String targetModule) {
+    return Set.of(sourceModule, targetModule).equals(Set.of("payment", "refund"));
   }
 
   private static Map.Entry<String, DependencyLimit> dependency(

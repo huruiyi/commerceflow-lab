@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.6 第一批 payment-orchestration 边界审计与自动门禁已完成；CREATE 尚未准入 |
-| 下一候选阶段 | 收口 ordering/fulfillment 直接依赖并冻结 Payment V1 契约 |
+| 当前阶段 | M3.6 第二批 Payment V1 契约与依赖收口已完成；CREATE 尚未准入 |
+| 下一候选阶段 | 删除跨 identity 外键并建立支付/退款可恢复协议门禁 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -399,3 +399,13 @@ M3.6 第一批把商城支付编排与退款统一评审为一个候选资金边
 5 个外部 infrastructure 消费者文件和 1 条 OPEN 对账记录。首批只增加源码/数据库只读门禁与双平台审计，
 Windows/Linux 审计、45 个 commerce-service 测试、50 对脚本契约与快速回归通过；未创建
 payment-orchestration-service/payment-db，未切流、未并行拆 fulfillment，也未启动 PostgreSQL。
+
+M3.6 第二批冻结创建支付、按订单查询支付/退款、关闭待支付记录和支付/退款结果的 Payment V1 契约。ordering
+与 fulfillment 对 payment/refund 的 application、domain、infrastructure 和 Mapper 直接导入归零，只保留稳定
+V1 数据结构及订单侧端口；当前由唯一 `LocalPaymentOrchestrationAdapter` 承接原实现，不存在 LOCAL/COMPARE。
+创建/关闭命令、关闭结果和支付成功结果共 4 个 JSON 兼容样例覆盖版本、幂等键、关联/因果 ID、W3C Trace、
+payload 指纹、“超时结果未知”和支付成功优先语义。CREATE 仍因 refund→identity 外键、1 条 OPEN 对账记录和
+尚未收口的 payment-backed 订单事件 Outbox/Inbox 适配器、Process Manager/结果 Inbox/人工恢复门禁而冻结。
+回归同时修复迟到 RESERVE 结果把已 COMMITTED 库存倒退为 RESERVED 的竞态，人工核对后的恢复重试仍可推进终态。最终持久卷为 324 笔支付、36 笔退款，外部
+内部实现导入与数据不变量错误均为 0；48 项测试、431/28/204/7 质量门禁、451 个 Java 源文件类声明空行、
+Windows/Linux 审计、50 对脚本契约和完整快速回归通过。本批没有创建服务/数据库或启动 PostgreSQL。

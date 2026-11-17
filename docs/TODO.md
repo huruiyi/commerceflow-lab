@@ -741,8 +741,15 @@ Docker 拓扑，也不启动 PostgreSQL。
   299 笔支付/32 笔退款的金额、状态、幂等、渠道证据、Outbox 与事件不变量均通过；未创建服务或数据库。
 - [x] 自动门禁锁定当前阻塞只能减少：1 条 refund→identity 外键、5 个外部 payment/refund infrastructure
   消费者文件和 1 条 OPEN 对账记录；Mapper 外部表职责、入站跨边界外键、未发布 Outbox 和待恢复退款均为 0。
-- [ ] M3.6 下一批先收口 ordering/fulfillment 对 payment/refund 的直接依赖并冻结 Payment V1 契约；不得
-  创建共享 Schema 服务、不得 CUTOVER、不得并行拆 fulfillment、不得启动 PostgreSQL。
+- [x] M3.6 第二批已收口 ordering/fulfillment 对 payment/refund 内部实现的直接依赖：外部 application、domain、
+  infrastructure 和 Mapper 导入归零；订单侧只使用 Payment V1 创建/查询/关闭/结果契约和自有端口。
+- [x] Payment V1 固定版本、稳定命令/结果 ID、业务幂等键、金额/币种、关联/因果 ID、W3C Trace、“超时结果
+  未知”、支付成功优先和 payload 指纹语义；4 个 JSON 兼容样例通过测试。当前只有一套本地适配器。
+- [x] 回归发现并修复库存结果乱序：迟到 RESERVE 成功不得把 COMMITTED 倒退为 RESERVED；人工核对后的
+  RECONCILIATION_REQUIRED 重试仍可按原命令进入正确终态。48 项测试和完整快速回归通过。
+- [ ] M3.6 下一批删除 refund→identity 外键、处置 1 条 OPEN 对账记录，收口 payment-backed 订单事件
+  Outbox/Inbox 临时适配器，并建立支付/退款 Process Manager、结果 Inbox、未知结果与人工恢复门禁，取得
+  CREATE 准入；仍不得创建共享 Schema 服务、CUTOVER、并行拆 fulfillment 或启动 PostgreSQL。
 
 ## 14. 实施记录模板
 

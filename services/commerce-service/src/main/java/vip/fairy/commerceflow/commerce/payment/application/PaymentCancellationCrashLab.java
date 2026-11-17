@@ -2,14 +2,14 @@ package vip.fairy.commerceflow.commerce.payment.application;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import vip.fairy.commerceflow.commerce.shared.application.PaymentCancellationCrashProbe;
 import vip.fairy.commerceflow.commerce.payment.infrastructure.PaymentCancellationCrashLabProperties;
-import vip.fairy.commerceflow.commerce.payment.infrastructure.PaymentCancellationCrashLabProperties.Phase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 @Component
-public class PaymentCancellationCrashLab {
+public class PaymentCancellationCrashLab implements PaymentCancellationCrashProbe {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PaymentCancellationCrashLab.class);
 
@@ -20,6 +20,7 @@ public class PaymentCancellationCrashLab {
     this.properties = properties;
   }
 
+  @Override
   public void pause(Long orderId, Phase phase) {
     if (!properties.isEnabled() || properties.getOrderId() != orderId
       || properties.getPhase() != phase || !paused.compareAndSet(false, true)) return;

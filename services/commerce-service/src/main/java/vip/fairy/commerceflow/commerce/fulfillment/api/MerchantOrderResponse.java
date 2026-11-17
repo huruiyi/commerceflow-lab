@@ -2,7 +2,7 @@ package vip.fairy.commerceflow.commerce.fulfillment.api;
 
 import vip.fairy.commerceflow.commerce.ordering.api.ShopOrderResponse;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderEventView;
-import vip.fairy.commerceflow.commerce.refund.api.RefundResponse;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.RefundSnapshotV1;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -23,7 +23,7 @@ public record MerchantOrderResponse(
   List<ShopOrderResponse.Item> items,
   ShopOrderResponse.Address address,
   List<Event> events,
-  RefundResponse refund) {
+  RefundSnapshotV1 refund) {
   public record Event(
     Long id,
     Long actorId,

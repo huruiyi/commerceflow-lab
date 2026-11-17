@@ -24,15 +24,9 @@ class PaymentOrchestrationAdmissionBaselineTest {
   private static final Pattern FOREIGN_TABLE = Pattern.compile(
     "(?i)\\b(app_users|shop_orders|order_items|order_shipping_addresses|order_events|"
       + "product_inventory|inventory_reservations|shipment_records|scheduled_tasks)\\b");
-  private static final Pattern INFRASTRUCTURE_IMPORT = Pattern.compile(
-    "import vip\\.fairy\\.commerceflow\\.commerce\\.(payment|refund)\\.infrastructure\\.");
-  private static final Set<String> APPROVED_EXTERNAL_CONSUMERS = Set.of(
-    "CommerceFlowApplication.java",
-    "fulfillment/application/MerchantFulfillmentService.java",
-    "ordering/application/OrderCancellationProjection.java",
-    "ordering/application/OrderCancellationService.java",
-    "ordering/application/PurchaseOrderService.java"
-  );
+  private static final Pattern INTERNAL_IMPORT = Pattern.compile(
+    "import vip\\.fairy\\.commerceflow\\.commerce\\.(refund\\.|payment\\.(api\\.|domain\\.|"
+      + "infrastructure\\.|application\\.(?!contract\\.v1\\.)))");
 
   @Test
   void paymentOwnedTablesStayInsidePaymentAndRefundMappers() throws IOException {
@@ -53,17 +47,15 @@ class PaymentOrchestrationAdmissionBaselineTest {
   }
 
   @Test
-  void externalInfrastructureConsumersCannotExpandBeforeCreateAdmission() throws IOException {
+  void externalConsumersUseOnlyPaymentV1ContractsAndOrderingPorts() throws IOException {
     try (Stream<Path> sources = Files.walk(JAVA_ROOT)) {
       Set<String> consumers = sources.filter(path -> path.toString().endsWith(".java"))
         .filter(path -> !isPaymentOrRefund(path))
-        .filter(path -> INFRASTRUCTURE_IMPORT.matcher(read(path)).find())
+        .filter(path -> INTERNAL_IMPORT.matcher(read(path)).find())
         .map(path -> JAVA_ROOT.relativize(path).toString().replace('\\', '/'))
         .collect(java.util.stream.Collectors.toSet());
-      assertTrue(APPROVED_EXTERNAL_CONSUMERS.containsAll(consumers),
-        () -> "New external payment/refund infrastructure consumer requires review: " + consumers);
-      assertTrue(consumers.size() <= 5,
-        "Payment-orchestration CREATE requires external infrastructure consumers to decrease");
+      assertTrue(consumers.isEmpty(),
+        () -> "External code must use Payment V1 contracts and consumer-owned ports: " + consumers);
     }
   }
 

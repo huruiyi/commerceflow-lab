@@ -5,9 +5,12 @@
 M3.6 第一批只完成边界审计和自动门禁，不创建服务或数据库，不迁移数据、不切流。候选服务统一拥有商城侧
 支付编排与退款事实，外部 `payment-simulator-service` 仍只是渠道模拟平台，不属于本服务的数据所有权。
 
-当前数据不变量通过，但 CREATE 尚未准入：仍有 1 条 `refund_records.customer_id → app_users.id` 跨边界外键、
-5 个 payment/refund infrastructure 外部消费者文件，以及 1 条 OPEN 支付对账记录。上述基线只能减少，不能
-扩张。不得用共享 commerce Schema、远程行锁、LOCAL/COMPARE 或全局事务协调器绕过这些阻塞。
+当前数据不变量通过，第二批已把 payment/refund 内部类型的外部消费者归零并冻结
+[支付第一版远程契约](PAYMENT-V1-CONTRACT.md)。CREATE 尚未准入：仍有 1 条
+`refund_records.customer_id → app_users.id` 跨边界外键、1 条 OPEN 支付对账记录，以及待建立的 Process Manager、
+结果 Inbox 和人工恢复门禁；当前 payment-backed 的订单事件 Outbox/Inbox 适配器也必须按最终消费者所有权收口。
+上述基线只能减少，不能扩张。不得用共享 commerce Schema、远程行锁、LOCAL/COMPARE 或全局事务协调器
+绕过这些阻塞。
 
 ## 2. 唯一所有权候选
 
@@ -31,8 +34,8 @@ order、inventory、identity 与 fulfillment 只保留稳定 ID、版本化命�
 ## 3. 当前硬阻塞
 
 1. 删除 `refund_records.customer_id` 对 identity 的数据库外键，改由入口身份和稳定 customerId 校验。
-2. ordering 不再直接注入支付 application/infrastructure、支付领域对象或退款 Mapper；冻结支付请求、查询、
-   关闭支付与回调结果 V1 契约。
+2. **已完成**：ordering/fulfillment 不再直接注入支付 application/infrastructure、支付领域对象或退款 Mapper；
+   创建、查询、关闭支付与回调结果 V1 契约及兼容样例已冻结。
 3. fulfillment 不再直接读取 `RefundMapper`，改用“是否允许履约”的稳定支付/退款投影契约。
 4. 处理或明确迁移当前 1 条 OPEN `PAYMENT_TIMEOUT` 对账记录，禁止把待处理事实静默丢弃。
 5. 明确 `payment_outbox` 与 `kafka_consumed_event` 的主题、消费者及迁移边界，不能把共享 Inbox 搬入新服务后
@@ -49,8 +52,9 @@ order、inventory、identity 与 fulfillment 只保留稳定 ID、版本化命�
 ## 5. 后续批次顺序
 
 1. **已完成**：11 张候选所有权表、外键、外部消费者、数据不变量与恢复基线审计。
-2. 收口 ordering/fulfillment 对 payment/refund 的 application 与 infrastructure 依赖，冻结 Payment V1 契约。
-3. 删除跨 identity 外键，建立支付/退款 Process Manager、结果 Inbox 与人工恢复门禁，取得 CREATE 准入。
+2. **已完成**：收口 ordering/fulfillment 对 payment/refund 内部实现的依赖，冻结 Payment V1 契约。
+3. 删除跨 identity 外键，处置 OPEN 对账记录，收口订单事件 Outbox/Inbox 临时适配器，建立支付/退款
+   Process Manager、结果 Inbox 与人工恢复门禁，取得 CREATE 准入。
 4. 创建分层独立服务和 MySQL `payment-db`，仅无业务流量影子迁移与核对。
 5. 完成回调、支付/取消竞态、退款、结果丢失、服务/数据库停机和整体回退演练后，单独评审 CUTOVER。
 6. 稳定窗通过后删除 commerce 支付/退款运行路径与源表权限，再进入 fulfillment-service。
@@ -69,3 +73,15 @@ order、inventory、identity 与 fulfillment 只保留稳定 ID、版本化命�
 ```bash
 ./scripts/linux/audit-payment-orchestration-admission.sh
 ```
+
+## 7. 第二批证据
+
+ordering/fulfillment 对 payment/refund 的 application、domain、infrastructure 和 Mapper 外部导入已归零，只有
+`payment.application.contract.v1` 稳定契约可跨边界使用。创建/关闭命令、关闭结果和支付成功结果 4 个 JSON
+样例完成反序列化、字段校验和 SHA-256 指纹兼容测试。回归发现并修复迟到库存 RESERVE 结果把 COMMITTED
+状态倒退为 RESERVED 的竞态，恢复重试语义保持通过。
+
+最终审计持久卷为 324 笔支付、总额 420876.00、累计退款 46764.00；36 笔退款总额 46764.00，477 条 Outbox
+全部发布、656 条 Kafka Inbox。所有金额、状态、幂等、渠道证据、退款投影、事件和待恢复不变量为 0；仍有
+1 条跨 identity 外键和 1 条 OPEN 对账记录。48 项测试、431/28/204/7 质量门禁、451 个 Java 源文件类声明
+空行、Windows/Linux 审计、50 对脚本契约及完整快速回归通过。

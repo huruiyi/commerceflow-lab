@@ -240,6 +240,10 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   infrastructure 消费者不得增长。当前仍有 1 条 refund→identity 外键和 1 条 OPEN 对账记录，CREATE 明确
   不通过；Windows/Linux 审计、45 个 commerce-service 测试、50 对脚本契约和快速回归通过。未切流、未拆
   fulfillment、未启动 PostgreSQL。
+- M3.6 第二批冻结 Payment V1 创建、查询、关闭与结果契约，ordering/fulfillment 对 payment/refund 内部实现的
+  直接导入归零。唯一的本地适配器复用现有业务语义，4 个 JSON 兼容样例固定版本、幂等、关联/因果 ID、Trace、
+  payload 指纹、“超时结果未知”和支付成功优先规则；迟到库存预占结果不得倒退已提交状态并有专项测试。
+  48 项测试、双平台审计、50 对脚本契约和快速回归通过；未创建独立服务/数据库或双实现，CREATE 继续冻结。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

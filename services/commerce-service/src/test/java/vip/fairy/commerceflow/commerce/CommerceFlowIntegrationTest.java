@@ -62,9 +62,16 @@ import vip.fairy.commerceflow.commerce.inventory.domain.InventoryMovementView;
 import vip.fairy.commerceflow.commerce.inventory.domain.MerchantInventoryItem;
 import vip.fairy.commerceflow.commerce.inventory.infrastructure.transport.MerchantInventoryRemoteClient;
 import vip.fairy.commerceflow.commerce.ordering.application.PurchaseOrderService;
+import vip.fairy.commerceflow.commerce.ordering.api.CreatePaymentRequest;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentChannelV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCloseCommandV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCloseResultV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentContractSemantics;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCreateCommandV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentQueryV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentResultV1;
 import vip.fairy.commerceflow.commerce.payment.domain.PaymentChannel;
-import vip.fairy.commerceflow.commerce.payment.api.PaymentRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -286,6 +293,38 @@ class CommerceFlowIntegrationTest {
       result.validate();
       org.junit.jupiter.api.Assertions.assertEquals(OrderResultV1.VERSION,
         result.schemaVersion());
+    }
+  }
+
+  @Test
+  void paymentV1ContractFixturesRemainCompatible() throws Exception {
+    try (var createFixture = getClass().getResourceAsStream(
+      "/contracts/payment/payment-create-command-v1.json");
+         var closeFixture = getClass().getResourceAsStream(
+           "/contracts/payment/payment-close-command-v1.json");
+         var resultFixture = getClass().getResourceAsStream(
+           "/contracts/payment/payment-close-result-v1.json");
+         var callbackFixture = getClass().getResourceAsStream(
+           "/contracts/payment/payment-success-result-v1.json")) {
+      org.junit.jupiter.api.Assertions.assertNotNull(createFixture);
+      org.junit.jupiter.api.Assertions.assertNotNull(closeFixture);
+      org.junit.jupiter.api.Assertions.assertNotNull(resultFixture);
+      org.junit.jupiter.api.Assertions.assertNotNull(callbackFixture);
+      PaymentCreateCommandV1 create = json.readValue(createFixture, PaymentCreateCommandV1.class);
+      PaymentCloseCommandV1 close = json.readValue(closeFixture, PaymentCloseCommandV1.class);
+      PaymentCloseResultV1 result = json.readValue(resultFixture, PaymentCloseResultV1.class);
+      PaymentResultV1 callback = json.readValue(callbackFixture, PaymentResultV1.class);
+      create.validate();
+      close.validate();
+      result.validate();
+      callback.validate();
+      new PaymentQueryV1(PaymentQueryV1.VERSION, create.orderId()).validate();
+      org.junit.jupiter.api.Assertions.assertEquals(64,
+        PaymentContractSemantics.fingerprint(create).length());
+      org.junit.jupiter.api.Assertions.assertEquals(64,
+        PaymentContractSemantics.fingerprint(close).length());
+      org.junit.jupiter.api.Assertions.assertEquals(64,
+        PaymentContractSemantics.fingerprint(callback).length());
     }
   }
 
@@ -649,7 +688,7 @@ class CommerceFlowIntegrationTest {
         org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(),
         org.mockito.ArgumentMatchers.eq("CNY"), org.mockito.ArgumentMatchers.eq("NONE"));
     var retry = purchaseOrders.pay(users.selectById(customerId), orderId,
-      new PaymentRequest("retry-" + suffix, false, PaymentChannel.WECHAT_PAY));
+      new CreatePaymentRequest("retry-" + suffix, false, PaymentChannelV1.WECHAT_PAY));
     org.junit.jupiter.api.Assertions.assertEquals("PENDING_PAYMENT", retry.status());
     org.junit.jupiter.api.Assertions.assertEquals("PENDING", retry.payment().status());
     org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
@@ -663,7 +702,7 @@ class CommerceFlowIntegrationTest {
       "SELECT id FROM shop_orders WHERE order_number=?", Long.class, "ORDER-DEADLINE-" + suffix);
     org.junit.jupiter.api.Assertions.assertThrows(BusinessRuleException.class,
       () -> purchaseOrders.pay(users.selectById(customerId), expiredOrderId,
-        new PaymentRequest("after-deadline-" + suffix, false, PaymentChannel.WECHAT_PAY)));
+        new CreatePaymentRequest("after-deadline-" + suffix, false, PaymentChannelV1.WECHAT_PAY)));
     org.junit.jupiter.api.Assertions.assertEquals(0, jdbc.queryForObject(
       "SELECT COUNT(*) FROM payment_records WHERE order_id=?", Integer.class, expiredOrderId));
   }
@@ -681,7 +720,7 @@ class CommerceFlowIntegrationTest {
 
     org.junit.jupiter.api.Assertions.assertThrows(BusinessRuleException.class,
       () -> purchaseOrders.pay(users.selectById(customerId), paidOrderId,
-        new PaymentRequest("illegal-pay-" + suffix, false, PaymentChannel.ALIPAY)));
+        new CreatePaymentRequest("illegal-pay-" + suffix, false, PaymentChannelV1.ALIPAY)));
     org.junit.jupiter.api.Assertions.assertThrows(BusinessRuleException.class,
       () -> orderCancellations.cancelByCustomer(users.selectById(customerId), paidOrderId,
         "Illegal paid-order cancellation"));

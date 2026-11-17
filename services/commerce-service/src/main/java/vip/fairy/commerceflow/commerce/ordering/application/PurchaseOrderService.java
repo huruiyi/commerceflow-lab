@@ -7,20 +7,18 @@ import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
 import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
 import vip.fairy.commerceflow.commerce.logistics.application.LogisticsService;
 import vip.fairy.commerceflow.commerce.ordering.api.ShopOrderResponse;
+import vip.fairy.commerceflow.commerce.ordering.api.CreatePaymentRequest;
 import vip.fairy.commerceflow.commerce.ordering.domain.NewOrder;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderAddressSnapshot;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderItemSnapshot;
 import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
 import vip.fairy.commerceflow.commerce.ordering.application.port.OrderStorePort;
 import vip.fairy.commerceflow.commerce.ordering.infrastructure.OrderLifecycleProperties;
-import vip.fairy.commerceflow.commerce.payment.api.PaymentRequest;
-import vip.fairy.commerceflow.commerce.payment.application.PaymentGatewayClient;
-import vip.fairy.commerceflow.commerce.payment.application.RedisIdempotencyService;
-import vip.fairy.commerceflow.commerce.payment.application.port.OrderPaymentRecordPort;
-import vip.fairy.commerceflow.commerce.payment.domain.PaymentMerchantAccount;
-import vip.fairy.commerceflow.commerce.payment.domain.PaymentView;
-import vip.fairy.commerceflow.commerce.refund.api.RefundResponse;
-import vip.fairy.commerceflow.commerce.refund.infrastructure.RefundMapper;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCreateCommandV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentSnapshotV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentOrchestrationV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentQueryV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.RefundSnapshotV1;
 import vip.fairy.commerceflow.commerce.scheduling.application.ScheduledTaskService;
 import vip.fairy.commerceflow.commerce.scheduling.application.ScheduledTaskTypes;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
@@ -29,15 +27,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -45,27 +38,20 @@ public class PurchaseOrderService {
 
   private final OrderStorePort orders;
   private final CheckoutCartPort carts;
-  private final OrderPaymentRecordPort payments;
-  private final PaymentGatewayClient gateway;
-  private final RedisIdempotencyService redisIdempotency;
-  private final RefundMapper refunds;
+  private final PaymentOrchestrationV1 payments;
   private final OrderLifecycleProperties lifecycle;
   private final ScheduledTaskService scheduledTasks;
   private final LogisticsService logistics;
   private final InventoryCommandPort inventory;
 
   public PurchaseOrderService(OrderStorePort orders, CheckoutCartPort carts,
-                              OrderPaymentRecordPort payments, PaymentGatewayClient gateway,
-                              RedisIdempotencyService redisIdempotency, RefundMapper refunds,
+                              PaymentOrchestrationV1 payments,
                               OrderLifecycleProperties lifecycle, ScheduledTaskService scheduledTasks,
                               LogisticsService logistics,
                               InventoryCommandPort inventory) {
     this.orders = orders;
     this.carts = carts;
     this.payments = payments;
-    this.gateway = gateway;
-    this.redisIdempotency = redisIdempotency;
-    this.refunds = refunds;
     this.lifecycle = lifecycle;
     this.scheduledTasks = scheduledTasks;
     this.logistics = logistics;
@@ -117,63 +103,34 @@ public class PurchaseOrderService {
       .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
   }
 
-  @Transactional
-  public ShopOrderResponse pay(AppUser user, Long id, PaymentRequest request) {
-    ShopOrderView order = orders.lock(user.getId(), id)
+  public ShopOrderResponse pay(AppUser user, Long id, CreatePaymentRequest request) {
+    ShopOrderView order = orders.find(user.getId(), id)
       .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
-    PaymentMerchantAccount merchant = payments.merchantAccount(request.channel())
-      .orElseThrow(() -> new BusinessRuleException("Payment channel is disabled"));
-    String fingerprint = fingerprint(user.getId(), order, request);
-    payments.lockIdempotencyKey(request.idempotencyKey());
-    Optional<PaymentView> existing = payments.byKey(request.idempotencyKey());
-    if (existing.isPresent()) {
-      PaymentView payment = existing.get();
-      if (!payment.getOrderId().equals(id)
-        || !merchant.getId().equals(payment.getMerchantAccountId())
-        || !fingerprint.equals(payment.getRequestFingerprint())) {
-        throw new BusinessRuleException("Idempotency key was already used with different payment parameters");
-      }
-      redisIdempotency.rememberPayment(request.idempotencyKey(), payment.getPaymentNumber());
-      return assemble(orders.find(user.getId(), id).orElseThrow(), existing.get());
-    }
     if (!"PENDING_PAYMENT".equals(order.getStatus())) {
       throw new BusinessRuleException("Only pending orders can be paid");
     }
     if (!order.getPaymentDueAt().isAfter(Instant.now())) {
       throw new BusinessRuleException("Order payment deadline has expired");
     }
-    String status = "PENDING";
-    String reason = "";
-    String paymentNumber = number("PAY");
-    PaymentGatewayClient.Result remote = gateway.create(
-      paymentNumber,
-      request.channel(),
-      "Order " + order.getOrderNumber(),
-      order.getTotalAmount(),
-      order.getCurrency(),
-      "NONE");
-    payments.create(id, merchant.getId(), number("PAY"), request.idempotencyKey(), request.channel(),
-      order.getCurrency(), fingerprint, remote.channelTransactionNo(), order.getTotalAmount(), status, reason,
-      null, remote.expiresInstant());
-    PaymentView payment = payments.byKey(request.idempotencyKey()).orElseThrow();
-    payments.checkout(payment.getId(), remote.checkoutUrl(), remote.actionType(), remote.qrPayload());
-    payments.event(payment.getId(), UUID.randomUUID().toString(), "PAYMENT_PENDING", "CREATED",
-      status, "Waiting for signed asynchronous notification");
-    redisIdempotency.rememberPayment(request.idempotencyKey(), payment.getPaymentNumber());
-    return assemble(
-      orders.find(user.getId(), id).orElseThrow(),
-      payments.byKey(request.idempotencyKey()).orElseThrow());
+    String commandId = UUID.randomUUID().toString();
+    String correlationId = UUID.randomUUID().toString();
+    PaymentCreateCommandV1 command = new PaymentCreateCommandV1(PaymentCreateCommandV1.VERSION,
+      commandId, Instant.now(), "commerce-service-ordering", user.getId(), order.getId(),
+      order.getOrderNumber(), request.channel(), order.getTotalAmount(), order.getCurrency(),
+      order.getPaymentDueAt(), request.idempotencyKey(), request.simulateFailure(), correlationId,
+      correlationId, traceparent());
+    PaymentSnapshotV1 payment = payments.create(command);
+    return assemble(orders.find(user.getId(), id).orElseThrow(), payment);
   }
 
-  private ShopOrderResponse assemble(ShopOrderView order, PaymentView payment) {
+  private ShopOrderResponse assemble(ShopOrderView order, PaymentSnapshotV1 payment) {
     List<ShopOrderResponse.Item> items = orders.items(order.getId())
       .stream()
       .map(ShopOrderResponse.Item::from)
       .toList();
-    PaymentView resolved = payment != null ? payment : payments.latest(order.getId()).orElse(null);
-    RefundResponse refund = refunds.byOrder(order.getId())
-      .map(value -> RefundResponse.from(value, refunds.events(value.getId())))
-      .orElse(null);
+    PaymentQueryV1 query = new PaymentQueryV1(PaymentQueryV1.VERSION, order.getId());
+    PaymentSnapshotV1 resolved = payment != null ? payment : payments.latest(query).orElse(null);
+    RefundSnapshotV1 refund = payments.refund(query).orElse(null);
     return new ShopOrderResponse(
       order.getId(),
       order.getOrderNumber(),
@@ -196,7 +153,8 @@ public class PurchaseOrderService {
       refund);
   }
 
-  private List<String> availableActions(ShopOrderView order, PaymentView payment, RefundResponse refund) {
+  private List<String> availableActions(ShopOrderView order, PaymentSnapshotV1 payment,
+                                        RefundSnapshotV1 refund) {
     LinkedHashSet<String> actions = new LinkedHashSet<>();
     switch (order.getStatus()) {
       case "PENDING_PAYMENT" -> {
@@ -231,15 +189,9 @@ public class PurchaseOrderService {
     return prefix + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
   }
 
-  private String fingerprint(Long customerId, ShopOrderView order, PaymentRequest request) {
-    String value = customerId + "|" + order.getId() + "|" + request.channel() + "|"
-      + order.getTotalAmount().stripTrailingZeros().toPlainString() + "|" + order.getCurrency() + "|"
-      + request.simulateFailure();
-    try {
-      byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
-      return HexFormat.of().formatHex(digest);
-    } catch (NoSuchAlgorithmException exception) {
-      throw new IllegalStateException("SHA-256 is required by the Java runtime", exception);
-    }
+  private String traceparent() {
+    String traceId = UUID.randomUUID().toString().replace("-", "");
+    String spanId = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+    return "00-" + traceId + "-" + spanId + "-01";
   }
 }

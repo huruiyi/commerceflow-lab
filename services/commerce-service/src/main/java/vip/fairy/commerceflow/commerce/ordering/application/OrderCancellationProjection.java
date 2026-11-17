@@ -2,8 +2,8 @@ package vip.fairy.commerceflow.commerce.ordering.application;
 
 import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandV1;
+import vip.fairy.commerceflow.commerce.ordering.application.port.OrderEffectInboxPort;
 import vip.fairy.commerceflow.commerce.ordering.application.port.OrderStorePort;
-import vip.fairy.commerceflow.commerce.payment.infrastructure.OutboxMapper;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
@@ -17,14 +17,14 @@ public class OrderCancellationProjection implements InventoryCommandPort.StatePr
   static final String CONSUMER_GROUP = "commerceflow-order-effects";
 
   private final ObjectMapper mapper;
-  private final OutboxMapper outbox;
+  private final OrderEffectInboxPort inbox;
   private final InventoryCommandPort inventory;
   private final OrderStorePort orders;
 
-  public OrderCancellationProjection(ObjectMapper mapper, OutboxMapper outbox,
+  public OrderCancellationProjection(ObjectMapper mapper, OrderEffectInboxPort inbox,
                                      InventoryCommandPort inventory, OrderStorePort orders) {
     this.mapper = mapper;
-    this.outbox = outbox;
+    this.inbox = inbox;
     this.inventory = inventory;
     this.orders = orders;
   }
@@ -38,7 +38,7 @@ public class OrderCancellationProjection implements InventoryCommandPort.StatePr
   public void process(String topic, String envelope) throws Exception {
     JsonNode event = mapper.readTree(envelope);
     String eventId = required(event, "eventId");
-    if (outbox.consume(CONSUMER_GROUP, eventId, topic) != 1) {
+    if (!inbox.claim(CONSUMER_GROUP, eventId, topic)) {
       return;
     }
     if (!"ORDER_CANCELLED".equals(required(event, "eventType"))) {
@@ -56,20 +56,26 @@ public class OrderCancellationProjection implements InventoryCommandPort.StatePr
   @Override
   public void succeeded(InventoryCommandV1 command) {
     String current = orders.lockById(command.orderId()).orElseThrow().getInventoryStatus();
-    String target = switch (command.commandType()) {
-      case RESERVE -> "RESERVED";
-      case COMMIT -> "COMMITTED";
-      case RELEASE -> "RELEASED";
-      case REFUND -> "REFUNDED";
-    };
-    if (current.equals(target)) {
-      return;
-    }
-    if (command.commandType() == vip.fairy.commerceflow.commerce.inventory.application.contract.v1
-        .InventoryCommandTypeV1.RESERVE && "WAITING_COMMIT".equals(current)) {
-      return;
-    }
+    String target = target(command, current);
+    if (target == null || current.equals(target)) return;
     requireTransition(command.orderId(), current, target);
+  }
+
+  private String target(InventoryCommandV1 command, String current) {
+    return switch (command.commandType()) {
+      case RESERVE -> "WAITING_RESERVATION".equals(current)
+        || "RECONCILIATION_REQUIRED".equals(current) ? "RESERVED" : null;
+      case COMMIT -> "WAITING_COMMIT".equals(current) || "RESERVED".equals(current)
+        || "RECONCILIATION_REQUIRED".equals(current)
+        ? "COMMITTED"
+        : null;
+      case RELEASE -> "WAITING_RESERVATION".equals(current) || "RESERVED".equals(current)
+        || "RECONCILIATION_REQUIRED".equals(current)
+        ? "RELEASED"
+        : null;
+      case REFUND -> "REFUND_PENDING".equals(current)
+        || "RECONCILIATION_REQUIRED".equals(current) ? "REFUNDED" : null;
+    };
   }
 
   @Override

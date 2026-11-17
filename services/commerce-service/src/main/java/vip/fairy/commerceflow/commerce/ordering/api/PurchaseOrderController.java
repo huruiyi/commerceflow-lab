@@ -6,7 +6,6 @@ import vip.fairy.commerceflow.commerce.logistics.api.LogisticsResponse;
 import vip.fairy.commerceflow.commerce.logistics.application.LogisticsService;
 import vip.fairy.commerceflow.commerce.ordering.application.OrderCancellationService;
 import vip.fairy.commerceflow.commerce.ordering.application.PurchaseOrderService;
-import vip.fairy.commerceflow.commerce.payment.api.PaymentRequest;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -59,7 +58,7 @@ public class PurchaseOrderController {
 
   @PostMapping("/{id}/payments")
   ShopOrderResponse pay(@PathVariable Long id,
-                        @Valid @RequestBody PaymentRequest request,
+                        @Valid @RequestBody CreatePaymentRequest request,
                         Authentication authentication) {
     return orders.pay(currentUsers.require(authentication), id, request);
   }

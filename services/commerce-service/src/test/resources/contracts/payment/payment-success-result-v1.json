@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "resultId": "44444444-4444-4444-8444-444444444444",
+  "resultType": "PAYMENT_SUCCEEDED",
+  "outcome": "SUCCEEDED",
+  "occurredAt": "2026-11-17T12:06:00Z",
+  "producer": "payment-orchestration-service",
+  "orderId": 501,
+  "paymentNumber": "PAY-CONTRACT-501",
+  "refundNumber": null,
+  "sourceStatus": "SUCCESS",
+  "errorCode": null,
+  "message": "Signed payment callback was accepted",
+  "correlationId": "payment-contract-501",
+  "causationId": "channel-callback-501",
+  "traceparent": "00-11111111111111111111111111111111-4444444444444444-01"
+}

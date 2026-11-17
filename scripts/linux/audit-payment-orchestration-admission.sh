@@ -33,16 +33,17 @@ assert_scalar 'refunds without events' 'SELECT COUNT(*) FROM refund_records r LE
 assert_scalar 'refunds requiring recovery' "SELECT COUNT(*) FROM refund_records WHERE status IN ('REQUESTED','PROCESSING','RECONCILIATION_REQUIRED') OR inventory_status='RECONCILIATION_REQUIRED';" 0
 assert_scalar 'open payment reconciliation issues' "SELECT COUNT(*) FROM payment_reconciliation_issue WHERE status='OPEN';" 1
 
-mapfile -t external_consumers < <(grep -RIlE \
-  'import vip\.fairy\.commerceflow\.commerce\.(payment|refund)\.infrastructure\.' \
-  services/commerce-service/src/main/java | grep -Ev '/(payment|refund)/' || true)
-(( ${#external_consumers[@]} <= 5 ))||fail "external infrastructure consumers exceeded baseline: ${external_consumers[*]}"
+mapfile -t internal_imports < <(grep -RInE \
+  'import vip\.fairy\.commerceflow\.commerce\.(payment|refund)\.(api|application|domain|infrastructure)\.' \
+  services/commerce-service/src/main/java | grep -Ev '/(payment|refund)/' \
+  | grep -v '\.payment\.application\.contract\.v1\.' || true)
+(( ${#internal_imports[@]} == 0 ))||fail "external code bypasses Payment V1 contracts: ${internal_imports[*]}"
 if grep -En '\b(app_users|shop_orders|order_items|order_shipping_addresses|order_events|product_inventory|inventory_reservations|shipment_records|scheduled_tasks)\b' \
     services/commerce-service/src/main/resources/mapper/{OrderPaymentRecordMapper,PaymentNotificationMapper,ReconciliationMapper,OutboxMapper,RefundMapper}.xml >/dev/null;then
   fail 'payment-orchestration Mapper accesses foreign tables'
 fi
-echo "  PASS external infrastructure consumer files = ${#external_consumers[@]}; foreign-table Mapper responsibilities = 0"
+echo '  PASS external payment/refund internal imports = 0; foreign-table Mapper responsibilities = 0'
 
 echo 'Payment-orchestration ownership baseline:'
 sql "SELECT CONCAT('payments|',COUNT(*),'|',COALESCE(SUM(amount),0),'|',COALESCE(SUM(refunded_amount),0)) FROM payment_records UNION ALL SELECT CONCAT('merchants|',COUNT(*)) FROM payment_merchant_accounts UNION ALL SELECT CONCAT('payment-notifications|',COUNT(*)) FROM payment_notifications UNION ALL SELECT CONCAT('payment-events|',COUNT(*)) FROM payment_events UNION ALL SELECT CONCAT('idempotency-locks|',COUNT(*)) FROM payment_idempotency_locks UNION ALL SELECT CONCAT('reconciliation|',COUNT(*),'|',SUM(status='OPEN')) FROM payment_reconciliation_issue UNION ALL SELECT CONCAT('outbox|',COUNT(*),'|',SUM(status<>'PUBLISHED')) FROM payment_outbox UNION ALL SELECT CONCAT('kafka-inbox|',COUNT(*)) FROM kafka_consumed_event UNION ALL SELECT CONCAT('refunds|',COUNT(*),'|',COALESCE(SUM(amount),0)) FROM refund_records UNION ALL SELECT CONCAT('refund-events|',COUNT(*)) FROM refund_events UNION ALL SELECT CONCAT('refund-notifications|',COUNT(*)) FROM refund_notifications;"
-echo 'Admission audit completed: CREATE remains blocked by 1 outbound identity FK, up to 5 external infrastructure consumers and 1 open reconciliation issue.'
+echo 'Admission audit completed: Payment V1 dependency gate passed; CREATE remains blocked by 1 outbound identity FK, recovery protocol work and 1 open reconciliation issue.'

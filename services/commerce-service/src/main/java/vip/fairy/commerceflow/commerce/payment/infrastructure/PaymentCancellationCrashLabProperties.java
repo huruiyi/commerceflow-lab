@@ -6,17 +6,15 @@ import jakarta.validation.constraints.NotNull;
 import java.time.Duration;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.stereotype.Component;
 import org.springframework.validation.annotation.Validated;
 
+import vip.fairy.commerceflow.commerce.shared.application.PaymentCancellationCrashProbe.Phase;
+
 @Validated
+@Component
 @ConfigurationProperties(prefix = "commerceflow.payment-cancellation-crash-lab")
 public class PaymentCancellationCrashLabProperties {
-
-  public enum Phase {
-    AFTER_CANCELLATION_BEGIN,
-    AFTER_CHANNEL_CLOSE,
-    AFTER_PAYMENT_RECORD
-  }
 
   private boolean enabled;
   @Min(1)

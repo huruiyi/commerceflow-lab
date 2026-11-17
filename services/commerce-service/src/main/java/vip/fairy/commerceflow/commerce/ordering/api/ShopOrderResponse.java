@@ -3,8 +3,8 @@ package vip.fairy.commerceflow.commerce.ordering.api;
 import vip.fairy.commerceflow.commerce.logistics.api.LogisticsResponse;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderAddressView;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderItemView;
-import vip.fairy.commerceflow.commerce.payment.domain.PaymentView;
-import vip.fairy.commerceflow.commerce.refund.api.RefundResponse;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentSnapshotV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.RefundSnapshotV1;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -29,7 +29,7 @@ public record ShopOrderResponse(
   Address address,
   Payment payment,
   LogisticsResponse logistics,
-  RefundResponse refund) {
+  RefundSnapshotV1 refund) {
   public record Item(
     Long id,
     Long productId,
@@ -94,25 +94,25 @@ public record ShopOrderResponse(
     String checkoutUrl,
     String actionType,
     String qrPayload) {
-    public static Payment from(PaymentView payment) {
+    public static Payment from(PaymentSnapshotV1 payment) {
       return payment == null
         ? null
         : new Payment(
-          payment.getPaymentNumber(),
-          payment.getMerchantNo(),
-          payment.getChannel(),
-          payment.getChannelTransactionNo(),
-          payment.getStatus(),
-          payment.getFailureReason(),
-          payment.getAmount(),
-          payment.getRefundedAmount(),
-          payment.getCurrency(),
-          payment.getCreatedAt(),
-          payment.getPaidAt(),
-          payment.getExpiresAt(),
-          payment.getCheckoutUrl(),
-          payment.getActionType(),
-          payment.getQrPayload());
+          payment.paymentNumber(),
+          payment.merchantNo(),
+          payment.channel().name(),
+          payment.channelTransactionNo(),
+          payment.status(),
+          payment.failureReason(),
+          payment.amount(),
+          payment.refundedAmount(),
+          payment.currency(),
+          payment.createdAt(),
+          payment.paidAt(),
+          payment.expiresAt(),
+          payment.checkoutUrl(),
+          payment.actionType(),
+          payment.qrPayload());
     }
   }
 }
