@@ -767,8 +767,13 @@ Docker 拓扑，也不启动 PostgreSQL。
 - [x] Windows 与 Ubuntu 26.04 WSL 对等专项完成 payment-service/payment-db 停机恢复、临时源权限冻结拒绝和
   源端唯一所有者回退；结束后清理合成数据并恢复 `PAYMENT_ACCEPTING_TRAFFIC=false`。最终 generation 13、
   水位 160，360/3/253/720/360/2/333/333/41/82/82 与三张空恢复协议表全部 MATCH，OPEN 孤儿/恢复均为 0。
-- [ ] 另行评审一次性 payment-orchestration CUTOVER；评审通过前不得切换普通业务流量、撤销 commerce 支付源表
-  权限、删除本地运行路径、并行拆 fulfillment 或启动 PostgreSQL。
+- [x] M3.6 第六批完成一次性 payment-orchestration CUTOVER 评审，结论为不通过：独立服务尚无远程 Order V1/
+  Inventory 命令适配器、支付 Outbox 投递器和退款发起命令；支付/退款回调仍指向 commerce，本地支付/退款路径及
+  源表权限仍在。双平台自动审计已冻结这些阻塞，普通业务流量继续留在 commerce。
+- [ ] 下一批只在关闭流量门下补齐独立服务的订单/库存副作用、可靠 Outbox/Inbox、退款发起和恢复闭环；不得增加
+  LOCAL/REMOTE/COMPARE，不得切换回调、删除本地路径、撤销源表权限、并行拆 fulfillment 或启动 PostgreSQL。
+- [ ] 上述阻塞全部归零后重新评审，并在一个受控变更窗口内停写、最终追平核对、切换 Payment V1 与渠道回调、
+  删除 commerce 本地支付/退款运行路径并撤销源表权限；不保留长期双实现或数据库回退。
 
 ## 14. 实施记录模板
 

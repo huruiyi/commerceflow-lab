@@ -259,6 +259,10 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   整体回退；结束后清理合成数据并恢复关闭流量。最终 generation 13、水位 160、14 表 MATCH、OPEN 孤儿/恢复 0；
   payment-db Flyway V2、2 项支付服务测试、461/30/220/8 质量门禁、484 个 Java 源文件空行、53 对脚本契约及
   快速回归通过。commerce 仍只有本地正式路径，未 CUTOVER、未拆 fulfillment、未启动 PostgreSQL。
+- M3.6 第六批只进行 payment-orchestration 一次性 CUTOVER 评审，没有切流。评审确认独立服务缺少远程
+  Order V1/Inventory 副作用适配器、支付 Outbox 投递器和退款发起入口；渠道回调、本地支付/退款运行路径及
+  源表权限仍归 commerce。Windows 与 WSL/Linux 审计已把关闭流量门、无 PostgreSQL 和上述阻塞冻结为可重复
+  证据；审计通过的含义是正确拒绝 CUTOVER，而不是允许切换。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

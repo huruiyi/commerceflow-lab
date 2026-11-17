@@ -248,6 +248,17 @@ bash ./scripts/linux/audit-payment-orchestration-admission.sh
 准入之后已完成无业务流量影子服务、远程协议和切流前故障/回退演练；commerce 仍只有本地正式路径，这仍不能
 描述成已经切换独立支付服务。
 
+一次性 CUTOVER 评审当前为 `REJECTED`：独立服务还缺订单/库存副作用、支付 Outbox 投递和退款发起闭环，渠道
+回调与源表权限也尚未切换。以下审计通过表示拒绝原因和安全门禁没有漂移，不表示允许切流：
+
+```powershell
+./scripts/windows/audit-payment-cutover-readiness.ps1
+```
+
+```bash
+bash ./scripts/linux/audit-payment-cutover-readiness.sh
+```
+
 支付影子运行专项会执行可重复快照、增量水位、14 表指纹核对和可恢复孤儿演练，不清空现有卷：
 
 ```powershell

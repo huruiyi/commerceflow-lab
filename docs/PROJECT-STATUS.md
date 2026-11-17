@@ -436,3 +436,9 @@ Trace 均有专项门禁。同命令重放返回原结果，同 ID 异正文拒�
 14 张表全部 MATCH，OPEN 孤儿和待恢复流程均为 0。payment 服务 2 项 Java 25 测试、461/30/220/8 质量门禁、
 484 个 Java 源文件空行和 53 对脚本契约通过。commerce 仍只有本地正式实现，未 CUTOVER、未拆 fulfillment，
 PostgreSQL 容器为 0。
+
+M3.6 第六批完成一次性 CUTOVER 评审，结论为不通过。独立服务默认流量门仍关闭且未配置 PostgreSQL，但尚无
+远程 Order V1/Inventory 命令客户端、支付 Outbox 投递器和退款发起入口；支付/退款回调仍指向 commerce，
+commerce 本地实现与源表权限仍是唯一正式路径。新增 Windows 与 WSL/Linux 对等审计，成功结果表示这些安全门禁
+和阻塞基线未漂移，最终结论固定为 `REJECTED`。本批未切流、未删除本地路径、未撤销支付源表权限、未拆
+fulfillment，也未启动 PostgreSQL。下一批只在关闭流量门下补齐跨边界副作用与退款恢复闭环。

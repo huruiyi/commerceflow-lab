@@ -57,7 +57,13 @@ order、inventory、identity 与 fulfillment 只保留稳定 ID、版本化命�
 4. **已完成**：创建分层独立服务和 MySQL `payment-db`，仅无业务流量影子迁移与核对。
 5. **已完成**：远程 Payment V1、回调、支付/取消竞态、退款、结果丢失、服务/数据库停机和整体回退演练；
    普通业务流量仍未切换，CUTOVER 必须单独评审。
-6. 稳定窗通过后删除 commerce 支付/退款运行路径与源表权限，再进入 fulfillment-service。
+6. **已完成，评审不通过**：一次性 CUTOVER 评审确认订单/库存副作用、支付 Outbox 投递、退款发起、回调归属、
+   commerce 本地运行路径和源表权限尚未闭环，普通流量继续留在 commerce。
+7. 只在关闭流量门下补齐独立服务的远程 Order V1、Inventory 命令、可靠 Outbox/Inbox、退款发起与恢复闭环；
+   不增加 LOCAL/REMOTE/COMPARE，也不提前切换回调。
+8. 阻塞归零后重新评审；通过后在同一个受控窗口完成停写、最终追平核对、Payment V1/渠道回调切换、本地路径
+   删除和源表权限撤销，不保留长期双实现或数据库回退。
+9. payment-orchestration 切换验收及稳定窗完成后，才进入 fulfillment-service。
 
 ## 6. 首批证据
 
@@ -135,3 +141,28 @@ OPEN 孤儿和待恢复流程均为 0。payment-db Flyway V2 无失败；payment
 
 本批没有 CUTOVER。下一步只能先评审一次性切换方案；评审通过前 commerce 的唯一
 `LocalPaymentOrchestrationAdapter`、源表权限和普通业务流量路径保持不变，也不开始 fulfillment-service。
+
+## 11. 第六批 CUTOVER 评审结论
+
+2026-11-18 的一次性切换评审结论为 **不通过**。安全门禁仍成立：独立服务默认
+`PAYMENT_ACCEPTING_TRAFFIC=false`，Compose 没有 PostgreSQL。以下阻塞使当前版本不能承接真实流量：
+
+1. commerce 仍拥有唯一 `LocalPaymentOrchestrationAdapter`、支付/退款回调 Controller 和退款发起入口。
+2. 支付模拟平台的支付、退款回调地址仍指向 commerce。
+3. 独立服务没有远程 Order V1 或 Inventory 命令客户端，支付成功、关闭和退款完成后的跨边界副作用不能闭环。
+4. `payment_outbox` 只有事务写入，没有独立服务投递器；服务停机后的副作用无法可靠恢复。
+5. 独立服务只有退款结果/回调处理，没有创建退款的命令入口。
+6. `commerce_runtime` 权限冻结脚本尚未排除 14 张支付/退款源表。
+
+Windows 与 WSL/Linux 对等审计入口为：
+
+```powershell
+.\scripts\windows\audit-payment-cutover-readiness.ps1
+```
+
+```bash
+./scripts/linux/audit-payment-cutover-readiness.sh
+```
+
+审计成功表示“阻塞识别与安全门禁没有漂移”，最终输出必须是 `REJECTED`，不表示已经具备切换资格。下一批只在
+关闭流量门下补齐上述运行闭环；阻塞全部归零后必须替换这份拒绝基线并重新评审，不能通过删除审计脚本绕过门禁。
