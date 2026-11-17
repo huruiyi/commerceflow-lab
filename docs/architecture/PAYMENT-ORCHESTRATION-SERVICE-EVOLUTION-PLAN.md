@@ -1,0 +1,71 @@
+# payment-orchestration-service 准入与单一所有权演进计划
+
+## 1. 首批结论
+
+M3.6 第一批只完成边界审计和自动门禁，不创建服务或数据库，不迁移数据、不切流。候选服务统一拥有商城侧
+支付编排与退款事实，外部 `payment-simulator-service` 仍只是渠道模拟平台，不属于本服务的数据所有权。
+
+当前数据不变量通过，但 CREATE 尚未准入：仍有 1 条 `refund_records.customer_id → app_users.id` 跨边界外键、
+5 个 payment/refund infrastructure 外部消费者文件，以及 1 条 OPEN 支付对账记录。上述基线只能减少，不能
+扩张。不得用共享 commerce Schema、远程行锁、LOCAL/COMPARE 或全局事务协调器绕过这些阻塞。
+
+## 2. 唯一所有权候选
+
+| 表 | 唯一事实 |
+| --- | --- |
+| `payment_records` | 支付尝试、渠道结果、金额、退款累计及乐观版本 |
+| `payment_merchant_accounts` | 商城到渠道模拟平台的商户配置 |
+| `payment_notifications` | 支付回调 Inbox、摘要和处理结果 |
+| `payment_events` | 支付状态转换审计 |
+| `payment_idempotency_locks` | 支付请求幂等占位 |
+| `payment_reconciliation_issue` | 支付未知结果与人工对账状态 |
+| `payment_outbox` | 支付/退款事务事件投递 |
+| `kafka_consumed_event` | 当前支付相关消费者 Inbox；后续须按消费者所有权收口 |
+| `refund_records` | 全额退款流程、库存投影和渠道结果 |
+| `refund_events` | 退款状态转换审计 |
+| `refund_notifications` | 退款回调 Inbox、摘要和处理结果 |
+
+order、inventory、identity 与 fulfillment 只保留稳定 ID、版本化命令/结果和必要投影，不跨库 join，也不建立
+跨边界外键。退款属于支付编排的同一资金边界，不单独创建 refund-service。
+
+## 3. 当前硬阻塞
+
+1. 删除 `refund_records.customer_id` 对 identity 的数据库外键，改由入口身份和稳定 customerId 校验。
+2. ordering 不再直接注入支付 application/infrastructure、支付领域对象或退款 Mapper；冻结支付请求、查询、
+   关闭支付与回调结果 V1 契约。
+3. fulfillment 不再直接读取 `RefundMapper`，改用“是否允许履约”的稳定支付/退款投影契约。
+4. 处理或明确迁移当前 1 条 OPEN `PAYMENT_TIMEOUT` 对账记录，禁止把待处理事实静默丢弃。
+5. 明确 `payment_outbox` 与 `kafka_consumed_event` 的主题、消费者及迁移边界，不能把共享 Inbox 搬入新服务后
+   继续供其他未来服务共用。
+
+## 4. 分布式事务规则
+
+- payment-orchestration 只在自己的 MySQL 中提交支付、退款、Inbox/Outbox 与对账事实。
+- order 状态只通过远程 Order V1 条件转换推进；支付成功事实优先，迟到成功不得被取消结果覆盖。
+- inventory 退款命令复用稳定命令 ID、结果 Inbox、未知结果和人工恢复语义。
+- 渠道请求与回调使用现有 HMAC/RSA、幂等键、摘要、防重放和主动对账，不把 HTTP 超时解释为失败。
+- 不引入 Seata、DTM、XA 或 TCC；不长期维护本地/远程双实现。
+
+## 5. 后续批次顺序
+
+1. **已完成**：11 张候选所有权表、外键、外部消费者、数据不变量与恢复基线审计。
+2. 收口 ordering/fulfillment 对 payment/refund 的 application 与 infrastructure 依赖，冻结 Payment V1 契约。
+3. 删除跨 identity 外键，建立支付/退款 Process Manager、结果 Inbox 与人工恢复门禁，取得 CREATE 准入。
+4. 创建分层独立服务和 MySQL `payment-db`，仅无业务流量影子迁移与核对。
+5. 完成回调、支付/取消竞态、退款、结果丢失、服务/数据库停机和整体回退演练后，单独评审 CUTOVER。
+6. 稳定窗通过后删除 commerce 支付/退款运行路径与源表权限，再进入 fulfillment-service。
+
+## 6. 首批证据
+
+2026-11-17 持久卷基线：299 笔支付，总额 388401.00、累计退款 41568.00；3 个商户配置、209 条支付通知、
+598 条支付事件、299 个幂等锁、437 条已发布 Outbox、601 条 Kafka Inbox；32 笔退款，总额 41568.00、
+64 条退款事件、64 条退款通知。重复键、非法金额/状态、成功支付渠道证据、退款/支付投影、缺失退款事件、
+未发布 Outbox 和待恢复退款均为 0；OPEN 支付对账为 1。
+
+```powershell
+.\scripts\windows\audit-payment-orchestration-admission.ps1
+```
+
+```bash
+./scripts/linux/audit-payment-orchestration-admission.sh
+```

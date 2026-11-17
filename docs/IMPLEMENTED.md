@@ -234,6 +234,12 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
   503 且恢复正常。快速回归后 order-db 为 359/359/359/1710、金额 466341.00，协议表和 OPEN 孤儿均为 0；
   413/28/204/7 质量门禁、431 个 Java 源文件空行和 50 对脚本契约通过。未保留 LOCAL/COMPARE，未拆
   payment-orchestration/fulfillment，未启动 PostgreSQL。
+- M3.6 第一批完成 payment-orchestration CREATE 前置审计，不创建服务或数据库。payment 与 refund 统一为
+  11 张候选所有权表；299 笔支付、32 笔退款的金额、状态、幂等、渠道证据、Outbox 和事件不变量通过。
+  Java 门禁禁止候选表被外部 Mapper 访问、禁止 payment/refund Mapper 引入外部表，并限制 5 个外部
+  infrastructure 消费者不得增长。当前仍有 1 条 refund→identity 外键和 1 条 OPEN 对账记录，CREATE 明确
+  不通过；Windows/Linux 审计、45 个 commerce-service 测试、50 对脚本契约和快速回归通过。未切流、未拆
+  fulfillment、未启动 PostgreSQL。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

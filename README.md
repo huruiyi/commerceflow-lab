@@ -224,6 +224,20 @@ bash ./scripts/linux/verify-order-precutover-rehearsal.sh
 
 影子与预切换脚本保留为历史取证入口；默认运行时关闭影子复制且不再配置源库，不应重新开放源端权限。
 
+payment-orchestration 的首批只读准入审计检查 11 张 payment/refund 候选所有权表、跨边界外键、外部
+infrastructure 消费者、金额/状态/幂等/Outbox/恢复不变量；它会明确报告 CREATE 阻塞，不创建服务或数据库：
+
+```powershell
+./scripts/windows/audit-payment-orchestration-admission.ps1
+```
+
+```bash
+bash ./scripts/linux/audit-payment-orchestration-admission.sh
+```
+
+当前结论和后续顺序见
+[payment-orchestration-service 准入与单一所有权演进计划](docs/architecture/PAYMENT-ORCHESTRATION-SERVICE-EVOLUTION-PLAN.md)。
+
 Angular 商城门户和支付模拟器 Web 都使用模块本地 Prettier 只读门禁：
 
 ```powershell

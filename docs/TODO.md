@@ -737,8 +737,12 @@ Docker 拓扑，也不启动 PostgreSQL。
 - [x] 切换验收覆盖新订单仅写 order-db、源订单保持 345/448155.00 不变、支付/取消竞态、退款、履约、物流、
   自动收货/完成、评论、租约恢复、Redis 故障及 order-service 停机 503/恢复。验收后 order-db 为
   359/359/359/1710、金额 466341.00，三张协议表和 OPEN 孤儿均为 0；50 对脚本契约与快速回归通过。
-- [ ] 下一候选阶段为 `payment-orchestration-service`，须另批评审；本批未拆 payment-orchestration/fulfillment，
-  未启动 PostgreSQL。历史影子与预切换脚本仅用于取证，不得在默认运行时重新打开源端复制权限。
+- [x] M3.6 第一批完成 `payment-orchestration-service` 边界审计：冻结 payment+refund 的 11 张候选所有权表，
+  299 笔支付/32 笔退款的金额、状态、幂等、渠道证据、Outbox 与事件不变量均通过；未创建服务或数据库。
+- [x] 自动门禁锁定当前阻塞只能减少：1 条 refund→identity 外键、5 个外部 payment/refund infrastructure
+  消费者文件和 1 条 OPEN 对账记录；Mapper 外部表职责、入站跨边界外键、未发布 Outbox 和待恢复退款均为 0。
+- [ ] M3.6 下一批先收口 ordering/fulfillment 对 payment/refund 的直接依赖并冻结 Payment V1 契约；不得
+  创建共享 Schema 服务、不得 CUTOVER、不得并行拆 fulfillment、不得启动 PostgreSQL。
 
 ## 14. 实施记录模板
 

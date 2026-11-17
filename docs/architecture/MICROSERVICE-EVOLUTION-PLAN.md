@@ -32,15 +32,15 @@ M3.1 前置审计和 M3.2 notification 单一所有权切换已完成实现，�
 [M3-PRE-SPLIT-AUDIT.md](M3-PRE-SPLIT-AUDIT.md)。notification-service 默认启动并独占消费、存储和通知业务
 API；commerce 原公开路径只做身份薄代理，旧通知读写、数据源、投影和回填运行代码已删除。
 
-notification、catalog 与 inventory 已完成单一所有权切换；inventory 的命令与商家管理边界均只访问独立
+notification、catalog、inventory 与 order 已完成单一所有权切换；inventory 的命令与商家管理边界均只访问独立
 服务/独立 MySQL，commerce 运行账号无五张库存源表权限。完整门禁与复跑入口见
 [inventory-service 准入与单一所有权演进计划](INVENTORY-SERVICE-EVOLUTION-PLAN.md)和
 [inventory-service 切换运行手册](INVENTORY-SERVICE-CUTOVER-RUNBOOK.md)。M3.5 已通过
-[order-service CREATE 准入](ORDER-SERVICE-EVOLUTION-PLAN.md)：外部 `ShopOrderMapper` 消费者、Mapper 外部表职责
-和 9 条跨边界外键均归零，[order V1 命令/结果契约](ORDER-V1-CONTRACT.md)以及持久化 Process Manager、命令
-Outbox、结果 Inbox、未知结果和人工恢复基线已冻结。下一批允许创建无流量的分层 order-service 与独立 MySQL，
-但 CUTOVER 仍需数据追平、跨进程 Trace 和故障/回退演练单独验收。不引入 Seata、DTM 或其他全局事务协调器，
-每次仍只拆一个边界。
+[order-service 计划](ORDER-SERVICE-EVOLUTION-PLAN.md)已完成独立 MySQL、远程 Order V1、CUTOVER 与源权限撤销。
+M3.6 第一批已启动
+[payment-orchestration CREATE 前置审计](PAYMENT-ORCHESTRATION-SERVICE-EVOLUTION-PLAN.md)：11 张候选表的数据
+不变量通过，但 1 条跨 identity 外键、5 个外部 infrastructure 消费者和 1 条 OPEN 对账记录仍阻塞 CREATE。
+不引入 Seata、DTM 或其他全局事务协调器，每次仍只拆一个边界。
 PostgreSQL 不属于拆分步骤，必须等 notification、
 catalog、inventory、order、payment-orchestration、fulfillment 以及后续新增待拆服务全部完成单一所有权切换
 并验收后另立专项。

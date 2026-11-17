@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.5 第六批 order-service 一次性 CUTOVER 与单一所有权验收已完成 |
-| 下一候选阶段 | `payment-orchestration-service`，须另批评审且不得与 fulfillment 并行拆分 |
+| 当前阶段 | M3.6 第一批 payment-orchestration 边界审计与自动门禁已完成；CREATE 尚未准入 |
+| 下一候选阶段 | 收口 ordering/fulfillment 直接依赖并冻结 Payment V1 契约 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -392,3 +392,10 @@ Compose 默认打开业务门、关闭影子复制，order-service 不再持有�
 源表权限均被撤销。专项验收确认新订单只写 order-db，源端保持 345/448155.00；order-service 停机时返回
 503，恢复后健康。完整快速回归后 order-db 为 359/359/359/1710、金额 466341.00，协议表与 OPEN 孤儿均为
 0；413/28/204/7 质量门禁、431 个 Java 源文件空行和 50 对脚本契约通过。本批未拆后续服务，未启动 PostgreSQL。
+
+M3.6 第一批把商城支付编排与退款统一评审为一个候选资金边界，冻结 11 张候选所有权表。持久卷为 299 笔支付、
+总额 388401.00、累计退款 41568.00，32 笔退款总额同为 41568.00；437 条 Outbox 全部 PUBLISHED，金额、
+状态、幂等、渠道证据、退款投影和事件不变量均通过。CREATE 尚未准入：仍有 1 条 refund→identity 外键、
+5 个外部 infrastructure 消费者文件和 1 条 OPEN 对账记录。首批只增加源码/数据库只读门禁与双平台审计，
+Windows/Linux 审计、45 个 commerce-service 测试、50 对脚本契约与快速回归通过；未创建
+payment-orchestration-service/payment-db，未切流、未并行拆 fulfillment，也未启动 PostgreSQL。
