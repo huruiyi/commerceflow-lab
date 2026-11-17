@@ -100,7 +100,7 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 
 - 核心商城保持模块化单体，按 `identity/catalog/cart/ordering/inventory/payment/refund/fulfillment/logistics/receipt/review/notification/scheduling/shared` 业务包分界。
 - 目录已分为 `services/`、`web/`、`simulators/`和 `infrastructure/`；Angular 商城门户与未来 Vue 3 门户使用明确的并列边界。
-- Java/Maven 使用 `vip.fairy.commerceflow`；Compose 使用 `fairy-commerceflow` 项目名和“业务归属 + 角色”服务名，不设置固定 `container_name`。
+- Java/Maven 使用 `vip.fairy.commerceflow`；Compose 使用 `fairy-commerceflow` 项目名和“业务归属 + 角色”服务名；默认单副本环境使用固定 `container_name` 去除冗余的 `-1`，HA 多副本服务保留 Compose 副本序号。
 - 商城、支付模拟器和物流模拟器保留三个独立 MySQL；商城与支付模拟器使用独立 Redis，不共享 Session 或故障边界。
 - 12 个 MyBatis-Plus 持久化实体已增加类/字段业务 JavaDoc；简单 CRUD 优先使用 `BaseMapper`/Wrapper，复杂投影、联表、行锁和原子更新放入 Mapper XML。
 - 三个服务主源码中已无 MyBatis SQL 注解和 Service 内联业务 SQL；仅 ShedLock 官方 `JdbcTemplateLockProvider` 配置保留 `JdbcTemplate`。

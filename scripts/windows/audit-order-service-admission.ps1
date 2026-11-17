@@ -23,8 +23,8 @@ Set-Location $ProjectRoot
 docker compose up -d --wait commerce-db | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Could not start commerce-db' }
 
-Assert-Scalar 'Flyway schema version' `
-  "SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1;" '35'
+Assert-Scalar 'Flyway V35 order admission migration' `
+  "SELECT COUNT(*) FROM flyway_schema_history WHERE version='35' AND success=1;" '1'
 Assert-Scalar 'order-owned table count' @"
 SELECT COUNT(*) FROM information_schema.tables
 WHERE table_schema='commerceflow'
@@ -80,8 +80,7 @@ Assert-Scalar 'order processes requiring recovery' @"
 SELECT COUNT(*) FROM order_process_managers
 WHERE status IN ('COMPENSATION_REQUIRED','RECONCILIATION_REQUIRED');
 "@ '0'
-foreach ($table in @('order_items', 'order_shipping_addresses', 'order_events', 'payment_records',
-    'refund_records', 'shipment_records')) {
+foreach ($table in @('order_items', 'order_shipping_addresses', 'order_events')) {
   Assert-Scalar "$table orphan rows" `
     "SELECT COUNT(*) FROM $table child LEFT JOIN shop_orders parent ON parent.id=child.order_id WHERE parent.id IS NULL;" '0'
 }

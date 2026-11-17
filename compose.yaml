@@ -1,6 +1,7 @@
 name: fairy-commerceflow
 services:
   commerce-db:
+    container_name: fairy-commerceflow-commerce-db
     image: mysql:8.4
     environment:
       MYSQL_DATABASE: commerceflow
@@ -18,6 +19,7 @@ services:
     restart: unless-stopped
 
   commerce-schema-migrator:
+    container_name: fairy-commerceflow-commerce-schema-migrator
     image: redgate/flyway:12.4.0
     command:
       - -url=jdbc:mysql://commerce-db:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
@@ -33,6 +35,7 @@ services:
     restart: "no"
 
   commerce-source-access-freezer:
+    container_name: fairy-commerceflow-commerce-source-access-freezer
     image: mysql:8.4
     entrypoint: ["sh", "/access/freeze-source-access.sh"]
     environment:
@@ -47,6 +50,7 @@ services:
     restart: "no"
 
   notification-db:
+    container_name: fairy-commerceflow-notification-db
     image: mysql:8.4
     environment:
       MYSQL_DATABASE: notification
@@ -64,6 +68,7 @@ services:
     restart: unless-stopped
 
   catalog-db:
+    container_name: fairy-commerceflow-catalog-db
     image: mysql:8.4
     environment:
       MYSQL_DATABASE: catalog
@@ -81,6 +86,7 @@ services:
     restart: unless-stopped
 
   inventory-db:
+    container_name: fairy-commerceflow-inventory-db
     image: mysql:8.4
     environment:
       MYSQL_DATABASE: inventory
@@ -98,6 +104,7 @@ services:
     restart: unless-stopped
 
   order-db:
+    container_name: fairy-commerceflow-order-db
     image: mysql:8.4
     environment:
       MYSQL_DATABASE: orders
@@ -115,6 +122,7 @@ services:
     restart: unless-stopped
 
   commerce-redis:
+    container_name: fairy-commerceflow-commerce-redis
     image: redis:7.4-alpine
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
@@ -127,6 +135,7 @@ services:
     restart: unless-stopped
 
   kafka-broker:
+    container_name: fairy-commerceflow-kafka-broker
     image: apache/kafka:4.1.1
     environment:
       KAFKA_NODE_ID: 1
@@ -151,6 +160,7 @@ services:
     restart: unless-stopped
 
   kafka-console:
+    container_name: fairy-commerceflow-kafka-console
     image: provectuslabs/kafka-ui:latest
     environment:
       KAFKA_CLUSTERS_0_NAME: commerceflow
@@ -163,6 +173,7 @@ services:
     restart: unless-stopped
 
   rabbitmq-broker:
+    container_name: fairy-commerceflow-rabbitmq-broker
     image: rabbitmq:4.1-management
     profiles: [rabbitmq]
     environment:
@@ -181,6 +192,7 @@ services:
     restart: unless-stopped
 
   rocketmq-storage-init:
+    container_name: fairy-commerceflow-rocketmq-storage-init
     image: apache/rocketmq:5.4.0
     profiles: [rocketmq]
     user: "0:0"
@@ -198,6 +210,7 @@ services:
     restart: "no"
 
   rocketmq-nameserver:
+    container_name: fairy-commerceflow-rocketmq-nameserver
     image: apache/rocketmq:5.4.0
     profiles: [rocketmq]
     command: sh mqnamesrv
@@ -215,6 +228,7 @@ services:
     restart: unless-stopped
 
   rocketmq-broker:
+    container_name: fairy-commerceflow-rocketmq-broker
     image: apache/rocketmq:5.4.0
     profiles: [rocketmq]
     environment:
@@ -237,6 +251,7 @@ services:
     restart: unless-stopped
 
   rocketmq-topic-init:
+    container_name: fairy-commerceflow-rocketmq-topic-init
     image: apache/rocketmq:5.4.0
     profiles: [rocketmq]
     environment:
@@ -260,6 +275,7 @@ services:
     restart: "no"
 
   prometheus:
+    container_name: fairy-commerceflow-prometheus
     image: prom/prometheus:v3.7.3
     profiles: [observability]
     ports: ["19090:9090"]
@@ -280,6 +296,7 @@ services:
     restart: unless-stopped
 
   tempo:
+    container_name: fairy-commerceflow-tempo
     image: grafana/tempo:3.1.1
     profiles: [observability]
     command: ["-config.file=/etc/tempo.yml"]
@@ -293,6 +310,7 @@ services:
     restart: unless-stopped
 
   alertmanager:
+    container_name: fairy-commerceflow-alertmanager
     image: prom/alertmanager:v0.29.0
     profiles: [observability]
     command:
@@ -313,6 +331,7 @@ services:
     restart: unless-stopped
 
   alert-webhook:
+    container_name: fairy-commerceflow-alert-webhook
     image: python:3.14.0-alpine3.22
     profiles: [observability]
     command: ["python", "/app/receiver.py"]
@@ -332,6 +351,7 @@ services:
     restart: unless-stopped
 
   grafana:
+    container_name: fairy-commerceflow-grafana
     image: grafana/grafana:12.2.1
     profiles: [observability]
     ports: ["13000:3000"]
@@ -346,6 +366,7 @@ services:
     restart: unless-stopped
 
   payment-simulator-db:
+    container_name: fairy-commerceflow-payment-simulator-db
     image: mysql:8.4
     command: ["--log-bin-trust-function-creators=1"]
     environment:
@@ -366,6 +387,7 @@ services:
     restart: unless-stopped
 
   payment-simulator-redis:
+    container_name: fairy-commerceflow-payment-simulator-redis
     image: redis:7.4-alpine
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
@@ -378,6 +400,7 @@ services:
     restart: unless-stopped
 
   payment-simulator-service:
+    container_name: fairy-commerceflow-payment-simulator-service
     build:
       context: ./simulators/payment-platform/service
     environment:
@@ -410,6 +433,7 @@ services:
     restart: unless-stopped
 
   payment-simulator-web:
+    container_name: fairy-commerceflow-payment-simulator-web
     build:
       context: ./simulators/payment-platform/web
     ports:
@@ -426,6 +450,7 @@ services:
     restart: unless-stopped
 
   logistics-simulator-db:
+    container_name: fairy-commerceflow-logistics-simulator-db
     image: mysql:8.4
     environment:
       MYSQL_DATABASE: logistics_platform
@@ -445,6 +470,7 @@ services:
     restart: unless-stopped
 
   logistics-simulator-service:
+    container_name: fairy-commerceflow-logistics-simulator-service
     build:
       context: ./simulators/logistics-platform/service
     environment:
@@ -486,6 +512,7 @@ services:
     restart: unless-stopped
 
   commerce-service:
+    container_name: fairy-commerceflow-commerce-service
     build:
       context: ./services/commerce-service
     environment:
@@ -606,6 +633,7 @@ services:
     restart: unless-stopped
 
   notification-service:
+    container_name: fairy-commerceflow-notification-service
     build:
       context: ./services/notification-service
     environment:
@@ -635,6 +663,7 @@ services:
     restart: unless-stopped
 
   catalog-service:
+    container_name: fairy-commerceflow-catalog-service
     build:
       context: ./services/catalog-service
     environment:
@@ -665,6 +694,7 @@ services:
     restart: unless-stopped
 
   catalog-data-migrator:
+    container_name: fairy-commerceflow-catalog-data-migrator
     image: mysql:8.4
     entrypoint: ["sh", "/migration/migrate-catalog-data.sh"]
     environment:
@@ -682,6 +712,7 @@ services:
     restart: "no"
 
   inventory-service:
+    container_name: fairy-commerceflow-inventory-service
     build:
       context: ./services/inventory-service
     environment:
@@ -709,6 +740,7 @@ services:
     restart: unless-stopped
 
   order-service:
+    container_name: fairy-commerceflow-order-service
     build:
       context: ./services/order-service
     environment:
@@ -736,6 +768,7 @@ services:
     restart: unless-stopped
 
   inventory-data-migrator:
+    container_name: fairy-commerceflow-inventory-data-migrator
     image: mysql:8.4
     profiles: ["inventory-migration"]
     entrypoint: ["sh", "/migration/migrate-inventory-data.sh"]
@@ -752,6 +785,7 @@ services:
     restart: "no"
 
   commerce-portal-angular:
+    container_name: fairy-commerceflow-commerce-portal-angular
     build:
       context: ./web/commerce-portal/angular
     ports:

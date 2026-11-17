@@ -24,7 +24,7 @@ cleanup() {
   local status=$?
   set +e
   compose start inventory-service >/dev/null 2>&1
-  wait_healthy fairy-commerceflow-inventory-service-1 >/dev/null 2>&1
+  wait_healthy fairy-commerceflow-inventory-service >/dev/null 2>&1
   if ((increased == 1)); then
     json_request POST "$BASE_URL/api/merchant/inventory/$product_id/adjustments" "$cookie" \
       "$csrf_header" "$csrf_token" '{"delta":-1,"reason":"Inventory single-owner acceptance cleanup"}' >/dev/null
@@ -36,7 +36,7 @@ trap cleanup EXIT
 
 cd "$PROJECT_ROOT"
 compose up -d --wait commerce-service inventory-service >/dev/null
-commerce_environment="$(docker inspect fairy-commerceflow-commerce-service-1 --format '{{range .Config.Env}}{{println .}}{{end}}')"
+commerce_environment="$(docker inspect fairy-commerceflow-commerce-service --format '{{range .Config.Env}}{{println .}}{{end}}')"
 grep -qx 'DATABASE_USERNAME=commerce_runtime' <<<"$commerce_environment"
 grep -qx 'SPRING_FLYWAY_ENABLED=false' <<<"$commerce_environment"
 
@@ -76,7 +76,7 @@ compose stop inventory-service >/dev/null
 assert_status 'inventory outage is fail-closed' 503 \
   "$(http_status GET "$BASE_URL/api/merchant/inventory" "$cookie")"
 compose start inventory-service >/dev/null
-wait_healthy fairy-commerceflow-inventory-service-1
+wait_healthy fairy-commerceflow-inventory-service
 json_request GET "$BASE_URL/api/merchant/inventory" "$cookie" >/dev/null
 
 source_after="$(compose exec -T commerce-db mysql -N -ucommerceflow -pcommerceflow-password \

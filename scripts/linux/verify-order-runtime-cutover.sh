@@ -6,7 +6,7 @@ require_commands docker curl jq
 BASE_URL="${1:-http://localhost:14200}"
 MAX_WAIT_SECONDS="${2:-90}"
 compose up -d --wait order-service commerce-service >/dev/null
-order_environment="$(docker inspect fairy-commerceflow-order-service-1 --format '{{range .Config.Env}}{{println .}}{{end}}')"
+order_environment="$(docker inspect fairy-commerceflow-order-service --format '{{range .Config.Env}}{{println .}}{{end}}')"
 grep -qx 'ORDER_ACCEPTING_TRAFFIC=true' <<<"$order_environment"
 grep -qx 'ORDER_SHADOW_ENABLED=false' <<<"$order_environment"
 
@@ -46,7 +46,7 @@ target_row="$(compose exec -T order-db mysql -N --user=orders --password=orders-
 compose stop order-service >/dev/null
 status="$(curl -sS -o /dev/null -w '%{http_code}' -b "$jar" "$BASE_URL/api/purchase-orders")"
 compose start order-service >/dev/null
-deadline=$((SECONDS+MAX_WAIT_SECONDS));until [[ "$(docker inspect fairy-commerceflow-order-service-1 --format '{{.State.Health.Status}}' 2>/dev/null)" == healthy ]];do
+deadline=$((SECONDS+MAX_WAIT_SECONDS));until [[ "$(docker inspect fairy-commerceflow-order-service --format '{{.State.Health.Status}}' 2>/dev/null)" == healthy ]];do
   ((SECONDS>=deadline))&&{ echo 'order-service did not recover' >&2;exit 1; };sleep 2
 done
 [[ "$status" == 503 ]]||{ echo "Expected outage status 503, got $status" >&2;exit 1; }

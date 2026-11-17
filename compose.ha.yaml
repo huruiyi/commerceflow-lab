@@ -7,6 +7,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
   kafka-broker-2:
+    container_name: fairy-commerceflow-kafka-broker-2
     image: apache/kafka:4.1.1
     environment:
       KAFKA_CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
@@ -19,6 +20,7 @@ services:
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-broker:9093,2@kafka-broker-2:9093,3@kafka-broker-3:9093
     volumes: [kafka-broker-2-data:/var/lib/kafka/data]
   kafka-broker-3:
+    container_name: fairy-commerceflow-kafka-broker-3
     image: apache/kafka:4.1.1
     environment:
       KAFKA_CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
@@ -31,6 +33,7 @@ services:
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-broker:9093,2@kafka-broker-2:9093,3@kafka-broker-3:9093
     volumes: [kafka-broker-3-data:/var/lib/kafka/data]
   commerce-service:
+    container_name: !reset null
     ports: !reset []
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka-broker:9092,kafka-broker-2:9092,kafka-broker-3:9092

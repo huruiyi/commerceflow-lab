@@ -12,7 +12,7 @@
 | Maven groupId | `vip.fairy.commerceflow` | 与项目级 Java 根包一致 |
 | Compose 项目名 | `fairy-commerceflow` | 与其他 Fairy 实验环境隔离 |
 | Compose 资源族 | `fairy-commerceflow-*` | 容器、网络、监控标签的逻辑前缀 |
-| 示例容器 | `fairy-commerceflow-mysql-1` | Compose 自动生成，不设置 `container_name` |
+| 示例容器 | `fairy-commerceflow-commerce-db` | 默认 Compose 使用固定容器名 |
 
 `spring-boot-infrastructure-labs` 使用 `fairy-infra-*` 是合理的，因为它是基础设施实验集合；本仓库属于电商业务流程实验，因此使用 `fairy-commerceflow-*` 更准确。两者共享 `vip.fairy` 组织根，但不共享项目级包或 Compose 项目名。
 
@@ -57,7 +57,7 @@ M1 标签 `m1-baseline-2026-11-13` 的实际状态是：
 
 1. 本项目为学习环境，用户已明确旧 Docker 数据无需保留。
 2. 使用旧项目名 `commerceflow` 显式执行 `down --volumes --remove-orphans`，只删除已校验的本项目资源。
-3. Compose 项目名改为 `fairy-commerceflow`，服务名改为业务归属 + 角色，不设置 `container_name`。
+3. Compose 项目名改为 `fairy-commerceflow`，服务名改为业务归属 + 角色；默认环境设置固定容器名，HA 多副本服务除外。
 4. 从空卷启动三个 MySQL 和独立 Redis，执行 Flyway 和完整业务回归。
 5. M1 Git 标签保留旧实现证据；新空卷验收不改写 M1 历史。
 
@@ -85,7 +85,7 @@ Kafka Topic、RabbitMQ Queue/Exchange、RocketMQ Topic/Consumer Group、Redis Ke
 - 不在同一源码树长期混用 `lab.commerceflow` 和 `vip.fairy.commerceflow`。
 - 不再创建模糊的根目录 `backend`、`frontend` 或无边界的 `mock-*`。
 - 不把本项目命名为 `fairy-infra-commerceflow`；`infra` 不是它的领域边界。
-- 不使用固定 `container_name` 伪造没有 `-1` 的容器名。
+- 默认单副本环境使用 `fairy-commerceflow-<服务名>` 固定容器名；HA 多副本服务重置固定名称并保留副本序号。
 - 不因 Compose 项目名变化而默认接受新建空卷。
 - 不为“看起来统一”而直接重命名持久消息协议、数据库或 Redis Key。
 - 不把尚未执行的命名迁移写成已经完成。

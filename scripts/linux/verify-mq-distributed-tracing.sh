@@ -94,10 +94,10 @@ rocket_task="$(latest_task_id ROCKETMQ)"
 (( rocket_task > rocket_before )) || { echo 'RocketMQ trace drill did not create a task' >&2; exit 1; }
 rocket_trace="$(find_mq_trace "$rocket_task" rocketmq)"
 
-if [[ "$EXTERNAL_RUNTIME" == true ]]; then docker stop fairy-commerceflow-tempo-1 >/dev/null
+if [[ "$EXTERNAL_RUNTIME" == true ]]; then docker stop fairy-commerceflow-tempo >/dev/null
 else docker compose -f "$PROJECT_ROOT/compose.yaml" stop tempo >/dev/null; fi
 wait_healthy "$BASE_URL/actuator/health"
-if [[ "$EXTERNAL_RUNTIME" == true ]]; then docker start fairy-commerceflow-tempo-1 >/dev/null
+if [[ "$EXTERNAL_RUNTIME" == true ]]; then docker start fairy-commerceflow-tempo >/dev/null
 else docker compose -f "$PROJECT_ROOT/compose.yaml" --profile observability up -d tempo >/dev/null; fi
 wait_healthy "$TEMPO_URL/ready"
 echo "MQ distributed tracing passed: RabbitMQ task=$rabbit_task trace=$rabbit_trace; RocketMQ task=$rocket_task trace=$rocket_trace; Tempo outage did not stop commerce-service."

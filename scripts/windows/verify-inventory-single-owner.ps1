@@ -28,7 +28,7 @@ Set-Location $ProjectRoot
 docker compose up -d --wait commerce-service inventory-service | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Commerce and inventory services did not start' }
 
-$commerceEnvironment = docker inspect fairy-commerceflow-commerce-service-1 `
+$commerceEnvironment = docker inspect fairy-commerceflow-commerce-service `
   --format '{{range .Config.Env}}{{println .}}{{end}}'
 if ($commerceEnvironment -notcontains 'DATABASE_USERNAME=commerce_runtime' `
     -or $commerceEnvironment -notcontains 'SPRING_FLYWAY_ENABLED=false') {
@@ -94,7 +94,7 @@ try {
   }
 } finally {
   docker compose start inventory-service | Out-Null
-  Wait-Healthy fairy-commerceflow-inventory-service-1
+  Wait-Healthy fairy-commerceflow-inventory-service
 }
 Invoke-RestMethod "$BaseUrl/api/merchant/inventory" -WebSession $session | Out-Null
 

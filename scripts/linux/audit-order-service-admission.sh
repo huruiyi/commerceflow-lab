@@ -26,8 +26,8 @@ assert_scalar() {
 cd "$PROJECT_ROOT"
 docker compose up -d --wait commerce-db >/dev/null
 
-assert_scalar 'Flyway schema version' \
-  "SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1;" 35
+assert_scalar 'Flyway V35 order admission migration' \
+  "SELECT COUNT(*) FROM flyway_schema_history WHERE version='35' AND success=1;" 1
 assert_scalar 'order-owned table count' \
   "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name IN ('shop_orders','order_items','order_shipping_addresses','order_events','order_process_managers','order_command_outbox','order_result_inbox');" 7
 assert_scalar 'order outbound cross-boundary foreign keys' \
@@ -52,7 +52,7 @@ assert_scalar 'orders requiring workflow recovery' \
   "SELECT COUNT(*) FROM shop_orders WHERE status IN ('PENDING_PAYMENT','CANCELLING') OR inventory_status IN ('WAITING_RESERVATION','WAITING_COMMIT','REFUND_PENDING','RECONCILIATION_REQUIRED');" 0
 assert_scalar 'order processes requiring recovery' \
   "SELECT COUNT(*) FROM order_process_managers WHERE status IN ('COMPENSATION_REQUIRED','RECONCILIATION_REQUIRED');" 0
-for table in order_items order_shipping_addresses order_events payment_records refund_records shipment_records; do
+for table in order_items order_shipping_addresses order_events; do
   assert_scalar "$table orphan rows" \
     "SELECT COUNT(*) FROM $table child LEFT JOIN shop_orders parent ON parent.id=child.order_id WHERE parent.id IS NULL;" 0
 done

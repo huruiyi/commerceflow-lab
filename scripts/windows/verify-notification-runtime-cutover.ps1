@@ -67,7 +67,7 @@ try {
   if ($commerceHealth.status -ne 'UP') { throw 'Core commerce became unhealthy' }
 } finally {
   & docker compose start notification-service 2>$null | Out-Null
-  try { Wait-Healthy 'fairy-commerceflow-notification-service-1' } catch { Write-Warning $_ }
+  try { Wait-Healthy 'fairy-commerceflow-notification-service' } catch { Write-Warning $_ }
 }
 
 Write-Host ('Notification single-owner runtime passed: Kafka delivery, signed proxy, eventId read, ' +

@@ -21,7 +21,7 @@ cleanup() {
   local status=$?
   set +e
   docker compose start catalog-service >/dev/null 2>&1
-  wait_healthy fairy-commerceflow-catalog-service-1 >/dev/null 2>&1
+  wait_healthy fairy-commerceflow-catalog-service >/dev/null 2>&1
   rm -rf -- "$temp_dir"
   exit "$status"
 }

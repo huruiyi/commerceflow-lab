@@ -62,8 +62,8 @@ function Recreate-Runtime([bool]$Tracing, [string]$ResultDelay = '0s') {
   $env:TRACING_EXPORT_ENABLED = $Tracing.ToString().ToLowerInvariant()
   $env:INVENTORY_RESULT_DELAY_LAB = $ResultDelay
   docker compose up -d --no-deps --force-recreate commerce-service inventory-service | Out-Null
-  Wait-Healthy 'fairy-commerceflow-commerce-service-1'
-  Wait-Healthy 'fairy-commerceflow-inventory-service-1'
+  Wait-Healthy 'fairy-commerceflow-commerce-service'
+  Wait-Healthy 'fairy-commerceflow-inventory-service'
 }
 
 function Wait-CrossProcessTrace([string]$TraceId) {
@@ -87,7 +87,7 @@ function Wait-CrossProcessTrace([string]$TraceId) {
 function Restore-Runtime {
   Remove-Item Env:TRACING_EXPORT_ENABLED,Env:INVENTORY_RESULT_DELAY_LAB -ErrorAction SilentlyContinue
   docker compose start inventory-db inventory-service 2>$null | Out-Null
-  try { Wait-Healthy 'fairy-commerceflow-inventory-db-1' } catch { Write-Warning $_ }
+  try { Wait-Healthy 'fairy-commerceflow-inventory-db' } catch { Write-Warning $_ }
   try { Recreate-Runtime $false } catch { Write-Warning $_ }
   if (-not $tempoWasRunning) { docker compose stop tempo 2>$null | Out-Null }
 }
@@ -95,9 +95,9 @@ function Restore-Runtime {
 Set-Location $ProjectRoot
 try {
   docker compose up -d --wait commerce-service inventory-service | Out-Null
-  if ((docker inspect fairy-commerceflow-commerce-service-1 --format '{{range .Config.Env}}{{println .}}{{end}}') `
+  if ((docker inspect fairy-commerceflow-commerce-service --format '{{range .Config.Env}}{{println .}}{{end}}') `
       -notcontains 'INVENTORY_WRITE_FROZEN=false') { throw 'Inventory write freeze is not disabled' }
-  if ((docker inspect fairy-commerceflow-inventory-service-1 --format '{{range .Config.Env}}{{println .}}{{end}}') `
+  if ((docker inspect fairy-commerceflow-inventory-service --format '{{range .Config.Env}}{{println .}}{{end}}') `
       -notcontains 'INVENTORY_ACCEPTING_TRAFFIC=true') { throw 'Inventory traffic is not enabled' }
 
   $sourceBefore = [long](Commerce-Sql 'SELECT COUNT(*) FROM inventory_movements;')
@@ -143,7 +143,7 @@ try {
   $serviceOutageOrder = New-Order (New-CustomerSession)
   Start-Sleep -Seconds 2
   docker compose start inventory-service | Out-Null
-  Wait-Healthy 'fairy-commerceflow-inventory-service-1'
+  Wait-Healthy 'fairy-commerceflow-inventory-service'
   if ([int](Wait-Delivery $serviceOutageOrder.id).Split('|')[1] -lt 2) {
     throw 'Inventory service outage was not retried'
   }
@@ -152,8 +152,8 @@ try {
   $databaseOutageOrder = New-Order (New-CustomerSession)
   Start-Sleep -Seconds 2
   docker compose start inventory-db | Out-Null
-  Wait-Healthy 'fairy-commerceflow-inventory-db-1'
-  Wait-Healthy 'fairy-commerceflow-inventory-service-1'
+  Wait-Healthy 'fairy-commerceflow-inventory-db'
+  Wait-Healthy 'fairy-commerceflow-inventory-service'
   if ([int](Wait-Delivery $databaseOutageOrder.id).Split('|')[1] -lt 2) {
     throw 'Inventory database outage was not retried'
   }

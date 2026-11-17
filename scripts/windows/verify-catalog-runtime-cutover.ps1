@@ -52,7 +52,7 @@ try {
   }
 } finally {
   & docker compose start catalog-service 2>$null | Out-Null
-  try { Wait-Healthy 'fairy-commerceflow-catalog-service-1' } catch { Write-Warning $_ }
+  try { Wait-Healthy 'fairy-commerceflow-catalog-service' } catch { Write-Warning $_ }
 }
 
 Write-Host ('Catalog single-owner runtime passed: COMPLETE marker, localized proxy, ' +

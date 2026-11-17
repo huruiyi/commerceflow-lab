@@ -24,7 +24,7 @@ function WaitHealthy([string]$Container) {
 }
 
 docker compose up -d --wait order-service commerce-service | Out-Null
-$orderEnvironment = docker inspect fairy-commerceflow-order-service-1 `
+$orderEnvironment = docker inspect fairy-commerceflow-order-service `
   --format '{{range .Config.Env}}{{println .}}{{end}}'
 if ($orderEnvironment -notcontains 'ORDER_ACCEPTING_TRAFFIC=true' -or
     $orderEnvironment -notcontains 'ORDER_SHADOW_ENABLED=false') {
@@ -70,7 +70,7 @@ try {
   if (-not $_.Exception.Response -or [int]$_.Exception.Response.StatusCode -ne 503) { throw }
 } finally {
   docker compose start order-service | Out-Null
-  WaitHealthy fairy-commerceflow-order-service-1
+  WaitHealthy fairy-commerceflow-order-service
 }
 
 Write-Host "Order runtime cutover passed: order=$($order.id), source=$sourceAfter unchanged, target=$targetAfter, source access denied, outage=503." -ForegroundColor Green

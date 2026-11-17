@@ -53,15 +53,15 @@ recreate_runtime() {
   local tracing="$1" delay="${2:-0s}"
   TRACING_EXPORT_ENABLED="$tracing" INVENTORY_RESULT_DELAY_LAB="$delay" \
     compose up -d --no-deps --force-recreate commerce-service inventory-service >/dev/null
-  wait_healthy fairy-commerceflow-commerce-service-1
-  wait_healthy fairy-commerceflow-inventory-service-1
+  wait_healthy fairy-commerceflow-commerce-service
+  wait_healthy fairy-commerceflow-inventory-service
 }
 
 cleanup() {
   local status=$?
   set +e
   compose start inventory-db inventory-service >/dev/null 2>&1
-  wait_healthy fairy-commerceflow-inventory-db-1 >/dev/null 2>&1
+  wait_healthy fairy-commerceflow-inventory-db >/dev/null 2>&1
   recreate_runtime false >/dev/null 2>&1
   [[ -n "$tempo_was_running" ]] || compose stop tempo >/dev/null 2>&1
   rm -rf -- "$temp_dir"
@@ -71,8 +71,8 @@ trap cleanup EXIT
 
 cd "$PROJECT_ROOT"
 compose up -d --wait commerce-service inventory-service >/dev/null
-docker inspect fairy-commerceflow-commerce-service-1 --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -qx 'INVENTORY_WRITE_FROZEN=false'
-docker inspect fairy-commerceflow-inventory-service-1 --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -qx 'INVENTORY_ACCEPTING_TRAFFIC=true'
+docker inspect fairy-commerceflow-commerce-service --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -qx 'INVENTORY_WRITE_FROZEN=false'
+docker inspect fairy-commerceflow-inventory-service --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -qx 'INVENTORY_ACCEPTING_TRAFFIC=true'
 
 source_before="$(commerce_sql 'SELECT COUNT(*) FROM inventory_movements;')"
 target_before="$(inventory_sql 'SELECT COUNT(*) FROM inventory_movements;')"
@@ -123,7 +123,7 @@ compose stop inventory-service >/dev/null
 service_order="$(new_order service)"
 sleep 2
 compose start inventory-service >/dev/null
-wait_healthy fairy-commerceflow-inventory-service-1
+wait_healthy fairy-commerceflow-inventory-service
 service_recovered="$(wait_delivery "$service_order")"
 (( ${service_recovered##*|} >= 2 ))
 
@@ -131,8 +131,8 @@ compose stop inventory-db >/dev/null
 database_order="$(new_order database)"
 sleep 2
 compose start inventory-db >/dev/null
-wait_healthy fairy-commerceflow-inventory-db-1
-wait_healthy fairy-commerceflow-inventory-service-1
+wait_healthy fairy-commerceflow-inventory-db
+wait_healthy fairy-commerceflow-inventory-service
 database_recovered="$(wait_delivery "$database_order")"
 (( ${database_recovered##*|} >= 2 ))
 

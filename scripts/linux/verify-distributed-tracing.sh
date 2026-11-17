@@ -84,14 +84,14 @@ jq -e 'index("commerce-service") and index("logistics-simulator-service")' <<<"$
 }
 
 if [[ "$EXTERNAL_RUNTIME" == true ]]; then
-  docker stop fairy-commerceflow-tempo-1 >/dev/null
+  docker stop fairy-commerceflow-tempo >/dev/null
 else
   docker compose -f "$PROJECT_ROOT/compose.yaml" stop tempo >/dev/null
 fi
 wait_healthy "$BASE_URL/actuator/health"
 wait_healthy "$SERVICE_ORIGIN:18083/actuator/health"
 if [[ "$EXTERNAL_RUNTIME" == true ]]; then
-  docker start fairy-commerceflow-tempo-1 >/dev/null
+  docker start fairy-commerceflow-tempo >/dev/null
 else
   docker compose -f "$PROJECT_ROOT/compose.yaml" --profile observability up -d tempo >/dev/null
 fi

@@ -22,7 +22,7 @@ cleanup() {
   local status=$?
   set +e
   docker compose start notification-service >/dev/null 2>&1
-  wait_healthy fairy-commerceflow-notification-service-1 >/dev/null 2>&1
+  wait_healthy fairy-commerceflow-notification-service >/dev/null 2>&1
   rm -rf -- "$temp_dir"
   exit "$status"
 }
