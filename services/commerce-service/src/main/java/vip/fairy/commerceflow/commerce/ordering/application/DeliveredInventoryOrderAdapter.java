@@ -27,9 +27,15 @@ public class DeliveredInventoryOrderAdapter implements DeliveredInventoryOrderV1
         || !List.of("RECONCILIATION_REQUIRED", "RECONCILED").contains(order.getInventoryStatus())) {
       throw new BusinessRuleException("Order must be delivered and eligible for inventory reconciliation");
     }
-    Map<Long, Integer> quantities = orders.items(orderId).stream()
+    List<OrderItemView> items = orders.items(orderId);
+    Map<Long, Integer> quantities = items.stream()
       .collect(Collectors.toMap(OrderItemView::getProductId, OrderItemView::getQuantity, Math::addExact));
-    return new Snapshot(order.getCreatedAt(), quantities);
+    Map<Long, String> names = items.stream().collect(Collectors.toMap(OrderItemView::getProductId,
+      OrderItemView::getProductName, (first, ignored) -> first));
+    List<Product> products = quantities.keySet().stream().sorted()
+      .map(id -> new Product(id, names.get(id), quantities.get(id))).toList();
+    return new Snapshot(order.getOrderNumber(), order.getStatus(), order.getCreatedAt(),
+      order.getLogisticsDeliveredAt(), products, quantities);
   }
 
   @Override

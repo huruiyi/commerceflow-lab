@@ -11,10 +11,35 @@ import { ScheduledTask, ScheduledTaskEvent, SchedulingPolicy, SchedulingPolicyEv
 import { LogisticsCallbackAuditEvent, LogisticsCallbackOutbox } from 'src/model/ILogisticsCallbackAdmin';
 import { CustomerNotification } from 'src/model/INotification';
 import { InventoryMovement, MerchantInventoryItem } from 'src/model/IInventory';
+import {
+  InventoryRecovery,
+  WarehouseEvidenceContext,
+  WarehouseEvidenceLine,
+  WarehouseEvidenceReceipt,
+} from 'src/model/IInventoryReconciliation';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   constructor(private http: HttpClient) {}
+
+  inventoryRecoveries(): Observable<InventoryRecovery[]> {
+    return this.http.get<InventoryRecovery[]>('/api/admin/inventory-command-recoveries', {
+      params: { limit: 200 },
+    });
+  }
+
+  warehouseEvidenceContext(commandId: string): Observable<WarehouseEvidenceContext> {
+    return this.http.get<WarehouseEvidenceContext>(
+      `/api/admin/inventory-command-recoveries/${encodeURIComponent(commandId)}/warehouse-evidence`,
+    );
+  }
+
+  submitWarehouseEvidence(commandId: string, lines: WarehouseEvidenceLine[]): Observable<WarehouseEvidenceReceipt> {
+    return this.http.post<WarehouseEvidenceReceipt>(
+      `/api/admin/inventory-command-recoveries/${encodeURIComponent(commandId)}/warehouse-evidence`,
+      { lines },
+    );
+  }
 
   allProducts(): Observable<Product[]> {
     return this.http.get<Product[]>(

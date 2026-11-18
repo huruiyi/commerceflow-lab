@@ -19,6 +19,7 @@ import vip.fairy.commerceflow.commerce.inventory.application.InventoryCommandRec
 import vip.fairy.commerceflow.commerce.inventory.application.InventoryRemoteRehearsalService;
 import vip.fairy.commerceflow.commerce.inventory.application.DeliveredInventoryRecoveryService;
 import vip.fairy.commerceflow.commerce.inventory.application.DeliveredInventoryRecoveryService.Evidence;
+import vip.fairy.commerceflow.commerce.inventory.application.DeliveredInventoryRecoveryService.EvidenceContext;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.DeliveredInventoryEvidenceV1.Receipt;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandResultV1;
 
@@ -60,6 +61,11 @@ public class InventoryCommandRecoveryController {
   Receipt reconcileDelivered(@PathVariable String commandId, @Valid @RequestBody EvidenceRequest request,
                              Authentication authentication) {
     return delivered.reconcile(commandId, authentication.getName(), request.lines());
+  }
+
+  @GetMapping("/{commandId}/warehouse-evidence")
+  EvidenceContext warehouseEvidenceContext(@PathVariable String commandId) {
+    return delivered.context(commandId);
   }
 
   public record RetryRequest(@NotBlank String reason) {

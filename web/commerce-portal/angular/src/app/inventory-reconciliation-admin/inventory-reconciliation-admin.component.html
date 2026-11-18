@@ -1,0 +1,171 @@
+<section class="workspace container-fluid">
+  <header class="page-heading">
+    <h1>{{ 'warehouseReconciliation' | t }}</h1>
+    <button type="button" class="btn btn-outline-secondary" (click)="load()" [disabled]="loading || saving">
+      <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+      {{ 'warehouseRefresh' | t }}
+    </button>
+  </header>
+
+  @if (receipt; as result) {
+    <div class="alert alert-success" role="status">
+      {{ 'warehouseSaved' | t }} #{{ result.orderId }}
+      <span class="d-block mt-1">{{ 'warehouseMovementIds' | t }} {{ result.movementIds.join(', ') }}</span>
+    </div>
+  }
+
+  <div class="workspace-grid">
+    <section class="panel queue" aria-labelledby="warehouse-queue-title" [attr.aria-busy]="loading">
+      <div class="panel-heading">
+        <h2 id="warehouse-queue-title">{{ 'warehouseQueue' | t }}</h2>
+        @if (!listError && !loading) {
+          <span class="queue-count">{{ recoveries.length }}</span>
+        }
+      </div>
+
+      @if (loading) {
+        <p class="panel-message" role="status">{{ 'warehouseLoading' | t }}</p>
+      } @else if (listError) {
+        <p class="panel-message text-danger" role="alert">{{ 'warehouseListError' | t }}</p>
+      } @else {
+        @for (recovery of recoveries; track recovery.commandId) {
+          <button
+            type="button"
+            class="queue-row"
+            [class.selected]="selected?.commandId === recovery.commandId"
+            [attr.aria-pressed]="selected?.commandId === recovery.commandId"
+            [disabled]="loadingDetail || saving || recovery.commandType !== 'RESERVE'"
+            (click)="open(recovery)"
+          >
+            <span class="row-title">
+              {{ 'warehouseOrder' | t }} #{{ recovery.orderId }}
+              <i class="bi bi-chevron-right" aria-hidden="true"></i>
+            </span>
+            <span class="row-details"> {{ recovery.commandType | t }} · {{ recovery.createdAt | trdate }} </span>
+            @if (recovery.lastError) {
+              <span class="row-error">{{ recovery.lastError | t }}</span>
+            }
+          </button>
+        } @empty {
+          <p class="panel-message">{{ 'warehouseEmpty' | t }}</p>
+        }
+        @if (recoveries.length === 200) {
+          <p class="panel-message">{{ 'warehouseQueueLimit' | t }}</p>
+        }
+      }
+    </section>
+
+    <section class="panel editor" aria-labelledby="warehouse-editor-title" [attr.aria-busy]="loadingDetail || saving">
+      <div class="panel-heading">
+        <h2 id="warehouse-editor-title">{{ 'warehouseEvidence' | t }}</h2>
+      </div>
+      @if (loadingDetail) {
+        <p class="panel-message" role="status">{{ 'warehouseLoading' | t }}</p>
+      } @else if (detailError) {
+        <div class="alert alert-warning m-3" role="alert">{{ detailError | t }}</div>
+      } @else if (context; as order) {
+        <div class="order-summary">
+          <div>
+            <strong>{{ order.orderNumber }}</strong>
+            <span class="order-id">#{{ order.orderId }}</span>
+          </div>
+          <span>{{ order.status | t }} · {{ 'warehouseDelivered' | t }} {{ order.deliveredAt | trdate }}</span>
+        </div>
+        <form class="evidence-form" (ngSubmit)="submit()" #evidenceForm="ngForm">
+          <p class="form-note">{{ 'warehouseEvidenceRequired' | t }}</p>
+          @for (product of order.products; track product.productId; let i = $index) {
+            @if (drafts[i]; as draft) {
+              <fieldset [disabled]="saving">
+                <legend>
+                  {{ product.name || ('products' | t) }}
+                  <span>#{{ product.productId }} · {{ 'quantity' | t }} {{ product.quantity }}</span>
+                </legend>
+                <div class="fields">
+                  <label>
+                    {{ 'warehouseReference' | t }}
+                    <input
+                      class="form-control"
+                      [name]="'reference-' + i"
+                      [(ngModel)]="draft.warehouseReference"
+                      required
+                      maxlength="120"
+                    />
+                  </label>
+                  <label>
+                    {{ 'warehouseEvidenceTime' | t }}
+                    <input
+                      type="datetime-local"
+                      step="1"
+                      class="form-control"
+                      [name]="'time-' + i"
+                      [(ngModel)]="draft.evidenceAt"
+                      required
+                    />
+                  </label>
+                  <label class="wide">
+                    {{ 'warehouseNote' | t }}
+                    <textarea
+                      class="form-control"
+                      [name]="'note-' + i"
+                      [(ngModel)]="draft.note"
+                      required
+                      maxlength="300"
+                      rows="2"
+                    ></textarea>
+                  </label>
+                  <label>
+                    {{ 'warehouseMode' | t }}
+                    <select class="form-select" [name]="'mode-' + i" [(ngModel)]="draft.mode" required>
+                      <option value="" disabled>{{ 'warehouseSelectMode' | t }}</option>
+                      <option value="existing">{{ 'warehouseLinkExisting' | t }}</option>
+                      <option value="outbound">{{ 'warehousePostOutbound' | t }}</option>
+                    </select>
+                  </label>
+                  @if (draft.mode === 'existing') {
+                    <label>
+                      {{ 'warehouseMovementId' | t }}
+                      <input
+                        type="number"
+                        class="form-control"
+                        [name]="'movement-' + i"
+                        [(ngModel)]="draft.bookedMovementId"
+                        min="1"
+                        step="1"
+                        required
+                      />
+                    </label>
+                    <p class="form-note wide">{{ 'warehouseLinkHint' | t }}</p>
+                  } @else if (draft.mode === 'outbound') {
+                    <label>
+                      {{ 'warehouseExpectedAvailable' | t }}
+                      <input
+                        type="number"
+                        class="form-control"
+                        [name]="'stock-' + i"
+                        [(ngModel)]="draft.expectedAvailable"
+                        [min]="product.quantity"
+                        step="1"
+                        required
+                      />
+                    </label>
+                    <p class="form-note wide">{{ 'warehouseOutboundHint' | t }}</p>
+                  }
+                </div>
+              </fieldset>
+            }
+          }
+          @if (submitError) {
+            <p class="alert alert-danger mb-0" role="alert">{{ submitError | t }}</p>
+          }
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" [disabled]="saving || evidenceForm.invalid">
+              {{ (saving ? 'warehouseSaving' : 'warehouseSubmit') | t }}
+            </button>
+          </div>
+        </form>
+      } @else {
+        <p class="panel-message">{{ 'warehouseChooseOrder' | t }}</p>
+      }
+    </section>
+  </div>
+</section>

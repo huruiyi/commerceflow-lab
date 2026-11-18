@@ -13,6 +13,7 @@ import { ProfileComponent } from './profile/profile.component';
 import { SchedulingAdminComponent } from './scheduling-admin/scheduling-admin.component';
 import { LogisticsCallbackAdminComponent } from './logistics-callback-admin/logistics-callback-admin.component';
 import { MerchantInventoryComponent } from './merchant-inventory/merchant-inventory.component';
+import { InventoryReconciliationAdminComponent } from './inventory-reconciliation-admin/inventory-reconciliation-admin.component';
 
 const routes: Routes = [
   { path: '', component: LoginComponent }, //LoginGuard
@@ -43,6 +44,12 @@ const routes: Routes = [
   {
     path: 'admin/logistics-callbacks',
     component: LogisticsCallbackAdminComponent,
+    canActivate: [AuthGuard],
+    data: { roles: ['ADMIN'] },
+  },
+  {
+    path: 'admin/inventory-reconciliation',
+    component: InventoryReconciliationAdminComponent,
     canActivate: [AuthGuard],
     data: { roles: ['ADMIN'] },
   },

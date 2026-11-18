@@ -11,6 +11,7 @@ import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.Deliver
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.DeliveredInventoryEvidenceV1.Line;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.DeliveredInventoryEvidenceV1.Receipt;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.DeliveredInventoryOrderV1;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.DeliveredInventoryOrderV1.Product;
 import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
 import vip.fairy.commerceflow.commerce.inventory.infrastructure.InventoryCommandDeliveryMapper;
 import vip.fairy.commerceflow.commerce.inventory.infrastructure.transport.DeliveredInventoryRemoteClient;
@@ -70,6 +71,23 @@ public class DeliveredInventoryRecoveryService {
       }
     }
     return receipt;
+  }
+
+  public EvidenceContext context(String commandId) {
+    var delivery = deliveries.byCommandId(commandId);
+    if (delivery == null) {
+      throw new ResourceNotFoundException("Inventory delivery was not found");
+    }
+    if (!"RESERVE".equals(delivery.commandType()) || !"RECONCILIATION_REQUIRED".equals(delivery.status())) {
+      throw new BusinessRuleException("Only unresolved reservations can be reconciled with warehouse evidence");
+    }
+    var order = orders.requireDelivered(delivery.orderId());
+    return new EvidenceContext(delivery.orderId(), order.orderNumber(), order.status(), order.createdAt(),
+      order.deliveredAt(), order.products());
+  }
+
+  public record EvidenceContext(long orderId, String orderNumber, String status, Instant createdAt,
+                                Instant deliveredAt, List<Product> products) {
   }
 
   public record Evidence(Long productId, String warehouseReference, Instant evidenceAt,

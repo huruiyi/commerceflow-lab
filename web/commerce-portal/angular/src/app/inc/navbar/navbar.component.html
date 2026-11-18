@@ -52,6 +52,11 @@
             'callbackGovernance' | t
           }}</a>
         </li>
+        <li class="nav-item" *ngIf="bilgiler.role === 'ADMIN'">
+          <a class="nav-link" [routerLink]="['/admin/inventory-reconciliation']" routerLinkActive="active">
+            {{ 'warehouseReconciliation' | t }}
+          </a>
+        </li>
         <li class="nav-item" *ngIf="bilgiler.role === 'MERCHANT'">
           <a class="nav-link" [routerLink]="['/merchant/orders']" routerLinkActive="active">{{ 'fulfillment' | t }}</a>
         </li>
