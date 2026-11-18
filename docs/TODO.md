@@ -831,6 +831,11 @@ Docker 拓扑，也不启动 PostgreSQL。
 
 详见[履约服务演进计划](architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md)。
 
+### 13.25 M3 各服务单一所有权复核与收尾
+
+运行路径已完成切换。库存迁移入口防重灌、存量对账、历史授权和各服务运行验收的待办及完成标准见
+[M3 单一所有权复核与迁移收尾](architecture/M3-SINGLE-OWNERSHIP-REVIEW.md)。
+
 ## 14. 实施记录模板
 
 ### 2026-11-15：M3.2 第二批——notification 单一所有权切换

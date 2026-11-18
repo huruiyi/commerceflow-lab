@@ -11,12 +11,13 @@
 - `catalog-db` / `catalog`
 - `inventory-db` / `inventory`
 - `order-db` / `orders`（已完成单一所有权 CUTOVER）
+- `payment-db` / `payments`（支付编排）
+- `fulfillment-db` / `fulfillment`
 
-PostgreSQL 不与任何服务拆分、目录或命名重构同时进行。M3 清单中的全部业务服务尚未独立前，不评审、
-不启动、不建立方言分支；只有 `notification-service`、`catalog-service`、`inventory-service`、
-`order-service`、`payment-orchestration-service`、`fulfillment-service` 全部完成单一所有权切换并逐一验收后，
-才允许单独开启 PostgreSQL 专项。若 M3 清单增加新的待拆服务，新服务也必须先完成。MySQL 并非商城的
-不合理选择；当前行锁、唯一约束、幂等、Outbox 和事务竞态基线均已在 InnoDB 上实测。
+PostgreSQL 专项与服务拆分、目录及命名重构分开推进。M3 六个服务的运行路径已切换，仍需完成
+[所有权复核列出的迁移收尾](M3-SINGLE-OWNERSHIP-REVIEW.md)并逐一验收，才进入 PostgreSQL 独立评审。
+若 M3 清单增加新的待拆服务，新服务也必须先完成。当前行锁、唯一约束、幂等、Outbox 和事务竞态基线均已在
+InnoDB 上实测。
 
 ## PostgreSQL 专项的启动条件
 

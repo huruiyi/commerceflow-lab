@@ -43,6 +43,8 @@ function Invoke-Rehearsal([string]$CommandId, $Auth) {
 }
 
 Set-Location $ProjectRoot
+& docker compose --profile inventory-migration run --rm --no-deps inventory-data-migrator --check-target | Out-Host
+if ($LASTEXITCODE -ne 0) { throw 'Use a fresh isolated inventory database for this rehearsal' }
 try {
   $env:INVENTORY_WRITE_FROZEN = 'true'
   $env:INVENTORY_REMOTE_REHEARSAL_ENABLED = 'false'

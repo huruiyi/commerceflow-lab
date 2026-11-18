@@ -917,7 +917,7 @@ services:
     depends_on:
       commerce-db:
         condition: service_healthy
-      inventory-service:
+      inventory-db:
         condition: service_healthy
     restart: "no"
 

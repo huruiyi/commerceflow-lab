@@ -40,8 +40,9 @@ notification、catalog、inventory 与 order 已完成单一所有权切换；in
 M3.6 已完成 payment-orchestration 的 CREATE、影子迁移、远程协议、一次性 CUTOVER 和切流后观察：独立服务与
 payment-db 是唯一资金所有者，commerce 本地支付/退款实现和旧回调已删除，14 张源表权限为 0；
 [Payment V1](PAYMENT-V1-CONTRACT.md)保持冻结。Prometheus 已采集独立服务，并覆盖 Outbox、Process Manager、
-孤儿、退款和切流模式漂移告警。M3.7 已开始 [fulfillment-service CREATE 准入治理](FULFILLMENT-SERVICE-EVOLUTION-PLAN.md)。
-下一步在 commerce 内补齐持久履约流程与下游幂等，再重新评审创建资格。
+孤儿、退款和切流模式漂移告警。M3.7 已完成[履约切流与重启恢复验收](FULFILLMENT-SERVICE-EVOLUTION-PLAN.md)。
+六个服务的运行路径均已切换。数据权限、旧迁移入口、存量对账和归档验收见
+[M3 单一所有权复核与迁移收尾](M3-SINGLE-OWNERSHIP-REVIEW.md)。
 不引入 Seata、DTM 或其他全局事务协调器，每次仍只拆一个边界。
 PostgreSQL 不属于拆分步骤，必须等 notification、
 catalog、inventory、order、payment-orchestration、fulfillment 以及后续新增待拆服务全部完成单一所有权切换

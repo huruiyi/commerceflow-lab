@@ -4,6 +4,8 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 require_commands curl docker sed
 BASE_URL="${1:-http://localhost:18081}"
+cd "$PROJECT_ROOT"
+docker compose --profile inventory-migration run --rm --no-deps inventory-data-migrator --check-target
 temp_dir="$(new_temp_dir)"
 cookie_jar="$temp_dir/admin.cookies"
 
