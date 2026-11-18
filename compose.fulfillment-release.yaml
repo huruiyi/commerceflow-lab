@@ -1,0 +1,25 @@
+services:
+  commerce-service:
+    build: !reset null
+    image: ${COMMERCE_RELEASE_IMAGE:?Set COMMERCE_RELEASE_IMAGE}
+    pull_policy: never
+  order-service:
+    build: !reset null
+    image: ${ORDER_RELEASE_IMAGE:?Set ORDER_RELEASE_IMAGE}
+    pull_policy: never
+  inventory-service:
+    build: !reset null
+    image: ${INVENTORY_RELEASE_IMAGE:?Set INVENTORY_RELEASE_IMAGE}
+    pull_policy: never
+  payment-orchestration-service:
+    build: !reset null
+    image: ${PAYMENT_ORCHESTRATION_RELEASE_IMAGE:?Set PAYMENT_ORCHESTRATION_RELEASE_IMAGE}
+    pull_policy: never
+  fulfillment-service:
+    build: !reset null
+    image: ${FULFILLMENT_RELEASE_IMAGE:?Set FULFILLMENT_RELEASE_IMAGE}
+    pull_policy: never
+  logistics-simulator-service:
+    build: !reset null
+    image: ${LOGISTICS_SIMULATOR_RELEASE_IMAGE:?Set LOGISTICS_SIMULATOR_RELEASE_IMAGE}
+    pull_policy: never

@@ -580,3 +580,55 @@ Windows 与 Bash 商家履约回归使用支付验证创建的订单号，兼容
    商品 1 的可售、预占、已售余额从 `37:3:268` 经该笔正常付款变为 `36:3:269`，发货及重放后保持这一余额。
 5. 验收后移除临时发货门禁，恢复正常受理。库存出库 Outbox 待发布数及最老积压时长均为 0。历史五笔逐行复核保持原状，
    各保留 5 次历史投递尝试，没有补记流水或重放旧预占。
+
+## 22. 独立恢复、发布与回退
+
+### 按已验收镜像部署
+
+新环境先恢复同一停写窗口的数据库备份。校验备份摘要，核对两库所有者、运行模式、六表行数和摘要、
+交接 generation、水位及租约。重新执行运行账号授权并用实际账号核对旧六表访问被拒绝。
+正式恢复使用执行配置，目标已有 `EXECUTION` 标记且商城源库仍为冻结的 `FULFILLMENT` 所有者。
+
+将验收通过的商城、订单、库存、支付编排、履约和物流模拟器镜像标记为唯一发布版本，用 `docker image save`
+保存这些镜像，记录归档 SHA-256 及各镜像 ID。恢复环境核验后用 `docker image load` 装载镜像。
+由环境单独提供四类履约签名密钥及数据库密码。将六个镜像引用分别写入环境文件的 `COMMERCE_RELEASE_IMAGE`、
+`ORDER_RELEASE_IMAGE`、`INVENTORY_RELEASE_IMAGE`、`PAYMENT_ORCHESTRATION_RELEASE_IMAGE`、
+`FULFILLMENT_RELEASE_IMAGE`、`LOGISTICS_SIMULATOR_RELEASE_IMAGE`。发布覆盖配置只使用已装载的镜像。
+
+```powershell
+docker compose -f compose.yaml -f compose.fulfillment-execution.yaml -f compose.fulfillment-release.yaml config --quiet
+docker compose -f compose.yaml -f compose.fulfillment-execution.yaml -f compose.fulfillment-release.yaml up -d --wait
+```
+
+### 有新写入时回退
+
+1. 暂停新的履约写入，排空履约任务、人工核对和租约，确认 Order V1 发货意图及商城物流桥未完成回执为 0。
+   停止商城和独立履约应用，保持数据库运行。保存两库六表备份，记录冻结源水位及目标原交接 generation 和水位。
+2. 显式运行 `fulfillment-return-data`。先用 `--plan` 读取六表有序快照的 SHA-256，再用 `--apply`
+   提交已核对摘要。工具核对所有者、水位、待处理任务和摘要，在同一事务内回传六表并逐表核对。
+   任一表失败则回滚，商城保持冻结。成功后读回新的商城水位，逐表比对行数和摘要。
+
+   ```powershell
+   docker compose -f compose.yaml -f compose.fulfillment-execution.yaml -f compose.fulfillment-recovery.yaml --profile fulfillment-recovery run --rm --no-deps fulfillment-return-data --plan $sourceWatermark $generation $handoffWatermark
+   docker compose -f compose.yaml -f compose.fulfillment-execution.yaml -f compose.fulfillment-recovery.yaml --profile fulfillment-recovery run --rm --no-deps fulfillment-return-data --apply $sourceWatermark $generation $handoffWatermark $reviewedSha256
+   ```
+
+3. 使用原 generation 和交接水位执行目标退役 SQL。再以回传后的商城水位执行所有者转换 SQL，依次要求
+   `retired=1` 和 `transferred=1`。用商城默认所有者配置恢复六表权限，核对后解除冻结，启动商城。
+   确认独立执行部署被拒绝，已完成的发货和运单仍能由门户读取。
+
+版本化备份、镜像和旧执行路径至少保留到下一发布版本也通过上述恢复和带新写入的回退验收。
+
+### 隔离验收记录
+
+- 从现有本地环境只读导出九个 MySQL 业务库并在独立项目恢复。履约六表 327 行摘要逐表一致，
+  目标为 `EXECUTION`、generation 41、交接水位 393，源为冻结的 `FULFILLMENT`、水位 393。
+  租约、人工核对、Order V1 发货意图和待完成物流回执均为 0，商城旧账号六表授权为 0。
+  用现有已验收应用镜像启动。当前运行的物流模拟器镜像 ID 无法从本地镜像库取回，此处使用本地可用版本并经联调验证。
+- 隔离订单 688 完成接单、出库、Kafka 事件发布和运单生成。重复发货返回 200，仍只有一个出库单、一条出库行、
+  一条库存流水、一个出库事件和一个运单。正常付款后库存为 `34:3:271`，发货及重试后余额一致。
+- 回退演练中，错误水位、错误摘要和过期参数均被拒绝。人为制造事务中途写入失败，旧六表及源水位无变化。
+  成功回传后六表共 332 行，双库逐表摘要一致，商城水位由 393 增至 999。独立库转为 `RETIRED`，
+  商城恢复 24 项六表权限并接管，门户仍能查询已发货的订单 688 及运单。再次启动独立执行配置被授权门禁拦截。
+  第二套隔离库从原始备份恢复后，用最终版脚本复跑回传，两库六表均为 327 行。
+- 现有库仅做只读检查。库存历史 465、479、480、497、498 各保留 5 次投递尝试，关联流水和结案记录均为 0。
