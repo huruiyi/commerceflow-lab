@@ -4,14 +4,14 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 性质 | 全项目唯一的进度勾选表与未实现任务清单 |
+| 性质 | 业务进度与阶段导航，架构收尾的勾选和验收标准由对应专题维护 |
 | 主线 | 原 `temp.md` 中准备实施的订单闭环方案 |
 | 合并内容 | 订单超时策略、Database/RabbitMQ/RocketMQ 讨论、截图阶段 4～6 和旧实施计划 |
-| 当前状态 | 通用定时任务底座、Database/RabbitMQ/RocketMQ 主触发与 Database 对账、订单取消、模拟物流、回调 Outbox/主动对账、自动确认收货/自动完成已实现 |
+| 当前状态 | 订单生命周期已实现，M3 六个服务已各自持有业务数据。库存付款与扣减门禁已部署到日常环境，下一项为库存待对账与命令滞留监控（第 13.25 节）。 |
 | UI 边界 | 客户订单中心已改为摘要、当前主操作与可展开详情，支付、退款、物流和时间线保持独立事实展示 |
-| 最后更新 | 2026-11-17 |
+| 最后更新 | 2026-11-19 |
 
-本文档保留已完成勾选和未完成项，用于表示实施顺序和阶段门禁。已实现能力的详细证据见 [IMPLEMENTED.md](IMPLEMENTED.md)，当前快照见 [PROJECT-STATUS.md](PROJECT-STATUS.md)，详细策略见 [通用定时任务策略](reference/SCHEDULED-TASK-STRATEGIES.md)。旧草案和旧实施计划移入 `archive/`，不再同步勾选状态。
+本文档保留已完成勾选和未完成项，用于表示实施顺序和阶段门禁。已实现能力的详细证据见 [IMPLEMENTED.md](IMPLEMENTED.md)，当前快照见 [PROJECT-STATUS.md](PROJECT-STATUS.md)，详细策略见 [通用定时任务策略](reference/SCHEDULED-TASK-STRATEGIES.md)。第 13 节各批次和第 14 节实施记录的脚本数量、准入结论与拓扑均对应当时版本。旧草案和旧实施计划移入 `archive/`。
 
 ## 2. 当前基线与本轮边界
 
@@ -22,7 +22,7 @@
 - [x] 未发货已支付订单首版整单全额退款。
 - [x] 商家确认、手工录入承运商/单号、发货和物流信息更正。
 - [x] 客户手动确认收货和一次性商品评价。
-- [x] ShedLock、Windows PowerShell 与 Bash 验收脚本框架。
+- [x] ShedLock 与跨平台验收脚本。Windows、Linux 和 WSL 统一使用 PowerShell 7 运行 `scripts/` 中的同一份入口。
 
 ### 2.2 本轮必须补齐
 
@@ -97,7 +97,7 @@ PAID
 - [x] 新增 `POST /api/purchase-orders/{orderId}/cancel`，仅订单所属客户可取消 `PENDING_PAYMENT`。
 - [x] 锁定订单，执行 `PENDING_PAYMENT -> CANCELLING`，关闭所有 `PENDING` 渠道交易。
 - [x] 全部关闭后执行 `CANCELLING -> CANCELLED`，写入时间、原因和订单事件。
-- [x] 取消终态与 `ORDER_CANCELLED` Outbox 在同一本地事务写入。
+- [x] 单体阶段曾将取消终态与 `ORDER_CANCELLED` Outbox 同事务写入。切流后订单终态和商城 Outbox 分属两库，跨服务中断恢复列入第 13.25 节关联的架构清单。
 - [x] 实现订单取消 Outbox 的库存释放、客户通知等下游消费者；Kafka 独立消费组与消费记录保证重复消息不重复释放或通知。
 - [x] 无支付记录或全部已 `FAILED/CLOSED/EXPIRED` 时可直接完成取消。
 - [x] 存在成功支付时普通取消不会覆盖支付事实，订单保持/恢复 `PAID`；前端已通过独立退款动作处理已支付订单。
@@ -232,12 +232,12 @@ PAID
 - [x] RabbitMQ/RocketMQ 未投递与 Database 补偿。
 - [x] RabbitMQ/RocketMQ 重复消息、迟到旧消息和毒消息专项：重放已完成任务消息只增加 ignored 指标，任务领取/完成仍各一次；非法 JSON 分别进入 RabbitMQ Dead Queue 和 RocketMQ `%DLQ%ConsumerGroup`。
 - [x] 消费者已取得消息但尚未确认时进程退出、恢复后的重新投递专项：Windows Docker 与容器化 Bash 已分别验证 RabbitMQ/RocketMQ 任务 `239/240` 和 `241/242`，崩溃前后无新增发布，且领取/完成各一次。
-- [x] 物流推进、暂时/永久回调丢失、重放、迟到可变字段、对账和越权查询；长时间并发乱序压力仍为独立未完成项。
+- [x] 物流推进、回调丢失、重放、迟到可变字段、对账和越权查询已验收。长时间并发乱序压力验收结果见第 14 节的 2026-11-13 记录。
 - [x] Windows Docker 已验证手动/自动收货、自动 `COMPLETED`，完成后仍可查支付/物流并评价；退款记录保留由现有响应契约覆盖。
 
 ### 10.2 双平台脚本和 Docker
 
-- [x] Windows PowerShell 和 Bash 的 36 组主要验收入口已通过同名、有序参数和语义对齐审计。
+- [x] M1 冻结时验收了 36 组双平台入口。当前使用一份 PowerShell 7 脚本和 `scripts/script-contracts.tsv` 参数清单。
 - [x] 三种主策略可独立运行；RabbitMQ 和 RocketMQ 提供可选 Compose Profile，Database 默认模式不强制启动 MQ。
 - [x] 空数据卷从 Flyway 到全链路验收通过。
 - [x] 隔离旧库升级演练、当前持久卷服务/MQ 重启、任务恢复和历史一致性通过。
@@ -783,7 +783,7 @@ Docker 拓扑，也不启动 PostgreSQL。
 - [x] 新增 [payment-orchestration 一次性切换运行手册](architecture/PAYMENT-ORCHESTRATION-CUTOVER-RUNBOOK.md)，
   冻结停写、最终追平、唯一远程适配器、回调切换、源表撤权、开门、烟雾验收和不可直接回旧库的原子顺序。
 - [x] 完整快速回归发现并关闭支付成功与库存预留结果并发到达的竞态：Order V1 新增原子
-  `START_INVENTORY_COMMIT`，一次更新兼容 `RESERVED/WAITING_RESERVATION`；支付已成功但库存仍停留在预留态时，
+  `START_INVENTORY_COMMIT`，该批次兼容 `RESERVED/WAITING_RESERVATION`。此处保留当时结果，现行实现只接受 `RESERVED`。当时支付已成功但库存仍停留在预留态时，
   重放同一签名回调会补发幂等 COMMIT。两笔历史测试样本均恢复为 `PAID/COMMITTED`，最终完整快速回归通过。
 - [x] M3.6 第九批补齐原子切换前的 commerce 停写闸门：`PAYMENT_WRITE_FROZEN=true` 通过稳定
   `PaymentWriteAdmissionV1` 在订单进入 `CANCELLING` 前拒绝创建支付、关闭支付和发起退款，查询及签名回调继续排空。
@@ -833,8 +833,9 @@ Docker 拓扑，也不启动 PostgreSQL。
 
 ### 13.25 M3 各服务单一所有权复核与收尾
 
-运行路径已完成切换。库存迁移入口防重灌、存量对账、历史授权和各服务运行验收的待办及完成标准见
-[M3 单一所有权复核与迁移收尾](architecture/M3-SINGLE-OWNERSHIP-REVIEW.md)。
+六个服务已完成运行路径切换，库存旧迁移入口已封住，35 笔历史投递已逐笔处理，其中 5 笔缺证测试数据保留归档。付款核对真实预占、空扣减拒绝和正常出库均已在日常环境复验。[订单 695／696 验收记录](architecture/INVENTORY-RECONCILIATION-REVIEW.md#2026-11-19-日常环境库存门禁验收)
+
+**下一项为库存待对账与命令滞留监控。** 商城持有库存命令投递账本，由商城统计待对账笔数和在途命令积压。库存服务继续报告出库事件积压。隔离环境需分别验证两类告警的触发、恢复和零值。后续仍有其他内部服务监控、下一发布版本的履约恢复与回退演练，以及旧表归档门禁。[M3 收尾清单与验收标准](architecture/M3-SINGLE-OWNERSHIP-REVIEW.md#3-剩余工作及完成标准)
 
 ## 14. 实施记录模板
 

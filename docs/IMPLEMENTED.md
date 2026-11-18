@@ -16,7 +16,7 @@
 
 ## 3. 支付
 
-- 独立模拟支付服务与支付数据库。
+- 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。
 - 支付宝、微信、银联三种模拟渠道与 Vue 收银台。
 - 支付单、渠道交易、请求幂等、金额/币种校验。
 - HMAC/RSA 签名、防重放、回调白名单、TOTP/恢复码、Step-up 与审计链。
@@ -28,16 +28,16 @@
 
 - 只支持 `PAID/CONFIRMED` 且未发货订单的原路整单全额退款。
 - 订单使用 `REFUNDING/REFUNDED`，原 `payment_record=SUCCESS` 事实不改写。
-- 商城和支付平台分别建模退款单、事件、通知和对账。
+- 支付编排服务和模拟支付平台分别持有商户侧退款单与渠道侧退款记录，通过签名通知和对账同步结果。
 - 客户申请、商家只读摘要、支付后台台账/通知补发与双前端国际化已实现。
-- Windows Docker 专项验收已记录通过；Linux/WSL 实机复验、部分退款、退货/换货不在首版。
+- 切流后的整单退款和库存回补已在 Windows／WSL 验收。部分退款与退换货仍属后续范围。
 - 退款首版已随 `d963e7b` 提交并推送。
 
 详见 [退款实现说明](reference/REFUND.md)。
 
 ## 5. 商家履约、收货与评价
 
-- 商家可查看自己的订单、确认订单、录入承运商/物流单号并发货。
+- 商家通过商城鉴权后访问独立履约服务。履约库保存命令、执行任务和恢复记录，发货通过库存出库单入账后再建运单。
 - 发货和物流更正都经过独立模拟物流平台；平台使用独立 MySQL，不直连商城库。
 - 物流请求支持 HMAC、时间窗口、Nonce 防重放和幂等建单；回调使用独立 HMAC 密钥和通知 ID 去重。
 - 已实现 `CREATED -> PICKED_UP -> IN_TRANSIT -> AT_STATION -> OUT_FOR_DELIVERY -> DELIVERED` 轨迹投影；可人工推进，也可启用可配置的自动推进。
@@ -62,13 +62,13 @@
 ## 6. 基础设施和交付
 
 - MySQL + Flyway、Redis/Spring Session、Kafka/Outbox、RabbitMQ 分桶延迟任务、RocketMQ 5.x 原生延时任务 Profile、ShedLock。
-- Angular/Vue 前端、三个 Spring Boot 服务和 Docker Compose。
+- Angular 商城门户、Vue 支付收银台，以及 9 个 Spring Boot 应用（商城、6 个内部业务服务、2 个模拟平台）。日常 Compose 使用 9 个独立 MySQL 库。
 - 验收脚本统一位于 `scripts/`，使用 PowerShell 7。
-- `verify-flyway-lifecycle` 使用与后端一致的 Flyway `12.4.0` 和隔离 MySQL 8.4，验证空库 V1–V36、
-  V16→V36 升级、V17 历史订单截止时间回填、V24 核心注释、V28 catalog/inventory 所有权分离、V29 catalog
+- `verify-flyway-lifecycle` 使用与后端一致的 Flyway `12.4.0` 和隔离 MySQL 8.4，检查空库 V1–V51、
+  V16→V51 升级、V17 历史订单截止时间回填、V24 核心注释、V28 catalog/inventory 所有权分离、V29 catalog
   版本/Outbox 元数据、V30 inventory 命令 Inbox/跨边界外键清理、V31 catalog-event Inbox/版本化快照、
   V32 命令投递/结果协议表、V33 业务恢复状态、V34 人工恢复审计、V35 order Process Manager/跨边界外键清理
-  及 V36 order 影子变更捕获。脚本只删除自己的随机容器/网络，不使用或清空开发数据卷。
+  及后续变更，包括 V50 退役轻量订单表、V51 独立审批的库存实盘复核表。脚本只删除自己的随机容器/网络，不使用或清空开发数据卷。
 
 ## 7. 通用定时任务底座（阶段 1）
 
@@ -82,13 +82,13 @@
 - RocketMQ 适配器使用 Java gRPC 客户端和绝对投递时间；发布成功后记录 Broker message ID，消费端重读数据库并复用统一执行器，早到消息会清除发布标记重新投递。
 - RocketMQ 也是可选 Compose Profile，提供 NameServer、Broker/Proxy、持久化数据卷和 `message.type=DELAY` Topic 初始化；默认 Database 模式不启动它。
 - 管理员 API 支持策略查询/覆盖/恢复、策略审计、任务查询/重试/取消和任务事件查询；客户角色被拒绝访问。
-- Windows 专项脚本及后端集成测试已通过；Bash 同语义脚本已提供。
+- 早期 Windows 专项和后端集成测试已通过，现行脚本入口统一使用 PowerShell 7。
 
 当前已接入 `PAYMENT_TIMEOUT（支付超时）`、`AUTO_RECEIVE（自动确认收货）` 和 `AUTO_COMPLETE（自动完成订单）` 三个业务 Handler；其他任务类型 Handler 仍属于待办。
 
-RabbitMQ 实机验收已覆盖：正常延迟关单、Broker 停机时不误执行、发布失败可观测、恢复后补发，以及开启 Database 对账时由 `DATABASE_RECONCILIATION` 兜底。Windows 脚本已执行通过；Bash 同语义脚本已提供，本机 Git Bash 因缺少 `jq` 未完成实机复验。
+RabbitMQ 实机验收已覆盖：正常延迟关单、Broker 停机时不误执行、发布失败可观测、恢复后补发，以及开启 Database 对账时由 `DATABASE_RECONCILIATION` 兜底。此段记录早期 RabbitMQ 专项，后续 MQ 幂等及故障演练的实机结果见下文。
 
-RocketMQ 实机验收已通过 Windows 和容器化 Bash 两套脚本：确认 Broker 回执、原生延时投递、策略快照、原子领取、支付超时关单及审计链。Broker 停机专项也已验证发布失败可观测、`DATABASE_RECONCILIATION` 宽限期兜底和恢复 Broker。
+RocketMQ 实机验收已在当时的 Windows 与容器化 Bash 两套脚本上通过。验收确认 Broker 回执、原生延时投递、策略快照、原子领取、支付超时关单及审计链。Broker 停机专项也已验证发布失败可观测、`DATABASE_RECONCILIATION` 宽限期兜底和恢复 Broker。
 
 MQ 幂等专项已通过 Windows 和容器化 Bash 实机验收：RabbitMQ/RocketMQ 分别重放两条已完成任务的旧消息，ignored 指标按预期增加，而 `TASK_CLAIMED`、`TASK_SUCCEEDED` 和订单取消副作用仍各只有一次；非法 JSON 分别进入 RabbitMQ Dead Queue 与 RocketMQ `%DLQ%commerceflow-scheduled-task-consumer`。RocketMQ 教学 Consumer Group 使用 2 次、1 秒/2 秒的有限重试，避免毒消息无限占用资源。
 
@@ -98,15 +98,14 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 
 ## 7. 架构命名与代码治理
 
+下文保留 M2、M3 各批次验证时的规模、准入结论与脚本形式。当前部署和待办分别见第 6、9、10 节及[项目快照](PROJECT-STATUS.md)。
+
 - 核心商城保持模块化单体，按 `identity/catalog/cart/ordering/inventory/payment/refund/fulfillment/logistics/receipt/review/notification/scheduling/shared` 业务包分界。
 - 目录已分为 `services/`、`web/`、`simulators/`和 `infrastructure/`；Angular 商城门户与未来 Vue 3 门户使用明确的并列边界。
 - Java/Maven 使用 `vip.fairy.commerceflow`；Compose 使用 `fairy-commerceflow` 项目名和“业务归属 + 角色”服务名；默认单副本环境使用固定 `container_name` 去除冗余的 `-1`，HA 多副本服务保留 Compose 副本序号。
-- 商城、支付模拟器和物流模拟器保留三个独立 MySQL；商城与支付模拟器使用独立 Redis，不共享 Session 或故障边界。
-- 12 个 MyBatis-Plus 持久化实体已增加类/字段业务 JavaDoc；简单 CRUD 优先使用 `BaseMapper`/Wrapper，复杂投影、联表、行锁和原子更新放入 Mapper XML。
-- 三个服务主源码中已无 MyBatis SQL 注解和 Service 内联业务 SQL；仅 ShedLock 官方 `JdbcTemplateLockProvider` 配置保留 `JdbcTemplate`。
-- 三个后端服务的 Java 主源码、Mapper XML 和 Maven POM 已接入 Windows/Bash 只读质量门禁；
-  当前覆盖 283 个主源码 Java、21 个 Mapper XML、235 个映射语句和 3 个 POM，并对全部 292 个
-  Java 主源码/测试源校验类声明后空行，同时校验格式、内联 SQL/JDBC 边界与 Mapper 契约。
+- 商城、通知、目录、库存、订单、支付编排、履约及两个模拟平台各持有独立 MySQL。商城和支付模拟器各自使用 Redis。
+- M2 批次为当时的 12 个 MyBatis-Plus 持久化实体增加类/字段业务 JavaDoc；简单 CRUD 优先使用 `BaseMapper`/Wrapper，复杂投影、联表、行锁和原子更新放入 Mapper XML。
+- 手写业务 SQL 统一放在 Mapper XML。`scripts/audit-code-quality.ps1` 对 9 个 Maven 项目的格式、内联 SQL 边界及 Mapper 契约执行只读审计。
 - 物流模拟器根包只保留启动类，业务实现已按 `api/application/domain/infrastructure` 分层；
   基础设施继续按客户端、配置、指标、持久化和安全分目录，Mapper 投影独立放入持久化 `row` 子目录。
 - Angular 商城门户和支付模拟器 Web 均已纳入模块本地 Prettier 3.10.1 只读门禁，两个正式 Dockerfile
@@ -290,7 +289,7 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - M3.6 第十二批补齐 payment-orchestration 切流后观察：独立服务暴露 10 个运行态指标，Prometheus 新增第四个
   采集目标，14 条告警覆盖资金 Outbox、人工恢复、孤儿、退款、切流模式和指标刷新。Windows/WSL 在支付服务、
   payment-db、支付模拟器重启前后完成支付/退款与待支付关闭，源水位 610 不变，源授权和未决项持续为 0。
-- M3.7 第一批收口履约对物流投影和商家身份的直接依赖，增加双平台只读审计。履约运行在 commerce 内，CREATE
+- 以下记录 M3.7 创建准入阶段。当时收口履约对物流投影和商家身份的直接依赖，增加双平台只读审计。履约运行在 commerce 内，CREATE
   评审结果为 `REJECTED`。持久履约和远程契约的后续批次见[履约演进计划](architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md)。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
@@ -347,10 +346,10 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - 新订单保存 `payment_due_at`，同时创建带策略快照的 `PAYMENT_TIMEOUT` 任务。
 - 客户可通过 `POST /api/purchase-orders/{id}/cancel` 取消自己的待支付订单；重复取消幂等返回 `CANCELLED`。
 - 订单使用 `PENDING_PAYMENT -> CANCELLING -> CANCELLED`，并保存取消原因、取消时间、触发来源和关联任务 ID。
-- 有待支付交易时先签名调用支付平台关闭渠道交易，再关闭本地支付记录并完成订单取消；进程中断后可从 `CANCELLING` 重试。
-- 支付回调与取消并发时，成功支付可从 `CANCELLING/CANCELLED` 恢复 `PAID`；已进入 `CANCELLED` 后才到达的成功回调会在同一事务中创建自动退款单并转入 `REFUNDING`。
+- 有待支付交易时，商城通过 Payment V1 请求支付编排关闭交易，再由 Order V1 完成取消。中断后可从 `CANCELLING` 重试。
+- 支付回调与取消并发时，成功支付可从 `CANCELLING/CANCELLED` 恢复 `PAID`；已取消后到达的成功回调由支付编排记录，按稳定幂等键申请自动退款，再通过 Order V1 推进订单。
 - Database 扫描使用同一个 `PaymentTimeoutTaskHandler` 自动关单；客户提前取消会取消尚未执行的超时任务。
-- 取消终态和 `ORDER_CANCELLED` Outbox 使用同一本地事务写入；独立 Kafka 消费组会幂等释放预占库存、记录库存流水并生成客户通知。
+- 订单服务保存取消终态。商城写入取消效果和通知 Outbox，再由下游幂等处理库存释放及客户通知。订单库与商城库各有本地事务。两次写入之间发生进程中断的恢复仍待隔离验证。
 - 客户订单响应包含后端统一计算的 `availableActions`；Angular 已使用它展示支付、取消、退款、收货和评价操作。
 - 客户页面已接入未支付订单取消表单，取消后保留原因、时间和历史支付信息；导航通知中心展示未读数量并支持单条或全部已读，使用中性列表、细滚动条和独立正文滚动，面板可通过关闭按钮、页面外点击、`Esc` 或选择通知关闭；语言切换使用紧凑翻译图标并保留无障碍文本。
 - Windows 与容器化 Bash 专项验收覆盖动作契约、无支付取消、重复取消、任务快照/取消和待支付渠道关闭。
@@ -371,11 +370,14 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - inventory 自有 `product_inventory` 保存可售、预占和已售三个余额；结算原子扣减可售并增加预占，支付成功转为已售，取消事件幂等释放预占。
 - 每次预占、转正、释放和人工调整均写库存流水及调整后余额；人工调整不能将可售库存降为负数。
 - 商家库存 API 只允许查询和调整自己名下的商品，人工调整必须填写原因。
-- Angular 商家端使用 Sim UI 卡片、徽章和按钮展示库存汇总、商品余额、调整表单及最近流水。
+- Angular 商家端展示库存汇总、商品余额、调整表单及最近流水。管理端支持按仓库凭证关联已有流水、补记出库和实盘复核。
+- 商城创建支付前向库存服务核对订单全部商品与数量。缺货使整单预占回滚。库存拒绝没有预占的提交及其重试，履约根据真实扣减和出库结果发货。历史五笔缺证测试记录单独归档。日常环境已用新订单验证缺货拒付拒发、空扣减拒绝、正常扣减与运单唯一性。[验收证据](architecture/INVENTORY-RECONCILIATION-REVIEW.md#2026-11-19-日常环境库存门禁验收)
 
 ## 10. 尚未实现的总边界
 
-以下不得在 README、页面或演示中标记为已完成：
+架构收尾包括库存待对账与命令滞留告警、其余内部服务监控、下一发布版本的履约恢复与回退，以及旧表归档。[当前清单](architecture/M3-SINGLE-OWNERSHIP-REVIEW.md#3-剩余工作及完成标准)
+
+其他边界如下。
 
 - 真实邮箱、短信、电话或企业值班平台接入，以及 Prometheus/Alertmanager 多副本和通知到人升级流程；当前只验证本地可替换 Webhook 管道。
 
