@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.6 第十二批 payment-orchestration 切流后观察与监控收尾完成 |
-| 下一候选阶段 | 单独评审 fulfillment-service CREATE 准入；不得直接创建服务、并行拆分或启动 PostgreSQL |
+| 当前阶段 | M3.7 第二批已收口商家接单与发货的订单原子更新，CREATE 为 `REJECTED` |
+| 下一候选阶段 | 在 commerce 内实现持久履约，补齐下游命令幂等及发货与退款竞态门禁 |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -484,3 +484,7 @@ OPEN 孤儿、处理中退款、指标刷新和 `true/true/false` 切流模式�
 重启前后均完成支付/退款，待支付取消同时完成 Process Manager 与 Command Outbox。两端最终源水位仍为 610，
 14 张源表授权、Payment/Command Outbox、未完成 Process Manager 和 OPEN 孤儿均为 0。下一步只评审 fulfillment
 CREATE 准入；本批未创建 fulfillment-service，未启动 PostgreSQL。
+
+M3.7 第一批决定让履约拥有执行流程与恢复记录。订单、资金和物流投影继续由原边界负责。移除履约对物流 Mapper
+和身份领域对象的直接依赖，完成契约草案。Windows 与 WSL 只读审计记录 3 张物流表、103 条运单、0 条未绑定运单、
+0 条跨边界外键与 0 条通知断链。持久流程、订单原子命令及发货与退款竞态仍是 CREATE 阻塞项。

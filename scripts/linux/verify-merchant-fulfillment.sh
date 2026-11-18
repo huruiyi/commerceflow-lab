@@ -20,6 +20,10 @@ updated="$(json_request PUT "$BASE_URL/api/merchant/orders/$paid_id/shipment" "$
 for event_type in MERCHANT_CONFIRMED ORDER_SHIPPED SHIPMENT_UPDATED; do
   jq -e --arg event_type "$event_type" '.events | any(.eventType == $event_type)' <<<"$updated" >/dev/null || { echo "Missing fulfillment event: $event_type" >&2; exit 1; }
 done
+for event_type in MERCHANT_CONFIRMED ORDER_SHIPPED; do
+  jq -e --arg event_type "$event_type" '[.events[] | select(.eventType == $event_type)] | length == 1' \
+    <<<"$updated" >/dev/null || { echo "Expected exactly one $event_type event" >&2; exit 1; }
+done
 updated_event_count="$(jq '[.events[] | select(.eventType == "SHIPMENT_UPDATED")] | length' <<<"$updated")"
 unchanged="$(json_request PUT "$BASE_URL/api/merchant/orders/$paid_id/shipment" "$merchant_jar" "$merchant_header" "$merchant_token" "$(jq -nc --arg tracking " $updated_tracking " '{carrier:" CommerceFlow Priority ",trackingNumber:$tracking}')")"
 [[ "$(jq '[.events[] | select(.eventType == "SHIPMENT_UPDATED")] | length' <<<"$unchanged")" == "$updated_event_count" ]] || { echo 'Unchanged shipment created a duplicate timeline event' >&2; exit 1; }

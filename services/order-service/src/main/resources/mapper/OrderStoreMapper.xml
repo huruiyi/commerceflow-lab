@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.order.infrastructure.persistence.OrderStoreMapper">
+
+  <select id="findByNumber" resultType="vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1$OrderView">
+    SELECT * FROM shop_orders WHERE order_number=#{orderNumber}
+  </select>
+
+  <select id="findById" resultType="vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1$OrderView">
+    SELECT * FROM shop_orders WHERE id=#{orderId}
+  </select>
+
+  <select id="listCustomer" resultType="vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1$OrderView">
+    SELECT * FROM shop_orders WHERE customer_id=#{customerId} ORDER BY created_at DESC,id DESC
+  </select>
+
+  <select id="findCustomer" resultType="vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1$OrderView">
+    SELECT * FROM shop_orders WHERE id=#{orderId} AND customer_id=#{customerId}
+  </select>
+
+  <select id="listMerchant" resultType="vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1$OrderView">
+    SELECT DISTINCT o.* FROM shop_orders o JOIN order_items i ON i.order_id=o.id
+    WHERE i.merchant_id=#{merchantId} ORDER BY o.created_at DESC
+  </select>
+
+  <select id="findMerchant" resultType="vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1$OrderView">
+    SELECT o.* FROM shop_orders o WHERE o.id=#{orderId}
+    AND EXISTS (SELECT 1 FROM order_items i WHERE i.order_id=o.id AND i.merchant_id=#{merchantId})
+  </select>
+
+  <select id="items" resultType="vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1$ItemView">
+    SELECT * FROM order_items WHERE order_id=#{orderId} ORDER BY id
+  </select>
+
+  <select id="address" resultType="vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1$AddressView">
+    SELECT * FROM order_shipping_addresses WHERE order_id=#{orderId}
+  </select>
+
+  <select id="events" resultType="vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1$EventView">
+    SELECT id,actor_id,event_type,from_status,to_status,detail,trigger_source,scheduled_task_id,created_at
+    FROM order_events WHERE order_id=#{orderId} ORDER BY created_at,id
+  </select>
+
+  <select id="status" resultType="java.lang.String">
+    SELECT status FROM shop_orders WHERE id=#{orderId}
+  </select>
+
+  <select id="customerId" resultType="java.lang.Long">
+    SELECT customer_id FROM shop_orders WHERE id=#{orderId}
+  </select>
+
+  <select id="reviewable" resultType="vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1$ReviewableItem">
+    SELECT i.id AS order_item_id,i.product_id FROM order_items i JOIN shop_orders o ON o.id=i.order_id
+    WHERE i.id=#{itemId} AND o.customer_id=#{customerId} AND o.status IN ('RECEIVED','COMPLETED')
+  </select>
+
+  <select id="lockMutation"
+          resultType="vip.fairy.commerceflow.order.infrastructure.persistence.OrderStoreMapper$InboxEntry">
+    SELECT payload_fingerprint,response_payload FROM order_remote_message_inbox
+    WHERE message_id=#{mutationId} FOR UPDATE
+  </select>
+
+  <insert id="insertOrder" useGeneratedKeys="true" keyProperty="key.id">
+    INSERT INTO shop_orders(order_number,customer_id,status,inventory_status,total_amount,
+      currency,payment_due_at,created_at,updated_at)
+    VALUES (#{request.orderNumber},#{request.customerId},'PENDING_PAYMENT','WAITING_RESERVATION',
+      #{request.totalAmount},#{request.currency},#{request.paymentDueAt},CURRENT_TIMESTAMP(6),CURRENT_TIMESTAMP(6))
+  </insert>
+
+  <insert id="insertItem">
+    INSERT INTO order_items(order_id,product_id,merchant_id,product_name,thumbnail_url,unit_price,quantity,subtotal)
+    VALUES (#{orderId},#{item.productId},#{item.merchantId},#{item.productName},#{item.thumbnailUrl},
+      #{item.unitPrice},#{item.quantity},#{item.subtotal})
+  </insert>
+
+  <insert id="insertAddress">
+    INSERT INTO order_shipping_addresses(order_id,recipient_name,phone,country_code,state_province,city,district,
+      address_line1,address_line2,postal_code,label)
+    VALUES (#{orderId},#{address.recipientName},#{address.phone},#{address.countryCode},#{address.stateProvince},
+      #{address.city},#{address.district},#{address.addressLine1},#{address.addressLine2},#{address.postalCode},
+      #{address.label})
+  </insert>
+
+  <insert id="insertMutation">
+    INSERT INTO order_remote_message_inbox(message_id,message_kind,payload_fingerprint,processing_status)
+    VALUES (#{mutationId},'MUTATION',#{fingerprint},'RECEIVED')
+  </insert>
+
+  <update id="finishMutation">
+    UPDATE order_remote_message_inbox SET processing_status='APPLIED',response_payload=#{response},
+      processed_at=CURRENT_TIMESTAMP(6) WHERE message_id=#{mutationId}
+  </update>
+
+  <insert id="insertEvent">
+    INSERT INTO order_events(order_id,actor_id,event_type,from_status,to_status,
+      detail,trigger_source,scheduled_task_id,created_at)
+    VALUES (#{orderId},#{actorId},#{type},#{fromStatus},#{toStatus},#{detail},#{trigger},#{scheduledTaskId},
+      CURRENT_TIMESTAMP(6))
+  </insert>
+
+  <update id="markLogisticsDelivered">
+    UPDATE shop_orders SET logistics_delivered_at=COALESCE(logistics_delivered_at,#{occurredAt}),
+      updated_at=CURRENT_TIMESTAMP(6) WHERE id=#{orderId} AND status IN ('SHIPPED','RECEIVED','COMPLETED')
+  </update>
+
+  <update id="updateStatus">
+    UPDATE shop_orders SET status=#{toStatus},updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{orderId} AND status=#{fromStatus}
+  </update>
+
+  <update id="updateInventoryStatus">
+    UPDATE shop_orders SET inventory_status=#{toStatus},updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{orderId} AND inventory_status=#{fromStatus}
+  </update>
+
+  <update id="startInventoryCommit">
+    UPDATE shop_orders SET inventory_status='WAITING_COMMIT',updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{orderId} AND inventory_status IN ('RESERVED','WAITING_RESERVATION')
+  </update>
+
+  <update id="startCancellation">
+    UPDATE shop_orders SET status='CANCELLING',cancel_reason=#{reason},updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{orderId} AND status='PENDING_PAYMENT'
+  </update>
+
+  <update id="finishCancellation">
+    UPDATE shop_orders SET status='CANCELLED',cancelled_at=CURRENT_TIMESTAMP(6),
+      updated_at=CURRENT_TIMESTAMP(6) WHERE id=#{orderId} AND status='CANCELLING'
+  </update>
+
+  <update id="restorePaidCancellationRace">
+    UPDATE shop_orders SET status='PAID',cancel_reason=NULL,updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{orderId} AND status='CANCELLING'
+  </update>
+
+  <update id="restorePaidLateSuccess">
+    UPDATE shop_orders SET status='PAID',cancelled_at=NULL,
+      cancel_reason='Recovered after late successful payment',updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{orderId} AND status='CANCELLED'
+  </update>
+
+  <update id="markReceived">
+    UPDATE shop_orders SET status='RECEIVED',received_at=#{occurredAt},updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{orderId} AND status='SHIPPED'
+  </update>
+
+  <update id="markCompleted">
+    UPDATE shop_orders SET status='COMPLETED',completed_at=#{occurredAt},updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{orderId} AND status='RECEIVED'
+  </update>
+
+  <update id="confirmByMerchant">
+    UPDATE shop_orders SET status='CONFIRMED',confirmed_at=CURRENT_TIMESTAMP(6),updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{orderId} AND status='PAID'
+      AND EXISTS (SELECT 1 FROM order_items WHERE order_id=shop_orders.id AND merchant_id=#{actorId})
+  </update>
+
+  <update id="shipByMerchant">
+    UPDATE shop_orders SET status='SHIPPED',carrier=#{carrier},tracking_number=#{trackingNumber},
+      shipped_at=CURRENT_TIMESTAMP(6),updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{orderId} AND status='CONFIRMED' AND inventory_status='COMMITTED'
+      AND EXISTS (SELECT 1 FROM order_items WHERE order_id=shop_orders.id AND merchant_id=#{actorId})
+  </update>
+
+  <update id="updateShipment">
+    UPDATE shop_orders SET carrier=#{carrier},tracking_number=#{trackingNumber},updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{orderId} AND status='SHIPPED'
+  </update>
+</mapper>

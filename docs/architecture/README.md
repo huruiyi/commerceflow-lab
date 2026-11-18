@@ -12,6 +12,8 @@
 | [INVENTORY-SERVICE-CUTOVER-RUNBOOK.md](INVENTORY-SERVICE-CUTOVER-RUNBOOK.md) | inventory 创建准入、五表迁移、停写追平、Trace、故障与回退运行手册 |
 | [ORDER-SERVICE-EVOLUTION-PLAN.md](ORDER-SERVICE-EVOLUTION-PLAN.md) | order 状态机、事务、跨边界依赖、Saga 与创建准入门禁 |
 | [ORDER-V1-CONTRACT.md](ORDER-V1-CONTRACT.md) | order V1 命令/结果、幂等、乱序、未知结果和补偿语义 |
+| [FULFILLMENT-SERVICE-EVOLUTION-PLAN.md](FULFILLMENT-SERVICE-EVOLUTION-PLAN.md) | 履约数据所有权、持久编排和创建准入 |
+| [FULFILLMENT-V1-CONTRACT.md](FULFILLMENT-V1-CONTRACT.md) | 履约写操作、幂等与结果恢复契约草案 |
 | [DATABASE-EVOLUTION-PLAN.md](DATABASE-EVOLUTION-PLAN.md) | MySQL 现状、PostgreSQL 迁移评估和数据库演进门禁 |
 
 业务功能、UI 和当前交付顺序仍以 `docs/TODO.md` 为准。

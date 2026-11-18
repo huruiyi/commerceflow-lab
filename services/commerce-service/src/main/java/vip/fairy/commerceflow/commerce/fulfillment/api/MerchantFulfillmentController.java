@@ -30,25 +30,25 @@ public class MerchantFulfillmentController {
 
   @GetMapping
   List<MerchantOrderResponse> list(Authentication authentication) {
-    return service.list(users.require(authentication));
+    return service.list(users.require(authentication).getId());
   }
 
   @PostMapping("/{id}/confirm")
   MerchantOrderResponse confirm(@PathVariable Long id, Authentication authentication) {
-    return service.confirm(users.require(authentication), id);
+    return service.confirm(users.require(authentication).getId(), id);
   }
 
   @PostMapping("/{id}/ship")
   MerchantOrderResponse ship(@PathVariable Long id,
                              @Valid @RequestBody FulfillmentRequest request,
                              Authentication authentication) {
-    return service.ship(users.require(authentication), id, request);
+    return service.ship(users.require(authentication).getId(), id, request);
   }
 
   @PutMapping("/{id}/shipment")
   MerchantOrderResponse updateShipment(@PathVariable Long id,
                                        @Valid @RequestBody FulfillmentRequest request,
                                        Authentication authentication) {
-    return service.updateShipment(users.require(authentication), id, request);
+    return service.updateShipment(users.require(authentication).getId(), id, request);
   }
 }

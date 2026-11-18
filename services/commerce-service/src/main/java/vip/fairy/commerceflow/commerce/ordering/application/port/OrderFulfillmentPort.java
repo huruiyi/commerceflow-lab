@@ -8,10 +8,6 @@ import java.util.List;
 
 public interface OrderFulfillmentPort {
 
-  void merchantConfirmed(Long orderId, Long merchantId);
-
-  void shipped(Long orderId, Long merchantId, String carrier, String trackingNumber);
-
   void shipmentUpdated(Long orderId, Long merchantId, String before, String after);
 
   List<OrderItemView> items(Long orderId);

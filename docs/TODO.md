@@ -802,6 +802,14 @@ Docker 拓扑，也不启动 PostgreSQL。
   WSL 订单 527/530 在服务、payment-db、支付模拟器重启前后完成支付/退款，待支付取消同步完成 Process Manager/
   Command Outbox；源水位保持 610、14 表授权和全部未决项保持 0。下一批只评审 fulfillment CREATE 准入。
 
+### 13.23 M3.7 第一批：履约创建准入审计与边界治理
+
+- [x] 冻结履约编排与订单、资金、物流投影的权威边界，记录发货竞态与恢复门禁。
+- [x] 商家入口向履约传递 merchantId，物流投影写入归 logistics 应用层，移除履约对 ShipmentMapper 的直接访问。
+- [x] 交付 Fulfillment V1 草案、发货命令样例与 Windows/WSL 只读审计。CREATE 结论为 `REJECTED`。
+
+后续架构批次见[履约服务演进计划](architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md)。
+
 ## 14. 实施记录模板
 
 ### 2026-11-15：M3.2 第二批——notification 单一所有权切换

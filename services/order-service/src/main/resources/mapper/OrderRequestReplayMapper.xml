@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.order.infrastructure.persistence.OrderRequestReplayMapper">
+
+  <delete id="deleteExpired">
+    DELETE FROM order_internal_request_replay WHERE expires_at &lt; CURRENT_TIMESTAMP(6)
+  </delete>
+
+  <insert id="insert">
+    INSERT INTO order_internal_request_replay(request_id,source_service,content_fingerprint,expires_at)
+    VALUES (#{requestId},#{service},#{fingerprint},CURRENT_TIMESTAMP(6) + INTERVAL 5 MINUTE)
+  </insert>
+</mapper>

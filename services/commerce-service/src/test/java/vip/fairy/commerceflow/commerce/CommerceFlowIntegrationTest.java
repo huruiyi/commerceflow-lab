@@ -440,7 +440,7 @@ class CommerceFlowIntegrationTest {
       orderId, 1L, merchantId, "Inventory gate", "");
 
     org.junit.jupiter.api.Assertions.assertThrows(BusinessRuleException.class,
-      () -> merchantFulfillment.ship(users.selectById(merchantId), orderId,
+      () -> merchantFulfillment.ship(merchantId, orderId,
         new FulfillmentRequest("SF", "BLOCKED")));
   }
 

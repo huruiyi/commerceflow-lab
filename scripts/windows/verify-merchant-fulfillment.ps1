@@ -10,6 +10,11 @@ $initialTracking="CFL-$($paid.id)-A";$updatedTracking="CFL-$($paid.id)-B"
 $shipped=Invoke-RestMethod "$BaseUrl/api/merchant/orders/$($paid.id)/ship" -Method Post -WebSession $merchant -Headers $headers -ContentType application/json -Body (@{carrier='CommerceFlow Express';trackingNumber=$initialTracking}|ConvertTo-Json -Compress);if($shipped.status-ne'SHIPPED'){throw 'Ship transition failed'}
 $updated=Invoke-RestMethod "$BaseUrl/api/merchant/orders/$($paid.id)/shipment" -Method Put -WebSession $merchant -Headers $headers -ContentType application/json -Body (@{carrier='CommerceFlow Priority';trackingNumber=$updatedTracking}|ConvertTo-Json -Compress);if($updated.carrier-ne'CommerceFlow Priority'-or$updated.trackingNumber-ne$updatedTracking){throw 'Shipment update failed'}
 $eventTypes=@($updated.events|ForEach-Object eventType);if($eventTypes-notcontains'MERCHANT_CONFIRMED'-or$eventTypes-notcontains'ORDER_SHIPPED'-or$eventTypes-notcontains'SHIPMENT_UPDATED'){throw 'Fulfillment event timeline is incomplete'}
+foreach ($eventType in @('MERCHANT_CONFIRMED','ORDER_SHIPPED')) {
+  if (@($eventTypes | Where-Object { $_ -eq $eventType }).Count -ne 1) {
+    throw "Expected exactly one $eventType event"
+  }
+}
 $updatedEventCount=@($updated.events|Where-Object eventType -eq 'SHIPMENT_UPDATED').Count
 $unchanged=Invoke-RestMethod "$BaseUrl/api/merchant/orders/$($paid.id)/shipment" -Method Put -WebSession $merchant -Headers $headers -ContentType application/json -Body (@{carrier=' CommerceFlow Priority ';trackingNumber=" $updatedTracking "}|ConvertTo-Json -Compress)
 if(@($unchanged.events|Where-Object eventType -eq 'SHIPMENT_UPDATED').Count-ne$updatedEventCount){throw 'Unchanged shipment created a duplicate timeline event'}

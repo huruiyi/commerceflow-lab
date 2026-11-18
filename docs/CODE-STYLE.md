@@ -34,6 +34,13 @@
 
 不在 Controller、Service、Job 或 Dispatcher 中使用 `JdbcTemplate/JdbcClient` 内联业务 SQL。Mapper 接口不使用 `@Select/@Insert/@Update/@Delete` 承载长 SQL。
 
+项目手写 SQL 统一放 MyBatis Mapper XML，Wrapper 使用类型安全的条件方法。双平台质量审计检查订单和支付
+Mapper 契约，并阻止业务 Java 源码重新引入 JDBC、SQL 字符串或 Wrapper 原生 SQL 片段。
+
+订单与支付的跨库影子复制保留现有基础设施例外，因为快照与追平需要分别控制源库和目标库连接及事务。
+新增 Java SQL 例外必须记录对应文件、XML 无法满足的原因和测试证据，并在评审后纳入精确范围的门禁配置。
+ShedLock 与 Remember-me 继续使用框架适配器生成的 SQL。
+
 ## 4. 事务与并发
 
 - 重构前后保持原锁定顺序、行锁范围、唯一约束和条件更新语义。
@@ -58,7 +65,7 @@
 - Java 和 Mapper XML 每行不超过 120 个字符；Java 不允许通配符导入或单行多成员声明。
 - Java 的每个 `class` 声明后必须有空行；物流模拟器根包只保留启动类，业务代码按
   `api/application/domain/infrastructure` 分层放置。
-- 禁止 MyBatis SQL 注解；除 ShedLock 官方适配器配置和 order 影子复制基础设施外，禁止直接引入 Spring JDBC。
+- 禁止 MyBatis SQL 注解。Spring JDBC 直接使用限定于 ShedLock 官方适配器配置。
 - Mapper XML 的 namespace 必须唯一对应 Java Mapper；statement id 必须唯一且存在同名接口方法。
 
 `verify-quick` 与 `verify-all` 会先执行该门禁。默认构建模式随后运行 Maven 测试和商城 ArchUnit

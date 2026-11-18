@@ -89,6 +89,9 @@ fairy-commerceflow-rabbitmq-broker
 - 以 IntelliJ IDEA 默认 Java/XML/HTML 格式化结果和根目录 `.editorconfig` 为基准；禁止把多个字段、方法、XML 节点或 HTML 元素压在一行。
 - 实体类与持久化字段必须有简洁的 JavaDoc，说明业务含义、单位、状态范围或是否为外部系统标识；不写“ID 字段”这类无信息注释。
 - 简单单表 CRUD 优先使用 MyBatis-Plus `BaseMapper`、`LambdaQueryWrapper` 和 `LambdaUpdateWrapper`。
+- 项目手写 SQL 统一放在 Mapper XML。Java 禁止拼接 SQL、使用 SQL 注解或通过 Wrapper 传入 SQL 片段。
+- Java SQL 例外仅限现有跨库影子复制等必须直接控制连接的基础设施。新增例外须说明 XML 无法满足的原因、
+  精确到文件并经评审，同时添加对应验证。框架适配器内部生成的 SQL 沿用其官方实现。
 - 多表连接、聚合、批量操作、行锁、条件 upsert 和性能敏感 SQL 放入 `src/main/resources/mapper/*.xml`，不得在 Java 注解或 Service 中内联长 SQL。
 - Mapper XML 的 `namespace`、方法名和参数必须与 Java Mapper 契约一致；简单 CRUD 不得在 XML 中重复实现。
 - 禁止为了清除 SQL 而改变锁顺序、幂等约束或事务边界；数据访问重构必须通过原有并发和恢复验收。

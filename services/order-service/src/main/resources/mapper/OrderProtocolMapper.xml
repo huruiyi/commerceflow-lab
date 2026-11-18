@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.order.infrastructure.persistence.OrderProtocolMapper">
+
+  <insert id="insertCommand">
+    INSERT IGNORE INTO order_remote_message_inbox(message_id,message_kind,payload_fingerprint,processing_status)
+      VALUES (#{messageId},'COMMAND',#{fingerprint},'RECEIVED')
+  </insert>
+
+  <select id="lockWaitingProcess" resultType="map">
+    SELECT process_id,status,current_step,waiting_for FROM order_process_managers WHERE order_id=#{orderId}
+      AND status IN ('WAITING_RESULT','WAITING_RECONCILIATION') ORDER BY created_at DESC LIMIT 1 FOR UPDATE
+  </select>
+
+  <insert id="insertResult">
+    INSERT IGNORE INTO order_result_inbox(result_id,process_id,order_id,result_type,outcome,payload_fingerprint,
+      payload,processing_status,error_detail,correlation_id,causation_id,traceparent,received_at,processed_at)
+    VALUES (#{resultId},#{processId},#{orderId},#{resultType},#{outcome},#{fingerprint},#{payload},#{status},
+      #{error},#{correlationId},#{causationId},#{traceparent},CURRENT_TIMESTAMP(6),CURRENT_TIMESTAMP(6))
+  </insert>
+
+  <update id="requireCompensation">
+    UPDATE order_process_managers SET status='COMPENSATION_REQUIRED',last_error=#{error},
+      updated_at=CURRENT_TIMESTAMP(6) WHERE process_id=#{processId}
+  </update>
+
+  <select id="recoverable" resultType="map">
+    SELECT process_id,order_id,status,current_step,waiting_for,attempts,result_deadline_at,last_error,
+      recovered_by,recovery_reason,recovered_at FROM order_process_managers
+      WHERE status IN ('WAITING_RECONCILIATION','COMPENSATION_REQUIRED','MANUAL_REVIEW') ORDER BY updated_at
+  </select>
+
+  <select id="countProcess" resultType="java.lang.Integer">
+    SELECT COUNT(*) FROM order_process_managers WHERE process_id=#{processId}
+  </select>
+
+  <update id="resetOutbox">
+    UPDATE order_command_outbox SET status='PENDING',attempts=attempts+1,next_attempt_at=CURRENT_TIMESTAMP(6),
+      last_error=NULL WHERE process_id=#{processId}
+  </update>
+
+  <update id="retryProcess">
+    UPDATE order_process_managers SET status='WAITING_RESULT',attempts=attempts+1,
+      next_check_at=CURRENT_TIMESTAMP(6),result_deadline_at=CURRENT_TIMESTAMP(6) + INTERVAL 5 MINUTE,
+      recovered_by=#{operator},recovery_reason=#{reason},recovered_at=CURRENT_TIMESTAMP(6),
+      updated_at=CURRENT_TIMESTAMP(6) WHERE process_id=#{processId}
+  </update>
+
+  <update id="markManualReview">
+    UPDATE order_process_managers SET status='MANUAL_REVIEW',recovered_by=#{operator},recovery_reason=#{reason},
+      recovered_at=CURRENT_TIMESTAMP(6),updated_at=CURRENT_TIMESTAMP(6) WHERE process_id=#{processId}
+  </update>
+
+  <update id="markUnknownResults">
+    UPDATE order_process_managers SET status='WAITING_RECONCILIATION',last_error='RESULT_TIMEOUT_UNKNOWN',
+      updated_at=CURRENT_TIMESTAMP(6) WHERE status='WAITING_RESULT'
+      AND result_deadline_at &lt; CURRENT_TIMESTAMP(6)
+  </update>
+
+  <insert id="insertCancellation">
+    INSERT INTO order_process_managers(process_id,order_id,process_type,status,current_step,waiting_for,command_id,
+      command_fingerprint,correlation_id,causation_id,traceparent,attempts,result_deadline_at,next_check_at,
+      version,created_at,updated_at)
+    VALUES (#{processId},#{orderId},'CANCELLATION','WAITING_RESULT','WAITING_BOTH','PAYMENT_AND_INVENTORY',
+      #{commandId},#{fingerprint},#{correlationId},#{causationId},#{traceparent},0,
+      CURRENT_TIMESTAMP(6) + INTERVAL 5 MINUTE,CURRENT_TIMESTAMP(6) + INTERVAL 5 MINUTE,0,
+      CURRENT_TIMESTAMP(6),CURRENT_TIMESTAMP(6))
+  </insert>
+
+  <update id="rejectResult">
+    UPDATE order_result_inbox SET processing_status='REJECTED_OUT_OF_ORDER',
+      error_detail='Cancellation waits for PAYMENT or INVENTORY' WHERE result_id=#{resultId}
+  </update>
+
+  <update id="rejectConfirmedResult">
+    UPDATE order_result_inbox SET processing_status='REJECTED_OUT_OF_ORDER',
+      error_detail='Result type was already confirmed' WHERE result_id=#{resultId}
+  </update>
+
+  <update id="completeProcess">
+    UPDATE order_process_managers SET status='COMPLETED',current_step='COMPLETED',waiting_for='NONE',
+      updated_at=CURRENT_TIMESTAMP(6),completed_at=CURRENT_TIMESTAMP(6) WHERE process_id=#{processId}
+  </update>
+
+  <update id="acknowledgeOutbox">
+    UPDATE order_command_outbox SET status='ACKNOWLEDGED',acknowledged_at=CURRENT_TIMESTAMP(6)
+      WHERE process_id=#{processId}
+  </update>
+
+  <update id="advanceProcess">
+    UPDATE order_process_managers SET current_step=#{step},waiting_for=#{waiting},
+      updated_at=CURRENT_TIMESTAMP(6) WHERE process_id=#{processId}
+  </update>
+
+  <insert id="insertOutbox">
+    INSERT INTO order_command_outbox(command_id,process_id,order_id,target_service,command_type,payload_fingerprint,
+      payload,status,attempts,next_attempt_at,result_deadline_at,correlation_id,causation_id,traceparent,created_at)
+    VALUES (#{id},#{processId},#{orderId},#{target},#{type},#{fingerprint},#{payload},'PENDING',0,
+      CURRENT_TIMESTAMP(6),CURRENT_TIMESTAMP(6) + INTERVAL 5 MINUTE,#{correlationId},#{causationId},#{traceparent},
+      CURRENT_TIMESTAMP(6))
+  </insert>
+
+  <insert id="insertEvent">
+    INSERT INTO order_events(order_id,actor_id,event_type,from_status,to_status,detail,created_at,trigger_source,
+      scheduled_task_id)
+    VALUES (#{orderId},#{actorId},#{type},#{from},#{to},#{detail},CURRENT_TIMESTAMP(6),'REMOTE_COMMAND',NULL)
+  </insert>
+
+  <update id="transition">
+    UPDATE shop_orders SET status=#{to},cancel_reason=COALESCE(#{reason},cancel_reason),
+      carrier=COALESCE(#{carrier},carrier),tracking_number=COALESCE(#{tracking},tracking_number),
+      cancelled_at=CASE WHEN #{to}='CANCELLED' THEN CURRENT_TIMESTAMP(6) ELSE cancelled_at END,
+      confirmed_at=CASE WHEN #{to}='CONFIRMED' THEN CURRENT_TIMESTAMP(6) ELSE confirmed_at END,
+      shipped_at=CASE WHEN #{to}='SHIPPED' THEN CURRENT_TIMESTAMP(6) ELSE shipped_at END,
+      received_at=CASE WHEN #{to}='RECEIVED' THEN CURRENT_TIMESTAMP(6) ELSE received_at END,
+      updated_at=CURRENT_TIMESTAMP(6) WHERE id=#{orderId} AND status=#{from}
+  </update>
+
+  <select id="lockStatus" resultType="java.lang.String">
+    SELECT status FROM shop_orders WHERE id=#{orderId} FOR UPDATE
+  </select>
+
+  <select id="findCommandReceipt" resultType="map">
+    SELECT payload_fingerprint,processing_status FROM order_remote_message_inbox WHERE message_id=#{messageId}
+  </select>
+
+  <select id="findResultReceipt" resultType="map">
+    SELECT payload_fingerprint,processing_status FROM order_result_inbox WHERE result_id=#{resultId}
+  </select>
+
+  <update id="finishCommand">
+    UPDATE order_remote_message_inbox SET processing_status=#{status},response_payload=#{payload},
+      error_detail=#{error},processed_at=CURRENT_TIMESTAMP(6) WHERE message_id=#{messageId}
+  </update>
+</mapper>

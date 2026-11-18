@@ -42,6 +42,8 @@ mapper_roots=(
   "$PROJECT_ROOT/services/notification-service/src/main/resources/mapper"
   "$PROJECT_ROOT/services/catalog-service/src/main/resources/mapper"
   "$PROJECT_ROOT/services/inventory-service/src/main/resources/mapper"
+  "$PROJECT_ROOT/services/order-service/src/main/resources/mapper"
+  "$PROJECT_ROOT/services/payment-orchestration-service/src/main/resources/mapper"
   "$PROJECT_ROOT/simulators/payment-platform/service/src/main/resources/mapper"
   "$PROJECT_ROOT/simulators/logistics-platform/service/src/main/resources/mapper"
 )
@@ -104,16 +106,12 @@ for file in "${java_files[@]}"; do
   if grep -Eq '@(Select|Insert|Update|Delete)(Provider)?[[:space:]]*\(' "$file"; then
     fail "$relative contains inline MyBatis SQL"
   fi
-  if [[ "$(basename "$file")" != SchedulerConfiguration.java &&
-        "$(basename "$file")" != NotificationIndependentPersistenceConfiguration.java &&
-        "$(basename "$file")" != ShadowReplicationService.java &&
-        "$(basename "$file")" != RemoteOrderProtocolService.java &&
-        "$(basename "$file")" != RemotePaymentProtocolService.java &&
-        "$(basename "$file")" != PaymentEffectDispatcher.java &&
-        "$(basename "$file")" != PaymentRuntimeMetricsStore.java &&
-        "$(basename "$file")" != RefundApplicationService.java &&
-        "$(basename "$file")" != OrderStoreService.java &&
-        "$(basename "$file")" != InternalSignatureInterceptor.java ]] &&
+  shadow_path='^services/(order-service|payment-orchestration-service)/src/main/java/vip/fairy/commerceflow/(order|payment)/(application/ShadowReplicationService|infrastructure/SourceConnectionFactory)\.java$'
+  if [[ ! "$relative" =~ $shadow_path ]] &&
+      grep -Eq '"[[:space:]]*(SELECT|INSERT (INTO|IGNORE)|UPDATE|DELETE FROM|REPLACE INTO|TRUNCATE TABLE)[[:space:]]|\.(last|inSql|notInSql|setSql|eqSql|gtSql|geSql|ltSql|leSql)[[:space:]]*\(|import[[:space:]]+java\.sql\.(Connection|DriverManager|PreparedStatement|Statement|ResultSet)[[:space:]]*;' "$file"; then
+    fail "$relative contains direct JDBC or inline SQL"
+  fi
+  if [[ "$relative" != services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/scheduling/infrastructure/SchedulerConfiguration.java ]] &&
       grep -Eq 'import[[:space:]]+org\.springframework\.jdbc\.' "$file"; then
     fail "$relative introduces direct Spring JDBC access"
   fi

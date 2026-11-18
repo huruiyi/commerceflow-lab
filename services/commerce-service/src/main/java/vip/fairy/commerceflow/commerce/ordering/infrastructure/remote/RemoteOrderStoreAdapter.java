@@ -192,13 +192,14 @@ public class RemoteOrderStoreAdapter implements OrderStorePort {
   }
 
   @Override
-  public int merchantConfirm(Long orderId) {
-    return simple("MERCHANT_CONFIRM", orderId);
+  public int merchantConfirm(Long orderId, Long merchantId) {
+    return mutation("MERCHANT_CONFIRM", orderId, merchantId, null, null, null, null,
+      null, null, null, null, null, null);
   }
 
   @Override
-  public int merchantShip(Long orderId, String carrier, String tracking) {
-    return mutation("MERCHANT_SHIP", orderId, null, null, null, null, carrier,
+  public int merchantShip(Long orderId, Long merchantId, String carrier, String tracking) {
+    return mutation("MERCHANT_SHIP", orderId, merchantId, null, null, null, carrier,
       tracking, null, null, null, null, null);
   }
 

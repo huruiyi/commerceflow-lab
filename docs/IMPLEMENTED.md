@@ -290,6 +290,8 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - M3.6 第十二批补齐 payment-orchestration 切流后观察：独立服务暴露 10 个运行态指标，Prometheus 新增第四个
   采集目标，14 条告警覆盖资金 Outbox、人工恢复、孤儿、退款、切流模式和指标刷新。Windows/WSL 在支付服务、
   payment-db、支付模拟器重启前后完成支付/退款与待支付关闭，源水位 610 不变，源授权和未决项持续为 0。
+- M3.7 第一批收口履约对物流投影和商家身份的直接依赖，增加双平台只读审计。履约运行在 commerce 内，CREATE
+  评审结果为 `REJECTED`。持久履约和远程契约的后续批次见[履约演进计划](architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md)。
 - notification 写入已从 InventoryMapper 收回：V25 建立模块自有 Inbox，V1 通知命令包含版本、发生时间、
   correlation/causation ID，Handler 在同一事务中完成 Inbox 领取和通知写入；契约 fixture、重复消费及
   Windows/Bash 真实取消通知链路已通过。当前审计基线为 38 张表、41 组方向和 119 个 import。

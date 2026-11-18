@@ -32,6 +32,8 @@ $mapperRoots = @(
   'services\notification-service\src\main\resources\mapper',
   'services\catalog-service\src\main\resources\mapper',
   'services\inventory-service\src\main\resources\mapper',
+  'services\order-service\src\main\resources\mapper',
+  'services\payment-orchestration-service\src\main\resources\mapper',
   'simulators\payment-platform\service\src\main\resources\mapper',
   'simulators\logistics-platform\service\src\main\resources\mapper'
 ) | ForEach-Object { Join-Path $ProjectRoot $_ }
@@ -101,16 +103,15 @@ foreach ($file in $javaFiles) {
   if ($source -match '@(?:Select|Insert|Update|Delete)(?:Provider)?\s*\(') {
     Fail "$relativePath contains inline MyBatis SQL"
   }
-  if ($file.Name -notin @('SchedulerConfiguration.java',
-                          'NotificationIndependentPersistenceConfiguration.java',
-                          'ShadowReplicationService.java',
-                          'RemoteOrderProtocolService.java',
-                          'RemotePaymentProtocolService.java',
-                          'PaymentEffectDispatcher.java',
-                          'PaymentRuntimeMetricsStore.java',
-                          'RefundApplicationService.java',
-                          'OrderStoreService.java',
-                          'InternalSignatureInterceptor.java') -and
+  $normalized = $relativePath -replace '\\', '/'
+  $shadowSource = $normalized -match '^services/(order-service|payment-orchestration-service)/src/main/java/vip/fairy/commerceflow/(order|payment)/(application/ShadowReplicationService|infrastructure/SourceConnectionFactory)\.java$'
+  $rawSql = $source -cmatch '"\s*(?:SELECT|INSERT (?:INTO|IGNORE)|UPDATE|DELETE FROM|REPLACE INTO|TRUNCATE TABLE)\s' -or
+    $source -match '\.(?:last|inSql|notInSql|setSql|eqSql|gtSql|geSql|ltSql|leSql)\s*\('
+  $nativeJdbc = $source -match 'import\s+java\.sql\.(?:Connection|DriverManager|PreparedStatement|Statement|ResultSet)\s*;'
+  if (-not $shadowSource -and ($rawSql -or $nativeJdbc)) {
+    Fail "$relativePath contains direct JDBC or inline SQL"
+  }
+  if ($normalized -ne 'services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/scheduling/infrastructure/SchedulerConfiguration.java' -and
       $source -match 'import\s+org\.springframework\.jdbc\.') {
     Fail "$relativePath introduces direct Spring JDBC access"
   }

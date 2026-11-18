@@ -71,9 +71,9 @@ public interface OrderStorePort {
 
   int markCompleted(Long id, Instant completedAt);
 
-  int merchantConfirm(Long orderId);
+  int merchantConfirm(Long orderId, Long merchantId);
 
-  int merchantShip(Long orderId, String carrier, String tracking);
+  int merchantShip(Long orderId, Long merchantId, String carrier, String tracking);
 
   int updateShipment(Long orderId, String carrier, String tracking);
 }

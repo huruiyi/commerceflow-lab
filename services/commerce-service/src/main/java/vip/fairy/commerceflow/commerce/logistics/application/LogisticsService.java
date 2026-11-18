@@ -19,6 +19,20 @@ public class LogisticsService {
     this.shipments = shipments;
   }
 
+  public void prepareShipment(Long orderId, String carrier, String trackingNumber) {
+    shipments.prepare(orderId, "CFL-ORDER-" + orderId, carrier, trackingNumber);
+  }
+
+  public void attachShipment(Long orderId, LogisticsGatewayClient.Result result) {
+    ShipmentRecordView shipment = shipments.byOrder(orderId).orElseThrow();
+    shipments.attach(shipment.getId(), result.platformShipmentNo(), result.carrier(),
+      result.trackingNumber(), result.status());
+  }
+
+  public void updateShipmentDetails(Long orderId, String carrier, String trackingNumber) {
+    shipments.updateDetails(orderId, carrier, trackingNumber);
+  }
+
   public LogisticsResponse require(AppUser customer, Long orderId) {
     if (!orders.belongsToCustomer(orderId, customer.getId())) {
       throw new ResourceNotFoundException("Order not found");

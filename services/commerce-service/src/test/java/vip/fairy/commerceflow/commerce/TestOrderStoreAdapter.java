@@ -210,16 +210,27 @@ final class TestOrderStoreAdapter implements OrderStorePort {
   }
 
   @Override
-  public int merchantConfirm(Long orderId) {
-    return jdbc.update("UPDATE shop_orders SET status='CONFIRMED',confirmed_at=CURRENT_TIMESTAMP,"
-      + "updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='PAID'", orderId);
+  public int merchantConfirm(Long orderId, Long merchantId) {
+    int changed = jdbc.update("UPDATE shop_orders SET status='CONFIRMED',confirmed_at=CURRENT_TIMESTAMP,"
+        + "updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='PAID' AND EXISTS "
+        + "(SELECT 1 FROM order_items WHERE order_id=shop_orders.id AND merchant_id=?)", orderId, merchantId);
+    if (changed == 1) {
+      insertEvent(orderId, merchantId, "MERCHANT_CONFIRMED", "PAID", "CONFIRMED", "Merchant accepted the order");
+    }
+    return changed;
   }
 
   @Override
-  public int merchantShip(Long orderId, String carrier, String tracking) {
-    return jdbc.update("UPDATE shop_orders SET status='SHIPPED',carrier=?,tracking_number=?,"
-      + "shipped_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='CONFIRMED'",
-      carrier, tracking, orderId);
+  public int merchantShip(Long orderId, Long merchantId, String carrier, String tracking) {
+    int changed = jdbc.update("UPDATE shop_orders SET status='SHIPPED',carrier=?,tracking_number=?,"
+        + "shipped_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='CONFIRMED' "
+        + "AND inventory_status='COMMITTED' AND EXISTS "
+        + "(SELECT 1 FROM order_items WHERE order_id=shop_orders.id AND merchant_id=?)",
+      carrier, tracking, orderId, merchantId);
+    if (changed == 1) {
+      insertEvent(orderId, merchantId, "ORDER_SHIPPED", "CONFIRMED", "SHIPPED", carrier + " / " + tracking);
+    }
+    return changed;
   }
 
   @Override

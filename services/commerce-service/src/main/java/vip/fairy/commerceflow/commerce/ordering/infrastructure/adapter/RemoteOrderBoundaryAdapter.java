@@ -27,18 +27,6 @@ public class RemoteOrderBoundaryAdapter implements OrderFulfillmentPort, OrderLo
   }
 
   @Override
-  public void merchantConfirmed(Long orderId, Long merchantId) {
-    orders.insertEvent(orderId, merchantId, "MERCHANT_CONFIRMED", "PAID", "CONFIRMED",
-      "Merchant accepted the order");
-  }
-
-  @Override
-  public void shipped(Long orderId, Long merchantId, String carrier, String trackingNumber) {
-    orders.insertEvent(orderId, merchantId, "ORDER_SHIPPED", "CONFIRMED", "SHIPPED",
-      carrier + " / " + trackingNumber);
-  }
-
-  @Override
   public void shipmentUpdated(Long orderId, Long merchantId, String before, String after) {
     orders.insertEvent(orderId, merchantId, "SHIPMENT_UPDATED", "SHIPPED", "SHIPPED",
       before + " -> " + after);
