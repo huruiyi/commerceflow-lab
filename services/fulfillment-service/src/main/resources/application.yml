@@ -29,5 +29,7 @@ commerceflow:
     order-secret: ${FULFILLMENT_ORDER_SECRET:}
     logistics-endpoint: ${FULFILLMENT_LOGISTICS_ENDPOINT:}
     logistics-secret: ${FULFILLMENT_LOGISTICS_SECRET:}
+    inventory-endpoint: ${FULFILLMENT_INVENTORY_ENDPOINT:}
+    inventory-secret: ${FULFILLMENT_INVENTORY_SECRET:demo-fulfillment-inventory-secret}
     recovery-enabled: ${FULFILLMENT_RECOVERY_ENABLED:false}
     admin-secret: ${FULFILLMENT_ADMIN_SECRET:}

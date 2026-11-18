@@ -67,11 +67,20 @@
     WHERE id=#{id} AND status='COMMITTED'
   </update>
 
-  <select id="inventory" resultType="vip.fairy.commerceflow.inventory.domain.ProductInventory">
+  <sql id="inventoryBalance">
     SELECT product_id AS id,stock_available AS stockAvailable,
       stock_reserved AS stockReserved,stock_sold AS stockSold
     FROM product_inventory
     WHERE product_id=#{productId}
+  </sql>
+
+  <select id="inventory" resultType="vip.fairy.commerceflow.inventory.domain.ProductInventory">
+    <include refid="inventoryBalance"/>
+  </select>
+
+  <select id="lockInventory" resultType="vip.fairy.commerceflow.inventory.domain.ProductInventory">
+    <include refid="inventoryBalance"/>
+    FOR UPDATE
   </select>
 
   <insert id="insertMovement">

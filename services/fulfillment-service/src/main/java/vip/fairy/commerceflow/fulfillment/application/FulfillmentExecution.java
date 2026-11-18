@@ -43,6 +43,9 @@ public class FulfillmentExecution {
     } catch (RuntimeException failure) {
       throw error(HttpStatus.SERVICE_UNAVAILABLE, "Order ownership cannot be verified");
     }
+    if (facts != null && command.operation() == Operation.SHIP && shipmentLines(command).isEmpty()) {
+      throw error(HttpStatus.CONFLICT, "Shipment requires all order lines to belong to the merchant");
+    }
 
     try (var session = databases.target()) {
       ExecutionMapper store = session.getMapper(ExecutionMapper.class);
@@ -64,6 +67,14 @@ public class FulfillmentExecution {
       store.insert(task);
       session.commit();
       return status(task);
+    }
+  }
+
+  private List<FulfillmentDownstream.ShipmentLine> shipmentLines(FulfillmentCommand command) {
+    try {
+      return downstream.shipmentLines(command.merchantId(), command.orderId());
+    } catch (RuntimeException failure) {
+      throw error(HttpStatus.SERVICE_UNAVAILABLE, "Order shipment lines cannot be verified");
     }
   }
 
@@ -168,6 +179,7 @@ public class FulfillmentExecution {
           : new StepResult(null, "REJECTED", "ORDER_SHIPMENT_ADMISSION_REJECTED");
       }
       case "LOGISTICS" -> {
+        postOutbound(task);
         downstream.writeLogistics(stepId, "ENSURE_SHIPMENT", task);
         yield new StepResult("FINISH_ORDER", null, null);
       }
@@ -175,8 +187,11 @@ public class FulfillmentExecution {
         downstream.writeLogistics(stepId, "UPDATE_DETAILS", task);
         yield new StepResult("ORDER", null, null);
       }
-      case "FINISH_ORDER" -> downstream.mutateOrder(stepId, "MERCHANT_SHIP", task)
-        ? completed() : new StepResult(null, "REVIEW_REQUIRED", "ORDER_SHIPMENT_COMPLETION_REJECTED");
+      case "FINISH_ORDER" -> {
+        postOutbound(task);
+        yield downstream.mutateOrder(stepId, "MERCHANT_SHIP", task)
+          ? completed() : new StepResult(null, "REVIEW_REQUIRED", "ORDER_SHIPMENT_COMPLETION_REJECTED");
+      }
       case "ORDER" -> {
         boolean confirm = task.operation() == Operation.CONFIRM;
         yield downstream.mutateOrder(id, confirm ? "MERCHANT_CONFIRM" : "UPDATE_SHIPMENT", task) ? completed()
@@ -184,6 +199,12 @@ public class FulfillmentExecution {
       }
       default -> throw new IllegalStateException("Unknown fulfillment step");
     };
+  }
+
+  private void postOutbound(ExecutionTask task) {
+    var lines = downstream.shipmentLines(task.merchantId(), task.orderId());
+    if (lines.isEmpty()) throw new IllegalStateException("Order shipment lines are unavailable");
+    downstream.postOutbound(task, lines);
   }
 
   private StepResult completed() {

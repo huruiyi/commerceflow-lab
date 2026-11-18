@@ -17,15 +17,18 @@ public class InternalRequestSignature {
   private final String commerceSecret;
   private final String paymentSecret;
   private final String catalogSecret;
+  private final String fulfillmentSecret;
 
   public InternalRequestSignature(
     @Value("${commerceflow.internal-api.commerce-secret}") String commerceSecret,
     @Value("${commerceflow.internal-api.payment-secret}") String paymentSecret,
-    @Value("${commerceflow.internal-api.catalog-secret}") String catalogSecret
+    @Value("${commerceflow.internal-api.catalog-secret}") String catalogSecret,
+    @Value("${commerceflow.internal-api.fulfillment-secret}") String fulfillmentSecret
   ) {
     this.commerceSecret = commerceSecret;
     this.paymentSecret = paymentSecret;
     this.catalogSecret = catalogSecret;
+    this.fulfillmentSecret = fulfillmentSecret;
   }
 
   public boolean verify(String service, String method, String target, String timestamp,
@@ -38,6 +41,7 @@ public class InternalRequestSignature {
         case "commerce-service" -> commerceSecret;
         case "payment-orchestration-service" -> paymentSecret;
         case "catalog-service" -> catalogSecret;
+        case "fulfillment-service" -> fulfillmentSecret;
         default -> null;
       };
       if (secret == null) {

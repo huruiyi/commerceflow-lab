@@ -23,13 +23,7 @@ public class InternalSignatureInterceptor implements HandlerInterceptor {
     String requestId = request.getHeader("X-CommerceFlow-Request-Id");
     String contentHash = request.getHeader("X-CommerceFlow-Content-SHA256");
     String signature = request.getHeader("X-CommerceFlow-Signature");
-    boolean commerceEndpoint = request.getRequestURI().endsWith("/commands")
-      || request.getRequestURI().contains("/inventory/merchants/");
-    boolean allowedService = request.getRequestURI().endsWith("/delivered-reconciliations")
-      ? "commerce-service".equals(service)
-      : commerceEndpoint
-        ? "commerce-service".equals(service) || "payment-orchestration-service".equals(service)
-        : "catalog-service".equals(service);
+    boolean allowedService = allowedService(request.getRequestURI(), service);
     if (!allowedService || timestamp == null || requestId == null || contentHash == null
         || signature == null || !signatures.verify(service, request.getMethod(),
         request.getRequestURI(), timestamp, requestId, contentHash, signature)) {
@@ -37,5 +31,14 @@ public class InternalSignatureInterceptor implements HandlerInterceptor {
       return false;
     }
     return true;
+  }
+
+  private boolean allowedService(String path, String service) {
+    if (path.endsWith("/outbound-documents")) return "fulfillment-service".equals(service);
+    if (path.endsWith("/delivered-reconciliations")) return "commerce-service".equals(service);
+    if (path.endsWith("/commands") || path.contains("/inventory/merchants/")) {
+      return "commerce-service".equals(service) || "payment-orchestration-service".equals(service);
+    }
+    return "catalog-service".equals(service);
   }
 }

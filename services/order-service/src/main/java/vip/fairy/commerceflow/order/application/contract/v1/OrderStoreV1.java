@@ -61,7 +61,7 @@ public final class OrderStoreV1 {
 
   public enum QueryType {
     STATUS, LIST_CUSTOMER, FIND_CUSTOMER, FIND_BY_ID, LIST_MERCHANT, FIND_MERCHANT,
-    ITEMS, ADDRESS, EVENTS, ORDER_CUSTOMER, REVIEWABLE
+    ITEMS, SHIPMENT_LINES, ADDRESS, EVENTS, ORDER_CUSTOMER, REVIEWABLE
   }
 
   public record QueryResult(boolean found, String status, Long customerId, OrderView order,

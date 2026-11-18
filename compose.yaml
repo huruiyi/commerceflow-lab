@@ -808,6 +808,8 @@ services:
       DATABASE_PASSWORD: ${INVENTORY_DATABASE_PASSWORD:-inventory-password}
       INVENTORY_ACCEPTING_TRAFFIC: ${INVENTORY_ACCEPTING_TRAFFIC:-true}
       INVENTORY_RESULT_DELAY_LAB: ${INVENTORY_RESULT_DELAY_LAB:-0s}
+      KAFKA_BOOTSTRAP_SERVERS: kafka-broker:9092
+      FULFILLMENT_INVENTORY_SECRET: ${FULFILLMENT_INVENTORY_SECRET:-demo-fulfillment-inventory-secret}
       INVENTORY_INTERNAL_SECRET: ${INVENTORY_INTERNAL_SECRET:-demo-inventory-internal-secret}
       PAYMENT_INVENTORY_INTERNAL_SECRET: ${PAYMENT_INVENTORY_INTERNAL_SECRET:-demo-payment-inventory-internal-secret}
       CATALOG_INTERNAL_SECRET: ${CATALOG_INTERNAL_SECRET:-demo-catalog-internal-secret}
@@ -818,6 +820,8 @@ services:
       - "18088:8080"
     depends_on:
       inventory-db:
+        condition: service_healthy
+      kafka-broker:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]

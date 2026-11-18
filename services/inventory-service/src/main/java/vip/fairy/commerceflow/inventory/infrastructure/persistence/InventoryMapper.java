@@ -32,6 +32,8 @@ public interface InventoryMapper {
 
   ProductInventory inventory(Long productId);
 
+  ProductInventory lockInventory(Long productId);
+
   void insertMovement(@Param("eventId") String eventId, @Param("orderId") Long orderId,
                       @Param("productId") Long productId, @Param("movementType") String movementType,
                       @Param("quantity") int quantity, @Param("inventory") ProductInventory inventory,

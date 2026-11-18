@@ -11,6 +11,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.order.application.RemoteOrderProtocolService.ProtocolConflictException;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.CreateOrder;
+import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.ItemView;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.Mutation;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.MutationResult;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.MutationType;
@@ -66,6 +67,7 @@ public class OrderStoreService {
       case FIND_MERCHANT -> resultOrder(store.findMerchant(request));
       case ITEMS -> new QueryResult(true, null, null, null, null,
         store.items(request.orderId()), null, null, null);
+      case SHIPMENT_LINES -> shipmentLines(request);
       case ADDRESS -> {
         var address = store.address(request.orderId());
         yield new QueryResult(address != null, null, null, null, null, null, address, null, null);
@@ -81,6 +83,15 @@ public class OrderStoreService {
         yield new QueryResult(item != null, null, null, null, null, null, null, null, item);
       }
     };
+  }
+
+  private QueryResult shipmentLines(Query request) {
+    var order = store.findMerchant(request);
+    var items = order == null ? List.<ItemView>of() : store.items(request.orderId());
+    boolean canShip = !items.isEmpty()
+      && items.stream().allMatch(item -> request.merchantId().equals(item.merchantId()));
+    return new QueryResult(canShip, null, null, canShip ? order : null, null,
+      canShip ? items : List.of(), null, null, null);
   }
 
   public MutationResult mutate(Mutation mutation) {

@@ -53,7 +53,8 @@ public class OrderStoreV1Controller {
   QueryResult query(@RequestBody String payload, HttpServletRequest request) {
     requireTrafficAndHash(payload, request);
     Query query = mapper.readValue(payload, Query.class);
-    if (isFulfillment(request) && query.type() != QueryType.FIND_MERCHANT) {
+    if (isFulfillment(request) && query.type() != QueryType.FIND_MERCHANT
+        && query.type() != QueryType.SHIPMENT_LINES) {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Fulfillment may only query merchant orders");
     }
     return store.query(query);
