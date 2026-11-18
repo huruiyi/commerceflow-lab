@@ -73,11 +73,7 @@ order、inventory、identity 与 fulfillment 只保留稳定 ID、版本化命�
 未发布 Outbox 和待恢复退款均为 0；OPEN 支付对账为 1。
 
 ```powershell
-.\scripts\windows\audit-payment-orchestration-admission.ps1
-```
-
-```bash
-./scripts/linux/audit-payment-orchestration-admission.sh
+pwsh -File ./scripts/audit-payment-orchestration-admission.ps1
 ```
 
 ## 7. 第二批证据
@@ -156,14 +152,10 @@ OPEN 孤儿和待恢复流程均为 0。payment-db Flyway V2 无失败；payment
 5. **第七批已关闭**：独立服务已有受双门禁保护的退款创建入口和持久退款命令 Outbox。
 6. `commerce_runtime` 权限冻结脚本尚未排除 14 张支付/退款源表。
 
-Windows 与 WSL/Linux 对等审计入口为：
+各平台共用的审计入口为：
 
 ```powershell
-.\scripts\windows\audit-payment-cutover-readiness.ps1
-```
-
-```bash
-./scripts/linux/audit-payment-cutover-readiness.sh
+pwsh -File ./scripts/audit-payment-cutover-readiness.ps1
 ```
 
 审计成功表示“阻塞识别与安全门禁没有漂移”，最终输出必须是 `REJECTED`，不表示已经具备切换资格。第七批只在

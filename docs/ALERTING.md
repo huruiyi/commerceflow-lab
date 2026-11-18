@@ -66,16 +66,8 @@ Grafana 教学账号为 `admin` / `commerceflow-grafana`。这些端口和演示
 
 ## 4. 验收
 
-Windows：
-
 ```powershell
-./scripts/windows/verify-alerting.ps1
-```
-
-Bash：
-
-```bash
-bash ./scripts/linux/verify-alerting.sh
+pwsh -File ./scripts/verify-alerting.ps1
 ```
 
 验收入口默认启动 `observability` Profile，但不停止业务服务、不删除容器或数据卷。它执行：
@@ -86,7 +78,7 @@ bash ./scripts/linux/verify-alerting.sh
 4. 三个 Spring Boot Target 均为 `up`；
 5. Watchdog 经 Alertmanager 真实到达 Webhook。
 
-已有监控容器时可传 `-SkipStart`；Bash 的第五个位置参数使用 `true`。脚本只验证告警链，不通过停止业务服务制造故障。
+已有监控容器时可传 `-SkipStart`。脚本只验证告警链，不通过停止业务服务制造故障。
 
 ## 5. 生产部署前仍需完成
 

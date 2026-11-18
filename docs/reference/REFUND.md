@@ -305,7 +305,7 @@ Prometheus 至少记录退款请求数、成功数、失败数、处理中数量
 - 变更：商城新增 Flyway `V14__refund_workflow.sql`、退款单/事件/通知、支付累计退款金额、客户申请与查询、商家只读查询、HMAC 回调验签、Outbox 和定时对账补偿；订单执行 `PAID/CONFIRMED -> REFUNDING -> REFUNDED`，原支付状态始终保留 `SUCCESS`。
 - 变更：模拟支付平台新增 `V3__channel_refunds.sql`、签名渠道退款创建/查询/通知补发接口、后台退款台账、`REFUND_READ` / `REFUND_OPERATE` 资源权限和补发审计；回调暂时不可达不会回滚已经落库的渠道退款。
 - 变更：Angular 增加退款原因、申请、状态与时间线，商家页增加只读退款摘要；Vue 增加退款台账和通知补发操作；两端均补齐中英文文案。
-- 变更：新增 `scripts/windows/verify-refunds.ps1` 与 `scripts/linux/verify-refunds.sh`，并接入两套 `verify-all`。
+- 变更：新增 `scripts/verify-refunds.ps1`，并接入 `verify-all`。
 - 验证：商城 Maven 测试、支付服务 Maven 测试、Angular/Vue 生产构建、Docker 镜像重建和服务健康检查通过；Windows 退款专项验证成功退款、支付状态不改写、累计退款金额、订单状态、请求重放、第二笔冲突、伪造通知拒绝及后台补发幂等均通过。
 - 遗留：当前只支持未发货整单全额退款；部分退款、退货/换货、真实支付机构、退款专用 Kafka 下游消费者、独立退款 Step-up、延迟/乱序/并发压力专项和 Linux/WSL 实机复验不在本次完成范围。
 - 提交：`d963e7b`。

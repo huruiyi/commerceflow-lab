@@ -56,7 +56,7 @@ M3.6 第十一批已在明确授权的受控窗口完成 **CUTOVER**。普通支
 | 回归 | Java、Flyway、Windows/Bash、快速回归和代码质量全部通过 |
 
 停写闸门必须先于订单 `CANCELLING` 状态变更生效。使用
-`verify-payment-write-freeze.ps1/.sh` 验证创建、关闭、退款均返回 503、业务事实不变且旧回调可继续收敛；脚本退出时
+`verify-payment-write-freeze.ps1` 验证创建、关闭、退款均返回 503、业务事实不变且旧回调可继续收敛；脚本退出时
 必须恢复 `PAYMENT_WRITE_FROZEN=false`。
 
 任一门禁失败都停止切换。不得用打开本地兜底、恢复源表权限或同时运行两套回调来绕过失败。
@@ -73,7 +73,7 @@ M3.6 第十一批已在明确授权的受控窗口完成 **CUTOVER**。普通支
 
 ## 7. 切流后观察证据
 
-M3.6 第十二批新增 `verify-payment-post-cutover-observation.ps1/.sh`，在 Windows 与 Ubuntu WSL 对等执行两轮
+M3.6 第十二批新增 `verify-payment-post-cutover-observation.ps1`，在 Windows 与 Ubuntu WSL 对等执行两轮
 真实支付/退款、待支付关闭、payment-orchestration-service 重启、支付模拟器重启和 payment-db 停机恢复。
 Windows 使用订单 517/520，WSL 使用订单 527/530；观察前后 commerce 支付源水位均为 610，14 张源表授权为 0，
 Payment/Command Outbox、未完成 Process Manager 和 OPEN 孤儿全部为 0。

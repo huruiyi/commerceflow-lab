@@ -24,5 +24,4 @@ docker compose up -d --build --wait notification-service commerce-service
 
 配对验收入口：
 
-- Windows：`scripts/windows/verify-notification-runtime-cutover.ps1`
-- Bash：`scripts/linux/verify-notification-runtime-cutover.sh`
+- PowerShell 7：`scripts/verify-notification-runtime-cutover.ps1`

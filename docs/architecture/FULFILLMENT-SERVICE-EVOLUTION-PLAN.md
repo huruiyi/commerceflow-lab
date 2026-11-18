@@ -57,8 +57,7 @@
 4. 独立评审 CUTOVER，在获准窗口排空旧操作、最终核对并切到唯一远程写路径，撤销旧履约表权限。完成监控与稳定性
    观察后再评估 M4 PostgreSQL 专项。
 
-在仓库根目录运行 `scripts/windows/audit-fulfillment-admission.ps1` 或
-`bash scripts/linux/audit-fulfillment-admission.sh`，使用运行中的 commerce-db 与 order-db。
+在仓库根目录运行 `scripts/audit-fulfillment-admission.ps1`，使用运行中的 commerce-db 与 order-db。
 末行 `PASSED` 表示结构和排空条件的只读检查通过，存在未决项时脚本返回非零退出码。
 
 ## 5. 第二批进展
@@ -300,7 +299,7 @@ docker compose -p fairy-commerceflow-shadow-qa -f compose.yaml --profile fulfill
 
 影子 HTTP 发布在本机 `127.0.0.1:18091`。内部签名绑定 HTTP 方法、请求路径、Unix 秒时间戳、请求 UUID 和
 正文 SHA-256，以上字段用换行连接后计算 HMAC-SHA256。签名和正文摘要使用十六进制。使用
-`scripts/windows/verify-fulfillment-shadow-runtime.ps1` 或 `bash scripts/linux/verify-fulfillment-shadow-runtime.sh`
+`scripts/verify-fulfillment-shadow-runtime.ps1`
 检查签名、关闭写入和同水位快照。包含源写入的验收环境应等待相同水位后再比较摘要。
 
 真实 MySQL 演练中，同水位两次快照六表摘要一致，第二次写入 0 行。回滚保持源水位 0。一笔已提交的事务将

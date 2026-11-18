@@ -36,7 +36,7 @@
 | L5 可靠性专项 | 真实锁超时、进程崩溃、MQ 故障、重投与并发竞态 | 对应 `verify-*` 专项 | 事务、锁、幂等、任务或 MQ 改动 |
 | L6 浸泡/压测 | 在可重放随机种子下验证长时间不变量 | 支付取消、物流乱序、收货/完成 stress 入口 | 并发语义或性能相关改动、里程碑冻结前 |
 
-Windows 和 Bash 的主要脚本必须保持同名、同参数顺序和同验收语义。机器可读契约见 `scripts/script-contracts.tsv`。
+各平台统一执行同一份 PowerShell 7 脚本。机器可读契约见 `scripts/script-contracts.tsv`。
 
 ## 4. 日常开发流程
 
@@ -62,22 +62,13 @@ docker compose ps
 
 ### 4.3 提交/基线门禁
 
-Windows：
-
 ```powershell
-./scripts/windows/verify-quick.ps1
-./scripts/windows/verify-all.ps1
-```
-
-Bash：
-
-```bash
-bash ./scripts/linux/verify-quick.sh
-bash ./scripts/linux/verify-all.sh
+pwsh -File ./scripts/verify-quick.ps1
+pwsh -File ./scripts/verify-all.ps1
 ```
 
 `verify-quick` 和 `verify-all` 始终运行后端质量门禁。默认构建模式还会通过 Angular Dockerfile 执行
-`npm run format:check` 和生产构建。`-SkipBuild` / `--skip-build` 只能在已确认镜像来自当前源码时使用，
+`npm run format:check` 和生产构建。`-SkipBuild` 只能在已确认镜像来自当前源码时使用，
 并且不会重新执行 Maven/ArchUnit 测试或 Angular 格式检查。冻结基线或修改 Dockerfile/POM/前端依赖时
 必须使用默认构建模式。
 
@@ -105,7 +96,7 @@ bash ./scripts/linux/verify-all.sh
 ### 6.1 Flyway 隔离演练
 
 ```powershell
-./scripts/windows/verify-flyway-lifecycle.ps1
+pwsh -File ./scripts/verify-flyway-lifecycle.ps1
 ```
 
 它使用随机容器/网络和 tmpfs，验证空库 V1→V34、V16→V34 升级、catalog/inventory 所有权分离、
@@ -113,16 +104,16 @@ catalog V1 版本/Outbox 元数据、inventory 命令投递/结果协议、命�
 ordering 外键清理，
 不连接默认开发卷。
 
-notification 独立 Schema 使用配对脚本 `verify-notification-schema-split`，在随机网络和 tmpfs MySQL 中验证
+notification 独立 Schema 使用 `verify-notification-schema-split`，在随机网络和 tmpfs MySQL 中验证
 V1→V3 的三张业务表、回填/核对/隔离表、零外键、快照字段和 Inbox 幂等。
 
 `verify-notification-runtime-cutover` 在保留现有卷的前提下验证默认 notification-service 的 Kafka 投递、
 commerce HMAC 身份薄代理、eventId 幂等已读、独立服务停机时稳定 503、核心商城健康和服务恢复。脚本不切换
-本地实现、不访问 commerce 通知表，也不删除数据卷；Windows 与 Bash 保持配对入口。
+本地实现、不访问 commerce 通知表，也不删除数据卷。
 
 `verify-distributed-tracing` 临时开启 OTLP 导出并启动 Tempo，通过真实商家发货链路查询
 commerce-service 与 logistics-simulator-service 的同一 Trace；随后停止 Tempo，确认追踪后端故障不会
-拖垮三个业务服务，最后恢复原导出配置。Windows 直接管理 Compose；容器化 Bash 可使用
+拖垮三个业务服务，最后恢复原导出配置。默认由脚本管理 Compose；宿主机已配置追踪时可使用
 `EXTERNAL_RUNTIME=true` 让宿主机管理 Compose，避免 Docker Desktop 将容器内仓库路径当作宿主 bind path。
 该专项证明 HTTP 和 Kafka Observation 基线；MQ 传播由下述独立专项验收。
 
@@ -134,15 +125,15 @@ commerce-service 健康，再恢复后端和默认 `Database + tracing off` 运�
 ### 6.2 全新卷全链路
 
 ```powershell
-./scripts/windows/verify-fresh-volume-lifecycle.ps1 -TemporaryProjectName commerceflow-fresh-<run-id>
+pwsh -File ./scripts/verify-fresh-volume-lifecycle.ps1 -TemporaryProjectName commerceflow-fresh-<run-id>
 ```
 
-默认保留该临时项目卷用于失败排查。只有显式传入 `-RemoveTemporaryVolumes` / `--remove-temporary-volumes` 才会删除本次随机临时项目卷。
+默认保留该临时项目卷用于失败排查。只有显式传入 `-RemoveTemporaryVolumes` 才会删除本次随机临时项目卷。
 
 ### 6.3 旧卷升级和重启恢复
 
 ```powershell
-./scripts/windows/verify-upgrade-restart-recovery.ps1
+pwsh -File ./scripts/verify-upgrade-restart-recovery.ps1
 ```
 
 该入口会重启三库、Redis、Kafka、RabbitMQ、RocketMQ 和业务服务，并写入可识别的恢复夹具任务；它不删除卷。运行前确认当前学习环境允许短暂中断。

@@ -10,7 +10,7 @@
 | [IMPLEMENTED.md](IMPLEMENTED.md) | 已实现能力、验证边界和已知限制 | 只写有代码和验证证据的事实 |
 | [TODO.md](TODO.md) | 唯一进度勾选表、未实现代办和实施顺序 | 已完成保留证据，未完成项只在这里排序 |
 | [API.md](API.md) | 已有 API 学习索引 | 接口落地后再加入 |
-| [SCRIPT-AUDIT.md](SCRIPT-AUDIT.md) | Windows/Bash 主要脚本契约、参数对齐和默认非破坏性证据 | 参数或清理语义变更时同步审计 |
+| [SCRIPT-AUDIT.md](SCRIPT-AUDIT.md) | 验收脚本参数清单与临时卷清理检查 | 参数或清理语义变更时同步审计 |
 | [NAMING-CONVENTIONS.md](NAMING-CONVENTIONS.md) | 项目、Java/Maven、Compose、持久资源和迁移命名规范 | 命名目标或兼容标识变更时同步更新 |
 | [CODE-STYLE.md](CODE-STYLE.md) | IDEA 格式、实体注释、MyBatis-Plus 与 Mapper XML 边界 | 数据访问或格式规则变更时同步更新 |
 | [CODE-QUALITY-PLAN.md](CODE-QUALITY-PLAN.md) | M2 代码质量审计、分批治理顺序和验证门禁 | 每批治理完成后更新证据和剩余项 |

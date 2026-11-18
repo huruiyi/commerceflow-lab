@@ -51,7 +51,7 @@ PAID / CONFIRMED
     -> 订单 CANCELLED
 ```
 
-可分别运行 `scripts/windows/verify-payment-attempt-deadline.ps1` 和 `scripts/linux/verify-payment-attempt-deadline.sh`。阅读时重点对比“渠道交易的技术 TTL”与“订单允许支付的业务截止时间”：前者允许用户换渠道恢复，后者是库存释放和订单终止的统一边界。
+可运行 `scripts/verify-payment-attempt-deadline.ps1`。阅读时重点对比“渠道交易的技术 TTL”与“订单允许支付的业务截止时间”：前者允许用户换渠道恢复，后者是库存释放和订单终止的统一边界。
 
 ## 4. `availableActions`
 

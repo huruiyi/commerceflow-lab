@@ -1,2 +1,2 @@
-scripts/linux/*.sh text eol=lf
+scripts/*.ps1 text eol=lf
 infrastructure/**/*.sh text eol=lf

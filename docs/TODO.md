@@ -1171,7 +1171,7 @@ Docker 拓扑，也不启动 PostgreSQL。
 - 发现与修复：空卷首次启动暴露 Spring Boot 4 下支付/物流服务仅引入 `flyway-core` 未激活自动迁移；改用 `spring-boot-starter-flyway` 后完成 V1–V3/V1–V4。
 - 验证：商城/支付/物流 Flyway 分别为 V24/V4/V5，无失败迁移；初始数据为 6 用户、6 商品、0 订单。
 - 链路：Windows 和容器化 Bash 均跑完登录、下单、签名支付回调、商家履约、物流、手动/自动收货、自动完成、commerce-service 重启租约恢复和评价，业务审计为 `1|1|2|1|1`。
-- 破坏性边界：默认保留临时卷以便排查；只有显式 `-RemoveTemporaryVolumes` / `--remove-temporary-volumes` 才删除本次临时项目卷。
+- 破坏性边界：默认保留临时卷以便排查；只有显式 `-RemoveTemporaryVolumes` 才删除本次临时项目卷。
 - 提交：本阶段独立提交（见 Git 历史）。
 
 ### 2026-11-13：旧库升级、全栈重启恢复与历史一致性
@@ -1194,7 +1194,7 @@ Docker 拓扑，也不启动 PostgreSQL。
 
 ### 2026-11-13：快速回归入口与 M1 基线冻结
 
-- 入口：新增 `verify-quick.ps1/.sh`，默认构建当前源码镜像，支持 `-SkipBuild` / `--skip-build`；不删除或清空数据卷。
+- 入口：新增 `verify-quick.ps1`，默认构建当前源码镜像，支持 `-SkipBuild`；不删除或清空数据卷。
 - 覆盖：36 组脚本契约、Compose 配置/健康、权限/i18n、订单取消、支付/取消竞态、全额退款、物流、手动/自动收货、自动完成、评价、commerce-service 租约恢复和 Redis 降级。
 - 验证：Windows `-SkipBuild`、容器化 Bash `--skip-build` 和 Windows 默认构建模式均通过；默认构建模式使用当前源码重建五个应用镜像。
 - 边界：快速回归不代替两分钟浸泡、Broker 停机、空卷全链路或旧卷重启专项；这些已在前置阶段独立验收。

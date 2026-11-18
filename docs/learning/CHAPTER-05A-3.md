@@ -95,7 +95,7 @@ HMAC 商户使用 App Secret 计算 `HMAC-SHA256`。RSA 商户在商城侧保存
 
 ```powershell
 docker compose up --build -d --wait
-./scripts/windows/verify-payment-security.ps1
+pwsh -File ./scripts/verify-payment-security.ps1
 ```
 
 脚本真实验证：
@@ -106,7 +106,7 @@ docker compose up --build -d --wait
 - Step-up 令牌只能使用一次，重放会被拒绝。
 - 审计记录包含哈希链字段。
 
-`scripts/windows/verify-payment.ps1` 和 `scripts/linux/verify-payment.sh` 现在转发到各自平台的同一套 05A-3 验收，因为旧的明文 Secret 协议已被安全协议替代。
+`scripts/verify-payment.ps1` 调用 05A-3 验收，因为旧的明文 Secret 协议已被安全协议替代。
 
 ## 7. 教学环境与生产差距
 

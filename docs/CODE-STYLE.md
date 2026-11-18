@@ -57,7 +57,7 @@ ShedLock 与 Remember-me 继续使用框架适配器生成的 SQL。
 
 ## 6. 自动检查入口
 
-`scripts/windows/audit-code-quality.ps1` 与 `scripts/linux/audit-code-quality.sh` 是只检查入口，
+`scripts/audit-code-quality.ps1` 是只检查入口，
 不会自动改写文件。当前纳入门禁的是 commerce/notification/catalog/inventory/order、支付模拟器与物流模拟器
 七个 Maven 模块的全部主源码/测试 Java、Mapper XML 和 POM：
 

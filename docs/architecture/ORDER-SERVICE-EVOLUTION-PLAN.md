@@ -86,11 +86,7 @@ Maven POM，并检查全部 410 个 Java 源文件的 class 字段空行。Windo
 审计、空库 V1→V35 和遗留 V16→V35 隔离 MySQL 生命周期均通过。
 
 ```powershell
-.\scripts\windows\audit-order-service-admission.ps1
-```
-
-```bash
-./scripts/linux/audit-order-service-admission.sh
+pwsh -File ./scripts/audit-order-service-admission.ps1
 ```
 
 脚本只启动并读取现有 `commerce-db`，不清空数据卷。CREATE 已授权；CUTOVER、源实现删除、后续服务拆分和
@@ -111,11 +107,7 @@ PostgreSQL 仍受各自门禁约束。
 这些影子验收脚本现在通过[隔离项目配置](M3-SINGLE-OWNERSHIP-REVIEW.md#7-旧迁移工具与权限验收)运行。
 
 ```powershell
-.\scripts\windows\verify-order-shadow-runtime.ps1
-```
-
-```bash
-./scripts/linux/verify-order-shadow-runtime.sh
+pwsh -File ./scripts/verify-order-shadow-runtime.ps1
 ```
 
 ## 8. 第五批远程协议与预切换演练证据
@@ -132,13 +124,8 @@ PostgreSQL 仍受各自门禁约束。
   金额 448155.00 与三张空协议表全部 MATCH。实际 commerce 账号未冻结，因此这不是 CUTOVER。
 
 ```powershell
-.\scripts\windows\verify-order-remote-protocol.ps1
-.\scripts\windows\verify-order-precutover-rehearsal.ps1
-```
-
-```bash
-./scripts/linux/verify-order-remote-protocol.sh
-./scripts/linux/verify-order-precutover-rehearsal.sh
+pwsh -File ./scripts/verify-order-remote-protocol.ps1
+pwsh -File ./scripts/verify-order-precutover-rehearsal.ps1
 ```
 
 ## 9. 第六批 CUTOVER 证据
@@ -154,9 +141,5 @@ PostgreSQL 仍受各自门禁约束。
   恢复后健康，不存在 LOCAL/COMPARE 或源库回退。
 
 ```powershell
-.\scripts\windows\verify-order-runtime-cutover.ps1
-```
-
-```bash
-./scripts/linux/verify-order-runtime-cutover.sh
+pwsh -File ./scripts/verify-order-runtime-cutover.ps1
 ```

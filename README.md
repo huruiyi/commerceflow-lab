@@ -63,7 +63,7 @@
 3. 阅读购物车、下单、支付、履约、收货评价对应的 Controller、Service、Mapper。
 4. 按版本查看 `services/commerce-service/src/main/resources/db/migration`，把业务模型与数据库约束对应起来。
 5. 阅读支付 Outbox、Kafka 发布/消费和补偿任务，再进入独立的 `simulators/payment-platform/service/`。
-6. 最后使用 `scripts/windows/` 或 `scripts/linux/` 中的验收脚本做成功、失败、幂等、越权和故障实验。
+6. 最后使用 `scripts/` 中的验收脚本做成功、失败、幂等、越权和故障实验。
 
 文档统一从 [docs/README.md](docs/README.md) 进入：[当前项目进度](docs/PROJECT-STATUS.md) 给出快照和下一里程碑，[已实现现状](docs/IMPLEMENTED.md) 只记录可验证事实，[统一进度与代办](docs/TODO.md) 是勾选状态和未实现顺序的唯一清单，接口索引见 [docs/API.md](docs/API.md)。分章历史见 [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md)。
 
@@ -151,48 +151,20 @@ docker compose --profile demo-data run --rm catalog-demo-init
 
 ## 验收脚本
 
-根目录不再放置平台脚本。主要业务专项提供 Windows/Bash 成对入口；加入告警验收后共 37 组 `verify-*`，文件名、有序参数和默认非删卷语义通过可重复契约审计：
+Windows、Linux 和 WSL 共用 `scripts/` 目录下的 PowerShell 7 脚本。运行前准备 `pwsh`、Docker 和 Compose v2；部分静态审计还使用 `rg`。以下命令以仓库根目录为工作目录。
 
-- `scripts/windows/*.ps1`：Windows 上使用 PowerShell 7（`pwsh`）运行。
-- `scripts/linux/*.sh`：Linux、WSL 或 Git Bash 使用，不依赖 PowerShell；`_common.sh` 是各脚本共用的内部函数库，不需要单独运行。
-
-脚本会自行定位项目根目录，所以既可以在项目根目录执行，也可以从其他目录使用绝对路径执行。运行前需要安装并启动 Docker（含 Compose v2）；Bash 版还需要 `curl`、`jq`、`openssl`，支付安全脚本额外使用 GNU `base32`、`xxd` 和 `od`。
-
-Debian/Ubuntu 可安装 Bash 版依赖：
-
-```bash
-sudo apt-get update
-sudo apt-get install -y curl jq openssl coreutils xxd
-```
-
-Fedora/RHEL 可使用：
-
-```bash
-sudo dnf install -y curl jq openssl coreutils vim-common
-```
-
-Windows 若选择 `.ps1`，请先安装 PowerShell 7；若使用 Git Bash，则仍需额外安装或放入 `PATH` 的 `jq`。
-
-脚本文件名、有序参数契约和默认非破坏性可单独复核：
+单独检查脚本参数和临时卷清理规则：
 
 ```powershell
-./scripts/windows/audit-script-contracts.ps1
+pwsh -File ./scripts/audit-script-contracts.ps1
 ```
 
-```bash
-bash ./scripts/linux/audit-script-contracts.sh
-```
-
-契约清单与删卷边界见 [Windows/Bash 脚本审计](docs/SCRIPT-AUDIT.md)；改动类型对应的必跑门禁、证据格式和基线冻结检查见 [全开发生命周期可复测验证体系](docs/VERIFICATION-SYSTEM.md)。
+契约清单与删卷边界见 [验收脚本审计](docs/SCRIPT-AUDIT.md)；改动类型对应的必跑门禁、证据格式和基线冻结检查见 [全开发生命周期可复测验证体系](docs/VERIFICATION-SYSTEM.md)。
 
 四个 Java 服务的只读代码质量与 Mapper 契约门禁：
 
 ```powershell
-./scripts/windows/audit-code-quality.ps1
-```
-
-```bash
-bash ./scripts/linux/audit-code-quality.sh
+pwsh -File ./scripts/audit-code-quality.ps1
 ```
 
 该入口不会格式化或改写文件；它检查后端 Java、Mapper XML 和 Maven POM 的客观格式规则，
@@ -202,11 +174,7 @@ order-service 的只读 CREATE 准入审计可单独复跑；它检查 7 张 ord
 外部 Mapper 消费者保持为 0，以及全局事务协调器缺席门禁，不创建服务、不迁移数据、不清空卷：
 
 ```powershell
-./scripts/windows/audit-order-service-admission.ps1
-```
-
-```bash
-bash ./scripts/linux/audit-order-service-admission.sh
+pwsh -File ./scripts/audit-order-service-admission.ps1
 ```
 
 当前结论和后续收口顺序见
@@ -216,24 +184,15 @@ order-service 已完成一次性 CUTOVER 并独占订单运行时读写。以下
 commerce 运行账号无源表权限，以及 order-service 停机时明确返回 503、恢复后重新健康：
 
 ```powershell
-./scripts/windows/verify-order-runtime-cutover.ps1
-```
-
-```bash
-bash ./scripts/linux/verify-order-runtime-cutover.sh
+pwsh -File ./scripts/verify-order-runtime-cutover.ps1
 ```
 
 远程 Order V1 故障语义使用合成订单在独立库内演练；脚本临时打开协议门，验证 HMAC/摘要/防重放、Tempo
 Trace、重复/冲突/乱序、命令 Outbox/结果 Inbox、超时未知结果和人工恢复，随后清理合成数据并恢复 503：
 
 ```powershell
-./scripts/windows/verify-order-remote-protocol.ps1
-./scripts/windows/verify-order-precutover-rehearsal.ps1
-```
-
-```bash
-bash ./scripts/linux/verify-order-remote-protocol.sh
-bash ./scripts/linux/verify-order-precutover-rehearsal.sh
+pwsh -File ./scripts/verify-order-remote-protocol.ps1
+pwsh -File ./scripts/verify-order-precutover-rehearsal.ps1
 ```
 
 影子与预切换脚本保留为历史取证入口；默认运行时关闭影子复制且不再配置源库，不应重新开放源端权限。
@@ -243,11 +202,7 @@ payment-orchestration 准入审计检查 14 张 payment/refund 所有权表、�
 但没有业务流量，也未 CUTOVER：
 
 ```powershell
-./scripts/windows/audit-payment-orchestration-admission.ps1
-```
-
-```bash
-bash ./scripts/linux/audit-payment-orchestration-admission.sh
+pwsh -File ./scripts/audit-payment-orchestration-admission.ps1
 ```
 
 当前结论和后续顺序见
@@ -268,46 +223,29 @@ bash ./scripts/linux/audit-payment-orchestration-admission.sh
 不表示允许切流：
 
 ```powershell
-./scripts/windows/audit-payment-cutover-readiness.ps1
-```
-
-```bash
-bash ./scripts/linux/audit-payment-cutover-readiness.sh
+pwsh -File ./scripts/audit-payment-cutover-readiness.ps1
 ```
 
 支付副作用演练只插入一条精确合成 Outbox，验证远程失败进入可恢复 RETRY 且不产生库存写入；结束时删除该事件并
 恢复流量关、副作用关、影子开：
 
 ```powershell
-./scripts/windows/verify-payment-effects-rehearsal.ps1
-```
-
-```bash
-bash ./scripts/linux/verify-payment-effects-rehearsal.sh
+pwsh -File ./scripts/verify-payment-effects-rehearsal.ps1
 ```
 
 支付影子运行专项会执行可重复快照、增量水位、14 表指纹核对和可恢复孤儿演练。支付副作用、影子运行、远程协议
 及预切换演练脚本均使用显式隔离配置，启动方法见[旧迁移工具与权限验收](docs/architecture/M3-SINGLE-OWNERSHIP-REVIEW.md#7-旧迁移工具与权限验收)。
 
 ```powershell
-./scripts/windows/verify-payment-shadow-runtime.ps1
-```
-
-```bash
-bash ./scripts/linux/verify-payment-shadow-runtime.sh
+pwsh -File ./scripts/verify-payment-shadow-runtime.ps1
 ```
 
 远程协议专项会临时开启独立服务流量门，使用合成数据验证签名、防重放、支付/关闭竞态、退款、结果丢失、
 服务/数据库停机与整体回退；脚本结束后自动清理合成数据并恢复关闭流量：
 
 ```powershell
-./scripts/windows/verify-payment-remote-protocol.ps1
-./scripts/windows/verify-payment-precutover-rehearsal.ps1
-```
-
-```bash
-bash ./scripts/linux/verify-payment-remote-protocol.sh
-bash ./scripts/linux/verify-payment-precutover-rehearsal.sh
+pwsh -File ./scripts/verify-payment-remote-protocol.ps1
+pwsh -File ./scripts/verify-payment-precutover-rehearsal.ps1
 ```
 
 Angular 商城门户和支付模拟器 Web 都使用模块本地 Prettier 只读门禁：
@@ -332,47 +270,31 @@ npm test
 默认构建当前源码镜像并运行约数分钟的核心回归：
 
 ```powershell
-./scripts/windows/verify-quick.ps1
+pwsh -File ./scripts/verify-quick.ps1
 ```
 
-```bash
-bash ./scripts/linux/verify-quick.sh
-```
-
-已有当前镜像时可使用 `-SkipBuild` / `--skip-build`。快速入口始终执行后端代码质量与脚本契约门禁，
+已有当前镜像时可使用 `-SkipBuild`。快速入口始终执行后端代码质量与脚本契约门禁，
 默认构建还会通过两个前端 Dockerfile 执行格式检查。回归覆盖权限/i18n、取消、支付竞态、退款、物流、
 收货/完成/评价、commerce-service 租约恢复、Redis 降级和健康检查。跳过构建时不会重新执行镜像内
 Maven/ArchUnit 测试或前端格式检查。它不代替两分钟浸泡、MQ 停机、空卷或旧卷重启专项。
 
 ### 完整自动验收
 
-Windows：
-
 ```powershell
-./scripts/windows/verify-all.ps1
-```
-
-Bash：
-
-```bash
-bash ./scripts/linux/verify-all.sh
+pwsh -File ./scripts/verify-all.ps1
 ```
 
 完整验收会先构建镜像并运行镜像内测试，再启动完整环境，最后验证认证、CSRF、权限边界、国际化、支付/取消竞态、支付结果、Kafka、签名物流和回调轨迹、收货评价、Redis 缓存、MySQL 降级与健康状态。已有最新镜像时可跳过构建：
 
 ```powershell
-./scripts/windows/verify-all.ps1 -SkipBuild
+pwsh -File ./scripts/verify-all.ps1 -SkipBuild
 ```
 
-```bash
-bash ./scripts/linux/verify-all.sh --skip-build
-```
-
-需要验证非默认商城地址时，Windows 使用 `-BaseUrl http://host:port`，Bash 使用 `--base-url http://host:port`。
+可用 `-BaseUrl http://host:port` 指定商城地址。
 
 ### 单项脚本及作用
 
-| Windows / Bash 主要成对脚本 | 作用 | 默认地址 |
+| 验收脚本 | 作用 | 默认地址 |
 | --- | --- | --- |
 | `verify-alerting` | 校验 Prometheus/Alertmanager 配置和规则单测，确认三个服务 Target 与 Watchdog 实时 Webhook 投递 | Prometheus `19090`、Alertmanager `19093`、Webhook `18085` |
 | `verify-all` | 先执行后端代码质量门禁，再构建、启动并串联主要验收，包含告警链和最终健康检查 | 商城 `14200`、监控 `19090/19093/18085` |
@@ -380,7 +302,7 @@ bash ./scripts/linux/verify-all.sh --skip-build
 | `verify-authorization` | 匿名访问、登录、禁用账号、CSRF 和三种角色权限矩阵 | 商城 `14200` |
 | `verify-i18n` | 中英文商品、按语言隔离的 Redis 缓存、稳定错误码和前端入口 | 商城 `14200` |
 | `verify-flyway-lifecycle` | 在隔离的临时 MySQL 中验证空库 V1–V24、V16 旧库升级、核心业务注释与历史订单截止时间回填，并确认非法任务状态被约束拒绝 | Docker Engine |
-| `verify-fresh-volume-lifecycle` | 使用独立 Compose 项目和全新卷验证三库 Flyway、空订单种子与登录到评价全链路；默认保留临时卷，仅显式 `-RemoveTemporaryVolumes` / `--remove-temporary-volumes` 删除临时项目卷 | Docker Compose；不触碰默认 `fairy-commerceflow_*` 卷 |
+| `verify-fresh-volume-lifecycle` | 使用独立 Compose 项目和全新卷验证三库 Flyway、空订单种子与登录到评价全链路；默认保留临时卷，仅显式 `-RemoveTemporaryVolumes` 删除临时项目卷 | Docker Compose；不触碰默认 `fairy-commerceflow_*` 卷 |
 | `verify-upgrade-restart-recovery` | 先做隔离 V16→V24 升级演练，再对当前持久卷重启三库/Redis/Kafka/业务服务/RabbitMQ/RocketMQ，验证两种 MQ 未完成任务恢复一次且历史指纹不变 | Docker Compose 全栈；只重启容器，不删卷 |
 | `verify-payment-notifications` | 创建订单、发起待支付交易、模拟签名回调并拒绝伪造回调 | 商城 `14200` |
 | `verify-payment-attempt-deadline` | 验证单次渠道支付过期不关闭整单、到期前可换渠道重试，以及整单截止时先关闭待支付交易再取消订单 | 商城 `14200`、支付平台 `14201` |
@@ -412,24 +334,14 @@ bash ./scripts/linux/verify-all.sh --skip-build
 | `verify-payment-security` | HMAC/RSA 三渠道签名、Nonce/篡改/过期拒绝、TOTP、Step-up 和审计哈希链 | 支付平台 `14201` |
 | `verify-payment` | `verify-payment-security` 的兼容入口 | 支付平台 `14201` |
 
-Windows 单项脚本通过 `-BaseUrl` 改地址：
+单项脚本通过 `-BaseUrl` 改地址：
 
 ```powershell
-./scripts/windows/verify-authorization.ps1 -BaseUrl http://localhost:14200
-./scripts/windows/verify-flyway-lifecycle.ps1
-./scripts/windows/verify-payment-attempt-deadline.ps1 -BaseUrl http://localhost:14200 -PaymentUrl http://localhost:14201
-./scripts/windows/verify-payment-cancellation-stress.ps1 -DurationSeconds 300 -MinimumIterations 30
-./scripts/windows/verify-payment.ps1 -BaseUrl http://localhost:14201
-```
-
-Bash 单项脚本把地址作为第一个位置参数；也可省略并使用表中的默认值：
-
-```bash
-bash ./scripts/linux/verify-authorization.sh http://localhost:14200
-bash ./scripts/linux/verify-flyway-lifecycle.sh
-bash ./scripts/linux/verify-payment-attempt-deadline.sh http://localhost:14200 http://localhost:14201
-bash ./scripts/linux/verify-payment-cancellation-stress.sh http://localhost:14200 http://localhost:14201 300 30
-bash ./scripts/linux/verify-payment.sh http://localhost:14201
+pwsh -File ./scripts/verify-authorization.ps1 -BaseUrl http://localhost:14200
+pwsh -File ./scripts/verify-flyway-lifecycle.ps1
+pwsh -File ./scripts/verify-payment-attempt-deadline.ps1 -BaseUrl http://localhost:14200 -PaymentUrl http://localhost:14201
+pwsh -File ./scripts/verify-payment-cancellation-stress.ps1 -DurationSeconds 300 -MinimumIterations 30
+pwsh -File ./scripts/verify-payment.ps1 -BaseUrl http://localhost:14201
 ```
 
 RabbitMQ 调度专项验收需要显式启用可选适配器；默认 `docker compose up` 仍只使用 Database，不依赖 RabbitMQ：
@@ -438,13 +350,7 @@ RabbitMQ 调度专项验收需要显式启用可选适配器；默认 `docker co
 $env:SCHEDULING_RABBITMQ_ENABLED='true'
 $env:ORDER_PAYMENT_TIMEOUT='5s'
 docker compose --profile rabbitmq up -d --build --wait rabbitmq-broker commerce-service commerce-portal-angular
-./scripts/windows/verify-rabbitmq-scheduling.ps1 -MaxWaitSeconds 30
-```
-
-```bash
-SCHEDULING_RABBITMQ_ENABLED=true ORDER_PAYMENT_TIMEOUT=5s \
-  docker compose --profile rabbitmq up -d --build --wait rabbitmq-broker commerce-service commerce-portal-angular
-bash ./scripts/linux/verify-rabbitmq-scheduling.sh http://localhost:14200 30
+pwsh -File ./scripts/verify-rabbitmq-scheduling.ps1 -MaxWaitSeconds 30
 ```
 
 RocketMQ 调度使用 5.x gRPC 客户端和原生绝对投递时间；Profile 会启动 NameServer、Broker/Proxy，并创建 `message.type=DELAY` Topic：
@@ -453,15 +359,8 @@ RocketMQ 调度使用 5.x gRPC 客户端和原生绝对投递时间；Profile �
 $env:SCHEDULING_ROCKETMQ_ENABLED='true'
 $env:ORDER_PAYMENT_TIMEOUT='5s'
 docker compose --profile rocketmq up -d --build --wait rocketmq-topic-init commerce-service commerce-portal-angular
-./scripts/windows/verify-rocketmq-scheduling.ps1 -MaxWaitSeconds 30
-./scripts/windows/verify-rocketmq-reconciliation.ps1 -MaxWaitSeconds 45
-```
-
-```bash
-SCHEDULING_ROCKETMQ_ENABLED=true ORDER_PAYMENT_TIMEOUT=5s \
-  docker compose --profile rocketmq up -d --build --wait rocketmq-topic-init commerce-service commerce-portal-angular
-bash ./scripts/linux/verify-rocketmq-scheduling.sh http://localhost:14200 30
-bash ./scripts/linux/verify-rocketmq-reconciliation.sh http://localhost:14200 45
+pwsh -File ./scripts/verify-rocketmq-scheduling.ps1 -MaxWaitSeconds 30
+pwsh -File ./scripts/verify-rocketmq-reconciliation.ps1 -MaxWaitSeconds 45
 ```
 
 故障脚本会短暂停止并恢复 RocketMQ Broker；建议同时把 `SCHEDULING_RECONCILIATION_INITIAL_DELAY`、`SCHEDULING_RECONCILIATION_FIXED_DELAY` 和 `SCHEDULING_ROCKETMQ_REQUEST_TIMEOUT` 调成秒级，避免等待默认生产型周期。
@@ -473,15 +372,7 @@ $env:SCHEDULING_RABBITMQ_ENABLED='true'
 $env:SCHEDULING_ROCKETMQ_ENABLED='true'
 $env:ORDER_PAYMENT_TIMEOUT='6s'
 docker compose --profile rabbitmq --profile rocketmq up -d --build --wait rabbitmq-broker rocketmq-topic-init commerce-service commerce-portal-angular
-./scripts/windows/verify-mq-scheduling-idempotency.ps1 -MaxWaitSeconds 60
-```
-
-```bash
-SCHEDULING_RABBITMQ_ENABLED=true SCHEDULING_ROCKETMQ_ENABLED=true ORDER_PAYMENT_TIMEOUT=6s \
-  docker compose --profile rabbitmq --profile rocketmq up -d --build --wait rabbitmq-broker rocketmq-topic-init commerce-service commerce-portal-angular
-bash ./scripts/linux/verify-mq-scheduling-idempotency.sh \
-  http://localhost:14200 http://localhost:18081 http://localhost:15672 \
-  commerceflow commerceflow-password 60
+pwsh -File ./scripts/verify-mq-scheduling-idempotency.ps1 -MaxWaitSeconds 60
 ```
 
 专项脚本要求 RabbitMQ Dead Queue 在开始前为空；验证后会取走本次 RabbitMQ 毒消息。RocketMQ 毒消息使用唯一 Key 查询对应 `%DLQ%ConsumerGroup`，不会清空或覆盖已有消息。
@@ -489,11 +380,7 @@ bash ./scripts/linux/verify-mq-scheduling-idempotency.sh \
 未确认重新投递专项会自动启动两种 Broker、两次以零秒宽限停止 commerce-service，并在结束时恢复策略与环境变量：
 
 ```powershell
-./scripts/windows/verify-mq-scheduling-redelivery.ps1 -MaxWaitSeconds 120
-```
-
-```bash
-bash ./scripts/linux/verify-mq-scheduling-redelivery.sh http://localhost:14200 120
+pwsh -File ./scripts/verify-mq-scheduling-redelivery.ps1 -MaxWaitSeconds 120
 ```
 
 详细确认边界、实验证据和官方学习资料见 [MQ 未确认消息与重新投递](docs/learning/CHAPTER-06A-MQ-UNACKED-REDELIVERY.md)。
@@ -552,9 +439,7 @@ Compose 中的数据库密码、商户号、App ID/Secret、RSA/HMAC 密钥和�
 - 修改源码未生效：执行 `docker compose up -d --build --wait` 重新构建镜像。
 - 演示数据需要重置：确认数据可删除后执行 `docker compose down --volumes`，再启动并显式运行 `catalog-demo-init`。
 - Redis 暂停时登录 Session 会受影响，但公开商品会降级查询 MySQL；恢复后等待健康检查通过。
-- Windows 脚本执行策略阻止运行时，可使用 `pwsh -ExecutionPolicy Bypass -File .\scripts\windows\verify-all.ps1`。
-- Bash 提示缺少命令时，先安装 `curl`、`jq` 和 `openssl`；运行支付安全专项时还需 `base32`、`xxd`、`od`。
-- Bash 脚本没有可执行权限时，直接使用 `bash ./scripts/linux/verify-all.sh`，或先执行 `chmod +x scripts/linux/*.sh`。
+- Windows 脚本执行策略阻止运行时，可使用 `pwsh -ExecutionPolicy Bypass -File ./scripts/verify-all.ps1`。
 
 详见 [前端说明](web/commerce-portal/angular/README.md) 和 [后端说明](services/commerce-service/README.md)。
 

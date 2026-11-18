@@ -87,7 +87,7 @@ commerce-service 与 inventory-service；重试可以产生新 span，但不得�
 | 恢复 | 停服务、停数据库、重启和原 commandId 人工恢复均不重复改变余额 |
 | Trace | 四类命令均有跨两个进程的完整 Trace 与业务关联键 |
 | 回退 | 解除停写前回退和接收新写后的受控停止方案均实际演练 |
-| 全量回归 | Java、Flyway、快速回归、Windows/Bash 脚本与代码质量门禁全部通过 |
+| 全量回归 | Java、Flyway、快速回归、脚本契约与代码质量门禁全部通过 |
 
 命令 CUTOVER 和商家库存管理迁出均已通过；commerce 的库存 Mapper/XML 已删除，受限运行账号只获非库存表
 逐表授权，对五张源表访问均被拒绝。源表仅作为历史迁移证据保留，不是运行回退路径。
@@ -97,17 +97,10 @@ payment-orchestration、fulfillment 以及 M3 清单中所有待拆服务全部�
 ## 8. 本批可复跑命令
 
 ```powershell
-.\scripts\windows\audit-inventory-service-admission.ps1
-.\scripts\windows\verify-inventory-remote-rehearsal.ps1
-.\scripts\windows\verify-inventory-runtime-cutover.ps1
-.\scripts\windows\verify-inventory-single-owner.ps1
-```
-
-```bash
-./scripts/linux/audit-inventory-service-admission.sh
-./scripts/linux/verify-inventory-remote-rehearsal.sh
-./scripts/linux/verify-inventory-runtime-cutover.sh
-./scripts/linux/verify-inventory-single-owner.sh
+pwsh -File ./scripts/audit-inventory-service-admission.ps1
+pwsh -File ./scripts/verify-inventory-remote-rehearsal.ps1
+pwsh -File ./scripts/verify-inventory-runtime-cutover.ps1
+pwsh -File ./scripts/verify-inventory-single-owner.ps1
 ```
 
 `audit-*` 只启动已有 `commerce-db`（如尚未运行）并执行只读查询。`verify-inventory-remote-rehearsal` 保留为历史

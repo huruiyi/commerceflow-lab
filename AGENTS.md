@@ -79,7 +79,7 @@ fairy-commerceflow-rabbitmq-broker
 1. 修改前检查 `git status`、当前分支和最近提交，不覆盖无关变更。
 2. 当前源码、迁移、脚本和实际验证结果高于文档；冲突时同步修正文档。
 3. 默认不清空数据卷。只有用户明确允许丢弃学习数据时，才可在列出精确 Compose 项目和卷后执行带 `--volumes`的破坏性重建；不得使用全局 volume prune。
-4. 普通改动至少运行相关测试；跨模块或命名改动运行 Windows/Bash 脚本契约审计和快速回归。
+4. 普通改动至少运行相关测试；跨模块或命名改动运行脚本契约审计和快速回归。Windows、Linux、WSL 统一用 PowerShell 7 执行 `scripts/` 下的同一份验收脚本；新增入口登记到 `scripts/script-contracts.tsv`。
 5. 命名迁移必须同时更新源码目录、package/import、Maven、Spring 扫描、Docker/Compose、脚本、文档和测试，不能提交半迁移状态。
 6. M1 后“整个开发生命周期的可复测验证体系”文档、UI 收尾和生产级告警仍按项目状态文档中的顺序推进，不因命名治理提前新增业务功能。
 7. 本仓库 Git 提交信息统一使用中文，简明说明本次提交的实际目的和范围；必要的协议名、类型名或命令可保留英文。

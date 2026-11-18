@@ -13,21 +13,12 @@
 
 ## 2. 脚本入口
 
-Windows：
-
 ```powershell
-./scripts/windows/verify-payment-cancellation-stress.ps1 `
+pwsh -File ./scripts/verify-payment-cancellation-stress.ps1 `
   -DurationSeconds 300 -MinimumIterations 30 -Seed 20261113
 ```
 
-Linux/Bash：
-
-```bash
-bash ./scripts/linux/verify-payment-cancellation-stress.sh \
-  http://localhost:14200 http://localhost:14201 300 30 20261113
-```
-
-`DurationSeconds` 和 `MinimumIterations` 是双门禁：脚本必须同时达到最少时长和最少轮数才停止。固定 `Seed` 使随机延迟可重放；不同平台的随机数实现不同，因此相同种子保证各自可重现，不保证 Windows 与 Bash 每轮延迟完全一样。
+`DurationSeconds` 和 `MinimumIterations` 是双门禁：脚本必须同时达到最少时长和最少轮数才停止。固定 `Seed` 使随机延迟可重放。
 
 ## 3. 为什么不关闭支付平台限流
 

@@ -63,7 +63,7 @@
 
 - MySQL + Flyway、Redis/Spring Session、Kafka/Outbox、RabbitMQ 分桶延迟任务、RocketMQ 5.x 原生延时任务 Profile、ShedLock。
 - Angular/Vue 前端、三个 Spring Boot 服务和 Docker Compose。
-- `scripts/windows/` 与 `scripts/linux/` 保留同名验收脚本结构。
+- 验收脚本统一位于 `scripts/`，使用 PowerShell 7。
 - `verify-flyway-lifecycle` 使用与后端一致的 Flyway `12.4.0` 和隔离 MySQL 8.4，验证空库 V1–V36、
   V16→V36 升级、V17 历史订单截止时间回填、V24 核心注释、V28 catalog/inventory 所有权分离、V29 catalog
   版本/Outbox 元数据、V30 inventory 命令 Inbox/跨边界外键清理、V31 catalog-event Inbox/版本化快照、

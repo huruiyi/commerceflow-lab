@@ -13,9 +13,9 @@
 ```powershell
 docker compose up --build -d --wait
 docker compose ps
-./scripts/windows/verify-payment-notifications.ps1
-./scripts/windows/verify-kafka-payment.ps1
-./scripts/windows/verify-payment-outcomes.ps1
+pwsh -File ./scripts/verify-payment-notifications.ps1
+pwsh -File ./scripts/verify-kafka-payment.ps1
+pwsh -File ./scripts/verify-payment-outcomes.ps1
 ```
 
 入口：商城 `http://localhost:14200`，支付平台 `http://localhost:14201`，Kafka UI `http://localhost:14202`。商城客户账号为 `demo@example.com` / `demo-password`。

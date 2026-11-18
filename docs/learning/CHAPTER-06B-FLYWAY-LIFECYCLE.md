@@ -29,16 +29,8 @@
 
 ## 3. 运行方式
 
-Windows：
-
 ```powershell
-./scripts/windows/verify-flyway-lifecycle.ps1
-```
-
-Linux/Bash：
-
-```bash
-bash ./scripts/linux/verify-flyway-lifecycle.sh
+pwsh -File ./scripts/verify-flyway-lifecycle.ps1
 ```
 
 领域层非法转换由 `CommerceFlowIntegrationTest.illegalOrderStateTransitionsAreRejectedWithoutChangingFacts` 覆盖，可通过构建后端执行：
