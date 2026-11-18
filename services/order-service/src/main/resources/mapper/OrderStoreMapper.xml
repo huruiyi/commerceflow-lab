@@ -105,7 +105,7 @@
 
   <update id="updateStatus">
     UPDATE shop_orders SET status=#{toStatus},updated_at=CURRENT_TIMESTAMP(6)
-    WHERE id=#{orderId} AND status=#{fromStatus}
+    WHERE id=#{orderId} AND status=#{fromStatus} AND (#{toStatus}&lt;&gt;'REFUNDING' OR shipment_intent_key IS NULL)
   </update>
 
   <update id="updateInventoryStatus">
@@ -155,15 +155,34 @@
       AND EXISTS (SELECT 1 FROM order_items WHERE order_id=shop_orders.id AND merchant_id=#{actorId})
   </update>
 
+  <update id="reserveShipment">
+    UPDATE shop_orders SET shipment_intent_key=#{key},updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{mutation.orderId} AND status='CONFIRMED' AND inventory_status='COMMITTED'
+      AND (shipment_intent_key IS NULL OR (NOT #{unreservedOnly} AND shipment_intent_key=#{key}))
+      AND EXISTS (SELECT 1 FROM order_items WHERE order_id=shop_orders.id AND merchant_id=#{mutation.actorId})
+  </update>
+
   <update id="shipByMerchant">
-    UPDATE shop_orders SET status='SHIPPED',carrier=#{carrier},tracking_number=#{trackingNumber},
-      shipped_at=CURRENT_TIMESTAMP(6),updated_at=CURRENT_TIMESTAMP(6)
-    WHERE id=#{orderId} AND status='CONFIRMED' AND inventory_status='COMMITTED'
-      AND EXISTS (SELECT 1 FROM order_items WHERE order_id=shop_orders.id AND merchant_id=#{actorId})
+    UPDATE shop_orders SET status='SHIPPED',carrier=#{mutation.carrier},tracking_number=#{mutation.trackingNumber},
+      shipped_at=CURRENT_TIMESTAMP(6),updated_at=CURRENT_TIMESTAMP(6),shipment_intent_key=NULL
+    WHERE id=#{mutation.orderId} AND status='CONFIRMED' AND inventory_status='COMMITTED'
+      AND shipment_intent_key=#{key}
+      AND EXISTS (SELECT 1 FROM order_items WHERE order_id=shop_orders.id AND merchant_id=#{mutation.actorId})
+  </update>
+
+  <select id="lockOrderStatus" resultType="java.lang.String">
+    SELECT status FROM shop_orders WHERE id=#{orderId} FOR UPDATE
+  </select>
+
+  <update id="startRefund">
+    UPDATE shop_orders SET status='REFUNDING',updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{orderId} AND status=#{previous} AND shipment_intent_key IS NULL
   </update>
 
   <update id="updateShipment">
-    UPDATE shop_orders SET carrier=#{carrier},tracking_number=#{trackingNumber},updated_at=CURRENT_TIMESTAMP(6)
-    WHERE id=#{orderId} AND status='SHIPPED'
+    UPDATE shop_orders SET carrier=#{carrier},tracking_number=#{trackingNumber},
+      shipment_version=shipment_version+1,updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{orderId} AND status='SHIPPED' AND shipment_version=#{expectedShipmentVersion}
+      AND EXISTS (SELECT 1 FROM order_items WHERE order_id=shop_orders.id AND merchant_id=#{actorId})
   </update>
 </mapper>

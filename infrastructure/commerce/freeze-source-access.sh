@@ -2,22 +2,27 @@
 set -eu
 
 case "${RUNTIME_DATABASE_USERNAME}" in
-  ''|*[!A-Za-z0-9_]* )
+  ''|root|*[!A-Za-z0-9_]* )
     echo "RUNTIME_DATABASE_USERNAME must contain only letters, digits, or underscores" >&2
     exit 1
     ;;
 esac
 
+owner=${FULFILLMENT_SOURCE_OWNER:-COMMERCE}
+case "$owner" in
+  COMMERCE) fulfillment_grants=24 ;;
+  FULFILLMENT) fulfillment_grants=0 ;;
+  *) echo "FULFILLMENT_SOURCE_OWNER must be COMMERCE or FULFILLMENT" >&2; exit 1 ;;
+esac
+
+fulfillment_tables="'fulfillment_order_locks','fulfillment_command_ids','fulfillment_shipment_jobs',
+  'fulfillment_shipment_recoveries','fulfillment_merchant_jobs','fulfillment_merchant_recoveries'"
 escaped_password=$(printf '%s' "${RUNTIME_DATABASE_PASSWORD}" | sed "s/'/''/g")
-root_mysql="mysql -h commerce-db -uroot -p${SOURCE_ROOT_PASSWORD} --protocol=tcp --skip-column-names"
+root_mysql() {
+  MYSQL_PWD="$SOURCE_ROOT_PASSWORD" mysql -h commerce-db -uroot --protocol=tcp --batch --skip-column-names "$@"
+}
 
-${root_mysql} <<SQL
-CREATE USER IF NOT EXISTS '${RUNTIME_DATABASE_USERNAME}'@'%' IDENTIFIED BY '${escaped_password}';
-ALTER USER '${RUNTIME_DATABASE_USERNAME}'@'%' IDENTIFIED BY '${escaped_password}';
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM '${RUNTIME_DATABASE_USERNAME}'@'%';
-SQL
-
-grant_statements=$(${root_mysql} -e "
+grant_statements=$(root_mysql -e "
   SELECT CONCAT(
     'GRANT SELECT, INSERT, UPDATE, DELETE ON \`commerceflow\`.\`',
     table_name,
@@ -26,8 +31,12 @@ grant_statements=$(${root_mysql} -e "
   FROM information_schema.tables
   WHERE table_schema = 'commerceflow'
     AND table_type = 'BASE TABLE'
+    AND ('$owner' = 'COMMERCE' OR table_name NOT IN ($fulfillment_tables))
     AND table_name NOT IN (
       'flyway_schema_history',
+      'fulfillment_shadow_clock',
+      'fulfillment_shadow_changes',
+      'fulfillment_write_admission',
       'product_inventory',
       'inventory_reservations',
       'inventory_movements',
@@ -65,7 +74,40 @@ if [ -z "${grant_statements}" ]; then
   exit 1
 fi
 
-printf '%s\n' "${grant_statements}" | ${root_mysql}
+if ! root_mysql commerceflow <<SQL
+-- A failed assertion inserts the existing sentinel and aborts this mysql batch.
+CREATE TEMPORARY TABLE grant_guard (verified INT PRIMARY KEY);
+INSERT INTO grant_guard VALUES (0);
+INSERT INTO grant_guard VALUES (COALESCE(GET_LOCK('commerceflow.fulfillment-source-owner', 30), 0));
+INSERT INTO grant_guard
+  SELECT IF(EXISTS (
+    SELECT 1 FROM fulfillment_write_admission
+    WHERE singleton_id = 1 AND write_owner = '$owner' AND ('$owner' = 'COMMERCE' OR frozen = TRUE)
+  ), 2, 0);
+INSERT INTO grant_guard
+  SELECT IF('$owner' = 'COMMERCE' OR (
+    @@GLOBAL.mandatory_roles = ''
+    AND NOT EXISTS (SELECT 1 FROM mysql.role_edges WHERE TO_USER = '${RUNTIME_DATABASE_USERNAME}')
+    AND NOT EXISTS (SELECT 1 FROM mysql.user WHERE User = '${RUNTIME_DATABASE_USERNAME}' AND Host <> '%')
+  ), 3, 0);
+
+CREATE USER IF NOT EXISTS '${RUNTIME_DATABASE_USERNAME}'@'%' IDENTIFIED BY '${escaped_password}';
+ALTER USER '${RUNTIME_DATABASE_USERNAME}'@'%' IDENTIFIED BY '${escaped_password}';
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM '${RUNTIME_DATABASE_USERNAME}'@'%';
+$grant_statements
+GRANT SELECT ON commerceflow.fulfillment_write_admission TO '${RUNTIME_DATABASE_USERNAME}'@'%';
+
+INSERT INTO grant_guard
+  SELECT IF(COUNT(*) = $fulfillment_grants, 4, 0)
+  FROM information_schema.table_privileges
+  WHERE grantee = CONCAT('''', '${RUNTIME_DATABASE_USERNAME}', '''@''%''')
+    AND table_schema = 'commerceflow' AND table_name IN ($fulfillment_tables);
+DO RELEASE_LOCK('commerceflow.fulfillment-source-owner');
+SQL
+then
+  echo "Could not apply grants for fulfillment owner $owner; verify the frozen source marker and runtime account" >&2
+  exit 1
+fi
 
 for source_table in \
   product_inventory \
@@ -97,7 +139,7 @@ for source_table in \
   refund_events \
   refund_notifications
 do
-  forbidden=$(${root_mysql} -e "
+  forbidden=$(root_mysql -e "
     SELECT COUNT(*)
     FROM information_schema.table_privileges
     WHERE grantee = CONCAT('''', '${RUNTIME_DATABASE_USERNAME}', '''@''%''')
@@ -111,3 +153,4 @@ do
 done
 
 echo "Commerce runtime grants exclude all inventory, order, payment, and refund source tables."
+echo "Fulfillment source owner: $owner; six-table direct grants: $fulfillment_grants."

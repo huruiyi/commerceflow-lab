@@ -192,21 +192,30 @@ public class RemoteOrderStoreAdapter implements OrderStorePort {
   }
 
   @Override
-  public int merchantConfirm(Long orderId, Long merchantId) {
-    return mutation("MERCHANT_CONFIRM", orderId, merchantId, null, null, null, null,
-      null, null, null, null, null, null);
+  public int merchantConfirm(String commandId, Long orderId, Long merchantId) {
+    return apply(new Mutation(commandId, "MERCHANT_CONFIRM", orderId, merchantId, null, null,
+      null, null, null, null, null, null, null, null));
   }
 
   @Override
-  public int merchantShip(Long orderId, Long merchantId, String carrier, String tracking) {
-    return mutation("MERCHANT_SHIP", orderId, merchantId, null, null, null, carrier,
-      tracking, null, null, null, null, null);
+  public int reserveShipment(String commandId, Long orderId, Long merchantId, String carrier, String tracking,
+                             boolean unreservedOnly) {
+    String type = unreservedOnly ? "RESERVE_NEW_SHIPMENT" : "RESERVE_SHIPMENT";
+    return apply(new Mutation(commandId, type, orderId, merchantId, null, null, null, carrier,
+      tracking, null, null, null, null, null));
   }
 
   @Override
-  public int updateShipment(Long orderId, String carrier, String tracking) {
-    return mutation("UPDATE_SHIPMENT", orderId, null, null, null, null, carrier,
-      tracking, null, null, null, null, null);
+  public int merchantShip(String commandId, Long orderId, Long merchantId, String carrier, String tracking) {
+    return apply(new Mutation(commandId, "MERCHANT_SHIP", orderId, merchantId, null, null, null, carrier,
+      tracking, null, null, null, null, null));
+  }
+
+  @Override
+  public int updateShipment(String commandId, Long orderId, Long merchantId, String carrier, String tracking,
+                            long version, String detail) {
+    return apply(new Mutation(commandId, "UPDATE_SHIPMENT", orderId, merchantId,
+      null, null, null, carrier, tracking, null, detail, null, null, null, version));
   }
 
   private int simple(String type, Long orderId) {
@@ -219,10 +228,13 @@ public class RemoteOrderStoreAdapter implements OrderStorePort {
                        String eventType, String detail, String triggerSource,
                        Long scheduledTaskId, Instant occurredAt) {
     String mutationId = UUID.randomUUID().toString();
-    MutationResult result = post(MUTATIONS, new Mutation(mutationId, type, orderId, actorId,
+    return apply(new Mutation(mutationId, type, orderId, actorId,
       fromStatus, toStatus, reason, carrier, tracking, eventType, detail, triggerSource,
-      scheduledTaskId, occurredAt), MutationResult.class);
-    return result.changed();
+      scheduledTaskId, occurredAt));
+  }
+
+  private int apply(Mutation mutation) {
+    return post(MUTATIONS, mutation, MutationResult.class).changed();
   }
 
   private QueryResult query(Query query) {
@@ -277,9 +289,17 @@ public class RemoteOrderStoreAdapter implements OrderStorePort {
   private record Mutation(String mutationId, String type, Long orderId, Long actorId,
                           String fromStatus, String toStatus, String reason, String carrier,
                           String trackingNumber, String eventType, String detail,
-                          String triggerSource, Long scheduledTaskId, Instant occurredAt) {
+                          String triggerSource, Long scheduledTaskId, Instant occurredAt,
+                          Long expectedShipmentVersion) {
+
+    private Mutation(String id, String type, Long orderId, Long actorId, String from, String to, String reason,
+                     String carrier, String tracking, String event, String detail, String source,
+                     Long taskId, Instant occurredAt) {
+      this(id, type, orderId, actorId, from, to, reason, carrier, tracking, event, detail, source, taskId,
+        occurredAt, null);
+    }
   }
 
-  private record MutationResult(int changed) {
+  private record MutationResult(int changed, String previousStatus) {
   }
 }

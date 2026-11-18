@@ -15,7 +15,7 @@
 
   <sql id="shipmentProjection">
     id, merchant_shipment_no, platform_shipment_no, order_number, carrier, tracking_number,
-    status, callback_url, created_at, updated_at
+    status, callback_url, created_at, updated_at, shipment_version
   </sql>
 
   <select id="findShipmentByMerchantNo"
@@ -74,8 +74,9 @@
 
   <update id="updateShipmentDetails">
     UPDATE shipment_records
-    SET carrier = #{carrier}, tracking_number = #{trackingNumber}, updated_at = CURRENT_TIMESTAMP(6)
-    WHERE merchant_shipment_no = #{merchantShipmentNo}
+    SET carrier = #{carrier}, tracking_number = #{trackingNumber}, shipment_version = shipment_version + 1,
+      updated_at = CURRENT_TIMESTAMP(6)
+    WHERE merchant_shipment_no = #{merchantShipmentNo} AND shipment_version = #{expectedVersion}
   </update>
 
   <select id="automaticCandidates" resultType="java.lang.Long">

@@ -15,8 +15,16 @@ confirmed="$(json_request POST "$BASE_URL/api/merchant/orders/$paid_id/confirm" 
 initial_tracking="CFL-$paid_id-A"; updated_tracking="CFL-$paid_id-B"
 shipped="$(json_request POST "$BASE_URL/api/merchant/orders/$paid_id/ship" "$merchant_jar" "$merchant_header" "$merchant_token" "$(jq -nc --arg tracking "$initial_tracking" '{carrier:"CommerceFlow Express",trackingNumber:$tracking}')")"
 [[ "$(jq -r .status <<<"$shipped")" == SHIPPED ]] || { echo 'Ship transition failed' >&2; exit 1; }
-updated="$(json_request PUT "$BASE_URL/api/merchant/orders/$paid_id/shipment" "$merchant_jar" "$merchant_header" "$merchant_token" "$(jq -nc --arg tracking "$updated_tracking" '{carrier:"CommerceFlow Priority",trackingNumber:$tracking}')")"
-[[ "$(jq -r .carrier <<<"$updated")" == 'CommerceFlow Priority' && "$(jq -r .trackingNumber <<<"$updated")" == "$updated_tracking" ]] || { echo 'Shipment update failed' >&2; exit 1; }
+shipment_url="$BASE_URL/api/merchant/orders/$paid_id/shipment"
+version="$(jq -r .shipmentVersion <<<"$shipped")"
+first_body="$(jq -nc --arg t "$updated_tracking" --argjson v "$version" '{carrier:"CommerceFlow Priority",trackingNumber:$t,expectedVersion:$v}')"
+first="$(json_request PUT "$shipment_url" "$merchant_jar" "$merchant_header" "$merchant_token" "$first_body")"
+[[ "$(jq -r .trackingNumber <<<"$first")" == "$updated_tracking" && "$(jq -r .shipmentVersion <<<"$first")" == "$((version+1))" ]] || { echo 'Shipment version did not advance' >&2; exit 1; }
+updated_tracking="CFL-$paid_id-C"
+latest_body="$(jq -nc --arg t "$updated_tracking" --argjson v "$((version+1))" '{carrier:"CommerceFlow Priority",trackingNumber:$t,expectedVersion:$v}')"
+updated="$(json_request PUT "$shipment_url" "$merchant_jar" "$merchant_header" "$merchant_token" "$latest_body")"
+[[ "$(jq -r .trackingNumber <<<"$updated")" == "$updated_tracking" && "$(jq -r .shipmentVersion <<<"$updated")" == "$((version+2))" ]] || { echo 'Second shipment version did not advance' >&2; exit 1; }
+assert_status 'stale shipment request rejected' 409 "$(http_status PUT "$shipment_url" "$merchant_jar" "$merchant_header" "$merchant_token" "$first_body")"
 for event_type in MERCHANT_CONFIRMED ORDER_SHIPPED SHIPMENT_UPDATED; do
   jq -e --arg event_type "$event_type" '.events | any(.eventType == $event_type)' <<<"$updated" >/dev/null || { echo "Missing fulfillment event: $event_type" >&2; exit 1; }
 done
@@ -25,7 +33,9 @@ for event_type in MERCHANT_CONFIRMED ORDER_SHIPPED; do
     <<<"$updated" >/dev/null || { echo "Expected exactly one $event_type event" >&2; exit 1; }
 done
 updated_event_count="$(jq '[.events[] | select(.eventType == "SHIPMENT_UPDATED")] | length' <<<"$updated")"
-unchanged="$(json_request PUT "$BASE_URL/api/merchant/orders/$paid_id/shipment" "$merchant_jar" "$merchant_header" "$merchant_token" "$(jq -nc --arg tracking " $updated_tracking " '{carrier:" CommerceFlow Priority ",trackingNumber:$tracking}')")"
+[[ "$updated_event_count" == 2 ]] || { echo 'Expected two shipment update events' >&2; exit 1; }
+unchanged="$(json_request PUT "$shipment_url" "$merchant_jar" "$merchant_header" "$merchant_token" "$(jq -nc --arg t " $updated_tracking " --argjson v "$((version+2))" '{carrier:" CommerceFlow Priority ",trackingNumber:$t,expectedVersion:$v}')")"
+[[ "$(jq -r .trackingNumber <<<"$unchanged")" == "$updated_tracking" && "$(jq -r .shipmentVersion <<<"$unchanged")" == "$((version+2))" ]] || { echo 'Stale write changed shipment details' >&2; exit 1; }
 [[ "$(jq '[.events[] | select(.eventType == "SHIPMENT_UPDATED")] | length' <<<"$unchanged")" == "$updated_event_count" ]] || { echo 'Unchanged shipment created a duplicate timeline event' >&2; exit 1; }
 
 customer_jar="$temp_dir/customer.cookies"

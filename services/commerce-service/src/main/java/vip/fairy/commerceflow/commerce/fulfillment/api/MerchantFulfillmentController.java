@@ -1,8 +1,17 @@
 package vip.fairy.commerceflow.commerce.fulfillment.api;
 
+import java.net.URI;
+import java.util.UUID;
+import vip.fairy.commerceflow.commerce.fulfillment.application.contract.FulfillmentCommandV1;
+import vip.fairy.commerceflow.commerce.fulfillment.application.MerchantFulfillmentService.CommandResult;
+import vip.fairy.commerceflow.commerce.fulfillment.domain.ShipmentJob.Status;
 import vip.fairy.commerceflow.commerce.fulfillment.application.MerchantFulfillmentService;
+import vip.fairy.commerceflow.commerce.fulfillment.application.MerchantFulfillmentService.ShipmentStatus;
+import vip.fairy.commerceflow.commerce.fulfillment.application.MerchantFulfillmentService.OperationResult;
+import vip.fairy.commerceflow.commerce.fulfillment.application.MerchantFulfillmentService.OperationStatus;
 import vip.fairy.commerceflow.commerce.identity.application.CurrentUserService;
 import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,22 +42,56 @@ public class MerchantFulfillmentController {
     return service.list(users.require(authentication).getId());
   }
 
+  @PostMapping("/fulfillment-v1/commands")
+  ResponseEntity<CommandResult> submitCommand(@Valid @RequestBody FulfillmentCommandV1 command,
+                                               Authentication authentication) {
+    CommandResult result = service.submitCommand(users.require(authentication).getId(), command);
+    if (result.status() != Status.PENDING) return ResponseEntity.ok(result);
+    URI location = URI.create("/api/merchant/orders/fulfillment-v1/commands/" + result.commandId());
+    return ResponseEntity.accepted().location(location).body(result);
+  }
+
+  @GetMapping("/fulfillment-v1/commands/{commandId}")
+  CommandResult commandStatus(@PathVariable UUID commandId, Authentication authentication) {
+    return service.commandStatus(users.require(authentication).getId(), commandId.toString());
+  }
+
   @PostMapping("/{id}/confirm")
-  MerchantOrderResponse confirm(@PathVariable Long id, Authentication authentication) {
-    return service.confirm(users.require(authentication).getId(), id);
+  ResponseEntity<MerchantOrderResponse> confirm(@PathVariable Long id, Authentication authentication) {
+    return respond(id, service.confirm(users.require(authentication).getId(), id));
   }
 
   @PostMapping("/{id}/ship")
-  MerchantOrderResponse ship(@PathVariable Long id,
-                             @Valid @RequestBody FulfillmentRequest request,
-                             Authentication authentication) {
-    return service.ship(users.require(authentication).getId(), id, request);
+  ResponseEntity<MerchantOrderResponse> ship(@PathVariable Long id,
+                                             @Valid @RequestBody FulfillmentRequest request,
+                                             Authentication authentication) {
+    MerchantOrderResponse order = service.ship(users.require(authentication).getId(), id, request);
+    if ("SHIPPED".equals(order.status())) return ResponseEntity.ok(order);
+    return ResponseEntity.accepted().location(URI.create("/api/merchant/orders/" + id + "/shipment-operation"))
+      .body(order);
+  }
+
+  @GetMapping("/{id}/shipment-operation")
+  ShipmentStatus shipmentStatus(@PathVariable Long id, Authentication authentication) {
+    return service.shipmentStatus(users.require(authentication).getId(), id);
   }
 
   @PutMapping("/{id}/shipment")
-  MerchantOrderResponse updateShipment(@PathVariable Long id,
-                                       @Valid @RequestBody FulfillmentRequest request,
-                                       Authentication authentication) {
-    return service.updateShipment(users.require(authentication).getId(), id, request);
+  ResponseEntity<MerchantOrderResponse> updateShipment(@PathVariable Long id,
+                                                       @Valid @RequestBody ShipmentUpdateRequest request,
+                                                       Authentication authentication) {
+    return respond(id, service.updateShipment(users.require(authentication).getId(), id, request));
+  }
+
+  @GetMapping("/{id}/fulfillment-operations/{commandId}")
+  OperationStatus operationStatus(@PathVariable Long id, @PathVariable String commandId,
+                                  Authentication authentication) {
+    return service.operationStatus(users.require(authentication).getId(), id, commandId);
+  }
+
+  private ResponseEntity<MerchantOrderResponse> respond(Long id, OperationResult result) {
+    if (result.pendingCommandId() == null) return ResponseEntity.ok(result.order());
+    URI status = URI.create("/api/merchant/orders/" + id + "/fulfillment-operations/" + result.pendingCommandId());
+    return ResponseEntity.accepted().location(status).body(result.order());
   }
 }

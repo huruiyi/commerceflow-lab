@@ -6,10 +6,7 @@
     <![CDATA[
       INSERT INTO shipment_records(order_id, merchant_shipment_no, carrier, tracking_number, status)
       VALUES (#{orderId}, #{merchantNo}, #{carrier}, #{tracking}, 'REQUESTED')
-      ON DUPLICATE KEY UPDATE
-        carrier = VALUES(carrier),
-        tracking_number = VALUES(tracking_number),
-        updated_at = CURRENT_TIMESTAMP
+      ON DUPLICATE KEY UPDATE order_id = order_id
     ]]>
   </insert>
 
@@ -60,8 +57,9 @@
       UPDATE shipment_records
       SET carrier = #{carrier},
           tracking_number = #{tracking},
+          shipment_version = #{version},
           updated_at = CURRENT_TIMESTAMP
-      WHERE order_id = #{orderId}
+      WHERE order_id = #{orderId} AND shipment_version < #{version}
     ]]>
   </update>
 

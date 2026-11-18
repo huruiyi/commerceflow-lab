@@ -54,8 +54,12 @@ start_mysql "$empty_db"
 start_mysql "$upgrade_db"
 
 migrate "$empty_db"
-[[ "$(sql "$empty_db" 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;')" == 38 ]]
-[[ "$(sql "$empty_db" "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name IN ('scheduled_tasks','shipment_records','inventory_reservations');")" == 3 ]]
+[[ "$(sql "$empty_db" 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;')" == 48 ]]
+[[ "$(sql "$empty_db" "SELECT CONCAT(frozen,':',write_owner) FROM fulfillment_write_admission WHERE singleton_id=1;")" == '0:COMMERCE' ]]
+if sql "$empty_db" "UPDATE fulfillment_write_admission SET write_owner='FULFILLMENT';"; then
+  echo 'V48 allowed a remote fulfillment owner while source writes were open' >&2;exit 1
+fi
+[[ "$(sql "$empty_db" "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name IN ('scheduled_tasks','shipment_records','inventory_reservations','fulfillment_shipment_jobs','fulfillment_shipment_recoveries','fulfillment_merchant_jobs','fulfillment_merchant_recoveries','fulfillment_order_locks','fulfillment_command_ids','logistics_fulfillment_commands','fulfillment_write_admission');")" == 11 ]]
 (( $(sql "$empty_db" "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='commerceflow' AND column_comment<>'';") >= 67 ))
 [[ "$(sql "$empty_db" 'SELECT COUNT(*)=(SELECT COUNT(*) FROM products) FROM product_inventory;')" == 1 ]]
 [[ "$(sql "$empty_db" "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='commerceflow' AND table_name='products' AND column_name IN ('stock_available','stock_reserved','stock_sold');")" == 0 ]]
@@ -71,14 +75,15 @@ migrate "$empty_db"
 [[ "$(sql "$empty_db" "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='commerceflow' AND table_name='inventory_command_delivery_outbox' AND column_name IN ('recovered_by','recovery_reason','recovered_at');")" == 3 ]]
 [[ "$(sql "$empty_db" "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name IN ('order_process_managers','order_command_outbox','order_result_inbox');")" == 3 ]]
 [[ "$(sql "$empty_db" "SELECT COUNT(*) FROM information_schema.referential_constraints WHERE constraint_schema='commerceflow' AND constraint_name IN ('fk_shop_orders_customer','fk_order_items_merchant','fk_order_events_actor','fk_order_events_scheduled_task','fk_customer_notification_order','fk_payment_order','fk_review_item','fk_refund_order','fk_storefront_shipment_order');")" == 0 ]]
-[[ "$(sql "$empty_db" "SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_schema='commerceflow' AND trigger_name LIKE 'trg_%_shadow_%';")" == 63 ]]
+[[ "$(sql "$empty_db" "SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_schema='commerceflow' AND trigger_name LIKE 'trg_%_shadow_%';")" == 81 ]]
 
 migrate "$upgrade_db" 16
 sql "$upgrade_db" "INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,created_at,updated_at) SELECT 'LEGACY-UPGRADE-$suffix',id,'PENDING_PAYMENT',42.00,'CNY','2026-01-01 00:00:00','2026-01-01 00:00:00' FROM app_users WHERE email='demo@example.com';"
 migrate "$upgrade_db"
-[[ "$(sql "$upgrade_db" 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;')" == 38 ]]
+[[ "$(sql "$upgrade_db" 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;')" == 48 ]]
+[[ "$(sql "$upgrade_db" "SELECT CONCAT(frozen,':',write_owner) FROM fulfillment_write_admission WHERE singleton_id=1;")" == '0:COMMERCE' ]]
 [[ "$(sql "$upgrade_db" "SELECT TIMESTAMPDIFF(SECOND,created_at,payment_due_at) FROM shop_orders WHERE order_number='LEGACY-UPGRADE-$suffix';")" == 1800 ]]
-[[ "$(sql "$upgrade_db" "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name IN ('scheduled_tasks','shipment_records','inventory_reservations');")" == 3 ]]
+[[ "$(sql "$upgrade_db" "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name IN ('scheduled_tasks','shipment_records','inventory_reservations','fulfillment_shipment_jobs','fulfillment_shipment_recoveries','fulfillment_merchant_jobs','fulfillment_merchant_recoveries','fulfillment_order_locks','fulfillment_command_ids','logistics_fulfillment_commands','fulfillment_write_admission');")" == 11 ]]
 (( $(sql "$upgrade_db" "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_comment<>'';") >= 7 ))
 [[ "$(sql "$upgrade_db" 'SELECT COUNT(*)=(SELECT COUNT(*) FROM products) FROM product_inventory;')" == 1 ]]
 [[ "$(sql "$upgrade_db" "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='commerceflow' AND table_name='products' AND column_name IN ('stock_available','stock_reserved','stock_sold');")" == 0 ]]
@@ -91,9 +96,9 @@ migrate "$upgrade_db"
 [[ "$(sql "$upgrade_db" "SELECT inventory_status FROM shop_orders WHERE order_number='LEGACY-UPGRADE-$suffix';")" == RESERVED ]]
 [[ "$(sql "$upgrade_db" "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name IN ('order_process_managers','order_command_outbox','order_result_inbox');")" == 3 ]]
 [[ "$(sql "$upgrade_db" "SELECT COUNT(*) FROM information_schema.referential_constraints WHERE constraint_schema='commerceflow' AND constraint_name IN ('fk_shop_orders_customer','fk_order_items_merchant','fk_order_events_actor','fk_order_events_scheduled_task','fk_customer_notification_order','fk_payment_order','fk_review_item','fk_refund_order','fk_storefront_shipment_order');")" == 0 ]]
-[[ "$(sql "$upgrade_db" "SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_schema='commerceflow' AND trigger_name LIKE 'trg_%_shadow_%';")" == 63 ]]
+[[ "$(sql "$upgrade_db" "SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_schema='commerceflow' AND trigger_name LIKE 'trg_%_shadow_%';")" == 81 ]]
 if sql "$upgrade_db" "INSERT INTO scheduled_tasks(task_key,task_type,aggregate_type,aggregate_id,payload_json,status,due_at,primary_trigger_snapshot,reconciliation_enabled_snapshot,grace_period_seconds_snapshot,claim_lease_seconds_snapshot,max_attempts,retry_delay_seconds_snapshot,policy_version_snapshot) VALUES('invalid-status','PAYMENT_TIMEOUT','ORDER','1','{}','CORRUPTED',CURRENT_TIMESTAMP,'DATABASE',FALSE,0,30,3,1,1);";then
   echo 'Database accepted an illegal scheduled-task status' >&2;exit 1
 fi
 
-echo 'Flyway lifecycle verification passed: empty V1-V38, legacy V1-V16 -> V38 with order/payment shadow change capture, ownership admission, recovery protocols and illegal status rejection.'
+echo 'Flyway lifecycle verification passed: empty V1-V48, legacy V1-V16 -> V48 with order/payment shadow change capture, ownership admission, recovery protocols and illegal status rejection.'

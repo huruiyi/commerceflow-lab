@@ -2,12 +2,14 @@ package vip.fairy.commerceflow.commerce.fulfillment.application;
 
 import vip.fairy.commerceflow.commerce.fulfillment.api.FulfillmentRequest;
 import vip.fairy.commerceflow.commerce.fulfillment.api.MerchantOrderResponse;
-import vip.fairy.commerceflow.commerce.logistics.application.LogisticsGatewayClient;
-import vip.fairy.commerceflow.commerce.logistics.application.LogisticsService;
+import vip.fairy.commerceflow.commerce.fulfillment.api.ShipmentUpdateRequest;
+import vip.fairy.commerceflow.commerce.fulfillment.application.contract.FulfillmentCommandV1;
+import vip.fairy.commerceflow.commerce.fulfillment.domain.FulfillmentOperation;
+import vip.fairy.commerceflow.commerce.fulfillment.domain.ShipmentJob;
+import vip.fairy.commerceflow.commerce.fulfillment.domain.MerchantFulfillmentJob;
 import vip.fairy.commerceflow.commerce.ordering.api.ShopOrderResponse;
 import vip.fairy.commerceflow.commerce.ordering.application.port.OrderFulfillmentPort;
 import vip.fairy.commerceflow.commerce.ordering.application.port.OrderStorePort;
-import vip.fairy.commerceflow.commerce.ordering.domain.OrderEventView;
 import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.RefundSnapshotV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentOrchestrationV1;
@@ -15,12 +17,13 @@ import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentQu
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
+import java.time.Instant;
 import java.util.Objects;
+import java.util.UUID;
+
+import vip.fairy.commerceflow.commerce.fulfillment.application.contract.FulfillmentCommandV1.Operation;
 
 @Service
 public class MerchantFulfillmentService {
@@ -28,22 +31,42 @@ public class MerchantFulfillmentService {
   private final OrderStorePort orderStore;
   private final OrderFulfillmentPort orders;
   private final PaymentOrchestrationV1 payments;
-  private final LogisticsService shipments;
-  private final LogisticsGatewayClient logistics;
-  private final TransactionTemplate transactions;
+  private final MerchantFulfillmentRoute route;
 
   public MerchantFulfillmentService(OrderStorePort orderStore,
                                     OrderFulfillmentPort orders,
                                     PaymentOrchestrationV1 payments,
-                                    LogisticsService shipments,
-                                    LogisticsGatewayClient logistics,
-                                    PlatformTransactionManager manager) {
+                                    MerchantFulfillmentRoute route) {
     this.orderStore = orderStore;
     this.orders = orders;
     this.payments = payments;
-    this.shipments = shipments;
-    this.logistics = logistics;
-    this.transactions = new TransactionTemplate(manager);
+    this.route = route;
+  }
+
+  public CommandResult submitCommand(Long merchantId, FulfillmentCommandV1 command) {
+    if (!merchantId.equals(command.merchantId())) throw new ResourceNotFoundException("Merchant order not found");
+    return route.submit(command);
+  }
+
+  public CommandResult commandStatus(Long merchantId, String commandId) {
+    return route.commandStatus(merchantId, commandId);
+  }
+
+  public record CommandResult(int version, String commandId, Long orderId, String operation, String step,
+                              ShipmentJob.Status status, Long shipmentVersion, String errorCode) {
+
+    static CommandResult from(FulfillmentOperation operation) {
+      Long version = null;
+      if (operation.status() == ShipmentJob.Status.COMPLETED) {
+        version = switch (operation.operation()) {
+          case "SHIP" -> 0L;
+          case "UPDATE_SHIPMENT" -> operation.expectedShipmentVersion() + 1;
+          default -> null;
+        };
+      }
+      return new CommandResult(1, operation.commandId(), operation.orderId(), operation.operation(), operation.step(),
+        operation.status(), version, operation.errorCode());
+    }
   }
 
   public List<MerchantOrderResponse> list(Long merchantId) {
@@ -53,65 +76,95 @@ public class MerchantFulfillmentService {
       .toList();
   }
 
-  @Transactional
-  public MerchantOrderResponse confirm(Long merchantId, Long id) {
-    require(merchantId, id);
-    if (orderStore.merchantConfirm(id, merchantId) != 1) {
+  public OperationResult confirm(Long merchantId, Long id) {
+    ShopOrderView prepared = require(merchantId, id);
+    if (!"PAID".equals(prepared.getStatus())) {
       throw new BusinessRuleException("Only paid orders can be confirmed");
     }
-    return current(merchantId, id);
+    return operationResult(merchantId, prepared, route.legacy(
+      legacyCommand(Operation.CONFIRM, merchantId, id, null, null, null), prepared.getOrderNumber(), null));
   }
 
   public MerchantOrderResponse ship(Long merchantId, Long id, FulfillmentRequest request) {
     String carrier = request.carrier().trim();
     String tracking = request.trackingNumber().trim();
-    ShopOrderView prepared = transactions.execute(status -> {
-      ShopOrderView order = require(merchantId, id);
-      if ("SHIPPED".equals(order.getStatus())) {
-        return order;
-      }
-      if (!"CONFIRMED".equals(order.getStatus())) {
-        throw new BusinessRuleException("Only confirmed orders can be shipped");
-      }
-      requireInventoryCommitted(order);
-      shipments.prepareShipment(id, carrier, tracking);
-      return order;
-    });
-    LogisticsGatewayClient.Result remote = logistics.create(id, prepared.getOrderNumber(), carrier, tracking);
-    transactions.executeWithoutResult(status -> {
-      ShopOrderView order = require(merchantId, id);
-      shipments.attachShipment(id, remote);
-      if ("CONFIRMED".equals(order.getStatus())) {
-        if (orderStore.merchantShip(id, merchantId, carrier, tracking) != 1) {
-          throw new BusinessRuleException("Order status changed while shipping");
-        }
-      }
-    });
+    ShopOrderView prepared = require(merchantId, id);
+    if ("SHIPPED".equals(prepared.getStatus())) {
+      return response(prepared);
+    }
+    if (!"CONFIRMED".equals(prepared.getStatus())) {
+      throw new BusinessRuleException("Only confirmed orders can be shipped");
+    }
+    requireInventoryCommitted(prepared);
+    FulfillmentCommandV1 command = legacyCommand(Operation.SHIP, merchantId, id, carrier, tracking, null);
+    route.legacy(command, prepared.getOrderNumber(), null);
     return current(merchantId, id);
   }
 
-  public MerchantOrderResponse updateShipment(Long merchantId, Long id, FulfillmentRequest request) {
+  public ShipmentStatus shipmentStatus(Long merchantId, Long id) {
+    require(merchantId, id);
+    ShipmentJob job = route.shipment(merchantId, id);
+    if (job == null || !merchantId.equals(job.merchantId())) {
+      throw new ResourceNotFoundException("Shipment operation not found");
+    }
+    return new ShipmentStatus(job.commandId(), job.step(), job.status(), job.lastError());
+  }
+
+  public record ShipmentStatus(String commandId, ShipmentJob.Step step, ShipmentJob.Status status,
+                               String lastError) {
+  }
+
+  public OperationResult updateShipment(Long merchantId, Long id, ShipmentUpdateRequest request) {
     ShopOrderView current = require(merchantId, id);
     if (!"SHIPPED".equals(current.getStatus())) {
       throw new BusinessRuleException("Only shipped orders can update shipment details");
     }
     String carrier = request.carrier().trim();
     String tracking = request.trackingNumber().trim();
+    long expected = request.expectedVersion();
+    if (current.getShipmentVersion() != expected) {
+      throw new BusinessRuleException("Shipment version conflict. Reload the order and try again");
+    }
     if (Objects.equals(current.getCarrier(), carrier)
       && Objects.equals(current.getTrackingNumber(), tracking)) {
-      return response(current);
+      return new OperationResult(response(current), null);
     }
-    logistics.update(id, carrier, tracking);
-    transactions.executeWithoutResult(status -> {
-      if (orderStore.updateShipment(id, carrier, tracking) != 1) {
-        throw new BusinessRuleException("Only shipped orders can update shipment details");
-      }
-      shipments.updateShipmentDetails(id, carrier, tracking);
-    });
     String before = shipmentDetail(current.getCarrier(), current.getTrackingNumber());
     String after = shipmentDetail(carrier, tracking);
-    orders.shipmentUpdated(id, merchantId, before, after);
-    return current(merchantId, id);
+    FulfillmentCommandV1 command = legacyCommand(Operation.UPDATE_SHIPMENT,
+      merchantId, id, carrier, tracking, expected);
+    return operationResult(merchantId, current,
+      route.legacy(command, current.getOrderNumber(), before + " -> " + after));
+  }
+
+  public OperationStatus operationStatus(Long merchantId, Long id, String commandId) {
+    require(merchantId, id);
+    CommandResult job = route.commandStatus(merchantId, commandId);
+    if (!id.equals(job.orderId()) || "SHIP".equals(job.operation())) {
+      throw new ResourceNotFoundException("Fulfillment operation not found");
+    }
+    return new OperationStatus(job.commandId(), MerchantFulfillmentJob.Operation.valueOf(job.operation()),
+      MerchantFulfillmentJob.Step.valueOf(job.step()), job.status(), job.errorCode());
+  }
+
+  private OperationResult operationResult(Long merchantId, ShopOrderView prepared, CommandResult job) {
+    if (job.status() == ShipmentJob.Status.COMPLETED) {
+      return new OperationResult(current(merchantId, job.orderId()), null);
+    }
+    return new OperationResult(response(prepared), job.commandId());
+  }
+
+  public record OperationResult(MerchantOrderResponse order, String pendingCommandId) {
+  }
+
+  public record OperationStatus(String commandId, MerchantFulfillmentJob.Operation operation,
+                                MerchantFulfillmentJob.Step step, ShipmentJob.Status status, String lastError) {
+  }
+
+  private FulfillmentCommandV1 legacyCommand(Operation operation, Long merchantId, Long orderId,
+                                             String carrier, String tracking, Long expectedVersion) {
+    return new FulfillmentCommandV1(1, UUID.randomUUID(), operation, merchantId, orderId, Instant.now(),
+      carrier, tracking, expectedVersion);
   }
 
   private String shipmentDetail(String carrier, String tracking) {
@@ -143,7 +196,7 @@ public class MerchantFulfillmentService {
     ShopOrderResponse.Address address = ShopOrderResponse.Address.from(orders.address(order.getId()));
     List<MerchantOrderResponse.Event> events = orders.events(order.getId())
       .stream()
-      .filter(this::visibleEvent)
+      .filter(event -> visibleEvent(event.getEventType(), event.getDetail()))
       .map(MerchantOrderResponse.Event::from)
       .toList();
     return new MerchantOrderResponse(
@@ -158,17 +211,18 @@ public class MerchantFulfillmentService {
       order.getShippedAt(),
       order.getCarrier(),
       order.getTrackingNumber(),
+      order.getShipmentVersion(),
       items,
       address,
       events,
       refund);
   }
 
-  private boolean visibleEvent(OrderEventView event) {
-    if (!"SHIPMENT_UPDATED".equals(event.getEventType()) || event.getDetail() == null) {
+  private boolean visibleEvent(String eventType, String detail) {
+    if (!"SHIPMENT_UPDATED".equals(eventType) || detail == null) {
       return true;
     }
-    String[] change = event.getDetail().split(" -> ", 2);
+    String[] change = detail.split(" -> ", 2);
     return change.length != 2 || !change[0].trim().equals(change[1].trim());
   }
 }

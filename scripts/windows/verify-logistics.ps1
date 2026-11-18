@@ -46,7 +46,19 @@ if (@($initialProjection.events).Count -ne 1) { throw 'Initial logistics project
 $replayNonce = [guid]::NewGuid().ToString('N')
 $replayHeaders = New-SignedHeaders -Nonce $replayNonce
 $queryUrl = "$LogisticsUrl/api/channel/shipments?merchantShipmentNo=$([uri]::EscapeDataString($merchantShipmentNo))"
-Invoke-RestMethod $queryUrl -Headers $replayHeaders | Out-Null
+$initialRemote = Invoke-RestMethod $queryUrl -Headers $replayHeaders
+$latestTracking = "CFL-$($order.id)-C"
+if ($initialRemote.shipmentVersion -ne 2 -or $initialRemote.trackingNumber -ne $latestTracking -or
+    $initialProjection.trackingNumber -ne $latestTracking) { throw 'Shipment version or projection is stale' }
+$staleBody = '{"carrier":"CommerceFlow Express","trackingNumber":"STALE-REQUEST","expectedVersion":0}'
+Invoke-RestMethod "$LogisticsUrl/api/channel/shipments/$merchantShipmentNo" -Method Put -ContentType application/json `
+  -Body $staleBody -Headers (New-SignedHeaders -Body $staleBody) -SkipHttpErrorCheck -StatusCodeVariable staleStatus |
+  Out-Null
+if ($staleStatus -ne 409) { throw "Stale channel shipment request returned $staleStatus" }
+$afterStale = Invoke-RestMethod $queryUrl -Headers (New-SignedHeaders)
+if ($afterStale.shipmentVersion -ne 2 -or $afterStale.trackingNumber -ne $latestTracking) {
+  throw 'Stale channel request changed shipment details'
+}
 try {
   Invoke-RestMethod $queryUrl -Headers $replayHeaders -ErrorAction Stop | Out-Null
   throw 'Replayed signed request was accepted'

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.logistics.infrastructure.LogisticsFulfillmentCommandMapper">
+
+  <insert id="register">
+    INSERT INTO logistics_fulfillment_commands
+      (command_id,operation,order_id,order_number,carrier,tracking_number,expected_version)
+    VALUES (#{commandId},#{operation},#{orderId},#{orderNumber},#{carrier},#{trackingNumber},#{expectedVersion})
+    ON DUPLICATE KEY UPDATE command_id=command_id
+  </insert>
+
+  <select id="find"
+          resultType="vip.fairy.commerceflow.commerce.logistics.application.contract.LogisticsFulfillmentV1$Command">
+    SELECT command_id,operation,order_id,order_number,carrier,tracking_number,expected_version
+    FROM logistics_fulfillment_commands WHERE command_id=#{commandId}
+  </select>
+
+  <select id="findReceipt"
+          resultType="vip.fairy.commerceflow.commerce.logistics.application.contract.LogisticsFulfillmentV1$Receipt">
+    SELECT command_id,platform_shipment_no,shipment_version
+    FROM logistics_fulfillment_commands WHERE command_id=#{commandId} AND shipment_version IS NOT NULL
+  </select>
+
+  <update id="claim">
+    UPDATE logistics_fulfillment_commands SET owner_token=#{owner},
+      lease_until=TIMESTAMPADD(SECOND,30,CURRENT_TIMESTAMP(6))
+    WHERE command_id=#{commandId} AND shipment_version IS NULL
+      AND (lease_until IS NULL OR lease_until &lt;= CURRENT_TIMESTAMP(6))
+  </update>
+
+  <update id="complete">
+    UPDATE logistics_fulfillment_commands
+    SET platform_shipment_no=#{receipt.platformShipmentNo},shipment_version=#{receipt.shipmentVersion},
+      owner_token=NULL,lease_until=NULL
+    WHERE command_id=#{receipt.commandId} AND owner_token=#{owner} AND lease_until &gt; CURRENT_TIMESTAMP(6)
+  </update>
+
+  <update id="release">
+    UPDATE logistics_fulfillment_commands SET owner_token=NULL,lease_until=NULL
+    WHERE command_id=#{commandId} AND owner_token=#{owner}
+  </update>
+</mapper>

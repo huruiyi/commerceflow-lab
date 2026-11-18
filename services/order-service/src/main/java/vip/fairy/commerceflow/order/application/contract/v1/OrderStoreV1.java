@@ -1,5 +1,6 @@
 package vip.fairy.commerceflow.order.application.contract.v1;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -32,7 +33,7 @@ public final class OrderStoreV1 {
                           Instant shippedAt, String carrier, String trackingNumber,
                           Instant paymentDueAt, Instant cancelledAt, String cancelReason,
                           Instant receivedAt, Instant completedAt,
-                          Instant logisticsDeliveredAt) {
+                          Instant logisticsDeliveredAt, long shipmentVersion) {
   }
 
   public record ItemView(Long id, Long productId, Long merchantId, String productName,
@@ -71,7 +72,8 @@ public final class OrderStoreV1 {
   public record Mutation(String mutationId, MutationType type, Long orderId, Long actorId,
                          String fromStatus, String toStatus, String reason, String carrier,
                          String trackingNumber, String eventType, String detail,
-                         String triggerSource, Long scheduledTaskId, Instant occurredAt) {
+                         String triggerSource, Long scheduledTaskId, Instant occurredAt,
+                         @JsonInclude(JsonInclude.Include.NON_NULL) Long expectedShipmentVersion) {
   }
 
   public enum MutationType {
@@ -79,9 +81,13 @@ public final class OrderStoreV1 {
     START_INVENTORY_COMMIT,
     START_CANCELLATION, FINISH_CANCELLATION, RESTORE_PAID_CANCELLATION_RACE,
     RESTORE_PAID_LATE_SUCCESS, MARK_RECEIVED, MARK_COMPLETED, MERCHANT_CONFIRM,
-    MERCHANT_SHIP, UPDATE_SHIPMENT
+    RESERVE_SHIPMENT, RESERVE_NEW_SHIPMENT, MERCHANT_SHIP, UPDATE_SHIPMENT, START_REFUND
   }
 
-  public record MutationResult(int changed) {
+  public record MutationResult(int changed, String previousStatus) {
+
+    public MutationResult(int changed) {
+      this(changed, null);
+    }
   }
 }

@@ -108,6 +108,7 @@ export type OrderAction =
   | 'REVIEW_ITEM';
 
 export interface PurchaseOrder {
+  shipmentVersion?: number;
   id: number;
   orderNumber: string;
   status: string;

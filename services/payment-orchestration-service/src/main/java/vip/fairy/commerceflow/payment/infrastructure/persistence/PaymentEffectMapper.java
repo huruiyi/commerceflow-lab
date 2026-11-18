@@ -8,6 +8,11 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface PaymentEffectMapper {
 
+  int rejectRefundAdmission(@Param("refundNumber") String refundNumber);
+
+  int recordRefundPriorOrderStatus(@Param("refundNumber") String refundNumber,
+                                 @Param("previousStatus") String previousStatus);
+
   List<Long> readyEffectIds(@Param("batchSize") int batchSize);
 
   List<String> readyRefundCommandIds(@Param("batchSize") int batchSize);

@@ -60,6 +60,8 @@ public class ShopOrderView {
    * 当前物流运单号。
    */
   private String trackingNumber;
+  /** 已确认的运单详情版本。 */
+  private long shipmentVersion;
   /**
    * 整单支付截止时间，超过该时间后进入自动关单流程。
    */
@@ -87,6 +89,10 @@ public class ShopOrderView {
 
   public Long getId() {
     return id;
+  }
+
+  public long getShipmentVersion() {
+    return shipmentVersion;
   }
 
   public String getOrderNumber() {

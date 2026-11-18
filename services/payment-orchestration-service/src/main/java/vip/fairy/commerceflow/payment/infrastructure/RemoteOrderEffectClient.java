@@ -49,6 +49,13 @@ public class RemoteOrderEffectClient {
       null, null, null, null, null, null, null));
   }
 
+  public RefundAdmission startRefund(String mutationId, Long orderId, String refundNumber) {
+    Mutation mutation = new Mutation(mutationId, "START_REFUND", orderId, null, null, null, null, null,
+      null, null, "Refund " + refundNumber + " requested", null, null, null);
+    MutationResult result = post(MUTATIONS, mutation, MutationResult.class);
+    return new RefundAdmission(result.changed() == 1, result.previousStatus());
+  }
+
   public int inventory(String mutationId, Long orderId, String from, String to) {
     return mutate(new Mutation(mutationId, "UPDATE_INVENTORY_STATUS", orderId, null, from, to,
       null, null, null, null, null, null, null, null));
@@ -100,6 +107,9 @@ public class RemoteOrderEffectClient {
                           String triggerSource, Long scheduledTaskId, Instant occurredAt) {
   }
 
-  private record MutationResult(int changed) {
+  public record RefundAdmission(boolean accepted, String previousStatus) {
+  }
+
+  private record MutationResult(int changed, String previousStatus) {
   }
 }

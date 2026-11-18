@@ -8,8 +8,6 @@ import java.util.List;
 
 public interface OrderFulfillmentPort {
 
-  void shipmentUpdated(Long orderId, Long merchantId, String before, String after);
-
   List<OrderItemView> items(Long orderId);
 
   OrderAddressView address(Long orderId);

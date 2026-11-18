@@ -50,7 +50,9 @@ export class MerchantOrdersComponent implements OnInit {
   confirm(order: PurchaseOrder): void {
     this.api.confirmMerchantOrder(order.id).subscribe((value) => {
       this.replace(value);
-      this.notice = this.i18n.t('orderConfirmed', { order: value.orderNumber });
+      this.notice = this.i18n.t(value.status === 'PAID' ? 'orderConfirmationAccepted' : 'orderConfirmed', {
+        order: value.orderNumber,
+      });
     });
   }
 
@@ -58,11 +60,25 @@ export class MerchantOrdersComponent implements OnInit {
     if (this.shipmentInvalid(order) || this.shipmentUnchanged(order)) return;
     const request =
       order.status === 'SHIPPED'
-        ? this.api.updateMerchantShipment(order.id, this.carrier[order.id].trim(), this.tracking[order.id].trim())
+        ? this.api.updateMerchantShipment(
+            order.id,
+            this.carrier[order.id].trim(),
+            this.tracking[order.id].trim(),
+            order.shipmentVersion ?? 0,
+          )
         : this.api.shipMerchantOrder(order.id, this.carrier[order.id].trim(), this.tracking[order.id].trim());
     request.subscribe((value) => {
       this.replace(value);
-      this.notice = this.i18n.t(order.status === 'SHIPPED' ? 'shipmentUpdated' : 'orderShipped', {
+      if (order.status === 'SHIPPED' && order.shipmentVersion === value.shipmentVersion) {
+        this.notice = this.i18n.t('shipmentUpdateAccepted', { order: value.orderNumber });
+        return;
+      }
+      if (value.status !== 'SHIPPED') {
+        this.notice = this.i18n.t('shipmentAccepted', { order: value.orderNumber });
+        return;
+      }
+      const notice = order.status === 'SHIPPED' ? 'shipmentUpdated' : 'orderShipped';
+      this.notice = this.i18n.t(notice, {
         order: value.orderNumber,
       });
     });

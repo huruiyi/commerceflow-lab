@@ -27,12 +27,6 @@ public class RemoteOrderBoundaryAdapter implements OrderFulfillmentPort, OrderLo
   }
 
   @Override
-  public void shipmentUpdated(Long orderId, Long merchantId, String before, String after) {
-    orders.insertEvent(orderId, merchantId, "SHIPMENT_UPDATED", "SHIPPED", "SHIPPED",
-      before + " -> " + after);
-  }
-
-  @Override
   public List<OrderItemView> items(Long orderId) {
     return orders.items(orderId);
   }

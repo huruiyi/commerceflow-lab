@@ -41,7 +41,8 @@ public interface LogisticsDataMapper {
 
   int updateShipmentDetails(@Param("merchantShipmentNo") String merchantShipmentNo,
                             @Param("carrier") String carrier,
-                            @Param("trackingNumber") String trackingNumber);
+                            @Param("trackingNumber") String trackingNumber,
+                            @Param("expectedVersion") long expectedVersion);
 
   List<Long> automaticCandidates(@Param("updatedBefore") Instant updatedBefore,
                                  @Param("limit") int limit);

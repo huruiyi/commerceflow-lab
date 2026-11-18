@@ -24,6 +24,7 @@ java_roots=(
   "$PROJECT_ROOT/services/inventory-service/src/main/java"
   "$PROJECT_ROOT/services/order-service/src/main/java"
   "$PROJECT_ROOT/services/payment-orchestration-service/src/main/java"
+  "$PROJECT_ROOT/services/fulfillment-service/src/main/java"
   "$PROJECT_ROOT/simulators/payment-platform/service/src/main/java"
   "$PROJECT_ROOT/simulators/logistics-platform/service/src/main/java"
 )
@@ -34,6 +35,7 @@ java_source_roots=(
   "$PROJECT_ROOT/services/inventory-service/src"
   "$PROJECT_ROOT/services/order-service/src"
   "$PROJECT_ROOT/services/payment-orchestration-service/src"
+  "$PROJECT_ROOT/services/fulfillment-service/src"
   "$PROJECT_ROOT/simulators/payment-platform/service/src"
   "$PROJECT_ROOT/simulators/logistics-platform/service/src"
 )
@@ -44,6 +46,7 @@ mapper_roots=(
   "$PROJECT_ROOT/services/inventory-service/src/main/resources/mapper"
   "$PROJECT_ROOT/services/order-service/src/main/resources/mapper"
   "$PROJECT_ROOT/services/payment-orchestration-service/src/main/resources/mapper"
+  "$PROJECT_ROOT/services/fulfillment-service/src/main/resources/mapper"
   "$PROJECT_ROOT/simulators/payment-platform/service/src/main/resources/mapper"
   "$PROJECT_ROOT/simulators/logistics-platform/service/src/main/resources/mapper"
 )
@@ -54,6 +57,7 @@ pom_files=(
   "$PROJECT_ROOT/services/inventory-service/pom.xml"
   "$PROJECT_ROOT/services/order-service/pom.xml"
   "$PROJECT_ROOT/services/payment-orchestration-service/pom.xml"
+  "$PROJECT_ROOT/services/fulfillment-service/pom.xml"
   "$PROJECT_ROOT/simulators/payment-platform/service/pom.xml"
   "$PROJECT_ROOT/simulators/logistics-platform/service/pom.xml"
 )

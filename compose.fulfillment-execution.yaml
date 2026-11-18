@@ -1,0 +1,48 @@
+services:
+  commerce-source-access-freezer:
+    environment:
+      FULFILLMENT_SOURCE_OWNER: FULFILLMENT
+
+  commerce-service:
+    environment:
+      FULFILLMENT_REMOTE_ENABLED: "true"
+      FULFILLMENT_SERVICE_BASE_URL: http://fulfillment-service:8080
+      FULFILLMENT_INTERNAL_SECRET: ${FULFILLMENT_INTERNAL_SECRET:?Set FULFILLMENT_INTERNAL_SECRET}
+      FULFILLMENT_ADMIN_SECRET: ${FULFILLMENT_ADMIN_SECRET:?Set FULFILLMENT_ADMIN_SECRET}
+      FULFILLMENT_LOGISTICS_BRIDGE_ENABLED: "true"
+      FULFILLMENT_LOGISTICS_SECRET: ${FULFILLMENT_LOGISTICS_SECRET:?Set FULFILLMENT_LOGISTICS_SECRET}
+    depends_on:
+      fulfillment-service:
+        condition: service_healthy
+
+  order-service:
+    environment:
+      FULFILLMENT_ORDER_SECRET: ${FULFILLMENT_ORDER_SECRET:?Set FULFILLMENT_ORDER_SECRET}
+
+  fulfillment-service:
+    profiles: !reset []
+    environment:
+      FULFILLMENT_RUNTIME_MODE: EXECUTION
+      FULFILLMENT_REQUIRE_PROMOTED_MODE: "true"
+      FULFILLMENT_SOURCE_URL: ""
+      FULFILLMENT_ORDER_AUDIT_URL: ""
+      FULFILLMENT_READER_PASSWORD: ""
+      FULFILLMENT_INTERNAL_SECRET: ${FULFILLMENT_INTERNAL_SECRET:?Set FULFILLMENT_INTERNAL_SECRET}
+      FULFILLMENT_RECOVERY_ENABLED: "true"
+      FULFILLMENT_ADMIN_SECRET: ${FULFILLMENT_ADMIN_SECRET:?Set FULFILLMENT_ADMIN_SECRET}
+      FULFILLMENT_ORDER_ENDPOINT: http://order-service:8080
+      FULFILLMENT_ORDER_SECRET: ${FULFILLMENT_ORDER_SECRET:?Set FULFILLMENT_ORDER_SECRET}
+      FULFILLMENT_LOGISTICS_ENDPOINT: http://commerce-service:8080
+      FULFILLMENT_LOGISTICS_SECRET: ${FULFILLMENT_LOGISTICS_SECRET:?Set FULFILLMENT_LOGISTICS_SECRET}
+    depends_on: !override
+      fulfillment-db:
+        condition: service_healthy
+      commerce-source-access-freezer:
+        condition: service_completed_successfully
+      order-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health/readiness"]
+
+  fulfillment-db:
+    profiles: !reset []

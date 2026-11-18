@@ -1,26 +1,29 @@
 package vip.fairy.commerceflow.commerce.logistics.application;
 
-import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
-import tools.jackson.databind.ObjectMapper;
-
+import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriUtils;
+import tools.jackson.databind.ObjectMapper;
+import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 
 @Component
 public class LogisticsGatewayClient {
@@ -43,7 +46,10 @@ public class LogisticsGatewayClient {
         + "http://localhost:18081/api/logistics-notifications/callback}"
     ) String callbackUrl
   ) {
-    this.client = builder.build();
+    HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
+    JdkClientHttpRequestFactory requests = new JdkClientHttpRequestFactory(httpClient);
+    requests.setReadTimeout(Duration.ofSeconds(3));
+    this.client = builder.requestFactory(requests).build();
     this.mapper = mapper;
     this.baseUrl = baseUrl;
     this.appId = appId;
@@ -76,9 +82,10 @@ public class LogisticsGatewayClient {
     }
   }
 
-  public Result update(Long orderId, String carrier, String trackingNumber) {
+  public Result update(Long orderId, String carrier, String trackingNumber, long expectedVersion) {
     try {
-      String body = mapper.writeValueAsString(Map.of("carrier", carrier, "trackingNumber", trackingNumber));
+      String body = mapper.writeValueAsString(Map.of("carrier", carrier, "trackingNumber", trackingNumber,
+        "expectedVersion", expectedVersion));
       Headers headers = sign(body);
       return client.put()
         .uri(baseUrl + "/api/channel/shipments/CFL-ORDER-" + orderId)
@@ -97,19 +104,34 @@ public class LogisticsGatewayClient {
 
   public Result query(String merchantShipmentNo) {
     try {
-      Headers headers = sign("");
-      String encoded = UriUtils.encodeQueryParam(merchantShipmentNo, StandardCharsets.UTF_8);
-      return client.get()
-        .uri(baseUrl + "/api/channel/shipments?merchantShipmentNo=" + encoded)
-        .header("X-App-Id", appId)
-        .header("X-Timestamp", headers.timestamp())
-        .header("X-Nonce", headers.nonce())
-        .header("X-Signature", headers.signature())
-        .retrieve()
-        .body(Result.class);
+      return fetchShipment(merchantShipmentNo);
     } catch (Exception exception) {
       throw new BusinessRuleException("Logistics platform query failed: " + exception.getMessage());
     }
+  }
+
+  public Optional<Result> findShipment(Long orderId) {
+    try {
+      return Optional.of(fetchShipment("CFL-ORDER-" + orderId));
+    } catch (RestClientResponseException exception) {
+      if (exception.getStatusCode().value() == 404) return Optional.empty();
+      throw exception;
+    } catch (Exception exception) {
+      throw new BusinessRuleException("Logistics platform query failed: " + exception.getMessage());
+    }
+  }
+
+  private Result fetchShipment(String merchantShipmentNo) throws Exception {
+    Headers headers = sign("");
+    String encoded = UriUtils.encodeQueryParam(merchantShipmentNo, StandardCharsets.UTF_8);
+    return client.get()
+      .uri(baseUrl + "/api/channel/shipments?merchantShipmentNo=" + encoded)
+      .header("X-App-Id", appId)
+      .header("X-Timestamp", headers.timestamp())
+      .header("X-Nonce", headers.nonce())
+      .header("X-Signature", headers.signature())
+      .retrieve()
+      .body(Result.class);
   }
 
   public List<CallbackOutbox> callbackOutbox(String status, int limit) {
@@ -204,6 +226,7 @@ public class LogisticsGatewayClient {
     String callbackUrl,
     Instant createdAt,
     Instant updatedAt,
+    long shipmentVersion,
     List<Event> events
   ) {
   }

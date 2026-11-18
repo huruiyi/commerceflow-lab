@@ -47,7 +47,22 @@ replay_nonce="$(openssl rand -hex 16)"
 IFS=$'\t' read -r app_id timestamp nonce signature <<<"$(signed_headers '' "$replay_nonce")"
 query_url="$LOGISTICS_URL/api/channel/shipments?merchantShipmentNo=$merchant_no"
 request_args=(-H "X-App-Id: $app_id" -H "X-Timestamp: $timestamp" -H "X-Nonce: $nonce" -H "X-Signature: $signature")
-curl -fsS "${request_args[@]}" "$query_url" >/dev/null
+initial_remote="$(curl -fsS "${request_args[@]}" "$query_url")"
+latest_tracking="CFL-$order_id-C"
+jq -e --arg tracking "$latest_tracking" '.shipmentVersion == 2 and .trackingNumber == $tracking' \
+  <<< "$initial_remote" >/dev/null
+[[ "$(jq -r .trackingNumber <<< "$initial_projection")" == "$latest_tracking" ]]
+stale_body='{"carrier":"CommerceFlow Express","trackingNumber":"STALE-REQUEST","expectedVersion":0}'
+IFS=$'\t' read -r stale_app stale_time stale_nonce stale_signature <<<"$(signed_headers "$stale_body")"
+stale_status="$(curl -sS -o /dev/null -w '%{http_code}' -X PUT -H 'Content-Type: application/json' \
+  -H "X-App-Id: $stale_app" -H "X-Timestamp: $stale_time" -H "X-Nonce: $stale_nonce" \
+  -H "X-Signature: $stale_signature" --data "$stale_body" "$LOGISTICS_URL/api/channel/shipments/$merchant_no")"
+[[ "$stale_status" == 409 ]] || { echo "Stale channel shipment request returned $stale_status" >&2; exit 1; }
+IFS=$'\t' read -r current_app current_time current_nonce current_signature <<<"$(signed_headers)"
+after_stale="$(curl -fsS -H "X-App-Id: $current_app" -H "X-Timestamp: $current_time" -H "X-Nonce: $current_nonce" \
+  -H "X-Signature: $current_signature" "$query_url")"
+jq -e --arg tracking "$latest_tracking" '.shipmentVersion == 2 and .trackingNumber == $tracking' \
+  <<< "$after_stale" >/dev/null
 replay_status="$(curl -sS -o /dev/null -w '%{http_code}' "${request_args[@]}" "$query_url")"
 [[ "$replay_status" == 409 ]] || { echo "Replay expected HTTP 409, received $replay_status" >&2; exit 1; }
 

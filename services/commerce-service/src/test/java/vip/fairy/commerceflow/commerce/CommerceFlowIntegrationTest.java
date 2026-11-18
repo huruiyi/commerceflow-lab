@@ -1,5 +1,7 @@
 package vip.fairy.commerceflow.commerce;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
 import vip.fairy.commerceflow.commerce.scheduling.application.ScheduledTaskExecution;
 import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
@@ -35,6 +37,8 @@ import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderCom
 import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderResultV1;
 import vip.fairy.commerceflow.commerce.logistics.application.LogisticsNotificationService;
 import vip.fairy.commerceflow.commerce.logistics.application.LogisticsGatewayClient;
+import vip.fairy.commerceflow.commerce.logistics.application.contract.LogisticsFulfillmentV1;
+import vip.fairy.commerceflow.commerce.logistics.application.contract.LogisticsFulfillmentV1.Command;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandRouter;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandV1;
 import vip.fairy.commerceflow.commerce.notification.infrastructure.NotificationDeliveryProperties;
@@ -53,6 +57,12 @@ import vip.fairy.commerceflow.commerce.inventory.application.InventoryCommandDel
 import vip.fairy.commerceflow.commerce.inventory.application.InventoryCommandRecoveryService;
 import vip.fairy.commerceflow.commerce.fulfillment.application.MerchantFulfillmentService;
 import vip.fairy.commerceflow.commerce.fulfillment.api.FulfillmentRequest;
+import vip.fairy.commerceflow.commerce.fulfillment.application.FulfillmentAdmission;
+import vip.fairy.commerceflow.commerce.fulfillment.domain.MerchantFulfillmentJob;
+import vip.fairy.commerceflow.commerce.fulfillment.domain.ShipmentJob;
+import vip.fairy.commerceflow.commerce.fulfillment.domain.ShipmentJob.Status;
+import vip.fairy.commerceflow.commerce.fulfillment.infrastructure.MerchantFulfillmentJobMapper;
+import vip.fairy.commerceflow.commerce.fulfillment.infrastructure.ShipmentJobMapper;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandResultOutcomeV1;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandResultV1;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandSemantics;
@@ -83,10 +93,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.session.MapSessionRepository;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.jdbc.Sql;
+import vip.fairy.commerceflow.commerce.shared.application.ExternalServiceUnavailableException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -104,6 +117,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @ActiveProfiles("test")
 @SpringBootTest(properties = {
@@ -114,7 +129,9 @@ import static org.mockito.Mockito.when;
   "commerceflow.scheduling.lease-recovery.initial-delay=1h",
   "commerceflow.scheduling.reconciliation.initial-delay=1h",
   "commerceflow.inventory.delivery.dispatch-initial-delay=1h",
-  "commerceflow.inventory.delivery.recovery-initial-delay=1h"
+  "commerceflow.inventory.delivery.recovery-initial-delay=1h",
+  "commerceflow.fulfillment.merchant-operation-delay=1h",
+  "commerceflow.fulfillment.shipment-delay=1h"
 })
 @AutoConfigureMockMvc
 @Import(CommerceFlowIntegrationTest.TestSessions.class)
@@ -135,8 +152,8 @@ class CommerceFlowIntegrationTest {
 
     @Bean
     @Primary
-    OrderStorePort testOrderStore(JdbcTemplate jdbc) {
-      return new TestOrderStoreAdapter(jdbc);
+    OrderStorePort testOrderStore(JdbcTemplate jdbc, SqlSessionTemplate session) {
+      return new TestOrderStoreAdapter(jdbc, session);
     }
 
     @Bean
@@ -188,6 +205,14 @@ class CommerceFlowIntegrationTest {
   @Autowired
   MerchantFulfillmentService merchantFulfillment;
   @Autowired
+  MerchantFulfillmentJobMapper merchantJobs;
+  @Autowired
+  ShipmentJobMapper shipmentJobs;
+  @Autowired
+  FulfillmentAdmission fulfillmentAdmission;
+  @Autowired
+  LogisticsFulfillmentV1 logisticsFulfillment;
+  @Autowired
   CustomerNotificationCommandRouter notificationRouter;
   @Autowired
   NotificationOutboxDispatcher notificationOutbox;
@@ -197,6 +222,8 @@ class CommerceFlowIntegrationTest {
   AppUserMapper users;
   @MockitoBean
   PaymentOrchestrationV1 paymentOrchestration;
+  @MockitoBean
+  LogisticsGatewayClient logisticsGateway;
   @MockitoBean
   KafkaTemplate<String, String> kafka;
   @MockitoBean
@@ -570,6 +597,248 @@ class CommerceFlowIntegrationTest {
     CsrfContext csrf = login("admin@example.com", false);
     mvc.perform(get("/api/users").session(csrf.session())).andExpect(status().isOk())
       .andExpect(jsonPath("$[0].email").isNotEmpty());
+  }
+
+  @Test
+  void merchantRecoveryPreservesOriginalCommandAndFencesCompetingWorkers() throws Exception {
+    String command = UUID.randomUUID().toString();
+    merchantJobs.insert(new MerchantFulfillmentJob(command, 90_001L, 5L,
+      MerchantFulfillmentJob.Operation.UPDATE_SHIPMENT, 2, "Priority", "RECOVERY-TEST", "old -> new",
+      MerchantFulfillmentJob.Step.CHANNEL, Status.PENDING, null));
+    String firstOwner = UUID.randomUUID().toString();
+    String secondOwner = UUID.randomUUID().toString();
+    CountDownLatch start = new CountDownLatch(1);
+    try (ExecutorService workers = Executors.newFixedThreadPool(2)) {
+      Future<Integer> first = workers.submit(() -> {
+        await(start);
+        return merchantJobs.claim(command, firstOwner, true);
+      });
+      Future<Integer> second = workers.submit(() -> {
+        await(start);
+        return merchantJobs.claim(command, secondOwner, true);
+      });
+      start.countDown();
+      int firstResult = first.get(5, TimeUnit.SECONDS);
+      assertEquals(1, firstResult + second.get(5, TimeUnit.SECONDS));
+      String owner = firstResult == 1 ? firstOwner : secondOwner;
+      String loser = firstResult == 1 ? secondOwner : firstOwner;
+      assertEquals(0, merchantJobs.advanceToOrder(command, loser));
+      assertEquals(1, merchantJobs.advanceToOrder(command, owner));
+      assertEquals(0, merchantJobs.finish(command, loser, "COMPLETED", null));
+      assertEquals(1, merchantJobs.finish(command, owner, "REVIEW_REQUIRED", "ORDER_ATTEMPT_FAILED"));
+    }
+
+    String base = "/api/admin/fulfillment/merchant-operations";
+    String operation = base + "/" + command;
+    String recovery = UUID.randomUUID().toString();
+    String body = json.writeValueAsString(Map.of("recoveryId", recovery,
+      "reason", "Check order arrival", "evidence", "Channel retained version 3"));
+    CsrfContext merchant = login("merchant@example.com", false);
+    mvc.perform(post(operation + "/retry").session(merchant.session())
+        .cookie(merchant.cookie()).header("X-XSRF-TOKEN", merchant.token())
+        .contentType("application/json").content(body))
+      .andExpect(status().isForbidden());
+    CsrfContext admin = login("admin@example.com", false);
+    mvc.perform(get(base).session(admin.session()))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$[0].commandId").value(command));
+    for (int attempt = 0; attempt < 2; attempt++) {
+      mvc.perform(post(operation + "/retry").session(admin.session())
+          .cookie(admin.cookie()).header("X-XSRF-TOKEN", admin.token())
+          .contentType("application/json").content(body))
+        .andExpect(status().isAccepted())
+        .andExpect(jsonPath("$.commandId").value(command))
+        .andExpect(jsonPath("$.step").value("ORDER"))
+        .andExpect(jsonPath("$.previousError").value("ORDER_ATTEMPT_FAILED"));
+    }
+    mvc.perform(post(operation + "/retry").session(admin.session())
+        .cookie(admin.cookie()).header("X-XSRF-TOKEN", admin.token())
+        .contentType("application/json").content(body.replace("version 3", "version 4")))
+      .andExpect(status().isConflict());
+    mvc.perform(get(operation).session(admin.session()))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.operation.status").value("PENDING"))
+      .andExpect(jsonPath("$.operation.expectedVersion").value(2))
+      .andExpect(jsonPath("$.recoveries.length()").value(1));
+    String nextOwner = UUID.randomUUID().toString();
+    assertEquals(1, merchantJobs.claim(command, nextOwner, true));
+    assertEquals(0, merchantJobs.finish(command, firstOwner, "COMPLETED", null));
+    assertEquals(0, merchantJobs.finish(command, secondOwner, "COMPLETED", null));
+    assertEquals(1, merchantJobs.finish(command, nextOwner, "COMPLETED", null));
+  }
+
+  @Test
+  @Sql("/fulfillment/freeze-admission.sql")
+  @Sql(scripts = "/fulfillment/reopen-admission.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
+  void frozenFulfillmentAdmissionDoesNotRegisterNewCommands() {
+    long order = 90_008L;
+    String confirmId = UUID.randomUUID().toString();
+    MerchantFulfillmentJob confirmation = new MerchantFulfillmentJob(confirmId, order, 5L,
+      MerchantFulfillmentJob.Operation.CONFIRM, 0, null, null, null,
+      MerchantFulfillmentJob.Step.ORDER, Status.PENDING, null);
+    String shipId = UUID.randomUUID().toString();
+    ShipmentJob shipment = new ShipmentJob(order, shipId, 5L, "FROZEN-ORDER", "Priority", "FROZEN",
+      ShipmentJob.Step.RESERVE, Status.PENDING, null);
+    assertEquals("FULFILLMENT_WRITE_FROZEN",
+      assertThrows(ExternalServiceUnavailableException.class,
+        () -> fulfillmentAdmission.merchant(confirmation, true)).errorCode());
+    assertEquals("FULFILLMENT_WRITE_FROZEN",
+      assertThrows(ExternalServiceUnavailableException.class,
+        () -> fulfillmentAdmission.shipment(shipment, true)).errorCode());
+    org.junit.jupiter.api.Assertions.assertNull(fulfillmentAdmission.find(confirmId));
+    org.junit.jupiter.api.Assertions.assertNull(fulfillmentAdmission.find(shipId));
+  }
+
+  @Test
+  void fulfillmentAdmissionSerializesDifferentOperationsForTheSameOrder() throws Exception {
+    Long order = 90_002L;
+    String confirmId = UUID.randomUUID().toString();
+    String shipId = UUID.randomUUID().toString();
+    MerchantFulfillmentJob confirmation = new MerchantFulfillmentJob(confirmId, order, 5L,
+      MerchantFulfillmentJob.Operation.CONFIRM, 0, null, null, null,
+      MerchantFulfillmentJob.Step.ORDER, Status.PENDING, null);
+    ShipmentJob shipment = new ShipmentJob(order, shipId, 5L, "ADMISSION-RACE", "Priority", "RACE",
+      ShipmentJob.Step.RESERVE, Status.PENDING, null);
+    CountDownLatch start = new CountDownLatch(1);
+    try (ExecutorService workers = Executors.newFixedThreadPool(2)) {
+      Future<Boolean> confirm = workers.submit(() -> attemptAdmission(start,
+        () -> fulfillmentAdmission.merchant(confirmation, true)));
+      Future<Boolean> ship = workers.submit(() -> attemptAdmission(start,
+        () -> fulfillmentAdmission.shipment(shipment, false)));
+      start.countDown();
+      boolean confirmationWon = confirm.get(5, TimeUnit.SECONDS);
+      assertEquals(!confirmationWon, ship.get(5, TimeUnit.SECONDS));
+      String owner = UUID.randomUUID().toString();
+      if (confirmationWon) {
+        assertEquals(1, merchantJobs.claim(confirmId, owner, true));
+        assertEquals(1, merchantJobs.finish(confirmId, owner, "REVIEW_REQUIRED", "ORDER_ATTEMPT_FAILED"));
+        assertThrows(BusinessRuleException.class, () -> fulfillmentAdmission.shipment(shipment, false));
+        assertEquals(false, fulfillmentAdmission.merchant(confirmation, true).created());
+        assertEquals(1, merchantJobs.requeueReview(confirmId));
+        assertEquals(1, merchantJobs.claim(confirmId, owner, true));
+        assertEquals(1, merchantJobs.finish(confirmId, owner, "COMPLETED", null));
+        assertEquals(true, fulfillmentAdmission.shipment(shipment, false).created());
+      } else {
+        assertEquals(1, shipmentJobs.claim(shipId, owner, true));
+        assertEquals(1, shipmentJobs.finish(shipId, owner, "REVIEW_REQUIRED", "RESERVE_ATTEMPT_FAILED"));
+        assertThrows(BusinessRuleException.class, () -> fulfillmentAdmission.merchant(confirmation, true));
+        assertEquals(false, fulfillmentAdmission.shipment(shipment, false).created());
+        assertEquals(1, shipmentJobs.requeueReview(shipId));
+        assertEquals(1, shipmentJobs.claim(shipId, owner, true));
+        assertEquals(1, shipmentJobs.finish(shipId, owner, "COMPLETED", null));
+        assertEquals(true, fulfillmentAdmission.merchant(confirmation, true).created());
+      }
+    }
+  }
+
+  @Test
+  void knownReservationRejectionRetainsHistoryAndAdmitsOnlyOneNewCommand() throws Exception {
+    Long orderId = 90_005L;
+    String oldId = UUID.randomUUID().toString();
+    ShipmentJob old = new ShipmentJob(orderId, oldId, 5L, "REJECTED-RACE", "Priority", "ATTEMPT",
+      ShipmentJob.Step.RESERVE, Status.PENDING, null);
+    fulfillmentAdmission.shipment(old, true);
+    String owner = UUID.randomUUID().toString();
+    assertEquals(1, shipmentJobs.claim(oldId, owner, true));
+    assertEquals(1, shipmentJobs.finish(oldId, owner, "REJECTED", "ORDER_SHIPMENT_ADMISSION_REJECTED"));
+    CountDownLatch start = new CountDownLatch(1);
+    String firstId = UUID.randomUUID().toString();
+    String secondId = UUID.randomUUID().toString();
+    try (ExecutorService workers = Executors.newFixedThreadPool(2)) {
+      Future<Boolean> first = workers.submit(() -> attemptAdmission(start, () ->
+        fulfillmentAdmission.shipment(new ShipmentJob(orderId, firstId, 5L, old.orderNumber(),
+          "Priority", "NEW-A", ShipmentJob.Step.RESERVE, Status.PENDING, null), true)));
+      Future<Boolean> second = workers.submit(() -> attemptAdmission(start, () ->
+        fulfillmentAdmission.shipment(new ShipmentJob(orderId, secondId, 5L, old.orderNumber(),
+          "Priority", "NEW-B", ShipmentJob.Step.RESERVE, Status.PENDING, null), true)));
+      start.countDown();
+      boolean firstWon = first.get(5, TimeUnit.SECONDS);
+      assertEquals(!firstWon, second.get(5, TimeUnit.SECONDS));
+      assertEquals(firstWon ? firstId : secondId, shipmentJobs.find(orderId).commandId());
+      assertEquals(Status.REJECTED, fulfillmentAdmission.find(oldId).status());
+    }
+  }
+
+  @Test
+  void logisticsCommandKeepsOriginalReceiptAfterLostResponseAndNewerVersion() {
+    Long order = 90_006L;
+    String carrier = "Priority";
+    String reference = "CFL-ORDER-" + order;
+    String platform = "LGS-V45-TEST";
+    Instant now = Instant.now();
+    Command create = new Command(UUID.randomUUID().toString(), LogisticsFulfillmentV1.Operation.ENSURE_SHIPMENT,
+      order, "LOGISTICS-V45", carrier, "FIRST", null);
+    when(logisticsGateway.create(order, create.orderNumber(), carrier, "FIRST")).thenReturn(
+      new LogisticsGatewayClient.Result(1L, reference, platform, create.orderNumber(), carrier, "FIRST",
+        "CREATED", null, now, now, 0, List.of()));
+    assertEquals(0L, logisticsFulfillment.execute(create).shipmentVersion());
+    Command first = new Command(UUID.randomUUID().toString(), LogisticsFulfillmentV1.Operation.UPDATE_DETAILS,
+      order, null, carrier, "SECOND", 0L);
+    when(logisticsGateway.update(order, carrier, "SECOND", 0L))
+      .thenThrow(new BusinessRuleException("Simulated lost response"))
+      .thenReturn(new LogisticsGatewayClient.Result(1L, reference, platform, create.orderNumber(), carrier,
+        "SECOND", "CREATED", null, now, now, 1, List.of()));
+    assertThrows(BusinessRuleException.class, () -> logisticsFulfillment.execute(first));
+    assertEquals(true, logisticsFulfillment.findReceipt(first.commandId()).isEmpty());
+    var receipt = logisticsFulfillment.execute(first);
+    assertEquals(1L, receipt.shipmentVersion());
+    Command later = new Command(UUID.randomUUID().toString(), LogisticsFulfillmentV1.Operation.UPDATE_DETAILS,
+      order, null, carrier, "THIRD", 1L);
+    when(logisticsGateway.update(order, carrier, "THIRD", 1L)).thenReturn(
+      new LogisticsGatewayClient.Result(1L, reference, platform, create.orderNumber(), carrier, "THIRD",
+        "CREATED", null, now, now, 2, List.of()));
+    assertEquals(2L, logisticsFulfillment.execute(later).shipmentVersion());
+    assertEquals(receipt, logisticsFulfillment.findReceipt(first.commandId()).orElseThrow());
+    assertEquals(receipt, logisticsFulfillment.execute(first));
+    assertThrows(BusinessRuleException.class, () -> logisticsFulfillment.execute(
+      new Command(first.commandId(), first.operation(), order, null, carrier, "DIFFERENT", 0L)));
+    org.mockito.Mockito.verify(logisticsGateway, org.mockito.Mockito.times(2)).update(order, carrier, "SECOND", 0L);
+  }
+
+  @Test
+  void fulfillmentV1ReplaysNormalizedCommandAndEnforcesSessionOwnership() throws Exception {
+    Long merchantId = users.selectOne(Wrappers.lambdaQuery(AppUser.class)
+      .eq(AppUser::getEmail, "merchant@example.com")).getId();
+    Long orderId = 90_003L;
+    String command = UUID.randomUUID().toString();
+    fulfillmentAdmission.merchant(new MerchantFulfillmentJob(command, orderId, merchantId,
+      MerchantFulfillmentJob.Operation.UPDATE_SHIPMENT, 2, "Priority", "V1-TRACK", "old -> new",
+      MerchantFulfillmentJob.Step.CHANNEL, Status.PENDING, null), true);
+    String path = "/api/merchant/orders/fulfillment-v1/commands";
+    String body = json.writeValueAsString(Map.of("version", 1, "commandId", command, "operation", "UPDATE_SHIPMENT",
+      "merchantId", merchantId, "orderId", orderId, "occurredAt", Instant.now().toString(), "carrier", " Priority ",
+      "trackingNumber", " V1-TRACK ", "expectedShipmentVersion", 2));
+    CsrfContext merchant = login("merchant@example.com", false);
+    mvc.perform(post(path).session(merchant.session()).cookie(merchant.cookie())
+        .header("X-XSRF-TOKEN", merchant.token()).contentType("application/json").content(body))
+      .andExpect(status().isAccepted())
+      .andExpect(jsonPath("$.commandId").value(command))
+      .andExpect(jsonPath("$.status").value("PENDING"));
+    mvc.perform(post(path).session(merchant.session()).cookie(merchant.cookie())
+        .header("X-XSRF-TOKEN", merchant.token()).contentType("application/json")
+        .content(body.replace("V1-TRACK", "CHANGED")))
+      .andExpect(status().isConflict());
+    mvc.perform(post(path).session(merchant.session()).cookie(merchant.cookie())
+        .header("X-XSRF-TOKEN", merchant.token()).contentType("application/json")
+        .content(body.replace("UPDATE_SHIPMENT", "SHIP")))
+      .andExpect(status().isBadRequest());
+    MvcResult queried = mvc.perform(get(path + "/{commandId}", command).session(merchant.session()))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.operation").value("UPDATE_SHIPMENT")).andReturn();
+    assertEquals(command, json.readTree(queried.getResponse().getContentAsString()).path("commandId").asText());
+    CsrfContext customer = login("demo@example.com", false);
+    mvc.perform(get(path + "/{commandId}", command).session(customer.session()))
+      .andExpect(status().isForbidden());
+  }
+
+  private boolean attemptAdmission(CountDownLatch start, Runnable attempt) {
+    await(start);
+    try {
+      attempt.run();
+      return true;
+    } catch (BusinessRuleException conflict) {
+      return false;
+    }
   }
 
   @Test
@@ -963,7 +1232,7 @@ class CommerceFlowIntegrationTest {
     LogisticsGatewayClient.Result authoritative = new LogisticsGatewayClient.Result(
       1L, "MS-RECONCILE", "LGS-RECONCILE", "LOGISTICS-RECONCILIATION-ORDER",
       "Current Carrier", "TRACK-RECONCILE", "PICKED_UP", "http://callback",
-      createdAt, createdAt.plusSeconds(5), List.of(
+      createdAt, createdAt.plusSeconds(5), 0L, List.of(
       new LogisticsGatewayClient.Event("RECONCILE-CREATED", "PROGRESS", "CREATED",
         "Warehouse", "Shipment created", createdAt),
       new LogisticsGatewayClient.Event("RECONCILE-PICKED", "PROGRESS", "PICKED_UP",

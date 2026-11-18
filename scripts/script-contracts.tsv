@@ -56,3 +56,4 @@ verify-rocketmq-reconciliation	BaseUrl,MaxWaitSeconds	BASE_URL=1,MAX_WAIT=2
 verify-rocketmq-scheduling	BaseUrl,MaxWaitSeconds	BASE_URL=1,MAX_WAIT_SECONDS=2
 verify-scheduling	BaseUrl	BASE_URL=1
 verify-upgrade-restart-recovery	MaxWaitSeconds,SkipMigrationRehearsal	@max-wait-seconds,@skip-migration-rehearsal
+verify-fulfillment-shadow-runtime	BaseUrl	base_url=1

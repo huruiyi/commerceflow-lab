@@ -128,14 +128,12 @@ public class PaymentEffectDispatcher {
     Long orderId = payload.get("orderId").asLong();
     String refundNumber = payload.get("refundNumber").asText();
     String traceparent = payload.get("traceparent").asText();
-    OrderView order = orders.order(orderId);
-    if (List.of("PAID", "CONFIRMED").contains(order.status())) {
-      orders.status(eventId + ":order:refunding", orderId, order.status(), "REFUNDING");
-      orders.event(eventId + ":order:event", orderId, order.customerId(), "ORDER_REFUND_REQUESTED",
-        order.status(), "REFUNDING", "Refund " + refundNumber + " requested");
-    } else if (!"REFUNDING".equals(order.status())) {
-      throw new IllegalStateException("Order cannot start refund from " + order.status());
+    var admission = orders.startRefund(eventId + ":order:refund-admission", orderId, refundNumber);
+    if (!admission.accepted()) {
+      store.rejectRefundAdmission(refundNumber);
+      return;
     }
+    store.recordRefundPriorOrderStatus(refundNumber, admission.previousStatus());
     enqueueRefundCommand(refundNumber, orderId, eventId, traceparent);
   }
 

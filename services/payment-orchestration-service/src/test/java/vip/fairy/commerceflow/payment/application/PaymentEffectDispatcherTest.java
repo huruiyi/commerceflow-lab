@@ -2,6 +2,8 @@ package vip.fairy.commerceflow.payment.application;
 
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -22,6 +24,7 @@ import vip.fairy.commerceflow.payment.infrastructure.PaymentShadowProperties.Sha
 import vip.fairy.commerceflow.payment.infrastructure.RemoteInventoryEffectClient;
 import vip.fairy.commerceflow.payment.infrastructure.RemoteOrderEffectClient;
 import vip.fairy.commerceflow.payment.infrastructure.RemoteOrderEffectClient.OrderView;
+import vip.fairy.commerceflow.payment.infrastructure.RemoteOrderEffectClient.RefundAdmission;
 import vip.fairy.commerceflow.payment.infrastructure.persistence.PaymentEffectMapper;
 
 class PaymentEffectDispatcherTest {
@@ -83,6 +86,23 @@ class PaymentEffectDispatcherTest {
       "WAITING_COMMIT", "COMMITTED");
     effects.verify(orders).event("result-41:order:event", 41L, 7L, "PAYMENT_SUCCEEDED",
       "PENDING_PAYMENT", "PAID", "Payment result applied by payment-orchestration");
+  }
+
+  @Test
+  void rejectedOrderAdmissionDoesNotEnqueueChannelRefund() {
+    PaymentEffectMapper store = mock(PaymentEffectMapper.class);
+    RemoteOrderEffectClient orders = mock(RemoteOrderEffectClient.class);
+    PaymentEffectDispatcher dispatcher = dispatcher(store,
+      new PaymentShadowProperties(true, new Effects(true, 20), null), orders,
+      mock(RemoteInventoryEffectClient.class));
+    when(orders.startRefund("event-41:order:refund-admission", 41L, "REF-41"))
+      .thenReturn(new RefundAdmission(false, null));
+
+    dispatcher.apply("event-41", "REFUND_REQUESTED",
+      new ObjectMapper().writeValueAsString(Map.of("orderId", 41L, "refundNumber", "REF-41", "traceparent", TRACE)));
+
+    verify(store).rejectRefundAdmission("REF-41");
+    verifyNoMoreInteractions(store);
   }
 
   private PaymentEffectDispatcher dispatcher(PaymentEffectMapper store,

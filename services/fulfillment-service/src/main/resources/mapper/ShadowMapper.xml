@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.fulfillment.infrastructure.ShadowMapper">
+
+  <select id="sourceSequence" resultType="long">
+    SELECT last_sequence FROM fulfillment_shadow_clock WHERE singleton_id=1
+  </select>
+
+  <select id="changes" resultType="vip.fairy.commerceflow.fulfillment.domain.ShadowKey">
+    SELECT DISTINCT table_name, row_key FROM fulfillment_shadow_changes
+    WHERE change_sequence &gt; #{after} AND change_sequence &lt;= #{through}
+  </select>
+
+  <select id="changeCount" resultType="long">
+    SELECT COUNT(*) FROM fulfillment_shadow_changes
+    WHERE change_sequence &gt; #{after} AND change_sequence &lt;= #{through}
+  </select>
+
+  <select id="rows" resultType="vip.fairy.commerceflow.fulfillment.domain.ShadowRow">
+    SELECT table_name,row_key,payload FROM fulfillment_shadow_rows ORDER BY table_name,row_key
+  </select>
+
+  <select id="command" resultType="vip.fairy.commerceflow.fulfillment.domain.ShadowRow">
+    SELECT table_name,row_key,payload FROM fulfillment_shadow_rows
+    WHERE row_key=#{commandId} AND table_name IN ('fulfillment_shipment_jobs','fulfillment_merchant_jobs')
+  </select>
+
+  <select id="watermark" resultType="vip.fairy.commerceflow.fulfillment.domain.Watermark">
+    SELECT generation,source_sequence FROM fulfillment_shadow_watermark WHERE singleton_id=1 FOR UPDATE
+  </select>
+
+  <update id="advance">
+    UPDATE fulfillment_shadow_watermark SET generation=#{generation},source_sequence=#{sourceSequence}
+    WHERE singleton_id=1
+  </update>
+
+  <select id="orders" resultType="long">
+    SELECT id FROM shop_orders
+  </select>
+
+  <select id="ownership" resultType="vip.fairy.commerceflow.fulfillment.domain.OrderMerchant">
+    SELECT DISTINCT order_id,merchant_id FROM order_items WHERE merchant_id IS NOT NULL
+  </select>
+
+  <select id="quarantine" resultType="vip.fairy.commerceflow.fulfillment.domain.ShadowRow">
+    SELECT table_name,row_key,payload FROM fulfillment_shadow_quarantine ORDER BY table_name,row_key
+  </select>
+
+  <insert id="isolate">
+    INSERT INTO fulfillment_shadow_quarantine (table_name,row_key,source_sequence,reason,payload)
+    VALUES (#{row.tableName},#{row.rowKey},#{sequence},#{reason},#{row.payload})
+    ON DUPLICATE KEY UPDATE source_sequence=#{sequence},reason=#{reason},payload=#{row.payload}
+  </insert>
+
+  <delete id="clearIsolation">
+    DELETE FROM fulfillment_shadow_quarantine WHERE table_name=#{tableName} AND row_key=#{rowKey}
+  </delete>
+
+  <delete id="delete">
+    <choose>
+      <when test="tableName == 'fulfillment_order_locks'">
+        DELETE FROM fulfillment_order_locks WHERE order_id=#{rowKey}
+      </when>
+      <when test="tableName == 'fulfillment_command_ids'">
+        DELETE FROM fulfillment_command_ids WHERE command_id=#{rowKey}
+      </when>
+      <when test="tableName == 'fulfillment_shipment_jobs'">
+        DELETE FROM fulfillment_shipment_jobs WHERE command_id=#{rowKey}
+      </when>
+      <when test="tableName == 'fulfillment_merchant_jobs'">
+        DELETE FROM fulfillment_merchant_jobs WHERE command_id=#{rowKey}
+      </when>
+      <when test="tableName == 'fulfillment_shipment_recoveries'">
+        DELETE FROM fulfillment_shipment_recoveries WHERE id=#{rowKey}
+      </when>
+      <when test="tableName == 'fulfillment_merchant_recoveries'">
+        DELETE FROM fulfillment_merchant_recoveries WHERE id=#{rowKey}
+      </when>
+    </choose>
+  </delete>
+
+  <insert id="upsert">
+    <choose>
+      <when test="tableName == 'fulfillment_order_locks'">
+        INSERT INTO fulfillment_order_locks (
+          order_id
+        ) VALUES (
+          #{values.order_id}
+        )
+        ON DUPLICATE KEY UPDATE
+          order_id=#{values.order_id}
+      </when>
+      <when test="tableName == 'fulfillment_command_ids'">
+        INSERT INTO fulfillment_command_ids (
+          command_id,
+          order_id
+        ) VALUES (
+          #{values.command_id},
+          #{values.order_id}
+        )
+        ON DUPLICATE KEY UPDATE
+          order_id=#{values.order_id}
+      </when>
+      <when test="tableName == 'fulfillment_shipment_jobs'">
+        INSERT INTO fulfillment_shipment_jobs (
+          order_id,
+          command_id,
+          merchant_id,
+          order_number,
+          carrier,
+          tracking_number,
+          step,
+          status,
+          attempts,
+          owner_token,
+          lease_until,
+          next_attempt_at,
+          last_error,
+          created_at,
+          updated_at
+        ) VALUES (
+          #{values.order_id},
+          #{values.command_id},
+          #{values.merchant_id},
+          #{values.order_number},
+          #{values.carrier},
+          #{values.tracking_number},
+          #{values.step},
+          #{values.status},
+          #{values.attempts},
+          #{values.owner_token},
+          #{values.lease_until},
+          #{values.next_attempt_at},
+          #{values.last_error},
+          #{values.created_at},
+          #{values.updated_at}
+        )
+        ON DUPLICATE KEY UPDATE
+          order_id=#{values.order_id},
+          merchant_id=#{values.merchant_id},
+          order_number=#{values.order_number},
+          carrier=#{values.carrier},
+          tracking_number=#{values.tracking_number},
+          step=#{values.step},
+          status=#{values.status},
+          attempts=#{values.attempts},
+          owner_token=#{values.owner_token},
+          lease_until=#{values.lease_until},
+          next_attempt_at=#{values.next_attempt_at},
+          last_error=#{values.last_error},
+          created_at=#{values.created_at},
+          updated_at=#{values.updated_at}
+      </when>
+      <when test="tableName == 'fulfillment_merchant_jobs'">
+        INSERT INTO fulfillment_merchant_jobs (
+          command_id,
+          order_id,
+          merchant_id,
+          operation,
+          expected_version,
+          carrier,
+          tracking_number,
+          detail,
+          step,
+          status,
+          attempts,
+          owner_token,
+          lease_until,
+          next_attempt_at,
+          last_error,
+          updated_at
+        ) VALUES (
+          #{values.command_id},
+          #{values.order_id},
+          #{values.merchant_id},
+          #{values.operation},
+          #{values.expected_version},
+          #{values.carrier},
+          #{values.tracking_number},
+          #{values.detail},
+          #{values.step},
+          #{values.status},
+          #{values.attempts},
+          #{values.owner_token},
+          #{values.lease_until},
+          #{values.next_attempt_at},
+          #{values.last_error},
+          #{values.updated_at}
+        )
+        ON DUPLICATE KEY UPDATE
+          order_id=#{values.order_id},
+          merchant_id=#{values.merchant_id},
+          operation=#{values.operation},
+          expected_version=#{values.expected_version},
+          carrier=#{values.carrier},
+          tracking_number=#{values.tracking_number},
+          detail=#{values.detail},
+          step=#{values.step},
+          status=#{values.status},
+          attempts=#{values.attempts},
+          owner_token=#{values.owner_token},
+          lease_until=#{values.lease_until},
+          next_attempt_at=#{values.next_attempt_at},
+          last_error=#{values.last_error},
+          updated_at=#{values.updated_at}
+      </when>
+      <when test="tableName == 'fulfillment_shipment_recoveries'">
+        INSERT INTO fulfillment_shipment_recoveries (
+          id,
+          order_id,
+          recovery_id,
+          command_id,
+          operator_id,
+          step,
+          previous_error,
+          reason,
+          evidence,
+          created_at
+        ) VALUES (
+          #{values.id},
+          #{values.order_id},
+          #{values.recovery_id},
+          #{values.command_id},
+          #{values.operator_id},
+          #{values.step},
+          #{values.previous_error},
+          #{values.reason},
+          #{values.evidence},
+          #{values.created_at}
+        )
+        ON DUPLICATE KEY UPDATE
+          order_id=#{values.order_id},
+          recovery_id=#{values.recovery_id},
+          command_id=#{values.command_id},
+          operator_id=#{values.operator_id},
+          step=#{values.step},
+          previous_error=#{values.previous_error},
+          reason=#{values.reason},
+          evidence=#{values.evidence},
+          created_at=#{values.created_at}
+      </when>
+      <when test="tableName == 'fulfillment_merchant_recoveries'">
+        INSERT INTO fulfillment_merchant_recoveries (
+          id,
+          command_id,
+          recovery_id,
+          operator_id,
+          step,
+          previous_error,
+          reason,
+          evidence,
+          created_at
+        ) VALUES (
+          #{values.id},
+          #{values.command_id},
+          #{values.recovery_id},
+          #{values.operator_id},
+          #{values.step},
+          #{values.previous_error},
+          #{values.reason},
+          #{values.evidence},
+          #{values.created_at}
+        )
+        ON DUPLICATE KEY UPDATE
+          command_id=#{values.command_id},
+          recovery_id=#{values.recovery_id},
+          operator_id=#{values.operator_id},
+          step=#{values.step},
+          previous_error=#{values.previous_error},
+          reason=#{values.reason},
+          evidence=#{values.evidence},
+          created_at=#{values.created_at}
+      </when>
+    </choose>
+  </insert>
+</mapper>

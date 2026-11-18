@@ -50,6 +50,7 @@ commerceflow:
   internal-api:
     commerce-secret: ${ORDER_INTERNAL_SECRET:demo-order-internal-secret}
     payment-secret: ${PAYMENT_ORDER_INTERNAL_SECRET:demo-payment-order-internal-secret}
+    fulfillment-secret: ${FULFILLMENT_ORDER_SECRET:}
   order:
     accepting-traffic: ${ORDER_ACCEPTING_TRAFFIC:false}
     shadow:

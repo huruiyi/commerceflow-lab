@@ -7,6 +7,13 @@ import java.time.Instant;
  */
 public class ShipmentRecordView {
 
+  /** 最新已应用的渠道运单详情版本。 */
+  private long shipmentVersion;
+
+  public long getShipmentVersion() {
+    return shipmentVersion;
+  }
+
   /** 商城运单记录自增主键。 */
   private Long id;
   /** 运单所属商城订单主键。 */

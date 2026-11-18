@@ -148,8 +148,17 @@ export class ApiService {
     return this.http.post<PurchaseOrder>(`/api/merchant/orders/${id}/ship`, { carrier, trackingNumber });
   }
 
-  updateMerchantShipment(id: number, carrier: string, trackingNumber: string): Observable<PurchaseOrder> {
-    return this.http.put<PurchaseOrder>(`/api/merchant/orders/${id}/shipment`, { carrier, trackingNumber });
+  updateMerchantShipment(
+    id: number,
+    carrier: string,
+    trackingNumber: string,
+    expectedVersion: number,
+  ): Observable<PurchaseOrder> {
+    return this.http.put<PurchaseOrder>(`/api/merchant/orders/${id}/shipment`, {
+      carrier,
+      trackingNumber,
+      expectedVersion,
+    });
   }
 
   receiveOrder(id: number): Observable<PurchaseOrder> {

@@ -112,6 +112,14 @@ security:
     validity-seconds: ${REMEMBER_ME_VALIDITY_SECONDS:1209600}
 
 commerceflow:
+  fulfillment:
+    logistics-bridge-enabled: ${FULFILLMENT_LOGISTICS_BRIDGE_ENABLED:false}
+    logistics-secret: ${FULFILLMENT_LOGISTICS_SECRET:}
+    remote:
+      enabled: ${FULFILLMENT_REMOTE_ENABLED:false}
+      base-url: ${FULFILLMENT_SERVICE_BASE_URL:http://fulfillment-service:8080}
+      secret: ${FULFILLMENT_INTERNAL_SECRET:}
+      admin-secret: ${FULFILLMENT_ADMIN_SECRET:}
   payment:
     cutover:
       write-frozen: ${PAYMENT_WRITE_FROZEN:false}

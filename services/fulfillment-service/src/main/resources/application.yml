@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: fulfillment-service
+  datasource:
+    url: ${FULFILLMENT_DATABASE_URL}
+    username: ${FULFILLMENT_DATABASE_USERNAME:fulfillment}
+    password: ${FULFILLMENT_DATABASE_PASSWORD:fulfillment-password}
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+commerceflow:
+  fulfillment:
+    mode: ${FULFILLMENT_RUNTIME_MODE:SHADOW}
+    require-promoted-mode: ${FULFILLMENT_REQUIRE_PROMOTED_MODE:false}
+    source-url: ${FULFILLMENT_SOURCE_URL:}
+    order-url: ${FULFILLMENT_ORDER_AUDIT_URL:}
+    reader-password: ${FULFILLMENT_READER_PASSWORD:}
+    secret: ${FULFILLMENT_INTERNAL_SECRET}
+    poll-delay: ${FULFILLMENT_SHADOW_DELAY:5s}
+    order-endpoint: ${FULFILLMENT_ORDER_ENDPOINT:}
+    order-secret: ${FULFILLMENT_ORDER_SECRET:}
+    logistics-endpoint: ${FULFILLMENT_LOGISTICS_ENDPOINT:}
+    logistics-secret: ${FULFILLMENT_LOGISTICS_SECRET:}
+    recovery-enabled: ${FULFILLMENT_RECOVERY_ENABLED:false}
+    admin-secret: ${FULFILLMENT_ADMIN_SECRET:}

@@ -20,6 +20,7 @@ public record MerchantOrderResponse(
   Instant shippedAt,
   String carrier,
   String trackingNumber,
+  long shipmentVersion,
   List<ShopOrderResponse.Item> items,
   ShopOrderResponse.Address address,
   List<Event> events,

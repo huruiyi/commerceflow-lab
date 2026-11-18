@@ -16,13 +16,16 @@ public class InternalRequestSignature {
 
   private final String commerceSecret;
   private final String paymentSecret;
+  private final String fulfillmentSecret;
 
   public InternalRequestSignature(
     @Value("${commerceflow.internal-api.commerce-secret}") String commerceSecret,
-    @Value("${commerceflow.internal-api.payment-secret}") String paymentSecret
+    @Value("${commerceflow.internal-api.payment-secret}") String paymentSecret,
+    @Value("${commerceflow.internal-api.fulfillment-secret:}") String fulfillmentSecret
   ) {
     this.commerceSecret = commerceSecret;
     this.paymentSecret = paymentSecret;
+    this.fulfillmentSecret = fulfillmentSecret;
   }
 
   public boolean verify(String service, String method, String target, String timestamp,
@@ -34,9 +37,12 @@ public class InternalRequestSignature {
       String secret = switch (service) {
         case "commerce-service" -> commerceSecret;
         case "payment-orchestration-service" -> paymentSecret;
+        case "fulfillment-service" -> "POST".equals(method)
+          && ("/internal/v1/orders/store/query".equals(target) || "/internal/v1/orders/store/mutations".equals(target))
+          ? fulfillmentSecret : null;
         default -> null;
       };
-      if (secret == null) return false;
+      if (secret == null || secret.isBlank()) return false;
       String expected = sign(secret, method + "\n" + target + "\n" + timestamp + "\n"
         + requestId + "\n" + contentHash);
       return MessageDigest.isEqual(expected.getBytes(StandardCharsets.UTF_8),

@@ -67,7 +67,11 @@ public class ShipmentController {
       || request.trackingNumber() == null || request.trackingNumber().isBlank()) {
       throw new IllegalArgumentException("Carrier and tracking number are required");
     }
-    return shipments.update(merchantShipmentNo, request.carrier(), request.trackingNumber());
+    if (request.expectedVersion() == null || request.expectedVersion() < 0) {
+      throw new IllegalArgumentException("Expected shipment version is required");
+    }
+    return shipments.update(merchantShipmentNo, request.carrier(), request.trackingNumber(),
+      request.expectedVersion());
   }
 
   @PostMapping("/{merchantShipmentNo}/advance")
@@ -118,7 +122,7 @@ public class ShipmentController {
     }
   }
 
-  public record UpdateRequest(String carrier, String trackingNumber) {
+  public record UpdateRequest(String carrier, String trackingNumber, Long expectedVersion) {
   }
 
   public record ExceptionRequest(String location, String description) {

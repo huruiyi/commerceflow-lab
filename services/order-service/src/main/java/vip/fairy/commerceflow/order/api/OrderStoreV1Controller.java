@@ -3,6 +3,7 @@ package vip.fairy.commerceflow.order.api;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
+import java.util.Set;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,8 @@ import vip.fairy.commerceflow.order.application.OrderStoreService;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.CreateOrder;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.Mutation;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.MutationResult;
+import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.MutationType;
+import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.QueryType;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.OrderView;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.Query;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.QueryResult;
@@ -24,6 +27,10 @@ import vip.fairy.commerceflow.order.infrastructure.OrderShadowProperties;
 @RestController
 @RequestMapping("/internal/v1/orders/store")
 public class OrderStoreV1Controller {
+
+  private static final Set<MutationType> FULFILLMENT_MUTATIONS = Set.of(MutationType.MERCHANT_CONFIRM,
+    MutationType.RESERVE_SHIPMENT, MutationType.RESERVE_NEW_SHIPMENT,
+    MutationType.MERCHANT_SHIP, MutationType.UPDATE_SHIPMENT);
 
   private final OrderStoreService store;
   private final OrderShadowProperties properties;
@@ -45,13 +52,25 @@ public class OrderStoreV1Controller {
   @PostMapping("/query")
   QueryResult query(@RequestBody String payload, HttpServletRequest request) {
     requireTrafficAndHash(payload, request);
-    return store.query(mapper.readValue(payload, Query.class));
+    Query query = mapper.readValue(payload, Query.class);
+    if (isFulfillment(request) && query.type() != QueryType.FIND_MERCHANT) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Fulfillment may only query merchant orders");
+    }
+    return store.query(query);
   }
 
   @PostMapping("/mutations")
   MutationResult mutate(@RequestBody String payload, HttpServletRequest request) {
     requireTrafficAndHash(payload, request);
-    return store.mutate(mapper.readValue(payload, Mutation.class));
+    Mutation mutation = mapper.readValue(payload, Mutation.class);
+    if (isFulfillment(request) && (mutation.type() == null || !FULFILLMENT_MUTATIONS.contains(mutation.type()))) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Mutation is outside the fulfillment boundary");
+    }
+    return store.mutate(mutation);
+  }
+
+  private boolean isFulfillment(HttpServletRequest request) {
+    return "fulfillment-service".equals(request.getHeader("X-CommerceFlow-Service"));
   }
 
   private void requireTrafficAndHash(String payload, HttpServletRequest request) {

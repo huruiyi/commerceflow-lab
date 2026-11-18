@@ -13,6 +13,7 @@ import java.util.Optional;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.mybatis.spring.SqlSessionTemplate;
 import vip.fairy.commerceflow.commerce.ordering.application.port.OrderStorePort;
 import vip.fairy.commerceflow.commerce.ordering.domain.NewOrder;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderAddressSnapshot;
@@ -26,9 +27,11 @@ import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
 final class TestOrderStoreAdapter implements OrderStorePort {
 
   private final JdbcTemplate jdbc;
+  private final SqlSessionTemplate session;
 
-  TestOrderStoreAdapter(JdbcTemplate jdbc) {
+  TestOrderStoreAdapter(JdbcTemplate jdbc, SqlSessionTemplate session) {
     this.jdbc = jdbc;
+    this.session = session;
   }
 
   @Override
@@ -210,7 +213,7 @@ final class TestOrderStoreAdapter implements OrderStorePort {
   }
 
   @Override
-  public int merchantConfirm(Long orderId, Long merchantId) {
+  public int merchantConfirm(String commandId, Long orderId, Long merchantId) {
     int changed = jdbc.update("UPDATE shop_orders SET status='CONFIRMED',confirmed_at=CURRENT_TIMESTAMP,"
         + "updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='PAID' AND EXISTS "
         + "(SELECT 1 FROM order_items WHERE order_id=shop_orders.id AND merchant_id=?)", orderId, merchantId);
@@ -221,7 +224,15 @@ final class TestOrderStoreAdapter implements OrderStorePort {
   }
 
   @Override
-  public int merchantShip(Long orderId, Long merchantId, String carrier, String tracking) {
+  public int reserveShipment(String commandId, Long orderId, Long merchantId, String carrier, String tracking,
+                             boolean unreservedOnly) {
+    return findMerchant(merchantId, orderId)
+      .filter(order -> "CONFIRMED".equals(order.getStatus()) && "COMMITTED".equals(order.getInventoryStatus()))
+      .isPresent() ? 1 : 0;
+  }
+
+  @Override
+  public int merchantShip(String commandId, Long orderId, Long merchantId, String carrier, String tracking) {
     int changed = jdbc.update("UPDATE shop_orders SET status='SHIPPED',carrier=?,tracking_number=?,"
         + "shipped_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='CONFIRMED' "
         + "AND inventory_status='COMMITTED' AND EXISTS "
@@ -234,9 +245,14 @@ final class TestOrderStoreAdapter implements OrderStorePort {
   }
 
   @Override
-  public int updateShipment(Long orderId, String carrier, String tracking) {
-    return jdbc.update("UPDATE shop_orders SET carrier=?,tracking_number=?,updated_at=CURRENT_TIMESTAMP "
-      + "WHERE id=? AND status='SHIPPED'", carrier, tracking, orderId);
+  public int updateShipment(String commandId, Long orderId, Long merchantId, String carrier, String tracking,
+                            long version, String detail) {
+    int changed = session.update("test.order.updateShipment", Map.of(
+      "orderId", orderId, "merchantId", merchantId, "carrier", carrier, "tracking", tracking, "version", version));
+    if (changed == 1) {
+      insertEvent(orderId, merchantId, "SHIPMENT_UPDATED", "SHIPPED", "SHIPPED", detail);
+    }
+    return changed;
   }
 
   private List<ShopOrderView> orders(String sql, Object... arguments) {

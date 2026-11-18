@@ -92,9 +92,17 @@ public class ShipmentService {
   }
 
   @Transactional
-  public ShipmentView update(String merchantNo, String carrier, String trackingNumber) {
-    requireForUpdate(merchantNo);
-    dataMapper.updateShipmentDetails(merchantNo, carrier, trackingNumber);
+  public ShipmentView update(String merchantNo, String carrier, String trackingNumber, long expectedVersion) {
+    ShipmentView current = requireForUpdate(merchantNo);
+    boolean sameDetails = carrier.equals(current.carrier()) && trackingNumber.equals(current.trackingNumber());
+    if (current.shipmentVersion() != expectedVersion) {
+      if (sameDetails && current.shipmentVersion() - 1 == expectedVersion) return current;
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "SHIPMENT_VERSION_CONFLICT");
+    }
+    if (sameDetails) return current;
+    if (dataMapper.updateShipmentDetails(merchantNo, carrier, trackingNumber, expectedVersion) != 1) {
+      throw concurrentTransition();
+    }
     return require(merchantNo);
   }
 
@@ -145,7 +153,7 @@ public class ShipmentService {
       .toList();
     return new ShipmentView(row.id(), row.merchantShipmentNo(), row.platformShipmentNo(),
       row.orderNumber(), row.carrier(), row.trackingNumber(), row.status(), row.callbackUrl(),
-      row.createdAt().toInstant(), row.updatedAt().toInstant(), events);
+      row.createdAt().toInstant(), row.updatedAt().toInstant(), row.shipmentVersion(), events);
   }
 
   private void insertEvent(Long id, String eventType, String status, String location,

@@ -108,7 +108,9 @@ public class SecurityConfiguration {
         .csrfTokenRequestHandler(csrfRequestHandler)
         .ignoringRequestMatchers(
           "/api/logistics-notifications/**",
-          "/internal/v1/inventory/catalog-events"))
+          "/internal/v1/inventory/catalog-events",
+          "/internal/v1/logistics/fulfillment/commands",
+          "/internal/v1/logistics/fulfillment/shipment-checks"))
       .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
       .rememberMe(remember -> remember.rememberMeServices(rememberMeServices))
       .authorizeHttpRequests(authorize -> authorize
@@ -118,6 +120,8 @@ public class SecurityConfiguration {
           "/api/products/**",
           "/api/logistics-notifications/**",
           "/internal/v1/inventory/catalog-events",
+          "/internal/v1/logistics/fulfillment/commands",
+          "/internal/v1/logistics/fulfillment/shipment-checks",
           "/actuator/health",
           "/actuator/info",
           "/actuator/prometheus")

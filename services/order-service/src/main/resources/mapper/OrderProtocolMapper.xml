@@ -114,6 +114,7 @@
       shipped_at=CASE WHEN #{to}='SHIPPED' THEN CURRENT_TIMESTAMP(6) ELSE shipped_at END,
       received_at=CASE WHEN #{to}='RECEIVED' THEN CURRENT_TIMESTAMP(6) ELSE received_at END,
       updated_at=CURRENT_TIMESTAMP(6) WHERE id=#{orderId} AND status=#{from}
+      AND (#{to} NOT IN ('SHIPPED','REFUNDING') OR shipment_intent_key IS NULL)
   </update>
 
   <select id="lockStatus" resultType="java.lang.String">

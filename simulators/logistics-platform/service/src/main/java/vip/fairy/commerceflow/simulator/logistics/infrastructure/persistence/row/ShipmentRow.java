@@ -15,8 +15,9 @@ import java.sql.Timestamp;
  * @param callbackUrl 商城物流通知回调地址
  * @param createdAt 运单创建时间
  * @param updatedAt 运单最后变更时间
+ * @param shipmentVersion 运单详情版本
  */
 public record ShipmentRow(Long id, String merchantShipmentNo, String platformShipmentNo,
                           String orderNumber, String carrier, String trackingNumber, String status,
-                          String callbackUrl, Timestamp createdAt, Timestamp updatedAt) {
+                          String callbackUrl, Timestamp createdAt, Timestamp updatedAt, long shipmentVersion) {
 }

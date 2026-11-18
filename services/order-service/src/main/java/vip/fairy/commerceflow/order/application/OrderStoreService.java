@@ -13,6 +13,7 @@ import vip.fairy.commerceflow.order.application.RemoteOrderProtocolService.Proto
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.CreateOrder;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.Mutation;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.MutationResult;
+import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.MutationType;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.OrderView;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.Query;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.QueryResult;
@@ -95,7 +96,8 @@ public class OrderStoreService {
         return mapper.readValue(existing.responsePayload(), MutationResult.class);
       }
       store.insertMutation(mutation.mutationId(), fingerprint);
-      MutationResult result = new MutationResult(apply(mutation));
+      MutationResult result = mutation.type() == MutationType.START_REFUND
+        ? startRefund(mutation) : new MutationResult(apply(mutation));
       store.finishMutation(mutation.mutationId(), mapper.writeValueAsString(result));
       return result;
     });
@@ -116,9 +118,24 @@ public class OrderStoreService {
       case MARK_RECEIVED -> store.markReceived(value);
       case MARK_COMPLETED -> store.markCompleted(value);
       case MERCHANT_CONFIRM -> confirmByMerchant(value);
+      case RESERVE_SHIPMENT -> store.reserveShipment(value, shipmentKey(value), false);
+      case RESERVE_NEW_SHIPMENT -> store.reserveShipment(value, shipmentKey(value), true);
       case MERCHANT_SHIP -> shipByMerchant(value);
-      case UPDATE_SHIPMENT -> store.updateShipment(value);
+      case UPDATE_SHIPMENT -> updateShipment(value);
+      case START_REFUND -> throw new IllegalStateException("Refund mutation requires a previous status result");
     };
+  }
+
+  private int updateShipment(Mutation value) {
+    if (value.expectedShipmentVersion() == null || value.expectedShipmentVersion() < 0
+        || value.actorId() == null || value.detail() == null) {
+      throw new IllegalArgumentException("Shipment update requires a merchant, expected version and event details");
+    }
+    int changed = store.updateShipment(value);
+    if (changed == 1) {
+      event(value.orderId(), value.actorId(), "SHIPMENT_UPDATED", "SHIPPED", "SHIPPED", value.detail(), "USER", null);
+    }
+    return changed;
   }
 
   private int confirmByMerchant(Mutation value) {
@@ -131,12 +148,28 @@ public class OrderStoreService {
   }
 
   private int shipByMerchant(Mutation value) {
-    int changed = store.shipByMerchant(value);
+    int changed = store.shipByMerchant(value, shipmentKey(value));
     if (changed == 1) {
       event(value.orderId(), value.actorId(), "ORDER_SHIPPED", "CONFIRMED", "SHIPPED",
         value.carrier() + " / " + value.trackingNumber(), "USER", null);
     }
     return changed;
+  }
+
+  private String shipmentKey(Mutation value) {
+    if (value.actorId() == null || value.carrier() == null || value.trackingNumber() == null) {
+      throw new IllegalArgumentException("Merchant, carrier and tracking number are required");
+    }
+    return sha256(mapper.writeValueAsString(List.of(value.actorId(), value.carrier(), value.trackingNumber())));
+  }
+
+  private MutationResult startRefund(Mutation value) {
+    String previous = store.lockOrderStatus(value.orderId());
+    if (!"PAID".equals(previous) && !"CONFIRMED".equals(previous)) return new MutationResult(0);
+    if (store.startRefund(value.orderId(), previous) != 1) return new MutationResult(0);
+    event(value.orderId(), store.customerId(value.orderId()), "ORDER_REFUND_REQUESTED", previous, "REFUNDING",
+      value.detail(), "PAYMENT_ORCHESTRATION", null);
+    return new MutationResult(1, previous);
   }
 
   private int event(Long orderId, Long actorId, String type, String from, String to,

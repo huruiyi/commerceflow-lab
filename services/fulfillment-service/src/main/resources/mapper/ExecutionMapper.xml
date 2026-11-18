@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.fulfillment.infrastructure.ExecutionMapper">
+
+  <update id="initializeMode">
+    UPDATE fulfillment_runtime_mode SET mode=#{mode} WHERE singleton_id=1 AND mode IS NULL
+  </update>
+
+  <select id="mode" resultType="string">
+    SELECT mode FROM fulfillment_runtime_mode WHERE singleton_id=1 FOR UPDATE
+  </select>
+
+  <select id="lockReplicationMode" resultType="string">
+    SELECT mode FROM fulfillment_runtime_mode WHERE singleton_id=1 FOR SHARE
+  </select>
+
+  <insert id="lockOrder">
+    INSERT INTO fulfillment_order_locks (order_id) VALUES (#{orderId})
+    ON DUPLICATE KEY UPDATE order_id=order_id
+  </insert>
+
+  <insert id="reserveCommand">
+    INSERT INTO fulfillment_command_ids (command_id,order_id) VALUES (#{commandId},#{orderId})
+    ON DUPLICATE KEY UPDATE order_id=order_id
+  </insert>
+
+  <select id="commandOrder" resultType="java.lang.Long">
+    SELECT order_id FROM fulfillment_command_ids WHERE command_id=#{commandId} FOR UPDATE
+  </select>
+
+  <select id="hasOpenTask" resultType="boolean">
+    SELECT EXISTS (
+      SELECT 1 FROM fulfillment_shipment_jobs WHERE order_id=#{orderId} AND status IN ('PENDING','REVIEW_REQUIRED')
+      UNION ALL
+      SELECT 1 FROM fulfillment_merchant_jobs WHERE order_id=#{orderId} AND status IN ('PENDING','REVIEW_REQUIRED')
+    )
+  </select>
+
+  <sql id="reservationRejected">
+    status='REJECTED' AND step='RESERVE' AND COALESCE(last_error,'')='ORDER_SHIPMENT_ADMISSION_REJECTED'
+  </sql>
+
+  <select id="hasRejectedReservation" resultType="boolean">
+    SELECT EXISTS (
+      SELECT 1 FROM fulfillment_shipment_jobs WHERE order_id=#{orderId} AND <include refid="reservationRejected"/>
+    )
+  </select>
+
+  <select id="businessSlotOccupied" resultType="boolean">
+    SELECT EXISTS (
+      <choose>
+        <when test="operation.name() == 'SHIP'">
+          SELECT 1 FROM fulfillment_shipment_jobs WHERE order_id=#{orderId}
+            AND NOT (<include refid="reservationRejected"/>)
+        </when>
+        <otherwise>
+          SELECT 1 FROM fulfillment_merchant_jobs WHERE order_id=#{orderId} AND operation=#{operation}
+            AND expected_version=COALESCE(#{expectedVersion},0)
+            AND NOT (operation='CONFIRM' AND step='ORDER' AND status='REJECTED'
+              AND COALESCE(last_error,'')='ORDER_MUTATION_REJECTED')
+        </otherwise>
+      </choose>
+    )
+  </select>
+
+  <insert id="insert">
+    <choose>
+      <when test="operation.name() == 'SHIP'">
+        INSERT INTO fulfillment_shipment_jobs
+          (command_id,order_id,merchant_id,order_number,carrier,tracking_number,step,status,next_attempt_at)
+        VALUES (#{commandId},#{orderId},#{merchantId},#{orderNumber},#{carrier},#{trackingNumber},
+          #{step},'PENDING',CURRENT_TIMESTAMP(6))
+      </when>
+      <otherwise>
+        INSERT INTO fulfillment_merchant_jobs
+          (command_id,order_id,merchant_id,operation,expected_version,carrier,tracking_number,detail,step,status,
+            next_attempt_at)
+        VALUES (#{commandId},#{orderId},#{merchantId},#{operation},COALESCE(#{expectedVersion},0),
+          #{carrier},#{trackingNumber},#{detail},#{step},'PENDING',CURRENT_TIMESTAMP(6))
+      </otherwise>
+    </choose>
+  </insert>
+
+  <select id="find" resultType="vip.fairy.commerceflow.fulfillment.domain.ExecutionTask">
+    SELECT command_id,order_id,merchant_id,'SHIP' AS operation,order_number,
+      carrier,tracking_number,NULL AS expected_version,NULL AS detail,step,status,last_error AS error_code
+    FROM fulfillment_shipment_jobs WHERE command_id=#{commandId}
+    UNION ALL
+    SELECT command_id,order_id,merchant_id,operation,NULL AS order_number,carrier,tracking_number,
+      CASE WHEN operation='UPDATE_SHIPMENT' THEN expected_version END,detail,step,status,last_error
+    FROM fulfillment_merchant_jobs WHERE command_id=#{commandId}
+  </select>
+
+  <select id="shipment" resultType="vip.fairy.commerceflow.fulfillment.domain.ExecutionTask">
+    SELECT command_id,order_id,merchant_id,'SHIP' AS operation,order_number,carrier,tracking_number,
+      NULL AS expected_version,NULL AS detail,step,status,last_error AS error_code
+    FROM fulfillment_shipment_jobs WHERE order_id=#{orderId}
+    ORDER BY (<include refid="reservationRejected"/>) ASC,created_at DESC,command_id DESC LIMIT 1
+  </select>
+
+  <select id="legacySlot" resultType="string">
+    SELECT command_id FROM
+    <choose>
+      <when test="command.operation.name() == 'SHIP'">
+        fulfillment_shipment_jobs WHERE order_id=#{command.orderId} AND NOT (<include refid="reservationRejected"/>)
+        ORDER BY created_at DESC,command_id DESC
+      </when>
+      <otherwise>
+        fulfillment_merchant_jobs WHERE order_id=#{command.orderId} AND operation=#{command.operation}
+          AND expected_version=COALESCE(#{command.expectedShipmentVersion},0)
+          AND NOT (operation='CONFIRM' AND step='ORDER' AND status='REJECTED'
+            AND COALESCE(last_error,'')='ORDER_MUTATION_REJECTED')
+        ORDER BY updated_at DESC,command_id DESC
+      </otherwise>
+    </choose>
+    LIMIT 1
+  </select>
+
+  <select id="due" resultType="string">
+    SELECT command_id FROM (
+      SELECT command_id,next_attempt_at FROM fulfillment_shipment_jobs WHERE status='PENDING'
+        AND next_attempt_at &lt;= CURRENT_TIMESTAMP(6)
+        AND (lease_until IS NULL OR lease_until &lt;= CURRENT_TIMESTAMP(6))
+      UNION ALL
+      SELECT command_id,next_attempt_at FROM fulfillment_merchant_jobs WHERE status='PENDING'
+        AND next_attempt_at &lt;= CURRENT_TIMESTAMP(6)
+        AND (lease_until IS NULL OR lease_until &lt;= CURRENT_TIMESTAMP(6))
+    ) AS pending ORDER BY next_attempt_at,command_id LIMIT 10
+  </select>
+
+  <sql id="jobTable">
+    <choose>
+      <when test="task.operation.name() == 'SHIP'">fulfillment_shipment_jobs</when>
+      <otherwise>fulfillment_merchant_jobs</otherwise>
+    </choose>
+  </sql>
+
+  <sql id="lease">
+    command_id=#{task.commandId} AND owner_token=#{owner} AND lease_until &gt; CURRENT_TIMESTAMP(6)
+  </sql>
+
+  <update id="claim">
+    UPDATE <include refid="jobTable"/> SET owner_token=#{owner},
+      lease_until=TIMESTAMPADD(SECOND,60,CURRENT_TIMESTAMP(6)),attempts=attempts+1,updated_at=CURRENT_TIMESTAMP(6)
+    WHERE command_id=#{task.commandId} AND status='PENDING' AND step=#{task.step}
+      AND next_attempt_at &lt;= CURRENT_TIMESTAMP(6)
+      AND (lease_until IS NULL OR lease_until &lt;= CURRENT_TIMESTAMP(6))
+  </update>
+
+  <update id="advance">
+    UPDATE <include refid="jobTable"/> SET step=#{step},attempts=0,last_error=NULL,
+      owner_token=NULL,lease_until=NULL,next_attempt_at=CURRENT_TIMESTAMP(6),updated_at=CURRENT_TIMESTAMP(6)
+    WHERE <include refid="lease"/>
+  </update>
+
+  <update id="finish">
+    UPDATE <include refid="jobTable"/> SET status=#{status},last_error=#{error},
+      owner_token=NULL,lease_until=NULL,updated_at=CURRENT_TIMESTAMP(6)
+    WHERE <include refid="lease"/>
+  </update>
+
+  <update id="retry">
+    UPDATE <include refid="jobTable"/>
+    SET status=CASE WHEN attempts &gt;= 6 THEN 'REVIEW_REQUIRED' ELSE 'PENDING' END,
+      last_error=#{error},owner_token=NULL,lease_until=NULL,updated_at=CURRENT_TIMESTAMP(6),
+      next_attempt_at=TIMESTAMPADD(SECOND,LEAST(POWER(2,attempts),30),CURRENT_TIMESTAMP(6))
+    WHERE <include refid="lease"/>
+  </update>
+
+  <select id="reviewable" resultType="string">
+    SELECT command_id FROM (
+      <if test="shipment == null or shipment">SELECT command_id,updated_at,order_id FROM fulfillment_shipment_jobs
+        WHERE status='REVIEW_REQUIRED'</if>
+      <if test="shipment == null">UNION ALL</if>
+      <if test="shipment == null or !shipment">SELECT command_id,updated_at,order_id FROM fulfillment_merchant_jobs
+        WHERE status='REVIEW_REQUIRED'</if>
+    ) AS reviewable ORDER BY updated_at,<if test="shipment == true">order_id,</if>command_id LIMIT #{limit}
+  </select>
+
+  <select id="lockTask" resultType="string">
+    SELECT command_id FROM <include refid="jobTable"/> WHERE command_id=#{task.commandId} FOR UPDATE
+  </select>
+
+  <update id="requeue">
+    UPDATE <include refid="jobTable"/> SET status='PENDING',attempts=0,
+      next_attempt_at=CURRENT_TIMESTAMP(6),updated_at=CURRENT_TIMESTAMP(6)
+    WHERE command_id=#{task.commandId} AND status='REVIEW_REQUIRED' AND owner_token IS NULL AND lease_until IS NULL
+  </update>
+
+  <sql id="recoveryTable">
+    <choose>
+      <when test="task.operation.name() == 'SHIP'">fulfillment_shipment_recoveries</when>
+      <otherwise>fulfillment_merchant_recoveries</otherwise>
+    </choose>
+  </sql>
+
+  <sql id="recoveryFields">
+    command_id,recovery_id,operator_id,step,previous_error,reason,evidence,created_at
+  </sql>
+
+  <select id="recovery" resultType="vip.fairy.commerceflow.fulfillment.domain.RecoveryRecord">
+    SELECT <include refid="recoveryFields"/> FROM <include refid="recoveryTable"/>
+    WHERE recovery_id=#{recoveryId}
+    <choose>
+      <when test="task.operation.name() == 'SHIP'">AND order_id=#{task.orderId}</when>
+      <otherwise>AND command_id=#{task.commandId}</otherwise>
+    </choose>
+  </select>
+
+  <select id="recoveryHistory" resultType="vip.fairy.commerceflow.fulfillment.domain.RecoveryRecord">
+    SELECT <include refid="recoveryFields"/> FROM <include refid="recoveryTable"/>
+    WHERE command_id=#{task.commandId} ORDER BY id DESC LIMIT 100
+  </select>
+
+  <select id="shipmentRecoveryHistory" resultType="vip.fairy.commerceflow.fulfillment.domain.RecoveryRecord">
+    SELECT <include refid="recoveryFields"/> FROM fulfillment_shipment_recoveries
+    WHERE order_id=#{orderId} ORDER BY id DESC LIMIT 100
+  </select>
+
+  <insert id="insertRecovery">
+    INSERT INTO <include refid="recoveryTable"/>
+      (<if test="task.operation.name() == 'SHIP'">order_id,</if>
+       command_id,recovery_id,operator_id,step,previous_error,reason,evidence)
+    VALUES (
+      <if test="task.operation.name() == 'SHIP'">#{task.orderId},</if>
+      #{record.commandId},#{record.recoveryId},#{record.operatorId},#{record.step},#{record.previousError},
+      #{record.reason},#{record.evidence})
+  </insert>
+</mapper>

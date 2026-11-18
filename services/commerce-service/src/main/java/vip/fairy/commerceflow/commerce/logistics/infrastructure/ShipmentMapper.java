@@ -37,7 +37,8 @@ public interface ShipmentMapper {
   int updateDetails(
     @Param("orderId") Long orderId,
     @Param("carrier") String carrier,
-    @Param("tracking") String tracking
+    @Param("tracking") String tracking,
+    @Param("version") long version
   );
 
   int updateStatus(@Param("id") Long id, @Param("status") String status, @Param("occurredAt") Instant occurredAt);
