@@ -5,7 +5,7 @@
 2026-11-18 对本地 CommerceFlow Lab 做只读复核。六个内部服务均已切换到各自的 MySQL；六个目标库及商城库
 均无跨 Schema 外键。商城的业务请求经签名 API 或消息交给对应所有者。支付和物流模拟器属于外部平台边界。
 
-**运行路径的切换已完成，M3 迁移收尾仍未关闭。** 库存旧迁移入口已封住，五笔库存历史差异待补凭证，
+**运行路径的切换已完成，M3 迁移收尾仍未关闭。** 库存旧迁移入口已封住，五笔缺证库存测试记录已单独归档，
 支付历史对账已结案，目录、通知及已停用影子表的商城运行授权已收回。现阶段继续使用 MySQL，
 PostgreSQL 专项按[数据库演进计划](DATABASE-EVOLUTION-PLAN.md)另行评审。
 
@@ -15,7 +15,7 @@ PostgreSQL 专项按[数据库演进计划](DATABASE-EVOLUTION-PLAN.md)另行评
 | --- | --- | --- |
 | 通知 | `notification-db` / `notification`，商城鉴权代理，商城 Outbox 投递事件 | 旧通知五表的商城直接授权已清零。原 298 个及随后新增的 3 个已发布 eventId 逐条匹配目标通知和 Inbox，隔离表 0 行。现有库按空源登记历史迁移完成，水位为 0。有历史数据的回填与重跑已在隔离库验收。 |
 | 目录 | `catalog-db` / `catalog`，Catalog V1 | 目标 `catalog_cutover_state=COMPLETE`，初次复核时有 6 个商品、2 条已发布目录事件；旧库目录事件表为 0。旧目录三表的商城直接授权已清零。目录默认启动只依赖目录库；演示初始化和历史导入均为独立命令。 |
-| 库存 | `inventory-db` / `inventory`，Inventory V1 与命令接收 | 旧库存五表运行授权 0，独立库存接收流量。现有库登记为 `CUTOVER_COMPLETE`（generation 25）。历史 35 条已逐笔核对，结案 30 条，还剩 5 条已送达订单的库存差异。订单 485 已取消。 |
+| 库存 | `inventory-db` / `inventory`，Inventory V1 与命令接收 | 旧库存五表运行授权 0，独立库存接收流量。现有库登记为 `CUTOVER_COMPLETE`（generation 25）。历史 35 条已逐笔核对，业务结案 30 条，其余 5 条缺证测试记录已归档。订单 485 已取消。 |
 | 订单 | `order-db` / `orders`，Order V1 | 初次复核时正式订单 684 条，商城旧订单 345 条，源变更水位 236。Order 接收流量、影子关闭，订单核心源表和 `order_shadow_change_clock` 的运行授权为 0。目标历史隔离 1 条已解决，发货意图未决为 0。 |
 | 支付编排 | `payment-db` / `payments`，Payment V1 及独立回调 | 首次复核时目标有 551 笔支付及 102 笔退款。运行接入和效果投递开启，影子关闭，14 张旧资金表和已停用支付影子时钟、变更日志的商城运行授权均为 0，源水位 610。支付和命令 Outbox 未决为 0，目标历史隔离 2 条已解决。4 条历史支付对账已逐笔结案，真实对账表 `OPEN=0`。常驻支付容器仍携带源库连接配置。 |
 | 履约 | `fulfillment-db` / `fulfillment`，商城鉴权后转发 Fulfillment V1 | 源所有者为 `FULFILLMENT` 且冻结，目标 `EXECUTION`，旧六表运行授权 0，源水位 393（generation 41）。待处理和隔离均为 0。商城代码仍保留以配置为条件启用的本地执行和恢复分支，影子只读账号仍有源库和订单库访问权限。 |
@@ -38,8 +38,7 @@ PostgreSQL 专项按[数据库演进计划](DATABASE-EVOLUTION-PLAN.md)另行评
 - [x] 逐笔核对库存 35 条超时 `RESERVE` 及订单 485。结案 23 条，取消 485，并用隔离空库验证缺货、付款服务停机及正常结账。
   见[逐笔证据与复测结果](INVENTORY-RECONCILIATION-REVIEW.md)。
 - [x] 复核 12 笔成功支付的订单。7 笔未发货且无库存流水，经模拟渠道原路全额退款，库存投递已结案。
-- [ ] 核对 5 笔已送达的库存差异。现有环境已具备逐单凭证和实盘差异两种结案路径，五笔均保留待对账状态。
-  缺逐单凭证时，取得正式盘点报告并由独立管理员审批后走[实盘差异对账](INVENTORY-RECONCILIATION-REVIEW.md#缺少逐单凭证时的实盘差异处理)。
+- [x] 五笔已送达的本地测试记录已按批次归档，待办为 0，库存余额和流水与归档前一致。见[最终处置及核验](INVENTORY-RECONCILIATION-REVIEW.md#本地测试数据最终处置)。
 - [x] 逐笔核对并结案支付库 4 条历史 `PAYMENT_TIMEOUT/OPEN`。商城支付和模拟渠道都已关闭且无扣款退款，
   订单均由超时任务取消。见[历史支付超时对账结案](PAYMENT-ORCHESTRATION-CUTOVER-RUNBOOK.md#8-历史支付超时对账结案)。
 - [x] 增加真实支付对账表的 `OPEN` 统计和独立告警，按两种方向验证与 Process Manager 指标互不混计。
