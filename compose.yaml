@@ -770,8 +770,6 @@ services:
     depends_on:
       catalog-db:
         condition: service_healthy
-      inventory-service:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
       interval: 5s
@@ -783,6 +781,7 @@ services:
   catalog-data-migrator:
     container_name: fairy-commerceflow-catalog-data-migrator
     image: mysql:8.4
+    profiles: ["catalog-migration"]
     entrypoint: ["sh", "/migration/migrate-catalog-data.sh"]
     environment:
       SOURCE_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
@@ -792,10 +791,30 @@ services:
     depends_on:
       commerce-db:
         condition: service_healthy
+      commerce-schema-migrator:
+        condition: service_completed_successfully
       catalog-service:
         condition: service_healthy
-      commerce-service:
-        condition: service_started
+    restart: "no"
+
+  catalog-demo-init:
+    container_name: fairy-commerceflow-catalog-demo-init
+    image: mysql:8.4
+    profiles: ["demo-data"]
+    entrypoint: ["sh", "/demo/init-demo-data.sh"]
+    environment:
+      CATALOG_USERNAME: ${CATALOG_DATABASE_USERNAME:-catalog}
+      CATALOG_PASSWORD: ${CATALOG_DATABASE_PASSWORD:-catalog-password}
+      INVENTORY_USERNAME: ${INVENTORY_DATABASE_USERNAME:-inventory}
+      INVENTORY_PASSWORD: ${INVENTORY_DATABASE_PASSWORD:-inventory-password}
+      DEMO_MERCHANT_ID: ${DEMO_MERCHANT_ID:-5}
+    volumes:
+      - ./infrastructure/demo:/demo:ro
+    depends_on:
+      catalog-service:
+        condition: service_healthy
+      inventory-service:
+        condition: service_healthy
     restart: "no"
 
   inventory-service:
@@ -934,8 +953,6 @@ services:
     depends_on:
       commerce-service:
         condition: service_healthy
-      catalog-data-migrator:
-        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
       interval: 5s

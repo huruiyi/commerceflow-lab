@@ -34,7 +34,7 @@ state="$(docker compose exec -T catalog-db mysql -N -ucatalog -pcatalog-password
   2>/dev/null)"
 [[ "$state" == COMPLETE ]]
 [[ "$(curl -fsS "$BASE_URL/api/products?lang=zh-CN" | jq -r '.[0].name')" == 学习笔记本电脑 ]]
-docker compose run --rm --no-deps catalog-data-migrator
+docker compose --profile catalog-migration run --rm --no-deps catalog-data-migrator
 
 docker compose stop catalog-service >/dev/null
 status="$(curl --max-time 10 -sS -o "$temp_dir/outage.json" -w '%{http_code}' \

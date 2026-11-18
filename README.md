@@ -76,6 +76,14 @@ docker compose up --build -d --wait
 docker compose ps
 ```
 
+已有目录库可直接启动。全新环境会先建表，商品列表初始为空。需要体验加购和下单时，启动完成后显式初始化演示商品和库存：
+
+```powershell
+docker compose --profile demo-data run --rm catalog-demo-init
+```
+
+从旧商城库导入目录数据时使用[手工迁移入口](docs/architecture/M3-SINGLE-OWNERSHIP-REVIEW.md#5-目录启动与初始化验收)。
+
 默认配置可直接用于本地学习。需要改端口以外的数据库密码、回调密钥或 Remember-Me 密钥时，复制 `.env.example` 为 `.env` 后修改；不要把生产密钥提交到仓库。
 
 访问地址：
@@ -493,11 +501,12 @@ bash ./scripts/linux/verify-mq-scheduling-redelivery.sh http://localhost:14200 1
 
 本项目**没有 Spring Boot 启动时随机生成的默认密码**。三个演示账号由 Flyway 创建，密码以 BCrypt 哈希保存。Spring Security 的 `User` 是认证时从数据库记录转换出来的运行时对象，不是另一个内置账号。
 
-演示账号、禁用的用户列表资料和商品由 Flyway 的 `V1__baseline_schema_and_demo_data.sql` 创建。为了让公开教学仓库克隆后直接运行，演示账号的 BCrypt 哈希随迁移脚本提交；数据库中仍不保存明文密码。如需从零重建本地演示数据，可执行：
+商城 Flyway 创建演示账号和禁用的用户列表资料，演示账号的 BCrypt 哈希随迁移脚本提交。独立目录和库存的演示商品由 `catalog-demo-init` 初始化。如需从零重建本地演示数据，可执行：
 
 ```powershell
 docker compose down --volumes
 docker compose up --build -d --wait
+docker compose --profile demo-data run --rm catalog-demo-init
 ```
 
 `--volumes` 会同时删除已有订单和所有 MySQL 演示数据，使用前请确认数据可以丢弃。
@@ -540,7 +549,7 @@ Compose 中的数据库密码、商户号、App ID/Secret、RSA/HMAC 密钥和�
 - 端口被占用：检查 `14200`、`14201`、`14202`、`18081`、`18082`、`18083`、`18086`、`13307`、`13308`，或修改 Compose 端口映射。
 - 服务一直 `starting`：运行 `docker compose ps` 和 `docker compose logs <service>`，优先查看 MySQL、Kafka 和后端依赖健康状态。
 - 修改源码未生效：执行 `docker compose up -d --build --wait` 重新构建镜像。
-- 演示数据需要重置：确认数据可删除后执行 `docker compose down --volumes`，再重新启动。
+- 演示数据需要重置：确认数据可删除后执行 `docker compose down --volumes`，再启动并显式运行 `catalog-demo-init`。
 - Redis 暂停时登录 Session 会受影响，但公开商品会降级查询 MySQL；恢复后等待健康检查通过。
 - Windows 脚本执行策略阻止运行时，可使用 `pwsh -ExecutionPolicy Bypass -File .\scripts\windows\verify-all.ps1`。
 - Bash 提示缺少命令时，先安装 `curl`、`jq` 和 `openssl`；运行支付安全专项时还需 `base32`、`xxd`、`od`。

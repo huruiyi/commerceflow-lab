@@ -34,7 +34,7 @@ try {
   if ($products.Count -eq 0 -or $products[0].name -ne '学习笔记本电脑') {
     throw 'Commerce catalog proxy did not return independent localized data'
   }
-  & docker compose run --rm --no-deps catalog-data-migrator | Out-Host
+  & docker compose --profile catalog-migration run --rm --no-deps catalog-data-migrator | Out-Host
   if ($LASTEXITCODE -ne 0) { throw 'Idempotent catalog migration check failed' }
 
   & docker compose stop catalog-service | Out-Null
