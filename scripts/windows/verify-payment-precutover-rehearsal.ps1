@@ -2,6 +2,10 @@ param([string]$BaseUrl = 'http://localhost:18090')
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Set-Location $ProjectRoot
+if ($env:COMPOSE_PROJECT_NAME -notlike 'fairy-commerceflow-shadow-?*' -or
+    @(docker compose config --services) -notcontains 'legacy-shadow-access') {
+  throw 'Use compose.yaml and compose.legacy-shadow.yaml in an isolated fairy-commerceflow-shadow-* project.'
+}
 $RehearsalUser = 'payment_freeze_rehearsal'
 
 function Fail([string]$Message) { throw "Payment pre-cutover rehearsal failed: $Message" }
@@ -12,10 +16,10 @@ function Root-Sql([string]$Sql) {
 }
 function Cleanup {
   Root-Sql "DROP USER IF EXISTS '$RehearsalUser'@'%';" | Out-Null
-  $env:PAYMENT_ACCEPTING_TRAFFIC = 'false'
-  $env:PAYMENT_SHADOW_ENABLED = 'true'
+  $env:LEGACY_PAYMENT_ACCEPTING_TRAFFIC = 'false'
+  $env:LEGACY_PAYMENT_SHADOW_ENABLED = 'true'
   docker compose up -d --force-recreate --wait payment-orchestration-service | Out-Null
-  Remove-Item Env:PAYMENT_ACCEPTING_TRAFFIC,Env:PAYMENT_SHADOW_ENABLED -ErrorAction SilentlyContinue
+  Remove-Item Env:LEGACY_PAYMENT_ACCEPTING_TRAFFIC,Env:LEGACY_PAYMENT_SHADOW_ENABLED -ErrorAction SilentlyContinue
 }
 
 try {

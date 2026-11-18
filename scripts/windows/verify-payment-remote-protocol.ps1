@@ -5,6 +5,10 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Set-Location $ProjectRoot
+if ($env:COMPOSE_PROJECT_NAME -notlike 'fairy-commerceflow-shadow-?*' -or
+    @(docker compose config --services) -notcontains 'legacy-shadow-access') {
+  throw 'Use compose.yaml and compose.legacy-shadow.yaml in an isolated fairy-commerceflow-shadow-* project.'
+}
 $InternalSecret = 'demo-payment-internal-secret'
 $CallbackSecret = 'demo-platform-callback-secret'
 $OrderIds = @(900000000101, 900000000102, 900000000103)
@@ -120,11 +124,11 @@ function Cleanup {
     Simulator-Sql "DELETE FROM channel_transaction WHERE merchant_request_no LIKE 'PAY-RMT-%';
       SELECT 1;" | Out-Null
   } catch { Write-Warning "Synthetic payment cleanup failed: $($_.Exception.Message)" }
-  $env:PAYMENT_ACCEPTING_TRAFFIC = 'false'
-  $env:PAYMENT_SHADOW_ENABLED = 'true'
+  $env:LEGACY_PAYMENT_ACCEPTING_TRAFFIC = 'false'
+  $env:LEGACY_PAYMENT_SHADOW_ENABLED = 'true'
   $env:TRACING_EXPORT_ENABLED = 'false'
   docker compose up -d --force-recreate --wait payment-orchestration-service | Out-Null
-  Remove-Item Env:PAYMENT_ACCEPTING_TRAFFIC,Env:PAYMENT_SHADOW_ENABLED,Env:TRACING_EXPORT_ENABLED `
+  Remove-Item Env:LEGACY_PAYMENT_ACCEPTING_TRAFFIC,Env:LEGACY_PAYMENT_SHADOW_ENABLED,Env:TRACING_EXPORT_ENABLED `
     -ErrorAction SilentlyContinue
 }
 
@@ -140,8 +144,8 @@ $ReconciliationResult = [guid]::NewGuid().ToString()
 $RecoveryResult = [guid]::NewGuid().ToString()
 
 try {
-  $env:PAYMENT_ACCEPTING_TRAFFIC = 'true'
-  $env:PAYMENT_SHADOW_ENABLED = 'false'
+  $env:LEGACY_PAYMENT_ACCEPTING_TRAFFIC = 'true'
+  $env:LEGACY_PAYMENT_SHADOW_ENABLED = 'false'
   $env:TRACING_EXPORT_ENABLED = 'true'
   docker compose up -d --build --force-recreate --wait payment-orchestration-service tempo | Out-Null
   $mode = Invoke-RestMethod "$BaseUrl/internal/v1/payment-shadow/mode"

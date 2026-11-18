@@ -27,7 +27,13 @@ function Wait-Status([string]$Expected, [int]$Seconds = 45) {
 }
 
 Set-Location $ProjectRoot
+if ($env:COMPOSE_PROJECT_NAME -notlike 'fairy-commerceflow-shadow-?*' -or
+    @(docker compose config --services) -notcontains 'legacy-shadow-access') {
+  throw 'Use compose.yaml and compose.legacy-shadow.yaml in an isolated fairy-commerceflow-shadow-* project.'
+}
 try {
+  $env:LEGACY_ORDER_ACCEPTING_TRAFFIC = 'true'
+  $env:LEGACY_ORDER_SHADOW_ENABLED = 'false'
   docker compose up -d --wait payment-db order-service inventory-service | Out-Null
   $payload = [ordered]@{
     result = [ordered]@{
@@ -46,9 +52,9 @@ try {
     "'NEW',0,CURRENT_TIMESTAMP(6),NULL,CURRENT_TIMESTAMP(6),NULL);"
   Sql $insert | Out-Null
 
-  $env:PAYMENT_ACCEPTING_TRAFFIC = 'true'
-  $env:PAYMENT_EFFECTS_ENABLED = 'true'
-  $env:PAYMENT_SHADOW_ENABLED = 'false'
+  $env:LEGACY_PAYMENT_ACCEPTING_TRAFFIC = 'true'
+  $env:LEGACY_PAYMENT_EFFECTS_ENABLED = 'true'
+  $env:LEGACY_PAYMENT_SHADOW_ENABLED = 'false'
   docker compose up -d --force-recreate --wait payment-orchestration-service | Out-Null
   $mode = Invoke-RestMethod "$BaseUrl/internal/v1/payment-shadow/mode"
   if (-not $mode.acceptingTraffic -or -not $mode.effectsEnabled -or $mode.shadowEnabled) {
@@ -73,10 +79,11 @@ try {
   try { Sql "DELETE FROM payment_outbox WHERE event_id='$EventId';" | Out-Null } catch {
     Write-Warning $_.Exception.Message
   }
-  $env:PAYMENT_ACCEPTING_TRAFFIC = 'false'
-  $env:PAYMENT_EFFECTS_ENABLED = 'false'
-  $env:PAYMENT_SHADOW_ENABLED = 'true'
+  $env:LEGACY_PAYMENT_ACCEPTING_TRAFFIC = 'false'
+  $env:LEGACY_PAYMENT_EFFECTS_ENABLED = 'false'
+  $env:LEGACY_PAYMENT_SHADOW_ENABLED = 'true'
   docker compose up -d --force-recreate --wait payment-orchestration-service | Out-Null
-  Remove-Item Env:PAYMENT_ACCEPTING_TRAFFIC,Env:PAYMENT_EFFECTS_ENABLED,Env:PAYMENT_SHADOW_ENABLED `
+  Remove-Item Env:LEGACY_PAYMENT_ACCEPTING_TRAFFIC,Env:LEGACY_PAYMENT_EFFECTS_ENABLED,Env:LEGACY_PAYMENT_SHADOW_ENABLED, `
+    Env:LEGACY_ORDER_ACCEPTING_TRAFFIC,Env:LEGACY_ORDER_SHADOW_ENABLED `
     -ErrorAction SilentlyContinue
 }

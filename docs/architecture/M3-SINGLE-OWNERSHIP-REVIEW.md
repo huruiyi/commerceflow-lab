@@ -53,10 +53,10 @@ PostgreSQL 专项按[数据库演进计划](DATABASE-EVOLUTION-PLAN.md)另行评
   见[目录启动与初始化验收](#5-目录启动与初始化验收)。
 - [x] 通知逐条核对原 298 项 eventId 及随后新增的事件，验证存量回填与重跑，登记现有库空源迁移完成。
   见[通知历史迁移验收](#6-通知历史迁移验收)。
-- [ ] 检查库存及订单、支付、履约影子工具是否已从常驻启动和运行账号隔离。
-- [ ] 移出常驻支付容器的源库凭据，封存订单和支付影子开关与迁移访问。撤销已退出的履约影子账号对商城三个影子对象
-  和订单库三个列的授权。复跑部署和恢复时核对旧水位、目标行数及授权。商城源库的 `commerceflow@%` 仍有
-  Schema 级权限，应核对其迁移、运维和其他调用方后再缩减使用范围。
+- [x] 库存旧迁移、订单和支付影子、履约影子均有显式手工入口。支付默认启动移除源库凭据及依赖，
+  订单和支付默认关闭影子复制，履约旧读者跨库授权已收回。见[旧迁移工具与权限验收](#7-旧迁移工具与权限验收)。
+- [ ] 复核商城旧测试和运维账号 `commerceflow@%` 的 Schema 级授权。多个既有验收脚本仍使用该账号，
+  进一步缩减前需逐个迁移调用方。
 
 ### 收口兼容入口、运行证据和归档
 
@@ -150,3 +150,37 @@ docker compose --profile notification-migration run --rm --no-deps notification-
   缺失、孤儿和冲突均为 0。再次运行保留原完成时间和唯一核对记录。通知和 Inbox 快照摘要在登记前后相同。
   登记后从门户查询演示顾客通知，返回的 20 个 eventId 各不相同。
 - 只读复核库存历史订单 465、479、480、497、498 仍挂账，尝试次数各为 5，结案记录为 0。旧预占未重放。
+
+## 7. 旧迁移工具与权限验收
+
+| 工具 | 常驻部署 | 手工入口 |
+| --- | --- | --- |
+| 库存旧快照 | 配置保持在 `inventory-migration`，库存运行容器只有自己库的连接配置。 | `docker compose --profile inventory-migration run --rm --no-deps inventory-data-migrator --check-target`。核准空目标后去掉 `--check-target` 执行。 |
+| 订单和支付影子复制 | 默认影子开关固定为关闭，订单和支付不携带商城源库凭据。支付启动只依赖自己的库和业务服务。 | 在隔离 Docker 环境显式加载 `compose.legacy-shadow.yaml`。读者分别有订单 9 张源表、支付 16 张源表的 `SELECT` 权限。 |
+| 履约影子复制 | 正式执行覆盖配置使用独立库及 HTTP 契约。旧授权容器只在 `fulfillment-shadow` 中。 | 在隔离环境使用旧商城持有履约写权的源库启动 `fulfillment-shadow`，只授予商城三项对象与订单库三列的 `SELECT`。 |
+
+先选择独立 Docker 环境或为该隔离项目覆盖固定容器名和端口，再执行手工演练。影子授权仅接受
+`fairy-commerceflow-shadow-*` 项目。以下命令均以未切流的隔离副本为目标：
+
+```powershell
+docker compose -p fairy-commerceflow-shadow-qa -f compose.yaml -f compose.legacy-shadow.yaml up -d --build --wait order-service payment-orchestration-service
+docker compose -p fairy-commerceflow-shadow-qa -f compose.yaml --profile fulfillment-shadow up -d --build --wait fulfillment-service
+```
+
+运行仓库中的订单或支付影子验收脚本时，通过 `COMPOSE_PROJECT_NAME` 和 `COMPOSE_FILE` 显式指定上述项目和两个配置文件。
+演练结束后先停止影子进程，再用对应项目运行 `--profile migration-access run --rm --no-deps legacy-shadow-access-revoker`。
+此命令锁定专用影子读者并移除直接授权，支持反复执行。现有环境用于验收和运维的 `commerceflow@%` 单独管理，
+商城应用使用 `commerce_runtime@%`。
+
+2026-11-19 验收：
+
+- 隔离默认启动未创建四类历史工具。注入旧影子环境变量也无法启用默认订单和支付的影子复制。库存、订单、支付
+  的运行账号无法读取商城源表。商城运行账号能读取自有用户表，对已退役库存、订单、支付和履约影子对象均被拒绝。
+  隔离环境显式装入演示商品、库存和支付商户后，通过门户完成加购、下单、支付回调和库存入账。
+- 库存手工入口可检查空目标。有业务库存或 `CUTOVER_COMPLETE` 的目标均拒绝导入，库存汇总保持一致。
+- 订单和支付手工快照各执行两次，7 表和 14 表核对均为 `MATCH`。履约重复快照六表摘要相同，业务写入口返回 503。
+  用专用读者验证授权范围，跨域读和写入均被拒绝。两次撤权后读者登录被拒绝，默认运行服务重启后授权仍为 0。
+- 本地现有支付容器已用移除源库配置的镜像重建，正常接单和下游处理开关保持开启。旧履约读者在商城库的三项授权和
+  订单库的三列授权均从 3 降为 0，两库登录返回 MySQL 3118。重建与撤权前后，源水位、各目标水位及业务行数一致，
+  订单、支付、履约与门户健康检查通过。
+- 库存历史订单 465、479、480、497、498 仍待仓库凭证，尝试次数各为 5，结案记录为 0。旧预占未重放。

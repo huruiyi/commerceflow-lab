@@ -106,7 +106,9 @@ PostgreSQL 仍受各自门禁约束。
   结果 Inbox 均为 0；7 张表逐字段 SHA-256 全部 `MATCH`。人为删除影子父订单后，商品项变更进入隔离并在
   父记录恢复后重放为 `RESOLVED`，OPEN 0。
 - `/internal/v1/orders/commands` 与 `/results` 复用冻结的 Order V1 校验和 payload 指纹；默认流量门返回 503，
-  commerce 没有 order-service 依赖或 LOCAL/COMPARE 选择器，因而当前不是 CUTOVER。
+  commerce 没有 order-service 依赖或 LOCAL/COMPARE 选择器，因而当时未达到 CUTOVER。
+
+这些影子验收脚本现在通过[隔离项目配置](M3-SINGLE-OWNERSHIP-REVIEW.md#7-旧迁移工具与权限验收)运行。
 
 ```powershell
 .\scripts\windows\verify-order-shadow-runtime.ps1

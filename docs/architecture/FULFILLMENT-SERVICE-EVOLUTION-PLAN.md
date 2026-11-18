@@ -286,7 +286,7 @@ V45 六表快照包含 59 个命令，其中发货任务 23 条、商家任务 3
 签名业务写入口固定返回 503。目标库没有订单、资金或物流投影表。
 
 ```sh
-docker compose --profile fulfillment-shadow up -d --build --wait fulfillment-service
+docker compose -p fairy-commerceflow-shadow-qa -f compose.yaml --profile fulfillment-shadow up -d --build --wait fulfillment-service
 ```
 
 商城 V46 为六张履约表增加变更捕获。单行时钟与源写事务同提交，回滚不推进水位。快照和追平在商城 MySQL 的

@@ -4,6 +4,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
+if [[ "${COMPOSE_PROJECT_NAME:-}" != fairy-commerceflow-shadow-?* ]] ||
+  ! docker compose config --services | grep -Fx 'legacy-shadow-access' >/dev/null; then
+  echo 'Use compose.yaml and compose.legacy-shadow.yaml in an isolated fairy-commerceflow-shadow-* project.' >&2
+  exit 1
+fi
 fail(){ echo "Payment shadow verification failed: $*" >&2; exit 1; }
 BASE_URL="${1:-http://localhost:18090}"
 source_sql(){ docker compose exec -T commerce-db mysql -uroot -plocal-root-password \

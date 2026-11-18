@@ -286,7 +286,8 @@ bash ./scripts/linux/audit-payment-cutover-readiness.sh
 bash ./scripts/linux/verify-payment-effects-rehearsal.sh
 ```
 
-支付影子运行专项会执行可重复快照、增量水位、14 表指纹核对和可恢复孤儿演练，不清空现有卷：
+支付影子运行专项会执行可重复快照、增量水位、14 表指纹核对和可恢复孤儿演练。支付副作用、影子运行、远程协议
+及预切换演练脚本均使用显式隔离配置，启动方法见[旧迁移工具与权限验收](docs/architecture/M3-SINGLE-OWNERSHIP-REVIEW.md#7-旧迁移工具与权限验收)。
 
 ```powershell
 ./scripts/windows/verify-payment-shadow-runtime.ps1

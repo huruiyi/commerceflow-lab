@@ -54,12 +54,12 @@ commerceflow:
   order:
     accepting-traffic: ${ORDER_ACCEPTING_TRAFFIC:false}
     shadow:
-      enabled: ${ORDER_SHADOW_ENABLED:true}
+      enabled: ${ORDER_SHADOW_ENABLED:false}
       initial-delay: ${ORDER_SHADOW_INITIAL_DELAY:2s}
       fixed-delay: ${ORDER_SHADOW_FIXED_DELAY:2s}
       audit-delay: ${ORDER_SHADOW_AUDIT_DELAY:30s}
       batch-size: ${ORDER_SHADOW_BATCH_SIZE:500}
       source:
-        url: ${ORDER_SOURCE_DATABASE_URL:jdbc:mysql://localhost:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
-        username: ${ORDER_SOURCE_DATABASE_USERNAME:commerceflow}
-        password: ${ORDER_SOURCE_DATABASE_PASSWORD:commerceflow-password}
+        url: ${ORDER_SOURCE_DATABASE_URL:}
+        username: ${ORDER_SOURCE_DATABASE_USERNAME:}
+        password: ${ORDER_SOURCE_DATABASE_PASSWORD:}

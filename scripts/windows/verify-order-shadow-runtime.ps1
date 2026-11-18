@@ -2,6 +2,10 @@ param([string]$BaseUrl = 'http://localhost:18089')
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Set-Location $ProjectRoot
+if ($env:COMPOSE_PROJECT_NAME -notlike 'fairy-commerceflow-shadow-?*' -or
+    @(docker compose config --services) -notcontains 'legacy-shadow-access') {
+  throw 'Use compose.yaml and compose.legacy-shadow.yaml in an isolated fairy-commerceflow-shadow-* project.'
+}
 
 function Fail([string]$Message) {
   throw "Order shadow verification failed: $Message"

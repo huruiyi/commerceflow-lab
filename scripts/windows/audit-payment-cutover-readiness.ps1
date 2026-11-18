@@ -33,8 +33,9 @@ Assert-Contains 'independent service owns ordinary traffic' 'compose.yaml' `
   'PAYMENT_ACCEPTING_TRAFFIC: \$\{PAYMENT_ACCEPTING_TRAFFIC:-true\}'
 Assert-Contains 'independent service owns downstream effects' 'compose.yaml' `
   'PAYMENT_EFFECTS_ENABLED: \$\{PAYMENT_EFFECTS_ENABLED:-true\}'
-Assert-Contains 'shadow replication defaults to disabled after CUTOVER' 'compose.yaml' `
-  'PAYMENT_SHADOW_ENABLED: \$\{PAYMENT_SHADOW_ENABLED:-false\}'
+Assert-Contains 'shadow replication is disabled in the default graph' 'compose.yaml' `
+  'PAYMENT_SHADOW_ENABLED: "false"'
+Assert-Absent 'payment runtime has no commerce source credentials' @('compose.yaml') 'PAYMENT_SOURCE_DATABASE_'
 Assert-Absent 'PostgreSQL is not configured' @('compose.yaml', 'compose.ha.yaml') `
   '(?i)postgres|jdbc:postgresql'
 

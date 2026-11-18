@@ -1,0 +1,40 @@
+services:
+  legacy-shadow-access:
+    image: mysql:8.4
+    entrypoint: ["sh", "/access/grant-shadow-access.sh"]
+    environment:
+      SHADOW_PROJECT: ${COMPOSE_PROJECT_NAME}
+      COMMERCE_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
+      ORDER_SHADOW_READER_PASSWORD: ${ORDER_SHADOW_READER_PASSWORD:-order-shadow-qa-reader}
+      PAYMENT_SHADOW_READER_PASSWORD: ${PAYMENT_SHADOW_READER_PASSWORD:-payment-shadow-qa-reader}
+    volumes:
+      - ./infrastructure/commerce/grant-shadow-access.sh:/access/grant-shadow-access.sh:ro
+    depends_on:
+      commerce-schema-migrator:
+        condition: service_completed_successfully
+    restart: "no"
+
+  order-service:
+    environment:
+      ORDER_ACCEPTING_TRAFFIC: ${LEGACY_ORDER_ACCEPTING_TRAFFIC:-false}
+      ORDER_SHADOW_ENABLED: ${LEGACY_ORDER_SHADOW_ENABLED:-true}
+      ORDER_SHADOW_BATCH_SIZE: ${ORDER_SHADOW_BATCH_SIZE:-500}
+      ORDER_SOURCE_DATABASE_URL: jdbc:mysql://commerce-db:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      ORDER_SOURCE_DATABASE_USERNAME: order_shadow_reader
+      ORDER_SOURCE_DATABASE_PASSWORD: ${ORDER_SHADOW_READER_PASSWORD:-order-shadow-qa-reader}
+    depends_on:
+      legacy-shadow-access:
+        condition: service_completed_successfully
+
+  payment-orchestration-service:
+    environment:
+      PAYMENT_ACCEPTING_TRAFFIC: ${LEGACY_PAYMENT_ACCEPTING_TRAFFIC:-false}
+      PAYMENT_EFFECTS_ENABLED: ${LEGACY_PAYMENT_EFFECTS_ENABLED:-false}
+      PAYMENT_SHADOW_ENABLED: ${LEGACY_PAYMENT_SHADOW_ENABLED:-true}
+      PAYMENT_SHADOW_BATCH_SIZE: ${PAYMENT_SHADOW_BATCH_SIZE:-500}
+      PAYMENT_SOURCE_DATABASE_URL: jdbc:mysql://commerce-db:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      PAYMENT_SOURCE_DATABASE_USERNAME: payment_shadow_reader
+      PAYMENT_SOURCE_DATABASE_PASSWORD: ${PAYMENT_SHADOW_READER_PASSWORD:-payment-shadow-qa-reader}
+    depends_on:
+      legacy-shadow-access:
+        condition: service_completed_successfully

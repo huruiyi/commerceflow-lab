@@ -68,12 +68,12 @@ commerceflow:
     protocol:
       timeout-scan-delay: ${PAYMENT_PROTOCOL_TIMEOUT_SCAN_DELAY:5s}
     shadow:
-      enabled: ${PAYMENT_SHADOW_ENABLED:true}
+      enabled: ${PAYMENT_SHADOW_ENABLED:false}
       initial-delay: ${PAYMENT_SHADOW_INITIAL_DELAY:2s}
       fixed-delay: ${PAYMENT_SHADOW_FIXED_DELAY:2s}
       audit-delay: ${PAYMENT_SHADOW_AUDIT_DELAY:30s}
       batch-size: ${PAYMENT_SHADOW_BATCH_SIZE:500}
       source:
-        url: ${PAYMENT_SOURCE_DATABASE_URL:jdbc:mysql://localhost:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
-        username: ${PAYMENT_SOURCE_DATABASE_USERNAME:commerceflow}
-        password: ${PAYMENT_SOURCE_DATABASE_PASSWORD:commerceflow-password}
+        url: ${PAYMENT_SOURCE_DATABASE_URL:}
+        username: ${PAYMENT_SOURCE_DATABASE_USERNAME:}
+        password: ${PAYMENT_SOURCE_DATABASE_PASSWORD:}

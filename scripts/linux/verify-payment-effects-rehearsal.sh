@@ -13,18 +13,24 @@ sql(){ docker compose exec -T -e MYSQL_PWD=payments-password payment-db \
   mysql -upayments -N -B payments -e "$1" 2>/dev/null; }
 cleanup(){
   sql "DELETE FROM payment_outbox WHERE event_id='$EVENT_ID';" >/dev/null 2>&1 || true
-  export PAYMENT_ACCEPTING_TRAFFIC=false PAYMENT_EFFECTS_ENABLED=false PAYMENT_SHADOW_ENABLED=true
+  export LEGACY_PAYMENT_ACCEPTING_TRAFFIC=false LEGACY_PAYMENT_EFFECTS_ENABLED=false LEGACY_PAYMENT_SHADOW_ENABLED=true
   docker compose up -d --force-recreate --wait payment-orchestration-service >/dev/null || true
-  unset PAYMENT_ACCEPTING_TRAFFIC PAYMENT_EFFECTS_ENABLED PAYMENT_SHADOW_ENABLED
+  unset LEGACY_PAYMENT_ACCEPTING_TRAFFIC LEGACY_PAYMENT_EFFECTS_ENABLED LEGACY_PAYMENT_SHADOW_ENABLED
+  unset LEGACY_ORDER_ACCEPTING_TRAFFIC LEGACY_ORDER_SHADOW_ENABLED
 }
-trap cleanup EXIT
-
 cd "$PROJECT_ROOT"
+if [[ "${COMPOSE_PROJECT_NAME:-}" != fairy-commerceflow-shadow-?* ]] ||
+  ! docker compose config --services | grep -Fx 'legacy-shadow-access' >/dev/null; then
+  echo 'Use compose.yaml and compose.legacy-shadow.yaml in an isolated fairy-commerceflow-shadow-* project.' >&2
+  exit 1
+fi
+trap cleanup EXIT
+export LEGACY_ORDER_ACCEPTING_TRAFFIC=true LEGACY_ORDER_SHADOW_ENABLED=false
 docker compose up -d --wait payment-db order-service inventory-service >/dev/null
 payload="{\"result\":{\"schemaVersion\":1,\"resultId\":\"$EVENT_ID\",\"resultType\":\"PAYMENT_SUCCEEDED\",\"outcome\":\"SUCCEEDED\",\"occurredAt\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"producer\":\"effects-rehearsal\",\"orderId\":$ORDER_ID,\"paymentNumber\":\"PAY-EFFECT-$ORDER_ID\",\"refundNumber\":null,\"sourceStatus\":\"SUCCESS\",\"errorCode\":null,\"message\":\"Synthetic missing-order rehearsal\",\"correlationId\":\"payment-$ORDER_ID\",\"causationId\":\"$EVENT_ID\",\"traceparent\":\"$TRACE\"},\"applicationStatus\":\"APPLIED_PAYMENT_SUCCEEDED\"}"
 sql "INSERT INTO payment_outbox(event_id,aggregate_type,aggregate_id,event_type,topic,payload,status,attempts,next_attempt_at,last_error,created_at,published_at) VALUES ('$EVENT_ID','PAYMENT','PAY-EFFECT-$ORDER_ID','PAYMENT_SUCCEEDED','payment-result-events','$payload','NEW',0,CURRENT_TIMESTAMP(6),NULL,CURRENT_TIMESTAMP(6),NULL);" >/dev/null
 
-export PAYMENT_ACCEPTING_TRAFFIC=true PAYMENT_EFFECTS_ENABLED=true PAYMENT_SHADOW_ENABLED=false
+export LEGACY_PAYMENT_ACCEPTING_TRAFFIC=true LEGACY_PAYMENT_EFFECTS_ENABLED=true LEGACY_PAYMENT_SHADOW_ENABLED=false
 docker compose up -d --force-recreate --wait payment-orchestration-service >/dev/null
 mode="$(curl -fsS "$BASE_URL/internal/v1/payment-shadow/mode")"
 [[ "$mode" == *'"acceptingTraffic":true'* && "$mode" == *'"effectsEnabled":true'* &&

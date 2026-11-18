@@ -167,6 +167,7 @@ services:
     volumes:
       - ./infrastructure/commerce/fulfillment-shadow-access.sh:/access/fulfillment-shadow-access.sh:ro
     environment:
+      SHADOW_PROJECT: ${COMPOSE_PROJECT_NAME}
       COMMERCE_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
       ORDER_ROOT_PASSWORD: ${ORDER_MYSQL_ROOT_PASSWORD:-local-order-root-password}
       FULFILLMENT_READER_PASSWORD: ${FULFILLMENT_READER_PASSWORD:-fulfillment-shadow-reader}
@@ -878,8 +879,7 @@ services:
       DATABASE_USERNAME: ${ORDER_DATABASE_USERNAME:-orders}
       DATABASE_PASSWORD: ${ORDER_DATABASE_PASSWORD:-orders-password}
       ORDER_ACCEPTING_TRAFFIC: ${ORDER_ACCEPTING_TRAFFIC:-true}
-      ORDER_SHADOW_ENABLED: ${ORDER_SHADOW_ENABLED:-false}
-      ORDER_SHADOW_BATCH_SIZE: ${ORDER_SHADOW_BATCH_SIZE:-500}
+      ORDER_SHADOW_ENABLED: "false"
       ORDER_INTERNAL_SECRET: ${ORDER_INTERNAL_SECRET:-demo-order-internal-secret}
       PAYMENT_ORDER_INTERNAL_SECRET: ${PAYMENT_ORDER_INTERNAL_SECRET:-demo-payment-order-internal-secret}
       TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
@@ -909,8 +909,7 @@ services:
       PAYMENT_ACCEPTING_TRAFFIC: ${PAYMENT_ACCEPTING_TRAFFIC:-true}
       PAYMENT_EFFECTS_ENABLED: ${PAYMENT_EFFECTS_ENABLED:-true}
       PAYMENT_EFFECTS_BATCH_SIZE: ${PAYMENT_EFFECTS_BATCH_SIZE:-20}
-      PAYMENT_SHADOW_ENABLED: ${PAYMENT_SHADOW_ENABLED:-false}
-      PAYMENT_SHADOW_BATCH_SIZE: ${PAYMENT_SHADOW_BATCH_SIZE:-500}
+      PAYMENT_SHADOW_ENABLED: "false"
       PAYMENT_INTERNAL_SECRET: ${PAYMENT_INTERNAL_SECRET:-demo-payment-internal-secret}
       PAYMENT_CALLBACK_SECRET: ${PAYMENT_CALLBACK_SECRET:-demo-platform-callback-secret}
       PAYMENT_PLATFORM_BASE_URL: http://payment-simulator-service:8080
@@ -918,9 +917,6 @@ services:
       PAYMENT_ORDER_INTERNAL_SECRET: ${PAYMENT_ORDER_INTERNAL_SECRET:-demo-payment-order-internal-secret}
       INVENTORY_SERVICE_BASE_URL: ${INVENTORY_SERVICE_BASE_URL:-http://inventory-service:8080}
       PAYMENT_INVENTORY_INTERNAL_SECRET: ${PAYMENT_INVENTORY_INTERNAL_SECRET:-demo-payment-inventory-internal-secret}
-      PAYMENT_SOURCE_DATABASE_URL: jdbc:mysql://commerce-db:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      PAYMENT_SOURCE_DATABASE_USERNAME: ${DATABASE_USERNAME:-commerceflow}
-      PAYMENT_SOURCE_DATABASE_PASSWORD: ${DATABASE_PASSWORD:-commerceflow-password}
       TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
       TRACING_OTLP_ENDPOINT: ${TRACING_OTLP_ENDPOINT:-http://tempo:4318/v1/traces}
       TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1.0}
@@ -929,8 +925,6 @@ services:
     depends_on:
       payment-db:
         condition: service_healthy
-      commerce-schema-migrator:
-        condition: service_completed_successfully
       payment-simulator-service:
         condition: service_healthy
       order-service:
@@ -959,6 +953,23 @@ services:
       commerce-db:
         condition: service_healthy
       inventory-db:
+        condition: service_healthy
+    restart: "no"
+
+  legacy-shadow-access-revoker:
+    container_name: fairy-commerceflow-legacy-shadow-access-revoker
+    image: mysql:8.4
+    profiles: ["migration-access"]
+    entrypoint: ["sh", "/access/revoke-shadow-access.sh"]
+    environment:
+      COMMERCE_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
+      ORDER_ROOT_PASSWORD: ${ORDER_MYSQL_ROOT_PASSWORD:-local-order-root-password}
+    volumes:
+      - ./infrastructure/commerce/revoke-shadow-access.sh:/access/revoke-shadow-access.sh:ro
+    depends_on:
+      commerce-db:
+        condition: service_healthy
+      order-db:
         condition: service_healthy
     restart: "no"
 
