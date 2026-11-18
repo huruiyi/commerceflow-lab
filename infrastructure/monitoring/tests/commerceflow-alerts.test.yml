@@ -217,3 +217,67 @@ tests:
             exp_annotations:
               summary: Logistics callback dead letter requires intervention
               description: The logistics simulator has callback outbox rows in DEAD state for five minutes.
+  - interval: 1m
+    input_series:
+      - series: 'commerceflow_inventory_command_delivery_pending{job="commerce-service"}'
+        values: '1 1 1 1 1 1 0 0 0'
+      - series: 'commerceflow_inventory_command_delivery_oldest_seconds{job="commerce-service"}'
+        values: '119 119 120 180 240 300 0 0 0'
+      - series: 'commerceflow_inventory_command_delivery_reconciliation_required{job="commerce-service"}'
+        values: '0 0 0 0 1 1 1 1 0'
+      - series: 'commerceflow_inventory_command_delivery_metrics_refresh_success{job="commerce-service"}'
+        values: '1 1 1 1 0 0 1 1 1'
+      - series: 'commerceflow_inventory_command_delivery_pending{job="inventory-service"}'
+        values: '1x8'
+      - series: 'commerceflow_inventory_command_delivery_oldest_seconds{job="inventory-service"}'
+        values: '300x8'
+      - series: 'commerceflow_inventory_command_delivery_reconciliation_required{job="inventory-service"}'
+        values: '1x8'
+      - series: 'commerceflow_inventory_command_delivery_metrics_refresh_success{job="inventory-service"}'
+        values: '1x8'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: CommerceFlowInventoryCommandDeliveryBacklog
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: CommerceFlowInventoryCommandDeliveryBacklog
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: CommerceFlowInventoryCommandDeliveryBacklog
+        exp_alerts:
+          - exp_labels:
+              job: commerce-service
+              severity: warning
+            exp_annotations:
+              summary: Inventory command delivery backlog is aging
+              description: An inventory command has waited at least two minutes since creation and the backlog has persisted for one minute.
+      - eval_time: 5m
+        alertname: CommerceFlowInventoryCommandDeliveryBacklog
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: CommerceFlowInventoryCommandReconciliationRequired
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: CommerceFlowInventoryCommandDeliveryMetricsRefreshFailed
+        exp_alerts:
+          - exp_labels:
+              job: commerce-service
+              severity: warning
+            exp_annotations:
+              summary: Inventory command delivery metrics are stale
+              description: Commerce could not refresh its inventory command delivery metrics for one minute.
+      - eval_time: 7m
+        alertname: CommerceFlowInventoryCommandReconciliationRequired
+        exp_alerts:
+          - exp_labels:
+              job: commerce-service
+              severity: warning
+            exp_annotations:
+              summary: Inventory commands require manual reconciliation
+              description: The commerce delivery ledger has contained commands requiring manual reconciliation for one minute.
+      - eval_time: 8m
+        alertname: CommerceFlowInventoryCommandReconciliationRequired
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: CommerceFlowInventoryCommandDeliveryMetricsRefreshFailed
+        exp_alerts: []

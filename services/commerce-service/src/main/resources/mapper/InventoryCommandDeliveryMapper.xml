@@ -23,6 +23,17 @@
     WHERE command_id=#{commandId}
   </select>
 
+  <select id="backlog"
+          resultType="vip.fairy.commerceflow.commerce.inventory.infrastructure.InventoryCommandDeliveryMapper$Backlog">
+    SELECT COUNT(CASE WHEN status='RECONCILIATION_REQUIRED' THEN 1 END) AS reconciliationRequired,
+      COUNT(CASE WHEN status IN ('NEW','IN_FLIGHT','RETRY') THEN 1 END) AS pending,
+      COALESCE(GREATEST(0,TIMESTAMPDIFF(SECOND,
+        MIN(CASE WHEN status IN ('NEW','IN_FLIGHT','RETRY') THEN created_at END),
+        CURRENT_TIMESTAMP(6))),0) AS oldestSeconds
+    FROM inventory_command_delivery_outbox
+    WHERE status IN ('NEW','IN_FLIGHT','RETRY','RECONCILIATION_REQUIRED')
+  </select>
+
   <select id="dispatchable" resultType="java.lang.String">
     SELECT command_id
     FROM inventory_command_delivery_outbox

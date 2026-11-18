@@ -79,6 +79,16 @@ foreach ($metric in @('commerceflow_inventory_outbound_events_pending',
   } | Out-Null
 }
 
+foreach ($metric in @('commerceflow_inventory_command_delivery_reconciliation_required',
+    'commerceflow_inventory_command_delivery_pending',
+    'commerceflow_inventory_command_delivery_oldest_seconds',
+    'commerceflow_inventory_command_delivery_metrics_refresh_success')) {
+  Wait-Json "$PrometheusUrl/api/v1/query?query=$metric" {
+    param($value)
+    @($value.data.result | Where-Object { $_.metric.job -eq 'commerce-service' }).Count -eq 1
+  } | Out-Null
+}
+
 $paymentMetrics = (Invoke-WebRequest 'http://localhost:18090/actuator/prometheus' -UseBasicParsing).Content
 $expectedMetrics = @(
   'commerceflow_payment_outbox_pending 0.0',
@@ -102,7 +112,9 @@ foreach ($expectedMetric in $expectedMetrics) {
 $rules = Wait-Json "$PrometheusUrl/api/v1/rules" {
   param($value)
   $expected = @('CommerceFlowWatchdog','CommerceFlowPaymentReconciliationIssueOpen','CommerceFlowPaymentReconciliationBacklog',
-    'CommerceFlowInventoryOutboundPublishFailed','CommerceFlowInventoryOutboundBacklog')
+    'CommerceFlowInventoryOutboundPublishFailed','CommerceFlowInventoryOutboundBacklog',
+    'CommerceFlowInventoryCommandReconciliationRequired','CommerceFlowInventoryCommandDeliveryBacklog',
+    'CommerceFlowInventoryCommandDeliveryMetricsRefreshFailed')
   @($value.data.groups.rules | Where-Object name -in $expected).Count -eq $expected.Count
 }
 $ruleCount = @($rules.data.groups.rules | Where-Object type -eq 'alerting').Count

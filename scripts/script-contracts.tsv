@@ -47,6 +47,7 @@ verify-inventory-shadow-runtime	BaseUrl
 verify-inventory-remote-rehearsal	BaseUrl
 verify-inventory-runtime-cutover	BaseUrl,TempoUrl,MaxWaitSeconds
 verify-inventory-single-owner	BaseUrl,MaxWaitSeconds
+verify-inventory-command-monitoring	CommerceJar,CommerceRuntimeImage,InventoryImage,MaxWaitSeconds
 verify-receipt-reviews	BaseUrl
 verify-redis-business	BaseUrl
 verify-refunds	BaseUrl,PaymentBaseUrl

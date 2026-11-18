@@ -120,6 +120,38 @@ groups:
           summary: Payment runtime metrics are stale
           description: The payment service could not refresh its database-backed runtime metrics.
 
+  - name: commerceflow-inventory-command-delivery
+    rules:
+      - alert: CommerceFlowInventoryCommandReconciliationRequired
+        expr: |
+          commerceflow_inventory_command_delivery_reconciliation_required{job="commerce-service"} > 0
+            and commerceflow_inventory_command_delivery_metrics_refresh_success{job="commerce-service"} == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Inventory commands require manual reconciliation
+          description: The commerce delivery ledger has contained commands requiring manual reconciliation for one minute.
+      - alert: CommerceFlowInventoryCommandDeliveryBacklog
+        expr: |
+          commerceflow_inventory_command_delivery_pending{job="commerce-service"} > 0
+            and commerceflow_inventory_command_delivery_oldest_seconds{job="commerce-service"} >= 120
+            and commerceflow_inventory_command_delivery_metrics_refresh_success{job="commerce-service"} == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Inventory command delivery backlog is aging
+          description: An inventory command has waited at least two minutes since creation and the backlog has persisted for one minute.
+      - alert: CommerceFlowInventoryCommandDeliveryMetricsRefreshFailed
+        expr: commerceflow_inventory_command_delivery_metrics_refresh_success{job="commerce-service"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Inventory command delivery metrics are stale
+          description: Commerce could not refresh its inventory command delivery metrics for one minute.
+
   - name: commerceflow-inventory-outbound
     rules:
       - alert: CommerceFlowInventoryOutboundPublishFailed

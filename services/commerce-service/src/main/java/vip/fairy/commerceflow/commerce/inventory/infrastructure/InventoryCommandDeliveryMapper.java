@@ -18,6 +18,8 @@ public interface InventoryCommandDeliveryMapper {
 
   String status(String commandId);
 
+  Backlog backlog();
+
   List<String> dispatchable(int limit);
 
   int markInFlight(@Param("commandId") String commandId,
@@ -56,4 +58,7 @@ public interface InventoryCommandDeliveryMapper {
   int reopen(@Param("commandId") String commandId,
              @Param("recoveredBy") String recoveredBy,
              @Param("recoveryReason") String recoveryReason);
+
+  record Backlog(long reconciliationRequired, long pending, long oldestSeconds) {
+  }
 }
