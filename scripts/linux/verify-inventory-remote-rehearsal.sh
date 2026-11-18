@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd -- "$(dirname -- "$0")" && pwd)/_verification-db.sh"
 set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
@@ -9,10 +10,7 @@ docker compose --profile inventory-migration run --rm --no-deps inventory-data-m
 temp_dir="$(new_temp_dir)"
 cookie_jar="$temp_dir/admin.cookies"
 
-commerce_sql() {
-  docker compose exec -T commerce-db mysql -N -ucommerceflow -pcommerceflow-password \
-    commerceflow -e "$1" 2>/dev/null
-}
+commerce_sql() { verify_db commerce "$1" | tail -n 1; }
 
 inventory_sql() {
   docker compose exec -T inventory-db mysql -N -uinventory -pinventory-password \

@@ -3,13 +3,11 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot '_verification-db.ps1')
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 
 function Commerce-Sql([string]$Query) {
-  $value = & docker compose exec -T commerce-db mysql -N -ucommerceflow `
-    -pcommerceflow-password commerceflow -e $Query 2>$null
-  if ($LASTEXITCODE -ne 0) { throw 'Commerce database query failed' }
-  return (($value | Out-String).Trim())
+  return ((Invoke-VerificationDb commerce $Query) | Out-String).Trim()
 }
 
 function Inventory-Sql([string]$Query) {

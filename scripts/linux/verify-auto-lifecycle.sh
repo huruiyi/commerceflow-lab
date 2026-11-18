@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
+source "$(cd -- "$(dirname -- "$0")" && pwd)/_verification-db.sh"
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 require_commands docker curl jq openssl
 
 BASE_URL="${1:-http://localhost:14200}"
-db_user="${DATABASE_USERNAME:-commerceflow}"
-db_password="${DATABASE_PASSWORD:-commerceflow-password}"
 
-db_scalar(){ compose exec -T commerce-db mysql --batch --skip-column-names "-u$db_user" "-p$db_password" commerceflow -e "$1" | tail -n 1 | tr -d '\r'; }
-order_db_scalar(){ compose exec -T order-db mysql --batch --skip-column-names --user=orders --password=orders-password orders -e "$1" | tail -n 1 | tr -d '\r'; }
+db_scalar() { verify_db commerce "$1" | tail -n 1; }
+order_db_scalar() { verify_db order "$1" | tail -n 1; }
 wait_order_status(){
   local id="$1" expected="$2" deadline=$((SECONDS+40)) order
   while ((SECONDS<deadline));do
@@ -43,12 +42,12 @@ jq -e '.status=="RECEIVED" and .receivedAt!=null'<<<"$received">/dev/null||{ ech
 orders="$(json_request GET "$BASE_URL/api/purchase-orders" "$customer_jar")"
 automatic="$(jq -c '[.[]|select(.status=="SHIPPED" and .logistics.status=="DELIVERED")][0]'<<<"$orders")"
 automatic_id="$(jq -r '.id//empty'<<<"$automatic")";[[ -n "$automatic_id" ]]||{ echo 'Delivered order for automatic receipt was not found'>&2;exit 1; }
-db_scalar "UPDATE scheduled_tasks SET due_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE task_type='AUTO_RECEIVE' AND task_key='order:$automatic_id'" >/dev/null
+verify_db task "UPDATE scheduled_tasks SET due_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE task_type='AUTO_RECEIVE' AND task_key='order:$automatic_id'" >/dev/null
 auto_received="$(wait_order_status "$automatic_id" RECEIVED)"
 jq -e '.receivedAt!=null'<<<"$auto_received">/dev/null||{ echo 'AUTO_RECEIVE did not persist receivedAt'>&2;exit 1; }
 [[ "$(db_scalar "SELECT status FROM scheduled_tasks WHERE task_type='AUTO_RECEIVE' AND task_key='order:$automatic_id'")" == SUCCEEDED ]]||{ echo 'AUTO_RECEIVE task did not succeed'>&2;exit 1; }
 
-db_scalar "UPDATE scheduled_tasks SET due_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE task_type='AUTO_COMPLETE' AND task_key='order:$automatic_id'" >/dev/null
+verify_db task "UPDATE scheduled_tasks SET due_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE task_type='AUTO_COMPLETE' AND task_key='order:$automatic_id'" >/dev/null
 completed="$(wait_order_status "$automatic_id" COMPLETED)"
 jq -e '.completedAt!=null and .payment!=null and .logistics.status=="DELIVERED" and (.availableActions|index("REVIEW_ITEM")!=null)'<<<"$completed">/dev/null||{ echo 'COMPLETED order lost completion time, payment, logistics or review action'>&2;exit 1; }
 [[ "$(db_scalar "SELECT status FROM scheduled_tasks WHERE task_type='AUTO_COMPLETE' AND task_key='order:$automatic_id'")" == SUCCEEDED ]]||{ echo 'AUTO_COMPLETE task did not succeed'>&2;exit 1; }
@@ -65,7 +64,7 @@ restart_backend(){
   if [[ "${restart_required:-false}" == true ]];then compose up -d --wait commerce-service >/dev/null;fi
 }
 trap 'restart_backend; rm -rf -- "$temp_dir"' EXIT
-db_scalar "UPDATE scheduled_tasks SET status='PROCESSING',completed_at=NULL,due_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 2 SECOND),lease_until=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND),claimed_by='simulated-crashed-worker',last_error=NULL WHERE id=$complete_task_id" >/dev/null
+verify_db task "UPDATE scheduled_tasks SET status='PROCESSING',completed_at=NULL,due_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 2 SECOND),lease_until=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND),claimed_by='simulated-crashed-worker',last_error=NULL WHERE id=$complete_task_id" >/dev/null
 compose up -d --wait commerce-service >/dev/null
 restart_required=false
 wait_task_status "$complete_task_id" SUCCEEDED

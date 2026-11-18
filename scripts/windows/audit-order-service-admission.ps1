@@ -1,14 +1,14 @@
 param(
-  [string]$DatabaseUser = 'commerceflow',
-  [string]$DatabasePassword = 'commerceflow-password'
+  [string]$DatabaseUser = 'commerce_legacy_audit',
+  [string]$DatabasePassword = $(if ($env:COMMERCE_LEGACY_AUDIT_PASSWORD) { $env:COMMERCE_LEGACY_AUDIT_PASSWORD } else { 'local-legacy-audit' })
 )
 
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 
 function Invoke-CommerceSql([string]$Query) {
-  $result = & docker compose exec -T commerce-db mysql -N -B "-u$DatabaseUser" `
-    "-p$DatabasePassword" commerceflow -e $Query 2>$null
+  $result = & docker compose exec -T -e "MYSQL_PWD=$DatabasePassword" commerce-db mysql --batch --skip-column-names `
+    "--user=$DatabaseUser" --database=commerceflow "--execute=$Query"
   if ($LASTEXITCODE -ne 0) { throw 'Commerce database query failed' }
   return (($result | Out-String).Trim())
 }
@@ -26,20 +26,20 @@ if ($LASTEXITCODE -ne 0) { throw 'Could not start commerce-db' }
 Assert-Scalar 'Flyway V35 order admission migration' `
   "SELECT COUNT(*) FROM flyway_schema_history WHERE version='35' AND success=1;" '1'
 Assert-Scalar 'order-owned table count' @"
-SELECT COUNT(*) FROM information_schema.tables
+SELECT COUNT(*) FROM commerce_verification.schema_tables
 WHERE table_schema='commerceflow'
   AND table_name IN ('shop_orders','order_items','order_shipping_addresses','order_events',
     'order_process_managers','order_command_outbox','order_result_inbox');
 "@ '7'
 Assert-Scalar 'order outbound cross-boundary foreign keys' @"
-SELECT COUNT(*) FROM information_schema.key_column_usage
+SELECT COUNT(*) FROM commerce_verification.schema_keys
 WHERE table_schema='commerceflow'
   AND table_name IN ('shop_orders','order_items','order_shipping_addresses','order_events')
   AND referenced_table_name IS NOT NULL
   AND referenced_table_name NOT IN ('shop_orders','order_items','order_shipping_addresses','order_events');
 "@ '0'
 Assert-Scalar 'order inbound cross-boundary foreign keys' @"
-SELECT COUNT(*) FROM information_schema.key_column_usage
+SELECT COUNT(*) FROM commerce_verification.schema_keys
 WHERE table_schema='commerceflow'
   AND referenced_table_name IN ('shop_orders','order_items','order_shipping_addresses','order_events')
   AND table_name NOT IN ('shop_orders','order_items','order_shipping_addresses','order_events');

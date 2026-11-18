@@ -4,6 +4,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot '_verification-db.ps1')
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $AppId = 'commerceflow-storefront'
 $Secret = 'demo-logistics-request-secret'
@@ -64,12 +65,8 @@ function Logistics-Sql([string]$Sql) {
   return (($result | Select-Object -Last 1) -as [string]).Trim()
 }
 
-function Storefront-Sql([string]$Sql) {
-  $user = if ($env:DATABASE_USERNAME) { $env:DATABASE_USERNAME } else { 'commerceflow' }
-  $password = if ($env:DATABASE_PASSWORD) { $env:DATABASE_PASSWORD } else { 'commerceflow-password' }
-  $result = docker compose --project-directory $ProjectRoot exec -T commerce-db mysql --batch --skip-column-names "-u$user" "-p$password" commerceflow -e $Sql
-  if ($LASTEXITCODE -ne 0) { throw 'Storefront database query failed' }
-  return (($result | Select-Object -Last 1) -as [string]).Trim()
+function Storefront-Sql([string]$Query) {
+  return ((Invoke-VerificationDb commerce $Query) | Out-String).Trim()
 }
 
 try {

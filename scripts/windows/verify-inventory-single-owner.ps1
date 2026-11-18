@@ -3,6 +3,7 @@ param(
   [int]$MaxWaitSeconds = 120
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot '_verification-db.ps1')
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 
 function Invoke-DatabaseScalar([string]$Service, [string]$User, [string]$Password,
@@ -46,8 +47,7 @@ foreach ($table in @('product_inventory', 'inventory_reservations', 'inventory_m
   if ($LASTEXITCODE -eq 0) { throw "Runtime identity can still read $table" }
 }
 
-$sourceBefore = Invoke-DatabaseScalar commerce-db commerceflow commerceflow-password `
-  commerceflow 'SELECT COUNT(*) FROM inventory_movements;'
+$sourceBefore = Invoke-VerificationDb legacy 'SELECT COUNT(*) FROM inventory_movements;'
 $targetBefore = Invoke-DatabaseScalar inventory-db inventory inventory-password `
   inventory 'SELECT COUNT(*) FROM inventory_movements;'
 
@@ -98,8 +98,7 @@ try {
 }
 Invoke-RestMethod "$BaseUrl/api/merchant/inventory" -WebSession $session | Out-Null
 
-$sourceAfter = Invoke-DatabaseScalar commerce-db commerceflow commerceflow-password `
-  commerceflow 'SELECT COUNT(*) FROM inventory_movements;'
+$sourceAfter = Invoke-VerificationDb legacy 'SELECT COUNT(*) FROM inventory_movements;'
 $targetAfter = Invoke-DatabaseScalar inventory-db inventory inventory-password `
   inventory 'SELECT COUNT(*) FROM inventory_movements;'
 if ($sourceAfter -ne $sourceBefore -or [long]$targetAfter -lt [long]$targetBefore + 2) {

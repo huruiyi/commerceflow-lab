@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+source "$(cd -- "$(dirname -- "$0")" && pwd)/_verification-db.sh"
+[[ "${COMPOSE_PROJECT_NAME:-}" == commerceflow-legacy-?* ]] || {
+  echo 'Run this historical monolith rehearsal in an isolated commerceflow-legacy-* project.' >&2
+  exit 1
+}
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 require_commands curl jq openssl
 BASE_URL="${1:-http://localhost:14200}"
@@ -10,8 +15,8 @@ for required in payment-events order-events payment-callback-events payment-reco
 done
 deadline=$((SECONDS + 40)); row=''; consumed=0
 while ((SECONDS < deadline)); do
-  row="$(compose exec -T commerce-db mysql -N -ucommerceflow -pcommerceflow-password commerceflow -e "SELECT CONCAT(status,':',attempts) FROM payment_outbox ORDER BY id DESC LIMIT 1" 2>/dev/null | tr -d '\r')"
-  consumed="$(compose exec -T commerce-db mysql -N -ucommerceflow -pcommerceflow-password commerceflow -e 'SELECT COUNT(*) FROM kafka_consumed_event' 2>/dev/null | tr -d '\r')"
+  row="$(verify_db legacy "SELECT CONCAT(status,':',attempts) FROM payment_outbox ORDER BY id DESC LIMIT 1" )"
+  consumed="$(verify_db legacy 'SELECT COUNT(*) FROM kafka_consumed_event' )"
   [[ "$row" == PUBLISHED:* && "$consumed" =~ ^[0-9]+$ && "$consumed" -gt 0 ]] && break
   sleep 2
 done

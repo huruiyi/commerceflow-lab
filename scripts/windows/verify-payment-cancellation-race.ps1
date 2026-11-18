@@ -8,6 +8,7 @@ param(
   [switch]$AuditDockerDatabase
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot '_verification-db.ps1')
 
 function New-CustomerSession {
   $session = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
@@ -162,19 +163,9 @@ if ($DurationSeconds -gt 0 -and $outcomes.Count -lt 2) {
 }
 
 if ($AuditDockerDatabase) {
-  $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-  $databaseUser = if ($env:DATABASE_USERNAME) { $env:DATABASE_USERNAME } else { 'commerceflow' }
-  $databasePassword = if ($env:DATABASE_PASSWORD) { $env:DATABASE_PASSWORD } else { 'commerceflow-password' }
-  $orderUser = if ($env:ORDER_DATABASE_USERNAME) { $env:ORDER_DATABASE_USERNAME } else { 'orders' }
-  $orderPassword = if ($env:ORDER_DATABASE_PASSWORD) { $env:ORDER_DATABASE_PASSWORD } else { 'orders-password' }
   $ids = $orderIds -join ','
-  $orderRows = & docker compose --project-directory $projectRoot exec -T order-db mysql -N `
-    "-u$orderUser" "-p$orderPassword" orders -e "SELECT id,status FROM shop_orders WHERE id IN ($ids);"
-  if ($LASTEXITCODE -ne 0) { throw 'Order database consistency audit failed to execute' }
-  $paymentRows = & docker compose --project-directory $projectRoot exec -T commerce-db mysql -N `
-    "-u$databaseUser" "-p$databasePassword" commerceflow `
-    -e "SELECT order_id,status FROM payment_records WHERE order_id IN ($ids);"
-  if ($LASTEXITCODE -ne 0) { throw 'Payment database consistency audit failed to execute' }
+  $orderRows = Invoke-VerificationDb order "SELECT id,status FROM shop_orders WHERE id IN ($ids);"
+  $paymentRows = Invoke-VerificationDb payment "SELECT order_id,status FROM payment_records WHERE order_id IN ($ids);"
   $payments = @{}
   foreach ($row in $paymentRows) { $parts = $row -split '\s+'; $payments[[long]$parts[0]] = $parts[1] }
   $contradictions = 0

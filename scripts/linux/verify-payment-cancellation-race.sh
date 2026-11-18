@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd -- "$(dirname -- "$0")" && pwd)/_verification-db.sh"
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 require_commands curl jq
 BASE_URL="${1:-http://localhost:14200}"
@@ -111,12 +112,8 @@ fi
 
 if [[ "$AUDIT_DATABASE" == true ]];then
   ids="$(IFS=,;echo "${order_ids[*]}")"
-  database_user="${DATABASE_USERNAME:-commerceflow}";database_password="${DATABASE_PASSWORD:-commerceflow-password}"
-  order_user="${ORDER_DATABASE_USERNAME:-orders}";order_password="${ORDER_DATABASE_PASSWORD:-orders-password}"
-  order_rows="$(docker compose --project-directory "$PROJECT_ROOT" exec -T order-db mysql -N \
-    "-u$order_user" "-p$order_password" orders -e "SELECT id,status FROM shop_orders WHERE id IN ($ids);" 2>/dev/null)"
-  payment_rows="$(docker compose --project-directory "$PROJECT_ROOT" exec -T commerce-db mysql -N \
-    "-u$database_user" "-p$database_password" commerceflow -e "SELECT order_id,status FROM payment_records WHERE order_id IN ($ids);" 2>/dev/null)"
+  order_rows="$(verify_db order "SELECT id,status FROM shop_orders WHERE id IN ($ids);")"
+  payment_rows="$(verify_db payment "SELECT order_id,status FROM payment_records WHERE order_id IN ($ids);")"
   declare -A payment_by_order=()
   while read -r payment_order payment_status;do [[ -n "$payment_order" ]]&&payment_by_order[$payment_order]="$payment_status";done <<<"$payment_rows"
   orders_count=0;contradictions=0

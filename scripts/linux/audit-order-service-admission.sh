@@ -3,8 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
-DATABASE_USER="${DATABASE_USER:-commerceflow}"
-DATABASE_PASSWORD="${DATABASE_PASSWORD:-commerceflow-password}"
+DATABASE_USER="${DATABASE_USER:-commerce_legacy_audit}"
+DATABASE_PASSWORD="${COMMERCE_LEGACY_AUDIT_PASSWORD:-local-legacy-audit}"
 
 fail() {
   echo "Order-service admission audit failed: $*" >&2
@@ -12,8 +12,8 @@ fail() {
 }
 
 sql() {
-  docker compose exec -T commerce-db mysql -N -B "-u$DATABASE_USER" \
-    "-p$DATABASE_PASSWORD" commerceflow -e "$1" 2>/dev/null
+  docker compose exec -T -e "MYSQL_PWD=$DATABASE_PASSWORD" commerce-db mysql --batch --skip-column-names \
+    --user="$DATABASE_USER" --database=commerceflow --execute="$1"
 }
 
 assert_scalar() {
@@ -29,11 +29,11 @@ docker compose up -d --wait commerce-db >/dev/null
 assert_scalar 'Flyway V35 order admission migration' \
   "SELECT COUNT(*) FROM flyway_schema_history WHERE version='35' AND success=1;" 1
 assert_scalar 'order-owned table count' \
-  "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name IN ('shop_orders','order_items','order_shipping_addresses','order_events','order_process_managers','order_command_outbox','order_result_inbox');" 7
+  "SELECT COUNT(*) FROM commerce_verification.schema_tables WHERE table_schema='commerceflow' AND table_name IN ('shop_orders','order_items','order_shipping_addresses','order_events','order_process_managers','order_command_outbox','order_result_inbox');" 7
 assert_scalar 'order outbound cross-boundary foreign keys' \
-  "SELECT COUNT(*) FROM information_schema.key_column_usage WHERE table_schema='commerceflow' AND table_name IN ('shop_orders','order_items','order_shipping_addresses','order_events') AND referenced_table_name IS NOT NULL AND referenced_table_name NOT IN ('shop_orders','order_items','order_shipping_addresses','order_events');" 0
+  "SELECT COUNT(*) FROM commerce_verification.schema_keys WHERE table_schema='commerceflow' AND table_name IN ('shop_orders','order_items','order_shipping_addresses','order_events') AND referenced_table_name IS NOT NULL AND referenced_table_name NOT IN ('shop_orders','order_items','order_shipping_addresses','order_events');" 0
 assert_scalar 'order inbound cross-boundary foreign keys' \
-  "SELECT COUNT(*) FROM information_schema.key_column_usage WHERE table_schema='commerceflow' AND referenced_table_name IN ('shop_orders','order_items','order_shipping_addresses','order_events') AND table_name NOT IN ('shop_orders','order_items','order_shipping_addresses','order_events');" 0
+  "SELECT COUNT(*) FROM commerce_verification.schema_keys WHERE table_schema='commerceflow' AND referenced_table_name IN ('shop_orders','order_items','order_shipping_addresses','order_events') AND table_name NOT IN ('shop_orders','order_items','order_shipping_addresses','order_events');" 0
 assert_scalar 'duplicate order numbers' \
   'SELECT COUNT(*) FROM (SELECT order_number FROM shop_orders GROUP BY order_number HAVING COUNT(*)>1) d;' 0
 assert_scalar 'orders without items' \

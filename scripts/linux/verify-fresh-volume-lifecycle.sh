@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd -- "$(dirname -- "$0")" && pwd)/_verification-db.sh"
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 require_commands docker curl jq openssl
 
@@ -34,9 +35,7 @@ temp_compose() {
   docker compose --project-directory "$PROJECT_ROOT" --project-name "$TEMPORARY_PROJECT_NAME" "$@"
 }
 
-store_sql() {
-  temp_compose exec -T commerce-db mysql -ucommerceflow -pcommerceflow-password -Nse "$1" commerceflow 2>/dev/null | tail -n1 | tr -d '\r'
-}
+store_sql() { verify_db legacy "$1" temp_compose | tail -n 1; }
 
 payment_sql() {
   temp_compose exec -T payment-simulator-db mysql -upayment -ppayment-password -Nse "$1" payment_platform 2>/dev/null | tail -n1 | tr -d '\r'
@@ -61,6 +60,7 @@ if ((${#default_running[@]})); then compose stop; fi
 export COMPOSE_PROJECT_NAME="$TEMPORARY_PROJECT_NAME"
 if [[ "$SKIP_BUILD" == false ]]; then temp_compose build; fi
 temp_compose up -d --wait
+temp_compose --profile verification-access run --rm --no-deps verification-db-access --legacy-reader
 volume_count="$(docker volume ls --filter "label=com.docker.compose.project=$TEMPORARY_PROJECT_NAME" --format '{{.Name}}' | wc -l | tr -d ' ')"
 (( volume_count >= 5 )) || { echo "Fresh project created only $volume_count volumes" >&2; exit 1; }
 
@@ -70,11 +70,11 @@ payment_migration_audit="$(payment_sql "SELECT CONCAT(COUNT(*),'|',SUM(CASE WHEN
 [[ "$payment_migration_audit" == '4|0|4' ]] || { echo "Unexpected payment Flyway audit: $payment_migration_audit" >&2; exit 1; }
 logistics_migration_audit="$(logistics_sql "SELECT CONCAT(COUNT(*),'|',SUM(CASE WHEN success=0 THEN 1 ELSE 0 END),'|',MAX(CAST(version AS UNSIGNED))) FROM flyway_schema_history WHERE version IS NOT NULL")"
 [[ "$logistics_migration_audit" == '5|0|5' ]] || { echo "Unexpected logistics Flyway audit: $logistics_migration_audit" >&2; exit 1; }
-comment_audit="$(store_sql "SELECT CONCAT((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_comment<>''),'|',(SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='commerceflow' AND column_comment<>''))")"
+comment_audit="$(store_sql "SELECT CONCAT((SELECT COUNT(*) FROM commerce_verification.schema_tables WHERE table_schema='commerceflow' AND table_comment<>''),'|',(SELECT COUNT(*) FROM commerce_verification.schema_columns WHERE table_schema='commerceflow' AND column_comment<>''))")"
 [[ "$comment_audit" == '7|67' ]] || { echo "Unexpected storefront comment audit: $comment_audit" >&2; exit 1; }
-payment_comment_audit="$(payment_sql "SELECT CONCAT((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='payment_platform' AND table_comment<>''),'|',(SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='payment_platform' AND column_comment<>''))")"
+payment_comment_audit="$(payment_sql "SELECT CONCAT((SELECT COUNT(*) FROM commerce_verification.schema_tables WHERE table_schema='payment_platform' AND table_comment<>''),'|',(SELECT COUNT(*) FROM commerce_verification.schema_columns WHERE table_schema='payment_platform' AND column_comment<>''))")"
 [[ "$payment_comment_audit" == '5|39' ]] || { echo "Unexpected payment comment audit: $payment_comment_audit" >&2; exit 1; }
-logistics_comment_audit="$(logistics_sql "SELECT CONCAT((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='logistics_platform' AND table_comment<>''),'|',(SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='logistics_platform' AND column_comment<>''))")"
+logistics_comment_audit="$(logistics_sql "SELECT CONCAT((SELECT COUNT(*) FROM commerce_verification.schema_tables WHERE table_schema='logistics_platform' AND table_comment<>''),'|',(SELECT COUNT(*) FROM commerce_verification.schema_columns WHERE table_schema='logistics_platform' AND column_comment<>''))")"
 [[ "$logistics_comment_audit" == '4|27' ]] || { echo "Unexpected logistics comment audit: $logistics_comment_audit" >&2; exit 1; }
 seed_audit="$(store_sql "SELECT CONCAT((SELECT COUNT(*) FROM app_users),'|',(SELECT COUNT(*) FROM products),'|',(SELECT COUNT(*) FROM shop_orders))")"
 [[ "$seed_audit" == '6|6|0' ]] || { echo "Fresh seed audit failed: $seed_audit" >&2; exit 1; }

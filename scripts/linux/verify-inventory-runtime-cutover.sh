@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd -- "$(dirname -- "$0")" && pwd)/_verification-db.sh"
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 require_commands curl jq docker openssl
 BASE_URL="${1:-http://localhost:18081}"
@@ -7,10 +8,7 @@ MAX_WAIT_SECONDS="${3:-120}"
 tempo_was_running="$(compose ps -q tempo 2>/dev/null || true)"
 temp_dir="$(new_temp_dir)"
 
-commerce_sql() {
-  compose exec -T commerce-db mysql -N -ucommerceflow -pcommerceflow-password commerceflow \
-    -e "$1" 2>/dev/null
-}
+commerce_sql() { verify_db legacy "$1" | tail -n 1; }
 
 inventory_sql() {
   compose exec -T inventory-db mysql -N -uinventory -pinventory-password inventory \

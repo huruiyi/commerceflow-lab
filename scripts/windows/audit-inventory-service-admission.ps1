@@ -1,14 +1,14 @@
 param(
-  [string]$DatabaseUser = 'commerceflow',
-  [string]$DatabasePassword = 'commerceflow-password'
+  [string]$DatabaseUser = 'commerce_legacy_audit',
+  [string]$DatabasePassword = $(if ($env:COMMERCE_LEGACY_AUDIT_PASSWORD) { $env:COMMERCE_LEGACY_AUDIT_PASSWORD } else { 'local-legacy-audit' })
 )
 
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 
 function Invoke-CommerceSql([string]$Query) {
-  $result = & docker compose exec -T commerce-db mysql -N -B "-u$DatabaseUser" `
-    "-p$DatabasePassword" commerceflow -e $Query 2>$null
+  $result = & docker compose exec -T -e "MYSQL_PWD=$DatabasePassword" commerce-db mysql --batch --skip-column-names `
+    "--user=$DatabaseUser" --database=commerceflow "--execute=$Query"
   if ($LASTEXITCODE -ne 0) {
     throw 'Commerce database query failed'
   }
@@ -32,7 +32,7 @@ if ($LASTEXITCODE -ne 0) {
 Assert-Scalar 'Flyway schema version' `
   "SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1;" '34'
 Assert-Scalar 'inventory boundary table count' @"
-SELECT COUNT(*) FROM information_schema.tables
+SELECT COUNT(*) FROM commerce_verification.schema_tables
 WHERE table_schema='commerceflow' AND table_name IN (
   'product_inventory','inventory_reservations','inventory_movements',
   'inventory_command_inbox','inventory_catalog_event_inbox',
@@ -40,7 +40,7 @@ WHERE table_schema='commerceflow' AND table_name IN (
 );
 "@ '7'
 Assert-Scalar 'cross-boundary inventory foreign keys' @"
-SELECT COUNT(*) FROM information_schema.key_column_usage
+SELECT COUNT(*) FROM commerce_verification.schema_keys
 WHERE table_schema='commerceflow'
   AND table_name IN ('product_inventory','inventory_reservations','inventory_movements',
     'inventory_command_inbox','inventory_catalog_event_inbox')

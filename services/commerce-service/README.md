@@ -124,12 +124,15 @@ docker compose up --build -d --wait
 
 ```powershell
 $env:DATABASE_URL = 'jdbc:mysql://localhost:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC'
-$env:DATABASE_USERNAME = 'commerceflow'
-$env:DATABASE_PASSWORD = 'commerceflow-password'
+$env:DATABASE_USERNAME = 'commerce_runtime'
+$env:DATABASE_PASSWORD = 'commerce-runtime-password'
+$env:SPRING_FLYWAY_ENABLED = 'false'
 $env:REDIS_HOST = 'localhost'
 $env:REDIS_PORT = '6379'
 mvn spring-boot:run
 ```
+
+启动应用前先用 Compose 的 `commerce-schema-migrator` 和 `commerce-source-access-freezer` 完成建表及运行账号授权。
 
 ## 测试
 

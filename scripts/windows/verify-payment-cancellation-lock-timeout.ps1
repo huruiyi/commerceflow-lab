@@ -4,6 +4,10 @@ param(
   [ValidateRange(4, 30)][int]$LockHoldSeconds = 7
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot '_verification-db.ps1')
+if ($env:COMPOSE_PROJECT_NAME -notlike 'commerceflow-legacy-?*') {
+  throw 'Run this historical monolith rehearsal in an isolated commerceflow-legacy-* project.'
+}
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $previousTimeout = $env:DATABASE_LOCK_WAIT_TIMEOUT_SECONDS
 
@@ -13,19 +17,15 @@ function Invoke-Compose([string[]]$Arguments) {
 }
 
 function Invoke-MySql([string]$Sql) {
-  $value = & docker compose --project-directory $projectRoot exec -T commerce-db `
-    commerce-db -ucommerceflow -pcommerceflow-password -Nse $Sql commerceflow 2>$null
-  if ($LASTEXITCODE -ne 0) { throw 'MySQL command failed' }
-  return ($value -join "`n").Trim()
+  return ((Invoke-VerificationDb legacy $Sql) | Out-String).Trim()
 }
 
 function Start-RowLock([string]$Table, [long]$Id) {
   $sql = "START TRANSACTION; SELECT id FROM $Table WHERE id=$Id FOR UPDATE; DO SLEEP($LockHoldSeconds); COMMIT;"
   $job = Start-Job -ScriptBlock {
     param($Root, $Statement)
-    & docker compose --project-directory $Root exec -T commerce-db `
-      commerce-db -ucommerceflow -pcommerceflow-password -Nse $Statement commerceflow 2>$null
-    if ($LASTEXITCODE -ne 0) { throw 'Lock holder failed' }
+    . (Join-Path $Root 'scripts/windows/_verification-db.ps1')
+    Invoke-VerificationDb lock $Statement
   } -ArgumentList $projectRoot, $sql
   Start-Sleep -Seconds 1
   return $job

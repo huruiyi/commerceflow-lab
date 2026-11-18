@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+source "$(cd -- "$(dirname -- "$0")" && pwd)/_verification-db.sh"
+[[ "${COMPOSE_PROJECT_NAME:-}" == commerceflow-legacy-?* ]] || {
+  echo 'Run this historical monolith rehearsal in an isolated commerceflow-legacy-* project.' >&2
+  exit 1
+}
 set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/_common.sh"
@@ -18,13 +23,10 @@ restore() {
 }
 trap restore EXIT
 
-mysql_value() {
-  compose exec -T commerce-db mysql -ucommerceflow -pcommerceflow-password -Nse "$1" commerceflow 2>/dev/null | tr -d '\r'
-}
+mysql_value() { verify_db legacy "$1"; }
 hold_row() {
   local table="$1" id="$2"
-  compose exec -T commerce-db mysql -ucommerceflow -pcommerceflow-password -Nse \
-    "START TRANSACTION; SELECT id FROM $table WHERE id=$id FOR UPDATE; DO SLEEP($LOCK_HOLD_SECONDS); COMMIT;" commerceflow \
+  verify_db lock "START TRANSACTION; SELECT id FROM $table WHERE id=$id FOR UPDATE; DO SLEEP($LOCK_HOLD_SECONDS); COMMIT;" \
     >/dev/null 2>&1 &
   LOCK_PID=$!
   sleep 1

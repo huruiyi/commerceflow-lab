@@ -99,6 +99,9 @@ bash ./scripts/linux/verify-all.sh
 
 ## 6. 数据库与环境生命周期
 
+验收与运维的 SQL 连接使用[按用途授权的核验账号](architecture/M3-SINGLE-OWNERSHIP-REVIEW.md#8-验收与运维账号撤权)。
+运行依赖 SQL 的独立专项前，先为当前项目启用所需读者或演练账号。
+
 ### 6.1 Flyway 隔离演练
 
 ```powershell

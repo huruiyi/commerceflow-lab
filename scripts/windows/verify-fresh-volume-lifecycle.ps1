@@ -5,6 +5,7 @@ param(
   [switch]$SkipBuild
 )
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot '_verification-db.ps1')
 $ProjectRoot=(Resolve-Path(Join-Path $PSScriptRoot '../..')).Path
 if($TemporaryProjectName -notmatch '^commerceflow-fresh-[a-z0-9-]+$'){throw 'TemporaryProjectName must start with commerceflow-fresh- and contain only lowercase letters, numbers and hyphens'}
 $savedProject=[Environment]::GetEnvironmentVariable('COMPOSE_PROJECT_NAME')
@@ -12,7 +13,7 @@ $defaultRunning=@(docker compose --project-directory $ProjectRoot ps --services 
 if($LASTEXITCODE -ne 0){throw 'Could not inspect the default Compose project'}
 
 function TempCompose([string[]]$Arguments){& docker compose --project-directory $ProjectRoot --project-name $TemporaryProjectName @Arguments;if($LASTEXITCODE -ne 0){throw "Temporary Compose failed: $($Arguments-join' ')"}}
-function Sql([string]$Statement){$v=& docker compose --project-directory $ProjectRoot --project-name $TemporaryProjectName exec -T commerce-db mysql -ucommerceflow -pcommerceflow-password -Nse $Statement commerceflow 2>$null;if($LASTEXITCODE -ne 0){throw 'Fresh-volume SQL failed'};return($v-join"`n").Trim()}
+function Sql([string]$Statement){ return ((Invoke-VerificationDb legacy $Statement @("--project-name",$TemporaryProjectName)) | Out-String).Trim() }
 function PaymentSql([string]$Statement){$v=& docker compose --project-directory $ProjectRoot --project-name $TemporaryProjectName exec -T payment-simulator-db mysql -upayment -ppayment-password -Nse $Statement payment_platform 2>$null;if($LASTEXITCODE -ne 0){throw 'Fresh payment SQL failed'};return($v-join"`n").Trim()}
 function LogisticsSql([string]$Statement){$v=& docker compose --project-directory $ProjectRoot --project-name $TemporaryProjectName exec -T logistics-simulator-db mysql -ulogistics -plogistics-password -Nse $Statement logistics_platform 2>$null;if($LASTEXITCODE -ne 0){throw 'Fresh logistics SQL failed'};return($v-join"`n").Trim()}
 
@@ -25,6 +26,7 @@ try{
   $env:COMPOSE_PROJECT_NAME=$TemporaryProjectName
   if(-not $SkipBuild){TempCompose @('build')}
   TempCompose @('up','-d','--wait')
+  TempCompose @('--profile','verification-access','run','--rm','--no-deps','verification-db-access','--legacy-reader')
   $volumes=@(docker volume ls --filter "label=com.docker.compose.project=$TemporaryProjectName" --format '{{.Name}}')
   if($volumes.Count -lt 5){throw "Fresh project created only $($volumes.Count) volumes"}
   $migrationAudit=Sql "SELECT CONCAT(COUNT(*),'|',SUM(CASE WHEN success=0 THEN 1 ELSE 0 END),'|',MAX(CAST(version AS UNSIGNED))) FROM flyway_schema_history WHERE version IS NOT NULL"
@@ -33,11 +35,11 @@ try{
   if($paymentMigrationAudit -ne '4|0|4'){throw "Unexpected payment Flyway audit: $paymentMigrationAudit"}
   $logisticsMigrationAudit=LogisticsSql "SELECT CONCAT(COUNT(*),'|',SUM(CASE WHEN success=0 THEN 1 ELSE 0 END),'|',MAX(CAST(version AS UNSIGNED))) FROM flyway_schema_history WHERE version IS NOT NULL"
   if($logisticsMigrationAudit -ne '5|0|5'){throw "Unexpected logistics Flyway audit: $logisticsMigrationAudit"}
-  $commentAudit=Sql "SELECT CONCAT((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_comment<>''),'|',(SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='commerceflow' AND column_comment<>''))"
+  $commentAudit=Sql "SELECT CONCAT((SELECT COUNT(*) FROM commerce_verification.schema_tables WHERE table_schema='commerceflow' AND table_comment<>''),'|',(SELECT COUNT(*) FROM commerce_verification.schema_columns WHERE table_schema='commerceflow' AND column_comment<>''))"
   if($commentAudit -ne '7|67'){throw "Unexpected storefront comment audit: $commentAudit"}
-  $paymentCommentAudit=PaymentSql "SELECT CONCAT((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='payment_platform' AND table_comment<>''),'|',(SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='payment_platform' AND column_comment<>''))"
+  $paymentCommentAudit=PaymentSql "SELECT CONCAT((SELECT COUNT(*) FROM commerce_verification.schema_tables WHERE table_schema='payment_platform' AND table_comment<>''),'|',(SELECT COUNT(*) FROM commerce_verification.schema_columns WHERE table_schema='payment_platform' AND column_comment<>''))"
   if($paymentCommentAudit -ne '5|39'){throw "Unexpected payment comment audit: $paymentCommentAudit"}
-  $logisticsCommentAudit=LogisticsSql "SELECT CONCAT((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='logistics_platform' AND table_comment<>''),'|',(SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='logistics_platform' AND column_comment<>''))"
+  $logisticsCommentAudit=LogisticsSql "SELECT CONCAT((SELECT COUNT(*) FROM commerce_verification.schema_tables WHERE table_schema='logistics_platform' AND table_comment<>''),'|',(SELECT COUNT(*) FROM commerce_verification.schema_columns WHERE table_schema='logistics_platform' AND column_comment<>''))"
   if($logisticsCommentAudit -ne '4|27'){throw "Unexpected logistics comment audit: $logisticsCommentAudit"}
   $seedAudit=Sql "SELECT CONCAT((SELECT COUNT(*) FROM app_users),'|',(SELECT COUNT(*) FROM products),'|',(SELECT COUNT(*) FROM shop_orders))"
   if($seedAudit -ne '6|6|0'){throw "Fresh seed audit failed: $seedAudit"}

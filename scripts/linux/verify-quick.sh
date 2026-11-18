@@ -18,6 +18,8 @@ bash "$SCRIPT_DIR/audit-script-contracts.sh"
 compose config --quiet
 [[ "$SKIP_BUILD" == true ]]||compose build
 compose up -d --wait
+compose --profile verification-access run --rm --no-deps verification-db-access --readers
+compose --profile verification-access run --rm --no-deps verification-db-access --task-fixture
 "$SCRIPT_DIR/verify-authorization.sh" "$BASE_URL"
 "$SCRIPT_DIR/verify-i18n.sh" "$BASE_URL"
 "$SCRIPT_DIR/verify-order-cancellation.sh" "$BASE_URL"

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd -- "$(dirname -- "$0")" && pwd)/_verification-db.sh"
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 require_commands docker curl jq
 
@@ -39,7 +40,6 @@ while ((SECONDS<deadline));do
   sleep 1
 done
 jq -e '.logistics.status=="DELIVERED" and (.logistics.events|length)==6 and ([.logistics.events[]|select(.eventType!="PROGRESS")]|length)==0'<<<"$delivered">/dev/null||{ echo 'Automatic logistics timeline is incomplete'>&2;exit 1; }
-db_user="${DATABASE_USERNAME:-commerceflow}";db_password="${DATABASE_PASSWORD:-commerceflow-password}"
-task_status="$(compose exec -T commerce-db mysql --batch --skip-column-names "-u$db_user" "-p$db_password" commerceflow -e "SELECT status FROM scheduled_tasks WHERE task_type='AUTO_RECEIVE' AND task_key='order:$order_id'"|tail -n1|tr -d '\r')"
+task_status="$(verify_db commerce "SELECT status FROM scheduled_tasks WHERE task_type='AUTO_RECEIVE' AND task_key='order:$order_id'")"
 [[ "$task_status" == SCHEDULED ]]||{ echo 'Automatic DELIVERED callback did not schedule AUTO_RECEIVE'>&2;exit 1; }
 echo "Automatic logistics verification passed: configuration-driven CREATED -> DELIVERED and AUTO_RECEIVE scheduling (order=$(jq -r .orderNumber<<<"$candidate"))"

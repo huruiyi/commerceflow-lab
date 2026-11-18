@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd -- "$(dirname -- "$0")" && pwd)/_verification-db.sh"
 set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 require_commands curl jq docker
@@ -26,11 +27,7 @@ wait_healthy() {
   done
 }
 
-latest_task_id() {
-  docker compose -f "$PROJECT_ROOT/compose.yaml" exec -T commerce-db mysql -N \
-    -ucommerceflow -pcommerceflow-password commerceflow -e \
-    "SELECT COALESCE(MAX(id),0) FROM scheduled_tasks WHERE primary_trigger_snapshot='$1';" 2>/dev/null | tr -d '\r'
-}
+latest_task_id() { verify_db commerce "SELECT COALESCE(MAX(id),0) FROM scheduled_tasks WHERE primary_trigger_snapshot='$1';"; }
 
 find_mq_trace() {
   local task_id="$1" system="$2" deadline=$((SECONDS + MAX_WAIT_SECONDS)) search trace_id names

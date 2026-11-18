@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+source "$(cd -- "$(dirname -- "$0")" && pwd)/_verification-db.sh"
+[[ "${COMPOSE_PROJECT_NAME:-}" == commerceflow-legacy-?* ]] || {
+  echo 'Run this historical monolith rehearsal in an isolated commerceflow-legacy-* project.' >&2
+  exit 1
+}
 set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/_common.sh"
@@ -13,7 +18,7 @@ wait_healthy(){ for _ in $(seq 1 45);do curl -fsS "$BASE_URL/actuator/health"|jq
 restart_backend(){ export PAYMENT_CANCELLATION_CRASH_LAB_ORDER_ID="${1:-1}" PAYMENT_CANCELLATION_CRASH_LAB_PHASE="${2:-AFTER_CANCELLATION_BEGIN}" PAYMENT_CANCELLATION_CRASH_LAB_ENABLED="${3:-false}" PAYMENT_CANCELLATION_CRASH_LAB_PAUSE=5m;compose up -d --no-deps --force-recreate commerce-service >/dev/null;wait_healthy; }
 restore(){ rm -rf -- "$temp_dir";for name in "${names[@]}";do if [[ "${present[$name]}" == 1 ]];then export "$name=${saved[$name]}";else unset "$name";fi;done;compose up -d --no-deps --force-recreate commerce-service >/dev/null;wait_healthy||true; }
 trap restore EXIT
-sql(){ compose exec -T commerce-db mysql -ucommerceflow -pcommerceflow-password -Nse "$1" commerceflow 2>/dev/null|tr -d '\r'; }
+sql() { verify_db legacy "$1" | tail -n 1; }
 payment_sql(){ compose exec -T payment-simulator-db mysql -upayment -ppayment-password -Nse "$1" payment_platform 2>/dev/null|tr -d '\r'; }
 new_customer(){ session_counter=$((session_counter+1));CUSTOMER_JAR="$temp_dir/customer-$session_counter.cookies";IFS=$'\t' read -r CUSTOMER_HEADER CUSTOMER_TOKEN<<<"$(storefront_login "$BASE_URL" demo@example.com "$CUSTOMER_JAR")";if ! json_request GET "$BASE_URL/api/addresses/selected" "$CUSTOMER_JAR">/dev/null 2>&1;then address="$(json_request POST "$BASE_URL/api/addresses" "$CUSTOMER_JAR" "$CUSTOMER_HEADER" "$CUSTOMER_TOKEN" '{"recipientName":"Crash Lab","phone":"13800000000","countryCode":"CN","stateProvince":"Shanghai","city":"Shanghai","district":"Pudong","addressLine1":"2 Recovery Road","addressLine2":"","postalCode":"200120","label":"Crash Lab","isDefault":true}')";json_request PUT "$BASE_URL/api/addresses/$(jq -r .id<<<"$address")/select" "$CUSTOMER_JAR" "$CUSTOMER_HEADER" "$CUSTOMER_TOKEN" '{}' >/dev/null;fi; }
 new_fixture(){ new_customer;json_request POST "$BASE_URL/api/cart/items" "$CUSTOMER_JAR" "$CUSTOMER_HEADER" "$CUSTOMER_TOKEN" '{"productId":1,"quantity":1,"note":"crash-recovery-lab"}'>/dev/null;order="$(json_request POST "$BASE_URL/api/purchase-orders/checkout" "$CUSTOMER_JAR" "$CUSTOMER_HEADER" "$CUSTOMER_TOKEN" '{}')";payment="$(json_request POST "$BASE_URL/api/purchase-orders/$(jq -r .id<<<"$order")/payments" "$CUSTOMER_JAR" "$CUSTOMER_HEADER" "$CUSTOMER_TOKEN" "$(jq -nc --arg key "$(uuid_hex)" '{idempotencyKey:$key,simulateFailure:false,channel:"ALIPAY"}')")";jq -nc --argjson id "$(jq -r .id<<<"$order")" --arg tx "$(jq -r .payment.channelTransactionNo<<<"$payment")" --argjson amount "$(jq -r .payment.amount<<<"$payment")" '{id:$id,tx:$tx,amount:$amount}'; }

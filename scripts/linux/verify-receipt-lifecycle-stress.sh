@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd -- "$(dirname -- "$0")" && pwd)/_verification-db.sh"
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 require_commands docker curl jq openssl
 
@@ -18,19 +19,17 @@ original_receive=''
 original_complete=''
 if [[ -v SCHEDULING_RABBITMQ_ENABLED ]]; then saved_rabbit_present=true; saved_rabbit="$SCHEDULING_RABBITMQ_ENABLED"; else saved_rabbit_present=false; saved_rabbit=''; fi
 
-sql() {
-  compose exec -T commerce-db mysql -ucommerceflow -pcommerceflow-password -Nse "$1" commerceflow 2>/dev/null | tail -n1 | tr -d '\r'
-}
+sql() { verify_db commerce "$1" | tail -n 1; }
 
 wait_sql_nonempty() {
-  local query="$1" label="$2" deadline=$((SECONDS + MAX_WAIT_SECONDS)) value=''
-  while (( SECONDS < deadline )); do value="$(sql "$query")"; [[ -n "$value" ]] && { printf '%s' "$value"; return; }; sleep 0.2; done
+  local query="$1" label="$2" scope="${3:-commerce}" deadline=$((SECONDS + MAX_WAIT_SECONDS)) value=''
+  while (( SECONDS < deadline )); do value="$(verify_db "$scope" "$query")"; [[ -n "$value" ]] && { printf '%s' "$value"; return; }; sleep 0.2; done
   echo "$label timed out (last=$value)" >&2; return 1
 }
 
 wait_sql_status() {
   local order_id="$1" expected="$2" label="$3" deadline=$((SECONDS + MAX_WAIT_SECONDS)) value=''
-  while (( SECONDS < deadline )); do value="$(sql "SELECT status FROM shop_orders WHERE id=$order_id")"; [[ "$value" == "$expected" ]] && return; sleep 0.2; done
+  while (( SECONDS < deadline )); do value="$(verify_db order "SELECT status FROM shop_orders WHERE id=$order_id")"; [[ "$value" == "$expected" ]] && return; sleep 0.2; done
   echo "$label timed out (last=$value)" >&2; return 1
 }
 
@@ -62,9 +61,9 @@ trap cleanup EXIT
 
 new_delivered_order() {
   local before id
-  before="$(sql 'SELECT COALESCE(MAX(id),0) FROM shop_orders')"
+  before="$(verify_db order 'SELECT COALESCE(MAX(id),0) FROM shop_orders')"
   bash "$SCRIPT_DIR/verify-logistics.sh" "$BASE_URL" >&2 || return
-  id="$(wait_sql_nonempty "SELECT o.id FROM shop_orders o JOIN shipment_records s ON s.order_id=o.id WHERE o.id>$before AND o.status='SHIPPED' AND s.status='DELIVERED' ORDER BY o.id DESC LIMIT 1" 'delivered order creation')"
+  id="$(wait_sql_nonempty "SELECT o.id FROM shop_orders o WHERE o.id>$before AND o.status='SHIPPED' AND o.logistics_delivered_at IS NOT NULL ORDER BY o.id DESC LIMIT 1" 'delivered order creation' order)"
   printf '%s' "$id"
 }
 
@@ -88,7 +87,7 @@ invoke_race() {
   local order_id="$1" task_id="$2" task_type="$3" bias="$4" payload publish_body worker half=$((CONCURRENCY / 2)) output
   output="$temp_dir/race-$task_id.txt"
   : >"$output"
-  sql "UPDATE scheduled_tasks SET due_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE id=$task_id" >/dev/null
+  verify_db task "UPDATE scheduled_tasks SET due_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE id=$task_id" >/dev/null
   payload="$(jq -nc --argjson id "$task_id" --arg type "$task_type" '{taskId:$id,taskType:$type,dueAt:"2000-01-01T00:00:00Z",strategySnapshot:"RABBITMQ"}')"
   publish_body="$(jq -nc --arg payload "$payload" '{properties:{content_type:"application/json",delivery_mode:2},routing_key:"scheduled-task.ready",payload:$payload,payload_encoding:"string"}')"
   if [[ "$bias" == MANUAL ]]; then
@@ -132,11 +131,11 @@ while (( rounds < MINIMUM_ROUNDS || SECONDS < deadline )); do
   receive_task="$(wait_sql_nonempty "SELECT id FROM scheduled_tasks WHERE task_type='AUTO_RECEIVE' AND task_key='order:$order_id'" "round $rounds AUTO_RECEIVE creation")"
   race_count="$(invoke_race "$order_id" "$receive_task" AUTO_RECEIVE "$bias")" || exit
   total_requests=$((total_requests + race_count))
-  receipt_status="$(sql "SELECT status FROM shop_orders WHERE id=$order_id")"
+  receipt_status="$(verify_db order "SELECT status FROM shop_orders WHERE id=$order_id")"
   [[ "$receipt_status" == RECEIVED || "$receipt_status" == COMPLETED ]] || wait_sql_status "$order_id" RECEIVED "round $rounds receipt"
   receipt_events="$(sql "SELECT COUNT(*) FROM order_events WHERE order_id=$order_id AND event_type IN ('ORDER_RECEIVED','ORDER_AUTO_RECEIVED')")"
   [[ "$receipt_events" == 1 ]] || { echo "Round $rounds produced $receipt_events receipt transitions" >&2; exit 1; }
-  winner="$(sql "SELECT event_type FROM order_events WHERE order_id=$order_id AND event_type IN ('ORDER_RECEIVED','ORDER_AUTO_RECEIVED') LIMIT 1")"
+  winner="$(verify_db order "SELECT event_type FROM order_events WHERE order_id=$order_id AND event_type IN ('ORDER_RECEIVED','ORDER_AUTO_RECEIVED') LIMIT 1")"
   if [[ "$winner" == ORDER_RECEIVED ]]; then manual_wins=$((manual_wins + 1)); else auto_wins=$((auto_wins + 1)); fi
   complete_task="$(wait_sql_nonempty "SELECT id FROM scheduled_tasks WHERE task_type='AUTO_COMPLETE' AND task_key='order:$order_id'" "round $rounds AUTO_COMPLETE creation")"
   race_count="$(invoke_race "$order_id" "$complete_task" AUTO_COMPLETE "$bias")" || exit

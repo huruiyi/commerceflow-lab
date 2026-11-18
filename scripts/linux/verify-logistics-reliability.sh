@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd -- "$(dirname -- "$0")" && pwd)/_verification-db.sh"
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 require_commands curl jq openssl docker
 
@@ -53,10 +54,7 @@ logistics_sql() {
     "-u${LOGISTICS_DATABASE_USERNAME:-logistics}" "-p${LOGISTICS_DATABASE_PASSWORD:-logistics-password}" logistics_platform -e "$1" | tail -n 1 | tr -d '\r'
 }
 
-storefront_sql() {
-  docker compose --project-directory "$PROJECT_ROOT" exec -T commerce-db mysql --batch --skip-column-names \
-    "-u${DATABASE_USERNAME:-commerceflow}" "-p${DATABASE_PASSWORD:-commerceflow-password}" commerceflow -e "$1" | tail -n 1 | tr -d '\r'
-}
+storefront_sql() { verify_db commerce "$1" | tail -n 1; }
 
 "$SCRIPT_DIR/verify-merchant-fulfillment.sh" "$BASE_URL"
 login_customer

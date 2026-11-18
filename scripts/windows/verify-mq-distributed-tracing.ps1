@@ -6,6 +6,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot '_verification-db.ps1')
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $variables = @(
   'TRACING_EXPORT_ENABLED', 'SCHEDULING_RABBITMQ_ENABLED', 'SCHEDULING_ROCKETMQ_ENABLED',
@@ -31,9 +32,7 @@ function Wait-Healthy([string]$Url) {
 
 function Latest-TaskId([string]$Strategy) {
   $sql = "SELECT COALESCE(MAX(id),0) FROM scheduled_tasks WHERE primary_trigger_snapshot='$Strategy';"
-  $value = docker compose -f "$ProjectRoot/compose.yaml" exec -T commerce-db mysql -N `
-    -ucommerceflow -pcommerceflow-password commerceflow -e $sql 2>$null
-  if ($LASTEXITCODE -ne 0) { throw "Could not query the latest $Strategy task" }
+  $value = Invoke-VerificationDb commerce $sql @("-f", "$ProjectRoot/compose.yaml")
   return [long](($value | Out-String).Trim())
 }
 

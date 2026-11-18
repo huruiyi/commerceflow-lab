@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd -- "$(dirname -- "$0")" && pwd)/_verification-db.sh"
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 require_commands docker curl jq openssl
 
@@ -21,9 +22,7 @@ for name in "${env_names[@]}"; do
   if [[ -v "$name" ]]; then saved_present[$name]=true; saved_values[$name]="${!name}"; else saved_present[$name]=false; fi
 done
 
-sql() {
-  compose exec -T commerce-db mysql -ucommerceflow -pcommerceflow-password --batch --skip-column-names commerceflow -e "$1" 2>/dev/null | tail -n1 | tr -d '\r'
-}
+sql() { verify_db commerce "$1" | tail -n 1; }
 
 wait_sql_nonempty() {
   local query="$1" label="$2" deadline=$((SECONDS + MAX_WAIT_SECONDS)) value=''
@@ -37,9 +36,9 @@ wait_sql_nonempty() {
 }
 
 wait_sql_equals() {
-  local query="$1" expected="$2" label="$3" deadline=$((SECONDS + MAX_WAIT_SECONDS)) value=''
+  local query="$1" expected="$2" label="$3" scope="${4:-commerce}" deadline=$((SECONDS + MAX_WAIT_SECONDS)) value=''
   while (( SECONDS < deadline )); do
-    value="$(sql "$query")"
+    value="$(verify_db "$scope" "$query")"
     [[ "$value" == "$expected" ]] && return
     sleep 0.5
   done
@@ -70,9 +69,11 @@ broker() {
 
 new_delivered_order() {
   local before id
-  before="$(sql "SELECT COALESCE(MAX(id),0) FROM shop_orders")"
+  local customer_id
+  customer_id="$(sql "SELECT id FROM app_users WHERE email='demo@example.com'")"
+  before="$(verify_db order "SELECT COALESCE(MAX(id),0) FROM shop_orders")"
   bash "$SCRIPT_DIR/verify-logistics.sh" "$BASE_URL" >&2 || return
-  id="$(sql "SELECT o.id FROM shop_orders o JOIN shipment_records s ON s.order_id=o.id JOIN app_users u ON u.id=o.customer_id WHERE u.email='demo@example.com' AND o.id>$before AND o.status='SHIPPED' AND s.status='DELIVERED' ORDER BY o.id DESC LIMIT 1")"
+  id="$(verify_db order "SELECT o.id FROM shop_orders o WHERE o.customer_id=$customer_id AND o.id>$before AND o.status='SHIPPED' AND o.logistics_delivered_at IS NOT NULL ORDER BY o.id DESC LIMIT 1")"
   [[ -n "$id" ]] || { echo 'Delivered order not found' >&2; return 1; }
   printf '%s' "$id"
 }
@@ -91,7 +92,7 @@ assert_publish_failure() {
 
 verify_task() {
   local task_id="$1" trigger="$2" expected_order_status="$3" order_id="$4" audit count
-  wait_sql_equals "SELECT status FROM shop_orders WHERE id=$order_id" "$expected_order_status" "$trigger order $expected_order_status"
+  wait_sql_equals "SELECT status FROM shop_orders WHERE id=$order_id" "$expected_order_status" "$trigger order $expected_order_status" order
   audit="$(sql "SELECT CONCAT(status,':',last_trigger_source,':',primary_trigger_snapshot) FROM scheduled_tasks WHERE id=$task_id")"
   [[ "$audit" == "SUCCEEDED:$trigger:$trigger" ]] || { echo "Unexpected $trigger task audit: $audit" >&2; return 1; }
   count="$(sql "SELECT COUNT(*) FROM scheduled_task_events WHERE task_id=$task_id AND event_type='TASK_SUCCEEDED'")"
@@ -148,7 +149,7 @@ for trigger in RABBITMQ ROCKETMQ; do
   receive_task="$(wait_sql_nonempty "SELECT id FROM scheduled_tasks WHERE task_type='AUTO_RECEIVE' AND task_key='order:$receive_order'" "$trigger AUTO_RECEIVE creation")"
   [[ "$(sql "SELECT primary_trigger_snapshot FROM scheduled_tasks WHERE id=$receive_task")" == "$trigger" ]] || { echo "AUTO_RECEIVE snapshot is not $trigger" >&2; exit 1; }
   assert_publish_failure "$receive_task" "$trigger AUTO_RECEIVE"
-  sql "UPDATE scheduled_tasks SET due_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE id=$receive_task" >/dev/null
+  verify_db task "UPDATE scheduled_tasks SET due_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE id=$receive_task" >/dev/null
   broker "$trigger" start
   verify_task "$receive_task" "$trigger" RECEIVED "$receive_order"
 
@@ -161,7 +162,7 @@ for trigger in RABBITMQ ROCKETMQ; do
   complete_task="$(wait_sql_nonempty "SELECT id FROM scheduled_tasks WHERE task_type='AUTO_COMPLETE' AND task_key='order:$complete_order'" "$trigger AUTO_COMPLETE creation")"
   [[ "$(sql "SELECT primary_trigger_snapshot FROM scheduled_tasks WHERE id=$complete_task")" == "$trigger" ]] || { echo "AUTO_COMPLETE snapshot is not $trigger" >&2; exit 1; }
   assert_publish_failure "$complete_task" "$trigger AUTO_COMPLETE"
-  sql "UPDATE scheduled_tasks SET due_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE id=$complete_task" >/dev/null
+  verify_db task "UPDATE scheduled_tasks SET due_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE id=$complete_task" >/dev/null
   broker "$trigger" start
   verify_task "$complete_task" "$trigger" COMPLETED "$complete_order"
 done

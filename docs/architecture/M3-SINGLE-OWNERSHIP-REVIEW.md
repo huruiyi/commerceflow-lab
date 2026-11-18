@@ -55,8 +55,8 @@ PostgreSQL 专项按[数据库演进计划](DATABASE-EVOLUTION-PLAN.md)另行评
   见[通知历史迁移验收](#6-通知历史迁移验收)。
 - [x] 库存旧迁移、订单和支付影子、履约影子均有显式手工入口。支付默认启动移除源库凭据及依赖，
   订单和支付默认关闭影子复制，履约旧读者跨库授权已收回。见[旧迁移工具与权限验收](#7-旧迁移工具与权限验收)。
-- [ ] 复核商城旧测试和运维账号 `commerceflow@%` 的 Schema 级授权。多个既有验收脚本仍使用该账号，
-  进一步缩减前需逐个迁移调用方。
+- [x] 验收和运维脚本使用按用途授权的专用账号。隔离复测后，现有 `commerceflow@%` 已锁定，
+  商城库级授权已收回。见[验收与运维账号撤权](#8-验收与运维账号撤权)。
 
 ### 收口兼容入口、运行证据和归档
 
@@ -169,8 +169,7 @@ docker compose -p fairy-commerceflow-shadow-qa -f compose.yaml --profile fulfill
 
 运行仓库中的订单或支付影子验收脚本时，通过 `COMPOSE_PROJECT_NAME` 和 `COMPOSE_FILE` 显式指定上述项目和两个配置文件。
 演练结束后先停止影子进程，再用对应项目运行 `--profile migration-access run --rm --no-deps legacy-shadow-access-revoker`。
-此命令锁定专用影子读者并移除直接授权，支持反复执行。现有环境用于验收和运维的 `commerceflow@%` 单独管理，
-商城应用使用 `commerce_runtime@%`。
+此命令锁定专用影子读者并移除直接授权，支持反复执行。商城应用使用 `commerce_runtime@%`。
 
 2026-11-19 验收：
 
@@ -184,3 +183,27 @@ docker compose -p fairy-commerceflow-shadow-qa -f compose.yaml --profile fulfill
   订单库的三列授权均从 3 降为 0，两库登录返回 MySQL 3118。重建与撤权前后，源水位、各目标水位及业务行数一致，
   订单、支付、履约与门户健康检查通过。
 - 库存历史订单 465、479、480、497、498 仍待仓库凭证，尝试次数各为 5，结案记录为 0。旧预占未重放。
+
+## 8. 验收与运维账号撤权
+
+新建商城数据库卷时，MySQL 不再自动创建 `commerceflow@%`。完成 Flyway 建表后，按需启用核验账号：
+
+```powershell
+docker compose --profile verification-access run --rm --no-deps verification-db-access --readers
+docker compose --profile verification-access run --rm --no-deps verification-db-access --legacy-reader
+```
+
+| 用途 | 账号与权限 |
+| --- | --- |
+| 当前运行证据 | `commerce_audit` 只读调度、物流、库存投递及定位演示顾客所需列。订单与支付一致性由 `order_audit`、`payment_audit` 读取各自所有库。 |
+| 历史与入场核对 | `commerce_legacy_audit` 只读所需旧表及 `commerce_verification` 的元数据快照。执行依赖外键或表列注释的核对前，重跑 `--legacy-reader` 刷新快照。 |
+| 调度演练 | `--task-fixture` 允许更新时间和租约等演练字段。`--recovery-fixture` 仅允许插入演练任务所需列。 |
+| 旧商城支付行锁 | `--legacy-lock` 仅适用于 `commerceflow-legacy-*` 隔离项目，允许按主键锁定旧订单和支付行。旧支付崩溃、锁超时和 Kafka 验收使用对应的历史单体基线。 |
+
+隔离 MySQL 验证两端脚本的连接、只读和拒绝写入、真实任务行更新、恢复任务插入与行锁。用 root
+对照元数据快照，外键和注释统计一致。权限、国际化、支付回调及支付与取消竞态通过。锁定旧账号后再次执行 4 轮竞态，
+订单库和支付库结果一致。历史单体专项本轮验证了其数据库权限与行锁。
+
+现有环境启用只读账号并对照查询结果后，通过 `verification-db-access --retire` 锁定 `commerceflow@%`。
+18 项商城库级授权降为 0，旧账号连接收到 MySQL 3118。重复撤权、只读查询、商城与门户健康检查通过。
+库存历史订单 465、479、480、497、498 仍挂账，尝试次数各为 5，结案记录为 0。旧预占未重放。

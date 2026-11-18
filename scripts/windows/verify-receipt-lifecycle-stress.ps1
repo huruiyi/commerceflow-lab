@@ -8,22 +8,23 @@ param(
   [ValidateRange(15,300)][int]$MaxWaitSeconds=90
 )
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot '_verification-db.ps1')
 $ProjectRoot=(Resolve-Path(Join-Path $PSScriptRoot '../..')).Path
 $savedRabbit=[Environment]::GetEnvironmentVariable('SCHEDULING_RABBITMQ_ENABLED')
 
 function Compose([string[]]$Arguments){& docker compose --project-directory $ProjectRoot @Arguments;if($LASTEXITCODE-ne0){throw "Compose failed: $($Arguments-join' ')"}}
-function Sql([string]$Statement){$v=& docker compose --project-directory $ProjectRoot exec -T commerce-db mysql -ucommerceflow -pcommerceflow-password -Nse $Statement commerceflow 2>$null;if($LASTEXITCODE-ne0){throw 'SQL failed'};return($v-join"`n").Trim()}
+function Sql([string]$Statement){ return ((Invoke-VerificationDb commerce $Statement) -join "`n").Trim() }
 function New-Session([string]$Email){$s=[Microsoft.PowerShell.Commands.WebRequestSession]::new();$c=Invoke-RestMethod "$BaseUrl/api/auth/csrf" -WebSession $s;$h=@{};$h[$c.headerName]=$c.token;Invoke-RestMethod "$BaseUrl/api/auth/login" -Method Post -WebSession $s -Headers $h -ContentType application/json -Body (@{email=$Email;password='demo-password';rememberMe=$false}|ConvertTo-Json -Compress)|Out-Null;return @{Session=$s;Headers=$h;HeaderName=$c.headerName;Token=$c.token}}
-function Wait-Sql([string]$Query,[scriptblock]$Accept,[string]$Label){$end=(Get-Date).AddSeconds($MaxWaitSeconds);do{$value=Sql $Query;if(&$Accept $value){return $value};Start-Sleep -Milliseconds 200}while((Get-Date)-lt$end);throw "$Label timed out (last=$value)"}
+function Wait-Sql([string]$Query,[scriptblock]$Accept,[string]$Label,[string]$Scope='commerce'){$end=(Get-Date).AddSeconds($MaxWaitSeconds);do{$value=((Invoke-VerificationDb $Scope $Query)|Out-String).Trim();if(&$Accept $value){return $value};Start-Sleep -Milliseconds 200}while((Get-Date)-lt$end);throw "$Label timed out (last=$value)"}
 function Set-Policy($Admin,[string]$Type,$Original=$null){if($Original){$body=@{enabled=[bool]$Original.enabled;primaryTrigger=[string]$Original.primaryTrigger;reconciliationEnabled=[bool]$Original.reconciliationEnabled;gracePeriodSeconds=[int]$Original.gracePeriodSeconds;claimLeaseSeconds=[int]$Original.claimLeaseSeconds;maxAttempts=[int]$Original.maxAttempts;retryDelaySeconds=[int]$Original.retryDelaySeconds}|ConvertTo-Json -Compress}else{$body=@{enabled=$true;primaryTrigger='RABBITMQ';reconciliationEnabled=$false;gracePeriodSeconds=0;claimLeaseSeconds=30;maxAttempts=8;retryDelaySeconds=1}|ConvertTo-Json -Compress};Invoke-RestMethod "$BaseUrl/api/admin/scheduling/policies/$Type" -Method Put -WebSession $Admin.Session -Headers $Admin.Headers -ContentType application/json -Body $body|Out-Null}
 function New-DeliveredOrder{
-  $before=[long](Sql 'SELECT COALESCE(MAX(id),0) FROM shop_orders')
+  $before=[long](Invoke-VerificationDb order 'SELECT COALESCE(MAX(id),0) FROM shop_orders')
   & "$PSScriptRoot/verify-logistics.ps1" -BaseUrl $BaseUrl|Out-Host
   if(-not $?){throw 'Could not create delivered order'}
-  return [long](Wait-Sql "SELECT o.id FROM shop_orders o JOIN shipment_records s ON s.order_id=o.id WHERE o.id>$before AND o.status='SHIPPED' AND s.status='DELIVERED' ORDER BY o.id DESC LIMIT 1" {param($v) -not [string]::IsNullOrWhiteSpace($v)} 'delivered order creation')
+  return [long](Wait-Sql "SELECT o.id FROM shop_orders o WHERE o.id>$before AND o.status='SHIPPED' AND o.logistics_delivered_at IS NOT NULL ORDER BY o.id DESC LIMIT 1" {param($v) -not [string]::IsNullOrWhiteSpace($v)} 'delivered order creation' order)
 }
 function Invoke-Race([long]$OrderId,[long]$TaskId,[string]$TaskType,[string]$Bias,$Customer){
-  Sql "UPDATE scheduled_tasks SET due_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE id=$TaskId"|Out-Null
+  Invoke-VerificationDb task "UPDATE scheduled_tasks SET due_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE id=$TaskId"|Out-Null
   $payload=@{taskId=$TaskId;taskType=$TaskType;dueAt=[DateTimeOffset]::UtcNow.AddSeconds(-1).ToString('o');strategySnapshot='RABBITMQ'}|ConvertTo-Json -Compress
   $publishBody=@{properties=@{content_type='application/json';delivery_mode=2};routing_key='scheduled-task.ready';payload=$payload;payload_encoding='string'}|ConvertTo-Json -Depth 8 -Compress
   $rabbitToken=[Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes('commerceflow:commerceflow-password'))
@@ -67,14 +68,14 @@ try{
     $orderId=New-DeliveredOrder
     $receiveTask=[long](Wait-Sql "SELECT id FROM scheduled_tasks WHERE task_type='AUTO_RECEIVE' AND task_key='order:$orderId'" {param($v) -not [string]::IsNullOrWhiteSpace($v)} "round $rounds AUTO_RECEIVE creation")
     $totalRequests+=Invoke-Race $orderId $receiveTask 'AUTO_RECEIVE' $bias $customer
-    Wait-Sql "SELECT status FROM shop_orders WHERE id=$orderId" {param($v) $v -in @('RECEIVED','COMPLETED')} "round $rounds receipt"|Out-Null
+    Wait-Sql "SELECT status FROM shop_orders WHERE id=$orderId" {param($v) $v -in @('RECEIVED','COMPLETED')} "round $rounds receipt" order|Out-Null
     $receiptEvents=[int](Sql "SELECT COUNT(*) FROM order_events WHERE order_id=$orderId AND event_type IN ('ORDER_RECEIVED','ORDER_AUTO_RECEIVED')")
     if($receiptEvents -ne 1){throw "Round $rounds produced $receiptEvents receipt transitions"}
-    $winner=Sql "SELECT event_type FROM order_events WHERE order_id=$orderId AND event_type IN ('ORDER_RECEIVED','ORDER_AUTO_RECEIVED') LIMIT 1"
+    $winner=Invoke-VerificationDb order "SELECT event_type FROM order_events WHERE order_id=$orderId AND event_type IN ('ORDER_RECEIVED','ORDER_AUTO_RECEIVED') LIMIT 1"
     if($winner -eq 'ORDER_RECEIVED'){$manualWins++}else{$autoWins++}
     $completeTask=[long](Wait-Sql "SELECT id FROM scheduled_tasks WHERE task_type='AUTO_COMPLETE' AND task_key='order:$orderId'" {param($v) -not [string]::IsNullOrWhiteSpace($v)} "round $rounds AUTO_COMPLETE creation")
     $totalRequests+=Invoke-Race $orderId $completeTask 'AUTO_COMPLETE' $bias $customer
-    Wait-Sql "SELECT status FROM shop_orders WHERE id=$orderId" {param($v) $v -eq 'COMPLETED'} "round $rounds completion"|Out-Null
+    Wait-Sql "SELECT status FROM shop_orders WHERE id=$orderId" {param($v) $v -eq 'COMPLETED'} "round $rounds completion" order|Out-Null
     $audit=Sql "SELECT CONCAT((SELECT COUNT(*) FROM scheduled_tasks WHERE task_key='order:$orderId' AND task_type='AUTO_RECEIVE'),'|',(SELECT COUNT(*) FROM scheduled_tasks WHERE task_key='order:$orderId' AND task_type='AUTO_COMPLETE'),'|',(SELECT COUNT(*) FROM order_events WHERE order_id=$orderId AND event_type='ORDER_AUTO_COMPLETED'),'|',(SELECT COUNT(*) FROM scheduled_task_events WHERE task_id=$completeTask AND event_type='TASK_CLAIMED'),'|',(SELECT COUNT(*) FROM scheduled_task_events WHERE task_id=$completeTask AND event_type='TASK_SUCCEEDED'),'|',(SELECT COUNT(*) FROM scheduled_tasks WHERE task_key='order:$orderId' AND status='FAILED'))"
     if($audit -ne '1|1|1|1|1|0'){throw "Round $rounds invariant failure: $audit"}
   }while($rounds -lt $MinimumRounds -or [DateTimeOffset]::UtcNow -lt $deadline)

@@ -22,6 +22,10 @@ if(-not$SkipBuild){
 }
 & docker compose --project-directory $ProjectRoot up -d --wait
 if($LASTEXITCODE-ne0){throw 'Default stack did not become healthy'}
+foreach($scope in '--readers','--task-fixture'){
+  & docker compose --project-directory $ProjectRoot --profile verification-access run --rm --no-deps verification-db-access $scope
+  if($LASTEXITCODE-ne0){throw "Could not provision $scope verification access"}
+}
 
 RunBase 'verify-authorization.ps1'
 RunBase 'verify-i18n.ps1'

@@ -1,12 +1,16 @@
 param([string]$BaseUrl='http://localhost:18081')
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot '_verification-db.ps1')
+if ($env:COMPOSE_PROJECT_NAME -notlike 'commerceflow-legacy-?*') {
+  throw 'Run this historical monolith rehearsal in an isolated commerceflow-legacy-* project.'
+}
 $projectRoot=(Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $environmentNames=@('PAYMENT_CANCELLATION_CRASH_LAB_ENABLED','PAYMENT_CANCELLATION_CRASH_LAB_ORDER_ID',
   'PAYMENT_CANCELLATION_CRASH_LAB_PHASE','PAYMENT_CANCELLATION_CRASH_LAB_PAUSE')
 $saved=@{};foreach($name in $environmentNames){$saved[$name]=[Environment]::GetEnvironmentVariable($name)}
 
 function Compose([string[]]$Arguments){& docker compose --project-directory $projectRoot @Arguments;if($LASTEXITCODE-ne0){throw "Compose failed: $($Arguments-join' ')"}}
-function Sql([string]$Statement){$v=& docker compose --project-directory $projectRoot exec -T commerce-db mysql -ucommerceflow -pcommerceflow-password -Nse $Statement commerceflow 2>$null;if($LASTEXITCODE-ne0){throw 'Storefront SQL failed'};return($v-join"`n").Trim()}
+function Sql([string]$Statement){ return ((Invoke-VerificationDb legacy $Statement) -join "`n").Trim() }
 function PaymentSql([string]$Statement){$v=& docker compose --project-directory $projectRoot exec -T payment-simulator-db mysql -upayment -ppayment-password -Nse $Statement payment_platform 2>$null;if($LASTEXITCODE-ne0){throw 'Payment SQL failed'};return($v-join"`n").Trim()}
 function Wait-Healthy{for($i=0;$i-lt45;$i++){try{if((Invoke-RestMethod "$BaseUrl/actuator/health").status-eq'UP'){return}}catch{};Start-Sleep 1};throw 'Backend did not become healthy'}
 function Restart-Backend([long]$OrderId=1,[string]$Phase='AFTER_CANCELLATION_BEGIN',[bool]$Enabled=$false){$env:PAYMENT_CANCELLATION_CRASH_LAB_ENABLED=$Enabled.ToString().ToLowerInvariant();$env:PAYMENT_CANCELLATION_CRASH_LAB_ORDER_ID=[string]$OrderId;$env:PAYMENT_CANCELLATION_CRASH_LAB_PHASE=$Phase;$env:PAYMENT_CANCELLATION_CRASH_LAB_PAUSE='5m';Compose @('up','-d','--no-deps','--force-recreate','commerce-service');Wait-Healthy}

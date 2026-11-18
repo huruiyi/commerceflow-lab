@@ -3,8 +3,8 @@ spring:
     name: commerce-service
   datasource:
     url: ${DATABASE_URL:jdbc:mysql://localhost:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&sessionVariables=innodb_lock_wait_timeout=5}
-    username: ${DATABASE_USERNAME:commerceflow}
-    password: ${DATABASE_PASSWORD:commerceflow-password}
+    username: ${DATABASE_USERNAME:commerce_runtime}
+    password: ${DATABASE_PASSWORD:commerce-runtime-password}
   flyway:
     baseline-on-migrate: true
     baseline-version: 0

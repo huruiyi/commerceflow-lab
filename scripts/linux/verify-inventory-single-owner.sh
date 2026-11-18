@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd -- "$(dirname -- "$0")" && pwd)/_verification-db.sh"
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 require_commands curl jq docker
 BASE_URL="${1:-http://localhost:18081}"
@@ -52,8 +53,7 @@ for table in product_inventory inventory_reservations inventory_movements \
   fi
 done
 
-source_before="$(compose exec -T commerce-db mysql -N -ucommerceflow -pcommerceflow-password \
-  commerceflow -e 'SELECT COUNT(*) FROM inventory_movements;' 2>/dev/null)"
+source_before="$(verify_db legacy 'SELECT COUNT(*) FROM inventory_movements;')"
 target_before="$(compose exec -T inventory-db mysql -N -uinventory -pinventory-password \
   inventory -e 'SELECT COUNT(*) FROM inventory_movements;' 2>/dev/null)"
 
@@ -79,8 +79,7 @@ compose start inventory-service >/dev/null
 wait_healthy fairy-commerceflow-inventory-service
 json_request GET "$BASE_URL/api/merchant/inventory" "$cookie" >/dev/null
 
-source_after="$(compose exec -T commerce-db mysql -N -ucommerceflow -pcommerceflow-password \
-  commerceflow -e 'SELECT COUNT(*) FROM inventory_movements;' 2>/dev/null)"
+source_after="$(verify_db legacy 'SELECT COUNT(*) FROM inventory_movements;')"
 target_after="$(compose exec -T inventory-db mysql -N -uinventory -pinventory-password \
   inventory -e 'SELECT COUNT(*) FROM inventory_movements;' 2>/dev/null)"
 [[ "$source_after" == "$source_before" ]]

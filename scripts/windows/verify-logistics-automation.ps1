@@ -1,6 +1,7 @@
 param([string]$BaseUrl='http://localhost:14200')
 
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot '_verification-db.ps1')
 $ProjectRoot=(Resolve-Path(Join-Path $PSScriptRoot '..\..')).Path
 $names=@('LOGISTICS_AUTO_PROGRESS_ENABLED','LOGISTICS_AUTO_PROGRESS_INITIAL_DELAY','LOGISTICS_AUTO_PROGRESS_SCAN_INTERVAL','LOGISTICS_AUTO_PROGRESS_STEP_INTERVAL','LOGISTICS_AUTO_PROGRESS_BATCH_SIZE')
 $previous=@{}
@@ -37,10 +38,8 @@ try{
   if(-not$candidate){throw 'Automatic logistics shipment was not visible to customer'}
   $delivered=Wait-Delivered $candidate.id $customer
   if(@($delivered.logistics.events).Count-ne6-or@($delivered.logistics.events|Where-Object{$_.eventType-ne'PROGRESS'}).Count-ne0){throw 'Automatic logistics timeline is incomplete'}
-  $dbUser=if($env:DATABASE_USERNAME){$env:DATABASE_USERNAME}else{'commerceflow'}
-  $dbPassword=if($env:DATABASE_PASSWORD){$env:DATABASE_PASSWORD}else{'commerceflow-password'}
-  $taskStatus=docker compose --project-directory $ProjectRoot exec -T commerce-db mysql --batch --skip-column-names "-u$dbUser" "-p$dbPassword" commerceflow -e "SELECT status FROM scheduled_tasks WHERE task_type='AUTO_RECEIVE' AND task_key='order:$($candidate.id)'"
-  if($LASTEXITCODE-ne0-or(($taskStatus|Select-Object -Last 1)-as[string]).Trim()-ne'SCHEDULED'){throw 'Automatic DELIVERED callback did not schedule AUTO_RECEIVE'}
+  $taskStatus=Invoke-VerificationDb commerce "SELECT status FROM scheduled_tasks WHERE task_type='AUTO_RECEIVE' AND task_key='order:$($candidate.id)'"
+  if((($taskStatus|Select-Object -Last 1)-as[string]).Trim()-ne'SCHEDULED'){throw 'Automatic DELIVERED callback did not schedule AUTO_RECEIVE'}
   Write-Host "Automatic logistics verification passed: configuration-driven CREATED -> DELIVERED and AUTO_RECEIVE scheduling (order=$($candidate.orderNumber))" -ForegroundColor Green
 }finally{
   Restore-AutomationEnvironment

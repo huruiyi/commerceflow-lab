@@ -8,19 +8,21 @@ param(
   [int]$Seed=20261113
 )
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot '_verification-db.ps1')
 $projectRoot=(Resolve-Path(Join-Path $PSScriptRoot '../..')).Path
-function Sql([string]$Statement){$v=& docker compose --project-directory $projectRoot exec -T commerce-db mysql -ucommerceflow -pcommerceflow-password -Nse $Statement commerceflow 2>$null;if($LASTEXITCODE-ne0){throw 'Storefront SQL failed'};return($v-join"`n").Trim()}
+function Sql([string]$Statement){ return ((Invoke-VerificationDb commerce $Statement) -join "`n").Trim() }
 function New-Customer{$s=[Microsoft.PowerShell.Commands.WebRequestSession]::new();$c=Invoke-RestMethod "$BaseUrl/api/auth/csrf" -WebSession $s;$h=@{};$h[$c.headerName]=$c.token;Invoke-RestMethod "$BaseUrl/api/auth/login" -Method Post -WebSession $s -Headers $h -ContentType application/json -Body '{"email":"demo@example.com","password":"demo-password","rememberMe":false}'|Out-Null;return $s}
 
 & "$PSScriptRoot/verify-merchant-fulfillment.ps1" -BaseUrl $BaseUrl
 if(-not $?){throw 'Could not create the soak-test shipment'}
 $customer=New-Customer
-$orderId=Sql "SELECT o.id FROM shop_orders o JOIN shipment_records s ON s.order_id=o.id JOIN app_users u ON u.id=o.customer_id WHERE u.email='demo@example.com' AND o.status='SHIPPED' ORDER BY o.created_at DESC,o.id DESC LIMIT 1"
+$customerId=Sql "SELECT id FROM app_users WHERE email='demo@example.com'"
+$orderId=Invoke-VerificationDb order "SELECT id FROM shop_orders WHERE customer_id=$customerId AND status='SHIPPED' ORDER BY id DESC LIMIT 1"
 if(-not$orderId){throw 'No shipped order is available for the logistics soak test'}
 $projection=Invoke-RestMethod "$BaseUrl/api/purchase-orders/$orderId/logistics" -WebSession $customer
 $shipmentId=Sql "SELECT id FROM shipment_records WHERE order_id=$orderId"
 $initialIdentity=Sql "SELECT CONCAT(platform_shipment_no,'|',carrier,'|',tracking_number) FROM shipment_records WHERE id=$shipmentId"
-$beforeOrderEvents=[int](Sql "SELECT COUNT(*) FROM order_events WHERE order_id=$orderId AND event_type='LOGISTICS_STATUS_UPDATED'")
+$beforeOrderEvents=[int](Invoke-VerificationDb order "SELECT COUNT(*) FROM order_events WHERE order_id=$orderId AND event_type='LOGISTICS_STATUS_UPDATED'")
 $runId=[guid]::NewGuid().ToString('N').Substring(0,8);$deadline=[DateTimeOffset]::UtcNow.AddSeconds($DurationSeconds);$minimumPerWorker=[Math]::Ceiling($MinimumCallbacks/$Concurrency)
 $jobs=@()
 for($worker=0;$worker-lt$Concurrency;$worker++){
@@ -45,7 +47,7 @@ if($final.status-ne'DELIVERED'){throw "Logistics projection regressed to $($fina
 $eventCount=[int](Sql "SELECT COUNT(*) FROM shipment_events WHERE shipment_id=$shipmentId AND event_id LIKE 'SOAK-$runId-%'")
 $notificationCount=[int](Sql "SELECT COUNT(*) FROM shipment_notifications WHERE shipment_id=$shipmentId AND notification_id LIKE 'SOAK-$runId-%' AND processing_status='PROCESSED'")
 $identity=Sql "SELECT CONCAT(platform_shipment_no,'|',carrier,'|',tracking_number) FROM shipment_records WHERE id=$shipmentId"
-$sideEffects=[int](Sql "SELECT COUNT(*) FROM order_events WHERE order_id=$orderId AND event_type='LOGISTICS_STATUS_UPDATED'")-$beforeOrderEvents
+$sideEffects=[int](Invoke-VerificationDb order "SELECT COUNT(*) FROM order_events WHERE order_id=$orderId AND event_type='LOGISTICS_STATUS_UPDATED'")-$beforeOrderEvents
 $autoReceive=[int](Sql "SELECT COUNT(*) FROM scheduled_tasks WHERE task_type='AUTO_RECEIVE' AND task_key='order:$orderId'")
 if($eventCount-ne$results.Count-or$notificationCount-ne$results.Count){throw "Callback audit mismatch: sent=$($results.Count), events=$eventCount, notifications=$notificationCount"}
 if($identity-ne$initialIdentity){throw "Old callback fields overwrote shipment identity: $initialIdentity -> $identity"}

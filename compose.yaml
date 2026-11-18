@@ -5,8 +5,6 @@ services:
     image: mysql:8.4
     environment:
       MYSQL_DATABASE: commerceflow
-      MYSQL_USER: ${DATABASE_USERNAME:-commerceflow}
-      MYSQL_PASSWORD: ${DATABASE_PASSWORD:-commerceflow-password}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
     volumes:
       - commerce-db-data:/var/lib/mysql
@@ -48,6 +46,28 @@ services:
     depends_on:
       commerce-schema-migrator:
         condition: service_completed_successfully
+    restart: "no"
+
+  verification-db-access:
+    container_name: fairy-commerceflow-verification-db-access
+    image: mysql:8.4
+    profiles: ["verification-access"]
+    entrypoint: ["sh", "/access/verification-db-access.sh"]
+    command: ["--readers"]
+    environment:
+      COMMERCE_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
+      ORDER_ROOT_PASSWORD: ${ORDER_MYSQL_ROOT_PASSWORD:-local-order-root-password}
+      PAYMENT_ROOT_PASSWORD: ${PAYMENT_ORCHESTRATION_MYSQL_ROOT_PASSWORD:-local-payments-root-password}
+      COMMERCE_AUDIT_PASSWORD: ${COMMERCE_AUDIT_PASSWORD:-local-commerce-audit}
+      COMMERCE_LEGACY_AUDIT_PASSWORD: ${COMMERCE_LEGACY_AUDIT_PASSWORD:-local-legacy-audit}
+      COMMERCE_TASK_FIXTURE_PASSWORD: ${COMMERCE_TASK_FIXTURE_PASSWORD:-local-task-fixture}
+      COMMERCE_RECOVERY_FIXTURE_PASSWORD: ${COMMERCE_RECOVERY_FIXTURE_PASSWORD:-local-recovery-fixture}
+      COMMERCE_LEGACY_LOCK_PASSWORD: ${COMMERCE_LEGACY_LOCK_PASSWORD:-local-legacy-lock}
+      ORDER_AUDIT_PASSWORD: ${ORDER_AUDIT_PASSWORD:-local-order-audit}
+      PAYMENT_AUDIT_PASSWORD: ${PAYMENT_AUDIT_PASSWORD:-local-payment-audit}
+      VERIFICATION_PROJECT: ${COMPOSE_PROJECT_NAME}
+    volumes:
+      - ./infrastructure/commerce/verification-db-access.sh:/access/verification-db-access.sh:ro
     restart: "no"
 
   notification-db:

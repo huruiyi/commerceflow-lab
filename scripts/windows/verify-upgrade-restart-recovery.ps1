@@ -4,19 +4,18 @@ param(
 )
 
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot '_verification-db.ps1')
 $ProjectRoot=(Resolve-Path(Join-Path $PSScriptRoot '..\..')).Path
-$dbUser=if($env:DATABASE_USERNAME){$env:DATABASE_USERNAME}else{'commerceflow'}
-$dbPassword=if($env:DATABASE_PASSWORD){$env:DATABASE_PASSWORD}else{'commerceflow-password'}
+
+
 $suffix=[guid]::NewGuid().ToString('N').Substring(0,12)
 $managedVariables=@('SCHEDULING_RABBITMQ_ENABLED','SCHEDULING_ROCKETMQ_ENABLED','SCHEDULING_LEASE_RECOVERY_INITIAL_DELAY','SCHEDULING_LEASE_RECOVERY_FIXED_DELAY','SCHEDULING_DATABASE_INITIAL_DELAY','SCHEDULING_DATABASE_FIXED_DELAY')
 $savedEnvironment=@{}
 foreach($name in $managedVariables){$savedEnvironment[$name]=[Environment]::GetEnvironmentVariable($name,'Process')}
 
 function Compose { & docker compose --project-directory $ProjectRoot --profile rabbitmq --profile rocketmq @args; if($LASTEXITCODE-ne0){throw "docker compose failed: $($args-join' ')"} }
-function DbScalar([string]$Sql){
-  $value=& docker compose --project-directory $ProjectRoot exec -T commerce-db mysql --batch --skip-column-names "-u$dbUser" "-p$dbPassword" commerceflow -e $Sql 2>$null
-  if($LASTEXITCODE-ne0){throw 'Storefront database query failed'}
-  return(($value|Select-Object -Last 1)-as[string]).Trim()
+function DbScalar([string]$Sql) {
+  return ((Invoke-VerificationDb legacy $Sql) | Select-Object -Last 1).Trim()
 }
 function ServiceDbScalar([string]$Service,[string]$Database,[string]$User,[string]$Password,[string]$Sql){
   $value=& docker compose --project-directory $ProjectRoot exec -T $Service mysql --batch --skip-column-names "-u$User" "-p$Password" $Database -e $Sql 2>$null
@@ -55,8 +54,8 @@ try{
   $sourceTask=DbScalar "SELECT id FROM scheduled_tasks WHERE task_type='AUTO_COMPLETE' AND status='SUCCEEDED' ORDER BY id DESC LIMIT 1"
   if(-not$sourceTask){throw 'A completed AUTO_COMPLETE task is required as the recovery fixture'}
   Compose stop commerce-service commerce-portal-angular payment-simulator-web kafka-console
-  $rabbitTask=[long](DbScalar "INSERT INTO scheduled_tasks(task_key,task_type,aggregate_type,aggregate_id,payload_json,status,due_at,primary_trigger_snapshot,reconciliation_enabled_snapshot,grace_period_seconds_snapshot,claim_lease_seconds_snapshot,max_attempts,retry_delay_seconds_snapshot,policy_version_snapshot,attempts,lease_until,claimed_by,version,created_at,updated_at) SELECT 'm1-restart-rabbit-$suffix',task_type,aggregate_type,aggregate_id,payload_json,'PROCESSING',DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 5 SECOND),'RABBITMQ',FALSE,0,2,5,1,policy_version_snapshot,0,DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND),'crashed-rabbit-worker',0,UTC_TIMESTAMP(6),UTC_TIMESTAMP(6) FROM scheduled_tasks WHERE id=$sourceTask; SELECT LAST_INSERT_ID();")
-  $rocketTask=[long](DbScalar "INSERT INTO scheduled_tasks(task_key,task_type,aggregate_type,aggregate_id,payload_json,status,due_at,primary_trigger_snapshot,reconciliation_enabled_snapshot,grace_period_seconds_snapshot,claim_lease_seconds_snapshot,max_attempts,retry_delay_seconds_snapshot,policy_version_snapshot,attempts,lease_until,claimed_by,version,created_at,updated_at) SELECT 'm1-restart-rocket-$suffix',task_type,aggregate_type,aggregate_id,payload_json,'PROCESSING',DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 5 SECOND),'ROCKETMQ',FALSE,0,2,5,1,policy_version_snapshot,0,DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND),'crashed-rocket-worker',0,UTC_TIMESTAMP(6),UTC_TIMESTAMP(6) FROM scheduled_tasks WHERE id=$sourceTask; SELECT LAST_INSERT_ID();")
+  $rabbitTask=[long](Invoke-VerificationDb recovery "INSERT INTO scheduled_tasks(task_key,task_type,aggregate_type,aggregate_id,payload_json,status,due_at,primary_trigger_snapshot,reconciliation_enabled_snapshot,grace_period_seconds_snapshot,claim_lease_seconds_snapshot,max_attempts,retry_delay_seconds_snapshot,policy_version_snapshot,attempts,lease_until,claimed_by,version,created_at,updated_at) SELECT 'm1-restart-rabbit-$suffix',task_type,aggregate_type,aggregate_id,payload_json,'PROCESSING',DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 5 SECOND),'RABBITMQ',FALSE,0,2,5,1,policy_version_snapshot,0,DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND),'crashed-rabbit-worker',0,UTC_TIMESTAMP(6),UTC_TIMESTAMP(6) FROM scheduled_tasks WHERE id=$sourceTask; SELECT LAST_INSERT_ID();")
+  $rocketTask=[long](Invoke-VerificationDb recovery "INSERT INTO scheduled_tasks(task_key,task_type,aggregate_type,aggregate_id,payload_json,status,due_at,primary_trigger_snapshot,reconciliation_enabled_snapshot,grace_period_seconds_snapshot,claim_lease_seconds_snapshot,max_attempts,retry_delay_seconds_snapshot,policy_version_snapshot,attempts,lease_until,claimed_by,version,created_at,updated_at) SELECT 'm1-restart-rocket-$suffix',task_type,aggregate_type,aggregate_id,payload_json,'PROCESSING',DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 5 SECOND),'ROCKETMQ',FALSE,0,2,5,1,policy_version_snapshot,0,DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND),'crashed-rocket-worker',0,UTC_TIMESTAMP(6),UTC_TIMESTAMP(6) FROM scheduled_tasks WHERE id=$sourceTask; SELECT LAST_INSERT_ID();")
 
   Compose restart commerce-db payment-simulator-db logistics-simulator-db commerce-redis payment-simulator-redis kafka-broker rabbitmq-broker rocketmq-nameserver rocketmq-broker
   Compose up -d --wait commerce-db payment-simulator-db logistics-simulator-db commerce-redis payment-simulator-redis kafka-broker rabbitmq-broker rocketmq-nameserver rocketmq-broker
