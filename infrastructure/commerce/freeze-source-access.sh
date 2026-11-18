@@ -17,6 +17,10 @@ esac
 
 fulfillment_tables="'fulfillment_order_locks','fulfillment_command_ids','fulfillment_shipment_jobs',
   'fulfillment_shipment_recoveries','fulfillment_merchant_jobs','fulfillment_merchant_recoveries'"
+retired_source_tables="'products','product_translations','catalog_event_outbox',
+  'customer_notifications','notification_inbox','notification_projection_windows',
+  'notification_projection_shadow','notification_projection_audits',
+  'order_shadow_change_clock','payment_shadow_change_clock','payment_shadow_change_log'"
 escaped_password=$(printf '%s' "${RUNTIME_DATABASE_PASSWORD}" | sed "s/'/''/g")
 root_mysql() {
   MYSQL_PWD="$SOURCE_ROOT_PASSWORD" mysql -h commerce-db -uroot --protocol=tcp --batch --skip-column-names "$@"
@@ -32,6 +36,7 @@ grant_statements=$(root_mysql -e "
   WHERE table_schema = 'commerceflow'
     AND table_type = 'BASE TABLE'
     AND ('$owner' = 'COMMERCE' OR table_name NOT IN ($fulfillment_tables))
+    AND table_name NOT IN ($retired_source_tables)
     AND table_name NOT IN (
       'flyway_schema_history',
       'fulfillment_shadow_clock',
@@ -102,6 +107,11 @@ INSERT INTO grant_guard
   FROM information_schema.table_privileges
   WHERE grantee = CONCAT('''', '${RUNTIME_DATABASE_USERNAME}', '''@''%''')
     AND table_schema = 'commerceflow' AND table_name IN ($fulfillment_tables);
+INSERT INTO grant_guard
+  SELECT IF(COUNT(*) = 0, 5, 0)
+  FROM information_schema.table_privileges
+  WHERE grantee = CONCAT('''', '${RUNTIME_DATABASE_USERNAME}', '''@''%''')
+    AND table_schema = 'commerceflow' AND table_name IN ($retired_source_tables);
 DO RELEASE_LOCK('commerceflow.fulfillment-source-owner');
 SQL
 then
@@ -153,4 +163,5 @@ do
 done
 
 echo "Commerce runtime grants exclude all inventory, order, payment, and refund source tables."
+echo "Commerce runtime grants exclude retired catalog, notification, and shadow tables."
 echo "Fulfillment source owner: $owner; six-table direct grants: $fulfillment_grants."
