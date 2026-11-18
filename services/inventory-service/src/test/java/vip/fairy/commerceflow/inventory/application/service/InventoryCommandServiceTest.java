@@ -19,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryCommandTypeV1;
 import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryCommandV1;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryCommandInboxMapper;
+import vip.fairy.commerceflow.inventory.infrastructure.persistence.DeliveredInventoryReconciliationMapper;
 
 @ExtendWith(MockitoExtension.class)
 class InventoryCommandServiceTest {
@@ -28,6 +29,9 @@ class InventoryCommandServiceTest {
 
   @Mock
   private InventoryBalanceService inventory;
+
+  @Mock
+  private DeliveredInventoryReconciliationMapper reconciliation;
 
   @Test
   void reservesThroughTheSingleCommandUseCase() {
@@ -80,7 +84,7 @@ class InventoryCommandServiceTest {
   }
 
   private InventoryCommandService service() {
-    return new InventoryCommandService(inbox, inventory);
+    return new InventoryCommandService(inbox, inventory, reconciliation);
   }
 
   private InventoryCommandV1 reserve(String commandId) {

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.inventory.infrastructure.persistence.DeliveredInventoryReconciliationMapper">
+
+  <insert id="claim">
+    INSERT IGNORE INTO inventory_delivered_reconciliation(order_id,evidence_fingerprint,recorded_by)
+    VALUES(#{orderId},#{fingerprint},#{actor})
+  </insert>
+
+  <select id="fingerprint" resultType="java.lang.String">
+    SELECT evidence_fingerprint FROM inventory_delivered_reconciliation
+    WHERE order_id=#{orderId} FOR UPDATE
+  </select>
+
+  <update id="claimAvailable">
+    UPDATE product_inventory
+    SET stock_available=stock_available-#{quantity},stock_sold=stock_sold+#{quantity}
+    WHERE product_id=#{productId} AND stock_available=#{expectedAvailable}
+      AND stock_available&gt;=#{quantity}
+  </update>
+
+  <select id="orderMovementCount" resultType="int">
+    SELECT COUNT(*) FROM inventory_movements WHERE order_id=#{orderId} AND product_id=#{productId}
+  </select>
+
+  <insert id="insertCommitted">
+    INSERT INTO inventory_reservations(order_id,product_id,quantity,status,committed_at)
+    VALUES(#{orderId},#{productId},#{quantity},'COMMITTED',CURRENT_TIMESTAMP(6))
+  </insert>
+
+  <select id="bookedMovement" resultType="java.lang.Long">
+    SELECT id FROM inventory_movements
+    WHERE id=#{movementId} AND product_id=#{productId} AND quantity=#{quantity}
+      AND (
+        (order_id=#{orderId} AND movement_type IN ('COMMITTED','LATE_PAYMENT_COMMITTED'))
+        OR (
+          order_id IS NULL AND movement_type='MANUAL_DECREASE'
+          AND NOT EXISTS (
+            SELECT 1 FROM inventory_reservations
+            WHERE order_id=#{orderId} AND product_id=#{productId}
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM inventory_movements AS existing
+            WHERE existing.order_id=#{orderId} AND existing.product_id=#{productId}
+          )
+        )
+      )
+    FOR UPDATE
+  </select>
+
+  <select id="movementId" resultType="java.lang.Long">
+    SELECT id FROM inventory_movements WHERE event_id=#{eventId}
+  </select>
+
+  <insert id="record">
+    INSERT INTO inventory_delivered_reconciliation_lines(
+      order_id,product_id,quantity,warehouse_reference,evidence_at,evidence_note,movement_id,disposition
+    ) VALUES(
+      #{orderId},#{line.productId},#{line.quantity},#{line.warehouseReference},
+      #{line.evidenceAt},#{line.note},#{movementId},#{disposition}
+    )
+  </insert>
+
+  <select id="movements" resultType="java.lang.Long">
+    SELECT movement_id FROM inventory_delivered_reconciliation_lines
+    WHERE order_id=#{orderId} ORDER BY product_id FOR UPDATE
+  </select>
+
+</mapper>

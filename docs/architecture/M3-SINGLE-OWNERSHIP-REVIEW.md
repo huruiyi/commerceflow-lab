@@ -15,7 +15,7 @@ PostgreSQL 专项按[数据库演进计划](DATABASE-EVOLUTION-PLAN.md)另行评
 | --- | --- | --- |
 | 通知 | `notification-db` / `notification`，商城鉴权代理，商城 Outbox 投递事件 | 旧 `customer_notifications` 有 0 行。商城已发布的 298 个 eventId 与目标通知完全匹配，目标隔离 0。商城仍有旧通知、Inbox、影子投影/审计五表共 20 项直接授权。目标历史回填标记仍为 0，需要记录本环境的空源结论及有历史数据环境的验收要求。 |
 | 目录 | `catalog-db` / `catalog`，Catalog V1 | 目标 `catalog_cutover_state=COMPLETE`，现有 6 个商品、2 条已发布目录事件；旧库目录事件表为 0。商城仍有旧商品、翻译、目录 Outbox 三表共 12 项直接授权，门户启动仍依赖一次性目录迁移容器。 |
-| 库存 | `inventory-db` / `inventory`，Inventory V1 与命令接收 | 旧库存五表运行授权 0，独立库存接收流量。现有库登记为 `CUTOVER_COMPLETE`（generation 25）。历史 35 条已逐笔核对，结案 23 条，保留 12 条。订单 485 已取消。 |
+| 库存 | `inventory-db` / `inventory`，Inventory V1 与命令接收 | 旧库存五表运行授权 0，独立库存接收流量。现有库登记为 `CUTOVER_COMPLETE`（generation 25）。历史 35 条已逐笔核对，结案 30 条，还剩 5 条已送达订单的库存差异。订单 485 已取消。 |
 | 订单 | `order-db` / `orders`，Order V1 | 正式订单 684 条，商城旧订单 345 条，源变更水位 236。Order 接收流量、影子关闭，订单核心源表运行授权为 0。目标历史隔离 1 条已解决，发货意图未决为 0。商城旧 `order_shadow_change_clock` 仍有写权限。 |
 | 支付编排 | `payment-db` / `payments`，Payment V1 及独立回调 | 目标 551 笔支付及 102 笔退款。运行接入和效果投递开启，影子关闭，14 张旧资金表运行授权为 0，源水位 610。支付和命令 Outbox 未决为 0，目标历史隔离 2 条已解决，仍有 4 条 `OPEN` 支付对账问题。商城对支付影子时钟及变更日志仍有写授权；常驻支付容器仍携带源库连接配置。 |
 | 履约 | `fulfillment-db` / `fulfillment`，商城鉴权后转发 Fulfillment V1 | 源所有者为 `FULFILLMENT` 且冻结，目标 `EXECUTION`，旧六表运行授权 0，源水位 393（generation 41）。待处理和隔离均为 0。商城代码仍保留以配置为条件启用的本地执行和恢复分支，影子只读账号仍有源库和订单库访问权限。 |
@@ -37,8 +37,9 @@ PostgreSQL 专项按[数据库演进计划](DATABASE-EVOLUTION-PLAN.md)另行评
 
 - [x] 逐笔核对库存 35 条超时 `RESERVE` 及订单 485。结案 23 条，取消 485，并用隔离空库验证缺货、付款服务停机及正常结账。
   见[逐笔证据与复测结果](INVENTORY-RECONCILIATION-REVIEW.md)。
-- [ ] 核对 12 笔仍有成功支付的订单。其中 7 笔未发货，5 笔在物流模拟器中已送达，均缺少库存出库流水。
-  依据可核实的出入库与订单事实决定补记、补发或退款，当前保留原待对账记录。
+- [x] 复核 12 笔成功支付的订单。7 笔未发货且无库存流水，经模拟渠道原路全额退款，库存投递已结案。
+- [ ] 核对 5 笔已送达的库存差异。订单签收与物流模拟器回执一致，仍缺少可关联订单的出库或盘点依据，
+  保留待对账记录。证据齐备后使用[按订单登记仓库凭证](INVENTORY-RECONCILIATION-REVIEW.md#按订单登记仓库凭证)结案。
 - [ ] 处理支付库 4 条 `PAYMENT_TIMEOUT/OPEN`。关联支付均为 `CLOSED`，检测时间在正式支付切流前。对照渠道和订单
   事实决定结案方式并留审计。增加按真实对账表状态的只读统计或告警，验收时与 Process Manager 指标分别核对。
   当前 Process Manager 计数为 0，四条 OPEN 来自另一张账本。

@@ -45,6 +45,12 @@ public interface InventoryCommandDeliveryMapper {
 
   DeliveryRecoveryView byCommandId(String commandId);
 
+  DeliveryRecoveryView lockRecovery(String commandId);
+
+  int closeReconciled(@Param("commandId") String commandId,
+                      @Param("recoveredBy") String recoveredBy,
+                      @Param("recoveryReason") String recoveryReason);
+
   String payload(String commandId);
 
   int reopen(@Param("commandId") String commandId,

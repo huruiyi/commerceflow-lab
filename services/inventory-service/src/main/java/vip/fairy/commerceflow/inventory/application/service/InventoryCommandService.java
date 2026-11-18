@@ -13,17 +13,21 @@ import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryCommand
 import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryCommandV1;
 import vip.fairy.commerceflow.inventory.application.port.InventoryCommandUseCase;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryCommandInboxMapper;
+import vip.fairy.commerceflow.inventory.infrastructure.persistence.DeliveredInventoryReconciliationMapper;
 
 @Service
 public class InventoryCommandService implements InventoryCommandUseCase {
 
   private final InventoryCommandInboxMapper inbox;
   private final InventoryBalanceService inventory;
+  private final DeliveredInventoryReconciliationMapper reconciliation;
 
   public InventoryCommandService(InventoryCommandInboxMapper inbox,
-                                 InventoryBalanceService inventory) {
+                                 InventoryBalanceService inventory,
+                                 DeliveredInventoryReconciliationMapper reconciliation) {
     this.inbox = inbox;
     this.inventory = inventory;
+    this.reconciliation = reconciliation;
   }
 
   @Override
@@ -39,6 +43,10 @@ public class InventoryCommandService implements InventoryCommandUseCase {
       String rejection = inbox.rejectionMessage(command.commandId());
       return rejection == null ? InventoryCommandResultV1.succeeded(command)
         : InventoryCommandResultV1.reservationRejected(command, rejection);
+    }
+    if (command.commandType() == InventoryCommandTypeV1.RESERVE
+        && reconciliation.fingerprint(command.orderId()) != null) {
+      throw new InventoryBusinessRuleException("Order already has completed warehouse reconciliation");
     }
     try {
       apply(command);
