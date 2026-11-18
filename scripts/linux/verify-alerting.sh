@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
-set -euo pipefail
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+require_commands curl jq openssl
 
 PROMETHEUS_URL="${1:-http://localhost:19090}"
 ALERTMANAGER_URL="${2:-http://localhost:19093}"
 WEBHOOK_URL="${3:-http://localhost:18085}"
 MAX_WAIT_SECONDS="${4:-90}"
 SKIP_START="${5:-false}"
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 if [[ "$SKIP_START" != true ]]; then
-  docker compose --project-directory "$PROJECT_ROOT" --profile observability up -d \
+  compose --profile observability up -d \
     alert-webhook alertmanager prometheus grafana
+  compose restart prometheus >/dev/null
 fi
 
 wait_json() {
@@ -30,26 +31,46 @@ wait_json "$PROMETHEUS_URL/api/v1/status/buildinfo" '.status == "success"' >/dev
 wait_json "$ALERTMANAGER_URL/api/v2/status" '.versionInfo.version != null' >/dev/null
 wait_json "$WEBHOOK_URL/healthz" '.status == "UP"' >/dev/null
 
-docker compose --project-directory "$PROJECT_ROOT" exec -T prometheus \
+compose exec -T prometheus \
   promtool check config /etc/prometheus/prometheus.yml
-docker compose --project-directory "$PROJECT_ROOT" exec -T prometheus \
+compose exec -T prometheus \
   promtool test rules /etc/prometheus/tests/commerceflow-alerts.test.yml
-docker compose --project-directory "$PROJECT_ROOT" exec -T alertmanager \
+compose exec -T alertmanager \
   amtool check-config /etc/alertmanager/alertmanager.yml
 
 targets="$(wait_json "$PROMETHEUS_URL/api/v1/targets" \
-  '[.data.activeTargets[] | select(.health == "up")] | length == 3')"
+  '[.data.activeTargets[] | select(.health == "up")] | length == 4')"
 jobs="$(jq -r '[.data.activeTargets[].labels.job] | unique | join(",")' <<<"$targets")"
-if [[ "$jobs" != 'commerce-service,logistics-simulator-service,payment-simulator-service' ]]; then
+if [[ "$jobs" != 'commerce-service,logistics-simulator-service,payment-orchestration-service,payment-simulator-service' ]]; then
   echo "Unexpected Prometheus jobs: $jobs" >&2
   exit 1
 fi
 
+payment_metrics="$(curl -fsS http://localhost:18090/actuator/prometheus)"
+expected_metrics=(
+  'commerceflow_payment_outbox_pending 0.0'
+  'commerceflow_payment_command_outbox_pending 0.0'
+  'commerceflow_payment_process_pending 0.0'
+  'commerceflow_payment_process_recovery_required 0.0'
+  'commerceflow_payment_orphan_open 0.0'
+  'commerceflow_payment_refund_processing 0.0'
+  'commerceflow_payment_metrics_refresh_success 1.0'
+  'commerceflow_payment_accepting_traffic 1.0'
+  'commerceflow_payment_effects_enabled 1.0'
+  'commerceflow_payment_shadow_enabled 0.0'
+)
+for expected_metric in "${expected_metrics[@]}"; do
+  grep -Fqx "$expected_metric" <<<"$payment_metrics" || {
+    echo "Payment runtime metric is missing or unexpected: $expected_metric" >&2
+    exit 1
+  }
+done
+
 rules="$(wait_json "$PROMETHEUS_URL/api/v1/rules" \
   '[.data.groups[].rules[] | select(.name == "CommerceFlowWatchdog")] | length == 1')"
 rule_count="$(jq '[.data.groups[].rules[] | select(.type == "alerting")] | length' <<<"$rules")"
-if ((rule_count < 10)); then
-  echo "Expected at least 10 alert rules, found $rule_count." >&2
+if ((rule_count < 14)); then
+  echo "Expected at least 14 alert rules, found $rule_count." >&2
   exit 1
 fi
 

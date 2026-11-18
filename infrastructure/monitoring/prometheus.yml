@@ -19,6 +19,10 @@ scrape_configs:
     metrics_path: /actuator/prometheus
     static_configs:
       - targets: [payment-simulator-service:8080]
+  - job_name: payment-orchestration-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [payment-orchestration-service:8080]
   - job_name: logistics-simulator-service
     metrics_path: /actuator/prometheus
     static_configs:

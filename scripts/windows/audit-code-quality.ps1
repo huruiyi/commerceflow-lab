@@ -107,6 +107,7 @@ foreach ($file in $javaFiles) {
                           'RemoteOrderProtocolService.java',
                           'RemotePaymentProtocolService.java',
                           'PaymentEffectDispatcher.java',
+                          'PaymentRuntimeMetricsStore.java',
                           'RefundApplicationService.java',
                           'OrderStoreService.java',
                           'InternalSignatureInterceptor.java') -and

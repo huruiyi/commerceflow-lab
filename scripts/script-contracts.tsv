@@ -51,6 +51,7 @@ verify-receipt-reviews	BaseUrl	BASE_URL=1
 verify-redis-business	BaseUrl	BASE_URL=1
 verify-refunds	BaseUrl,PaymentBaseUrl	BASE_URL=1,PAYMENT_BASE_URL=2
 verify-payment-runtime-cutover	BaseUrl,PaymentUrl	BASE_URL=1,PAYMENT_URL=2
+verify-payment-post-cutover-observation	BaseUrl	BASE_URL=1
 verify-rocketmq-reconciliation	BaseUrl,MaxWaitSeconds	BASE_URL=1,MAX_WAIT=2
 verify-rocketmq-scheduling	BaseUrl,MaxWaitSeconds	BASE_URL=1,MAX_WAIT_SECONDS=2
 verify-scheduling	BaseUrl	BASE_URL=1

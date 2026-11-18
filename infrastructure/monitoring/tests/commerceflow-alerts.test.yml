@@ -22,7 +22,76 @@ tests:
               description: Prometheus has failed to scrape commerce-service:8080 for more than one minute.
   - interval: 1m
     input_series:
-      - series: 'commerceflow_refund_processing{job="commerce-service"}'
+      - series: 'commerceflow_payment_outbox_pending{job="payment-orchestration-service"}'
+        values: '1x7'
+      - series: 'commerceflow_payment_command_outbox_pending{job="payment-orchestration-service"}'
+        values: '0x7'
+      - series: 'commerceflow_payment_process_recovery_required{job="payment-orchestration-service"}'
+        values: '1x12'
+      - series: 'commerceflow_payment_orphan_open{job="payment-orchestration-service"}'
+        values: '1x7'
+      - series: 'commerceflow_payment_accepting_traffic{job="payment-orchestration-service"}'
+        values: '0x3'
+      - series: 'commerceflow_payment_effects_enabled{job="payment-orchestration-service"}'
+        values: '1x3'
+      - series: 'commerceflow_payment_shadow_enabled{job="payment-orchestration-service"}'
+        values: '0x3'
+      - series: 'commerceflow_payment_metrics_refresh_success{job="payment-orchestration-service"}'
+        values: '0x3'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: CommerceFlowPaymentOutboxBacklog
+        exp_alerts:
+          - exp_labels:
+              alertname: CommerceFlowPaymentOutboxBacklog
+              job: payment-orchestration-service
+              severity: warning
+            exp_annotations:
+              summary: Payment Outbox backlog detected
+              description: Payment result or command Outbox rows have remained pending for five minutes.
+      - eval_time: 11m
+        alertname: CommerceFlowPaymentReconciliationBacklog
+        exp_alerts:
+          - exp_labels:
+              alertname: CommerceFlowPaymentReconciliationBacklog
+              job: payment-orchestration-service
+              severity: warning
+            exp_annotations:
+              summary: Payment reconciliation issue remains open
+              description: At least one payment process has required reconciliation or compensation for ten minutes.
+      - eval_time: 6m
+        alertname: CommerceFlowPaymentOrphanOpen
+        exp_alerts:
+          - exp_labels:
+              alertname: CommerceFlowPaymentOrphanOpen
+              job: payment-orchestration-service
+              severity: critical
+            exp_annotations:
+              summary: Payment shadow orphan requires intervention
+              description: Payment shadow orphan quarantine contains an OPEN row for five minutes.
+      - eval_time: 2m
+        alertname: CommerceFlowPaymentCutoverModeDrift
+        exp_alerts:
+          - exp_labels:
+              alertname: CommerceFlowPaymentCutoverModeDrift
+              job: payment-orchestration-service
+              severity: critical
+            exp_annotations:
+              summary: Payment CUTOVER mode has drifted
+              description: Payment traffic and effects must stay enabled while shadow replication remains disabled.
+      - eval_time: 2m
+        alertname: CommerceFlowPaymentMetricsRefreshFailed
+        exp_alerts:
+          - exp_labels:
+              alertname: CommerceFlowPaymentMetricsRefreshFailed
+              job: payment-orchestration-service
+              severity: warning
+            exp_annotations:
+              summary: Payment runtime metrics are stale
+              description: The payment service could not refresh its database-backed runtime metrics.
+  - interval: 1m
+    input_series:
+      - series: 'commerceflow_payment_refund_processing{job="payment-orchestration-service"}'
         values: '1x12'
       - series: 'commerceflow_logistics_callback_outbox{job="logistics-simulator-service",status="dead"}'
         values: '1x7'
@@ -32,7 +101,7 @@ tests:
         exp_alerts:
           - exp_labels:
               alertname: CommerceFlowRefundBacklog
-              job: commerce-service
+              job: payment-orchestration-service
               severity: warning
             exp_annotations:
               summary: Refund reconciliation backlog detected

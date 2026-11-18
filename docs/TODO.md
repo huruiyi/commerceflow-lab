@@ -797,6 +797,10 @@ Docker 拓扑，也不启动 PostgreSQL。
   Payment V1 适配器，旧支付/退款 Service、Mapper、Gateway、回调和对账路径已删除，渠道回调改投独立服务，
   `commerce_runtime` 对 14 张源表权限为 0。受控订单 486 的支付/退款及两类幂等重放通过，订单、退款和库存均
   收敛为 `REFUNDED/SUCCEEDED/REFUNDED`，旧源库无该订单支付记录；未拆 fulfillment，未启动 PostgreSQL。
+- [x] M3.6 第十二批完成切流后观察与监控收尾：payment 服务新增 10 个 Prometheus 运行态指标，独立采集目标及
+  Outbox、人工恢复、孤儿、退款、切流模式和指标刷新告警；14 条规则通过 promtool。Windows 订单 517/520 与
+  WSL 订单 527/530 在服务、payment-db、支付模拟器重启前后完成支付/退款，待支付取消同步完成 Process Manager/
+  Command Outbox；源水位保持 610、14 表授权和全部未决项保持 0。下一批只评审 fulfillment CREATE 准入。
 
 ## 14. 实施记录模板
 

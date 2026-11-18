@@ -110,6 +110,7 @@ for file in "${java_files[@]}"; do
         "$(basename "$file")" != RemoteOrderProtocolService.java &&
         "$(basename "$file")" != RemotePaymentProtocolService.java &&
         "$(basename "$file")" != PaymentEffectDispatcher.java &&
+        "$(basename "$file")" != PaymentRuntimeMetricsStore.java &&
         "$(basename "$file")" != RefundApplicationService.java &&
         "$(basename "$file")" != OrderStoreService.java &&
         "$(basename "$file")" != InternalSignatureInterceptor.java ]] &&

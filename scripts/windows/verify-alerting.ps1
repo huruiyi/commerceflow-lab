@@ -12,6 +12,8 @@ $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 if (-not $SkipStart) {
   & docker compose --project-directory $ProjectRoot --profile observability up -d alert-webhook alertmanager prometheus grafana
   if ($LASTEXITCODE -ne 0) { throw 'Unable to start the observability profile.' }
+  & docker compose --project-directory $ProjectRoot restart prometheus | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw 'Unable to reload Prometheus configuration.' }
 }
 
 function Wait-Json([string]$Url, [scriptblock]$Ready) {
@@ -42,11 +44,30 @@ if ($LASTEXITCODE -ne 0) { throw 'Alertmanager configuration validation failed.'
 
 $targets = Wait-Json "$PrometheusUrl/api/v1/targets" {
   param($value)
-  @($value.data.activeTargets | Where-Object health -eq 'up').Count -eq 3
+  @($value.data.activeTargets | Where-Object health -eq 'up').Count -eq 4
 }
 $jobs = @($targets.data.activeTargets.labels.job | Sort-Object -Unique)
-if (($jobs -join ',') -ne 'commerce-service,logistics-simulator-service,payment-simulator-service') {
+if (($jobs -join ',') -ne 'commerce-service,logistics-simulator-service,payment-orchestration-service,payment-simulator-service') {
   throw "Unexpected Prometheus jobs: $($jobs -join ',')"
+}
+
+$paymentMetrics = (Invoke-WebRequest 'http://localhost:18090/actuator/prometheus' -UseBasicParsing).Content
+$expectedMetrics = @(
+  'commerceflow_payment_outbox_pending 0.0',
+  'commerceflow_payment_command_outbox_pending 0.0',
+  'commerceflow_payment_process_pending 0.0',
+  'commerceflow_payment_process_recovery_required 0.0',
+  'commerceflow_payment_orphan_open 0.0',
+  'commerceflow_payment_refund_processing 0.0',
+  'commerceflow_payment_metrics_refresh_success 1.0',
+  'commerceflow_payment_accepting_traffic 1.0',
+  'commerceflow_payment_effects_enabled 1.0',
+  'commerceflow_payment_shadow_enabled 0.0'
+)
+foreach ($expectedMetric in $expectedMetrics) {
+  if (-not $paymentMetrics.Contains($expectedMetric)) {
+    throw "Payment runtime metric is missing or unexpected: $expectedMetric"
+  }
 }
 
 $rules = Wait-Json "$PrometheusUrl/api/v1/rules" {
@@ -54,7 +75,7 @@ $rules = Wait-Json "$PrometheusUrl/api/v1/rules" {
   @($value.data.groups.rules | Where-Object name -eq 'CommerceFlowWatchdog').Count -eq 1
 }
 $ruleCount = @($rules.data.groups.rules | Where-Object type -eq 'alerting').Count
-if ($ruleCount -lt 10) { throw "Expected at least 10 alert rules, found $ruleCount." }
+if ($ruleCount -lt 14) { throw "Expected at least 14 alert rules, found $ruleCount." }
 
 $alertmanager = Wait-Json "$AlertmanagerUrl/api/v2/alerts" {
   param($value)

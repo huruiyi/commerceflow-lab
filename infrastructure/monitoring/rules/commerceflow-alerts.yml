@@ -13,7 +13,7 @@ groups:
           summary: CommerceFlow alerting pipeline heartbeat
           description: This always-firing alert verifies Prometheus to Alertmanager to webhook delivery.
       - alert: CommerceFlowServiceDown
-        expr: up{job=~"commerce-service|payment-simulator-service|logistics-simulator-service"} == 0
+        expr: up{job=~"commerce-service|payment-simulator-service|payment-orchestration-service|logistics-simulator-service"} == 0
         for: 1m
         labels:
           severity: critical
@@ -63,7 +63,7 @@ groups:
           summary: Scheduled task MQ publishing failed
           description: RabbitMQ or RocketMQ task publication failed during the last five minutes.
       - alert: CommerceFlowRefundBacklog
-        expr: commerceflow_refund_processing > 0
+        expr: commerceflow_payment_refund_processing > 0
         for: 10m
         labels:
           severity: warning
@@ -71,13 +71,45 @@ groups:
           summary: Refund reconciliation backlog detected
           description: At least one refund has remained in processing for ten minutes.
       - alert: CommerceFlowPaymentReconciliationBacklog
-        expr: commerceflow_payment_reconciliation_open > 0
+        expr: commerceflow_payment_process_recovery_required > 0
         for: 10m
         labels:
           severity: warning
         annotations:
           summary: Payment reconciliation issue remains open
-          description: At least one payment reconciliation issue has remained open for ten minutes.
+          description: At least one payment process has required reconciliation or compensation for ten minutes.
+      - alert: CommerceFlowPaymentOutboxBacklog
+        expr: commerceflow_payment_outbox_pending > 0 or commerceflow_payment_command_outbox_pending > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Payment Outbox backlog detected
+          description: Payment result or command Outbox rows have remained pending for five minutes.
+      - alert: CommerceFlowPaymentOrphanOpen
+        expr: commerceflow_payment_orphan_open > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Payment shadow orphan requires intervention
+          description: Payment shadow orphan quarantine contains an OPEN row for five minutes.
+      - alert: CommerceFlowPaymentCutoverModeDrift
+        expr: commerceflow_payment_accepting_traffic != 1 or commerceflow_payment_effects_enabled != 1 or commerceflow_payment_shadow_enabled != 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Payment CUTOVER mode has drifted
+          description: Payment traffic and effects must stay enabled while shadow replication remains disabled.
+      - alert: CommerceFlowPaymentMetricsRefreshFailed
+        expr: commerceflow_payment_metrics_refresh_success != 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Payment runtime metrics are stale
+          description: The payment service could not refresh its database-backed runtime metrics.
       - alert: CommerceFlowLogisticsReconciliationFailure
         expr: increase(commerceflow_logistics_reconciliation_total{result="failed"}[5m]) > 0
         labels:

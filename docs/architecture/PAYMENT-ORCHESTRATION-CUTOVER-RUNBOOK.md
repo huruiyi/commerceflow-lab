@@ -70,3 +70,14 @@ M3.6 第十一批已在明确授权的受控窗口完成 **CUTOVER**。普通支
 - 受控订单 486 完成支付、支付重放、全额退款、退款重放；最终订单 `REFUNDED`、退款 `SUCCEEDED`、库存
   `REFUNDED`，独立库未决项为 0，commerce 旧源表没有该订单支付记录。
 - 独立库已接收新业务写，旧库仅作历史证据，不再是运行回退路径。
+
+## 7. 切流后观察证据
+
+M3.6 第十二批新增 `verify-payment-post-cutover-observation.ps1/.sh`，在 Windows 与 Ubuntu WSL 对等执行两轮
+真实支付/退款、待支付关闭、payment-orchestration-service 重启、支付模拟器重启和 payment-db 停机恢复。
+Windows 使用订单 517/520，WSL 使用订单 527/530；观察前后 commerce 支付源水位均为 610，14 张源表授权为 0，
+Payment/Command Outbox、未完成 Process Manager 和 OPEN 孤儿全部为 0。
+
+独立服务暴露 10 个 `commerceflow_payment_*` Prometheus 指标，覆盖两类 Outbox、流程未决/人工恢复、OPEN 孤儿、
+处理中退款、指标刷新及 `acceptingTraffic/effectsEnabled/shadowEnabled`。Prometheus 已新增独立服务采集目标，
+14 条告警规则通过 promtool；正式切流模式必须持续为 `true/true/false`。

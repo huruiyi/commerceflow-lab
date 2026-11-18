@@ -8,8 +8,8 @@
 | M1 阶段起点基线 | `7ee3854` |
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
-| 当前阶段 | M3.6 第十一批 payment-orchestration 一次性 CUTOVER 完成；独立服务为唯一资金所有者 |
-| 下一候选阶段 | 独立观察切流后运行证据，再单独评审 fulfillment-service；不得并行拆分或启动 PostgreSQL |
+| 当前阶段 | M3.6 第十二批 payment-orchestration 切流后观察与监控收尾完成 |
+| 下一候选阶段 | 单独评审 fulfillment-service CREATE 准入；不得直接创建服务、并行拆分或启动 PostgreSQL |
 | 范围边界 | 不维护 LOCAL/COMPARE 双实现；commerce 只保留生产端 Outbox 和身份薄代理；M3 全部服务完成单一所有权切换前不考虑 PostgreSQL |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](IMPLEMENTED.md) > [TODO.md](TODO.md) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -477,3 +477,10 @@ M3.6 第十一批在明确授权的受控窗口完成一次性 CUTOVER。商城�
 支付平台回调只指向 payment-orchestration-service，影子默认关闭且流量/副作用默认开启，`commerce_runtime` 对
 14 张旧源表授权为 0。受控订单 486 的支付、退款及两类幂等重放通过，最终为
 `REFUNDED/SUCCEEDED/REFUNDED`，独立库未决项归零，旧源库没有该订单支付记录。未拆 fulfillment，未启动 PostgreSQL。
+
+M3.6 第十二批补齐切流后运行观察。payment-orchestration-service 新增支付/命令 Outbox、Process Manager、人工恢复、
+OPEN 孤儿、处理中退款、指标刷新和 `true/true/false` 切流模式共 10 个 Prometheus 指标；监控增加独立采集目标，
+14 条告警规则通过 promtool。Windows 订单 517/520、WSL 订单 527/530 在 payment 服务、payment-db 和支付模拟器
+重启前后均完成支付/退款，待支付取消同时完成 Process Manager 与 Command Outbox。两端最终源水位仍为 610，
+14 张源表授权、Payment/Command Outbox、未完成 Process Manager 和 OPEN 孤儿均为 0。下一步只评审 fulfillment
+CREATE 准入；本批未创建 fulfillment-service，未启动 PostgreSQL。

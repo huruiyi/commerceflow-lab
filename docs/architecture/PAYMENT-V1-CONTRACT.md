@@ -3,10 +3,9 @@
 ## 1. 目的与当前边界
 
 Payment V1 是商城主服务与独立支付编排服务之间的第一版稳定交互格式。它覆盖创建支付、按订单查询支付/退款、
-关闭待支付记录、发起全额退款，以及支付或退款回调处理结果。`payment-orchestration-service`、`payment-db` 和远程 HTTP 入口
-已经创建，并以合成订单完成真实渠道创建/关闭、回调、竞态、结果丢失和回退演练；普通业务流量门仍关闭，
-commerce 当前仍由唯一的本地适配器处理正式支付。以后 CUTOVER 时整体替换该适配器，不保留 LOCAL/COMPARE
-双实现。
+关闭待支付记录、发起全额退款，以及支付或退款回调处理结果。M3.6 第十一批已经完成一次性 CUTOVER：
+`payment-orchestration-service` 与 `payment-db` 是唯一资金运行时所有者，commerce 只保留签名远程适配器和身份薄入口，
+不保留 LOCAL/REMOTE/COMPARE、本地资金实现或数据库回退。
 
 退款属于同一个资金边界，不另建 refund-service。ordering 与 fulfillment 只能依赖本文件描述的 V1 数据结构，
 不得导入 payment/refund 的 application、domain、infrastructure 或 Mapper。
@@ -43,7 +42,8 @@ commerce 当前仍由唯一的本地适配器处理正式支付。以后 CUTOVER
 ## 5. 发起退款命令
 
 `RefundCreateCommandV1` 包含稳定命令编号、订单/客户 ID、业务幂等键、原因和追踪信封。commerce 的客户退款
-POST 只负责 Session/RBAC 和组装该命令；当前仍由唯一 Local 适配器执行，CUTOVER 时整体替换为远程适配器。
+POST 只负责 Session/RBAC 和组装该命令，唯一远程适配器把命令发送给 payment-orchestration-service；退款业务事实、
+渠道调用和恢复均由独立服务处理。
 相同 commandId 异正文、相同支付不同幂等意图必须拒绝；远程超时表示结果未知，应按订单查询原退款事实。
 
 ## 6. 支付与退款结果
@@ -64,5 +64,5 @@ POST 只负责 Session/RBAC 和组装该命令；当前仍由唯一 Local 适配
 - `payment-close-result-v1.json`
 - `payment-success-result-v1.json`
 
-两侧测试会反序列化、校验必填字段并计算稳定 SHA-256 指纹。远程协议和影子迁移已完成切流前演练，但当前本地
-适配器仍是唯一正式业务路径；上述证据不代表已完成正式业务切换。
+两侧测试会反序列化、校验必填字段并计算稳定 SHA-256 指纹。CUTOVER 后的重复支付、重复退款、待支付关闭、
+服务/数据库/支付模拟器重启恢复以及旧源库零增长均由 Windows/WSL 对等脚本持续验证。

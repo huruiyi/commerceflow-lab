@@ -224,3 +224,18 @@ Compose 助手兼容 Windows Docker CLI 的路径和环境透传。commerce 58 �
 
 详细证据与决策见[最终 GO/NO-GO 评审](PAYMENT-CUTOVER-GO-NO-GO-REVIEW.md)。由于 commerce 本地实现、旧回调、
 14 张源表权限和唯一远程适配器原子替换仍待同一窗口完成，当前结论为 **NO-GO**，自动审计继续 `REJECTED`。
+
+## 16. 第十一批一次性切换与第十二批切流后观察
+
+2026-11-18 经用户明确授权，第十一批在单一受控窗口完成 Payment V1 一次性切换：commerce 只保留唯一远程
+`RemotePaymentOrchestrationAdapter`，本地支付/退款正式实现和旧回调入口已删除，支付与退款回调改投独立服务，
+commerce 运行账号对 14 张源表的跨边界权限归零。独立服务以 `true/true/false` 承接正式流量、副作用并关闭影子
+复制；没有引入 LOCAL/REMOTE/COMPARE 双实现。自动 CUTOVER 审计由 `REJECTED` 更新为 `APPROVED`。
+
+第十二批补齐切流后可观测性与恢复验收。payment-orchestration-service 暴露 10 项运行指标，Prometheus 增加独立
+抓取目标，告警规则扩展到 14 条；Windows 与 Ubuntu 26.04 WSL 均验证真实支付/退款、待支付订单取消、服务与
+数据库重启恢复。观察前后源水位保持 610，14 张源表授权为 0，支付/命令 Outbox、未完成 Process Manager、
+OPEN 孤儿均为 0。切流状态继续为唯一远程所有者，不得回退旧库或恢复本地实现。
+
+M3.6 至此完成。下一阶段只允许先做 fulfillment-service 的 CREATE 准入评审；未经新一轮明确授权，不创建服务、
+不迁移数据、不切流，且继续禁止启动 PostgreSQL。
