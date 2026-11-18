@@ -37,18 +37,36 @@ Wait-Json "$WebhookUrl/healthz" { param($value) $value.status -eq 'UP' } | Out-N
 
 & docker compose --project-directory $ProjectRoot exec -T prometheus promtool check config /etc/prometheus/prometheus.yml
 if ($LASTEXITCODE -ne 0) { throw 'Prometheus configuration validation failed.' }
-& docker compose --project-directory $ProjectRoot exec -T prometheus promtool test rules /etc/prometheus/tests/commerceflow-alerts.test.yml
+& docker compose --project-directory $ProjectRoot exec -T prometheus promtool test rules `
+  /etc/prometheus/tests/commerceflow-alerts.test.yml /etc/prometheus/tests/fulfillment-alerts.test.yml
 if ($LASTEXITCODE -ne 0) { throw 'Prometheus alert rule tests failed.' }
 & docker compose --project-directory $ProjectRoot exec -T alertmanager amtool check-config /etc/alertmanager/alertmanager.yml
 if ($LASTEXITCODE -ne 0) { throw 'Alertmanager configuration validation failed.' }
 
+$route = Wait-Json "$PrometheusUrl/api/v1/query?query=commerceflow_fulfillment_remote_enabled" {
+  param($value)
+  @($value.data.result).Count -eq 1
+}
+$requiredJobs = @('commerce-service','logistics-simulator-service','payment-orchestration-service','payment-simulator-service')
+$expectedJobs = @($requiredJobs + 'fulfillment-service' | Sort-Object)
+$remoteFulfillment = $route.data.result[0].value[1] -eq '1'
+if ($remoteFulfillment) { $requiredJobs += 'fulfillment-service' }
 $targets = Wait-Json "$PrometheusUrl/api/v1/targets" {
   param($value)
-  @($value.data.activeTargets | Where-Object health -eq 'up').Count -eq 4
+  $healthy = @($value.data.activeTargets | Where-Object health -eq 'up').labels.job
+  @($requiredJobs | Where-Object { $_ -notin $healthy }).Count -eq 0
 }
 $jobs = @($targets.data.activeTargets.labels.job | Sort-Object -Unique)
-if (($jobs -join ',') -ne 'commerce-service,logistics-simulator-service,payment-orchestration-service,payment-simulator-service') {
+if (($jobs -join ',') -ne ($expectedJobs -join ',')) {
   throw "Unexpected Prometheus jobs: $($jobs -join ',')"
+}
+if ($remoteFulfillment) {
+  foreach ($metric in @('commerceflow_fulfillment_execution_enabled','commerceflow_fulfillment_metrics_refresh_success')) {
+    Wait-Json "$PrometheusUrl/api/v1/query?query=$metric" {
+      param($value)
+      @($value.data.result | Where-Object { $_.metric.job -eq 'fulfillment-service' -and $_.value[1] -eq '1' }).Count -eq 1
+    } | Out-Null
+  }
 }
 
 $paymentMetrics = (Invoke-WebRequest 'http://localhost:18090/actuator/prometheus' -UseBasicParsing).Content
@@ -75,7 +93,7 @@ $rules = Wait-Json "$PrometheusUrl/api/v1/rules" {
   @($value.data.groups.rules | Where-Object name -eq 'CommerceFlowWatchdog').Count -eq 1
 }
 $ruleCount = @($rules.data.groups.rules | Where-Object type -eq 'alerting').Count
-if ($ruleCount -lt 14) { throw "Expected at least 14 alert rules, found $ruleCount." }
+if ($ruleCount -lt 21) { throw "Expected at least 21 alert rules, found $ruleCount." }
 
 $alertmanager = Wait-Json "$AlertmanagerUrl/api/v2/alerts" {
   param($value)

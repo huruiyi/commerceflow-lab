@@ -110,6 +110,81 @@ groups:
         annotations:
           summary: Payment runtime metrics are stale
           description: The payment service could not refresh its database-backed runtime metrics.
+
+  - name: commerceflow-fulfillment
+    rules:
+      - alert: CommerceFlowFulfillmentUnavailable
+        expr: up{job="fulfillment-service"} == 0 and on() commerceflow_fulfillment_remote_enabled{job="commerce-service"} == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Fulfillment service is unavailable
+          description: Commerce routes fulfillment remotely and Prometheus cannot scrape the fulfillment service.
+      - alert: CommerceFlowFulfillmentModeDrift
+        expr: |
+          (
+            (up{job="fulfillment-service"} == 1 unless on(job,instance)
+              commerceflow_fulfillment_execution_enabled{job="fulfillment-service"} == 1)
+            and on() commerceflow_fulfillment_remote_enabled{job="commerce-service"} == 1
+          )
+          or
+          (
+            commerceflow_fulfillment_execution_enabled{job="fulfillment-service"} == 1
+            and on() commerceflow_fulfillment_remote_enabled{job="commerce-service"} == 0
+          )
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Commerce and fulfillment modes disagree
+          description: The configured Commerce route and the independent fulfillment execution mode disagree.
+      - alert: CommerceFlowFulfillmentReviewRequired
+        expr: commerceflow_fulfillment_jobs_review_required{job="fulfillment-service"} > 0 and on(job,instance) commerceflow_fulfillment_execution_enabled == 1
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: Fulfillment needs manual review
+          description: At least one independent fulfillment job has required manual review for three minutes.
+      - alert: CommerceFlowFulfillmentJobsOverdue
+        expr: commerceflow_fulfillment_jobs_oldest_due_seconds{job="fulfillment-service"} > 120 and on(job,instance) commerceflow_fulfillment_execution_enabled == 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Fulfillment jobs remain overdue
+          description: The oldest due job has been more than 120 seconds overdue for two minutes.
+      - alert: CommerceFlowFulfillmentExpiredLease
+        expr: commerceflow_fulfillment_jobs_leases_expired{job="fulfillment-service"} > 0 and on(job,instance) commerceflow_fulfillment_execution_enabled == 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Fulfillment has an expired lease
+          description: A pending fulfillment job has retained an expired execution lease for two minutes.
+      - alert: CommerceFlowFulfillmentQuarantine
+        expr: commerceflow_fulfillment_quarantined{job="fulfillment-service"} > 0 and on(job,instance) commerceflow_fulfillment_execution_enabled == 1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Independent fulfillment contains quarantined records
+          description: The execution database has contained quarantined records for two minutes.
+      - alert: CommerceFlowFulfillmentMetricsStale
+        expr: |
+          (
+            commerceflow_fulfillment_metrics_refresh_success{job="fulfillment-service"} != 1
+            or time() - commerceflow_fulfillment_metrics_last_success_seconds{job="fulfillment-service"} > 90
+            or (up{job="fulfillment-service"} == 1 unless on(job,instance)
+              commerceflow_fulfillment_metrics_last_success_seconds{job="fulfillment-service"})
+          ) and on(job,instance) commerceflow_fulfillment_execution_enabled == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Fulfillment database metrics are stale
+          description: Fulfillment execution metrics are missing, failed to refresh or have not refreshed for over 90 seconds.
       - alert: CommerceFlowLogisticsReconciliationFailure
         expr: increase(commerceflow_logistics_reconciliation_total{result="failed"}[5m]) > 0
         labels:

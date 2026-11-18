@@ -15,7 +15,11 @@ compose() {
     compose_root="$(wslpath -w "$PROJECT_ROOT")"
     compose_file="${compose_root}\\compose.yaml"
   fi
-  "$docker_command" compose --project-directory "$compose_root" -f "$compose_file" "$@"
+  if [[ "${COMMERCEFLOW_USE_DEPLOYMENT_COMPOSE:-false}" == true ]]; then
+    "$docker_command" compose --project-directory "$compose_root" "$@"
+  else
+    "$docker_command" compose --project-directory "$compose_root" -f "$compose_file" "$@"
+  fi
 }
 
 require_commands() {

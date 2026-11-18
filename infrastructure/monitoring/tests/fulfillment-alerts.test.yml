@@ -1,0 +1,157 @@
+rule_files:
+  - /etc/prometheus/rules/commerceflow-alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'commerceflow_fulfillment_remote_enabled{job="commerce-service"}'
+        values: '0x6'
+      - series: 'up{job="fulfillment-service",instance="fulfillment-service:8080"}'
+        values: '0x6'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: CommerceFlowFulfillmentUnavailable
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: CommerceFlowFulfillmentModeDrift
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: CommerceFlowFulfillmentMetricsStale
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'commerceflow_fulfillment_remote_enabled{job="commerce-service"}'
+        values: '1x6'
+      - series: 'up{job="fulfillment-service",instance="fulfillment-service:8080"}'
+        values: '0x6'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: CommerceFlowFulfillmentUnavailable
+        exp_alerts:
+          - exp_labels:
+              job: fulfillment-service
+              instance: fulfillment-service:8080
+              severity: critical
+            exp_annotations:
+              summary: Fulfillment service is unavailable
+              description: Commerce routes fulfillment remotely and Prometheus cannot scrape the fulfillment service.
+      - eval_time: 4m
+        alertname: CommerceFlowFulfillmentModeDrift
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'commerceflow_fulfillment_remote_enabled{job="commerce-service"}'
+        values: '1x6'
+      - series: 'up{job="fulfillment-service",instance="fulfillment-service:8080"}'
+        values: '1x6'
+      - series: 'commerceflow_fulfillment_execution_enabled{job="fulfillment-service",instance="fulfillment-service:8080"}'
+        values: '0x6'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: CommerceFlowFulfillmentModeDrift
+        exp_alerts:
+          - exp_labels:
+              job: fulfillment-service
+              instance: fulfillment-service:8080
+              severity: critical
+            exp_annotations:
+              summary: Commerce and fulfillment modes disagree
+              description: The configured Commerce route and the independent fulfillment execution mode disagree.
+      - eval_time: 4m
+        alertname: CommerceFlowFulfillmentUnavailable
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'commerceflow_fulfillment_remote_enabled{job="commerce-service"}'
+        values: '0x6'
+      - series: 'up{job="fulfillment-service",instance="fulfillment-service:8080"}'
+        values: '1x6'
+      - series: 'commerceflow_fulfillment_execution_enabled{job="fulfillment-service",instance="fulfillment-service:8080"}'
+        values: '1x6'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: CommerceFlowFulfillmentModeDrift
+        exp_alerts:
+          - exp_labels:
+              job: fulfillment-service
+              instance: fulfillment-service:8080
+              severity: critical
+            exp_annotations:
+              summary: Commerce and fulfillment modes disagree
+              description: The configured Commerce route and the independent fulfillment execution mode disagree.
+  - interval: 1m
+    input_series:
+      - series: 'commerceflow_fulfillment_remote_enabled{job="commerce-service"}'
+        values: '1x6'
+      - series: 'up{job="fulfillment-service",instance="fulfillment-service:8080"}'
+        values: '1x6'
+      - series: 'commerceflow_fulfillment_execution_enabled{job="fulfillment-service",instance="fulfillment-service:8080"}'
+        values: '1x6'
+      - series: 'commerceflow_fulfillment_jobs_review_required{job="fulfillment-service",instance="fulfillment-service:8080"}'
+        values: '1x6'
+      - series: 'commerceflow_fulfillment_jobs_oldest_due_seconds{job="fulfillment-service",instance="fulfillment-service:8080"}'
+        values: '150x6'
+      - series: 'commerceflow_fulfillment_jobs_leases_expired{job="fulfillment-service",instance="fulfillment-service:8080"}'
+        values: '1x6'
+      - series: 'commerceflow_fulfillment_quarantined{job="fulfillment-service",instance="fulfillment-service:8080"}'
+        values: '1x6'
+      - series: 'commerceflow_fulfillment_metrics_refresh_success{job="fulfillment-service",instance="fulfillment-service:8080"}'
+        values: '1x6'
+      - series: 'commerceflow_fulfillment_metrics_last_success_seconds{job="fulfillment-service",instance="fulfillment-service:8080"}'
+        values: '0x6'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: CommerceFlowFulfillmentReviewRequired
+        exp_alerts:
+          - exp_labels:
+              job: fulfillment-service
+              instance: fulfillment-service:8080
+              severity: warning
+            exp_annotations:
+              summary: Fulfillment needs manual review
+              description: At least one independent fulfillment job has required manual review for three minutes.
+      - eval_time: 4m
+        alertname: CommerceFlowFulfillmentJobsOverdue
+        exp_alerts:
+          - exp_labels:
+              job: fulfillment-service
+              instance: fulfillment-service:8080
+              severity: warning
+            exp_annotations:
+              summary: Fulfillment jobs remain overdue
+              description: The oldest due job has been more than 120 seconds overdue for two minutes.
+      - eval_time: 4m
+        alertname: CommerceFlowFulfillmentExpiredLease
+        exp_alerts:
+          - exp_labels:
+              job: fulfillment-service
+              instance: fulfillment-service:8080
+              severity: warning
+            exp_annotations:
+              summary: Fulfillment has an expired lease
+              description: A pending fulfillment job has retained an expired execution lease for two minutes.
+      - eval_time: 4m
+        alertname: CommerceFlowFulfillmentQuarantine
+        exp_alerts:
+          - exp_labels:
+              job: fulfillment-service
+              instance: fulfillment-service:8080
+              severity: critical
+            exp_annotations:
+              summary: Independent fulfillment contains quarantined records
+              description: The execution database has contained quarantined records for two minutes.
+      - eval_time: 4m
+        alertname: CommerceFlowFulfillmentMetricsStale
+        exp_alerts:
+          - exp_labels:
+              job: fulfillment-service
+              instance: fulfillment-service:8080
+              severity: warning
+            exp_annotations:
+              summary: Fulfillment database metrics are stale
+              description: Fulfillment execution metrics are missing, failed to refresh or have not refreshed for over 90 seconds.
+      - eval_time: 4m
+        alertname: CommerceFlowFulfillmentModeDrift
+        exp_alerts: []

@@ -14,6 +14,24 @@
     SELECT mode FROM fulfillment_runtime_mode WHERE singleton_id=1 FOR SHARE
   </select>
 
+  <select id="runtimeMetrics"
+          resultType="vip.fairy.commerceflow.fulfillment.infrastructure.FulfillmentRuntimeMetrics$Snapshot">
+    SELECT COUNT(CASE WHEN status='PENDING' THEN 1 END) AS pending,
+      COUNT(CASE WHEN status='REVIEW_REQUIRED' THEN 1 END) AS review_required,
+      COUNT(CASE WHEN status='PENDING' AND lease_until &lt;= CURRENT_TIMESTAMP(6) THEN 1 END) AS expired_leases,
+      COALESCE(TIMESTAMPDIFF(SECOND,
+        MIN(CASE WHEN status='PENDING' AND next_attempt_at &lt;= CURRENT_TIMESTAMP(6) THEN next_attempt_at END),
+        CURRENT_TIMESTAMP(6)),0) AS oldest_due_seconds,
+      (SELECT COUNT(*) FROM fulfillment_shadow_quarantine) AS quarantined
+    FROM (
+      SELECT status,next_attempt_at,lease_until FROM fulfillment_shipment_jobs
+      WHERE status IN ('PENDING','REVIEW_REQUIRED')
+      UNION ALL
+      SELECT status,next_attempt_at,lease_until FROM fulfillment_merchant_jobs
+      WHERE status IN ('PENDING','REVIEW_REQUIRED')
+    ) AS outstanding
+  </select>
+
   <insert id="lockOrder">
     INSERT INTO fulfillment_order_locks (order_id) VALUES (#{orderId})
     ON DUPLICATE KEY UPDATE order_id=order_id

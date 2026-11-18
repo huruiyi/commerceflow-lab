@@ -15,6 +15,8 @@ public interface ExecutionMapper {
 
   String lockReplicationMode();
 
+  FulfillmentRuntimeMetrics.Snapshot runtimeMetrics();
+
   int lockOrder(@Param("orderId") long orderId);
 
   int reserveCommand(@Param("commandId") String commandId, @Param("orderId") long orderId);
