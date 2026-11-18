@@ -11,7 +11,6 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
-import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.payment.application.contract.v1.PaymentResultOutcomeV1;
 import vip.fairy.commerceflow.payment.application.contract.v1.PaymentResultTypeV1;
@@ -23,6 +22,7 @@ import vip.fairy.commerceflow.payment.infrastructure.PaymentShadowProperties.Sha
 import vip.fairy.commerceflow.payment.infrastructure.RemoteInventoryEffectClient;
 import vip.fairy.commerceflow.payment.infrastructure.RemoteOrderEffectClient;
 import vip.fairy.commerceflow.payment.infrastructure.RemoteOrderEffectClient.OrderView;
+import vip.fairy.commerceflow.payment.infrastructure.persistence.PaymentEffectMapper;
 
 class PaymentEffectDispatcherTest {
 
@@ -30,21 +30,21 @@ class PaymentEffectDispatcherTest {
 
   @Test
   void closedEffectsGateDoesNotReadOutbox() {
-    JdbcTemplate jdbc = mock(JdbcTemplate.class);
-    PaymentEffectDispatcher dispatcher = dispatcher(jdbc,
+    PaymentEffectMapper store = mock(PaymentEffectMapper.class);
+    PaymentEffectDispatcher dispatcher = dispatcher(store,
       new PaymentShadowProperties(false, new Effects(false, 20), null),
       mock(RemoteOrderEffectClient.class), mock(RemoteInventoryEffectClient.class));
 
     dispatcher.dispatchEffects();
     dispatcher.dispatchRefundCommands();
 
-    verifyNoInteractions(jdbc);
+    verifyNoInteractions(store);
   }
 
   @Test
   void enabledEffectsGateDoesNotRunWhileShadowCopyIsEnabled() {
-    JdbcTemplate jdbc = mock(JdbcTemplate.class);
-    PaymentEffectDispatcher dispatcher = dispatcher(jdbc,
+    PaymentEffectMapper store = mock(PaymentEffectMapper.class);
+    PaymentEffectDispatcher dispatcher = dispatcher(store,
       new PaymentShadowProperties(true, new Effects(true, 20),
         new Shadow(true, 20, null)),
       mock(RemoteOrderEffectClient.class), mock(RemoteInventoryEffectClient.class));
@@ -52,15 +52,15 @@ class PaymentEffectDispatcherTest {
     dispatcher.dispatchEffects();
     dispatcher.dispatchRefundCommands();
 
-    verifyNoInteractions(jdbc);
+    verifyNoInteractions(store);
   }
 
   @Test
   void paymentSuccessUsesStableOrderAndInventoryEffects() {
-    JdbcTemplate jdbc = mock(JdbcTemplate.class);
+    PaymentEffectMapper store = mock(PaymentEffectMapper.class);
     RemoteOrderEffectClient orders = mock(RemoteOrderEffectClient.class);
     RemoteInventoryEffectClient inventory = mock(RemoteInventoryEffectClient.class);
-    PaymentEffectDispatcher dispatcher = dispatcher(jdbc,
+    PaymentEffectDispatcher dispatcher = dispatcher(store,
       new PaymentShadowProperties(true, new Effects(true, 20), null), orders, inventory);
     OrderView pending = new OrderView(41L, "ORD-41", 7L, "PENDING_PAYMENT", "RESERVED");
     OrderView paid = new OrderView(41L, "ORD-41", 7L, "PAID", "RESERVED");
@@ -85,11 +85,11 @@ class PaymentEffectDispatcherTest {
       "PENDING_PAYMENT", "PAID", "Payment result applied by payment-orchestration");
   }
 
-  private PaymentEffectDispatcher dispatcher(JdbcTemplate jdbc,
+  private PaymentEffectDispatcher dispatcher(PaymentEffectMapper store,
                                              PaymentShadowProperties properties,
                                              RemoteOrderEffectClient orders,
                                              RemoteInventoryEffectClient inventory) {
-    return new PaymentEffectDispatcher(jdbc, new ObjectMapper(), properties, orders, inventory,
+    return new PaymentEffectDispatcher(store, new ObjectMapper(), properties, orders, inventory,
       mock(RefundApplicationService.class), mock(ChannelGatewayClient.class));
   }
 }

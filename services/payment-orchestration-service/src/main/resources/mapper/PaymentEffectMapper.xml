@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.payment.infrastructure.persistence.PaymentEffectMapper">
+
+  <select id="readyEffectIds" resultType="java.lang.Long">
+    SELECT id FROM payment_outbox WHERE ((status IN ('NEW', 'RETRY') AND
+      next_attempt_at&lt;=CURRENT_TIMESTAMP(6)) OR (status='PROCESSING' AND
+      next_attempt_at&lt;CURRENT_TIMESTAMP(6))) ORDER BY id LIMIT #{batchSize}
+  </select>
+
+  <select id="readyRefundCommandIds" resultType="java.lang.String">
+    SELECT command_id FROM payment_command_outbox WHERE command_type='CREATE_REFUND' AND ((status IN ('NEW',
+      'RETRY') AND next_attempt_at&lt;=CURRENT_TIMESTAMP(6)) OR (status='IN_FLIGHT' AND
+      next_attempt_at&lt;CURRENT_TIMESTAMP(6))) ORDER BY created_at LIMIT #{batchSize}
+  </select>
+
+  <update id="claimEffect">
+    UPDATE payment_outbox SET status='PROCESSING', attempts=attempts+1, next_attempt_at=CURRENT_TIMESTAMP(6) +
+      INTERVAL 30 SECOND, last_error=NULL WHERE id=#{id} AND (status IN ('NEW', 'RETRY') OR
+      (status='PROCESSING' AND next_attempt_at&lt;CURRENT_TIMESTAMP(6)))
+  </update>
+
+  <select id="findEffect" resultType="map">
+    SELECT event_id, event_type, payload FROM payment_outbox WHERE id=#{id}
+  </select>
+
+  <update id="markEffectPublished">
+    UPDATE payment_outbox SET status='PUBLISHED', published_at=CURRENT_TIMESTAMP(6), last_error=NULL WHERE
+      id=#{id}
+  </update>
+
+  <update id="retryEffect">
+    UPDATE payment_outbox SET status='RETRY', next_attempt_at=CURRENT_TIMESTAMP(6) + INTERVAL LEAST(attempts,
+      30) SECOND, last_error=#{error} WHERE id=#{id}
+  </update>
+
+  <select id="findRefundChannelData" resultType="map">
+    SELECT r.*, p.channel, p.channel_transaction_no FROM refund_records r JOIN payment_records p ON
+      p.id=r.payment_id WHERE r.refund_number=#{refundNumber}
+  </select>
+
+  <insert id="insertRefundProcess">
+    INSERT IGNORE INTO payment_process_managers(process_id, order_id, process_type, status, command_id,
+      command_fingerprint, correlation_id, causation_id, traceparent, result_deadline_at, next_check_at,
+      version, created_at, updated_at) VALUES (#{processId}, #{orderId}, 'REFUND_CREATE', 'WAITING_RESULT',
+      #{commandId}, #{fingerprint}, #{correlationId}, #{causationId}, #{traceparent},
+      CURRENT_TIMESTAMP(6)+INTERVAL 5 MINUTE, CURRENT_TIMESTAMP(6)+INTERVAL 5 MINUTE, 0, CURRENT_TIMESTAMP(6),
+      CURRENT_TIMESTAMP(6))
+  </insert>
+
+  <insert id="insertRefundCommand">
+    INSERT IGNORE INTO payment_command_outbox(command_id, process_id, order_id, command_type,
+      payload_fingerprint, payload, status, attempts, next_attempt_at, result_deadline_at, correlation_id,
+      causation_id, traceparent, created_at) VALUES (#{commandId}, #{processId}, #{orderId}, 'CREATE_REFUND',
+      #{fingerprint}, #{payload}, 'NEW', 0, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6)+INTERVAL 5 MINUTE,
+      #{correlationId}, #{causationId}, #{traceparent}, CURRENT_TIMESTAMP(6))
+  </insert>
+
+  <update id="markRefundProcessing">
+    UPDATE refund_records SET status='PROCESSING', updated_at=CURRENT_TIMESTAMP(6) WHERE
+      refund_number=#{refundNumber} AND status='REQUESTED'
+  </update>
+
+  <update id="claimRefundCommand">
+    UPDATE payment_command_outbox SET status='IN_FLIGHT', attempts=attempts+1,
+      next_attempt_at=CURRENT_TIMESTAMP(6)+INTERVAL 30 SECOND WHERE command_id=#{commandId} AND (status IN
+      ('NEW', 'RETRY') OR (status='IN_FLIGHT' AND next_attempt_at&lt;CURRENT_TIMESTAMP(6)))
+  </update>
+
+  <select id="refundCommandPayload" resultType="java.lang.String">
+    SELECT payload FROM payment_command_outbox WHERE command_id=#{commandId}
+  </select>
+
+  <update id="assignChannelRefundNo">
+    UPDATE refund_records SET channel_refund_no=#{channelRefundNo}, updated_at=CURRENT_TIMESTAMP(6) WHERE
+      refund_number=#{refundNumber}
+  </update>
+
+  <update id="acknowledgeRefundCommand">
+    UPDATE payment_command_outbox SET status='ACKNOWLEDGED', acknowledged_at=CURRENT_TIMESTAMP(6),
+      last_error=NULL WHERE command_id=#{commandId}
+  </update>
+
+  <update id="retryRefundCommand">
+    UPDATE payment_command_outbox SET status='RETRY', next_attempt_at=CURRENT_TIMESTAMP(6)+INTERVAL
+      LEAST(attempts, 30) SECOND, last_error=#{error} WHERE command_id=#{commandId}
+  </update>
+
+  <update id="markRefundInventoryRestored">
+    UPDATE refund_records SET inventory_status='REFUNDED', updated_at=CURRENT_TIMESTAMP(6) WHERE
+      refund_number=#{refundNumber} AND inventory_status&lt;>'REFUNDED'
+  </update>
+
+  <select id="findRefundPreviousState" resultType="map">
+    SELECT order_status_before_refund, customer_id FROM refund_records WHERE refund_number=#{refundNumber}
+  </select>
+</mapper>

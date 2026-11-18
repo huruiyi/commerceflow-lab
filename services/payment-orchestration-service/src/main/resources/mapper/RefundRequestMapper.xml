@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.payment.infrastructure.persistence.RefundRequestMapper">
+
+  <resultMap id="refundRow" type="map" autoMapping="true">
+    <result property="requested_at" column="requested_at" javaType="java.sql.Timestamp"/>
+    <result property="succeeded_at" column="succeeded_at" javaType="java.sql.Timestamp"/>
+    <result property="failed_at" column="failed_at" javaType="java.sql.Timestamp"/>
+  </resultMap>
+
+  <select id="latestRefund" resultMap="refundRow">
+    SELECT * FROM refund_records WHERE order_id=#{orderId} ORDER BY id DESC LIMIT 1
+  </select>
+
+  <select id="lockCommandInbox" resultType="map">
+    SELECT payload_fingerprint, response_payload FROM payment_remote_message_inbox WHERE
+      message_id=#{commandId} FOR UPDATE
+  </select>
+
+  <select id="lockRefundByPayment" resultMap="refundRow">
+    SELECT * FROM refund_records WHERE payment_id=#{paymentId} FOR UPDATE
+  </select>
+
+  <insert id="insertRefundInbox">
+    INSERT INTO payment_remote_message_inbox(message_id, message_kind, payload_fingerprint, processing_status)
+      VALUES (#{commandId}, 'REFUND_CREATE', #{fingerprint}, 'RECEIVED')
+  </insert>
+
+  <insert id="insertRefund">
+    INSERT INTO refund_records(refund_number, order_id, payment_id, customer_id, idempotency_key,
+      request_fingerprint, amount, currency, reason_code, reason_detail, status, inventory_status,
+      order_status_before_refund, channel_refund_no, failure_reason, requested_at, created_at, updated_at,
+      version) VALUES (#{refundNumber}, #{orderId}, #{paymentId}, #{customerId}, #{idempotencyKey},
+      #{fingerprint}, #{amount}, #{currency}, #{reasonCode}, #{reasonDetail}, 'REQUESTED', 'NOT_STARTED',
+      #{orderStatus}, NULL, '', CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6), 0)
+  </insert>
+
+  <select id="findRefundId" resultType="java.lang.Long">
+    SELECT id FROM refund_records WHERE refund_number=#{refundNumber}
+  </select>
+
+  <insert id="insertRefundRequestedEvent">
+    INSERT INTO refund_events(refund_id, event_id, event_type, from_status, to_status, detail, created_at)
+      VALUES (#{refundId}, #{eventId}, #{type}, 'REQUESTED', 'PROCESSING', #{reasonCode}, CURRENT_TIMESTAMP(6))
+  </insert>
+
+  <update id="finishRefundInbox">
+    UPDATE payment_remote_message_inbox SET processing_status='WAITING_EFFECTS', response_payload=#{response},
+      processed_at=CURRENT_TIMESTAMP(6) WHERE message_id=#{commandId}
+  </update>
+
+  <insert id="insertRefundRequestedOutbox">
+    INSERT INTO payment_outbox(event_id, aggregate_type, aggregate_id, event_type, topic, payload, status,
+      attempts, next_attempt_at, last_error, created_at, published_at) VALUES (#{eventId}, 'REFUND',
+      #{refundNumber}, 'REFUND_REQUESTED', 'payment-result-events', #{payload}, 'NEW', 0, CURRENT_TIMESTAMP(6),
+      NULL, CURRENT_TIMESTAMP(6), NULL)
+  </insert>
+
+  <select id="lockSuccessfulPayment" resultType="map">
+    SELECT * FROM payment_records WHERE order_id=#{orderId} AND status='SUCCESS' ORDER BY id DESC LIMIT 1 FOR
+      UPDATE
+  </select>
+</mapper>

@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.payment.infrastructure.persistence.PaymentProtocolMapper">
+
+  <resultMap id="paymentRow" type="map" autoMapping="true">
+    <result property="created_at" column="created_at" javaType="java.sql.Timestamp"/>
+    <result property="paid_at" column="paid_at" javaType="java.sql.Timestamp"/>
+    <result property="expires_at" column="expires_at" javaType="java.sql.Timestamp"/>
+  </resultMap>
+
+  <sql id="paymentProjection">
+    SELECT p.*,m.merchant_no FROM payment_records p LEFT JOIN payment_merchant_accounts m ON m.id=p.merchant_account_id
+  </sql>
+
+  <resultMap id="refundRow" type="map" autoMapping="true">
+    <result property="requested_at" column="requested_at" javaType="java.sql.Timestamp"/>
+    <result property="succeeded_at" column="succeeded_at" javaType="java.sql.Timestamp"/>
+    <result property="failed_at" column="failed_at" javaType="java.sql.Timestamp"/>
+  </resultMap>
+
+  <insert id="ensureIdempotencyLock">
+    INSERT IGNORE INTO payment_idempotency_locks(idempotency_key, created_at) VALUES (#{key},
+      CURRENT_TIMESTAMP(6))
+  </insert>
+
+  <insert id="insertPayment">
+    INSERT INTO payment_records(order_id, payment_number, idempotency_key, amount, status, failure_reason,
+      created_at, merchant_account_id, channel, currency, request_fingerprint, channel_transaction_no, paid_at,
+      expires_at, updated_at, checkout_url, action_type, qr_payload, version, refunded_amount) VALUES
+      (#{orderId}, #{paymentNumber}, #{key}, #{amount}, 'PENDING', '', CURRENT_TIMESTAMP(6), #{merchantId},
+      #{channel}, #{currency}, #{fingerprint}, #{channelTransactionNo}, NULL, #{expiresAt},
+      CURRENT_TIMESTAMP(6), #{checkoutUrl}, 'REDIRECT', NULL, 0, 0)
+  </insert>
+
+  <insert id="insertCreateProcess">
+    INSERT INTO payment_process_managers(process_id, order_id, process_type, status, command_id,
+      command_fingerprint, correlation_id, causation_id, traceparent, result_deadline_at, next_check_at,
+      version, created_at, updated_at) VALUES (#{processId}, #{orderId}, 'PAYMENT_CREATE', 'WAITING_RESULT',
+      #{commandId}, #{fingerprint}, #{correlationId}, #{causationId}, #{traceparent}, CURRENT_TIMESTAMP(6) +
+      INTERVAL 5 MINUTE, CURRENT_TIMESTAMP(6) + INTERVAL 5 MINUTE, 0, CURRENT_TIMESTAMP(6),
+      CURRENT_TIMESTAMP(6))
+  </insert>
+
+  <insert id="insertCreateCommand">
+    INSERT INTO payment_command_outbox(command_id, process_id, order_id, command_type, payload_fingerprint,
+      payload, status, attempts, next_attempt_at, result_deadline_at, correlation_id, causation_id,
+      traceparent, created_at) VALUES (#{commandId}, #{processId}, #{orderId}, 'AWAIT_CHANNEL_RESULT',
+      #{fingerprint}, #{payload}, 'IN_FLIGHT', 1, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6) + INTERVAL 5
+      MINUTE, #{correlationId}, #{causationId}, #{traceparent}, CURRENT_TIMESTAMP(6))
+  </insert>
+
+  <select id="latestPayment" resultMap="paymentRow">
+    <include refid="paymentProjection"/> WHERE p.order_id=#{orderId} ORDER BY p.id DESC LIMIT 1
+  </select>
+
+  <select id="latestRefund" resultMap="refundRow">
+    SELECT * FROM refund_records WHERE order_id=#{orderId} ORDER BY id DESC LIMIT 1
+  </select>
+
+  <select id="refundByNumber" resultMap="refundRow">
+    SELECT * FROM refund_records WHERE refund_number=#{refundNumber} LIMIT 1
+  </select>
+
+  <select id="refundEvents"
+          resultType="vip.fairy.commerceflow.payment.application.RemotePaymentProtocolService$RefundEvent">
+    SELECT id, event_type, from_status, to_status, detail, created_at FROM refund_events WHERE
+      refund_id=#{refundId} ORDER BY id
+  </select>
+
+  <select id="lockOrderPayments" resultMap="paymentRow">
+    <include refid="paymentProjection"/> WHERE p.order_id=#{orderId} ORDER BY p.id FOR UPDATE
+  </select>
+
+  <update id="closePendingPayment">
+    UPDATE payment_records SET status='CLOSED', failure_reason=#{reason}, updated_at=CURRENT_TIMESTAMP(6),
+      version=version+1 WHERE id=#{paymentId} AND status='PENDING'
+  </update>
+
+  <update id="acknowledgeCreateCommands">
+    UPDATE payment_command_outbox SET status='ACKNOWLEDGED', acknowledged_at=COALESCE(acknowledged_at,
+      CURRENT_TIMESTAMP(6)), last_error=NULL WHERE process_id IN (SELECT process_id FROM
+      payment_process_managers WHERE order_id=#{orderId} AND process_type='PAYMENT_CREATE') AND status IN
+      ('NEW', 'IN_FLIGHT', 'RETRY', 'DEAD')
+  </update>
+
+  <update id="completeCreateProcesses">
+    UPDATE payment_process_managers SET status='COMPLETED', last_error=NULL,
+      completed_at=COALESCE(completed_at, CURRENT_TIMESTAMP(6)), updated_at=CURRENT_TIMESTAMP(6),
+      version=version+1 WHERE order_id=#{orderId} AND process_type='PAYMENT_CREATE' AND status&lt;>'COMPLETED'
+  </update>
+
+  <select id="findPaymentNotification" resultType="map">
+    SELECT processing_status, payload_digest FROM payment_notifications WHERE channel=#{channel} AND
+      notification_id=#{notificationId}
+  </select>
+
+  <select id="lockByChannelTransaction" resultMap="paymentRow">
+    <include refid="paymentProjection"/> WHERE p.channel_transaction_no=#{channelTransactionNo} FOR UPDATE
+  </select>
+
+  <select id="findRefundNotification" resultType="map">
+    SELECT processing_status, payload_digest FROM refund_notifications WHERE channel=#{channel} AND
+      notification_id=#{notificationId}
+  </select>
+
+  <select id="lockRefundForChannel" resultMap="refundRow">
+    SELECT r.*, p.payment_number, p.channel AS payment_channel FROM refund_records r JOIN payment_records p ON
+      p.id=r.payment_id WHERE r.refund_number=#{refundNumber} FOR UPDATE
+  </select>
+
+  <select id="recoverableProcesses" resultType="map">
+    SELECT process_id, order_id, status, process_type, command_id, result_deadline_at, last_error,
+      recovered_by, recovery_reason, recovered_at FROM payment_process_managers WHERE status IN
+      ('RECONCILIATION_REQUIRED', 'COMPENSATION_REQUIRED') ORDER BY updated_at
+  </select>
+
+  <update id="retryProcess">
+    UPDATE payment_process_managers SET status='WAITING_RESULT', result_deadline_at=CURRENT_TIMESTAMP(6) +
+      INTERVAL 5 MINUTE, next_check_at=CURRENT_TIMESTAMP(6), recovered_by=#{operator},
+      recovery_reason=#{reason}, recovered_at=CURRENT_TIMESTAMP(6), updated_at=CURRENT_TIMESTAMP(6),
+      version=version+1 WHERE process_id=#{processId} AND status IN ('RECONCILIATION_REQUIRED',
+      'COMPENSATION_REQUIRED')
+  </update>
+
+  <update id="retryProcessCommands">
+    UPDATE payment_command_outbox SET status='RETRY', attempts=attempts+1,
+      next_attempt_at=CURRENT_TIMESTAMP(6), last_error=NULL WHERE process_id=#{processId}
+  </update>
+
+  <update id="markUnknownResults">
+    UPDATE payment_process_managers SET status='RECONCILIATION_REQUIRED', last_error='RESULT_TIMEOUT_UNKNOWN',
+      updated_at=CURRENT_TIMESTAMP(6), version=version+1 WHERE status='WAITING_RESULT' AND result_deadline_at
+      &lt; CURRENT_TIMESTAMP(6)
+  </update>
+
+  <select id="findResult" resultType="map">
+    SELECT payload_fingerprint, processing_status FROM payment_result_inbox WHERE result_id=#{resultId}
+  </select>
+
+  <select id="lockPaymentByNumber" resultMap="paymentRow">
+    <include refid="paymentProjection"/> WHERE p.payment_number=#{paymentNumber} FOR UPDATE
+  </select>
+
+  <update id="recordProcessFailure">
+    UPDATE payment_process_managers SET status=#{status}, last_error=#{error}, updated_at=CURRENT_TIMESTAMP(6),
+      version=version+1 WHERE process_id=#{processId}
+  </update>
+
+  <update id="completeProcess">
+    UPDATE payment_process_managers SET status='COMPLETED', completed_at=CURRENT_TIMESTAMP(6),
+      updated_at=CURRENT_TIMESTAMP(6), version=version+1 WHERE process_id=#{processId}
+  </update>
+
+  <update id="acknowledgeProcessCommands">
+    UPDATE payment_command_outbox SET status='ACKNOWLEDGED', acknowledged_at=CURRENT_TIMESTAMP(6) WHERE
+      process_id=#{processId}
+  </update>
+
+  <update id="markPaymentSucceeded">
+    UPDATE payment_records SET status='SUCCESS', failure_reason='', paid_at=COALESCE(paid_at,
+      CURRENT_TIMESTAMP(6)), updated_at=CURRENT_TIMESTAMP(6), version=version+1 WHERE id=#{paymentId}
+  </update>
+
+  <update id="markPaymentTerminal">
+    UPDATE payment_records SET status=#{status}, failure_reason=#{reason}, updated_at=CURRENT_TIMESTAMP(6),
+      version=version+1 WHERE id=#{paymentId}
+  </update>
+
+  <select id="lockRefundByNumber" resultMap="refundRow">
+    SELECT * FROM refund_records WHERE refund_number=#{refundNumber} FOR UPDATE
+  </select>
+
+  <update id="applyRefundResult">
+    UPDATE refund_records SET status=#{status}, channel_refund_no=COALESCE(channel_refund_no,
+      #{channelRefundNo}), failure_reason=#{reason}, succeeded_at=CASE WHEN #{succeeded} THEN
+      CURRENT_TIMESTAMP(6) ELSE succeeded_at END, failed_at=CASE WHEN #{failedTimestamp} THEN failed_at ELSE
+      CURRENT_TIMESTAMP(6) END, updated_at=CURRENT_TIMESTAMP(6), version=version+1 WHERE id=#{refundId}
+  </update>
+
+  <update id="recordRefundedAmount">
+    UPDATE payment_records SET refunded_amount=GREATEST(refunded_amount, #{amount}),
+      updated_at=CURRENT_TIMESTAMP(6), version=version+1 WHERE id=#{paymentId}
+  </update>
+
+  <insert id="insertResult">
+    INSERT INTO payment_result_inbox(result_id, process_id, order_id, result_type, outcome,
+      payload_fingerprint, payload, processing_status, error_detail, correlation_id, causation_id, traceparent,
+      received_at, processed_at) VALUES (#{resultId}, #{processId}, #{orderId}, #{resultType}, #{outcome},
+      #{fingerprint}, #{payload}, #{status}, #{error}, #{correlationId}, #{causationId}, #{traceparent},
+      CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6))
+  </insert>
+
+  <insert id="insertPaymentNotification">
+    INSERT INTO payment_notifications(payment_id, channel, notification_id, channel_transaction_no,
+      signature_valid, processing_status, payload_digest, failure_reason, received_at, processed_at,
+      raw_status, retry_count, next_retry_at) VALUES (#{paymentId}, #{channel}, #{notificationId},
+      #{channelTransactionNo}, 1, #{status}, #{digest}, #{failure}, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6),
+      #{channelStatus}, 0, NULL)
+  </insert>
+
+  <insert id="insertRefundNotification">
+    INSERT INTO refund_notifications(refund_id, channel, notification_id, channel_refund_no, signature_valid,
+      processing_status, payload_digest, failure_reason, received_at, processed_at) VALUES (#{refundId},
+      #{channel}, #{notificationId}, #{channelRefundNo}, 1, #{status}, #{digest}, #{failure},
+      CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6))
+  </insert>
+
+  <insert id="insertResultOutbox">
+    INSERT IGNORE INTO payment_outbox(event_id, aggregate_type, aggregate_id, event_type, topic, payload,
+      status, attempts, next_attempt_at, created_at, published_at) VALUES (#{eventId}, #{aggregateType},
+      #{aggregateId}, #{eventType}, #{topic}, #{payload}, 'NEW', 0, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6),
+      NULL)
+  </insert>
+
+  <insert id="insertCommandInbox">
+    INSERT IGNORE INTO payment_remote_message_inbox(message_id, message_kind, payload_fingerprint,
+      processing_status) VALUES (#{id}, #{kind}, #{fingerprint}, 'RECEIVED')
+  </insert>
+
+  <select id="findCommandInbox" resultType="map">
+    SELECT payload_fingerprint, response_payload FROM payment_remote_message_inbox WHERE message_id=#{id}
+  </select>
+
+  <update id="finishCommandInbox">
+    UPDATE payment_remote_message_inbox SET processing_status=#{status}, response_payload=#{response},
+      error_detail=#{error}, processed_at=CURRENT_TIMESTAMP(6) WHERE message_id=#{id} AND
+      payload_fingerprint=#{fingerprint}
+  </update>
+
+  <select id="findMerchant" resultType="map">
+    SELECT id, merchant_no FROM payment_merchant_accounts WHERE channel=#{channel} AND enabled=1
+  </select>
+
+  <select id="findByIdempotency" resultMap="paymentRow">
+    <include refid="paymentProjection"/> WHERE p.idempotency_key=#{key}
+    <if test="lock">FOR UPDATE</if>
+  </select>
+
+  <select id="lockProcessIds" resultType="java.lang.String">
+    SELECT process_id FROM payment_process_managers WHERE order_id=#{orderId} AND status IN ('WAITING_RESULT',
+      'RECONCILIATION_REQUIRED') ORDER BY created_at DESC LIMIT 1 FOR UPDATE
+  </select>
+
+  <insert id="insertPaymentEvent">
+    INSERT INTO payment_events(payment_id, event_id, event_type, from_status, to_status, detail, created_at)
+      VALUES (#{aggregateId}, #{eventId}, #{type}, #{fromStatus}, #{toStatus}, #{detail}, CURRENT_TIMESTAMP(6))
+  </insert>
+
+  <insert id="insertRefundEvent">
+    INSERT INTO refund_events(refund_id, event_id, event_type, from_status, to_status, detail, created_at)
+      VALUES (#{aggregateId}, #{eventId}, #{type}, #{fromStatus}, #{toStatus}, #{detail}, CURRENT_TIMESTAMP(6))
+  </insert>
+</mapper>

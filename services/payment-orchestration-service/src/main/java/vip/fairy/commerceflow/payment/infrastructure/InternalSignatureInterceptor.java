@@ -4,19 +4,19 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
+import vip.fairy.commerceflow.payment.infrastructure.persistence.PaymentRequestReplayMapper;
 
 @Component
 public class InternalSignatureInterceptor implements HandlerInterceptor {
 
   private final InternalRequestSignature signatures;
-  private final JdbcTemplate jdbc;
+  private final PaymentRequestReplayMapper store;
 
-  public InternalSignatureInterceptor(InternalRequestSignature signatures, JdbcTemplate jdbc) {
+  public InternalSignatureInterceptor(InternalRequestSignature signatures, PaymentRequestReplayMapper store) {
     this.signatures = signatures;
-    this.jdbc = jdbc;
+    this.store = store;
   }
 
   @Override
@@ -33,12 +33,9 @@ public class InternalSignatureInterceptor implements HandlerInterceptor {
       response.sendError(HttpStatus.UNAUTHORIZED.value(), "Invalid internal request signature");
       return false;
     }
-    jdbc.update("DELETE FROM payment_internal_request_replay "
-      + "WHERE expires_at < CURRENT_TIMESTAMP(6)");
+    store.deleteExpired();
     try {
-      jdbc.update("INSERT INTO payment_internal_request_replay(request_id,source_service,"
-          + "content_fingerprint,expires_at) VALUES (?,?,?,CURRENT_TIMESTAMP(6) + INTERVAL 5 MINUTE)",
-        requestId, service, contentHash);
+      store.insertRequest(requestId, service, contentHash);
     } catch (DuplicateKeyException duplicate) {
       response.sendError(HttpStatus.CONFLICT.value(), "Internal request replay rejected");
       return false;

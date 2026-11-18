@@ -1,7 +1,5 @@
 package vip.fairy.commerceflow.simulator.payment.web;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import vip.fairy.commerceflow.simulator.payment.domain.PaymentAuditLog;
 import vip.fairy.commerceflow.simulator.payment.mapper.PaymentAuditLogMapper;
 
@@ -25,7 +23,6 @@ public class AuditController {
 
   @GetMapping
   public List<PaymentAuditLog> list() {
-    return auditLogs.selectList(new LambdaQueryWrapper<PaymentAuditLog>()
-      .orderByDesc(PaymentAuditLog::getId).last("LIMIT 200"));
+    return auditLogs.listRecent();
   }
 }

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.payment.infrastructure.persistence.PaymentMetricsMapper">
+
+  <select id="outboxPending" resultType="java.lang.Long">
+    SELECT COUNT(*) FROM payment_outbox WHERE status IN ('NEW', 'RETRY', 'PROCESSING')
+  </select>
+
+  <select id="commandOutboxPending" resultType="java.lang.Long">
+    SELECT COUNT(*) FROM payment_command_outbox WHERE status IN ('NEW', 'RETRY', 'IN_FLIGHT')
+  </select>
+
+  <select id="processPending" resultType="java.lang.Long">
+    SELECT COUNT(*) FROM payment_process_managers WHERE status&lt;>'COMPLETED'
+  </select>
+
+  <select id="processRecoveryRequired" resultType="java.lang.Long">
+    SELECT COUNT(*) FROM payment_process_managers WHERE status IN ('RECONCILIATION_REQUIRED',
+      'COMPENSATION_REQUIRED')
+  </select>
+
+  <select id="orphanOpen" resultType="java.lang.Long">
+    SELECT COUNT(*) FROM payment_shadow_orphan_quarantine WHERE status='OPEN'
+  </select>
+
+  <select id="refundProcessing" resultType="java.lang.Long">
+    SELECT COUNT(*) FROM refund_records WHERE status IN ('REQUESTED', 'PROCESSING')
+  </select>
+</mapper>
