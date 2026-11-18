@@ -46,6 +46,8 @@ Grafana 教学账号为 `admin` / `commerceflow-grafana`。这些端口和演示
 | `CommerceFlowRefundBacklog` | 存在处理中的退款 | 10 分钟 | `warning` |
 | `CommerceFlowPaymentReconciliationBacklog` | 支付 Process Manager 有需要对账或补偿的流程 | 10 分钟 | `warning` |
 | `CommerceFlowPaymentReconciliationIssueOpen` | 支付对账表存在 `OPEN`，且最新指标刷新成功 | 10 分钟 | `warning` |
+| `CommerceFlowInventoryOutboundPublishFailed` | 最近 5 分钟内出库事件发布或确认写回失败 | 立即 | `warning` |
+| `CommerceFlowInventoryOutboundBacklog` | 出库事件仍待发布，最老一条已等待 120 秒，且读数新鲜 | 1 分钟 | `warning` |
 | `CommerceFlowLogisticsReconciliationFailure` | 5 分钟内物流对账失败 | 立即 | `warning` |
 | `CommerceFlowLogisticsCallbackDeadLetter` | 物流回调 Outbox 存在 `DEAD` | 5 分钟 | `critical` |
 
@@ -56,6 +58,11 @@ Grafana 教学账号为 `admin` / `commerceflow-grafana`。这些端口和演示
 `commerceflow_payment_process_recovery_required`，来源为 `payment_process_managers` 中的
 `RECONCILIATION_REQUIRED` 与 `COMPENSATION_REQUIRED`。数据库读取失败时，指标保留上一轮读数，
 新对账告警只使用刷新成功的读数，刷新故障由 `CommerceFlowPaymentMetricsRefreshFailed` 告警。
+
+库存服务从自身 Outbox 读取 `commerceflow_inventory_outbound_events_pending` 和
+`commerceflow_inventory_outbound_events_oldest_seconds`。积压年龄按出库记账时间计算，重试不会重置年龄。
+`commerceflow_inventory_outbound_publish_failures_total` 统计发布或确认写回失败的尝试。
+数据库采集失败时保留上一轮积压读数，`commerceflow_inventory_outbound_metrics_refresh_success` 置 0。
 
 ## 4. 验收
 

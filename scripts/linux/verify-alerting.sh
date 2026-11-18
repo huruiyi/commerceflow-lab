@@ -42,7 +42,7 @@ compose exec -T alertmanager \
   amtool check-config /etc/alertmanager/alertmanager.yml
 
 route="$(wait_json "$PROMETHEUS_URL/api/v1/query?query=commerceflow_fulfillment_remote_enabled" '.data.result | length == 1')"
-required_jobs='["commerce-service","logistics-simulator-service","payment-orchestration-service","payment-simulator-service"]'
+required_jobs='["commerce-service","inventory-service","logistics-simulator-service","payment-orchestration-service","payment-simulator-service"]'
 remote_fulfillment="$(jq -r '.data.result[0].value[1]' <<<"$route")"
 if [[ "$remote_fulfillment" == 1 ]]; then
   required_jobs="$(jq -c '. + ["fulfillment-service"]' <<<"$required_jobs")"
@@ -50,7 +50,7 @@ fi
 targets="$(wait_json "$PROMETHEUS_URL/api/v1/targets" \
   "$required_jobs - [.data.activeTargets[] | select(.health == \"up\").labels.job] | length == 0")"
 jobs="$(jq -r '[.data.activeTargets[].labels.job] | unique | join(",")' <<<"$targets")"
-if [[ "$jobs" != 'commerce-service,fulfillment-service,logistics-simulator-service,payment-orchestration-service,payment-simulator-service' ]]; then
+if [[ "$jobs" != 'commerce-service,fulfillment-service,inventory-service,logistics-simulator-service,payment-orchestration-service,payment-simulator-service' ]]; then
   echo "Unexpected Prometheus jobs: $jobs" >&2
   exit 1
 fi
@@ -60,6 +60,10 @@ if [[ "$remote_fulfillment" == 1 ]]; then
       '[.data.result[] | select(.metric.job == "fulfillment-service" and .value[1] == "1")] | length == 1' >/dev/null
   done
 fi
+
+for metric in commerceflow_inventory_outbound_events_pending +  commerceflow_inventory_outbound_events_oldest_seconds +  commerceflow_inventory_outbound_publish_failures_total +  commerceflow_inventory_outbound_metrics_refresh_success; do
+  wait_json "$PROMETHEUS_URL/api/v1/query?query=$metric" +    '[.data.result[] | select(.metric.job == "inventory-service")] | length == 1' >/dev/null
+done
 
 payment_metrics="$("$http" -fsS http://localhost:18090/actuator/prometheus)"
 expected_metrics=(
@@ -85,7 +89,9 @@ done
 rules="$(wait_json "$PROMETHEUS_URL/api/v1/rules" \
   '[.data.groups[].rules[] | select(.name == "CommerceFlowWatchdog"
     or .name == "CommerceFlowPaymentReconciliationIssueOpen"
-    or .name == "CommerceFlowPaymentReconciliationBacklog")] | length == 3')"
+    or .name == "CommerceFlowPaymentReconciliationBacklog"
+    or .name == "CommerceFlowInventoryOutboundPublishFailed"
+    or .name == "CommerceFlowInventoryOutboundBacklog")] | length == 5')"
 rule_count="$(jq '[.data.groups[].rules[] | select(.type == "alerting")] | length' <<<"$rules")"
 if ((rule_count < 21)); then
   echo "Expected at least 21 alert rules, found $rule_count." >&2

@@ -47,7 +47,7 @@ $route = Wait-Json "$PrometheusUrl/api/v1/query?query=commerceflow_fulfillment_r
   param($value)
   @($value.data.result).Count -eq 1
 }
-$requiredJobs = @('commerce-service','logistics-simulator-service','payment-orchestration-service','payment-simulator-service')
+$requiredJobs = @('commerce-service','inventory-service','logistics-simulator-service','payment-orchestration-service','payment-simulator-service')
 $expectedJobs = @($requiredJobs + 'fulfillment-service' | Sort-Object)
 $remoteFulfillment = $route.data.result[0].value[1] -eq '1'
 if ($remoteFulfillment) { $requiredJobs += 'fulfillment-service' }
@@ -67,6 +67,16 @@ if ($remoteFulfillment) {
       @($value.data.result | Where-Object { $_.metric.job -eq 'fulfillment-service' -and $_.value[1] -eq '1' }).Count -eq 1
     } | Out-Null
   }
+}
+
+foreach ($metric in @('commerceflow_inventory_outbound_events_pending',
+    'commerceflow_inventory_outbound_events_oldest_seconds',
+    'commerceflow_inventory_outbound_publish_failures_total',
+    'commerceflow_inventory_outbound_metrics_refresh_success')) {
+  Wait-Json "$PrometheusUrl/api/v1/query?query=$metric" {
+    param($value)
+    @($value.data.result | Where-Object { $_.metric.job -eq 'inventory-service' }).Count -eq 1
+  } | Out-Null
 }
 
 $paymentMetrics = (Invoke-WebRequest 'http://localhost:18090/actuator/prometheus' -UseBasicParsing).Content
@@ -91,7 +101,8 @@ foreach ($expectedMetric in $expectedMetrics) {
 
 $rules = Wait-Json "$PrometheusUrl/api/v1/rules" {
   param($value)
-  $expected = @('CommerceFlowWatchdog','CommerceFlowPaymentReconciliationIssueOpen','CommerceFlowPaymentReconciliationBacklog')
+  $expected = @('CommerceFlowWatchdog','CommerceFlowPaymentReconciliationIssueOpen','CommerceFlowPaymentReconciliationBacklog',
+    'CommerceFlowInventoryOutboundPublishFailed','CommerceFlowInventoryOutboundBacklog')
   @($value.data.groups.rules | Where-Object name -in $expected).Count -eq $expected.Count
 }
 $ruleCount = @($rules.data.groups.rules | Where-Object type -eq 'alerting').Count

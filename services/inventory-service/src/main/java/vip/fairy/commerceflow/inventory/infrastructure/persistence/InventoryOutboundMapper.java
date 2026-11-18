@@ -19,10 +19,15 @@ public interface InventoryOutboundMapper {
 
   List<PendingEvent> pending(int limit);
 
+  Backlog backlog();
+
   int published(String eventId);
 
   int retry(String eventId);
 
   record PendingEvent(String eventId, String payload) {
+  }
+
+  record Backlog(long pending, long oldestSeconds) {
   }
 }

@@ -22,6 +22,46 @@ tests:
               description: Prometheus has failed to scrape commerce-service:8080 for more than one minute.
   - interval: 1m
     input_series:
+      - series: 'commerceflow_inventory_outbound_publish_failures_total{job="inventory-service"}'
+        values: '0 0 1 1 1'
+      - series: 'commerceflow_inventory_outbound_events_pending{job="inventory-service"}'
+        values: '0 1 1 1 0'
+      - series: 'commerceflow_inventory_outbound_events_oldest_seconds{job="inventory-service"}'
+        values: '0 60 120 180 0'
+      - series: 'commerceflow_inventory_outbound_metrics_refresh_success{job="inventory-service"}'
+        values: '1x4'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: CommerceFlowInventoryOutboundPublishFailed
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: CommerceFlowInventoryOutboundBacklog
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: CommerceFlowInventoryOutboundPublishFailed
+        exp_alerts:
+          - exp_labels:
+              alertname: CommerceFlowInventoryOutboundPublishFailed
+              job: inventory-service
+              severity: warning
+            exp_annotations:
+              summary: Inventory outbound event publication failed
+              description: Inventory failed to publish an outbound event or record its acknowledgement within five minutes.
+      - eval_time: 3m
+        alertname: CommerceFlowInventoryOutboundBacklog
+        exp_alerts:
+          - exp_labels:
+              alertname: CommerceFlowInventoryOutboundBacklog
+              job: inventory-service
+              severity: warning
+            exp_annotations:
+              summary: Inventory outbound event backlog is aging
+              description: An outbound event has waited at least two minutes and the backlog has persisted for one minute.
+      - eval_time: 4m
+        alertname: CommerceFlowInventoryOutboundBacklog
+        exp_alerts: []
+  - interval: 1m
+    input_series:
       - series: 'commerceflow_payment_outbox_pending{job="payment-orchestration-service"}'
         values: '1x7'
       - series: 'commerceflow_payment_command_outbox_pending{job="payment-orchestration-service"}'

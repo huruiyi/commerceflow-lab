@@ -33,6 +33,15 @@
     WHERE event_id=#{eventId} AND published_at IS NULL
   </update>
 
+  <select id="backlog"
+          resultType="vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryOutboundMapper$Backlog">
+    SELECT COUNT(*) AS pending,
+      COALESCE(GREATEST(0,TIMESTAMPDIFF(SECOND,MIN(d.posted_at),CURRENT_TIMESTAMP(6))),0) AS oldestSeconds
+    FROM inventory_outbound_event_outbox o
+    JOIN inventory_outbound_documents d ON d.outbound_id=o.outbound_id
+    WHERE o.published_at IS NULL
+  </select>
+
   <update id="retry">
     UPDATE inventory_outbound_event_outbox SET next_attempt_at=CURRENT_TIMESTAMP(6)+INTERVAL 5 SECOND
     WHERE event_id=#{eventId} AND published_at IS NULL

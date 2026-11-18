@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import vip.fairy.commerceflow.inventory.infrastructure.observability.InventoryOutboundMetrics;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryOutboundMapper;
 
 @Component
@@ -18,10 +19,13 @@ public class InventoryOutboundEventPublisher {
 
   private final InventoryOutboundMapper store;
   private final KafkaTemplate<String, String> kafka;
+  private final InventoryOutboundMetrics metrics;
 
-  public InventoryOutboundEventPublisher(InventoryOutboundMapper store, KafkaTemplate<String, String> kafka) {
+  public InventoryOutboundEventPublisher(InventoryOutboundMapper store, KafkaTemplate<String, String> kafka,
+                                         InventoryOutboundMetrics metrics) {
     this.store = store;
     this.kafka = kafka;
+    this.metrics = metrics;
   }
 
   @Scheduled(fixedDelayString = "${commerceflow.inventory.outbound-publish-delay:1s}")
@@ -34,6 +38,7 @@ public class InventoryOutboundEventPublisher {
         Thread.currentThread().interrupt();
         return;
       } catch (ExecutionException | TimeoutException | RuntimeException failure) {
+        metrics.recordPublishFailure();
         store.retry(row.eventId());
         LOG.warn("Could not publish inventory outbound event {}", row.eventId(), failure);
         return;

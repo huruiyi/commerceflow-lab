@@ -13,7 +13,8 @@ groups:
           summary: CommerceFlow alerting pipeline heartbeat
           description: This always-firing alert verifies Prometheus to Alertmanager to webhook delivery.
       - alert: CommerceFlowServiceDown
-        expr: up{job=~"commerce-service|payment-simulator-service|payment-orchestration-service|logistics-simulator-service"} == 0
+        expr: |
+          up{job=~"commerce-service|payment-simulator-service|payment-orchestration-service|logistics-simulator-service|inventory-service"} == 0
         for: 1m
         labels:
           severity: critical
@@ -118,6 +119,27 @@ groups:
         annotations:
           summary: Payment runtime metrics are stale
           description: The payment service could not refresh its database-backed runtime metrics.
+
+  - name: commerceflow-inventory-outbound
+    rules:
+      - alert: CommerceFlowInventoryOutboundPublishFailed
+        expr: increase(commerceflow_inventory_outbound_publish_failures_total{job="inventory-service"}[5m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: Inventory outbound event publication failed
+          description: Inventory failed to publish an outbound event or record its acknowledgement within five minutes.
+      - alert: CommerceFlowInventoryOutboundBacklog
+        expr: |
+          commerceflow_inventory_outbound_events_pending{job="inventory-service"} > 0
+            and commerceflow_inventory_outbound_events_oldest_seconds{job="inventory-service"} >= 120
+            and commerceflow_inventory_outbound_metrics_refresh_success{job="inventory-service"} == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Inventory outbound event backlog is aging
+          description: An outbound event has waited at least two minutes and the backlog has persisted for one minute.
 
   - name: commerceflow-fulfillment
     rules:
