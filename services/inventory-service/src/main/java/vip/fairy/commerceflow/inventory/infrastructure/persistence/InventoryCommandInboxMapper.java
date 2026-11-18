@@ -11,5 +11,9 @@ public interface InventoryCommandInboxMapper {
 
   String payloadFingerprint(String commandId);
 
+  String rejectionMessage(String commandId);
+
   int complete(String commandId);
+
+  int reject(@Param("commandId") String commandId, @Param("message") String message);
 }

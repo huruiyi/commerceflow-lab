@@ -30,9 +30,14 @@ public class InventoryCommandGateway implements InventoryCommandPort {
   }
 
   @Override
+  public void requireWritable() {
+    writeFreeze.requireWritable();
+  }
+
+  @Override
   @Transactional
   public void handle(InventoryCommandV1 command) {
-    writeFreeze.requireWritable();
+    requireWritable();
     validator.validate(command);
     String fingerprint = InventoryCommandSemantics.fingerprint(command);
     String payload = payload(command);

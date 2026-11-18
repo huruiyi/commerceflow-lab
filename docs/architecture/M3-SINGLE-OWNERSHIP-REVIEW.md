@@ -15,7 +15,7 @@ PostgreSQL 专项按[数据库演进计划](DATABASE-EVOLUTION-PLAN.md)另行评
 | --- | --- | --- |
 | 通知 | `notification-db` / `notification`，商城鉴权代理，商城 Outbox 投递事件 | 旧 `customer_notifications` 有 0 行。商城已发布的 298 个 eventId 与目标通知完全匹配，目标隔离 0。商城仍有旧通知、Inbox、影子投影/审计五表共 20 项直接授权。目标历史回填标记仍为 0，需要记录本环境的空源结论及有历史数据环境的验收要求。 |
 | 目录 | `catalog-db` / `catalog`，Catalog V1 | 目标 `catalog_cutover_state=COMPLETE`，现有 6 个商品、2 条已发布目录事件；旧库目录事件表为 0。商城仍有旧商品、翻译、目录 Outbox 三表共 12 项直接授权，门户启动仍依赖一次性目录迁移容器。 |
-| 库存 | `inventory-db` / `inventory`，Inventory V1 与命令接收 | 旧库存五表运行授权 0，独立库存接收流量。现有库登记为 `CUTOVER_COMPLETE`（generation 25）。商城命令投递 Outbox 有 35 条待对账，另有订单 485 长期等待预占且没有对应商城投递记录。 |
+| 库存 | `inventory-db` / `inventory`，Inventory V1 与命令接收 | 旧库存五表运行授权 0，独立库存接收流量。现有库登记为 `CUTOVER_COMPLETE`（generation 25）。历史 35 条已逐笔核对，结案 23 条，保留 12 条。订单 485 已取消。 |
 | 订单 | `order-db` / `orders`，Order V1 | 正式订单 684 条，商城旧订单 345 条，源变更水位 236。Order 接收流量、影子关闭，订单核心源表运行授权为 0。目标历史隔离 1 条已解决，发货意图未决为 0。商城旧 `order_shadow_change_clock` 仍有写权限。 |
 | 支付编排 | `payment-db` / `payments`，Payment V1 及独立回调 | 目标 551 笔支付及 102 笔退款。运行接入和效果投递开启，影子关闭，14 张旧资金表运行授权为 0，源水位 610。支付和命令 Outbox 未决为 0，目标历史隔离 2 条已解决，仍有 4 条 `OPEN` 支付对账问题。商城对支付影子时钟及变更日志仍有写授权；常驻支付容器仍携带源库连接配置。 |
 | 履约 | `fulfillment-db` / `fulfillment`，商城鉴权后转发 Fulfillment V1 | 源所有者为 `FULFILLMENT` 且冻结，目标 `EXECUTION`，旧六表运行授权 0，源水位 393（generation 41）。待处理和隔离均为 0。商城代码仍保留以配置为条件启用的本地执行和恢复分支，影子只读账号仍有源库和订单库访问权限。 |
@@ -35,10 +35,10 @@ PostgreSQL 专项按[数据库演进计划](DATABASE-EVOLUTION-PLAN.md)另行评
 
 ### 对清库存与支付历史异常
 
-- [ ] 按原命令与订单逐笔核对库存 35 条超时 `RESERVE`。这批命令关联 35 个仍存在的订单，商城结果 Inbox
-  和目标库存 Inbox 均无原命令命中，库存库也无这些订单的预占行。28 个订单库存仍为待对账，7 个订单已取消释放；
-  业务订单状态还包括已付款、已收货、已完成和已退款。逐笔确定终态与补救方式，再通过受控恢复流程留下审计。
-  补查订单 485 等待预占及缺少投递记录的原因。验收产物包含逐笔结论和可复跑的未决清单。
+- [x] 逐笔核对库存 35 条超时 `RESERVE` 及订单 485。结案 23 条，取消 485，并用隔离空库验证缺货、付款服务停机及正常结账。
+  见[逐笔证据与复测结果](INVENTORY-RECONCILIATION-REVIEW.md)。
+- [ ] 核对 12 笔仍有成功支付的订单。其中 7 笔未发货，5 笔在物流模拟器中已送达，均缺少库存出库流水。
+  依据可核实的出入库与订单事实决定补记、补发或退款，当前保留原待对账记录。
 - [ ] 处理支付库 4 条 `PAYMENT_TIMEOUT/OPEN`。关联支付均为 `CLOSED`，检测时间在正式支付切流前。对照渠道和订单
   事实决定结案方式并留审计。增加按真实对账表状态的只读统计或告警，验收时与 Process Manager 指标分别核对。
   当前 Process Manager 计数为 0，四条 OPEN 来自另一张账本。

@@ -59,7 +59,7 @@ public class InventoryCommandDeliveryStateMachine {
     if (result.outcome() == InventoryCommandResultOutcomeV1.SUCCEEDED) {
       projections.forEach(projection -> projection.succeeded(command));
     } else {
-      projections.forEach(projection -> projection.reconciliationRequired(command));
+      projections.forEach(projection -> projection.rejected(command, result));
     }
   }
 

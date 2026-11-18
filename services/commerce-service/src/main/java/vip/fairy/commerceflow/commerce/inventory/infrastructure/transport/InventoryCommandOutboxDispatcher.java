@@ -12,9 +12,10 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import vip.fairy.commerceflow.commerce.inventory.application.InventoryCommandDeliveryStateMachine;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandV1;
+import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
 
 @Component
-public class InventoryCommandOutboxDispatcher {
+public class InventoryCommandOutboxDispatcher implements InventoryCommandPort.ImmediateDelivery {
 
   private static final Logger LOG = LoggerFactory.getLogger(InventoryCommandOutboxDispatcher.class);
 
@@ -56,6 +57,7 @@ public class InventoryCommandOutboxDispatcher {
     deliveries.recoverExpired(maxAttempts, retryDelay);
   }
 
+  @Override
   public boolean deliver(String commandId) {
     if (deliveries.markInFlight(commandId, resultTimeout) != 1) {
       return false;

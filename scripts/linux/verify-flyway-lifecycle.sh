@@ -54,7 +54,7 @@ start_mysql "$empty_db"
 start_mysql "$upgrade_db"
 
 migrate "$empty_db"
-[[ "$(sql "$empty_db" 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;')" == 48 ]]
+[[ "$(sql "$empty_db" 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;')" == 49 ]]
 [[ "$(sql "$empty_db" "SELECT CONCAT(frozen,':',write_owner) FROM fulfillment_write_admission WHERE singleton_id=1;")" == '0:COMMERCE' ]]
 if sql "$empty_db" "UPDATE fulfillment_write_admission SET write_owner='FULFILLMENT';"; then
   echo 'V48 allowed a remote fulfillment owner while source writes were open' >&2;exit 1
@@ -80,7 +80,7 @@ fi
 migrate "$upgrade_db" 16
 sql "$upgrade_db" "INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,created_at,updated_at) SELECT 'LEGACY-UPGRADE-$suffix',id,'PENDING_PAYMENT',42.00,'CNY','2026-01-01 00:00:00','2026-01-01 00:00:00' FROM app_users WHERE email='demo@example.com';"
 migrate "$upgrade_db"
-[[ "$(sql "$upgrade_db" 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;')" == 48 ]]
+[[ "$(sql "$upgrade_db" 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;')" == 49 ]]
 [[ "$(sql "$upgrade_db" "SELECT CONCAT(frozen,':',write_owner) FROM fulfillment_write_admission WHERE singleton_id=1;")" == '0:COMMERCE' ]]
 [[ "$(sql "$upgrade_db" "SELECT TIMESTAMPDIFF(SECOND,created_at,payment_due_at) FROM shop_orders WHERE order_number='LEGACY-UPGRADE-$suffix';")" == 1800 ]]
 [[ "$(sql "$upgrade_db" "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name IN ('scheduled_tasks','shipment_records','inventory_reservations','fulfillment_shipment_jobs','fulfillment_shipment_recoveries','fulfillment_merchant_jobs','fulfillment_merchant_recoveries','fulfillment_order_locks','fulfillment_command_ids','logistics_fulfillment_commands','fulfillment_write_admission');")" == 11 ]]
@@ -101,4 +101,4 @@ if sql "$upgrade_db" "INSERT INTO scheduled_tasks(task_key,task_type,aggregate_t
   echo 'Database accepted an illegal scheduled-task status' >&2;exit 1
 fi
 
-echo 'Flyway lifecycle verification passed: empty V1-V48, legacy V1-V16 -> V48 with order/payment shadow change capture, ownership admission, recovery protocols and illegal status rejection.'
+echo 'Flyway lifecycle verification passed: empty V1-V49, legacy V1-V16 -> V49 with order/payment shadow change capture, ownership admission, recovery protocols and illegal status rejection.'

@@ -36,9 +36,18 @@ public class InventoryCommandService implements InventoryCommandUseCase {
       if (!fingerprint.equals(inbox.payloadFingerprint(command.commandId()))) {
         throw new IllegalArgumentException("Inventory commandId was reused with a different payload");
       }
-      return InventoryCommandResultV1.succeeded(command);
+      String rejection = inbox.rejectionMessage(command.commandId());
+      return rejection == null ? InventoryCommandResultV1.succeeded(command)
+        : InventoryCommandResultV1.reservationRejected(command, rejection);
     }
-    apply(command);
+    try {
+      apply(command);
+    } catch (InventoryReservationRejectedException exception) {
+      if (inbox.reject(command.commandId(), exception.getMessage()) != 1) {
+        throw new IllegalStateException("Inventory command inbox changed concurrently");
+      }
+      return InventoryCommandResultV1.reservationRejected(command, exception.getMessage());
+    }
     if (inbox.complete(command.commandId()) != 1) {
       throw new IllegalStateException("Inventory command inbox changed concurrently");
     }

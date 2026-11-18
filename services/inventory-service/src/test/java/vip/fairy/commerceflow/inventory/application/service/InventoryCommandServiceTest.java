@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -38,6 +40,31 @@ class InventoryCommandServiceTest {
 
     assertThat(result.outcome()).isEqualTo("SUCCEEDED");
     verify(inventory).reserve(command.orderId(), command.items());
+  }
+
+  @Test
+  void recordsAndReplaysTheSameDefinitiveReservationRejection() {
+    InventoryCommandV1 command = reserve("no-stock");
+    when(inbox.claim(eq(command.commandId()), eq("RESERVE"), eq(command.orderId()), anyString()))
+      .thenAnswer(invocation -> {
+        when(inbox.payloadFingerprint(command.commandId())).thenReturn(invocation.getArgument(3));
+        return 1;
+      })
+      .thenReturn(0);
+    String message = "Inventory is unavailable for product 1";
+    doThrow(new InventoryReservationRejectedException(1L))
+      .when(inventory).reserve(command.orderId(), command.items());
+    when(inbox.reject(command.commandId(), message)).thenReturn(1);
+    when(inbox.rejectionMessage(command.commandId())).thenReturn(message);
+    InventoryCommandService service = service();
+
+    var initial = service.handle(command);
+    var replay = service.handle(command);
+
+    assertThat(initial.outcome()).isEqualTo("REJECTED");
+    assertThat(replay.errorCode()).isEqualTo("STOCK_UNAVAILABLE");
+    assertThat(replay.message()).isEqualTo(initial.message());
+    verify(inventory, times(1)).reserve(command.orderId(), command.items());
   }
 
   @Test

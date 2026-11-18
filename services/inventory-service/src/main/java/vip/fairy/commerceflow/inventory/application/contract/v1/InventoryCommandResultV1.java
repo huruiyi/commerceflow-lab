@@ -22,4 +22,11 @@ public record InventoryCommandResultV1(
       command.commandType(), "SUCCEEDED", Instant.now(), null, "Inventory command applied",
       command.correlationId(), command.commandId(), command.traceparent());
   }
+
+  public static InventoryCommandResultV1 reservationRejected(InventoryCommandV1 command,
+                                                             String message) {
+    return new InventoryCommandResultV1(1, UUID.randomUUID().toString(), command.commandId(),
+      command.commandType(), "REJECTED", Instant.now(), "STOCK_UNAVAILABLE", message,
+      command.correlationId(), command.commandId(), command.traceparent());
+  }
 }

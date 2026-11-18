@@ -25,7 +25,7 @@ import vip.fairy.commerceflow.commerce.scheduling.application.ScheduledTaskTypes
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -45,13 +45,17 @@ public class PurchaseOrderService {
   private final ScheduledTaskService scheduledTasks;
   private final LogisticsService logistics;
   private final InventoryCommandPort inventory;
+  private final InventoryCommandPort.ImmediateDelivery inventoryDelivery;
+  private final TransactionTemplate transactions;
 
   public PurchaseOrderService(OrderStorePort orders, CheckoutCartPort carts,
                               PaymentOrchestrationV1 payments,
                               PaymentWriteAdmissionV1 paymentWrites,
                               OrderLifecycleProperties lifecycle, ScheduledTaskService scheduledTasks,
                               LogisticsService logistics,
-                              InventoryCommandPort inventory) {
+                              InventoryCommandPort inventory,
+                              InventoryCommandPort.ImmediateDelivery inventoryDelivery,
+                              TransactionTemplate transactions) {
     this.orders = orders;
     this.carts = carts;
     this.payments = payments;
@@ -60,10 +64,19 @@ public class PurchaseOrderService {
     this.scheduledTasks = scheduledTasks;
     this.logistics = logistics;
     this.inventory = inventory;
+    this.inventoryDelivery = inventoryDelivery;
+    this.transactions = transactions;
   }
 
-  @Transactional
   public ShopOrderResponse checkout(AppUser user) {
+    Long orderId = transactions.execute(status -> createOrder(user));
+    inventoryDelivery.deliver(reservationCommandId(orderId));
+    ShopOrderView order = orders.find(user.getId(), orderId)
+      .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+    return assemble(order, null, null);
+  }
+
+  private Long createOrder(AppUser user) {
     List<CheckoutCartItem> items = carts.lockItems(user.getId());
     if (items.isEmpty()) {
       throw new BusinessRuleException("Cart is empty");
@@ -75,13 +88,14 @@ public class PurchaseOrderService {
     if (items.stream().anyMatch(item -> item.getMerchantId() == null)) {
       throw new BusinessRuleException("A cart product has no merchant");
     }
+    inventory.requireWritable();
     BigDecimal total = items.stream().map(CheckoutCartItem::subtotal).reduce(BigDecimal.ZERO, BigDecimal::add);
     Instant paymentDueAt = Instant.now().plus(lifecycle.getPaymentTimeout());
     NewOrder order = new NewOrder(number("ORD"), user.getId(), total, "CNY", paymentDueAt);
     List<OrderItemSnapshot> orderItems = items.stream().map(OrderItemSnapshot::from).toList();
     orders.insertOrder(order, orderItems, OrderAddressSnapshot.from(address), user.getId());
     inventory.handle(InventoryCommandPort.reserve(
-      "order:" + order.getId() + ":reserve",
+      reservationCommandId(order.getId()),
       order.getId(),
       items.stream()
         .map(item -> InventoryCommandPort.item(
@@ -91,7 +105,11 @@ public class PurchaseOrderService {
     scheduledTasks.schedule(ScheduledTaskTypes.PAYMENT_TIMEOUT, "order:" + order.getId(), "ORDER",
       order.getId().toString(), paymentDueAt, Map.of("orderId", order.getId()));
     carts.clear(user.getId());
-    return require(user, order.getId());
+    return order.getId();
+  }
+
+  private String reservationCommandId(Long orderId) {
+    return "order:" + orderId + ":reserve";
   }
 
   public List<ShopOrderResponse> list(AppUser user) {
@@ -117,6 +135,9 @@ public class PurchaseOrderService {
     if (!order.getPaymentDueAt().isAfter(Instant.now())) {
       throw new BusinessRuleException("Order payment deadline has expired");
     }
+    if (!"RESERVED".equals(order.getInventoryStatus())) {
+      throw new BusinessRuleException("Order inventory has not been reserved");
+    }
     String commandId = UUID.randomUUID().toString();
     String correlationId = UUID.randomUUID().toString();
     PaymentCreateCommandV1 command = new PaymentCreateCommandV1(PaymentCreateCommandV1.VERSION,
@@ -129,13 +150,18 @@ public class PurchaseOrderService {
   }
 
   private ShopOrderResponse assemble(ShopOrderView order, PaymentSnapshotV1 payment) {
+    PaymentQueryV1 query = new PaymentQueryV1(PaymentQueryV1.VERSION, order.getId());
+    PaymentSnapshotV1 resolved = payment != null ? payment : payments.latest(query).orElse(null);
+    RefundSnapshotV1 refund = payments.refund(query).orElse(null);
+    return assemble(order, resolved, refund);
+  }
+
+  private ShopOrderResponse assemble(ShopOrderView order, PaymentSnapshotV1 resolved,
+                                     RefundSnapshotV1 refund) {
     List<ShopOrderResponse.Item> items = orders.items(order.getId())
       .stream()
       .map(ShopOrderResponse.Item::from)
       .toList();
-    PaymentQueryV1 query = new PaymentQueryV1(PaymentQueryV1.VERSION, order.getId());
-    PaymentSnapshotV1 resolved = payment != null ? payment : payments.latest(query).orElse(null);
-    RefundSnapshotV1 refund = payments.refund(query).orElse(null);
     return new ShopOrderResponse(
       order.getId(),
       order.getOrderNumber(),
@@ -163,7 +189,9 @@ public class PurchaseOrderService {
     LinkedHashSet<String> actions = new LinkedHashSet<>();
     switch (order.getStatus()) {
       case "PENDING_PAYMENT" -> {
-        actions.add("PAY");
+        if ("RESERVED".equals(order.getInventoryStatus())) {
+          actions.add("PAY");
+        }
         actions.add("REFRESH_PAYMENT");
         actions.add("CANCEL_ORDER");
       }

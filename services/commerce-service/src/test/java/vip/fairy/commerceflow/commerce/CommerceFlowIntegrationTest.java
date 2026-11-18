@@ -196,6 +196,9 @@ class CommerceFlowIntegrationTest {
   PurchaseOrderService purchaseOrders;
   @Autowired
   InventoryCommandPort inventoryCommands;
+
+  @MockitoBean
+  InventoryCommandPort.ImmediateDelivery immediateInventoryDelivery;
   @Autowired
   InventoryCommandValidatorV1 inventoryCommandValidator;
   @Autowired
@@ -910,7 +913,7 @@ class CommerceFlowIntegrationTest {
     mvc.perform(get("/api/purchase-orders/{id}", orderId).session(customer.session()))
       .andExpect(status().isOk())
       .andExpect(jsonPath("$.availableActions").isArray())
-      .andExpect(jsonPath("$.availableActions[?(@ == 'PAY')]").exists())
+      .andExpect(jsonPath("$.availableActions[?(@ == 'PAY')]").doesNotExist())
       .andExpect(jsonPath("$.availableActions[?(@ == 'CANCEL_ORDER')]").exists());
 
     org.junit.jupiter.api.Assertions.assertTrue(

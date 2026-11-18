@@ -6,7 +6,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandV1;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandTypeV1;
 import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
+import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort.ReservationRetryAdmission;
 import vip.fairy.commerceflow.commerce.inventory.infrastructure.InventoryCommandDeliveryMapper;
 import vip.fairy.commerceflow.commerce.inventory.infrastructure.DeliveryRecoveryView;
 
@@ -16,13 +18,15 @@ public class InventoryCommandRecoveryService {
   private final InventoryCommandDeliveryMapper delivery;
   private final InventoryCommandPort commands;
   private final ObjectMapper mapper;
+  private final ReservationRetryAdmission reservations;
 
   public InventoryCommandRecoveryService(InventoryCommandDeliveryMapper delivery,
                                          InventoryCommandPort commands,
-                                         ObjectMapper mapper) {
+                                         ObjectMapper mapper, ReservationRetryAdmission reservations) {
     this.delivery = delivery;
     this.commands = commands;
     this.mapper = mapper;
+    this.reservations = reservations;
   }
 
   public List<RecoveryView> reconciliationRequired(int limit) {
@@ -38,6 +42,9 @@ public class InventoryCommandRecoveryService {
       throw new IllegalArgumentException("Inventory recovery actor and reason are required");
     }
     InventoryCommandV1 command = command(commandId);
+    if (command.commandType() == InventoryCommandTypeV1.RESERVE) {
+      reservations.requireReservationRetryAllowed(command.orderId());
+    }
     if (delivery.reopen(commandId, recoveredBy, reason.trim()) != 1) {
       throw new IllegalStateException("Inventory command is not awaiting reconciliation");
     }

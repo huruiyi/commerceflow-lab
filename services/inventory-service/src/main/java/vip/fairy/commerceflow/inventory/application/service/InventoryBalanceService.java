@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryCommandV1;
 import vip.fairy.commerceflow.inventory.domain.InventoryReservation;
 import vip.fairy.commerceflow.inventory.domain.ProductInventory;
@@ -18,10 +20,12 @@ public class InventoryBalanceService {
     this.inventory = inventory;
   }
 
+  @Transactional(propagation = Propagation.NESTED)
   public void reserve(Long orderId, List<InventoryCommandV1.Item> items) {
     for (InventoryCommandV1.Item item : items) {
-      requireChanged(inventory.reserve(item.productId(), item.quantity()),
-        "Insufficient stock for " + item.productName());
+      if (inventory.reserve(item.productId(), item.quantity()) != 1) {
+        throw new InventoryReservationRejectedException(item.productId());
+      }
       inventory.insertReservation(orderId, item.productId(), item.quantity());
       movement("reserve:" + UUID.randomUUID(), orderId, item.productId(), "RESERVED",
         item.quantity(), "Stock reserved during checkout");

@@ -81,7 +81,7 @@ import_file="$work_dir/import.sql"
 trap 'rm -f "$export_file" "$import_file"; rmdir "$work_dir"' EXIT
 
 MYSQL_PWD="$SOURCE_ROOT_PASSWORD" mysqldump -h commerce-db -uroot \
-  --default-character-set=utf8mb4 --single-transaction --no-create-info --skip-triggers --no-tablespaces \
+  --default-character-set=utf8mb4 --single-transaction --no-create-info --complete-insert --skip-triggers --no-tablespaces \
   --skip-add-locks --skip-disable-keys --set-gtid-purged=OFF --compact "$SOURCE_SCHEMA" \
   product_inventory inventory_reservations inventory_movements \
   inventory_command_inbox inventory_catalog_event_inbox > "$export_file"

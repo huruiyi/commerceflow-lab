@@ -1,9 +1,14 @@
 package vip.fairy.commerceflow.commerce.ordering.application;
 
+import java.time.Instant;
+
 import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandV1;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandResultV1;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandTypeV1;
 import vip.fairy.commerceflow.commerce.ordering.application.port.OrderEffectInboxPort;
 import vip.fairy.commerceflow.commerce.ordering.application.port.OrderStorePort;
+import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
@@ -12,7 +17,8 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 @Service
-public class OrderCancellationProjection implements InventoryCommandPort.StateProjection {
+public class OrderCancellationProjection implements InventoryCommandPort.StateProjection,
+  InventoryCommandPort.ReservationRetryAdmission {
 
   static final String CONSUMER_GROUP = "commerceflow-order-effects";
 
@@ -54,6 +60,16 @@ public class OrderCancellationProjection implements InventoryCommandPort.StatePr
   }
 
   @Override
+  public void requireReservationRetryAllowed(Long orderId) {
+    var order = orders.lockById(orderId);
+    if (order.isEmpty() || !"PENDING_PAYMENT".equals(order.get().getStatus())
+        || !"RECONCILIATION_REQUIRED".equals(order.get().getInventoryStatus())
+        || !order.get().getPaymentDueAt().isAfter(Instant.now())) {
+      throw new BusinessRuleException("Only an unexpired pending order can retry stock reservation");
+    }
+  }
+
+  @Override
   public void succeeded(InventoryCommandV1 command) {
     String current = orders.lockById(command.orderId()).orElseThrow().getInventoryStatus();
     String target = target(command, current);
@@ -70,12 +86,26 @@ public class OrderCancellationProjection implements InventoryCommandPort.StatePr
         ? "COMMITTED"
         : null;
       case RELEASE -> "WAITING_RESERVATION".equals(current) || "RESERVED".equals(current)
+        || "RESERVATION_REJECTED".equals(current)
         || "RECONCILIATION_REQUIRED".equals(current)
         ? "RELEASED"
         : null;
       case REFUND -> "REFUND_PENDING".equals(current)
         || "RECONCILIATION_REQUIRED".equals(current) ? "REFUNDED" : null;
     };
+  }
+
+  @Override
+  public void rejected(InventoryCommandV1 command, InventoryCommandResultV1 result) {
+    if (command.commandType() != InventoryCommandTypeV1.RESERVE
+        || !"STOCK_UNAVAILABLE".equals(result.errorCode())) {
+      reconciliationRequired(command);
+      return;
+    }
+    String current = orders.lockById(command.orderId()).orElseThrow().getInventoryStatus();
+    if ("WAITING_RESERVATION".equals(current) || "RECONCILIATION_REQUIRED".equals(current)) {
+      requireTransition(command.orderId(), current, "RESERVATION_REJECTED");
+    }
   }
 
   @Override

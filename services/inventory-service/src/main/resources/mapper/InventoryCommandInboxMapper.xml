@@ -9,12 +9,22 @@
   </insert>
 
   <select id="payloadFingerprint" resultType="java.lang.String">
-    SELECT payload_fingerprint FROM inventory_command_inbox WHERE command_id=#{commandId}
+    SELECT payload_fingerprint FROM inventory_command_inbox WHERE command_id=#{commandId} FOR UPDATE
+  </select>
+
+  <select id="rejectionMessage" resultType="java.lang.String">
+    SELECT rejection_message FROM inventory_command_inbox WHERE command_id=#{commandId} FOR UPDATE
   </select>
 
   <update id="complete">
     UPDATE inventory_command_inbox
     SET status='SUCCEEDED',processed_at=CURRENT_TIMESTAMP(6)
+    WHERE command_id=#{commandId} AND status='PROCESSING'
+  </update>
+
+  <update id="reject">
+    UPDATE inventory_command_inbox
+    SET status='REJECTED',rejection_message=#{message},processed_at=CURRENT_TIMESTAMP(6)
     WHERE command_id=#{commandId} AND status='PROCESSING'
   </update>
 
