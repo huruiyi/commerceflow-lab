@@ -20,6 +20,7 @@ public class PaymentRuntimeMetrics {
   private final AtomicLong commandOutboxPending = new AtomicLong();
   private final AtomicLong processPending = new AtomicLong();
   private final AtomicLong processRecoveryRequired = new AtomicLong();
+  private final AtomicLong reconciliationOpen = new AtomicLong();
   private final AtomicLong orphanOpen = new AtomicLong();
   private final AtomicLong refundProcessing = new AtomicLong();
   private final AtomicLong refreshSuccess = new AtomicLong();
@@ -35,6 +36,8 @@ public class PaymentRuntimeMetrics {
       "Payment process managers that have not completed");
     register(registry, "commerceflow.payment.process.recovery.required", processRecoveryRequired,
       "Payment process managers requiring reconciliation or compensation");
+    register(registry, "commerceflow.payment.reconciliation.open", reconciliationOpen,
+      "Open issues in the payment reconciliation ledger");
     register(registry, "commerceflow.payment.orphan.open", orphanOpen,
       "Open payment shadow orphan quarantine rows");
     register(registry, "commerceflow.payment.refund.processing", refundProcessing,
@@ -60,6 +63,7 @@ public class PaymentRuntimeMetrics {
       commandOutboxPending.set(snapshot.commandOutboxPending());
       processPending.set(snapshot.processPending());
       processRecoveryRequired.set(snapshot.processRecoveryRequired());
+      reconciliationOpen.set(snapshot.reconciliationOpen());
       orphanOpen.set(snapshot.orphanOpen());
       refundProcessing.set(snapshot.refundProcessing());
       refreshSuccess.set(1);

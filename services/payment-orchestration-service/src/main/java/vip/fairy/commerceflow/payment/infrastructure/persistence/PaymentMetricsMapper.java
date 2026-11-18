@@ -13,6 +13,8 @@ public interface PaymentMetricsMapper {
 
   long processRecoveryRequired();
 
+  long reconciliationOpen();
+
   long orphanOpen();
 
   long refundProcessing();

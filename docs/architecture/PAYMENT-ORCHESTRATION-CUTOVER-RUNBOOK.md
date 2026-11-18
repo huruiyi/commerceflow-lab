@@ -103,3 +103,15 @@ Payment/Command Outbox、未完成 Process Manager 和 OPEN 孤儿全部为 0。
 精确匹配，事务内再次检查支付关闭、无扣款、无退款及关单事件。受影响行数必须为 4。结案状态为 `RESOLVED`，
 解析码为 `TERMINAL_PAYMENT_CONFIRMED`，同时记录时间、执行者和逐笔渠道证据，原异常信息保留。
 复核真实对账表 `OPEN=0`，支付、订单与五条独立的库存待对账记录在结案前后均一致。
+
+## 9. 支付对账与流程恢复监控
+
+直接从 `payment-db.payment_reconciliation_issue` 读取 `status='OPEN'`，对应
+`commerceflow_payment_reconciliation_open` 和 `CommerceFlowPaymentReconciliationIssueOpen`。
+保留 Process Manager 指标 `commerceflow_payment_process_recovery_required` 和现有告警
+`CommerceFlowPaymentReconciliationBacklog`。两条告警按各自读数持续 10 分钟触发，
+新对账告警要求最新数据库读取成功。详细规则见[可观测性与告警](../ALERTING.md)。
+
+隔离 MySQL 通过支付服务真实采集，依次观察到两项读数 `0/0 → 4/0 → 0/2 → 0/0`。已结案账本行及
+`WAITING_RESULT` 流程未被计入对应指标。Promtool 分别验证了仅账本积压、仅流程待恢复、未达 10 分钟、
+结案清零和数据库读取失败时的告警行为。现有本地环境没有写入告警测试数据。

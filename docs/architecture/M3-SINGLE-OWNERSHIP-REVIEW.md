@@ -42,7 +42,8 @@ PostgreSQL 专项按[数据库演进计划](DATABASE-EVOLUTION-PLAN.md)另行评
   保留待对账记录。证据齐备后使用[按订单登记仓库凭证](INVENTORY-RECONCILIATION-REVIEW.md#按订单登记仓库凭证)结案。
 - [x] 逐笔核对并结案支付库 4 条历史 `PAYMENT_TIMEOUT/OPEN`。商城支付和模拟渠道都已关闭且无扣款退款，
   订单均由超时任务取消。见[历史支付超时对账结案](PAYMENT-ORCHESTRATION-CUTOVER-RUNBOOK.md#8-历史支付超时对账结案)。
-- [ ] 增加按真实支付对账表状态的只读统计或告警，并在验收时与 Process Manager 指标分别核对。
+- [x] 增加真实支付对账表的 `OPEN` 统计和独立告警，按两种方向验证与 Process Manager 指标互不混计。
+  见[支付对账与流程恢复监控](PAYMENT-ORCHESTRATION-CUTOVER-RUNBOOK.md#9-支付对账与流程恢复监控)。
 
 ### 收回历史权限并隔离一次性工具
 

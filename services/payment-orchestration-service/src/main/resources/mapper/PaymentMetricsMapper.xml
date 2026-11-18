@@ -23,6 +23,10 @@
     SELECT COUNT(*) FROM payment_shadow_orphan_quarantine WHERE status='OPEN'
   </select>
 
+  <select id="reconciliationOpen" resultType="java.lang.Long">
+    SELECT COUNT(*) FROM payment_reconciliation_issue WHERE status='OPEN'
+  </select>
+
   <select id="refundProcessing" resultType="java.lang.Long">
     SELECT COUNT(*) FROM refund_records WHERE status IN ('REQUESTED', 'PROCESSING')
   </select>

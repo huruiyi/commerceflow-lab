@@ -13,7 +13,7 @@ class PaymentRuntimeMetricsTest {
   @Test
   void exposesBacklogsAndCutoverMode() {
     PaymentRuntimeMetricsStore store = mock(PaymentRuntimeMetricsStore.class);
-    when(store.snapshot()).thenReturn(new PaymentRuntimeMetricsStore.Snapshot(2, 3, 4, 1, 5, 6));
+    when(store.snapshot()).thenReturn(new PaymentRuntimeMetricsStore.Snapshot(2, 3, 4, 1, 7, 5, 6));
     SimpleMeterRegistry registry = new SimpleMeterRegistry();
     PaymentShadowProperties properties = new PaymentShadowProperties(true,
       new PaymentShadowProperties.Effects(true, 20),
@@ -26,6 +26,7 @@ class PaymentRuntimeMetricsTest {
     assertGauge(registry, "commerceflow.payment.command.outbox.pending", 3);
     assertGauge(registry, "commerceflow.payment.process.pending", 4);
     assertGauge(registry, "commerceflow.payment.process.recovery.required", 1);
+    assertGauge(registry, "commerceflow.payment.reconciliation.open", 7);
     assertGauge(registry, "commerceflow.payment.orphan.open", 5);
     assertGauge(registry, "commerceflow.payment.refund.processing", 6);
     assertGauge(registry, "commerceflow.payment.metrics.refresh.success", 1);
@@ -37,7 +38,8 @@ class PaymentRuntimeMetricsTest {
   @Test
   void reportsMetricRefreshFailure() {
     PaymentRuntimeMetricsStore store = mock(PaymentRuntimeMetricsStore.class);
-    when(store.snapshot()).thenThrow(new IllegalStateException("database unavailable"));
+    when(store.snapshot()).thenReturn(new PaymentRuntimeMetricsStore.Snapshot(0, 0, 1, 1, 4, 0, 0))
+      .thenThrow(new IllegalStateException("database unavailable"));
     SimpleMeterRegistry registry = new SimpleMeterRegistry();
     PaymentShadowProperties properties = new PaymentShadowProperties(true,
       new PaymentShadowProperties.Effects(true, 20),
@@ -45,8 +47,11 @@ class PaymentRuntimeMetricsTest {
     PaymentRuntimeMetrics metrics = new PaymentRuntimeMetrics(store, properties, registry);
 
     metrics.refresh();
+    metrics.refresh();
 
     assertGauge(registry, "commerceflow.payment.metrics.refresh.success", 0);
+    assertGauge(registry, "commerceflow.payment.reconciliation.open", 4);
+    assertGauge(registry, "commerceflow.payment.process.recovery.required", 1);
   }
 
   private void assertGauge(SimpleMeterRegistry registry, String name, double expected) {

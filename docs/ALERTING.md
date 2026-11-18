@@ -44,11 +44,18 @@ Grafana 教学账号为 `admin` / `commerceflow-grafana`。这些端口和演示
 | `CommerceFlowScheduledTaskFailures` | 5 分钟内出现任务执行失败 | 立即 | `warning` |
 | `CommerceFlowMqPublishFailures` | 5 分钟内 RabbitMQ/RocketMQ 发布失败 | 立即 | `warning` |
 | `CommerceFlowRefundBacklog` | 存在处理中的退款 | 10 分钟 | `warning` |
-| `CommerceFlowPaymentReconciliationBacklog` | 存在未关闭支付对账问题 | 10 分钟 | `warning` |
+| `CommerceFlowPaymentReconciliationBacklog` | 支付 Process Manager 有需要对账或补偿的流程 | 10 分钟 | `warning` |
+| `CommerceFlowPaymentReconciliationIssueOpen` | 支付对账表存在 `OPEN`，且最新指标刷新成功 | 10 分钟 | `warning` |
 | `CommerceFlowLogisticsReconciliationFailure` | 5 分钟内物流对账失败 | 立即 | `warning` |
 | `CommerceFlowLogisticsCallbackDeadLetter` | 物流回调 Outbox 存在 `DEAD` | 5 分钟 | `critical` |
 
 `CommerceFlowWatchdog` 是故意保持 firing 的“死信号开关”，用于发现 Prometheus、Alertmanager 或接收端本身断链，不代表业务故障。Alertmanager 对同一告警的 `critical` 抑制 `warning`，普通重复间隔为 4 小时，严重告警为 15 分钟。
+
+支付服务直接从 `payment_reconciliation_issue` 读取 `OPEN` 总量，指标为
+`commerceflow_payment_reconciliation_open`。流程待恢复继续使用
+`commerceflow_payment_process_recovery_required`，来源为 `payment_process_managers` 中的
+`RECONCILIATION_REQUIRED` 与 `COMPENSATION_REQUIRED`。数据库读取失败时，指标保留上一轮读数，
+新对账告警只使用刷新成功的读数，刷新故障由 `CommerceFlowPaymentMetricsRefreshFailed` 告警。
 
 ## 4. 验收
 

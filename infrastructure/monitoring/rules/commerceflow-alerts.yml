@@ -76,8 +76,16 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: Payment reconciliation issue remains open
+          summary: Payment process recovery backlog detected
           description: At least one payment process has required reconciliation or compensation for ten minutes.
+      - alert: CommerceFlowPaymentReconciliationIssueOpen
+        expr: commerceflow_payment_reconciliation_open > 0 and commerceflow_payment_metrics_refresh_success == 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Payment reconciliation ledger has open issues
+          description: The payment reconciliation ledger has had OPEN issues for ten minutes.
       - alert: CommerceFlowPaymentOutboxBacklog
         expr: commerceflow_payment_outbox_pending > 0 or commerceflow_payment_command_outbox_pending > 0
         for: 5m

@@ -75,6 +75,7 @@ $expectedMetrics = @(
   'commerceflow_payment_command_outbox_pending 0.0',
   'commerceflow_payment_process_pending 0.0',
   'commerceflow_payment_process_recovery_required 0.0',
+  'commerceflow_payment_reconciliation_open 0.0',
   'commerceflow_payment_orphan_open 0.0',
   'commerceflow_payment_refund_processing 0.0',
   'commerceflow_payment_metrics_refresh_success 1.0',
@@ -90,7 +91,8 @@ foreach ($expectedMetric in $expectedMetrics) {
 
 $rules = Wait-Json "$PrometheusUrl/api/v1/rules" {
   param($value)
-  @($value.data.groups.rules | Where-Object name -eq 'CommerceFlowWatchdog').Count -eq 1
+  $expected = @('CommerceFlowWatchdog','CommerceFlowPaymentReconciliationIssueOpen','CommerceFlowPaymentReconciliationBacklog')
+  @($value.data.groups.rules | Where-Object name -in $expected).Count -eq $expected.Count
 }
 $ruleCount = @($rules.data.groups.rules | Where-Object type -eq 'alerting').Count
 if ($ruleCount -lt 21) { throw "Expected at least 21 alert rules, found $ruleCount." }

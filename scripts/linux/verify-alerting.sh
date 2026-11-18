@@ -67,6 +67,7 @@ expected_metrics=(
   'commerceflow_payment_command_outbox_pending 0.0'
   'commerceflow_payment_process_pending 0.0'
   'commerceflow_payment_process_recovery_required 0.0'
+  'commerceflow_payment_reconciliation_open 0.0'
   'commerceflow_payment_orphan_open 0.0'
   'commerceflow_payment_refund_processing 0.0'
   'commerceflow_payment_metrics_refresh_success 1.0'
@@ -82,7 +83,9 @@ for expected_metric in "${expected_metrics[@]}"; do
 done
 
 rules="$(wait_json "$PROMETHEUS_URL/api/v1/rules" \
-  '[.data.groups[].rules[] | select(.name == "CommerceFlowWatchdog")] | length == 1')"
+  '[.data.groups[].rules[] | select(.name == "CommerceFlowWatchdog"
+    or .name == "CommerceFlowPaymentReconciliationIssueOpen"
+    or .name == "CommerceFlowPaymentReconciliationBacklog")] | length == 3')"
 rule_count="$(jq '[.data.groups[].rules[] | select(.type == "alerting")] | length' <<<"$rules")"
 if ((rule_count < 21)); then
   echo "Expected at least 21 alert rules, found $rule_count." >&2

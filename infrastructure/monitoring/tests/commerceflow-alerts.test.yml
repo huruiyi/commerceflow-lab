@@ -57,7 +57,7 @@ tests:
               job: payment-orchestration-service
               severity: warning
             exp_annotations:
-              summary: Payment reconciliation issue remains open
+              summary: Payment process recovery backlog detected
               description: At least one payment process has required reconciliation or compensation for ten minutes.
       - eval_time: 6m
         alertname: CommerceFlowPaymentOrphanOpen
@@ -89,6 +89,66 @@ tests:
             exp_annotations:
               summary: Payment runtime metrics are stale
               description: The payment service could not refresh its database-backed runtime metrics.
+  - interval: 1m
+    input_series:
+      - series: 'commerceflow_payment_reconciliation_open{job="payment-orchestration-service"}'
+        values: '4x11 0x2'
+      - series: 'commerceflow_payment_process_recovery_required{job="payment-orchestration-service"}'
+        values: '0x14'
+      - series: 'commerceflow_payment_metrics_refresh_success{job="payment-orchestration-service"}'
+        values: '1x14'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: CommerceFlowPaymentReconciliationIssueOpen
+        exp_alerts: []
+      - eval_time: 11m
+        alertname: CommerceFlowPaymentReconciliationIssueOpen
+        exp_alerts:
+          - exp_labels:
+              alertname: CommerceFlowPaymentReconciliationIssueOpen
+              job: payment-orchestration-service
+              severity: warning
+            exp_annotations:
+              summary: Payment reconciliation ledger has open issues
+              description: The payment reconciliation ledger has had OPEN issues for ten minutes.
+      - eval_time: 11m
+        alertname: CommerceFlowPaymentReconciliationBacklog
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: CommerceFlowPaymentReconciliationIssueOpen
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'commerceflow_payment_reconciliation_open{job="payment-orchestration-service"}'
+        values: '0x12'
+      - series: 'commerceflow_payment_process_recovery_required{job="payment-orchestration-service"}'
+        values: '1x12'
+      - series: 'commerceflow_payment_metrics_refresh_success{job="payment-orchestration-service"}'
+        values: '1x12'
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: CommerceFlowPaymentReconciliationIssueOpen
+        exp_alerts: []
+      - eval_time: 11m
+        alertname: CommerceFlowPaymentReconciliationBacklog
+        exp_alerts:
+          - exp_labels:
+              alertname: CommerceFlowPaymentReconciliationBacklog
+              job: payment-orchestration-service
+              severity: warning
+            exp_annotations:
+              summary: Payment process recovery backlog detected
+              description: At least one payment process has required reconciliation or compensation for ten minutes.
+  - interval: 1m
+    input_series:
+      - series: 'commerceflow_payment_reconciliation_open{job="payment-orchestration-service"}'
+        values: '4x12'
+      - series: 'commerceflow_payment_metrics_refresh_success{job="payment-orchestration-service"}'
+        values: '0x12'
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: CommerceFlowPaymentReconciliationIssueOpen
+        exp_alerts: []
   - interval: 1m
     input_series:
       - series: 'commerceflow_payment_refund_processing{job="payment-orchestration-service"}'

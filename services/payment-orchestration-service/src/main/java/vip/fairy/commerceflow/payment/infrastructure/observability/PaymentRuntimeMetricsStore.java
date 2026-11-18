@@ -18,12 +18,14 @@ public class PaymentRuntimeMetricsStore {
       store.commandOutboxPending(),
       store.processPending(),
       store.processRecoveryRequired(),
+      store.reconciliationOpen(),
       store.orphanOpen(),
       store.refundProcessing()
     );
   }
 
   public record Snapshot(long outboxPending, long commandOutboxPending, long processPending,
-                         long processRecoveryRequired, long orphanOpen, long refundProcessing) {
+                         long processRecoveryRequired, long reconciliationOpen,
+                         long orphanOpen, long refundProcessing) {
   }
 }
