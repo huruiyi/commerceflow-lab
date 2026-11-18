@@ -5,12 +5,14 @@ import vip.fairy.commerceflow.commerce.cart.domain.CheckoutCartItem;
 import vip.fairy.commerceflow.commerce.cart.application.port.CheckoutCartPort;
 import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
 import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
+import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryReservationQuery;
 import vip.fairy.commerceflow.commerce.logistics.application.LogisticsService;
 import vip.fairy.commerceflow.commerce.ordering.api.ShopOrderResponse;
 import vip.fairy.commerceflow.commerce.ordering.api.CreatePaymentRequest;
 import vip.fairy.commerceflow.commerce.ordering.domain.NewOrder;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderAddressSnapshot;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderItemSnapshot;
+import vip.fairy.commerceflow.commerce.ordering.domain.OrderItemView;
 import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
 import vip.fairy.commerceflow.commerce.ordering.application.port.OrderStorePort;
 import vip.fairy.commerceflow.commerce.ordering.infrastructure.OrderLifecycleProperties;
@@ -33,6 +35,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class PurchaseOrderService {
@@ -45,6 +48,7 @@ public class PurchaseOrderService {
   private final ScheduledTaskService scheduledTasks;
   private final LogisticsService logistics;
   private final InventoryCommandPort inventory;
+  private final InventoryReservationQuery reservations;
   private final InventoryCommandPort.ImmediateDelivery inventoryDelivery;
   private final TransactionTemplate transactions;
 
@@ -54,6 +58,7 @@ public class PurchaseOrderService {
                               OrderLifecycleProperties lifecycle, ScheduledTaskService scheduledTasks,
                               LogisticsService logistics,
                               InventoryCommandPort inventory,
+                              InventoryReservationQuery reservations,
                               InventoryCommandPort.ImmediateDelivery inventoryDelivery,
                               TransactionTemplate transactions) {
     this.orders = orders;
@@ -64,6 +69,7 @@ public class PurchaseOrderService {
     this.scheduledTasks = scheduledTasks;
     this.logistics = logistics;
     this.inventory = inventory;
+    this.reservations = reservations;
     this.inventoryDelivery = inventoryDelivery;
     this.transactions = transactions;
   }
@@ -137,6 +143,11 @@ public class PurchaseOrderService {
     }
     if (!"RESERVED".equals(order.getInventoryStatus())) {
       throw new BusinessRuleException("Order inventory has not been reserved");
+    }
+    Map<Long, Integer> required = orders.items(id).stream().collect(Collectors.toMap(
+      OrderItemView::getProductId, OrderItemView::getQuantity, Math::addExact));
+    if (required.isEmpty() || !required.equals(reservations.activeReservations(id))) {
+      throw new BusinessRuleException("Inventory reservations do not cover the order items");
     }
     String commandId = UUID.randomUUID().toString();
     String correlationId = UUID.randomUUID().toString();

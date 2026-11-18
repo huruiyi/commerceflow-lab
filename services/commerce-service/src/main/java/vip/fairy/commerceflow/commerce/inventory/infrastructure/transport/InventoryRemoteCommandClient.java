@@ -3,7 +3,9 @@ package vip.fairy.commerceflow.commerce.inventory.infrastructure.transport;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.util.Map;
 
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -12,9 +14,10 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandResultV1;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandV1;
+import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryReservationQuery;
 
 @Component
-public class InventoryRemoteCommandClient {
+public class InventoryRemoteCommandClient implements InventoryReservationQuery {
 
   private static final String TARGET = "/internal/v1/inventory/commands";
 
@@ -36,6 +39,18 @@ public class InventoryRemoteCommandClient {
     this.mapper = mapper;
     this.signer = signer;
     this.baseUrl = baseUrl;
+  }
+
+  @Override
+  public Map<Long, Integer> activeReservations(Long orderId) {
+    String target = "/internal/v1/inventory/reservations/" + orderId;
+    try {
+      return client.get().uri(URI.create(baseUrl + target))
+        .headers(headers -> signer.sign(headers, "GET", target, signer.contentHash("")))
+        .retrieve().requiredBody(new ParameterizedTypeReference<>() {});
+    } catch (RuntimeException exception) {
+      throw new InventoryRemoteUnavailableException(exception);
+    }
   }
 
   public InventoryCommandResultV1 send(InventoryCommandV1 command) {

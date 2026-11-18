@@ -16,6 +16,12 @@ public interface InventoryMapper {
 
   List<InventoryReservation> lockByOrder(Long orderId);
 
+  List<InventoryReservation> activeReservations(Long orderId);
+
+  boolean hasMissingReservationLine(Long orderId);
+
+  boolean hasCommittedReservations(Long orderId);
+
   int commitReserved(@Param("productId") Long productId, @Param("quantity") int quantity);
 
   int commitReleased(@Param("productId") Long productId, @Param("quantity") int quantity);

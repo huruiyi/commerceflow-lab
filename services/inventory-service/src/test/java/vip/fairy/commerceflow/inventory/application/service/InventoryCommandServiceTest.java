@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -19,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryCommandTypeV1;
 import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryCommandV1;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryCommandInboxMapper;
+import vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryMapper;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.DeliveredInventoryReconciliationMapper;
 
 @ExtendWith(MockitoExtension.class)
@@ -81,6 +84,27 @@ class InventoryCommandServiceTest {
     assertThatThrownBy(() -> service().handle(invalid))
       .isInstanceOf(IllegalArgumentException.class)
       .hasMessageContaining("traceparent");
+  }
+
+  @Test
+  void emptyCommitAndReplayOfLegacyEmptySuccessBothFail() {
+    InventoryMapper balances = mock(InventoryMapper.class);
+    InventoryCommandService commands = new InventoryCommandService(inbox,
+      new InventoryBalanceService(balances), reconciliation);
+    InventoryCommandV1 command = new InventoryCommandV1(1, "empty-commit", InventoryCommandTypeV1.COMMIT,
+      Instant.now(), "payment-orchestration-service", 100L, List.of(), "Payment succeeded",
+      "payment-100", "payment-result", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01");
+    when(inbox.claim(eq(command.commandId()), eq("COMMIT"), eq(100L), anyString()))
+      .thenAnswer(invocation -> {
+        when(inbox.payloadFingerprint(command.commandId())).thenReturn(invocation.getArgument(3));
+        return 1;
+      }).thenReturn(0);
+
+    assertThatThrownBy(() -> commands.handle(command)).isInstanceOf(InventoryBusinessRuleException.class)
+      .hasMessageContaining("No inventory reservation");
+    assertThatThrownBy(() -> commands.handle(command)).isInstanceOf(InventoryBusinessRuleException.class)
+      .hasMessageContaining("No completed stock commitment");
+    verify(inbox, never()).complete(command.commandId());
   }
 
   private InventoryCommandService service() {

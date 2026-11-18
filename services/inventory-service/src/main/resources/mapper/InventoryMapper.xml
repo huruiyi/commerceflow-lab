@@ -23,6 +23,31 @@
     FOR UPDATE
   </select>
 
+  <select id="activeReservations" resultType="vip.fairy.commerceflow.inventory.domain.InventoryReservation">
+    SELECT id,product_id AS productId,quantity,status FROM inventory_reservations
+    WHERE order_id=#{orderId} AND status='RESERVED'
+  </select>
+
+  <sql id="missingReservationLine">
+    EXISTS (
+      SELECT 1 FROM inventory_movements m
+      LEFT JOIN inventory_reservations r
+        ON r.order_id=m.order_id AND r.product_id=m.product_id AND r.quantity=m.quantity
+      WHERE m.order_id=#{orderId} AND m.movement_type='RESERVED' AND r.id IS NULL
+    )
+  </sql>
+
+  <select id="hasMissingReservationLine" resultType="boolean">
+    SELECT <include refid="missingReservationLine"/>
+  </select>
+
+  <select id="hasCommittedReservations" resultType="boolean">
+    SELECT NOT <include refid="missingReservationLine"/>
+      AND COUNT(*) &gt; 0 AND COUNT(*) = COUNT(CASE
+      WHEN status IN ('COMMITTED','REFUNDED') AND committed_at IS NOT NULL THEN 1 END)
+    FROM inventory_reservations WHERE order_id=#{orderId}
+  </select>
+
   <update id="commitReserved">
     UPDATE product_inventory
     SET stock_reserved=stock_reserved-#{quantity},stock_sold=stock_sold+#{quantity}

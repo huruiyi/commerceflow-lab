@@ -170,9 +170,7 @@ final class TestOrderStoreAdapter implements OrderStorePort {
 
   @Override
   public int startInventoryCommit(Long id) {
-    return jdbc.update("UPDATE shop_orders SET inventory_status='WAITING_COMMIT',"
-      + "updated_at=CURRENT_TIMESTAMP WHERE id=? "
-      + "AND inventory_status IN ('RESERVED','WAITING_RESERVATION')", id);
+    return updateInventoryStatus(id, "RESERVED", "WAITING_COMMIT");
   }
 
   @Override

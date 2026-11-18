@@ -1,6 +1,8 @@
 package vip.fairy.commerceflow.payment.application;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -59,22 +61,28 @@ class PaymentEffectDispatcherTest {
   }
 
   @Test
-  void paymentSuccessUsesStableOrderAndInventoryEffects() {
+  void paymentSuccessWaitsForReservationThenUsesStableEffectsOnRetry() {
     PaymentEffectMapper store = mock(PaymentEffectMapper.class);
     RemoteOrderEffectClient orders = mock(RemoteOrderEffectClient.class);
     RemoteInventoryEffectClient inventory = mock(RemoteInventoryEffectClient.class);
     PaymentEffectDispatcher dispatcher = dispatcher(store,
       new PaymentShadowProperties(true, new Effects(true, 20), null), orders, inventory);
-    OrderView pending = new OrderView(41L, "ORD-41", 7L, "PENDING_PAYMENT", "RESERVED");
+    OrderView pending = new OrderView(41L, "ORD-41", 7L, "PENDING_PAYMENT", "WAITING_RESERVATION");
     OrderView paid = new OrderView(41L, "ORD-41", 7L, "PAID", "RESERVED");
     OrderView waiting = new OrderView(41L, "ORD-41", 7L, "PAID", "WAITING_COMMIT");
-    when(orders.order(41L)).thenReturn(pending, paid, waiting);
+    OrderView unreserved = new OrderView(41L, "ORD-41", 7L, "PAID", "WAITING_RESERVATION");
+    when(orders.order(41L)).thenReturn(pending, unreserved, paid, paid, waiting);
     PaymentResultV1 result = new PaymentResultV1(1, "result-41",
       PaymentResultTypeV1.PAYMENT_SUCCEEDED, PaymentResultOutcomeV1.SUCCEEDED, Instant.now(),
       "payment-simulator-service", 41L, "PAY-41", null, "SUCCESS", null,
       "Signed payment", "payment-41", "callback-41", TRACE);
     String payload = new ObjectMapper().writeValueAsString(Map.of(
       "result", result, "applicationStatus", "APPLIED_PAYMENT_SUCCEEDED"));
+
+    assertThatThrownBy(() -> dispatcher.apply("result-41", "PAYMENT_SUCCEEDED", payload))
+      .isInstanceOf(IllegalStateException.class).hasMessageContaining("WAITING_RESERVATION");
+    verify(orders, never()).startInventoryCommit("result-41:order:inventory-wait", 41L);
+    verifyNoInteractions(inventory);
 
     dispatcher.apply("result-41", "PAYMENT_SUCCEEDED", payload);
 
@@ -85,7 +93,7 @@ class PaymentEffectDispatcherTest {
     effects.verify(orders).inventory("result-41:order:inventory-committed", 41L,
       "WAITING_COMMIT", "COMMITTED");
     effects.verify(orders).event("result-41:order:event", 41L, 7L, "PAYMENT_SUCCEEDED",
-      "PENDING_PAYMENT", "PAID", "Payment result applied by payment-orchestration");
+      "PAID", "PAID", "Payment result applied by payment-orchestration");
   }
 
   @Test

@@ -112,11 +112,14 @@ public class PaymentEffectDispatcher {
   }
 
   private void commitInventory(String eventId, PaymentResultV1 result, OrderView order) {
-    orders.startInventoryCommit(eventId + ":order:inventory-wait", order.id());
-    OrderView waiting = orders.order(order.id());
-    if (!List.of("WAITING_COMMIT", "COMMITTED").contains(waiting.inventoryStatus())) {
+    String inventoryStatus = order.inventoryStatus();
+    if ("RESERVED".equals(inventoryStatus)) {
+      orders.startInventoryCommit(eventId + ":order:inventory-wait", order.id());
+      inventoryStatus = orders.order(order.id()).inventoryStatus();
+    }
+    if (!List.of("WAITING_COMMIT", "COMMITTED").contains(inventoryStatus)) {
       throw new IllegalStateException("Order inventory cannot be committed from "
-        + waiting.inventoryStatus());
+        + inventoryStatus);
     }
     inventory.commit(eventId + ":inventory:commit", order.id(), result.resultId(),
       result.traceparent());

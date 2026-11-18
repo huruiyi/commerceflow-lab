@@ -115,7 +115,7 @@
 
   <update id="startInventoryCommit">
     UPDATE shop_orders SET inventory_status='WAITING_COMMIT',updated_at=CURRENT_TIMESTAMP(6)
-    WHERE id=#{orderId} AND inventory_status IN ('RESERVED','WAITING_RESERVATION')
+    WHERE id=#{orderId} AND inventory_status='RESERVED'
   </update>
 
   <update id="startCancellation">

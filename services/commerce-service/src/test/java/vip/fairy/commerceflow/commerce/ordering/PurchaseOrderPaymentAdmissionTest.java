@@ -1,0 +1,70 @@
+package vip.fairy.commerceflow.commerce.ordering;
+
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
+import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryReservationQuery;
+import vip.fairy.commerceflow.commerce.ordering.api.CreatePaymentRequest;
+import vip.fairy.commerceflow.commerce.ordering.application.PurchaseOrderService;
+import vip.fairy.commerceflow.commerce.ordering.application.port.OrderStorePort;
+import vip.fairy.commerceflow.commerce.ordering.domain.OrderItemView;
+import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentChannelV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentOrchestrationV1;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentWriteAdmissionV1;
+import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
+
+@ExtendWith(MockitoExtension.class)
+class PurchaseOrderPaymentAdmissionTest {
+
+  @Mock
+  private OrderStorePort orders;
+
+  @Mock
+  private InventoryReservationQuery reservations;
+
+  @Mock
+  private PaymentOrchestrationV1 payments;
+
+  @Mock
+  private PaymentWriteAdmissionV1 paymentWrites;
+
+  @InjectMocks
+  private PurchaseOrderService purchaseOrders;
+
+  @Test
+  void staleReservedProjectionCannotOpenPaymentForMissingOrMismatchedStock() {
+    AppUser buyer = mock(AppUser.class);
+    ShopOrderView order = mock(ShopOrderView.class);
+    OrderItemView item = mock(OrderItemView.class);
+    when(buyer.getId()).thenReturn(10L);
+    when(orders.find(10L, 20L)).thenReturn(Optional.of(order));
+    when(order.getStatus()).thenReturn("PENDING_PAYMENT");
+    when(order.getPaymentDueAt()).thenReturn(Instant.now().plusSeconds(60));
+    when(order.getInventoryStatus()).thenReturn("RESERVED");
+    when(orders.items(20L)).thenReturn(List.of(item));
+    when(item.getProductId()).thenReturn(30L);
+    when(item.getQuantity()).thenReturn(2);
+
+    CreatePaymentRequest request = new CreatePaymentRequest("payment-test", false, PaymentChannelV1.ALIPAY);
+    for (Map<Long, Integer> actual : List.of(Map.<Long, Integer>of(), Map.of(30L, 1), Map.of(40L, 2))) {
+      when(reservations.activeReservations(20L)).thenReturn(actual);
+      assertThatThrownBy(() -> purchaseOrders.pay(buyer, 20L, request))
+        .isInstanceOf(BusinessRuleException.class).hasMessageContaining("reservations");
+    }
+    verifyNoInteractions(payments);
+  }
+}

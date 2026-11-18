@@ -41,6 +41,9 @@ public class InventoryCommandService implements InventoryCommandUseCase {
         throw new IllegalArgumentException("Inventory commandId was reused with a different payload");
       }
       String rejection = inbox.rejectionMessage(command.commandId());
+      if (rejection == null && command.commandType() == InventoryCommandTypeV1.COMMIT) {
+        inventory.requireCommittedReservations(command.orderId());
+      }
       return rejection == null ? InventoryCommandResultV1.succeeded(command)
         : InventoryCommandResultV1.reservationRejected(command, rejection);
     }

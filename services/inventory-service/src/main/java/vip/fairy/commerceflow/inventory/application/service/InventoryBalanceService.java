@@ -1,7 +1,9 @@
 package vip.fairy.commerceflow.inventory.application.service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -32,8 +34,26 @@ public class InventoryBalanceService {
     }
   }
 
+  public Map<Long, Integer> activeReservations(Long orderId) {
+    return inventory.activeReservations(orderId).stream()
+      .collect(Collectors.toMap(InventoryReservation::productId, InventoryReservation::quantity));
+  }
+
+  public void requireCommittedReservations(Long orderId) {
+    if (!inventory.hasCommittedReservations(orderId)) {
+      throw new InventoryBusinessRuleException("No completed stock commitment for order " + orderId);
+    }
+  }
+
   public void commit(Long orderId, String eventId) {
-    for (InventoryReservation reservation : inventory.lockByOrder(orderId)) {
+    List<InventoryReservation> reservations = inventory.lockByOrder(orderId);
+    if (reservations.isEmpty()) {
+      throw new InventoryBusinessRuleException("No inventory reservation for order " + orderId);
+    }
+    if (inventory.hasMissingReservationLine(orderId)) {
+      throw new InventoryBusinessRuleException("Incomplete inventory reservations for order " + orderId);
+    }
+    for (InventoryReservation reservation : reservations) {
       if ("COMMITTED".equals(reservation.status())) {
         continue;
       }
@@ -47,7 +67,8 @@ public class InventoryBalanceService {
           "Stock is unavailable after a late successful payment");
         movementType = "LATE_PAYMENT_COMMITTED";
       } else {
-        continue;
+        throw new InventoryBusinessRuleException("Cannot commit reservation in state "
+          + reservation.status());
       }
       requireChanged(inventory.markCommitted(reservation.id(), reservation.status()),
         "Inventory reservation changed concurrently");
