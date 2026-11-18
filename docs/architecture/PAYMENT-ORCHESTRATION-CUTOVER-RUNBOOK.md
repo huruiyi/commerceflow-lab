@@ -81,3 +81,25 @@ Payment/Command Outbox、未完成 Process Manager 和 OPEN 孤儿全部为 0。
 独立服务暴露 10 个 `commerceflow_payment_*` Prometheus 指标，覆盖两类 Outbox、流程未决/人工恢复、OPEN 孤儿、
 处理中退款、指标刷新及 `acceptingTraffic/effectsEnabled/shadowEnabled`。Prometheus 已新增独立服务采集目标，
 14 条告警规则通过 promtool；正式切流模式必须持续为 `true/true/false`。
+
+## 8. 历史支付超时对账结案
+
+四条异常均生成于 2026-11-17 UTC。当时旧商城扫描仍为 `PENDING` 且超过渠道有效期的支付，并写入 `PAYMENT_TIMEOUT`。
+随后订单付款期限届满，超时任务成功执行关单。旧扫描只登记异常，关单流程也未更新对账记录。切流后，四条记录仍为
+`OPEN`，而正式支付库已记录 `PAYMENT_CLOSED_BY_ORDER`。冻结的商城源库中，支付 400 仍为 `PENDING`，
+正式支付库与渠道均为 `CLOSED`，按正式库和渠道核对该笔。
+
+| 对账 ID | 支付 ID | 订单 ID | 原渠道交易号 | 检测 UTC | 模拟渠道关闭 UTC |
+| --- | --- | --- | --- | --- | --- |
+| 204 | 387 | 468 | CP607A237CE30A4D139E19BCE6E6C6EF68 | 20:50:54.666324 | 21:05:52.208131 |
+| 207 | 388 | 469 | CPFE8FB4BD73AD44628E851725A081F5B8 | 20:53:44.615820 | 21:08:07.565872 |
+| 208 | 389 | 470 | CPF2E02BCD35974104BDB692E0AC2D722D | 20:54:44.638365 | 21:09:37.946910 |
+| 225 | 400 | 483 | CP08013F0CA587487BB615E1E9A557D16F | 21:14:13.197721 | 21:28:30.577782 |
+
+每笔核对了支付单号、渠道交易号、渠道、金额、币种，支付库和渠道的支付时间均为空，退款均为 0。正式支付库无有效
+成功回调，四笔订单均为 `CANCELLED / RELEASED`、超时任务为 `SUCCEEDED`、无运单和库存变动。
+
+2026-11-19 02:27（北京时间），在 `payment-db.payment_reconciliation_issue` 按上表四组 ID 和检测时刻
+精确匹配，事务内再次检查支付关闭、无扣款、无退款及关单事件。受影响行数必须为 4。结案状态为 `RESOLVED`，
+解析码为 `TERMINAL_PAYMENT_CONFIRMED`，同时记录时间、执行者和逐笔渠道证据，原异常信息保留。
+复核真实对账表 `OPEN=0`，支付、订单与五条独立的库存待对账记录在结案前后均一致。
