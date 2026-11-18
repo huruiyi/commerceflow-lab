@@ -58,8 +58,8 @@
    观察后再评估 M4 PostgreSQL 专项。
 
 在仓库根目录运行 `scripts/windows/audit-fulfillment-admission.ps1` 或
-`bash scripts/linux/audit-fulfillment-admission.sh`，使用运行中的 commerce-db 与 order-db。脚本通过代表采集完成
-且结构基线成立。末行 `PASSED` 允许进入关闭业务流量的创建与影子阶段，`REJECTED` 表示当前仍有未决项。
+`bash scripts/linux/audit-fulfillment-admission.sh`，使用运行中的 commerce-db 与 order-db。
+末行 `PASSED` 表示结构和排空条件的只读检查通过，存在未决项时脚本返回非零退出码。
 
 ## 5. 第二批进展
 
@@ -478,3 +478,9 @@ V48 在商城冻结记录增加 `write_owner`，空库和升级默认均为 `COM
 
 这轮检查通过后，保持默认 `COMMERCE` 和 `SHADOW`。在正式窗口冻结后重新运行只读审计与最终追平，
 保存当时的水位、generation 和六表摘要，按第 15 节交接。隔离环境的签名密钥仅用于验证配置结构。
+
+发布基线 `ea70e4c` 的商城、履约、订单、支付编排、物流模拟器和 Angular 镜像构建通过。默认和执行 Compose
+配置校验、Windows 完整快速回归、Windows/WSL 的 V48 迁移、代码与脚本审计均通过。模拟活跃租约时两种
+审计脚本均拒绝继续。最终只读检查覆盖 123 条履约任务、56 条物流命令；待处理、人工核对、活跃及到期租约、
+待完成物流回执和未清发货意图均为 0。两库水位 393，影子 generation 35，六表重复核对一致，隔离为 0。
+当前发布验收通过，正式切流待授权及窗口内最终核对。
