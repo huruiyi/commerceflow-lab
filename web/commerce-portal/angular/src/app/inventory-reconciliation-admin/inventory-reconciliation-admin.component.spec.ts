@@ -36,6 +36,9 @@ describe('InventoryReconciliationAdminComponent', () => {
       'inventoryRecoveries',
       'warehouseEvidenceContext',
       'submitWarehouseEvidence',
+      'stocktakeBaseline',
+      'submitStocktake',
+      'approveStocktake',
     ]);
     api.inventoryRecoveries.and.returnValue(of([recovery]));
     api.warehouseEvidenceContext.and.returnValue(of(context));
@@ -106,5 +109,35 @@ describe('InventoryReconciliationAdminComponent', () => {
     expect(component.recoveries).toEqual([recovery]);
     expect(component.drafts[0].warehouseReference).toBe('WH:11:1');
     expect(fixture.nativeElement.querySelector('[role="alert"]').textContent).toContain('Balance has changed');
+  });
+
+  it('keeps cases pending after recording the count and displays the approved adjustment', () => {
+    const component = fixture.componentInstance;
+    const baseline = { productId: 1, available: 100, reserved: 3, sold: 20, movementId: 52, movementAt: null };
+    api.stocktakeBaseline.and.returnValue(of(baseline));
+    api.submitStocktake.and.callFake((proposal) =>
+      of({ proposal, countedBy: 'recorder', approvedBy: null, receipt: null }),
+    );
+    api.approveStocktake.and.returnValue(of({ reference: 'REPORT-1', movementId: 53, adjustment: -3 }));
+    component.stocktakeProductId = 1;
+    component.captureBaseline();
+    component.toggleStocktakeCase(recovery.commandId, true);
+    component.stocktakeReference = 'REPORT-1';
+    component.stocktakeCounted = 97;
+    component.stocktakeTime = '2025-06-05T12:00';
+    component.stocktakeNote = 'Verified count report';
+    component.submitCount();
+    expect(api.submitStocktake).toHaveBeenCalledOnceWith(
+      jasmine.objectContaining({
+        baseline,
+        commandIds: [recovery.commandId],
+        countedAvailable: 97,
+      }),
+    );
+    expect(component.recoveries).toEqual([recovery]);
+    expect(api.approveStocktake).not.toHaveBeenCalled();
+    component.confirmCount();
+    expect(api.approveStocktake).toHaveBeenCalledOnceWith('REPORT-1');
+    expect(component.countReview?.receipt?.movementId).toBe(53);
   });
 });

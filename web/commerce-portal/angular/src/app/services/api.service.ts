@@ -13,6 +13,10 @@ import { CustomerNotification } from 'src/model/INotification';
 import { InventoryMovement, MerchantInventoryItem } from 'src/model/IInventory';
 import {
   InventoryRecovery,
+  StocktakeBaseline,
+  StocktakeProposal,
+  StocktakeReceipt,
+  StocktakeReview,
   WarehouseEvidenceContext,
   WarehouseEvidenceLine,
   WarehouseEvidenceReceipt,
@@ -20,12 +24,30 @@ import {
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
+  private readonly stocktakes = '/api/admin/inventory-command-recoveries/stocktakes';
+
   constructor(private http: HttpClient) {}
 
   inventoryRecoveries(): Observable<InventoryRecovery[]> {
     return this.http.get<InventoryRecovery[]>('/api/admin/inventory-command-recoveries', {
       params: { limit: 200 },
     });
+  }
+
+  stocktakeBaseline(productId: number): Observable<StocktakeBaseline> {
+    return this.http.get<StocktakeBaseline>(`${this.stocktakes}/baseline/${productId}`);
+  }
+
+  submitStocktake(proposal: StocktakeProposal): Observable<StocktakeReview> {
+    return this.http.post<StocktakeReview>(this.stocktakes, proposal);
+  }
+
+  stocktakeReview(reference: string): Observable<StocktakeReview> {
+    return this.http.get<StocktakeReview>(`${this.stocktakes}/${encodeURIComponent(reference)}`);
+  }
+
+  approveStocktake(reference: string): Observable<StocktakeReceipt> {
+    return this.http.post<StocktakeReceipt>(`${this.stocktakes}/${encodeURIComponent(reference)}/approve`, {});
   }
 
   warehouseEvidenceContext(commandId: string): Observable<WarehouseEvidenceContext> {

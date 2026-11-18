@@ -29,3 +29,34 @@ export interface WarehouseEvidenceReceipt {
   orderId: number;
   movementIds: number[];
 }
+export interface StocktakeBaseline {
+  productId: number;
+  available: number;
+  reserved: number;
+  sold: number;
+  movementId: number;
+  movementAt: string | null;
+}
+
+export interface StocktakeProposal {
+  reference: string;
+  productId: number;
+  baseline: StocktakeBaseline;
+  countedAvailable: number;
+  countedAt: string;
+  note: string;
+  commandIds: string[];
+}
+
+export interface StocktakeReceipt {
+  reference: string;
+  movementId: number | null;
+  adjustment: number;
+}
+
+export interface StocktakeReview {
+  proposal: StocktakeProposal;
+  countedBy: string;
+  approvedBy: string | null;
+  receipt: StocktakeReceipt | null;
+}

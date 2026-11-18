@@ -35,7 +35,9 @@ public class InternalSignatureInterceptor implements HandlerInterceptor {
 
   private boolean allowedService(String path, String service) {
     if (path.endsWith("/outbound-documents")) return "fulfillment-service".equals(service);
-    if (path.endsWith("/delivered-reconciliations")) return "commerce-service".equals(service);
+    if (path.endsWith("/delivered-reconciliations") || path.contains("/inventory/stocktakes")) {
+      return "commerce-service".equals(service);
+    }
     if (path.endsWith("/commands") || path.contains("/inventory/merchants/")) {
       return "commerce-service".equals(service) || "payment-orchestration-service".equals(service);
     }

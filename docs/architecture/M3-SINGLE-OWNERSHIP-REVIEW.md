@@ -38,8 +38,8 @@ PostgreSQL 专项按[数据库演进计划](DATABASE-EVOLUTION-PLAN.md)另行评
 - [x] 逐笔核对库存 35 条超时 `RESERVE` 及订单 485。结案 23 条，取消 485，并用隔离空库验证缺货、付款服务停机及正常结账。
   见[逐笔证据与复测结果](INVENTORY-RECONCILIATION-REVIEW.md)。
 - [x] 复核 12 笔成功支付的订单。7 笔未发货且无库存流水，经模拟渠道原路全额退款，库存投递已结案。
-- [ ] 核对 5 笔已送达的库存差异。订单签收与物流模拟器回执一致，仍缺少可关联订单的出库或盘点依据，
-  保留待对账记录。证据齐备后使用[按订单登记仓库凭证](INVENTORY-RECONCILIATION-REVIEW.md#按订单登记仓库凭证)结案。
+- [ ] 核对 5 笔已送达的库存差异。现有环境已具备逐单凭证和实盘差异两种结案路径，五笔均保留待对账状态。
+  缺逐单凭证时，取得正式盘点报告并由独立管理员审批后走[实盘差异对账](INVENTORY-RECONCILIATION-REVIEW.md#缺少逐单凭证时的实盘差异处理)。
 - [x] 逐笔核对并结案支付库 4 条历史 `PAYMENT_TIMEOUT/OPEN`。商城支付和模拟渠道都已关闭且无扣款退款，
   订单均由超时任务取消。见[历史支付超时对账结案](PAYMENT-ORCHESTRATION-CUTOVER-RUNBOOK.md#8-历史支付超时对账结案)。
 - [x] 增加真实支付对账表的 `OPEN` 统计和独立告警，按两种方向验证与 Process Manager 指标互不混计。

@@ -54,7 +54,7 @@ start_mysql "$empty_db"
 start_mysql "$upgrade_db"
 
 migrate "$empty_db"
-[[ "$(sql "$empty_db" 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;')" == 50 ]]
+[[ "$(sql "$empty_db" 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;')" == 51 ]]
 [[ "$(sql "$empty_db" "SELECT CONCAT(frozen,':',write_owner) FROM fulfillment_write_admission WHERE singleton_id=1;")" == '0:COMMERCE' ]]
 if sql "$empty_db" "UPDATE fulfillment_write_admission SET write_owner='FULFILLMENT';"; then
   echo 'V48 allowed a remote fulfillment owner while source writes were open' >&2;exit 1
@@ -81,7 +81,7 @@ migrate "$upgrade_db" 16
 sql "$upgrade_db" "INSERT INTO customer_orders(user_id,product_id,created_at,note,quantity) SELECT id,1,'2026-01-01 00:00:00','legacy-order-archive',2 FROM app_users WHERE email='demo@example.com';"
 sql "$upgrade_db" "INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,created_at,updated_at) SELECT 'LEGACY-UPGRADE-$suffix',id,'PENDING_PAYMENT',42.00,'CNY','2026-01-01 00:00:00','2026-01-01 00:00:00' FROM app_users WHERE email='demo@example.com';"
 migrate "$upgrade_db"
-[[ "$(sql "$upgrade_db" 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;')" == 50 ]]
+[[ "$(sql "$upgrade_db" 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;')" == 51 ]]
 [[ "$(sql "$upgrade_db" "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name='customer_orders';")" == 0 ]]
 [[ "$(sql "$upgrade_db" "SELECT CONCAT(product_id,':',quantity) FROM retired_customer_orders WHERE note='legacy-order-archive';")" == '1:2' ]]
 [[ "$(sql "$upgrade_db" "SELECT COUNT(*) FROM information_schema.referential_constraints WHERE constraint_schema='commerceflow' AND table_name='retired_customer_orders';")" == 0 ]]
@@ -105,4 +105,4 @@ if sql "$upgrade_db" "INSERT INTO scheduled_tasks(task_key,task_type,aggregate_t
   echo 'Database accepted an illegal scheduled-task status' >&2;exit 1
 fi
 
-echo 'Flyway lifecycle verification passed: empty V1-V50, legacy V1-V16 -> V50 with legacy order archival, order/payment shadow change capture, ownership admission, recovery protocols and illegal status rejection.'
+echo 'Flyway lifecycle verification passed: empty V1-V51, legacy V1-V16 -> V51 with legacy order archival, order/payment shadow change capture, ownership admission, recovery protocols and illegal status rejection.'

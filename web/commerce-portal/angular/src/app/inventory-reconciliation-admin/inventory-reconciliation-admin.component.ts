@@ -1,9 +1,11 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { finalize } from 'rxjs';
+import { Observable, finalize } from 'rxjs';
 import {
   InventoryRecovery,
+  StocktakeBaseline,
+  StocktakeReview,
   WarehouseEvidenceContext,
   WarehouseEvidenceLine,
   WarehouseEvidenceReceipt,
@@ -41,9 +43,106 @@ export class InventoryReconciliationAdminComponent implements OnInit {
   listError = false;
   detailError = '';
   submitError = '';
+  stocktakeOpen = false;
+  stocktakeBusy = false;
+  stocktakeError = '';
+  stocktakeReference = '';
+  stocktakeLookup = '';
+  stocktakeProductId: number | null = null;
+  stocktakeCounted: number | null = null;
+  stocktakeTime = '';
+  stocktakeNote = '';
+  stocktakeCases = new Set<string>();
+  countBaseline: StocktakeBaseline | null = null;
+  countReview: StocktakeReview | null = null;
 
   ngOnInit(): void {
     this.load();
+  }
+
+  toggleStocktakeCase(commandId: string, checked: boolean): void {
+    if (checked) this.stocktakeCases.add(commandId);
+    else this.stocktakeCases.delete(commandId);
+  }
+
+  captureBaseline(): void {
+    const productId = this.stocktakeProductId;
+    if (productId === null || !Number.isSafeInteger(productId) || productId <= 0) return;
+    this.countBaseline = null;
+    this.runStocktake(this.api.stocktakeBaseline(productId), (baseline) => (this.countBaseline = baseline));
+  }
+
+  submitCount(): void {
+    const baseline = this.countBaseline;
+    const counted = this.stocktakeCounted;
+    const countedAt = new Date(this.stocktakeTime);
+    const reference = this.stocktakeReference.trim();
+    if (
+      !baseline ||
+      baseline.productId !== this.stocktakeProductId ||
+      counted === null ||
+      !Number.isInteger(counted) ||
+      counted < 0 ||
+      counted > 2147483647 ||
+      !Number.isFinite(countedAt.getTime()) ||
+      !this.stocktakeCases.size ||
+      !/^[A-Za-z0-9_-]{1,80}$/.test(reference) ||
+      !this.stocktakeNote.trim()
+    ) {
+      this.stocktakeError = 'stocktakeInvalid';
+      return;
+    }
+    this.runStocktake(
+      this.api.submitStocktake({
+        reference,
+        productId: baseline.productId,
+        baseline,
+        countedAvailable: counted,
+        countedAt: countedAt.toISOString(),
+        note: this.stocktakeNote.trim(),
+        commandIds: [...this.stocktakeCases],
+      }),
+      (review) => {
+        this.stocktakeLookup = review.proposal.reference;
+        this.countReview = review;
+      },
+    );
+  }
+
+  loadCountReview(): void {
+    const reference = this.stocktakeLookup.trim();
+    if (!reference) return;
+    this.countReview = null;
+    this.runStocktake(this.api.stocktakeReview(reference), (review) => (this.countReview = review));
+  }
+
+  confirmCount(): void {
+    const review = this.countReview;
+    if (!review || review.receipt) return;
+    const reference = review.proposal.reference;
+    this.runStocktake(this.api.approveStocktake(reference), (receipt) => {
+      this.countReview = { ...review, receipt };
+      this.stocktakeCases.clear();
+      this.load();
+    });
+  }
+
+  private runStocktake<T>(request: Observable<T>, next: (value: T) => void): void {
+    if (this.stocktakeBusy) return;
+    this.stocktakeBusy = true;
+    this.stocktakeError = '';
+    request
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => {
+          this.stocktakeBusy = false;
+          this.changeDetector.markForCheck();
+        }),
+      )
+      .subscribe({
+        next,
+        error: (error: HttpErrorResponse) => (this.stocktakeError = this.errorMessage(error)),
+      });
   }
 
   load(): void {

@@ -15,12 +15,14 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.DeliveredInventoryEvidenceV1;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.DeliveredInventoryEvidenceV1.Receipt;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.StocktakeV1;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 
 @Component
 public class DeliveredInventoryRemoteClient {
 
   private static final String TARGET = "/internal/v1/inventory/delivered-reconciliations";
+  private static final String STOCKTAKES = "/internal/v1/inventory/stocktakes";
 
   private final RestClient client;
   private final InventoryInternalRequestSigner signer;
@@ -59,6 +61,51 @@ public class DeliveredInventoryRemoteClient {
     } catch (RestClientException exception) {
       throw new InventoryRemoteUnavailableException(exception);
     }
+  }
+
+  public StocktakeV1.Baseline stocktakeBaseline(long productId) {
+    String target = STOCKTAKES + "/baseline/" + productId;
+    try {
+      var baseline = client.get().uri(target)
+        .headers(headers -> signer.sign(headers, "GET", target, signer.contentHash("")))
+        .retrieve().body(StocktakeV1.Baseline.class);
+      if (baseline == null || baseline.productId() != productId) {
+        throw new InventoryRemoteUnavailableException(new IllegalStateException("Invalid stocktake baseline"));
+      }
+      return baseline;
+    } catch (RestClientResponseException exception) {
+      throw stocktakeRejection(exception);
+    } catch (RestClientException exception) {
+      throw new InventoryRemoteUnavailableException(exception);
+    }
+  }
+
+  public StocktakeV1.Receipt applyStocktake(StocktakeV1 stocktake) {
+    String payload = mapper.writeValueAsString(stocktake);
+    try {
+      var receipt = client.post().uri(STOCKTAKES).contentType(MediaType.APPLICATION_JSON)
+        .headers(headers -> signer.sign(headers, "POST", STOCKTAKES, signer.contentHash(payload)))
+        .body(payload).retrieve().body(StocktakeV1.Receipt.class);
+      int adjustment = stocktake.countedAvailable() - stocktake.baseline().available();
+      if (receipt == null || !stocktake.reference().equals(receipt.reference())
+          || receipt.adjustment() != adjustment
+          || (adjustment == 0 ? receipt.movementId() != null
+                              : receipt.movementId() == null || receipt.movementId() <= 0)) {
+        throw new InventoryRemoteUnavailableException(new IllegalStateException("Invalid stocktake receipt"));
+      }
+      return receipt;
+    } catch (RestClientResponseException exception) {
+      throw stocktakeRejection(exception);
+    } catch (RestClientException exception) {
+      throw new InventoryRemoteUnavailableException(exception);
+    }
+  }
+
+  private RuntimeException stocktakeRejection(RestClientResponseException exception) {
+    if (List.of(400, 409).contains(exception.getStatusCode().value())) {
+      return new BusinessRuleException(rejectionMessage(exception));
+    }
+    return new InventoryRemoteUnavailableException(exception);
   }
 
   private String rejectionMessage(RestClientResponseException exception) {
