@@ -17,7 +17,7 @@ esac
 
 fulfillment_tables="'fulfillment_order_locks','fulfillment_command_ids','fulfillment_shipment_jobs',
   'fulfillment_shipment_recoveries','fulfillment_merchant_jobs','fulfillment_merchant_recoveries'"
-retired_source_tables="'products','product_translations','catalog_event_outbox',
+retired_source_tables="'products','product_translations','catalog_event_outbox','customer_orders','retired_customer_orders',
   'customer_notifications','notification_inbox','notification_projection_windows',
   'notification_projection_shadow','notification_projection_audits',
   'order_shadow_change_clock','payment_shadow_change_clock','payment_shadow_change_log'"
