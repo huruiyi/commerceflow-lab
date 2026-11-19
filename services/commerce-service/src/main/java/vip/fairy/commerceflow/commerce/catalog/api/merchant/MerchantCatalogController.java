@@ -8,6 +8,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -32,6 +33,11 @@ public class MerchantCatalogController {
   @GetMapping
   List<CatalogProductV1> list(Authentication authentication) {
     return catalog.list(currentActors.requireId(authentication));
+  }
+
+  @PostMapping
+  CatalogProductV1 create(@Valid @RequestBody CatalogCreateProductRequest request, Authentication authentication) {
+    return catalog.create(currentActors.requireId(authentication), request);
   }
 
   @PutMapping("/{productId}/profile")

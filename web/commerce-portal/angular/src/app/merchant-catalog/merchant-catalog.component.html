@@ -1,4 +1,22 @@
 <h2>{{ 'merchantProducts' | t }}</h2>
+<form #createForm="ngForm" (ngSubmit)="create()" class="row g-2 align-items-end border rounded p-3 mb-3">
+  <label class="col-md-3">{{ 'productName' | t }}
+    <input class="form-control" name="newName" [(ngModel)]="creation.name" maxlength="160" required />
+  </label>
+  <label class="col-md-3">{{ 'description' | t }}
+    <input class="form-control" name="newDescription" [(ngModel)]="creation.description" maxlength="2000" required />
+  </label>
+  <label class="col-md-2">{{ 'unitPrice' | t }}
+    <input class="form-control" name="newPrice" [(ngModel)]="creation.unitPrice" type="number" min="0.01" step="0.01" required />
+  </label>
+  <label class="col-md-3">{{ 'imageUrl' | t }}
+    <input class="form-control" name="newImage" [(ngModel)]="creation.imageUrl" maxlength="500" required />
+  </label>
+  <div class="col-auto"><button class="btn btn-primary" [disabled]="createForm.invalid || saving()">
+    {{ 'createMerchantProduct' | t }}
+  </button></div>
+</form>
+<p *ngIf="saveFailed() && !draft" role="alert">{{ 'merchantProductSaveFailed' | t }}</p>
 <p *ngIf="loading()" role="status">{{ 'merchantProductsLoading' | t }}</p>
 <div *ngIf="loadFailed()" class="alert alert-danger" role="alert">
   {{ 'merchantProductsLoadFailed' | t }}

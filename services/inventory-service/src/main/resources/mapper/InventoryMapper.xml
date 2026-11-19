@@ -126,6 +126,12 @@
     SELECT catalog_business_version FROM product_inventory WHERE product_id=#{productId}
   </select>
 
+  <insert id="createCatalogSnapshot">
+    INSERT INTO product_inventory(product_id,merchant_id,product_name,thumbnail_url,unit_price,
+      catalog_lifecycle_status,catalog_business_version,stock_available,stock_reserved,stock_sold)
+    VALUES(#{productId},#{merchantId},#{name},#{thumbnailUrl},#{price},#{lifecycleStatus},1,0,0,0)
+  </insert>
+
   <update id="updateCatalogSnapshot">
     UPDATE product_inventory
     SET merchant_id=#{merchantId},product_name=#{productName},thumbnail_url=#{thumbnailUrl},

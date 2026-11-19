@@ -11,6 +11,8 @@ public interface ProductMapper extends BaseMapper<Product> {
 
   List<Product> selectForMerchant(Long merchantId);
 
+  Product findCreation(@Param("merchantId") Long merchantId, @Param("requestId") String requestId);
+
   int updateProfile(@Param("merchantId") Long merchantId, @Param("productId") Long productId,
                     @Param("expectedVersion") long expectedVersion, @Param("name") String name,
                     @Param("brief") String brief, @Param("description") String description,

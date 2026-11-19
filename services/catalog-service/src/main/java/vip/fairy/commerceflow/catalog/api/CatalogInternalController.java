@@ -48,6 +48,12 @@ public class CatalogInternalController {
     return catalog.merchantList(merchantId);
   }
 
+  @PostMapping("/merchant/products")
+  CatalogProductV1 create(@RequestHeader(MERCHANT_HEADER) Long merchantId,
+                          @Valid @RequestBody CatalogCreateProductRequest request) {
+    return catalog.create(merchantId, request);
+  }
+
   @PutMapping("/merchant/products/{productId}/profile")
   CatalogProductV1 updateProfile(@RequestHeader(MERCHANT_HEADER) Long merchantId,
                                  @PathVariable Long productId,

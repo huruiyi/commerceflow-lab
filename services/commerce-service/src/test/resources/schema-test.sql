@@ -815,6 +815,17 @@ FROM app_users u,
      roles r
 WHERE u.email = 'customer2@example.com'
   AND r.code = 'CUSTOMER';
+CREATE TABLE merchant_stores (
+  merchant_id BIGINT PRIMARY KEY,
+  name VARCHAR(120) NOT NULL,
+  description VARCHAR(500) NOT NULL,
+  status VARCHAR(16) NOT NULL,
+  reviewed_by BIGINT,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+INSERT INTO merchant_stores(merchant_id,name,description,status)
+SELECT id, 'Demo Store', '', 'ACTIVE' FROM app_users WHERE email='merchant@example.com';
+
 INSERT INTO products(name, brief, description, price, image_url, thumbnail_url)
 VALUES ('Learning Laptop', 'Coding laptop', 'Learning workstation', 1299, 'image', 'thumb');
 UPDATE products

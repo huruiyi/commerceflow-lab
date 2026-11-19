@@ -21,6 +21,9 @@
 | 收货评价 | `POST /api/purchase-orders/{id}/receive`、`POST /api/order-items/{id}/reviews` | CUSTOMER |
 | 商家履约 | `GET /api/merchant/orders`、`POST /api/merchant/orders/{id}/confirm|ship` | MERCHANT |
 | 用户管理 | `GET /api/users` | ADMIN |
+| 商家账号 | `POST /api/users/merchants` | ADMIN |
+| 店铺 | `GET /api/stores/{id}`、`GET/PUT /api/merchant/store`、`GET /api/admin/stores`、`PUT /api/admin/stores/{id}/status` | 公开店铺 / 商家本人 / 管理员 |
+| 新建商品 | `POST /api/merchant/catalog/v1/products` | 已启用店铺的商家 |
 | 定时任务治理 | `GET/PUT/DELETE /api/admin/scheduling/policies...`、`GET/POST /api/admin/scheduling/tasks...` | ADMIN |
 
 ## 结算与优惠券 API

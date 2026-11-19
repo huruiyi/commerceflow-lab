@@ -1,5 +1,7 @@
 package vip.fairy.commerceflow.commerce.ordering.application;
 
+import vip.fairy.commerceflow.commerce.merchant.application.contract.v1.StoreTradeV1;
+
 import vip.fairy.commerceflow.commerce.cart.domain.CheckoutAddressSnapshot;
 import vip.fairy.commerceflow.commerce.cart.domain.CheckoutCartItem;
 import vip.fairy.commerceflow.commerce.cart.application.port.CheckoutCartPort;
@@ -75,6 +77,7 @@ public class PurchaseOrderService {
   private final CheckoutIntentMapper intents;
   private final CouponService coupons;
   private final CheckoutCouponLifecycle couponLifecycle;
+  private final StoreTradeV1 stores;
 
   public PurchaseOrderService(OrderStorePort orders, CheckoutCartPort carts,
                               PaymentOrchestrationV1 payments,
@@ -87,7 +90,7 @@ public class PurchaseOrderService {
                               InventoryCommandPort.ImmediateDelivery inventoryDelivery,
                               TransactionTemplate transactions, CheckoutPricingMapper pricing,
                               ShippingTemplateService shipping, ObjectMapper json, CheckoutIntentMapper intents,
-                              CouponService coupons, CheckoutCouponLifecycle couponLifecycle) {
+                              CouponService coupons, CheckoutCouponLifecycle couponLifecycle, StoreTradeV1 stores) {
     this.orders = orders;
     this.carts = carts;
     this.payments = payments;
@@ -106,6 +109,7 @@ public class PurchaseOrderService {
     this.intents = intents;
     this.coupons = coupons;
     this.couponLifecycle = couponLifecycle;
+    this.stores = stores;
   }
 
   public CheckoutQuote quote(AppUser user, Long addressId, List<Long> itemIds, UUID couponId) {
@@ -260,6 +264,7 @@ public class PurchaseOrderService {
       throw new BusinessRuleException("Select a valid shipping address before checkout");
     }
     List<OrderItemSnapshot> orderItems = currentOrderItems(items);
+    stores.requireActive(orderItems.getFirst().merchantId(), lockCampaign);
     BigDecimal products = orderItems.stream().map(OrderItemSnapshot::subtotal).reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal fee = shipping.fee(orderItems.getFirst().merchantId(), address.countryCode(), address.stateProvince());
     String id = couponId == null ? null : couponId.toString();

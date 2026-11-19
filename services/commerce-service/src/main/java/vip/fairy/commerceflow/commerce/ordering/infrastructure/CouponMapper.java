@@ -10,6 +10,7 @@ public interface CouponMapper {
   List<CouponCampaign> publicCampaigns();
   List<CouponCampaign> merchantCampaigns(Long merchantId);
   CouponCampaign lockCampaign(String id);
+  CouponCampaign findCampaign(String id);
   void insertCampaign(CouponCampaign campaign);
   int disableCampaign(String id, Long merchantId);
   int issue(String campaignId);

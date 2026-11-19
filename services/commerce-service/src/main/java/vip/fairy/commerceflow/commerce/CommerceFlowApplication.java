@@ -18,6 +18,7 @@ import vip.fairy.commerceflow.commerce.notification.infrastructure.NotificationD
 @EnableScheduling
 @MapperScan({
   "vip.fairy.commerceflow.commerce.identity.infrastructure",
+  "vip.fairy.commerceflow.commerce.merchant.infrastructure",
   "vip.fairy.commerceflow.commerce.cart.infrastructure",
   "vip.fairy.commerceflow.commerce.customer.infrastructure",
   "vip.fairy.commerceflow.commerce.ordering.infrastructure",

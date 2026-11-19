@@ -378,6 +378,10 @@ export class ApiService {
     return this.http.get<MerchantProduct[]>('/api/merchant/catalog/v1/products');
   }
 
+  createMerchantProduct(request: object): Observable<MerchantProduct> {
+    return this.http.post<MerchantProduct>('/api/merchant/catalog/v1/products', request);
+  }
+
   updateMerchantProduct(id: number, area: 'profile' | 'price' | 'status', value: object): Observable<MerchantProduct> {
     return this.http.put<MerchantProduct>(`/api/merchant/catalog/v1/products/${id}/${area}`, value);
   }

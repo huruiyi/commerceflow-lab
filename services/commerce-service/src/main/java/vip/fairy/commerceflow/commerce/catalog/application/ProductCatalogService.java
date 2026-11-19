@@ -6,6 +6,8 @@ import vip.fairy.commerceflow.commerce.catalog.api.ProductResponse;
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogProductV1;
 import vip.fairy.commerceflow.commerce.catalog.infrastructure.client.CatalogServiceClient;
 import vip.fairy.commerceflow.commerce.review.application.ProductReviewCatalogQuery;
+import vip.fairy.commerceflow.commerce.merchant.application.contract.v1.StoreTradeV1;
+import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
 
 import java.util.HashMap;
 import java.util.List;
@@ -16,19 +18,24 @@ public class ProductCatalogService implements CatalogProductLookup, CatalogCache
 
   private final CatalogServiceClient catalog;
   private final ProductReviewCatalogQuery reviews;
+  private final StoreTradeV1 stores;
 
-  public ProductCatalogService(CatalogServiceClient catalog, ProductReviewCatalogQuery reviews) {
+  public ProductCatalogService(CatalogServiceClient catalog, ProductReviewCatalogQuery reviews, StoreTradeV1 stores) {
     this.catalog = catalog;
     this.reviews = reviews;
+    this.stores = stores;
   }
 
   public List<ProductResponse> list(String requestedLocale) {
-    return catalog.list(requestedLocale).stream().map(this::response).toList();
+    var active = stores.activeMerchantIds();
+    return catalog.list(requestedLocale).stream()
+      .filter(product -> active.contains(product.merchantId())).map(this::response).toList();
   }
 
   @Override
   public ProductSnapshot require(Long productId) {
     CatalogProductV1 product = catalog.detail(productId, null);
+    stores.requireActive(product.merchantId(), false);
     return new ProductSnapshot(product.productId(), product.merchantId(), product.name(),
       product.unitPrice(), product.thumbnailUrl());
   }
@@ -47,7 +54,11 @@ public class ProductCatalogService implements CatalogProductLookup, CatalogCache
   }
 
   public ProductResponse detail(Long productId, String requestedLocale) {
-    return response(catalog.detail(productId, requestedLocale));
+    var product = catalog.detail(productId, requestedLocale);
+    if (!stores.activeMerchantIds().contains(product.merchantId())) {
+      throw new ResourceNotFoundException("Product not found");
+    }
+    return response(product);
   }
 
   @Override

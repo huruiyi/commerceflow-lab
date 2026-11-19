@@ -1,5 +1,8 @@
 package vip.fairy.commerceflow.commerce.catalog.application;
 
+import vip.fairy.commerceflow.commerce.catalog.api.merchant.CatalogCreateProductRequest;
+import vip.fairy.commerceflow.commerce.merchant.application.contract.v1.StoreTradeV1;
+
 import org.springframework.stereotype.Service;
 import vip.fairy.commerceflow.commerce.catalog.api.merchant.CatalogPriceUpdateRequest;
 import vip.fairy.commerceflow.commerce.catalog.api.merchant.CatalogProfileUpdateRequest;
@@ -14,9 +17,16 @@ import java.util.List;
 public class MerchantCatalogService {
 
   private final CatalogServiceClient catalog;
+  private final StoreTradeV1 stores;
 
-  public MerchantCatalogService(CatalogServiceClient catalog) {
+  public MerchantCatalogService(CatalogServiceClient catalog, StoreTradeV1 stores) {
     this.catalog = catalog;
+    this.stores = stores;
+  }
+
+  public CatalogProductV1 create(Long merchantId, CatalogCreateProductRequest request) {
+    stores.requireActive(merchantId, false);
+    return catalog.create(merchantId, request);
   }
 
   public List<CatalogProductV1> list(Long merchantId) {
@@ -38,6 +48,7 @@ public class MerchantCatalogService {
   public CatalogProductV1 updateStatus(Long merchantId, Long productId,
                                        CatalogStatusUpdateRequest request,
                                        String correlationId, String causationId) {
+    if ("ACTIVE".equals(request.status().name())) stores.requireActive(merchantId, false);
     return catalog.updateStatus(merchantId, productId, request, correlationId, causationId);
   }
 

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vip.fairy.commerceflow.commerce.merchant.application.contract.v1.StoreTradeV1;
 import vip.fairy.commerceflow.commerce.ordering.domain.CouponCampaign;
 import vip.fairy.commerceflow.commerce.ordering.domain.CustomerCoupon;
 import vip.fairy.commerceflow.commerce.ordering.infrastructure.CouponMapper;
@@ -16,21 +17,26 @@ import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundExcept
 public class CouponService {
 
   private final CouponMapper coupons;
+  private final StoreTradeV1 stores;
 
-  public CouponService(CouponMapper coupons) {
+  public CouponService(CouponMapper coupons, StoreTradeV1 stores) {
     this.coupons = coupons;
+    this.stores = stores;
   }
 
   public List<CouponCampaign> campaigns() {
-    return coupons.publicCampaigns();
+    var active = stores.activeMerchantIds();
+    return coupons.publicCampaigns().stream().filter(campaign -> active.contains(campaign.merchantId())).toList();
   }
 
   public List<CouponCampaign> campaigns(Long merchant) {
     return coupons.merchantCampaigns(merchant);
   }
 
+  @Transactional
   public CouponCampaign create(Long merchant, String title, BigDecimal minimum, BigDecimal reduction,
                                int supply, Instant start, Instant end) {
+    stores.requireActive(merchant, true);
     if (!start.isBefore(end) || !Instant.now().isBefore(end) || minimum.compareTo(reduction) <= 0) {
       throw new IllegalArgumentException("Campaign needs a future expiry and a threshold above its reduction");
     }
@@ -46,6 +52,9 @@ public class CouponService {
 
   @Transactional
   public CustomerCoupon claim(Long customer, String campaignId) {
+    var campaign = coupons.findCampaign(campaignId);
+    if (campaign == null) throw new ResourceNotFoundException("Campaign not found");
+    stores.requireActive(campaign.merchantId(), true);
     if (coupons.lockCampaign(campaignId) == null) throw new ResourceNotFoundException("Campaign not found");
     String existing = coupons.claimed(customer, campaignId);
     if (existing != null) return coupons.coupon(existing, customer);

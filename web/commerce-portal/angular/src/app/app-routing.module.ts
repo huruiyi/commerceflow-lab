@@ -5,6 +5,7 @@ import { DashboardComponent } from './dashboard/dashboard.component';
 import { ErrorpageComponent } from './errorpage/errorpage.component';
 import { LoginComponent } from './login/login.component';
 import { CouponsComponent } from './coupons/coupons.component';
+import { StoresComponent } from './stores/stores.component';
 import { OrderComponent } from './order/order.component';
 import { UsersComponent } from './users/users.component';
 import { AddressesComponent } from './addresses/addresses.component';
@@ -20,6 +21,11 @@ import { InventoryReconciliationAdminComponent } from './inventory-reconciliatio
 const routes: Routes = [
   { path: '', component: LoginComponent }, //LoginGuard
   { path: 'dashboard', component: DashboardComponent, canActivate: [AuthGuard] },
+  { path: 'stores/:id', component: StoresComponent, data: { mode: 'public' } },
+  { path: 'merchant/store', component: StoresComponent, canActivate: [AuthGuard],
+    data: { mode: 'merchant', roles: ['MERCHANT'] } },
+  { path: 'admin/stores', component: StoresComponent, canActivate: [AuthGuard],
+    data: { mode: 'admin', roles: ['ADMIN'] } },
   { path: 'coupons', component: CouponsComponent, canActivate: [AuthGuard], data: { roles: ['CUSTOMER'] } },
   {
     path: 'merchant/coupons',

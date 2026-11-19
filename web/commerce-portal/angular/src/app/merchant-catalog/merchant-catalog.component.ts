@@ -18,6 +18,8 @@ export class MerchantCatalogComponent implements OnInit {
   readonly saveFailed = signal(false);
   readonly saved = signal(false);
   draft?: MerchantProduct;
+  creation = { name: '', description: '', unitPrice: 0.01, imageUrl: '' };
+  private createRequest?: { key: string; content: string };
   shipping?: ShippingTemplate;
   readonly shippingBusy = signal(false);
   readonly shippingError = signal('');
@@ -86,6 +88,25 @@ export class MerchantCatalogComponent implements OnInit {
     this.draft = { ...product };
     this.saveFailed.set(false);
     this.saved.set(false);
+  }
+
+  create(): void {
+    if (this.saving()) return;
+    const content = JSON.stringify(this.creation);
+    if (this.createRequest?.content !== content) this.createRequest = { key: crypto.randomUUID(), content };
+    this.saving.set(true);
+    this.saveFailed.set(false);
+    this.api.createMerchantProduct({ ...this.creation, requestId: this.createRequest.key })
+      .pipe(takeUntilDestroyed(this.destroyRef), finalize(() => this.saving.set(false)))
+      .subscribe({
+        next: (product) => {
+          this.products.update((items) => [...items.filter((item) => item.productId !== product.productId), product]);
+          this.creation = { name: '', description: '', unitPrice: 0.01, imageUrl: '' };
+          this.createRequest = undefined;
+          this.edit(product);
+        },
+        error: () => this.saveFailed.set(true),
+      });
   }
 
   save(area: 'profile' | 'price' | 'status', product: MerchantProduct): void {

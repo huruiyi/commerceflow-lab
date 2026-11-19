@@ -118,6 +118,7 @@ public class SecurityConfiguration {
           "/api/auth/login",
           "/api/auth/csrf",
           "/api/products/**",
+          "/api/stores/**",
           "/api/logistics-notifications/**",
           "/internal/v1/inventory/catalog-events",
           "/internal/v1/logistics/fulfillment/commands",

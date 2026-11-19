@@ -8,4 +8,6 @@ import java.util.List;
 public interface AppUserMapper extends BaseMapper<AppUser> {
 
   List<String> selectRoleCodes(Long userId);
+
+  int grantMerchant(Long userId);
 }

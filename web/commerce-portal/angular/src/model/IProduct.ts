@@ -1,5 +1,6 @@
 export interface Product {
   id: number;
+  merchantId?: number;
   name: string;
   brief: string;
   description: string;

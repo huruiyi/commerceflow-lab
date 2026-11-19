@@ -231,9 +231,12 @@ class CommerceFlowIntegrationTest {
   MerchantInventoryRemoteClient merchantInventoryRemoteClient;
   @MockitoBean
   InventoryRemoteCommandClient inventoryRemoteCommandClient;
+  private Long catalogMerchantId;
 
   @BeforeEach
   void catalogServiceContract() {
+    catalogMerchantId = users.selectOne(Wrappers.lambdaQuery(AppUser.class)
+      .eq(AppUser::getEmail, "merchant@example.com")).getId();
     when(catalogServiceClient.list(nullable(String.class))).thenAnswer(invocation -> {
       String locale = invocation.getArgument(0);
       return List.of(catalogProduct(1L, locale));
@@ -243,7 +246,7 @@ class CommerceFlowIntegrationTest {
     when(catalogServiceClient.snapshots(any())).thenAnswer(invocation -> {
       List<Long> ids = invocation.getArgument(0);
       return ids.stream().distinct().map(id -> new CatalogProductSnapshotV1(
-        1, id, 5L, "Learning Laptop", new BigDecimal("1299.00"), "thumb",
+        1, id, catalogMerchantId, "Learning Laptop", new BigDecimal("1299.00"), "thumb",
         "ACTIVE", 1L)).toList();
     });
     when(paymentOrchestration.closePending(any())).thenAnswer(invocation -> {
@@ -257,7 +260,7 @@ class CommerceFlowIntegrationTest {
 
   private CatalogProductV1 catalogProduct(Long productId, String locale) {
     boolean chinese = locale != null && locale.toLowerCase().startsWith("zh");
-    return new CatalogProductV1(1, productId, 5L,
+    return new CatalogProductV1(1, productId, catalogMerchantId,
       chinese ? "学习笔记本电脑" : "Learning Laptop",
       chinese ? "适合编程实验的实用笔记本电脑" : "A practical laptop for coding labs",
       chinese ? "用于 Java、Angular 和 Docker 学习的工作站。"
@@ -849,11 +852,12 @@ class CommerceFlowIntegrationTest {
     long addressId = json.readTree(address.getResponse().getContentAsString()).get("id").asLong();
     when(inventoryRemoteCommandClient.availability(List.of(1L))).thenReturn(Map.of(1L, new Stock(1L, true, 1)));
     when(catalogServiceClient.snapshots(List.of(1L))).thenReturn(List.of(new CatalogProductSnapshotV1(
-      1, 1L, 5L, "Learning Laptop", new BigDecimal("1350.00"), "thumb", "ACTIVE", 2L)));
+      1, 1L, catalogMerchantId, "Learning Laptop", new BigDecimal("1350.00"), "thumb", "ACTIVE", 2L)));
     when(inventoryRemoteCommandClient.availability(List.of(1L, 2L)))
       .thenReturn(Map.of(1L, new Stock(1L, true, 1), 2L, new Stock(2L, true, 1)));
     when(catalogServiceClient.snapshots(List.of(1L, 2L))).thenReturn(List.of(
-      new CatalogProductSnapshotV1(1, 1L, 5L, "Learning Laptop", new BigDecimal("1350.00"), "thumb", "ACTIVE", 2L),
+      new CatalogProductSnapshotV1(1, 1L, catalogMerchantId, "Learning Laptop",
+        new BigDecimal("1350.00"), "thumb", "ACTIVE", 2L),
       new CatalogProductSnapshotV1(1, 2L, 9L, "Other Product", new BigDecimal("1299.00"), "thumb", "ACTIVE", 1L)));
     String mixed = json.writeValueAsString(
       Map.of("addressId", addressId, "itemIds", itemIds));
@@ -906,8 +910,7 @@ class CommerceFlowIntegrationTest {
   void checkoutAndCancellationEnqueueInventoryCommandsIdempotently() throws Exception {
     Long customerId = jdbc.queryForObject(
       "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
-    Long merchantId = jdbc.queryForObject(
-      "SELECT id FROM app_users WHERE email='admin@example.com'", Long.class);
+    Long merchantId = catalogMerchantId;
     jdbc.update("UPDATE products SET merchant_id=? WHERE id=1", merchantId);
     jdbc.update("MERGE INTO carts(user_id,created_at,updated_at) KEY(user_id) VALUES(?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", customerId);
     Long cartId = jdbc.queryForObject("SELECT id FROM carts WHERE user_id=?", Long.class, customerId);

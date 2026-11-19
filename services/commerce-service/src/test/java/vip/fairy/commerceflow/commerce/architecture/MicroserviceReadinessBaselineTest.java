@@ -92,6 +92,7 @@ class MicroserviceReadinessBaselineTest {
     return Map.ofEntries(
       Map.entry("app_users", "identity"),
       Map.entry("roles", "identity"),
+      Map.entry("merchant_stores", "merchant"),
       Map.entry("user_roles", "identity"),
       Map.entry("persistent_logins", "identity"),
       Map.entry("products", "catalog"),

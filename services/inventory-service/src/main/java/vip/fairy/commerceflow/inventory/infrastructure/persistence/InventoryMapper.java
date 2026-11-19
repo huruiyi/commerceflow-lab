@@ -51,6 +51,9 @@ public interface InventoryMapper {
 
   Long catalogBusinessVersion(Long productId);
 
+  void createCatalogSnapshot(
+    vip.fairy.commerceflow.inventory.application.contract.v1.CatalogProductEventV1 event);
+
   int updateCatalogSnapshot(@Param("productId") Long productId,
                             @Param("merchantId") Long merchantId,
                             @Param("productName") String productName,

@@ -24,4 +24,7 @@
     UPDATE products SET business_version=business_version+1
     WHERE id=#{productId} AND merchant_id=#{merchantId} AND business_version=#{expectedVersion}
   </update>
+  <select id="findCreation" resultType="vip.fairy.commerceflow.catalog.domain.Product">
+    SELECT * FROM products WHERE merchant_id=#{merchantId} AND create_request_id=#{requestId} FOR UPDATE
+  </select>
 </mapper>

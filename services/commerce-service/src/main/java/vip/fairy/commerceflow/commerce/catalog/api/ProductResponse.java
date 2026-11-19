@@ -7,7 +7,8 @@ import java.util.List;
 
 public record ProductResponse(Long id, String name, String brief, String description,
                               BigDecimal price, String imageUrl, String thumbnailUrl,
-                              BigDecimal averageRating, int reviewCount, List<CatalogReviewResponse> reviews) {
+                              BigDecimal averageRating, int reviewCount, List<CatalogReviewResponse> reviews,
+                              Long merchantId) {
   public static ProductResponse from(CatalogProductV1 product,
                                      BigDecimal averageRating,
                                      int reviewCount,
@@ -17,6 +18,6 @@ public record ProductResponse(Long id, String name, String brief, String descrip
       product.unitPrice(), product.imageUrl(), product.thumbnailUrl(),
       averageRating,
       reviewCount,
-      reviews);
+      reviews, product.merchantId());
   }
 }

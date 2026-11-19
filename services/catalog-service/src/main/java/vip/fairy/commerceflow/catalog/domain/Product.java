@@ -12,7 +12,7 @@ import java.time.Instant;
 public class Product {
 
   /** 商品稳定内部标识。 */
-  @TableId(type = IdType.INPUT)
+  @TableId(type = IdType.AUTO)
   private Long id;
   /** 默认语言商品名称。 */
   private String name;
@@ -34,6 +34,32 @@ public class Product {
   private long businessVersion;
   /** 最后更新时间。 */
   private Instant updatedAt;
+  /** Idempotency key supplied by the merchant at registration. */
+  private String createRequestId;
+  /** Digest of the original registration fields, independent of subsequent edits. */
+  private String createFingerprint;
+
+  protected Product() {
+  }
+
+  public Product(Long merchantId, String requestId, String fingerprint, String name,
+                 String description, BigDecimal price, String imageUrl) {
+    this.merchantId = merchantId;
+    this.createRequestId = requestId;
+    this.createFingerprint = fingerprint;
+    this.name = name;
+    this.brief = name;
+    this.description = description;
+    this.price = price;
+    this.imageUrl = imageUrl;
+    this.thumbnailUrl = imageUrl;
+    this.lifecycleStatus = "INACTIVE";
+    this.businessVersion = 1;
+  }
+
+  public String getCreateFingerprint() {
+    return createFingerprint;
+  }
 
   public Long getId() { return id; }
   public String getName() { return name; }

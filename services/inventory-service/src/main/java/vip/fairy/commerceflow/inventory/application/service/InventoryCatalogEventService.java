@@ -52,7 +52,14 @@ public class InventoryCatalogEventService {
     }
     Long currentVersion = inventory.catalogBusinessVersion(event.productId());
     if (currentVersion == null) {
-      throw new IllegalStateException("Inventory product snapshot does not exist");
+      if (type != CatalogProductEventTypeV1.PRODUCT_CREATED || event.businessVersion() != 1) {
+        throw new IllegalStateException("Inventory product snapshot does not exist");
+      }
+      inventory.createCatalogSnapshot(event);
+      if (inbox.complete(event.eventId(), "APPLIED") != 1) {
+        throw new IllegalStateException("Inventory catalog event could not be confirmed");
+      }
+      return;
     }
     if (event.businessVersion() <= currentVersion) {
       inbox.complete(event.eventId(), "STALE");

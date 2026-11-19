@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.merchant.infrastructure.MerchantStoreMapper">
+  <select id="find" resultType="vip.fairy.commerceflow.commerce.merchant.domain.MerchantStore">
+    SELECT merchant_id,name,description,status,reviewed_by,updated_at FROM merchant_stores WHERE merchant_id=#{id}
+  </select>
+  <select id="lock" resultType="vip.fairy.commerceflow.commerce.merchant.domain.MerchantStore">
+    SELECT merchant_id,name,description,status,reviewed_by,updated_at
+    FROM merchant_stores WHERE merchant_id=#{id} FOR UPDATE
+  </select>
+  <select id="list" resultType="vip.fairy.commerceflow.commerce.merchant.domain.MerchantStore">
+    SELECT merchant_id,name,description,status,reviewed_by,updated_at FROM merchant_stores ORDER BY merchant_id
+  </select>
+  <select id="activeIds" resultType="long">
+    SELECT merchant_id FROM merchant_stores WHERE status='ACTIVE'
+  </select>
+  <insert id="insert">
+    INSERT INTO merchant_stores(merchant_id,name,description,status) VALUES(#{id},#{name},#{description},'PENDING')
+  </insert>
+  <update id="edit">
+    UPDATE merchant_stores SET name=#{name},description=#{description},
+      reviewed_by=CASE WHEN status='REJECTED' THEN NULL ELSE reviewed_by END,
+      status=CASE WHEN status='REJECTED' THEN 'PENDING' ELSE status END
+    WHERE merchant_id=#{id}
+  </update>
+  <update id="decide">
+    UPDATE merchant_stores SET status=#{status},reviewed_by=#{admin} WHERE merchant_id=#{id}
+  </update>
+</mapper>

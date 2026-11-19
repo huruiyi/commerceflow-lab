@@ -2,10 +2,12 @@ package vip.fairy.commerceflow.catalog.application;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.catalog.api.CatalogPriceUpdateRequest;
+import vip.fairy.commerceflow.catalog.api.CatalogCreateProductRequest;
 import vip.fairy.commerceflow.catalog.api.CatalogProductSnapshotV1;
 import vip.fairy.commerceflow.catalog.api.CatalogProductV1;
 import vip.fairy.commerceflow.catalog.api.CatalogProfileUpdateRequest;
@@ -18,6 +20,9 @@ import vip.fairy.commerceflow.catalog.infrastructure.persistence.ProductMapper;
 import vip.fairy.commerceflow.catalog.infrastructure.persistence.ProductTranslationMapper;
 
 import java.util.LinkedHashSet;
+import java.util.HexFormat;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -69,6 +74,31 @@ public class CatalogApplicationService {
   public List<CatalogProductV1> merchantList(Long merchantId) {
     return products.selectForMerchant(merchantId).stream()
       .map(product -> CatalogProductV1.from(product, null)).toList();
+  }
+
+  @Transactional
+  public CatalogProductV1 create(Long merchantId, CatalogCreateProductRequest request) {
+    String key = request.requestId().toString();
+    String fingerprint;
+    try {
+      fingerprint = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+        .digest(mapper.writeValueAsBytes(request)));
+    } catch (NoSuchAlgorithmException exception) {
+      throw new IllegalStateException(exception);
+    }
+    var product = new Product(merchantId, key, fingerprint, request.name().strip(),
+      request.description().strip(), request.unitPrice(), request.imageUrl().strip());
+    try {
+      products.insert(product);
+    } catch (DuplicateKeyException exception) {
+      var existing = products.findCreation(merchantId, key);
+      if (existing == null || !fingerprint.equals(existing.getCreateFingerprint())) {
+        throw new CatalogVersionConflictException("Product creation key has been used with different fields");
+      }
+      return CatalogProductV1.from(existing, null);
+    }
+    return changed(owned(merchantId, product.getId()), CatalogProductEventType.PRODUCT_CREATED,
+      null, key, key);
   }
 
   @Transactional

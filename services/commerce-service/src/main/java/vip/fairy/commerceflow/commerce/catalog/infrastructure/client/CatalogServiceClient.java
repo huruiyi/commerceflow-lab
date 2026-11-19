@@ -1,5 +1,7 @@
 package vip.fairy.commerceflow.commerce.catalog.infrastructure.client;
 
+import vip.fairy.commerceflow.commerce.catalog.api.merchant.CatalogCreateProductRequest;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -81,6 +83,17 @@ public class CatalogServiceClient {
         .headers(headers -> merchant(headers, "GET", target, merchantId, null, null))
         .retrieve().body(CatalogProductV1[].class);
       return body == null ? List.of() : Arrays.asList(body);
+    } catch (RuntimeException exception) {
+      throw translated(exception);
+    }
+  }
+
+  public CatalogProductV1 create(Long merchantId, CatalogCreateProductRequest request) {
+    String target = "/internal/v1/merchant/products";
+    try {
+      return client.post().uri(URI.create(baseUrl + target))
+        .headers(headers -> merchant(headers, "POST", target, merchantId, null, null))
+        .body(request).retrieve().body(CatalogProductV1.class);
     } catch (RuntimeException exception) {
       throw translated(exception);
     }

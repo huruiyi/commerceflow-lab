@@ -16,6 +16,10 @@
   <select id="lockCampaign" resultType="vip.fairy.commerceflow.commerce.ordering.domain.CouponCampaign">
     SELECT <include refid="campaignColumns"/> FROM coupon_campaigns WHERE id=#{id} FOR UPDATE
   </select>
+  <select id="findCampaign" resultType="vip.fairy.commerceflow.commerce.ordering.domain.CouponCampaign">
+    SELECT id,merchant_id,title,minimum_amount,discount_amount,supply,issued,starts_at,expires_at,enabled
+    FROM coupon_campaigns WHERE id=#{id}
+  </select>
   <insert id="insertCampaign">
     INSERT INTO coupon_campaigns(id,merchant_id,title,minimum_amount,discount_amount,supply,starts_at,expires_at)
     VALUES (#{id},#{merchantId},#{title},#{minimumAmount},#{discountAmount},#{supply},#{startsAt},#{expiresAt})
