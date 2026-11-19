@@ -1,6 +1,6 @@
 #requires -Version 7.0
 param(
-  [ValidateSet('Store','Settlement','Payout','Packages')][string]$Chapter='Store',
+  [ValidateSet('Store','Settlement','Payout','Packages','Search')][string]$Chapter='Store',
   [string]$BaseUrl='http://localhost:14200',
   [string]$PaymentBaseUrl='http://localhost:14201',
   [string]$LogisticsUrl='http://localhost:18083',
@@ -88,10 +88,11 @@ function Open-FixtureStore {
   @{id=$account.id;actor=$actor;path=$path;name=$profile.name;suffix=$suffix;email=$email;password=$password}
 }
 
-function New-Product($shop,[int]$Quantity=5){
+function New-Product($shop,[int]$Quantity=5,[string]$Name,[string]$Description='Merchant scope verification'){
   $session=$shop.actor
-  $request=@{requestId=[guid]::NewGuid();name="Acceptance product $($shop.suffix)";
-    description='Merchant scope verification';unitPrice=80;imageUrl=$baselineProduct.imageUrl}
+  if(!$Name){$Name="Acceptance product $($shop.suffix)"}
+  $request=@{requestId=[guid]::NewGuid();name=$Name;
+    description=$Description;unitPrice=80;imageUrl=$baselineProduct.imageUrl}
   $draft=Api $session '/api/merchant/catalog/v1/products' Post $request
   $id=$draft.productId
   if($draft.lifecycleStatus-ne'INACTIVE' -or $draft.merchantId-ne$shop.id -or
@@ -130,6 +131,110 @@ function Delivery([string]$Number){
     $result=Invoke-RestMethod "$LogisticsUrl/api/channel/shipments/$Number/advance" -Method Post -Headers $headers -TimeoutSec 20
     if($result.status-ne$phase){throw 'Incorrect logistics stage'}
   }
+}
+
+function Product-Search([string]$Query,[long]$Store,[string]$Extra=''){
+  $term=[uri]::EscapeDataString($Query)
+  Api $null "/api/products/search?q=$term&merchantId=$Store&lang=zh-CN$Extra"
+}
+
+function Verify-Search($shop,$other){
+  $wireless=New-Product $shop 3 "无线机械键盘 $($shop.suffix)" '蓝牙连接'
+  $wired=New-Product $shop 2 "有线键盘 $($shop.suffix)" 'USB 连接'
+  $headphones=New-Product $shop 2 "无线耳机 $($shop.suffix)" '立体声'
+  $elsewhere=New-Product $other 2 "无线游戏键盘 $($other.suffix)" '游戏配件'
+  $root='/api/admin/catalog-search'
+  $ready=Wait-Value {
+    $state=Api $admin $root
+    if($state.generation-gt0 -and $state.pending-eq0){$state}
+  } 'Catalog search index did not catch up'
+  $id=[long]$wireless.productId
+  $matched=Product-Search '无线 键盘' $shop.id '&minPrice=80&maxPrice=80'
+  if($matched.total-ne1 -or $matched.products[0].id-ne$id){throw 'Chinese AND, price or store filter failed'}
+  $first=Product-Search '键盘' $shop.id '&sort=price-asc&size=1&page=0'
+  $second=Product-Search '键盘' $shop.id '&sort=price-asc&size=1&page=1'
+  if($first.total-ne2 -or $first.products[0].id-ne$id -or $second.products[0].id-ne$wired.productId){
+    throw 'Search pagination or same-price order is inconsistent'
+  }
+  if((Product-Search '无线 键盘' $other.id).products[0].id-ne$elsewhere.productId){throw 'Store selection failed'}
+  Reject $buyer "$root/rebuild" Post @{} @(403)
+  $hold=$null
+  try{
+    if($isolated){
+      $container="$ProjectName-catalog-db-1"
+      $scope=docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' $container
+      if($LASTEXITCODE -or $scope-ne$ProjectName){throw 'Catalog pause is outside isolation'}
+      $hold=Start-ThreadJob -ArgumentList $container -ScriptBlock {
+        param($name)
+        $query="START TRANSACTION; SELECT generation FROM catalog_search_state WHERE singleton_id=1 FOR UPDATE; DO GET_LOCK('search-verify',0); DO SLEEP(15); COMMIT;"
+        docker exec $name sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -NB catalog -e "$1"' sh $query
+        if($LASTEXITCODE){throw 'Failed to hold isolated search consumer'}
+      }
+      $null=Wait-Value {
+        if((Sql catalog-db catalog "SELECT IS_USED_LOCK('search-verify') IS NOT NULL")-eq'1'){$true}
+      } 'Isolated search consumer was not paused'
+    }
+    $price=Api $shop.actor "/api/merchant/catalog/v1/products/$id/price" Put @{
+      unitPrice=95;expectedVersion=$wireless.businessVersion
+    }
+    if($isolated){
+      if((Product-Search '无线 键盘' $shop.id).products[0].price-ne80){
+        throw 'Expected old price in paused search index'
+      }
+      $status=Api $admin $root
+      if($status.pending-lt1){throw 'Paused consumer did not accumulate demand'}
+    }
+    if((Api $null "/api/products/$id").price-ne95){throw 'Product details did not return authoritative price'}
+    $cart=Api $buyer '/api/cart/items' Post @{productId=$id;quantity=1}
+    $quote=Api $buyer '/api/purchase-orders/checkout/quote' Post @{itemIds=@($cart.id)}
+    if($quote.productSubtotal-ne95){throw 'Quote did not use current catalog price'}
+  }finally{
+    if($hold){$hold|Receive-Job -Wait -ErrorAction Stop|Out-Null;$hold|Remove-Job}
+  }
+  $order=Pay (Submit-VerifiedCheckout $BaseUrl $buyer.Session $buyer.Headers @{itemIds=@($cart.id)})
+  if($order.items[0].unitPrice-ne95){throw 'Order line did not freeze current catalog price'}
+  $null=Wait-Value {
+    if((Product-Search '无线 键盘' $shop.id '&minPrice=95&maxPrice=95').total-eq1){$true}
+  } 'Updated price did not reach the index'
+  $removed=Api $shop.actor "/api/merchant/catalog/v1/products/$id/status" Put @{
+    status='INACTIVE';expectedVersion=$price.businessVersion
+  }
+  $null=Wait-Value {
+    if((Api $admin $root).pending-eq0){$true}
+  } 'Removal event did not reach the index'
+  if((Product-Search '无线 键盘' $shop.id).total-ne0){throw 'Unlisted product appeared in search'}
+  Reject $null "/api/products/$id" Get $null @(404)
+  if($isolated){
+    Sql catalog-db catalog "UPDATE catalog_event_outbox SET search_indexed_at=NULL WHERE aggregate_id=$id AND business_version<$($removed.businessVersion)"|Out-Null
+    $null=Wait-Value {
+      if((Api $admin $root).pending-eq0){$true}
+    } 'Replay did not drain'
+    if((Product-Search '无线 键盘' $shop.id).total-ne0){throw 'Older event resurrected an unlisted product'}
+    $rows=Sql catalog-db catalog "SELECT COUNT(*) FROM catalog_search_documents WHERE product_id=$id"
+    if($rows-ne'0'){throw 'Replay left an unlisted document in the index'}
+    Sql catalog-db catalog 'DELETE FROM catalog_search_documents'|Out-Null
+    if((Product-Search '键盘' $shop.id).total-ne0){throw 'Isolated index is not empty before rebuild'}
+  }
+  Api $admin "$root/rebuild" Post @{}|Out-Null
+  $rename=Api $shop.actor "/api/merchant/catalog/v1/products/$($wired.productId)/profile" Put @{
+    expectedVersion=$wired.businessVersion;name="有线键盘 复测 $($shop.suffix)"
+    brief='USB 有线接入';description='重建与增量核对'
+    imageUrl=$wired.imageUrl;thumbnailUrl=$wired.thumbnailUrl
+  }
+  $rebuilt=Wait-Value {
+    $state=Api $admin $root
+    if($state.generation-gt$ready.generation -and !$state.rebuildRequested -and $state.pending-eq0 -and
+        (Product-Search '键盘 复测' $shop.id).products[0].id-eq$rename.productId){$state}
+  } 'Rebuild did not publish a fresh generation'
+  if((Product-Search '无线 键盘' $shop.id).total-ne0 -or (Product-Search '键盘' $shop.id).total-ne1){
+    throw 'Full rebuild did not preserve active catalog visibility'
+  }
+  Api $admin $other.path Put @{status='DISABLED'}|Out-Null
+  if((Product-Search '无线 键盘' $other.id).total-ne0){throw 'Disabled store still visible in product search'}
+  $stores=Api $null '/api/stores'
+  if($shop.id-notin$stores.merchantId -or $other.id-in$stores.merchantId){throw 'Public store filter is inconsistent'}
+  @{order=$order.id;product=$id;headphones=$headphones.productId;matched=$matched.total;
+    generation=$rebuilt.generation;price=95;stalePriceVerified=$isolated;coldRebuildVerified=$isolated}
 }
 
 function Complete-Order($shop,$product,[int]$Quantity,[string]$Coupon=''){
@@ -481,6 +586,15 @@ if($baselineShop.status-ne'ACTIVE' -or $baselineProduct.merchantId-ne$baselineSh
 $shop=Open-FixtureStore
 $otherShop=$null
 try{
+  if($Chapter-eq'Search'){
+    $otherShop=Open-FixtureStore
+    $result=Verify-Search $shop $otherShop
+    if((Archives)-ne$archive){throw 'Historical archives changed'}
+    $actualCart=@(Api $buyer '/api/cart' | Sort-Object id | ForEach-Object {"$($_.id)/$($_.productId)/$($_.quantity)"}) -join '|'
+    if($actualCart-ne$originalCart){throw 'Pre-existing cart items changed'}
+    @{chapter=$Chapter;isolated=$isolated;result=$result;fiveArchivesVerified=$true}|ConvertTo-Json -Depth 5
+    return
+  }
   if($Chapter-eq'Packages'){
     $product=New-Product $shop 10
     $result=Verify-Packages $shop $product

@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.math.BigDecimal;
 import java.util.Map;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -47,5 +48,17 @@ public class ProductController {
                          @RequestHeader(value = "Accept-Language", required = false)
                          String acceptLanguage) {
     return catalog.detail(productId, lang != null ? lang : acceptLanguage);
+  }
+
+  @GetMapping("/search")
+  ProductCatalogService.SearchPage search(@RequestParam(defaultValue = "") String q,
+                                         @RequestParam(required = false) String lang,
+                                         @RequestParam(defaultValue = "default") String sort,
+                                         @RequestParam(required = false) Long merchantId,
+                                         @RequestParam(required = false) BigDecimal minPrice,
+                                         @RequestParam(required = false) BigDecimal maxPrice,
+                                         @RequestParam(defaultValue = "0") int page,
+                                         @RequestParam(defaultValue = "12") int size) {
+    return catalog.search(q, lang, sort, merchantId, minPrice, maxPrice, page, size);
   }
 }

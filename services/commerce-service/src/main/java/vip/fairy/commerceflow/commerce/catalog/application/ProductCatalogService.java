@@ -10,6 +10,8 @@ import vip.fairy.commerceflow.commerce.merchant.application.contract.v1.StoreTra
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
 
 import java.util.HashMap;
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -30,6 +32,27 @@ public class ProductCatalogService implements CatalogProductLookup, CatalogCache
     var active = stores.activeMerchantIds();
     return catalog.list(requestedLocale).stream()
       .filter(product -> active.contains(product.merchantId())).map(this::response).toList();
+  }
+
+  public SearchPage search(String query, String locale, String sort, Long merchantId,
+                           BigDecimal minPrice, BigDecimal maxPrice, int page, int size) {
+    var active = stores.activeMerchantIds();
+    List<Long> merchants = merchantId == null ? List.copyOf(active)
+      : active.contains(merchantId) ? List.of(merchantId) : List.of();
+    var result = catalog.search(new CatalogServiceClient.SearchRequest(query, locale, sort, merchants,
+      "rating".equals(sort) ? reviews.ratedProductIds() : List.of(), minPrice, maxPrice, page, size));
+    return new SearchPage(result.products().stream().map(this::response).toList(),
+      result.total(), result.page(), result.size());
+  }
+
+  public record SearchPage(List<ProductResponse> products, long total, int page, int size) {
+  }
+
+  public SearchStatus searchStatus(boolean rebuild) {
+    return catalog.searchStatus(rebuild);
+  }
+
+  public record SearchStatus(long generation, boolean rebuildRequested, Instant rebuiltAt, long pending) {
   }
 
   @Override

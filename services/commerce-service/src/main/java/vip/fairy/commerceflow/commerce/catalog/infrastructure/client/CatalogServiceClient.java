@@ -17,12 +17,14 @@ import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogProductSnapshotV1;
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogProductV1;
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogSnapshotBatchRequest;
 import vip.fairy.commerceflow.commerce.catalog.application.CatalogServiceUnavailableException;
+import vip.fairy.commerceflow.commerce.catalog.application.ProductCatalogService.SearchStatus;
 import vip.fairy.commerceflow.commerce.shared.application.OptimisticVersionConflictException;
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.net.URI;
+import java.math.BigDecimal;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -34,6 +36,8 @@ import java.util.UUID;
 
 @Component
 public class CatalogServiceClient {
+
+  private static final String SEARCH = "/internal/v1/product-search";
 
   private static final String SERVICE_HEADER = "X-CommerceFlow-Service";
   private static final String TIMESTAMP_HEADER = "X-CommerceFlow-Timestamp";
@@ -58,6 +62,36 @@ public class CatalogServiceClient {
 
   public List<CatalogProductV1> list(String locale) {
     return getProducts(target("/internal/v1/products", locale));
+  }
+
+  public SearchPage search(SearchRequest request) {
+    try {
+      return client.post().uri(URI.create(baseUrl + SEARCH))
+        .headers(headers -> sign(headers, "POST", SEARCH)).body(request).retrieve().body(SearchPage.class);
+    } catch (HttpClientErrorException.BadRequest exception) {
+      throw new IllegalArgumentException("Invalid product search parameters", exception);
+    } catch (RuntimeException exception) {
+      throw translated(exception);
+    }
+  }
+
+  public SearchStatus searchStatus(boolean rebuild) {
+    String target = SEARCH + (rebuild ? "/index/rebuild" : "/index");
+    String method = rebuild ? "POST" : "GET";
+    var request = rebuild ? client.post() : client.get();
+    try {
+      return request.uri(URI.create(baseUrl + target)).headers(headers -> sign(headers, method, target))
+        .retrieve().body(SearchStatus.class);
+    } catch (RuntimeException exception) {
+      throw translated(exception);
+    }
+  }
+
+  public record SearchRequest(String query, String locale, String sort, List<Long> merchantIds, List<Long> ratedIds,
+                              BigDecimal minPrice, BigDecimal maxPrice, int page, int size) {
+  }
+
+  public record SearchPage(List<CatalogProductV1> products, long total, int page, int size) {
   }
 
   public CatalogProductV1 detail(Long productId, String locale) {

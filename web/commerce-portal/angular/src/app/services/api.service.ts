@@ -105,6 +105,18 @@ export interface MerchantProduct {
   businessVersion: number;
 }
 
+export interface CatalogSearchPage {
+  products: Product[];
+  total: number;
+  page: number;
+  size: number;
+}
+
+export interface CatalogStore {
+  merchantId: number;
+  name: string;
+}
+
 export interface StockAvailability {
   productId: number;
   listed: boolean;
@@ -150,6 +162,24 @@ export class ApiService {
       `/api/admin/inventory-command-recoveries/${encodeURIComponent(commandId)}/warehouse-evidence`,
       { lines },
     );
+  }
+
+  searchProducts(params: Record<string, number | string>): Observable<CatalogSearchPage> {
+    return this.http.get<CatalogSearchPage>('/api/products/search', {
+      params: { ...params, lang: this.productLocale() },
+    });
+  }
+
+  publicStores(): Observable<CatalogStore[]> {
+    return this.http.get<CatalogStore[]>('/api/stores');
+  }
+
+  productDetail(id: number): Observable<Product> {
+    return this.http.get<Product>(`/api/products/${id}`, { params: { lang: this.productLocale() } });
+  }
+
+  private productLocale(): string {
+    return localStorage.getItem('commerceflow-locale') || 'en';
   }
 
   allProducts(): Observable<Product[]> {

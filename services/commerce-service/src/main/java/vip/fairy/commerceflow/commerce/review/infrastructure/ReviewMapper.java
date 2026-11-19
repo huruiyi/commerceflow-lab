@@ -8,6 +8,8 @@ import java.util.List;
 
 public interface ReviewMapper extends BaseMapper<ProductReview> {
 
+  List<Long> ratedProductIds();
+
   ProductReviewView byItem(Long itemId);
 
   List<ProductReviewView> reviews(Long productId);

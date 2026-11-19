@@ -7,6 +7,7 @@ import java.util.List;
 public interface ProductReviewCatalogQuery {
 
   View find(Long productId);
+  List<Long> ratedProductIds();
 
   record View(BigDecimal averageRating, int reviewCount, List<Item> reviews) {
   }

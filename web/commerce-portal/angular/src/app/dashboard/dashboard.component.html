@@ -3,14 +3,34 @@
     <div>
       <p class="catalog-eyebrow"><span aria-hidden="true"></span>{{ 'catalogCollection' | t }}</p>
       <h1>{{ 'productList' | t }}</h1>
-      <p class="catalog-intro">{{ i18n.t('searchResults', { count: products.length }) }}</p>
+      <p class="catalog-intro" *ngIf="!loading && !searchFailed">{{ i18n.t('searchResults', { count: total }) }}</p>
     </div>
     <div *ngIf="searchQuery" class="search-summary">
-      <span>{{ i18n.t('searchResults', { count: products.length }) }}</span>
+      <span>{{ searchQuery }}</span>
       <button hlmBtn variant="outline" size="sm" (click)="clearSearch()">{{ 'clearSearch' | t }}</button>
     </div>
   </header>
 
+  <form class="catalog-filters" (ngSubmit)="applyFilters()">
+    <label>
+      {{ 'catalogStoreFilter' | t }}
+      <select class="form-select" name="merchantId" [(ngModel)]="merchantId">
+        <option [ngValue]="null">{{ 'catalogAllStores' | t }}</option>
+        <option *ngFor="let store of stores" [ngValue]="store.merchantId">{{ store.name }}</option>
+      </select>
+    </label>
+    <label>
+      {{ 'catalogMinPrice' | t }}
+      <input class="form-control" name="minPrice" type="number" min="0" step="0.01" [(ngModel)]="minPrice" />
+    </label>
+    <label>
+      {{ 'catalogMaxPrice' | t }}
+      <input class="form-control" name="maxPrice" type="number" min="0" step="0.01" [(ngModel)]="maxPrice" />
+    </label>
+    <button hlmBtn type="submit" [disabled]="minPrice !== null && maxPrice !== null && minPrice > maxPrice">
+      {{ 'catalogApplyFilters' | t }}
+    </button>
+  </form>
   <label class="catalog-sort">
     <span>{{ 'catalogSort' | t }}</span>
     <select class="form-select" [ngModel]="sort" (ngModelChange)="changeSort($event)">
@@ -21,7 +41,12 @@
     </select>
   </label>
 
-  <div class="product-grid" *ngIf="products">
+  <p *ngIf="loading" role="status">{{ 'catalogSearching' | t }}</p>
+  <div *ngIf="searchFailed" class="alert alert-danger" role="alert">
+    {{ 'catalogSearchFailed' | t }}
+    <button hlmBtn variant="outline" type="button" (click)="loadProducts()">{{ 'retry' | t }}</button>
+  </div>
+  <div class="product-grid" *ngIf="!loading && products.length">
     <article hlmCard *ngFor="let item of products; let i = index" class="product-card">
       <div class="product-visual">
         <img [src]="item.imageUrl" [alt]="item.name" />
@@ -50,11 +75,26 @@
     </article>
   </div>
 
-  <div *ngIf="searchQuery && products.length === 0" hlmAlert class="empty-alert">
+  <div *ngIf="!loading && !searchFailed && products.length === 0" hlmAlert class="empty-alert">
     <i class="bi bi-search" aria-hidden="true"></i>
     <h3 hlmAlertTitle>{{ 'noSearchResults' | t }}</h3>
     <p hlmAlertDescription>{{ searchQuery }}</p>
   </div>
+  <nav *ngIf="!loading && total > size" class="catalog-pagination" [attr.aria-label]="'catalogPages' | t">
+    <button hlmBtn variant="outline" type="button" [disabled]="page === 0" (click)="changePage(page - 1)">
+      {{ 'catalogPrevious' | t }}
+    </button>
+    <span>{{ page + 1 }} / {{ totalPages }}</span>
+    <button
+      hlmBtn
+      variant="outline"
+      type="button"
+      [disabled]="(page + 1) * size >= total"
+      (click)="changePage(page + 1)"
+    >
+      {{ 'catalogNext' | t }}
+    </button>
+  </nav>
 </section>
 
 <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">

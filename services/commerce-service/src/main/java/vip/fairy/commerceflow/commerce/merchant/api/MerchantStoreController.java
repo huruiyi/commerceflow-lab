@@ -32,6 +32,12 @@ public class MerchantStoreController {
     return new PublicStore(store.merchantId(), store.name(), store.description());
   }
 
+  @GetMapping("/api/stores")
+  List<PublicStore> publicStores() {
+    return stores.list().stream().filter(store -> "ACTIVE".equals(store.status()))
+      .map(store -> new PublicStore(store.merchantId(), store.name(), store.description())).toList();
+  }
+
   @GetMapping("/api/merchant/store")
   @PreAuthorize("hasRole('MERCHANT')")
   MerchantStore own(Authentication user) {

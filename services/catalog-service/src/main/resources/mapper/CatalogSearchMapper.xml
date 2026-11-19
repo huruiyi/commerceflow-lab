@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogSearchMapper">
+  <select id="lockState"
+          resultType="vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogSearchMapper$State">
+    SELECT generation,rebuild_requested,rebuilt_at FROM catalog_search_state WHERE singleton_id=1 FOR UPDATE
+  </select>
+
+  <select id="state" resultType="vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogSearchMapper$State">
+    SELECT generation,rebuild_requested,rebuilt_at FROM catalog_search_state WHERE singleton_id=1
+  </select>
+
+  <update id="requestRebuild">
+    UPDATE catalog_search_state SET rebuild_requested=TRUE WHERE singleton_id=1
+  </update>
+
+  <update id="switchGeneration">
+    UPDATE catalog_search_state SET generation=#{generation},rebuild_requested=FALSE,rebuilt_at=CURRENT_TIMESTAMP(6)
+    WHERE singleton_id=1
+  </update>
+
+  <delete id="dropExpired">
+    DELETE FROM catalog_search_documents WHERE generation &lt; #{generation}
+  </delete>
+
+  <select id="eventBoundary" resultType="long">
+    SELECT COALESCE(MAX(id),0) FROM catalog_event_outbox
+  </select>
+
+  <select id="pending"
+          resultType="vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogSearchMapper$Change">
+    SELECT id,aggregate_id AS product_id FROM catalog_event_outbox
+    WHERE search_indexed_at IS NULL AND id &lt;= #{throughId} ORDER BY id LIMIT 100
+  </select>
+
+  <select id="pendingCount" resultType="long">
+    SELECT COUNT(*) FROM catalog_event_outbox WHERE search_indexed_at IS NULL
+  </select>
+
+  <update id="acknowledge">
+    UPDATE catalog_event_outbox SET search_indexed_at=CURRENT_TIMESTAMP(6) WHERE id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+  </update>
+
+  <delete id="deleteDocuments">
+    DELETE FROM catalog_search_documents WHERE generation=#{generation} AND product_id IN
+    <foreach collection="products" item="product" open="(" separator="," close=")">#{product}</foreach>
+  </delete>
+
+  <sql id="activeProducts">
+    WHERE p.lifecycle_status='ACTIVE'
+    <if test="products != null">
+      AND p.id IN
+      <foreach collection="products" item="product" open="(" separator="," close=")">#{product}</foreach>
+    </if>
+  </sql>
+
+  <insert id="copyDocuments">
+    INSERT INTO catalog_search_documents(
+      generation,product_id,locale,merchant_id,business_version,name,brief,description,searchable,unit_price
+    )
+    SELECT #{generation},p.id,'',p.merchant_id,p.business_version,p.name,p.brief,p.description,
+      CONCAT_WS(' ',p.name,p.brief,p.description),p.price
+    FROM products p <include refid="activeProducts"/>
+    UNION ALL
+    SELECT #{generation},p.id,t.locale,p.merchant_id,p.business_version,t.name,t.brief,t.description,
+      CONCAT_WS(' ',t.name,t.brief,t.description),p.price
+    FROM products p JOIN product_translations t ON t.product_id=p.id
+    <include refid="activeProducts"/>
+  </insert>
+
+  <sql id="searchScope">
+    FROM catalog_search_documents d
+    JOIN catalog_search_state s ON s.singleton_id=1 AND s.generation=d.generation
+    JOIN products p ON p.id=d.product_id AND p.lifecycle_status='ACTIVE'
+    WHERE (d.locale=#{locale} OR (d.locale='' AND NOT EXISTS (
+      SELECT 1 FROM catalog_search_documents t
+      WHERE t.generation=d.generation AND t.product_id=d.product_id AND t.locale=#{locale}
+    )))
+    AND d.merchant_id IN
+    <foreach collection="merchantIds" item="merchant" open="(" separator="," close=")">#{merchant}</foreach>
+    <if test="minPrice != null">AND d.unit_price &gt;= #{minPrice}</if>
+    <if test="maxPrice != null">AND d.unit_price &lt;= #{maxPrice}</if>
+    <foreach collection="terms" item="term">
+      AND LOCATE(#{term},d.searchable)&gt;0
+    </foreach>
+  </sql>
+
+  <select id="count" resultType="long">
+    SELECT COUNT(*) <include refid="searchScope"/>
+  </select>
+
+  <select id="search" resultType="vip.fairy.commerceflow.catalog.api.CatalogProductV1">
+    SELECT 1 AS schema_version,d.product_id,d.merchant_id,d.name,d.brief,d.description,
+      d.unit_price,p.image_url,p.thumbnail_url,p.lifecycle_status,d.business_version,p.updated_at
+    <include refid="searchScope"/>
+    ORDER BY
+    <choose>
+      <when test="sort == 'price-asc'">d.unit_price ASC,</when>
+      <when test="sort == 'price-desc'">d.unit_price DESC,</when>
+      <when test="sort == 'rating' and !ratedIds.isEmpty()">
+        NULLIF(FIELD(d.product_id,
+        <foreach collection="ratedIds" item="rated" separator=",">#{rated}</foreach>
+        ),0) IS NULL,
+        FIELD(d.product_id,
+        <foreach collection="ratedIds" item="rated" separator=",">#{rated}</foreach>
+        ) ASC,
+      </when>
+      <when test="!terms.isEmpty()">
+        (LOCATE(#{terms[0]},d.name)&gt;0) DESC,
+        MATCH(d.searchable) AGAINST (#{query} IN NATURAL LANGUAGE MODE) DESC,
+      </when>
+    </choose>
+    d.product_id ASC LIMIT #{size} OFFSET #{offset}
+  </select>
+</mapper>

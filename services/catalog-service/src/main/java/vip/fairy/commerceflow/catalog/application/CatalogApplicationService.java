@@ -199,7 +199,7 @@ public class CatalogApplicationService {
     }
   }
 
-  private String locale(String requestedLocale) {
+  static String locale(String requestedLocale) {
     return requestedLocale != null && requestedLocale.toLowerCase().startsWith("zh")
       ? "zh-CN" : "en";
   }

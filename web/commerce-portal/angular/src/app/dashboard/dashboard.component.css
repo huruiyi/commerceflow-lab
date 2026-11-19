@@ -217,6 +217,19 @@
     justify-content: space-between;
   }
 }
+.catalog-filters,
+.catalog-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+  margin-block: 1rem;
+}
+
+.catalog-filters input {
+  width: 9rem;
+}
+
 .catalog-sort {
   display: flex;
   align-items: center;

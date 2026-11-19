@@ -1,6 +1,7 @@
 package vip.fairy.commerceflow.commerce.review.infrastructure;
 
 import org.springframework.stereotype.Component;
+import java.util.List;
 import vip.fairy.commerceflow.commerce.review.application.ProductReviewCatalogQuery;
 
 @Component
@@ -25,5 +26,10 @@ public class ProductReviewCatalogQueryAdapter implements ProductReviewCatalogQue
           review.getReviewerName(),
           review.getCreatedAt()))
         .toList());
+  }
+
+  @Override
+  public List<Long> ratedProductIds() {
+    return reviews.ratedProductIds();
   }
 }

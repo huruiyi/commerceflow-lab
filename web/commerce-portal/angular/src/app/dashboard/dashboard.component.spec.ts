@@ -10,12 +10,14 @@ import { ApiService } from '../services/api.service';
 describe('DashboardComponent', () => {
   let component: DashboardComponent;
   let fixture: ComponentFixture<DashboardComponent>;
+  let search: jasmine.Spy;
 
   beforeEach(async () => {
+    search = jasmine.createSpy('searchProducts').and.returnValue(of({ products: [], total: 14, page: 1, size: 12 }));
     await TestBed.configureTestingModule({
       imports: [RouterTestingModule, FormsModule],
       declarations: [DashboardComponent, TranslatePipe],
-      providers: [{ provide: ApiService, useValue: { allProducts: () => of([]) } }],
+      providers: [{ provide: ApiService, useValue: { searchProducts: search, publicStores: () => of([]) } }],
     }).compileComponents();
 
     fixture = TestBed.createComponent(DashboardComponent);
@@ -23,7 +25,9 @@ describe('DashboardComponent', () => {
     fixture.detectChanges();
   });
 
-  it('should create', () => {
-    expect(component).toBeTruthy();
+  it('uses the server search total and effective page', () => {
+    expect(search).toHaveBeenCalledWith({ q: '', sort: 'default', page: 0, size: 12 });
+    expect(component.totalPages).toBe(2);
+    expect(component.page).toBe(1);
   });
 });
