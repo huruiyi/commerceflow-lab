@@ -6,6 +6,7 @@ param(
   [string]$RabbitPassword = 'commerceflow-password',
   [int]$MaxWaitSeconds = 60
 )
+. (Join-Path $PSScriptRoot 'checkout-verification.ps1')
 $ErrorActionPreference = 'Stop'
 
 function New-Session([string]$Email) {
@@ -59,8 +60,7 @@ function New-ExpiredOrderTask($Admin, $Customer, [string]$Strategy) {
   Invoke-RestMethod "$BaseUrl/api/cart/items" -Method Post -WebSession $Customer.Session `
     -Headers $Customer.Headers -ContentType application/json `
     -Body (@{ productId = 1; quantity = 1; note = "$($Strategy.ToLower())-idempotency-acceptance" } | ConvertTo-Json -Compress) | Out-Null
-  $order = Invoke-RestMethod "$BaseUrl/api/purchase-orders/checkout" -Method Post `
-    -WebSession $Customer.Session -Headers $Customer.Headers -ContentType application/json -Body '{}'
+  $order = (Submit-VerifiedCheckout $BaseUrl $Customer.Session $Customer.Headers)
   $secondsUntilDue = ([datetimeoffset]$order.paymentDueAt - [datetimeoffset]::UtcNow).TotalSeconds
   if ($secondsUntilDue -gt ($MaxWaitSeconds - 10)) { throw 'Start commerce-service with a short ORDER_PAYMENT_TIMEOUT' }
   $deadline = [datetimeoffset]::UtcNow.AddSeconds($MaxWaitSeconds)

@@ -1,5 +1,6 @@
 package vip.fairy.commerceflow.order.application;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
@@ -221,9 +222,30 @@ public class OrderStoreService {
     if (value == null || value.orderNumber() == null || value.orderNumber().isBlank()
         || value.customerId() == null || value.totalAmount() == null || value.currency() == null
         || value.paymentDueAt() == null || value.items() == null || value.items().isEmpty()
-        || value.address() == null) {
+        || value.address() == null || !validMoney(value.totalAmount())
+        || !validMoney(value.shippingFee()) || !validMoney(value.discountAmount())) {
       throw new IllegalArgumentException("Order create request is incomplete");
     }
+    BigDecimal products = BigDecimal.ZERO;
+    BigDecimal discounts = BigDecimal.ZERO;
+    for (var item : value.items()) {
+      if (item == null || item.quantity() <= 0 || !validMoney(item.unitPrice()) || !validMoney(item.subtotal())
+          || !validMoney(item.discountAmount()) || item.discountAmount().compareTo(item.subtotal()) > 0
+          || item.unitPrice().multiply(BigDecimal.valueOf(item.quantity())).compareTo(item.subtotal()) != 0) {
+        throw new IllegalArgumentException("Order line amount is invalid");
+      }
+      products = products.add(item.subtotal());
+      discounts = discounts.add(item.discountAmount());
+    }
+    if (!validMoney(products) || discounts.compareTo(value.discountAmount()) != 0
+        || products.subtract(discounts).add(value.shippingFee()).compareTo(value.totalAmount()) != 0) {
+      throw new IllegalArgumentException("Order amount does not match its lines and shipping");
+    }
+  }
+
+  private boolean validMoney(BigDecimal amount) {
+    return amount != null && amount.signum() >= 0 && amount.stripTrailingZeros().scale() <= 2
+      && amount.compareTo(new BigDecimal("9999999999.99")) <= 0;
   }
 
   private void requireMutation(Mutation value) {

@@ -2,6 +2,7 @@ param(
   [string]$BaseUrl = 'http://localhost:14200',
   [int]$MaxWaitSeconds = 45
 )
+. (Join-Path $PSScriptRoot 'checkout-verification.ps1')
 $ErrorActionPreference = 'Stop'
 
 function New-Session([string]$Email) {
@@ -59,8 +60,7 @@ try {
   Invoke-RestMethod "$BaseUrl/api/cart/items" -Method Post -WebSession $customer.Session `
     -Headers $customer.Headers -ContentType application/json `
     -Body '{"productId":1,"quantity":1,"note":"rocketmq-reconciliation-acceptance"}' | Out-Null
-  $order = Invoke-RestMethod "$BaseUrl/api/purchase-orders/checkout" -Method Post `
-    -WebSession $customer.Session -Headers $customer.Headers -ContentType application/json -Body '{}'
+  $order = (Submit-VerifiedCheckout $BaseUrl $customer.Session $customer.Headers)
   $secondsUntilDue = ([datetimeoffset]$order.paymentDueAt - [datetimeoffset]::UtcNow).TotalSeconds
   if ($secondsUntilDue -gt ($MaxWaitSeconds - 5)) {
     throw 'Start commerce-service with a short ORDER_PAYMENT_TIMEOUT before running this fault experiment'

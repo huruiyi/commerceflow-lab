@@ -16,6 +16,9 @@ public record ShopOrderResponse(
   String status,
   String inventoryStatus,
   BigDecimal totalAmount,
+  BigDecimal productSubtotal,
+  BigDecimal shippingFee,
+  BigDecimal discountAmount,
   String currency,
   Instant createdAt,
   Instant paymentDueAt,
@@ -37,7 +40,8 @@ public record ShopOrderResponse(
     String thumbnailUrl,
     BigDecimal unitPrice,
     int quantity,
-    BigDecimal subtotal) {
+    BigDecimal subtotal,
+    BigDecimal discountAmount) {
     public static Item from(OrderItemView item) {
       return new Item(
         item.getId(),
@@ -46,7 +50,8 @@ public record ShopOrderResponse(
         item.getThumbnailUrl(),
         item.getUnitPrice(),
         item.getQuantity(),
-        item.getSubtotal());
+        item.getSubtotal(),
+        item.getDiscountAmount());
     }
   }
 

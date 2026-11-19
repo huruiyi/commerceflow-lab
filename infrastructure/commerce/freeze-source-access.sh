@@ -28,8 +28,10 @@ root_mysql() {
 
 grant_statements=$(root_mysql -e "
   SELECT CONCAT(
-    'GRANT SELECT, INSERT, UPDATE',
-    CASE WHEN table_name IN ('order_cancellation_completion','cart_repurchase_requests')
+    'GRANT SELECT, INSERT',
+    CASE WHEN table_name = 'checkout_receipts' THEN '' ELSE ', UPDATE' END,
+    CASE WHEN table_name = 'checkout_receipts' THEN ''
+    WHEN table_name IN ('order_cancellation_completion','cart_repurchase_requests')
       THEN '' ELSE ', DELETE' END,
     ' ON \`commerceflow\`.\`',
     table_name,

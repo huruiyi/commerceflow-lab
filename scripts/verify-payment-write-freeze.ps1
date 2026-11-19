@@ -3,6 +3,7 @@ param(
   [string]$PaymentBaseUrl = 'http://localhost:14201'
 )
 
+. (Join-Path $PSScriptRoot 'checkout-verification.ps1')
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Set-Location $ProjectRoot
@@ -46,8 +47,7 @@ try {
   }
   Invoke-RestMethod "$BaseUrl/api/cart/items" -Method Post -WebSession $session -Headers $headers `
     -ContentType application/json -Body '{"productId":1,"quantity":1,"note":"payment write freeze"}' | Out-Null
-  $order = Invoke-RestMethod "$BaseUrl/api/purchase-orders/checkout" -Method Post `
-    -WebSession $session -Headers $headers -ContentType application/json -Body '{}'
+  $order = (Submit-VerifiedCheckout $BaseUrl $session $headers)
   $paymentBody = @{idempotencyKey = [guid]::NewGuid().ToString(); simulateFailure = $false; channel = 'ALIPAY'} `
     | ConvertTo-Json -Compress
   $payment = Invoke-RestMethod "$BaseUrl/api/purchase-orders/$($order.id)/payments" -Method Post `

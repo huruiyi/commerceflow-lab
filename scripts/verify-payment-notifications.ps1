@@ -1,9 +1,10 @@
 param([string]$BaseUrl='http://localhost:14200',[string]$PaymentBaseUrl='http://localhost:14201',[string]$PaymentOrchestrationUrl='http://localhost:18090')
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+. (Join-Path $PSScriptRoot 'checkout-verification.ps1')
 $ErrorActionPreference='Stop';$s=[Microsoft.PowerShell.Commands.WebRequestSession]::new();$csrf=Invoke-RestMethod "$BaseUrl/api/auth/csrf" -WebSession $s;$h=@{$csrf.headerName=$csrf.token};Invoke-RestMethod "$BaseUrl/api/auth/login" -Method Post -WebSession $s -Headers $h -ContentType application/json -Body '{"email":"demo@example.com","password":"demo-password","rememberMe":false}'|Out-Null
 $selected=Invoke-RestMethod "$BaseUrl/api/addresses/selected" -WebSession $s;if(-not$selected.addressId){$address=Invoke-RestMethod "$BaseUrl/api/addresses" -Method Post -WebSession $s -Headers $h -ContentType application/json -Body '{"recipientName":"Demo Student","phone":"13800000000","countryCode":"CN","stateProvince":"Shanghai","city":"Shanghai","district":"Pudong","addressLine1":"100 Learning Road","addressLine2":"","postalCode":"200120","label":"Lab","isDefault":true}';Invoke-RestMethod "$BaseUrl/api/addresses/$($address.id)/select" -Method Put -WebSession $s -Headers $h -ContentType application/json -Body '{}'|Out-Null}
 Invoke-RestMethod "$BaseUrl/api/cart/items" -Method Post -WebSession $s -Headers $h -ContentType application/json -Body '{"productId":1,"quantity":1,"note":"05A-4"}'|Out-Null
-$order=Invoke-RestMethod "$BaseUrl/api/purchase-orders/checkout" -Method Post -WebSession $s -Headers $h -ContentType application/json -Body '{}'
+$order=(Submit-VerifiedCheckout $BaseUrl $s $h)
 $key=[guid]::NewGuid().ToString();$payment=Invoke-RestMethod "$BaseUrl/api/purchase-orders/$($order.id)/payments" -Method Post -WebSession $s -Headers $h -ContentType application/json -Body (@{idempotencyKey=$key;simulateFailure=$false;channel='ALIPAY'}|ConvertTo-Json -Compress)
 if($payment.status-ne'PENDING_PAYMENT'-or$payment.payment.status-ne'PENDING'-or-not$payment.payment.checkoutUrl){throw 'Payment was not left pending for callback'}
 $token=$payment.payment.checkoutUrl.Split('/')[-1].Split('?')[0];Invoke-RestMethod "$PaymentBaseUrl/api/checkout/$token/complete?success=true" -Method Post|Out-Null

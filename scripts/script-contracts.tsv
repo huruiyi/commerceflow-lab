@@ -61,3 +61,4 @@ verify-rocketmq-scheduling	BaseUrl,MaxWaitSeconds
 verify-scheduling	BaseUrl
 verify-upgrade-restart-recovery	MaxWaitSeconds,SkipMigrationRehearsal
 verify-fulfillment-shadow-runtime	BaseUrl
+verify-checkout-pricing	BaseUrl,PaymentBaseUrl,HistoricalOrderId,ExercisePricing

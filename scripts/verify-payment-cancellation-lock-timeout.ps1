@@ -3,6 +3,7 @@ param(
   [ValidateRange(1, 10)][int]$LockWaitTimeoutSeconds = 2,
   [ValidateRange(4, 30)][int]$LockHoldSeconds = 7
 )
+. (Join-Path $PSScriptRoot 'checkout-verification.ps1')
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_verification-db.ps1')
 if ($env:COMPOSE_PROJECT_NAME -notlike 'commerceflow-legacy-?*') {
@@ -44,8 +45,7 @@ function New-Order($Customer) {
   Invoke-RestMethod "$BaseUrl/api/cart/items" -Method Post -WebSession $Customer.Session `
     -Headers $Customer.Headers -ContentType application/json `
     -Body '{"productId":1,"quantity":1,"note":"lock-timeout-lab"}' | Out-Null
-  return Invoke-RestMethod "$BaseUrl/api/purchase-orders/checkout" -Method Post `
-    -WebSession $Customer.Session -Headers $Customer.Headers -ContentType application/json -Body '{}'
+  return (Submit-VerifiedCheckout $BaseUrl $Customer.Session $Customer.Headers)
 }
 
 function Assert-RetryableResponse($Response, [string]$Label) {

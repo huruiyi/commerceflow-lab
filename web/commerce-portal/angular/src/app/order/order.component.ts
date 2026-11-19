@@ -1,7 +1,7 @@
 import { ChangeDetectorRef, Component, DestroyRef, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { OrderList } from 'src/model/IOrderList';
-import { ApiService, StockAvailability } from '../services/api.service';
+import { ApiService, CheckoutQuote, StockAvailability } from '../services/api.service';
 import { SeoService } from '../services/seo.service';
 import { Router } from '@angular/router';
 import { I18nService } from '../services/i18n.service';
@@ -18,6 +18,7 @@ export class OrderComponent implements OnInit {
   customerOrders: OrderList[] = [];
   updatingOrderIds = new Set<number>();
   checkoutError = '';
+  quote?: CheckoutQuote;
   checkingOut = false;
   loadingAddresses = true;
   addressError = false;
@@ -65,7 +66,7 @@ export class OrderComponent implements OnInit {
     } else {
       this.unselectedProducts.add(item.productId);
     }
-    this.checkoutError = '';
+    this.invalidateQuote();
   }
 
   selectAll(selected: boolean): void {
@@ -98,10 +99,6 @@ export class OrderComponent implements OnInit {
     return this.i18n.t('stockQuantityAdjustment', { available, reduceBy: quantity - available });
   }
 
-  get total(): number {
-    return this.selectedItems.reduce((cents, item) => cents + Math.round(item.totalPrice * 100), 0) / 100;
-  }
-
   constructor(
     private api: ApiService,
     private seoService: SeoService,
@@ -121,6 +118,7 @@ export class OrderComponent implements OnInit {
   }
 
   loadAddresses(): void {
+    this.quote = undefined;
     this.loadingAddresses = true;
     this.addressError = false;
     forkJoin({ addresses: this.api.getAddresses(), selected: this.api.selectedAddress() })
@@ -145,6 +143,7 @@ export class OrderComponent implements OnInit {
   }
 
   private loadCart(): void {
+    this.quote = undefined;
     const version = ++this.cartVersion;
     this.loadingCart = true;
     this.cartLoadFailed = false;
@@ -205,6 +204,7 @@ export class OrderComponent implements OnInit {
       return;
     }
 
+    this.invalidateQuote();
     this.updatingOrderIds.add(order.id);
     this.api.updateOrderQuantity(order.id, normalized).subscribe({
       next: (updated) => {
@@ -238,6 +238,7 @@ export class OrderComponent implements OnInit {
 
   remove(order: OrderList): void {
     if (this.checkingOut || this.changingCart || this.loadingCart || this.updatingOrderIds.size) return;
+    this.invalidateQuote();
     this.changingCart = true;
     this.api
       .removeCartItem(order.id)
@@ -260,6 +261,7 @@ export class OrderComponent implements OnInit {
 
   clearCart(): void {
     if (this.checkingOut || this.changingCart || this.loadingCart || this.updatingOrderIds.size) return;
+    this.invalidateQuote();
     this.changingCart = true;
     this.api
       .clearCart()
@@ -280,37 +282,60 @@ export class OrderComponent implements OnInit {
       });
   }
 
+  invalidateQuote(): void {
+    this.quote = undefined;
+    this.checkoutError = '';
+  }
+
   checkout(): void {
     const addressId = this.addressId;
     if (!addressId || !this.canCheckout) return;
-    const itemIds = this.selectedItems.map((item) => item.id);
+    const selection = { addressId, itemIds: this.selectedItems.map((item) => item.id) };
     this.checkingOut = true;
     this.checkoutError = '';
+    if (!this.quote) {
+      this.api
+        .checkoutQuote(selection)
+        .pipe(finalize(() => this.finishCheckoutRequest()))
+        .subscribe({
+          next: (quote) => (this.quote = quote),
+          error: (error) => this.handleCheckoutError(error),
+        });
+      return;
+    }
     this.api
-      .checkout(addressId, this.total, itemIds)
-      .pipe(
-        finalize(() => {
-          this.checkingOut = false;
-          this.changeDetector.markForCheck();
-        }),
-      )
+      .checkout(selection, this.quote.quoteId)
+      .pipe(finalize(() => this.finishCheckoutRequest()))
       .subscribe({
         next: () => void this.router.navigate(['/orders']),
-        error: (err) => {
-          if (err.error?.code === 'CHECKOUT_STOCK_CHANGED') {
-            this.stockLines = Object.fromEntries(
-              (err.error.lines ?? []).map((line: { productId: number }) => [line.productId, line]),
-            );
-            this.checkoutError = this.i18n.t('checkoutStockChanged');
-          } else if (err.error?.code === 'CHECKOUT_PRICE_CHANGED') {
-            this.checkoutError = this.i18n.t('checkoutPriceChanged');
-          } else {
-            this.checkoutError = err.error?.message ?? this.i18n.t('checkoutFailed');
-            this.loadAddresses();
-          }
-          this.loadCart();
-        },
+        error: (error) => this.handleCheckoutError(error),
       });
+  }
+
+  private finishCheckoutRequest(): void {
+    this.checkingOut = false;
+    this.changeDetector.markForCheck();
+  }
+
+  private handleCheckoutError(error: import('@angular/common/http').HttpErrorResponse): void {
+    if (error.error?.code === 'CHECKOUT_PRICE_CHANGED') {
+      this.quote = error.error.quote;
+      this.checkoutError = this.i18n.t('checkoutPriceChanged');
+      return;
+    }
+    if (error.error?.code === 'CHECKOUT_STOCK_CHANGED') {
+      this.stockLines = Object.fromEntries(
+        (error.error.lines ?? []).map((line: { productId: number }) => [line.productId, line]),
+      );
+      this.checkoutError = this.i18n.t('checkoutStockChanged');
+      this.loadCart();
+      return;
+    }
+    this.checkoutError = error.error?.message ?? this.i18n.t('checkoutFailed');
+    if (error.status >= 400 && error.status < 500) {
+      this.loadAddresses();
+      this.loadCart();
+    }
   }
 
   private normalizeQuantity(quantity: number): number {

@@ -1,4 +1,5 @@
 param([string]$BaseUrl = 'http://localhost:14200')
+. (Join-Path $PSScriptRoot 'checkout-verification.ps1')
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 
@@ -22,7 +23,7 @@ if (-not $selected.addressId) {
 
 function New-Order {
   Invoke-RestMethod "$BaseUrl/api/cart/items" -Method Post -WebSession $customer.Session -Headers $customer.Headers -ContentType application/json -Body '{"productId":1,"quantity":1,"note":"cancellation-acceptance"}' | Out-Null
-  return Invoke-RestMethod "$BaseUrl/api/purchase-orders/checkout" -Method Post -WebSession $customer.Session -Headers $customer.Headers -ContentType application/json -Body '{}'
+  return (Submit-VerifiedCheckout $BaseUrl $customer.Session $customer.Headers)
 }
 
 function Wait-CancellationNotification([long]$OrderId) {

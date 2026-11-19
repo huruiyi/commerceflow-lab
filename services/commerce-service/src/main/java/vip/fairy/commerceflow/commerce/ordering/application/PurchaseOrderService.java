@@ -34,6 +34,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+import java.util.Locale;
+import tools.jackson.databind.ObjectMapper;
+import vip.fairy.commerceflow.commerce.ordering.infrastructure.CheckoutPricingMapper;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +62,9 @@ public class PurchaseOrderService {
   private final StockAvailabilityQuery stocks;
   private final InventoryCommandPort.ImmediateDelivery inventoryDelivery;
   private final TransactionTemplate transactions;
+  private final CheckoutPricingMapper pricing;
+  private final ShippingTemplateService shipping;
+  private final ObjectMapper json;
 
   public PurchaseOrderService(OrderStorePort orders, CheckoutCartPort carts,
                               PaymentOrchestrationV1 payments,
@@ -66,7 +75,8 @@ public class PurchaseOrderService {
                               InventoryReservationQuery reservations,
                               StockAvailabilityQuery stocks,
                               InventoryCommandPort.ImmediateDelivery inventoryDelivery,
-                              TransactionTemplate transactions) {
+                              TransactionTemplate transactions, CheckoutPricingMapper pricing,
+                              ShippingTemplateService shipping, ObjectMapper json) {
     this.orders = orders;
     this.carts = carts;
     this.payments = payments;
@@ -79,26 +89,28 @@ public class PurchaseOrderService {
     this.stocks = stocks;
     this.inventoryDelivery = inventoryDelivery;
     this.transactions = transactions;
+    this.pricing = pricing;
+    this.shipping = shipping;
+    this.json = json;
   }
 
-  public ShopOrderResponse checkout(AppUser user) {
-    return checkout(user, null, null, null);
+  public CheckoutQuote quote(AppUser user, Long addressId, List<Long> itemIds) {
+    Set<Long> selection = selection(itemIds);
+    return transactions.execute(status -> price(user.getId(), addressId, selection).quote());
   }
 
-  public ShopOrderResponse checkout(AppUser user, Long addressId, BigDecimal expectedTotal, List<Long> itemIds) {
-    Set<Long> selection = itemIds == null ? null : Set.copyOf(itemIds);
-    if (selection != null && (selection.isEmpty() || selection.size() != itemIds.size() || expectedTotal == null)) {
-      throw new IllegalArgumentException("Select distinct cart items and confirm the total before checkout");
-    }
-    Checkout checkout = transactions.execute(status -> createOrder(user, addressId, expectedTotal, selection));
+  public ShopOrderResponse checkout(AppUser user, Long addressId, List<Long> itemIds, String quoteId) {
+    Set<Long> selection = selection(itemIds);
+    String scopeHash = fingerprint(new CheckoutScope(addressId, sorted(selection)));
+    Checkout checkout = transactions.execute(status -> createOrder(user, addressId, selection, quoteId, scopeHash));
     Long orderId = checkout.orderId();
     inventoryDelivery.deliver(reservationCommandId(orderId));
     ShopOrderView order = orders.find(user.getId(), orderId)
       .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
-    if (expectedTotal != null && "RESERVATION_REJECTED".equals(order.getInventoryStatus())) {
+    if ("RESERVATION_REJECTED".equals(order.getInventoryStatus())) {
       List<CheckoutStockException.Line> problems;
       try {
-        problems = stockProblems(checkout.items());
+        problems = checkout.items().isEmpty() ? List.of() : stockProblems(checkout.items());
       } catch (ExternalServiceUnavailableException exception) {
         problems = List.of();
       }
@@ -107,41 +119,96 @@ public class PurchaseOrderService {
     return assemble(order, null, null);
   }
 
-  private Checkout createOrder(AppUser user, Long addressId, BigDecimal expectedTotal, Set<Long> selection) {
-    List<CheckoutCartItem> items = selectedCartItems(user.getId(), selection);
+  private Checkout createOrder(AppUser user, Long addressId, Set<Long> selection, String quoteId, String scopeHash) {
+    Long customerId = user.getId();
+    if (carts.lockCart(customerId) == null) {
+      throw new BusinessRuleException("Cart is empty");
+    }
+    var receipt = pricing.receipt(customerId, quoteId);
+    if (receipt != null) {
+      if (!scopeHash.equals(receipt.scopeHash())) {
+        throw new BusinessRuleException("A checkout quote was already used for another request");
+      }
+      return new Checkout(receipt.orderId(), List.of());
+    }
+    PricedCart cart = price(customerId, addressId, selection);
+    if (!cart.quote().quoteId().equals(quoteId)) {
+      throw new CheckoutPriceChangedException(cart.quote());
+    }
+    inventory.requireWritable();
+    var problems = stockProblems(cart.items());
+    if (!problems.isEmpty()) {
+      throw new CheckoutStockException(problems);
+    }
+
+    // A retry after Order V1 commits but before this transaction commits reuses its order number.
+    String orderNumber = "ORD-" + quoteId.substring(0, 32).toUpperCase(Locale.ROOT);
+    NewOrder order = new NewOrder(orderNumber, customerId, cart.quote().totalAmount(), "CNY",
+      Instant.now().plus(lifecycle.getPaymentTimeout()), cart.quote().shippingFee(), cart.quote().discountAmount());
+    orders.insertOrder(order, cart.orderItems(), OrderAddressSnapshot.from(cart.address()), customerId);
+    String commandId = reservationCommandId(order.getId());
+    var stockItems = cart.items().stream().map(item -> InventoryCommandPort.item(
+      item.getProductId(), item.getProductName(), item.getQuantity())).toList();
+    inventory.handle(InventoryCommandV1.reserveReviewedCheckout(commandId, order.getId(), stockItems));
+    scheduledTasks.schedule(ScheduledTaskTypes.PAYMENT_TIMEOUT, "order:" + order.getId(), "ORDER",
+      order.getId().toString(), order.getPaymentDueAt(), Map.of("orderId", order.getId()));
+    if (carts.removeItems(customerId, cart.items().stream().map(CheckoutCartItem::getId).toList()) != cart.items().size()) {
+      throw new IllegalStateException("Selected cart items changed during checkout");
+    }
+    pricing.saveReceipt(customerId, quoteId, scopeHash, order.getId());
+    return new Checkout(order.getId(), cart.items());
+  }
+
+  private PricedCart price(Long customerId, Long addressId, Set<Long> selection) {
+    List<CheckoutCartItem> items = selectedCartItems(customerId, selection);
     if (items.isEmpty()) {
       throw new BusinessRuleException("Cart is empty");
     }
     CheckoutAddressSnapshot address = addressId == null
-      ? carts.selectedAddress(user.getId()) : carts.address(user.getId(), addressId);
+      ? carts.selectedAddress(customerId) : carts.address(customerId, addressId);
     if (address == null) {
       throw new BusinessRuleException("Select a valid shipping address before checkout");
     }
-    inventory.requireWritable();
-    if (expectedTotal != null) {
-      var problems = stockProblems(items);
-      if (!problems.isEmpty()) throw new CheckoutStockException(problems);
-    }
     List<OrderItemSnapshot> orderItems = currentOrderItems(items);
-    BigDecimal total = orderItems.stream().map(OrderItemSnapshot::subtotal).reduce(BigDecimal.ZERO, BigDecimal::add);
-    if (expectedTotal != null && total.compareTo(expectedTotal) != 0) {
-      throw new CheckoutPriceChangedException(total);
+    BigDecimal products = orderItems.stream().map(OrderItemSnapshot::subtotal).reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal fee = shipping.fee(orderItems.getFirst().merchantId(), address.countryCode(), address.stateProvince());
+    BigDecimal total = products.add(fee);
+    if (total.compareTo(new BigDecimal("9999999999.99")) > 0) {
+      throw new BusinessRuleException("Checkout amount exceeds the supported amount");
     }
-    Instant paymentDueAt = Instant.now().plus(lifecycle.getPaymentTimeout());
-    NewOrder order = new NewOrder(number("ORD"), user.getId(), total, "CNY", paymentDueAt);
-    orders.insertOrder(order, orderItems, OrderAddressSnapshot.from(address), user.getId());
-    String commandId = reservationCommandId(order.getId());
-    var stockItems = items.stream().map(item -> InventoryCommandPort.item(
-      item.getProductId(), item.getProductName(), item.getQuantity())).toList();
-    inventory.handle(expectedTotal == null
-      ? InventoryCommandPort.reserve(commandId, order.getId(), stockItems)
-      : InventoryCommandV1.reserveReviewedCheckout(commandId, order.getId(), stockItems));
-    scheduledTasks.schedule(ScheduledTaskTypes.PAYMENT_TIMEOUT, "order:" + order.getId(), "ORDER",
-      order.getId().toString(), paymentDueAt, Map.of("orderId", order.getId()));
-    if (carts.removeItems(user.getId(), items.stream().map(CheckoutCartItem::getId).toList()) != items.size()) {
-      throw new IllegalStateException("Selected cart items changed during checkout");
+    String quoteId = fingerprint(java.util.Arrays.asList(customerId, addressId, address,
+      items.stream().map(CheckoutCartItem::getId).toList(), orderItems, fee.stripTrailingZeros()));
+    return new PricedCart(items, orderItems, address, new CheckoutQuote(quoteId, products, BigDecimal.ZERO, fee, total));
+  }
+
+  private Set<Long> selection(List<Long> itemIds) {
+    if (itemIds == null) {
+      return null;
     }
-    return new Checkout(order.getId(), items);
+    Set<Long> selection = Set.copyOf(itemIds);
+    if (selection.isEmpty() || selection.size() != itemIds.size()) {
+      throw new IllegalArgumentException("Select distinct cart items before checkout");
+    }
+    return selection;
+  }
+
+  private List<Long> sorted(Set<Long> selection) {
+    return selection == null ? List.of() : selection.stream().sorted().toList();
+  }
+
+  private String fingerprint(Object input) {
+    try {
+      return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(json.writeValueAsBytes(input)));
+    } catch (NoSuchAlgorithmException exception) {
+      throw new IllegalStateException("SHA-256 is unavailable", exception);
+    }
+  }
+
+  private record CheckoutScope(Long addressId, List<Long> itemIds) {
+  }
+
+  private record PricedCart(List<CheckoutCartItem> items, List<OrderItemSnapshot> orderItems,
+                            CheckoutAddressSnapshot address, CheckoutQuote quote) {
   }
 
   private List<OrderItemSnapshot> currentOrderItems(List<CheckoutCartItem> items) {
@@ -254,6 +321,9 @@ public class PurchaseOrderService {
       order.getStatus(),
       order.getInventoryStatus(),
       order.getTotalAmount(),
+      order.getProductSubtotal(),
+      order.getShippingFee(),
+      order.getDiscountAmount(),
       order.getCurrency(),
       order.getCreatedAt(),
       order.getPaymentDueAt(),
@@ -303,10 +373,6 @@ public class PurchaseOrderService {
       actions.add("VIEW_REFUND");
     }
     return List.copyOf(actions);
-  }
-
-  private String number(String prefix) {
-    return prefix + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
   }
 
   private String traceparent() {

@@ -32,6 +32,12 @@ public class ShopOrderView {
    * 订单应付总金额，币种由 {@link #currency} 指定。
    */
   private BigDecimal totalAmount;
+  /** 订单行商品金额合计，使用订单币种。 */
+  private BigDecimal productSubtotal;
+  /** 订单运费，使用订单币种。 */
+  private BigDecimal shippingFee;
+  /** 订单优惠合计，使用订单币种。 */
+  private BigDecimal discountAmount;
   /**
    * ISO 4217 货币代码，例如 CNY。
    */
@@ -113,6 +119,18 @@ public class ShopOrderView {
 
   public BigDecimal getTotalAmount() {
     return totalAmount;
+  }
+
+  public BigDecimal getProductSubtotal() {
+    return productSubtotal;
+  }
+
+  public BigDecimal getShippingFee() {
+    return shippingFee;
+  }
+
+  public BigDecimal getDiscountAmount() {
+    return discountAmount;
   }
 
   public String getCurrency() {

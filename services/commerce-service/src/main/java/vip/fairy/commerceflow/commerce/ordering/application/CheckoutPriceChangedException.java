@@ -1,17 +1,15 @@
 package vip.fairy.commerceflow.commerce.ordering.application;
 
-import java.math.BigDecimal;
-
 public class CheckoutPriceChangedException extends RuntimeException {
 
-  private final BigDecimal currentTotal;
+  private final CheckoutQuote quote;
 
-  public CheckoutPriceChangedException(BigDecimal currentTotal) {
-    super("The cart total changed. Review the updated cart before checking out.");
-    this.currentTotal = currentTotal;
+  public CheckoutPriceChangedException(CheckoutQuote quote) {
+    super("The checkout quote changed. Review the current amounts before submitting.");
+    this.quote = quote;
   }
 
-  public BigDecimal currentTotal() {
-    return currentTotal;
+  public CheckoutQuote quote() {
+    return quote;
   }
 }

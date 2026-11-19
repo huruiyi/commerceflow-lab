@@ -1,5 +1,6 @@
 param([string]$BaseUrl='http://localhost:14200')
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+. (Join-Path $PSScriptRoot 'checkout-verification.ps1')
 $ErrorActionPreference='Stop'
 $session=[Microsoft.PowerShell.Commands.WebRequestSession]::new()
 $csrf=Invoke-RestMethod "$BaseUrl/api/auth/csrf" -WebSession $session
@@ -16,7 +17,7 @@ if(-not$selected.addressId){$address=Invoke-RestMethod "$BaseUrl/api/addresses" 
 $expect=@{FAILED='FAILED';INSUFFICIENT_FUNDS='FAILED';CANCELLED='CLOSED';TIMEOUT='EXPIRED'}
 foreach($outcome in $expect.Keys){
   Invoke-RestMethod "$BaseUrl/api/cart/items" -Method Post -WebSession $session -Headers $headers -ContentType application/json -Body '{"productId":1,"quantity":1,"note":"outcome-lab"}'|Out-Null
-  $order=Invoke-RestMethod "$BaseUrl/api/purchase-orders/checkout" -Method Post -WebSession $session -Headers $headers -ContentType application/json -Body '{}'
+  $order=(Submit-VerifiedCheckout $BaseUrl $session $headers)
   $request=@{idempotencyKey=[guid]::NewGuid().ToString();simulateFailure=$false;channel='ALIPAY'}|ConvertTo-Json -Compress
   $payment=Invoke-RestMethod "$BaseUrl/api/purchase-orders/$($order.id)/payments" -Method Post -WebSession $session -Headers $headers -ContentType application/json -Body $request
   $token=$payment.payment.checkoutUrl.Split('/')[-1].Split('?')[0]

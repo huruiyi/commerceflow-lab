@@ -856,13 +856,13 @@ class CommerceFlowIntegrationTest {
       new CatalogProductSnapshotV1(1, 1L, 5L, "Learning Laptop", new BigDecimal("1350.00"), "thumb", "ACTIVE", 2L),
       new CatalogProductSnapshotV1(1, 2L, 9L, "Other Product", new BigDecimal("1299.00"), "thumb", "ACTIVE", 1L)));
     String mixed = json.writeValueAsString(
-      Map.of("addressId", addressId, "expectedTotal", 2649, "itemIds", itemIds));
-    mvc.perform(post("/api/purchase-orders/checkout").session(customer.session()).cookie(customer.cookie())
+      Map.of("addressId", addressId, "itemIds", itemIds));
+    mvc.perform(post("/api/purchase-orders/checkout/quote").session(customer.session()).cookie(customer.cookie())
         .header("X-XSRF-TOKEN", customer.token()).contentType("application/json").content(mixed))
       .andExpect(status().isConflict())
       .andExpect(jsonPath("$.message").value("Check out products from one merchant at a time"));
-    String stale = json.writeValueAsString(
-      Map.of("addressId", addressId, "expectedTotal", 1299, "itemIds", List.of(itemId)));
+    var selection = Map.of("addressId", addressId, "itemIds", List.of(itemId));
+    String stale = json.writeValueAsString(Map.of("quoteId", "0".repeat(64), "selection", selection));
     mvc.perform(post("/api/purchase-orders/checkout").session(customer.session()).cookie(customer.cookie())
         .header("X-XSRF-TOKEN", customer.token()).contentType("application/json").content(stale))
       .andExpect(status().isConflict())
@@ -870,8 +870,7 @@ class CommerceFlowIntegrationTest {
       .andExpect(jsonPath("$.currentTotal").value(1350));
     mvc.perform(get("/api/cart").session(customer.session()))
       .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(2));
-    String payload = json.writeValueAsString(
-      Map.of("addressId", addressId, "expectedTotal", 1350, "itemIds", List.of(itemId)));
+    String payload = quoteAndConfirm(customer, selection);
     MvcResult result = mvc.perform(post("/api/purchase-orders/checkout").session(customer.session()).cookie(customer.cookie())
         .header("X-XSRF-TOKEN", customer.token()).contentType("application/json").content(payload))
       .andExpect(status().isOk())
@@ -887,11 +886,20 @@ class CommerceFlowIntegrationTest {
     assertEquals(List.of(1L), command.items().stream().map(InventoryCommandV1.Item::productId).toList());
     mvc.perform(post("/api/purchase-orders/checkout").session(customer.session()).cookie(customer.cookie())
         .header("X-XSRF-TOKEN", customer.token()).contentType("application/json").content(payload))
-      .andExpect(status().isConflict());
+      .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(orderId));
     mvc.perform(get("/api/cart").session(customer.session()))
       .andExpect(status().isOk())
       .andExpect(jsonPath("$.length()").value(1))
       .andExpect(jsonPath("$[0].productId").value(2));
+  }
+
+  private String quoteAndConfirm(CsrfContext customer, Map<String, ?> selection) throws Exception {
+    MvcResult quote = mvc.perform(post("/api/purchase-orders/checkout/quote")
+        .session(customer.session()).cookie(customer.cookie()).header("X-XSRF-TOKEN", customer.token())
+        .contentType("application/json").content(json.writeValueAsString(selection)))
+      .andExpect(status().isOk()).andReturn();
+    String quoteId = json.readTree(quote.getResponse().getContentAsString()).get("quoteId").asText();
+    return json.writeValueAsString(Map.of("quoteId", quoteId, "selection", selection));
   }
 
   @Test
@@ -909,8 +917,13 @@ class CommerceFlowIntegrationTest {
     Long addressId = jdbc.queryForObject("SELECT MAX(id) FROM shipping_addresses WHERE user_id=?", Long.class, customerId);
     jdbc.update("UPDATE carts SET selected_address_id=? WHERE id=?", addressId, cartId);
     CsrfContext customer = login("demo@example.com", false);
+    when(catalogServiceClient.snapshots(List.of(1L))).thenReturn(List.of(new CatalogProductSnapshotV1(
+      1, 1L, merchantId, "Learning Laptop", new BigDecimal("1299.00"), "thumb", "ACTIVE", 1L)));
+    when(inventoryRemoteCommandClient.availability(List.of(1L))).thenReturn(Map.of(1L, new Stock(1L, true, 2)));
+    String confirmation = quoteAndConfirm(customer, Map.of("addressId", addressId));
     MvcResult checkout = mvc.perform(post("/api/purchase-orders/checkout")
-        .session(customer.session()).cookie(customer.cookie()).header("X-XSRF-TOKEN", customer.token()))
+        .session(customer.session()).cookie(customer.cookie()).header("X-XSRF-TOKEN", customer.token())
+        .contentType("application/json").content(confirmation))
       .andExpect(status().isOk()).andReturn();
     long orderId = json.readTree(checkout.getResponse().getContentAsString()).get("id").asLong();
     org.junit.jupiter.api.Assertions.assertEquals("WAITING_RESERVATION", jdbc.queryForObject(

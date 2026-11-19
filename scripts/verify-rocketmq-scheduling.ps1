@@ -2,6 +2,7 @@ param(
   [string]$BaseUrl = 'http://localhost:14200',
   [int]$MaxWaitSeconds = 30
 )
+. (Join-Path $PSScriptRoot 'checkout-verification.ps1')
 $ErrorActionPreference = 'Stop'
 
 function New-Session([string]$Email) {
@@ -54,8 +55,7 @@ try {
   Invoke-RestMethod "$BaseUrl/api/cart/items" -Method Post -WebSession $customer.Session `
     -Headers $customer.Headers -ContentType application/json `
     -Body '{"productId":1,"quantity":1,"note":"rocketmq-scheduling-acceptance"}' | Out-Null
-  $order = Invoke-RestMethod "$BaseUrl/api/purchase-orders/checkout" -Method Post `
-    -WebSession $customer.Session -Headers $customer.Headers -ContentType application/json -Body '{}'
+  $order = (Submit-VerifiedCheckout $BaseUrl $customer.Session $customer.Headers)
   if ($order.status -ne 'PENDING_PAYMENT') { throw 'Checkout did not create a pending-payment order' }
   $secondsUntilDue = ([datetimeoffset]$order.paymentDueAt - [datetimeoffset]::UtcNow).TotalSeconds
   if ($secondsUntilDue -gt $MaxWaitSeconds) {

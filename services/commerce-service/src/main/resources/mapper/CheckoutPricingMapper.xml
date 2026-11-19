@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.ordering.infrastructure.CheckoutPricingMapper">
+
+  <select id="rates" resultType="vip.fairy.commerceflow.commerce.ordering.application.ShippingTemplateService$Rate">
+    SELECT country_code, state_province, fee
+    FROM merchant_shipping_rates
+    WHERE merchant_id = #{merchantId}
+    ORDER BY country_code, state_province
+  </select>
+
+  <select id="fee" resultType="java.math.BigDecimal">
+    SELECT fee
+    FROM merchant_shipping_rates
+    WHERE merchant_id = #{merchantId}
+      AND ((country_code = #{countryCode} AND state_province = #{stateProvince}) OR country_code = '')
+    ORDER BY country_code DESC
+    LIMIT 1
+  </select>
+
+  <insert id="saveDefault">
+    INSERT INTO merchant_shipping_rates (merchant_id, country_code, state_province, fee)
+    VALUES (#{merchantId}, '', '', #{fee})
+    ON DUPLICATE KEY UPDATE fee = #{fee}
+  </insert>
+
+  <delete id="deleteRegions">
+    DELETE FROM merchant_shipping_rates WHERE merchant_id = #{merchantId} AND country_code &lt;&gt; ''
+  </delete>
+
+  <insert id="insertRegions">
+    INSERT INTO merchant_shipping_rates (merchant_id, country_code, state_province, fee)
+    VALUES
+    <foreach collection="rates" item="rate" separator=",">
+      (#{merchantId}, #{rate.countryCode}, #{rate.stateProvince}, #{rate.fee})
+    </foreach>
+  </insert>
+
+  <select id="receipt" resultType="vip.fairy.commerceflow.commerce.ordering.infrastructure.CheckoutPricingMapper$Receipt">
+    SELECT scope_hash, order_id
+    FROM checkout_receipts
+    WHERE customer_id = #{customerId} AND quote_id = #{quoteId}
+  </select>
+
+  <insert id="saveReceipt">
+    INSERT INTO checkout_receipts (customer_id, quote_id, scope_hash, order_id)
+    VALUES (#{customerId}, #{quoteId}, #{scopeHash}, #{orderId})
+  </insert>
+</mapper>

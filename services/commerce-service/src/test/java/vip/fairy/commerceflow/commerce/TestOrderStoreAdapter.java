@@ -60,22 +60,24 @@ final class TestOrderStoreAdapter implements OrderStorePort {
     GeneratedKeyHolder key = new GeneratedKeyHolder();
     jdbc.update(connection -> {
       var statement = connection.prepareStatement("INSERT INTO shop_orders(order_number,customer_id,"
-          + "status,inventory_status,total_amount,currency,payment_due_at,created_at,updated_at) "
-          + "VALUES (?,?,'PENDING_PAYMENT','WAITING_RESERVATION',?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
-        java.sql.Statement.RETURN_GENERATED_KEYS);
+          + "status,inventory_status,total_amount,currency,payment_due_at,created_at,updated_at,shipping_fee,discount_amount) "
+          + "VALUES (?,?,'PENDING_PAYMENT','WAITING_RESERVATION',?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,?,?)",
+        new String[]{"id"});
       statement.setString(1, order.getOrderNumber());
       statement.setLong(2, order.getCustomerId());
       statement.setBigDecimal(3, order.getTotalAmount());
       statement.setString(4, order.getCurrency());
       statement.setTimestamp(5, Timestamp.from(order.getPaymentDueAt()));
+      statement.setBigDecimal(6, order.getShippingFee());
+      statement.setBigDecimal(7, order.getDiscountAmount());
       return statement;
     }, key);
     order.setId(key.getKey().longValue());
     for (OrderItemSnapshot item : items) {
       jdbc.update("INSERT INTO order_items(order_id,product_id,merchant_id,product_name,thumbnail_url,"
-          + "unit_price,quantity,subtotal) VALUES (?,?,?,?,?,?,?,?)", order.getId(), item.productId(),
+          + "unit_price,quantity,subtotal,discount_amount) VALUES (?,?,?,?,?,?,?,?,?)", order.getId(), item.productId(),
         item.merchantId(), item.productName(), item.thumbnailUrl(), item.unitPrice(), item.quantity(),
-        item.subtotal());
+        item.subtotal(), item.discountAmount());
     }
     jdbc.update("INSERT INTO order_shipping_addresses(order_id,recipient_name,phone,country_code,"
         + "state_province,city,district,address_line1,address_line2,postal_code,label) "

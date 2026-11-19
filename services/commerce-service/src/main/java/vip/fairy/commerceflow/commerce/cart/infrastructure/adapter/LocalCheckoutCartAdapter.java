@@ -22,6 +22,11 @@ public class LocalCheckoutCartAdapter implements CheckoutCartPort, RejectedCheck
   }
 
   @Override
+  public Long lockCart(Long customerId) {
+    return checkout.lockCart(customerId);
+  }
+
+  @Override
   public List<CheckoutCartItem> lockItems(Long customerId) {
     return checkout.lockItems(customerId);
   }

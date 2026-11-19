@@ -3,6 +3,7 @@ param(
   [string]$TempoUrl = 'http://localhost:13200',
   [int]$MaxWaitSeconds = 120
 )
+. (Join-Path $PSScriptRoot 'checkout-verification.ps1')
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_verification-db.ps1')
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -52,8 +53,7 @@ function New-Order($Customer, [hashtable]$Headers = $Customer.Headers) {
   Invoke-RestMethod "$BaseUrl/api/cart/items" -Method Post -WebSession $Customer.Session `
     -Headers $Customer.Headers -ContentType application/json `
     -Body '{"productId":1,"quantity":1,"note":"inventory-runtime-cutover"}' | Out-Null
-  return Invoke-RestMethod "$BaseUrl/api/purchase-orders/checkout" -Method Post `
-    -WebSession $Customer.Session -Headers $Headers -ContentType application/json -Body '{}'
+  return (Submit-VerifiedCheckout $BaseUrl $Customer.Session $Headers)
 }
 
 function Recreate-Runtime([bool]$Tracing, [string]$ResultDelay = '0s') {

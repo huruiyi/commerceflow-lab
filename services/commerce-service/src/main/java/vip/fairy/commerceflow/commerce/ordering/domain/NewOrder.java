@@ -13,16 +13,22 @@ public class NewOrder {
   private final Long customerId;
   /** Order total in the declared currency. */
   private final BigDecimal totalAmount;
+  /** 运费金额，使用订单币种。 */
+  private final BigDecimal shippingFee;
+  /** 订单行优惠分摊合计，使用订单币种。 */
+  private final BigDecimal discountAmount;
   /** ISO 4217 order currency code. */
   private final String currency;
   /** Latest instant at which the order may enter payment. */
-  private final Instant paymentDueAt;
+  private Instant paymentDueAt;
 
   public NewOrder(String orderNumber, Long customerId, BigDecimal totalAmount, String currency,
-                  Instant paymentDueAt) {
+                  Instant paymentDueAt, BigDecimal shippingFee, BigDecimal discountAmount) {
     this.orderNumber = orderNumber;
     this.customerId = customerId;
     this.totalAmount = totalAmount;
+    this.shippingFee = shippingFee;
+    this.discountAmount = discountAmount;
     this.currency = currency;
     this.paymentDueAt = paymentDueAt;
   }
@@ -47,8 +53,20 @@ public class NewOrder {
     return totalAmount;
   }
 
+  public BigDecimal getShippingFee() {
+    return shippingFee;
+  }
+
+  public BigDecimal getDiscountAmount() {
+    return discountAmount;
+  }
+
   public String getCurrency() {
     return currency;
+  }
+
+  public void setPaymentDueAt(Instant paymentDueAt) {
+    this.paymentDueAt = paymentDueAt;
   }
 
   public Instant getPaymentDueAt() {

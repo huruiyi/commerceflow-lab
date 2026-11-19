@@ -16,12 +16,14 @@ public record OrderItemSnapshot(
   /** Unit price in the order currency. */
   BigDecimal unitPrice,
   /** Positive quantity purchased. */
-  int quantity
+  int quantity,
+  /** 该订单行分摊的优惠，使用订单币种。 */
+  BigDecimal discountAmount
 ) {
 
   public static OrderItemSnapshot from(CheckoutCartItem item) {
     return new OrderItemSnapshot(item.getProductId(), item.getMerchantId(), item.getProductName(),
-      item.getThumbnailUrl(), item.getUnitPrice(), item.getQuantity());
+      item.getThumbnailUrl(), item.getUnitPrice(), item.getQuantity(), BigDecimal.ZERO);
   }
 
   public BigDecimal subtotal() {

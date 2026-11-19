@@ -70,12 +70,14 @@ public class RemoteOrderStoreAdapter implements OrderStorePort {
       order.getTotalAmount(), order.getCurrency(), order.getPaymentDueAt(), actorId,
       items.stream().map(item -> new ItemSnapshot(item.productId(), item.merchantId(),
         item.productName(), item.thumbnailUrl(), item.unitPrice(), item.quantity(),
-        item.subtotal())).toList(),
+        item.subtotal(), item.discountAmount())).toList(),
       new AddressSnapshot(address.recipientName(), address.phone(), address.countryCode(),
         address.stateProvince(), address.city(), address.district(), address.addressLine1(),
-        address.addressLine2(), address.postalCode(), address.label()));
+        address.addressLine2(), address.postalCode(), address.label()),
+      order.getShippingFee(), order.getDiscountAmount());
     ShopOrderView created = post(CREATE, request, ShopOrderView.class);
     order.setId(created.getId());
+    order.setPaymentDueAt(created.getPaymentDueAt());
     return 1;
   }
 
@@ -280,12 +282,13 @@ public class RemoteOrderStoreAdapter implements OrderStorePort {
 
   private record CreateOrder(String orderNumber, Long customerId, BigDecimal totalAmount,
                              String currency, Instant paymentDueAt, Long actorId,
-                             List<ItemSnapshot> items, AddressSnapshot address) {
+                             List<ItemSnapshot> items, AddressSnapshot address,
+                             BigDecimal shippingFee, BigDecimal discountAmount) {
   }
 
   private record ItemSnapshot(Long productId, Long merchantId, String productName,
                               String thumbnailUrl, BigDecimal unitPrice, int quantity,
-                              BigDecimal subtotal) {
+                              BigDecimal subtotal, BigDecimal discountAmount) {
   }
 
   private record AddressSnapshot(String recipientName, String phone, String countryCode,

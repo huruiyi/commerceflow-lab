@@ -9,6 +9,8 @@ import java.util.List;
 
 public interface CheckoutCartMapper {
 
+  Long lockCart(Long customerId);
+
   List<CheckoutCartItem> lockItems(Long customerId);
 
   CheckoutAddressSnapshot selectedAddress(Long customerId);

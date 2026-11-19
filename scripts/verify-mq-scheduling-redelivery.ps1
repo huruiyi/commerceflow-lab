@@ -2,6 +2,7 @@ param(
   [string]$BaseUrl = 'http://localhost:14200',
   [int]$MaxWaitSeconds = 120
 )
+. (Join-Path $PSScriptRoot 'checkout-verification.ps1')
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $environmentNames = @(
@@ -77,8 +78,7 @@ function Invoke-RedeliveryCase($Admin, $Customer, [string]$Strategy) {
   Invoke-RestMethod "$BaseUrl/api/cart/items" -Method Post -WebSession $Customer.Session `
     -Headers $Customer.Headers -ContentType application/json `
     -Body (@{ productId = 1; quantity = 1; note = "$($Strategy.ToLower())-unacked-redelivery" } | ConvertTo-Json -Compress) | Out-Null
-  $order = Invoke-RestMethod "$BaseUrl/api/purchase-orders/checkout" -Method Post `
-    -WebSession $Customer.Session -Headers $Customer.Headers -ContentType application/json -Body '{}'
+  $order = (Submit-VerifiedCheckout $BaseUrl $Customer.Session $Customer.Headers)
   $task = Wait-Until { Get-Task $Admin $order.id } "$Strategy task was not created"
   Wait-Until {
     $published = Get-Task $Admin $order.id

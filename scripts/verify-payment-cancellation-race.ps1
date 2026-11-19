@@ -7,6 +7,7 @@ param(
   [ValidateRange(0, 60000)][int]$InterIterationDelayMilliseconds = 0,
   [switch]$AuditDockerDatabase
 )
+. (Join-Path $PSScriptRoot 'checkout-verification.ps1')
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_verification-db.ps1')
 
@@ -55,8 +56,7 @@ do {
   Invoke-RestMethod "$BaseUrl/api/cart/items" -Method Post -WebSession $customer.Session `
     -Headers $customer.Headers -ContentType application/json `
     -Body '{"productId":1,"quantity":1,"note":"payment-cancellation-race"}' | Out-Null
-  $order = Invoke-RestMethod "$BaseUrl/api/purchase-orders/checkout" -Method Post `
-    -WebSession $customer.Session -Headers $customer.Headers -ContentType application/json -Body '{}'
+  $order = (Submit-VerifiedCheckout $BaseUrl $customer.Session $customer.Headers)
   $orderIds.Add([long]$order.id)
   $paymentBody = @{
     idempotencyKey = [guid]::NewGuid().ToString()

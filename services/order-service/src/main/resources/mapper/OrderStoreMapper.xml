@@ -127,15 +127,16 @@
 
   <insert id="insertOrder" useGeneratedKeys="true" keyProperty="key.id">
     INSERT INTO shop_orders(order_number,customer_id,status,inventory_status,total_amount,
-      currency,payment_due_at,created_at,updated_at)
+      currency,payment_due_at,created_at,updated_at,shipping_fee,discount_amount)
     VALUES (#{request.orderNumber},#{request.customerId},'PENDING_PAYMENT','WAITING_RESERVATION',
-      #{request.totalAmount},#{request.currency},#{request.paymentDueAt},CURRENT_TIMESTAMP(6),CURRENT_TIMESTAMP(6))
+      #{request.totalAmount},#{request.currency},#{request.paymentDueAt},CURRENT_TIMESTAMP(6),CURRENT_TIMESTAMP(6),
+      #{request.shippingFee},#{request.discountAmount})
   </insert>
 
   <insert id="insertItem">
-    INSERT INTO order_items(order_id,product_id,merchant_id,product_name,thumbnail_url,unit_price,quantity,subtotal)
+    INSERT INTO order_items(order_id,product_id,merchant_id,product_name,thumbnail_url,unit_price,quantity,subtotal,discount_amount)
     VALUES (#{orderId},#{item.productId},#{item.merchantId},#{item.productName},#{item.thumbnailUrl},
-      #{item.unitPrice},#{item.quantity},#{item.subtotal})
+      #{item.unitPrice},#{item.quantity},#{item.subtotal},#{item.discountAmount})
   </insert>
 
   <insert id="insertAddress">

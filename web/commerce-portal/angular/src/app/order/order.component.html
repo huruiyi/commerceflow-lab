@@ -125,7 +125,12 @@
     </div>
     <label *ngIf="!loadingAddresses && !addressError && addresses.length" class="d-block">
       {{ 'addresses' | t }}
-      <select class="form-select mt-1" [(ngModel)]="addressId" [disabled]="checkingOut">
+      <select
+        class="form-select mt-1"
+        [(ngModel)]="addressId"
+        (ngModelChange)="invalidateQuote()"
+        [disabled]="checkingOut"
+      >
         <option [ngValue]="undefined" disabled>{{ 'chooseCheckoutAddress' | t }}</option>
         <option *ngFor="let address of addresses" [ngValue]="address.id">
           {{ address.recipientName }} · {{ address.phone }} · {{ address.stateProvince }} {{ address.city }}
@@ -151,10 +156,15 @@
     <div class="text-end mt-3">
       <p aria-live="polite">
         <span class="d-block">{{ i18n.t('selectedCartQuantity', { count: selectedQuantity }) }}</span>
-        {{ 'checkoutAmount' | t }} <strong>{{ total | trcurrency }}</strong>
+        <ng-container *ngIf="quote as amounts">
+          <span class="d-block">{{ 'productSubtotal' | t }} {{ amounts.productSubtotal | trcurrency }}</span>
+          <span class="d-block">{{ 'checkoutDiscount' | t }} {{ amounts.discountAmount | trcurrency }}</span>
+          <span class="d-block">{{ 'shippingFee' | t }} {{ amounts.shippingFee | trcurrency }}</span>
+          {{ 'checkoutAmount' | t }} <strong>{{ amounts.totalAmount | trcurrency }}</strong>
+        </ng-container>
       </p>
       <button class="btn btn-success" type="button" (click)="checkout()" [disabled]="!canCheckout">
-        {{ checkingOut ? '...' : ('checkout' | t) }}
+        {{ checkingOut ? '...' : ((quote ? 'confirmCheckout' : 'calculateCheckout') | t) }}
       </button>
     </div>
   </section>

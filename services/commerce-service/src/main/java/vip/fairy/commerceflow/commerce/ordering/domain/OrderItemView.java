@@ -39,6 +39,12 @@ public class OrderItemView {
    * 条目小计，等于单价乘以数量。
    */
   private BigDecimal subtotal;
+  /** 该订单行分摊的优惠，使用订单币种。 */
+  private BigDecimal discountAmount;
+
+  public BigDecimal getDiscountAmount() {
+    return discountAmount;
+  }
 
   public Long getId() {
     return id;

@@ -2,6 +2,10 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="vip.fairy.commerceflow.commerce.cart.infrastructure.CheckoutCartMapper">
 
+  <select id="lockCart" resultType="java.lang.Long">
+    SELECT id FROM carts WHERE user_id = #{customerId} FOR UPDATE
+  </select>
+
   <select id="lockItems" resultType="vip.fairy.commerceflow.commerce.cart.domain.CheckoutCartItem">
     <![CDATA[
       SELECT i.id, i.product_id, i.merchant_id, i.product_name, i.thumbnail_url,

@@ -132,6 +132,9 @@ export interface PurchaseOrder {
   orderNumber: string;
   status: string;
   totalAmount: number;
+  productSubtotal?: number;
+  shippingFee?: number;
+  discountAmount?: number;
   currency: string;
   createdAt: string;
   paymentDueAt?: string;

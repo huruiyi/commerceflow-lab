@@ -1,7 +1,7 @@
 import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize, Observable } from 'rxjs';
-import { ApiService, MerchantProduct } from '../services/api.service';
+import { ApiService, MerchantProduct, ShippingTemplate } from '../services/api.service';
 
 @Component({
   standalone: false,
@@ -18,6 +18,46 @@ export class MerchantCatalogComponent implements OnInit {
   readonly saveFailed = signal(false);
   readonly saved = signal(false);
   draft?: MerchantProduct;
+  shipping?: ShippingTemplate;
+  readonly shippingBusy = signal(false);
+  readonly shippingError = signal('');
+  readonly shippingSaved = signal(false);
+
+  loadShipping(): void {
+    if (this.shippingBusy()) return;
+    this.shippingBusy.set(true);
+    this.shippingError.set('');
+    this.api
+      .shippingTemplate()
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.shippingBusy.set(false)),
+      )
+      .subscribe({
+        next: (template) => (this.shipping = template),
+        error: () => this.shippingError.set('requestFailed'),
+      });
+  }
+
+  saveShipping(template: ShippingTemplate): void {
+    if (this.shippingBusy()) return;
+    this.shippingBusy.set(true);
+    this.shippingError.set('');
+    this.shippingSaved.set(false);
+    this.api
+      .saveShippingTemplate(template)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.shippingBusy.set(false)),
+      )
+      .subscribe({
+        next: (updated) => {
+          this.shipping = updated;
+          this.shippingSaved.set(true);
+        },
+        error: () => this.shippingError.set('shippingSaveFailed'),
+      });
+  }
 
   ngOnInit(): void {
     this.load();

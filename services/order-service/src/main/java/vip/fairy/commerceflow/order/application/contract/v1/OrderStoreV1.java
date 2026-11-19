@@ -12,13 +12,14 @@ public final class OrderStoreV1 {
 
   public record CreateOrder(
     String orderNumber, Long customerId, BigDecimal totalAmount, String currency,
-    Instant paymentDueAt, Long actorId, List<ItemSnapshot> items, AddressSnapshot address
+    Instant paymentDueAt, Long actorId, List<ItemSnapshot> items, AddressSnapshot address,
+    BigDecimal shippingFee, BigDecimal discountAmount
   ) {
   }
 
   public record ItemSnapshot(Long productId, Long merchantId, String productName,
                              String thumbnailUrl, BigDecimal unitPrice, int quantity,
-                             BigDecimal subtotal) {
+                             BigDecimal subtotal, BigDecimal discountAmount) {
   }
 
   public record AddressSnapshot(String recipientName, String phone, String countryCode,
@@ -33,12 +34,13 @@ public final class OrderStoreV1 {
                           Instant shippedAt, String carrier, String trackingNumber,
                           Instant paymentDueAt, Instant cancelledAt, String cancelReason,
                           Instant receivedAt, Instant completedAt,
-                          Instant logisticsDeliveredAt, long shipmentVersion) {
+                          Instant logisticsDeliveredAt, long shipmentVersion,
+                          BigDecimal productSubtotal, BigDecimal shippingFee, BigDecimal discountAmount) {
   }
 
   public record ItemView(Long id, Long productId, Long merchantId, String productName,
                          String thumbnailUrl, BigDecimal unitPrice, int quantity,
-                         BigDecimal subtotal) {
+                         BigDecimal subtotal, BigDecimal discountAmount) {
   }
 
   public record AddressView(String recipientName, String phone, String countryCode,

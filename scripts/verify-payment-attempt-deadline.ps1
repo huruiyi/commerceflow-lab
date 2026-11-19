@@ -3,6 +3,7 @@ param(
   [string]$PaymentUrl = 'http://localhost:14201',
   [int]$MaxWaitSeconds = 60
 )
+. (Join-Path $PSScriptRoot 'checkout-verification.ps1')
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $environmentNames = @('ORDER_PAYMENT_TIMEOUT', 'SCHEDULING_DATABASE_INITIAL_DELAY',
@@ -73,8 +74,7 @@ try {
   Invoke-RestMethod "$BaseUrl/api/cart/items" -Method Post -WebSession $customer.Session `
     -Headers $customer.Headers -ContentType application/json `
     -Body '{"productId":1,"quantity":1,"note":"attempt-expiry-versus-order-deadline"}' | Out-Null
-  $order=Invoke-RestMethod "$BaseUrl/api/purchase-orders/checkout" -Method Post `
-    -WebSession $customer.Session -Headers $customer.Headers -ContentType application/json -Body '{}'
+  $order=(Submit-VerifiedCheckout $BaseUrl $customer.Session $customer.Headers)
   $first=New-Payment $customer $order.id 'ALIPAY'
   $firstToken=$first.payment.checkoutUrl.Split('/')[-1].Split('?')[0]
   Invoke-RestMethod "$PaymentUrl/api/checkout/$firstToken/complete?outcome=TIMEOUT" -Method Post | Out-Null

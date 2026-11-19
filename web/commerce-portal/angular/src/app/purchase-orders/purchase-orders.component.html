@@ -119,6 +119,20 @@
     {{ notice.text }}
   </div>
   <div class="order-content" *ngIf="detailId !== null || expandedOrders.has(order.id)">
+    <section *ngIf="order.productSubtotal !== undefined" class="milestone-strip" [attr.aria-label]="'orderAmount' | t">
+      <div>
+        <small>{{ 'productSubtotal' | t }}</small><strong>{{ order.productSubtotal | trcurrency }}</strong>
+      </div>
+      <div>
+        <small>{{ 'checkoutDiscount' | t }}</small><strong>{{ order.discountAmount ?? 0 | trcurrency }}</strong>
+      </div>
+      <div>
+        <small>{{ 'shippingFee' | t }}</small><strong>{{ order.shippingFee ?? 0 | trcurrency }}</strong>
+      </div>
+      <div>
+        <small>{{ 'checkoutAmount' | t }}</small><strong>{{ order.totalAmount | trcurrency }}</strong>
+      </div>
+    </section>
     <section class="milestone-strip" aria-label="Order milestones">
       <div>
         <small>{{ 'orderedAt' | t }}</small><strong>{{ order.createdAt | trdate }}</strong>

@@ -9,6 +9,7 @@ import vip.fairy.commerceflow.commerce.ordering.application.OrderCancellationSer
 import vip.fairy.commerceflow.commerce.ordering.application.OrderRepurchaseService;
 import vip.fairy.commerceflow.commerce.ordering.application.PurchaseOrderService;
 import vip.fairy.commerceflow.commerce.ordering.application.CheckoutPriceChangedException;
+import vip.fairy.commerceflow.commerce.ordering.application.CheckoutQuote;
 import vip.fairy.commerceflow.commerce.ordering.application.CheckoutStockException;
 import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderListReadV1;
 import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderListPage;
@@ -57,19 +58,23 @@ public class PurchaseOrderController {
     this.repurchase = repurchase;
   }
 
+  @PostMapping("/checkout/quote")
+  CheckoutQuote quote(@Valid @RequestBody CheckoutRequest.Selection selection, Authentication authentication) {
+    return orders.quote(currentUsers.require(authentication), selection.addressId(), selection.itemIds());
+  }
+
   @PostMapping("/checkout")
-  ShopOrderResponse checkout(@Valid @RequestBody(required = false) CheckoutRequest request,
-                             Authentication authentication) {
+  ShopOrderResponse checkout(@Valid @RequestBody CheckoutRequest request, Authentication authentication) {
     AppUser user = currentUsers.require(authentication);
-    return request == null ? orders.checkout(user)
-      : orders.checkout(user, request.addressId(), request.expectedTotal(), request.itemIds());
+    return orders.checkout(user, request.selection().addressId(), request.selection().itemIds(), request.quoteId());
   }
 
   @ExceptionHandler(CheckoutPriceChangedException.class)
   @ResponseStatus(HttpStatus.CONFLICT)
   Map<String, Object> checkoutPrice(CheckoutPriceChangedException exception) {
     return Map.of("timestamp", Instant.now(), "status", HttpStatus.CONFLICT.value(),
-      "code", "CHECKOUT_PRICE_CHANGED", "message", exception.getMessage(), "currentTotal", exception.currentTotal());
+      "code", "CHECKOUT_PRICE_CHANGED", "message", exception.getMessage(), "currentTotal", exception.quote().totalAmount(),
+      "quote", exception.quote());
   }
 
   @ExceptionHandler(CheckoutStockException.class)

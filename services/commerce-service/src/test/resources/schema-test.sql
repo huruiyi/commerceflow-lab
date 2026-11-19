@@ -150,6 +150,9 @@ CREATE TABLE shop_orders
   customer_id            BIGINT    NOT NULL,
   status                 VARCHAR(40),
   inventory_status       VARCHAR(40) NOT NULL DEFAULT 'WAITING_RESERVATION',
+  shipping_fee DECIMAL(12, 2) DEFAULT 0 NOT NULL,
+  discount_amount DECIMAL(12, 2) DEFAULT 0 NOT NULL,
+  product_subtotal DECIMAL(12, 2) GENERATED ALWAYS AS (total_amount + discount_amount - shipping_fee),
   total_amount           DECIMAL(12, 2),
   currency               VARCHAR(3),
   payment_due_at         TIMESTAMP NOT NULL,
@@ -168,6 +171,7 @@ CREATE TABLE shop_orders
 );
 CREATE TABLE order_items
 (
+  discount_amount DECIMAL(12, 2) DEFAULT 0 NOT NULL,
   id            BIGINT AUTO_INCREMENT PRIMARY KEY,
   order_id      BIGINT NOT NULL,
   product_id    BIGINT,
@@ -852,4 +856,20 @@ CREATE TABLE logistics_fulfillment_commands (
   shipment_version BIGINT,
   owner_token CHAR(36),
   lease_until TIMESTAMP(6)
+);
+
+CREATE TABLE merchant_shipping_rates (
+  merchant_id BIGINT NOT NULL,
+  country_code VARCHAR(2) NOT NULL,
+  state_province VARCHAR(100) NOT NULL,
+  fee DECIMAL(12,2) NOT NULL,
+  PRIMARY KEY (merchant_id, country_code, state_province)
+);
+
+CREATE TABLE checkout_receipts (
+  customer_id BIGINT NOT NULL,
+  quote_id CHAR(64) NOT NULL,
+  scope_hash CHAR(64) NOT NULL,
+  order_id BIGINT NOT NULL UNIQUE,
+  PRIMARY KEY (customer_id, quote_id)
 );

@@ -1,11 +1,12 @@
 param([string]$BaseUrl='http://localhost:14200',[string]$PaymentUrl='http://localhost:14201')
+. (Join-Path $PSScriptRoot 'checkout-verification.ps1')
 $ErrorActionPreference='Stop'
 $session=[Microsoft.PowerShell.Commands.WebRequestSession]::new()
 $csrf=Invoke-RestMethod "$BaseUrl/api/auth/csrf" -WebSession $session
 $headers=@{$csrf.headerName=$csrf.token}
 Invoke-RestMethod "$BaseUrl/api/auth/login" -Method Post -WebSession $session -Headers $headers -ContentType application/json -Body '{"email":"demo@example.com","password":"demo-password","rememberMe":false}'|Out-Null
 Invoke-RestMethod "$BaseUrl/api/cart/items" -Method Post -WebSession $session -Headers $headers -ContentType application/json -Body '{"productId":1,"quantity":1,"note":"payment-cutover-verification"}'|Out-Null
-$order=Invoke-RestMethod "$BaseUrl/api/purchase-orders/checkout" -Method Post -WebSession $session -Headers $headers -ContentType application/json -Body '{}'
+$order=(Submit-VerifiedCheckout $BaseUrl $session $headers)
 $paymentKey=[guid]::NewGuid().ToString()
 $paymentBody=@{idempotencyKey=$paymentKey;simulateFailure=$false;channel='ALIPAY'}|ConvertTo-Json -Compress
 $payment=Invoke-RestMethod "$BaseUrl/api/purchase-orders/$($order.id)/payments" -Method Post -WebSession $session -Headers $headers -ContentType application/json -Body $paymentBody

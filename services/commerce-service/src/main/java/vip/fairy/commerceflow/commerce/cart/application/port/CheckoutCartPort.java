@@ -7,6 +7,8 @@ import java.util.List;
 
 public interface CheckoutCartPort {
 
+  Long lockCart(Long customerId);
+
   List<CheckoutCartItem> lockItems(Long customerId);
 
   List<CheckoutCartItem> priceItems(List<CheckoutCartItem> items);

@@ -2,6 +2,7 @@ param(
   [string]$BaseUrl = 'http://localhost:14200',
   [int]$MaxWaitSeconds = 90
 )
+. (Join-Path $PSScriptRoot 'checkout-verification.ps1')
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Set-Location $ProjectRoot
@@ -58,8 +59,7 @@ Invoke-RestMethod "$BaseUrl/api/auth/login" -Method Post -WebSession $session `
 Invoke-RestMethod "$BaseUrl/api/cart/items" -Method Post -WebSession $session `
   -Headers $headers -ContentType application/json `
   -Body '{"productId":1,"quantity":1,"note":"order-runtime-cutover"}' | Out-Null
-$order = Invoke-RestMethod "$BaseUrl/api/purchase-orders/checkout" -Method Post `
-  -WebSession $session -Headers $headers -ContentType application/json -Body '{}'
+$order = (Submit-VerifiedCheckout $BaseUrl $session $headers)
 
 $sourceAfter = Get-SourceOrderState
 $targetAfter = [long](DbScalar order-db orders orders-password orders `

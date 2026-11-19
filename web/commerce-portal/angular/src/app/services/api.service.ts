@@ -30,6 +30,30 @@ import {
   WarehouseEvidenceReceipt,
 } from 'src/model/IInventoryReconciliation';
 
+export interface CheckoutSelection {
+  addressId: number;
+  itemIds: number[];
+}
+
+export interface CheckoutQuote {
+  quoteId: string;
+  productSubtotal: number;
+  discountAmount: number;
+  shippingFee: number;
+  totalAmount: number;
+}
+
+export interface ShippingRate {
+  countryCode: string;
+  stateProvince: string;
+  fee: number;
+}
+
+export interface ShippingTemplate {
+  defaultFee: number;
+  regions: ShippingRate[];
+}
+
 export interface MerchantProduct {
   productId: number;
   name: string;
@@ -158,8 +182,20 @@ export class ApiService {
     return this.http.delete<void>(`/api/addresses/${id}`);
   }
 
-  checkout(addressId: number, expectedTotal: number, itemIds: number[]): Observable<PurchaseOrder> {
-    return this.http.post<PurchaseOrder>('/api/purchase-orders/checkout', { addressId, expectedTotal, itemIds });
+  checkoutQuote(selection: CheckoutSelection): Observable<CheckoutQuote> {
+    return this.http.post<CheckoutQuote>('/api/purchase-orders/checkout/quote', selection);
+  }
+
+  checkout(selection: CheckoutSelection, quoteId: string): Observable<PurchaseOrder> {
+    return this.http.post<PurchaseOrder>('/api/purchase-orders/checkout', { selection, quoteId });
+  }
+
+  shippingTemplate(): Observable<ShippingTemplate> {
+    return this.http.get<ShippingTemplate>('/api/merchant/shipping-template');
+  }
+
+  saveShippingTemplate(template: ShippingTemplate): Observable<ShippingTemplate> {
+    return this.http.put<ShippingTemplate>('/api/merchant/shipping-template', template);
   }
 
   searchOrders(criteria: OrderSearchCriteria, merchant = false): Observable<OrderSearchPage> {
