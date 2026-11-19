@@ -652,7 +652,11 @@ CREATE TABLE refund_notifications
 CREATE TABLE shipment_records
 (
   id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
-  order_id             BIGINT       NOT NULL UNIQUE,
+  order_id             BIGINT       NOT NULL,
+  after_sale_id        VARCHAR(36) UNIQUE,
+  outbound_order_id    BIGINT GENERATED ALWAYS AS (CASE WHEN after_sale_id IS NULL THEN order_id END) UNIQUE,
+  order_number         VARCHAR(100),
+  last_event_at        TIMESTAMP,
   merchant_shipment_no VARCHAR(100) NOT NULL UNIQUE,
   platform_shipment_no VARCHAR(100) UNIQUE,
   carrier              VARCHAR(100) NOT NULL,

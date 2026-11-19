@@ -2,12 +2,15 @@ package vip.fairy.commerceflow.commerce.refund.application;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryLineCreditV1;
+import vip.fairy.commerceflow.commerce.logistics.api.LogisticsResponse;
+import vip.fairy.commerceflow.commerce.logistics.application.ReturnShipmentService;
 import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderLineRefundV1;
 import vip.fairy.commerceflow.commerce.ordering.application.port.OrderRefundPort;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentOrchestrationV1;
@@ -31,16 +34,19 @@ public class LineAfterSaleService {
   private final PaymentOrchestrationV1 payments;
   private final PaymentWriteAdmissionV1 paymentWrites;
   private final InventoryLineCreditV1 stock;
+  private final ReturnShipmentService returns;
 
   public LineAfterSaleService(LineAfterSaleMapper cases, OrderRefundPort orders,
                               OrderLineRefundV1 admission, PaymentOrchestrationV1 payments,
-                              PaymentWriteAdmissionV1 paymentWrites, InventoryLineCreditV1 stock) {
+                              PaymentWriteAdmissionV1 paymentWrites, InventoryLineCreditV1 stock,
+                              ReturnShipmentService returns) {
     this.cases = cases;
     this.orders = orders;
     this.admission = admission;
     this.payments = payments;
     this.paymentWrites = paymentWrites;
     this.stock = stock;
+    this.returns = returns;
   }
 
   @Transactional
@@ -81,14 +87,16 @@ public class LineAfterSaleService {
       throw new BusinessRuleException("Finish the active after-sales case before applying again");
     }
     List<LineAfterSale> completed = existing.stream().filter(value -> "COMPLETED".equals(value.status())).toList();
-    int previous = completed.stream().filter(value -> lineId.equals(value.orderLineId())).mapToInt(LineAfterSale::quantity).sum();
+    int previous = completed.stream()
+      .filter(value -> lineId.equals(value.orderLineId())).mapToInt(LineAfterSale::quantity).sum();
     if (quantity < 1 || quantity > line.getQuantity() - previous) {
       throw new BusinessRuleException("Requested quantity exceeds the refundable order line");
     }
     BigDecimal amount = LineRefundAmount.calculate(line.getSubtotal().subtract(line.getDiscountAmount()),
       line.getQuantity(), previous, quantity);
     int purchased = lines.stream().mapToInt(item -> item.getQuantity()).sum();
-    boolean finalUnshipped = unshipped && completed.stream().mapToInt(LineAfterSale::quantity).sum() + quantity == purchased;
+    boolean finalUnshipped = unshipped
+      && completed.stream().mapToInt(LineAfterSale::quantity).sum() + quantity == purchased;
     BigDecimal freight = finalUnshipped && completed.stream().noneMatch(value -> value.shippingAmount().signum() > 0)
       ? order.getShippingFee() : BigDecimal.ZERO.setScale(2);
     return new Offer(line.getProductId(), line.getMerchantId(), line.getQuantity() - previous,
@@ -107,12 +115,32 @@ public class LineAfterSaleService {
     return cases.forMerchant(merchantId, orderId);
   }
 
-  public LineAfterSale sendReturn(Long customerId, String id, String trackingNumber, BigDecimal returnShippingCost) {
-    LineAfterSale value = require(id);
-    if (!customerId.equals(value.customerId())) throw new ResourceNotFoundException("After-sales case not found");
-    if (trackingNumber.equals(value.trackingNumber()) && java.util.Objects.equals(returnShippingCost, value.returnShippingCost())) return value;
+  @Transactional
+  public LineAfterSale sendReturn(Long customerId, String id, String carrier, String tracking,
+                                 BigDecimal returnShippingCost) {
+    LineAfterSale value = cases.lock(id);
+    if (value == null || !customerId.equals(value.customerId())) {
+      throw new ResourceNotFoundException("After-sales case not found");
+    }
+    String trackingNumber = tracking.strip();
+    if (returnShippingCost != null) returnShippingCost = returnShippingCost.setScale(2);
+    if (Objects.equals(returnShippingCost, value.returnShippingCost())
+        && returns.matches(id, carrier, trackingNumber)) return value;
     requireTransition(cases.customerReturn(id, customerId, trackingNumber, returnShippingCost));
+    var order = orders.find(customerId, value.orderId())
+      .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+    returns.bind(id, value.orderId(), order.getOrderNumber(), carrier, trackingNumber);
     return require(id);
+  }
+
+  public LogisticsResponse customerReturnTracking(Long customerId, String id) {
+    if (!customerId.equals(require(id).customerId())) throw new ResourceNotFoundException("After-sales case not found");
+    return returns.tracking(id);
+  }
+
+  public LogisticsResponse merchantReturnTracking(Long merchantId, String id) {
+    owned(merchantId, id);
+    return returns.tracking(id);
   }
 
   public LineAfterSale review(Long merchantId, String id, boolean approved, String note) {
@@ -125,6 +153,7 @@ public class LineAfterSaleService {
 
   public LineAfterSale inspect(Long merchantId, String id, boolean resellable, int receivedQuantity, String note) {
     LineAfterSale value = owned(merchantId, id);
+    returns.requireDelivered(id);
     String target = resellable && receivedQuantity == value.quantity() ? "PREPARING" : "REVIEW_REQUIRED";
     if (target.equals(value.status()) && note.equals(value.decision())) return value;
     String from = "REVIEW_REQUIRED".equals(value.status()) && value.trackingNumber() != null

@@ -11,6 +11,7 @@ import jakarta.validation.constraints.Size;
 import vip.fairy.commerceflow.commerce.refund.application.LineAfterSaleService;
 import vip.fairy.commerceflow.commerce.refund.application.LineAfterSaleService.Offer;
 import vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale;
+import vip.fairy.commerceflow.commerce.logistics.api.LogisticsResponse;
 import vip.fairy.commerceflow.commerce.identity.application.CurrentUserService;
 import vip.fairy.commerceflow.commerce.ordering.application.port.OrderRefundPort;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentQueryV1;
@@ -107,6 +108,12 @@ public class RefundController {
     return afterSales.customerCases(users.require(authentication).getId(), orderId);
   }
 
+  @GetMapping("/api/purchase-orders/after-sales/{id}/return-tracking")
+  @PreAuthorize("hasRole('CUSTOMER')")
+  LogisticsResponse customerReturnTracking(@PathVariable UUID id, Authentication authentication) {
+    return afterSales.customerReturnTracking(users.require(authentication).getId(), id.toString());
+  }
+
   @PostMapping("/api/purchase-orders/{orderId}/after-sales/quote")
   @PreAuthorize("hasRole('CUSTOMER')")
   Offer quote(@PathVariable Long orderId, @Valid @RequestBody Quote request, Authentication authentication) {
@@ -116,21 +123,30 @@ public class RefundController {
   @PostMapping("/api/purchase-orders/{orderId}/after-sales")
   @PreAuthorize("hasRole('CUSTOMER')")
   @ResponseStatus(HttpStatus.ACCEPTED)
-  LineAfterSale apply(@PathVariable Long orderId, @Valid @RequestBody Application request, Authentication authentication) {
+  LineAfterSale apply(@PathVariable Long orderId, @Valid @RequestBody Application request,
+                     Authentication authentication) {
     return afterSales.submit(users.require(authentication).getId(), orderId, request.orderLineId(), request.quantity(),
       request.requestId(), request.reason());
   }
 
   @PostMapping("/api/purchase-orders/after-sales/{id}/return")
   @PreAuthorize("hasRole('CUSTOMER')")
-  LineAfterSale sendReturn(@PathVariable UUID id, @Valid @RequestBody ReturnParcel request, Authentication authentication) {
-    return afterSales.sendReturn(users.require(authentication).getId(), id.toString(), request.trackingNumber(), request.returnShippingCost());
+  LineAfterSale sendReturn(@PathVariable UUID id, @Valid @RequestBody ReturnParcel request,
+                          Authentication authentication) {
+    return afterSales.sendReturn(users.require(authentication).getId(), id.toString(),
+      request.carrier(), request.trackingNumber(), request.returnShippingCost());
   }
 
   @GetMapping("/api/merchant/orders/{orderId}/after-sales")
   @PreAuthorize("hasRole('MERCHANT')")
   List<LineAfterSale> merchantCases(@PathVariable Long orderId, Authentication authentication) {
     return afterSales.merchantCases(users.require(authentication).getId(), orderId);
+  }
+
+  @GetMapping("/api/merchant/after-sales/{id}/return-tracking")
+  @PreAuthorize("hasRole('MERCHANT')")
+  LogisticsResponse merchantReturnTracking(@PathVariable UUID id, Authentication authentication) {
+    return afterSales.merchantReturnTracking(users.require(authentication).getId(), id.toString());
   }
 
   @PostMapping("/api/merchant/after-sales/{id}/review")
@@ -153,7 +169,7 @@ public class RefundController {
                      @NotBlank @Size(max = 300) String reason) {
   }
 
-  record ReturnParcel(@NotBlank @Size(max = 120) String trackingNumber,
+  record ReturnParcel(@NotBlank @Size(max = 100) String carrier, @NotBlank @Size(max = 120) String trackingNumber,
                       @PositiveOrZero @Digits(integer = 10, fraction = 2) BigDecimal returnShippingCost) {
   }
 

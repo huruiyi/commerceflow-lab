@@ -10,6 +10,8 @@ public interface LineAfterSaleMapper {
 
   LineAfterSale find(String id);
 
+  LineAfterSale lock(String id);
+
   List<LineAfterSale> forCustomer(Long customerId, Long orderId);
 
   List<LineAfterSale> forMerchant(Long merchantId, Long orderId);

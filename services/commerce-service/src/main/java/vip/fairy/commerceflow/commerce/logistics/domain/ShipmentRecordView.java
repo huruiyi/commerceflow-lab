@@ -18,6 +18,12 @@ public class ShipmentRecordView {
   private Long id;
   /** 运单所属商城订单主键。 */
   private Long orderId;
+  /** 逆向运单关联的售后单号，正向运单为空。 */
+  private String afterSaleId;
+  /** 退货运单补建时发送给物流平台的原订单编号。 */
+  private String orderNumber;
+  /** 最近应用的退货物流事件发生时间。 */
+  private Instant lastEventAt;
   /** 商城生成并发送给物流平台的运单号。 */
   private String merchantShipmentNo;
   /** 物流平台返回的渠道运单号。 */
@@ -39,6 +45,18 @@ public class ShipmentRecordView {
 
   public Long getOrderId() {
     return orderId;
+  }
+
+  public String getAfterSaleId() {
+    return afterSaleId;
+  }
+
+  public String getOrderNumber() {
+    return orderNumber;
+  }
+
+  public Instant getLastEventAt() {
+    return lastEventAt;
   }
 
   public String getMerchantShipmentNo() {

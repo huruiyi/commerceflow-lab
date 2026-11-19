@@ -1,7 +1,7 @@
 import { ChangeDetectorRef, Component, DestroyRef, Input, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize, Observable } from 'rxjs';
-import { PurchaseOrder } from 'src/model/IPurchaseOrder';
+import { OrderLogistics, PurchaseOrder } from 'src/model/IPurchaseOrder';
 import { ApiService, AfterSale, AfterSaleOffer } from '../services/api.service';
 
 @Component({
@@ -24,6 +24,8 @@ export class LineAfterSalesComponent {
   error = '';
   notes: Record<string, string> = {};
   tracking: Record<string, string> = {};
+  carriers: Record<string, string> = {};
+  parcels: Record<string, OrderLogistics | null | undefined> = {};
   returnCost: Record<string, number | null> = {};
   received: Record<string, number> = {};
   private requestId?: string;
@@ -74,10 +76,23 @@ export class LineAfterSalesComponent {
 
   sendReturn(value: AfterSale): void {
     const trackingNumber = this.tracking[value.id]?.trim();
-    if (!trackingNumber) return;
-    this.run(this.api.sendAfterSaleReturn(value.id, trackingNumber, this.returnCost[value.id] ?? null), (updated) =>
-      this.update(updated),
+    const carrier = this.carriers[value.id]?.trim();
+    if (!trackingNumber || !carrier) return;
+    this.run(
+      this.api.sendAfterSaleReturn(value.id, carrier, trackingNumber, this.returnCost[value.id] ?? null),
+      (updated) => this.update(updated),
     );
+  }
+
+  loadReturnTracking(value: AfterSale): void {
+    this.run(this.api.afterSaleReturnTracking(value.id, this.merchant), (parcel) => {
+      this.parcels[value.id] = parcel;
+    });
+  }
+
+  canInspect(value: AfterSale): boolean {
+    const parcel = this.parcels[value.id];
+    return parcel === null || parcel?.status === 'DELIVERED';
   }
 
   decide(value: AfterSale, accepted: boolean, inspection: boolean): void {

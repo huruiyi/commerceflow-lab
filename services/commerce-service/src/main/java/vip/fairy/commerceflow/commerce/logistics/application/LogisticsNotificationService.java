@@ -86,6 +86,7 @@ public class LogisticsNotificationService {
     if (shipments.notificationCount(notice.notificationId()) > 0) return new Result("DUPLICATE");
     ShipmentRecordView shipment = shipments.lockByMerchantNo(notice.merchantShipmentNo()).orElse(null);
     if (shipment == null) return new Result("UNKNOWN_SHIPMENT");
+    boolean returning = shipment.getAfterSaleId() != null;
     if (shipment.getPlatformShipmentNo() != null && notice.platformShipmentNo() != null
       && !shipment.getPlatformShipmentNo().equals(notice.platformShipmentNo())) {
       shipments.insertNotification(
@@ -101,11 +102,26 @@ public class LogisticsNotificationService {
       );
       return new Result("REJECTED");
     }
+    if (returning && (notice.platformShipmentNo() == null || notice.platformShipmentNo().isBlank()
+      || !shipment.getCarrier().equals(notice.carrier())
+      || !shipment.getTrackingNumber().equals(notice.trackingNumber())
+      || notice.occurredAt() == null)) {
+      shipments.insertNotification(
+        shipment.getId(), notice.notificationId(), "REJECTED", digest, "Return shipment details mismatch"
+      );
+      return new Result("REJECTED");
+    }
+    if (returning && shipment.getPlatformShipmentNo() == null) {
+      shipments.attachReturn(shipment.getId(), notice.platformShipmentNo());
+    }
     int inserted = shipments.insertEvent(
       shipment.getId(), notice.notificationId(), eventType, notice.status(),
       notice.location(), notice.description(), notice.occurredAt()
     );
-    if (inserted == 1 && shouldApply(shipment.getStatus(), notice.status(), eventType)) {
+    if (inserted == 1 && returning && shouldApplyReturn(shipment, notice, eventType)) {
+      shipments.updateReturnStatus(shipment.getId(), notice.status(), notice.occurredAt());
+    }
+    if (inserted == 1 && !returning && shouldApply(shipment.getStatus(), notice.status(), eventType)) {
       shipments.updateStatus(shipment.getId(), notice.status(), notice.occurredAt());
       if ("DELIVERED".equals(notice.status())) {
         lifecycle.scheduleAutoReceive(shipment.getOrderId(), notice.occurredAt());
@@ -118,6 +134,17 @@ public class LogisticsNotificationService {
       shipment.getId(), notice.notificationId(), inserted == 1 ? processedStatus : "DUPLICATE", digest, ""
     );
     return new Result(inserted == 1 ? "PROCESSED" : "DUPLICATE");
+  }
+
+  private boolean shouldApplyReturn(ShipmentRecordView current, Notice incoming, String eventType) {
+    if ("DELIVERED".equals(current.getStatus())) return false;
+    if (current.getLastEventAt() != null && incoming.occurredAt().isBefore(current.getLastEventAt())) return false;
+    if ("EXCEPTION".equals(eventType)) return "EXCEPTION".equals(incoming.status());
+    if ("RECOVERY".equals(eventType)) {
+      return "EXCEPTION".equals(current.getStatus()) && rank(incoming.status()) > 0
+        && !"DELIVERED".equals(incoming.status());
+    }
+    return rank(incoming.status()) > rank(current.getStatus());
   }
 
   private boolean shouldApply(String current, String incoming, String eventType) {

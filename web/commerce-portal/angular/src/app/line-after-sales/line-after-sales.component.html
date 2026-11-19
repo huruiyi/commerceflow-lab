@@ -26,7 +26,35 @@
       >
       <small *ngIf="value.decision" class="d-block">{{ value.decision }}</small>
 
+      <div *ngIf="value.trackingNumber" class="mt-2">
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-primary"
+          [disabled]="busy"
+          (click)="loadReturnTracking(value)"
+        >
+          {{ (parcels[value.id] === undefined ? 'viewReturnTracking' : 'refreshReturnTracking') | t }}
+        </button>
+        <ng-container *ngIf="parcels[value.id] as parcel">
+          <p class="mb-1 mt-2" aria-live="polite">{{ parcel.carrier }} · {{ parcel.status | t }}</p>
+          <p *ngIf="parcel.status === 'DELIVERED' && value.status === 'RETURN_SENT'" class="mb-1">
+            {{ 'returnAwaitingInspection' | t }}
+          </p>
+          <ul *ngIf="parcel.events.length" class="list-unstyled mb-1">
+            <li *ngFor="let event of parcel.events">
+              <strong>{{ event.status | t }}</strong> · {{ event.occurredAt | trdate }} · {{ event.location }}
+              <small class="d-block">{{ event.description }}</small>
+            </li>
+          </ul>
+        </ng-container>
+        <p *ngIf="parcels[value.id] === null" class="mb-1 mt-2">{{ 'returnTrackingUnavailable' | t }}</p>
+      </div>
+
       <div *ngIf="!merchant && value.status === 'WAITING_RETURN'" class="d-flex flex-wrap gap-2 mt-2">
+        <label>
+          {{ 'carrier' | t }}
+          <input class="form-control" maxlength="100" [(ngModel)]="carriers[value.id]" />
+        </label>
         <label
           >{{ 'returnTracking' | t }}
           <input class="form-control" maxlength="120" [(ngModel)]="tracking[value.id]" />
@@ -38,7 +66,7 @@
         <button
           type="button"
           class="btn btn-outline-primary align-self-end"
-          [disabled]="busy || !tracking[value.id]"
+          [disabled]="busy || !tracking[value.id]?.trim() || !carriers[value.id]?.trim()"
           (click)="sendReturn(value)"
         >
           {{ 'registerReturn' | t }}
@@ -48,7 +76,8 @@
       <div
         *ngIf="
           merchant &&
-          (value.status === 'APPLIED' || value.status === 'RETURN_SENT' || value.status === 'REVIEW_REQUIRED') &&
+          (value.status === 'APPLIED' ||
+            ((value.status === 'RETURN_SENT' || value.status === 'REVIEW_REQUIRED') && canInspect(value))) &&
           !value.refundNumber
         "
         class="d-flex flex-wrap gap-2 mt-2"

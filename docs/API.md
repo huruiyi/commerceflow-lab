@@ -14,6 +14,8 @@
 | 顾客优惠券 | `GET /api/coupons/campaigns`、`POST /api/coupons/campaigns/{id}/claim`、`GET /api/coupons` | CUSTOMER |
 | 商家优惠活动 | `GET/POST /api/merchant/coupon-campaigns`、`POST /api/merchant/coupon-campaigns/{id}/disable` | MERCHANT，仅本人活动 |
 | 物流 | `GET /api/purchase-orders/{id}/logistics` | CUSTOMER，仅本人订单 |
+| 退货运单 | `POST /api/purchase-orders/after-sales/{id}/return`、`GET /api/purchase-orders/after-sales/{id}/return-tracking` | CUSTOMER，仅本人售后单 |
+| 商家退货轨迹及验收 | `GET /api/merchant/after-sales/{id}/return-tracking`、`POST /api/merchant/after-sales/{id}/inspection` | MERCHANT，仅本人售后单 |
 | 支付 | `POST /api/purchase-orders/{id}/payments` | CUSTOMER |
 | 退款 | `POST/GET /api/purchase-orders/{id}/refunds`、`GET /api/refunds/{refundNumber}` | CUSTOMER，仅本人订单 |
 | 收货评价 | `POST /api/purchase-orders/{id}/receive`、`POST /api/order-items/{id}/reviews` | CUSTOMER |
@@ -26,6 +28,10 @@
 - 创建活动提交 `title`、`minimumAmount`、`discountAmount`、`supply`、`startsAt`、`expiresAt`。开始和结束时间采用带时区的 ISO 8601 时间。领券重试返回原券。
 - 报价提交 `addressId`、`itemIds` 以及可选 `couponId`。确认订单提交同样的结算数据作为 `selection`，并带上 `quoteId`。活动关闭、券已锁定、商品门槛未满足或报价变动时，以服务端校验为准。
 - 订单详情返回 `couponId`、`discountAmount` 和 `items[].discountAmount`。分摊、核销和返还状态见 [结算与优惠券](features/CHECKOUT-COUPONS.md)。
+
+## 退货物流 API
+
+登记退货提交承运商 `carrier`、运单号 `trackingNumber` 和可选的顾客退回运费 `returnShippingCost`。签名回调及主动对账把渠道当前状态与轨迹投影到售后单。查询接口返回 `merchantShipmentNo`、`platformShipmentNo`、`carrier`、`trackingNumber`、`status`、`deliveredAt` 和 `events`。没有渠道绑定的历史退货查询返回空响应。商家验收提交 `accepted`、`receivedQuantity` 和 `note`。新登记退货尚未送达时返回状态冲突。
 
 ## 通用定时任务管理 API
 

@@ -118,6 +118,10 @@ appId + "\n" + epochSeconds + "\n" + nonce + "\n" + sha256Hex(rawBody)
 
 当前已实现指标与可审计人工处理；后续运维阶段已将 `DEAD` Gauge 接入 Prometheus Rule、Alertmanager 和可替换 Webhook，详细边界见 [告警管道](ALERTING.md)。
 
+## 退货运单
+
+同一个模拟器协议接受 `CFL-RETURN-<售后单号>` 作为稳定的商家运单号。正向与退货记录在商城投影中以售后单关联区分，复用渠道查询、签名回调、回调 Outbox 和主动对账。退货送达只写物流投影，资金和库存处理仍由售后验收判定。详见 [退货物流功能](features/ORDERS-FULFILLMENT.md#退货物流)。
+
 ## 8. 验收
 
 ```powershell
@@ -127,6 +131,8 @@ pwsh -File ./scripts/verify-logistics.ps1
 Bash（需 `curl`、`jq`、`openssl`）：
 
 脚本会新建已支付订单，完成商家确认/发货，验证签名、重放拒绝、伪造签名拒绝、`EXCEPTION -> RECOVERY`、六个正常轨迹节点、回调投影、客户查询和送达时间。
+
+退货运单使用 `verify-line-after-sales.ps1`，同一 PowerShell 7 脚本在专用隔离项目覆盖中断、乱序和丢失回调，在日常项目仅验证正常链路。
 
 自动轨迹专项：
 

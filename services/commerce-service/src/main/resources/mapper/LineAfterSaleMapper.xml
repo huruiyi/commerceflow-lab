@@ -4,11 +4,15 @@
 
   <sql id="columns">
     id,order_id,order_line_id,product_id,customer_id,merchant_id,quantity,merchandise_amount,
-    shipping_amount,currency,kind,status,reason,decision,tracking_number,refund_number,return_shipping_cost,received_quantity,last_error
+    shipping_amount,currency,kind,status,reason,decision,tracking_number,refund_number,return_shipping_cost,
+    received_quantity,last_error
   </sql>
 
   <select id="find" resultType="vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale">
     SELECT <include refid="columns"/> FROM line_after_sales WHERE id=#{id}
+  </select>
+  <select id="lock" resultType="vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale">
+    SELECT <include refid="columns"/> FROM line_after_sales WHERE id=#{id} FOR UPDATE
   </select>
   <select id="forCustomer" resultType="vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale">
     SELECT <include refid="columns"/> FROM line_after_sales
@@ -34,7 +38,9 @@
       #{merchandiseAmount},#{shippingAmount},#{currency},#{kind},#{status},#{reason})
   </insert>
   <update id="customerReturn">
-    UPDATE line_after_sales SET tracking_number=#{trackingNumber},return_shipping_cost=#{returnShippingCost},status='RETURN_SENT',updated_at=CURRENT_TIMESTAMP(6)
+    UPDATE line_after_sales
+    SET tracking_number=#{trackingNumber},return_shipping_cost=#{returnShippingCost},
+        status='RETURN_SENT',updated_at=CURRENT_TIMESTAMP(6)
     WHERE id=#{id} AND customer_id=#{customerId} AND status='WAITING_RETURN'
   </update>
   <update id="merchantDecision">

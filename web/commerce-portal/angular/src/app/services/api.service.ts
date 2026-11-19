@@ -240,11 +240,22 @@ export class ApiService {
     return this.http.post<AfterSale>('/api/purchase-orders/' + orderId + '/after-sales', body);
   }
 
-  sendAfterSaleReturn(id: string, trackingNumber: string, returnShippingCost: number | null): Observable<AfterSale> {
+  sendAfterSaleReturn(
+    id: string,
+    carrier: string,
+    trackingNumber: string,
+    returnShippingCost: number | null,
+  ): Observable<AfterSale> {
     return this.http.post<AfterSale>('/api/purchase-orders/after-sales/' + id + '/return', {
+      carrier,
       trackingNumber,
       returnShippingCost,
     });
+  }
+
+  afterSaleReturnTracking(id: string, merchant: boolean): Observable<OrderLogistics | null> {
+    const path = merchant ? '/api/merchant/after-sales/' : '/api/purchase-orders/after-sales/';
+    return this.http.get<OrderLogistics | null>(path + id + '/return-tracking');
   }
 
   decideAfterSale(

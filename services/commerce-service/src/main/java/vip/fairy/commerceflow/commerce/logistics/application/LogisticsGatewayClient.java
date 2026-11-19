@@ -58,9 +58,13 @@ public class LogisticsGatewayClient {
   }
 
   public Result create(Long orderId, String orderNumber, String carrier, String trackingNumber) {
+    return create("CFL-ORDER-" + orderId, orderNumber, carrier, trackingNumber);
+  }
+
+  Result create(String merchantShipmentNo, String orderNumber, String carrier, String trackingNumber) {
     try {
       String body = mapper.writeValueAsString(Map.of(
-        "merchantShipmentNo", "CFL-ORDER-" + orderId,
+        "merchantShipmentNo", merchantShipmentNo,
         "orderNumber", orderNumber,
         "carrier", carrier,
         "trackingNumber", trackingNumber,
@@ -111,8 +115,12 @@ public class LogisticsGatewayClient {
   }
 
   public Optional<Result> findShipment(Long orderId) {
+    return findShipment("CFL-ORDER-" + orderId);
+  }
+
+  Optional<Result> findShipment(String merchantShipmentNo) {
     try {
-      return Optional.of(fetchShipment("CFL-ORDER-" + orderId));
+      return Optional.of(fetchShipment(merchantShipmentNo));
     } catch (RestClientResponseException exception) {
       if (exception.getStatusCode().value() == 404) return Optional.empty();
       throw exception;

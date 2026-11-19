@@ -19,6 +19,26 @@ public interface ShipmentMapper {
 
   Optional<ShipmentRecordView> byOrder(Long orderId);
 
+  Optional<ShipmentRecordView> byReturn(String afterSaleId);
+
+  int parcelExists(@Param("carrier") String carrier, @Param("tracking") String tracking);
+
+  void prepareReturn(
+    @Param("orderId") Long orderId,
+    @Param("afterSaleId") String afterSaleId,
+    @Param("orderNumber") String orderNumber,
+    @Param("merchantNo") String merchantNo,
+    @Param("carrier") String carrier,
+    @Param("tracking") String tracking
+  );
+
+  List<ShipmentRecordView> pendingReturns();
+
+  int attachReturn(@Param("id") Long id, @Param("platformNo") String platformNo);
+
+  int updateReturnStatus(@Param("id") Long id, @Param("status") String status,
+                         @Param("occurredAt") Instant occurredAt);
+
   Optional<ShipmentRecordView> lockByMerchantNo(String merchantNo);
 
   List<ShipmentRecordView> reconciliationCandidates(

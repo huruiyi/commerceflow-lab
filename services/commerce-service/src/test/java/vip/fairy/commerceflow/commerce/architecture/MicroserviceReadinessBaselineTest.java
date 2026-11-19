@@ -219,6 +219,8 @@ class MicroserviceReadinessBaselineTest {
       dependency("receipt", "scheduling", 3, 1),
       dependency("refund", "identity", 2, 0),
       dependency("refund", "inventory", 3, 0),
+      // Refund owns inspection. The logistics application owns parcel registration and the read model.
+      dependency("refund", "logistics", 3, 0),
       dependency("refund", "ordering", 4, 2),
       dependency("refund", "payment", 8, 1),
       dependency("review", "catalog", 1, 0),

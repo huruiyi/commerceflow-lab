@@ -14,9 +14,47 @@
     <![CDATA[
       SELECT *
       FROM shipment_records
-      WHERE order_id = #{orderId}
+      WHERE outbound_order_id = #{orderId}
     ]]>
   </select>
+
+  <select id="byReturn" resultType="vip.fairy.commerceflow.commerce.logistics.domain.ShipmentRecordView">
+    SELECT * FROM shipment_records WHERE after_sale_id = #{afterSaleId}
+  </select>
+
+  <select id="parcelExists" resultType="int">
+    SELECT EXISTS (
+      SELECT 1 FROM shipment_records WHERE carrier = #{carrier} AND tracking_number = #{tracking}
+    )
+  </select>
+
+  <insert id="prepareReturn">
+    INSERT INTO shipment_records(order_id, after_sale_id, order_number, merchant_shipment_no,
+                                 carrier, tracking_number, status)
+    VALUES (#{orderId}, #{afterSaleId}, #{orderNumber}, #{merchantNo}, #{carrier}, #{tracking}, 'REQUESTED')
+  </insert>
+
+  <select id="pendingReturns" resultType="vip.fairy.commerceflow.commerce.logistics.domain.ShipmentRecordView">
+    SELECT * FROM shipment_records
+    WHERE after_sale_id IS NOT NULL AND platform_shipment_no IS NULL
+      AND (last_reconciled_at IS NULL OR last_reconciled_at &lt; TIMESTAMPADD(SECOND,-5,CURRENT_TIMESTAMP(6)))
+    ORDER BY COALESCE(last_reconciled_at, created_at), id
+    LIMIT 10
+  </select>
+
+  <update id="attachReturn">
+    UPDATE shipment_records
+    SET platform_shipment_no = #{platformNo}, shipped_at = COALESCE(shipped_at, CURRENT_TIMESTAMP(6))
+    WHERE id = #{id} AND platform_shipment_no IS NULL
+  </update>
+
+  <update id="updateReturnStatus">
+    UPDATE shipment_records
+    SET status = #{status}, last_event_at = #{occurredAt},
+        delivered_at = CASE WHEN #{status} = 'DELIVERED' THEN #{occurredAt} ELSE delivered_at END,
+        updated_at = CURRENT_TIMESTAMP(6)
+    WHERE id = #{id}
+  </update>
 
   <select id="lockByMerchantNo" resultType="vip.fairy.commerceflow.commerce.logistics.domain.ShipmentRecordView">
     <![CDATA[
@@ -32,7 +70,9 @@
     <![CDATA[
       SELECT *
       FROM shipment_records
-      WHERE status <> 'DELIVERED'
+      WHERE (after_sale_id IS NULL AND status <> 'DELIVERED'
+        OR after_sale_id IS NOT NULL AND platform_shipment_no IS NOT NULL
+          AND (status <> 'DELIVERED' OR last_reconciled_at IS NULL OR last_reconciled_at < delivered_at))
         AND COALESCE(last_reconciled_at, updated_at) <= #{updatedBefore}
       ORDER BY COALESCE(last_reconciled_at, updated_at), id
       LIMIT #{limit}
@@ -59,7 +99,7 @@
           tracking_number = #{tracking},
           shipment_version = #{version},
           updated_at = CURRENT_TIMESTAMP
-      WHERE order_id = #{orderId} AND shipment_version < #{version}
+      WHERE outbound_order_id = #{orderId} AND shipment_version < #{version}
     ]]>
   </update>
 
@@ -97,7 +137,7 @@
 
   <insert id="insertNotification">
     <![CDATA[
-      INSERT INTO shipment_notifications(
+      INSERT IGNORE INTO shipment_notifications(
         shipment_id, notification_id, signature_valid, processing_status,
         payload_digest, failure_reason, processed_at
       ) VALUES (
