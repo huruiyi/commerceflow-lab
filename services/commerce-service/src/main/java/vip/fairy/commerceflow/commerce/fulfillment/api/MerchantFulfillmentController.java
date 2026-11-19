@@ -1,6 +1,7 @@
 package vip.fairy.commerceflow.commerce.fulfillment.api;
 
 import java.net.URI;
+import java.time.LocalDate;
 import java.util.UUID;
 import vip.fairy.commerceflow.commerce.fulfillment.application.contract.FulfillmentCommandV1;
 import vip.fairy.commerceflow.commerce.fulfillment.application.MerchantFulfillmentService.CommandResult;
@@ -20,9 +21,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderListReadV1;
+import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderListPage;
+import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderListQuery;
 
 @RestController
 @RequestMapping("/api/merchant/orders")
@@ -31,15 +36,38 @@ public class MerchantFulfillmentController {
 
   private final CurrentUserService users;
   private final MerchantFulfillmentService service;
+  private final OrderListReadV1 search;
 
-  public MerchantFulfillmentController(CurrentUserService users, MerchantFulfillmentService service) {
+  public MerchantFulfillmentController(CurrentUserService users, MerchantFulfillmentService service,
+                                       OrderListReadV1 search) {
     this.users = users;
     this.service = service;
+    this.search = search;
   }
 
   @GetMapping
   List<MerchantOrderResponse> list(Authentication authentication) {
     return service.list(users.require(authentication).getId());
+  }
+
+  @GetMapping("/search")
+  OrderListPage<MerchantOrderResponse> search(Authentication authentication,
+                                             @RequestParam(defaultValue = "") String q,
+                                             @RequestParam(defaultValue = "") String status,
+                                             @RequestParam(required = false) LocalDate from,
+                                             @RequestParam(required = false) LocalDate to,
+                                             @RequestParam(defaultValue = "0") int page,
+                                             @RequestParam(defaultValue = "10") int size,
+                                             @RequestParam(defaultValue = "en") String lang,
+                                             @RequestParam(defaultValue = "UTC") String zone) {
+    Long merchantId = users.require(authentication).getId();
+    var query = OrderListQuery.from(q, status, from, to, page, size, zone);
+    return search.search(null, merchantId, query, lang).map(order -> service.listResponse(order, merchantId));
+  }
+
+  @GetMapping("/{id}")
+  MerchantOrderResponse get(@PathVariable Long id, Authentication authentication) {
+    return service.get(users.require(authentication).getId(), id);
   }
 
   @PostMapping("/fulfillment-v1/commands")

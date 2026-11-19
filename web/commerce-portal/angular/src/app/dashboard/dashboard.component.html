@@ -11,6 +11,16 @@
     </div>
   </header>
 
+  <label class="catalog-sort">
+    <span>{{ 'catalogSort' | t }}</span>
+    <select class="form-select" [ngModel]="sort" (ngModelChange)="changeSort($event)">
+      <option value="default">{{ 'catalogDefaultSort' | t }}</option>
+      <option value="price-asc">{{ 'catalogPriceAscending' | t }}</option>
+      <option value="price-desc">{{ 'catalogPriceDescending' | t }}</option>
+      <option value="rating">{{ 'catalogRatingDescending' | t }}</option>
+    </select>
+  </label>
+
   <div class="product-grid" *ngIf="products">
     <article hlmCard *ngFor="let item of products; let i = index" class="product-card">
       <div class="product-visual">
@@ -127,6 +137,19 @@
                 </button>
               </div>
               <div class="mt-2">{{ 'subtotal' | t }}: {{ selectedProduct.price * selectedQuantity | trcurrency }}</div>
+              <p class="mt-2" role="status" *ngIf="stockLoading">{{ 'loading' | t }}</p>
+              <p class="mt-2" role="status" *ngIf="!stockLoading">
+                {{
+                  !stock
+                    ? ('stockUnknown' | t)
+                    : !stock.listed
+                      ? ('catalogInactive' | t)
+                      : stock.available === 0
+                        ? ('stockSoldOut' | t)
+                        : i18n.t('stockAvailableUnits', { count: stock.available })
+                }}
+              </p>
+              <p *ngIf="basketError" role="alert">{{ basketError | t }}</p>
             </div>
           </div>
         </div>
@@ -136,7 +159,13 @@
         <button hlmBtn variant="outline" type="button" data-bs-dismiss="modal">
           <i class="bi bi-x-circle"></i> {{ 'close' | t }}
         </button>
-        <button hlmBtn *ngIf="selectedProduct" type="button" (click)="fncAddBasket(selectedProduct.id)">
+        <button
+          hlmBtn
+          *ngIf="selectedProduct"
+          type="button"
+          (click)="fncAddBasket(selectedProduct.id)"
+          [disabled]="showLoader || stockLoading || (!!stock && (!stock.listed || selectedQuantity > stock.available))"
+        >
           <i class="bi bi-cart-plus-fill"></i> {{ 'addBasket' | t }} ({{ selectedQuantity }})
         </button>
       </div>

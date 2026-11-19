@@ -6,10 +6,13 @@ import java.util.HexFormat;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.order.application.RemoteOrderProtocolService.ProtocolConflictException;
+import vip.fairy.commerceflow.order.application.contract.v1.OrderSearchV1;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.CreateOrder;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.ItemView;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.Mutation;
@@ -83,6 +86,24 @@ public class OrderStoreService {
         yield new QueryResult(item != null, null, null, null, null, null, null, null, item);
       }
     };
+  }
+
+  @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+  public OrderSearchV1.Result search(OrderSearchV1.Request request) {
+    var criteria = request.criteria();
+    if ((request.customerId() == null) == (request.merchantId() == null)
+        || criteria == null || criteria.page() < 0 || criteria.size() < 1 || criteria.size() > 20
+        || criteria.keyword() == null || criteria.keyword().length() > 120
+        || criteria.productIds() == null) {
+      throw new IllegalArgumentException("Invalid order list filters or scope");
+    }
+    long total = store.countSearch(request);
+    int page = total == 0 ? 0 : (int) Math.min(criteria.page(), (total - 1) / criteria.size());
+    var rows = total == 0 ? List.<OrderView>of() : store.search(request, (long) page * criteria.size());
+    var pending = request.merchantId() == null
+      ? new OrderSearchV1.PendingCounts(0, 0) : store.countPendingMerchant(request.merchantId());
+    return new OrderSearchV1.Result(rows, total, page, criteria.size(),
+      pending.pendingConfirm(), pending.pendingShip());
   }
 
   private QueryResult shipmentLines(Query request) {

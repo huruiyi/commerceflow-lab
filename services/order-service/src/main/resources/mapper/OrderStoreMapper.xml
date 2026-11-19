@@ -28,6 +28,71 @@
     AND EXISTS (SELECT 1 FROM order_items i WHERE i.order_id=o.id AND i.merchant_id=#{merchantId})
   </select>
 
+  <sql id="merchantScope">
+    EXISTS (SELECT 1 FROM order_items own WHERE own.order_id = o.id AND own.merchant_id = #{merchantId})
+  </sql>
+
+  <sql id="searchConditions">
+    <where>
+      <choose>
+        <when test="request.customerId != null">o.customer_id = #{request.customerId}</when>
+        <otherwise>
+          EXISTS (SELECT 1 FROM order_items own WHERE own.order_id = o.id AND own.merchant_id = #{request.merchantId})
+        </otherwise>
+      </choose>
+      <if test="request.criteria.status != null and request.criteria.status != ''">
+        AND o.status = #{request.criteria.status}
+      </if>
+      <if test="request.criteria.from != null">AND o.created_at &gt;= #{request.criteria.from}</if>
+      <if test="request.criteria.until != null">AND o.created_at &lt; #{request.criteria.until}</if>
+      <if test="request.criteria.keyword != ''">
+        AND (
+          LOCATE(LOWER(#{request.criteria.keyword}), LOWER(o.order_number)) &gt; 0
+          OR EXISTS (
+            SELECT 1 FROM order_items item WHERE item.order_id = o.id
+            <if test="request.merchantId != null">AND item.merchant_id = #{request.merchantId}</if>
+            AND (
+              LOCATE(LOWER(#{request.criteria.keyword}), LOWER(item.product_name)) &gt; 0
+              <if test="!request.criteria.productIds.isEmpty()">
+                OR item.product_id IN
+                <foreach collection="request.criteria.productIds" item="productId" open="(" separator="," close=")">
+                  #{productId}
+                </foreach>
+              </if>
+            )
+          )
+          <if test="request.merchantId != null">
+            OR LOCATE(LOWER(#{request.criteria.keyword}), LOWER(o.tracking_number)) &gt; 0
+            OR EXISTS (
+              SELECT 1 FROM order_shipping_addresses a WHERE a.order_id = o.id
+                AND LOCATE(LOWER(#{request.criteria.keyword}), LOWER(a.recipient_name)) &gt; 0
+            )
+          </if>
+        )
+      </if>
+    </where>
+  </sql>
+
+  <select id="countSearch" resultType="long">
+    SELECT COUNT(*) FROM shop_orders o
+    <include refid="searchConditions"/>
+  </select>
+
+  <select id="search" resultType="vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1$OrderView">
+    SELECT o.* FROM shop_orders o
+    <include refid="searchConditions"/>
+    ORDER BY o.created_at DESC, o.id DESC
+    LIMIT #{request.criteria.size} OFFSET #{offset}
+  </select>
+
+  <select id="countPendingMerchant"
+          resultType="vip.fairy.commerceflow.order.application.contract.v1.OrderSearchV1$PendingCounts">
+    SELECT COUNT(CASE WHEN o.status = 'PAID' THEN 1 END) AS pendingConfirm,
+           COUNT(CASE WHEN o.status = 'CONFIRMED' THEN 1 END) AS pendingShip
+    FROM shop_orders o
+    WHERE o.status IN ('PAID', 'CONFIRMED') AND <include refid="merchantScope"/>
+  </select>
+
   <select id="items" resultType="vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1$ItemView">
     SELECT * FROM order_items WHERE order_id=#{orderId} ORDER BY id
   </select>

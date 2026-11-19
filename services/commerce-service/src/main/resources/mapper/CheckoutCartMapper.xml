@@ -4,7 +4,7 @@
 
   <select id="lockItems" resultType="vip.fairy.commerceflow.commerce.cart.domain.CheckoutCartItem">
     <![CDATA[
-      SELECT i.product_id, i.merchant_id, i.product_name, i.thumbnail_url,
+      SELECT i.id, i.product_id, i.merchant_id, i.product_name, i.thumbnail_url,
              i.unit_price, i.quantity
       FROM cart_items i
       JOIN carts c ON c.id = i.cart_id
@@ -24,4 +24,26 @@
         AND a.user_id = #{customerId}
     ]]>
   </select>
+  <select id="address" resultType="vip.fairy.commerceflow.commerce.cart.domain.CheckoutAddressSnapshot">
+    SELECT recipient_name, phone, country_code, state_province, city,
+           district, address_line1, address_line2, postal_code, label
+    FROM shipping_addresses
+    WHERE id = #{addressId} AND user_id = #{customerId}
+  </select>
+  <delete id="removeItems">
+    DELETE FROM cart_items
+    WHERE cart_id IN (SELECT id FROM carts WHERE user_id = #{customerId})
+      AND id IN
+    <foreach collection="itemIds" item="itemId" open="(" separator="," close=")">#{itemId}</foreach>
+  </delete>
+  <insert id="restoreMissing">
+    INSERT INTO cart_items
+      (cart_id, product_id, merchant_id, product_name, thumbnail_url, unit_price, quantity, created_at, updated_at)
+    <foreach collection="items" item="item" separator=" UNION ALL ">
+      SELECT c.id, #{item.productId}, #{item.merchantId}, #{item.productName}, #{item.thumbnailUrl},
+             #{item.unitPrice}, #{item.quantity}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      FROM carts c WHERE c.user_id = #{customerId}
+    </foreach>
+    ON DUPLICATE KEY UPDATE cart_id = cart_items.cart_id
+  </insert>
 </mapper>

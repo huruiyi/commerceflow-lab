@@ -1,4 +1,7 @@
-<h2>{{ 'shippingAddresses' | t }}</h2>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">{{ 'shippingAddresses' | t }}</h2>
+  <a routerLink="/cart">{{ 'backToCart' | t }}</a>
+</div>
 <div *ngIf="message" class="alert alert-success">{{ message }}</div>
 <form #addressForm="ngForm" (ngSubmit)="save()" class="row g-2 mb-4">
   <div class="col-md-4">

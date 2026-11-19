@@ -1,5 +1,7 @@
 package vip.fairy.commerceflow.inventory.infrastructure.persistence;
 
+import vip.fairy.commerceflow.inventory.domain.StockAvailability;
+
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -17,6 +19,8 @@ public interface InventoryMapper {
   List<InventoryReservation> lockByOrder(Long orderId);
 
   List<InventoryReservation> activeReservations(Long orderId);
+
+  List<StockAvailability> availability(@Param("ids") List<Long> ids);
 
   boolean hasMissingReservationLine(Long orderId);
 

@@ -2,6 +2,7 @@ package vip.fairy.commerceflow.commerce.ordering.application;
 
 import java.time.Instant;
 
+import vip.fairy.commerceflow.commerce.cart.application.contract.v1.RejectedCheckoutCartV1;
 import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandV1;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandResultV1;
@@ -26,13 +27,16 @@ public class OrderCancellationProjection implements InventoryCommandPort.StatePr
   private final OrderEffectInboxPort inbox;
   private final InventoryCommandPort inventory;
   private final OrderStorePort orders;
+  private final RejectedCheckoutCartV1 carts;
 
   public OrderCancellationProjection(ObjectMapper mapper, OrderEffectInboxPort inbox,
-                                     InventoryCommandPort inventory, OrderStorePort orders) {
+                                     InventoryCommandPort inventory, OrderStorePort orders,
+                                     RejectedCheckoutCartV1 carts) {
     this.mapper = mapper;
     this.inbox = inbox;
     this.inventory = inventory;
     this.orders = orders;
+    this.carts = carts;
   }
 
   @KafkaListener(topics = "order-events", groupId = CONSUMER_GROUP)
@@ -102,8 +106,18 @@ public class OrderCancellationProjection implements InventoryCommandPort.StatePr
       reconciliationRequired(command);
       return;
     }
-    String current = orders.lockById(command.orderId()).orElseThrow().getInventoryStatus();
-    if ("WAITING_RESERVATION".equals(current) || "RECONCILIATION_REQUIRED".equals(current)) {
+    var order = orders.lockById(command.orderId()).orElseThrow();
+    String current = order.getInventoryStatus();
+    boolean awaitingResult = "WAITING_RESERVATION".equals(current) || "RECONCILIATION_REQUIRED".equals(current);
+    if ((awaitingResult || "RESERVATION_REJECTED".equals(current))
+        && InventoryCommandV1.REVIEWED_CHECKOUT.equals(command.reason())) {
+      var items = orders.items(command.orderId()).stream()
+        .map(item -> new RejectedCheckoutCartV1.Item(item.getProductId(), item.getMerchantId(), item.getProductName(),
+          item.getThumbnailUrl(), item.getUnitPrice(), item.getQuantity()))
+        .toList();
+      if (!items.isEmpty()) carts.restoreMissing(order.getCustomerId(), items);
+    }
+    if (awaitingResult) {
       requireTransition(command.orderId(), current, "RESERVATION_REJECTED");
     }
   }

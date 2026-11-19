@@ -58,6 +58,11 @@
           </a>
         </li>
         <li class="nav-item" *ngIf="bilgiler.role === 'MERCHANT'">
+          <a class="nav-link" [routerLink]="['/merchant/products']" routerLinkActive="active">{{
+            'merchantProducts' | t
+          }}</a>
+        </li>
+        <li class="nav-item" *ngIf="bilgiler.role === 'MERCHANT'">
           <a class="nav-link" [routerLink]="['/merchant/orders']" routerLinkActive="active">{{ 'fulfillment' | t }}</a>
         </li>
         <li class="nav-item" *ngIf="bilgiler.role === 'MERCHANT'">

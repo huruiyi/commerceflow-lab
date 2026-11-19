@@ -1,7 +1,28 @@
 import { ChangeDetectorRef, Component, DestroyRef, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { finalize, forkJoin } from 'rxjs';
-import { OrderAction, OrderEvent, PaymentChannel, PurchaseOrder } from 'src/model/IPurchaseOrder';
+import {
+  catchError,
+  exhaustMap,
+  filter,
+  finalize,
+  forkJoin,
+  Observable,
+  of,
+  switchMap,
+  take,
+  timeout,
+  TimeoutError,
+  timer,
+} from 'rxjs';
+import {
+  initialOrderSearch,
+  OrderAction,
+  OrderEvent,
+  OrderSearchCriteria,
+  OrderSearchPage,
+  PaymentChannel,
+  PurchaseOrder,
+} from 'src/model/IPurchaseOrder';
 import { ApiService } from '../services/api.service';
 import { I18nService } from '../services/i18n.service';
 
@@ -65,7 +86,10 @@ export class PurchaseOrdersComponent implements OnInit {
     },
   ];
   orders: PurchaseOrder[] = [];
+  criteria = { ...initialOrderSearch };
+  page?: OrderSearchPage;
   paying = new Set<number>();
+  refreshingPayment = new Set<number>();
   selectedChannels: Record<number, PaymentChannel> = {};
   draftKeys: Record<number, string> = {};
   lastAttempts: Record<number, PaymentAttempt> = {};
@@ -81,6 +105,7 @@ export class PurchaseOrdersComponent implements OnInit {
   refundKeys: Record<number, string> = {};
   cancelForms = new Set<number>();
   cancelling = new Set<number>();
+  receiving = new Set<number>();
   cancellationReasons: Record<number, string> = {};
   unavailableProductImages = new Set<number>();
   expandedOrders = new Set<number>();
@@ -101,40 +126,47 @@ export class PurchaseOrdersComponent implements OnInit {
     this.i18n.localeChanged.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.reload());
   }
 
-  reload(): void {
+  reload(criteria: OrderSearchCriteria = this.criteria): void {
+    this.criteria = criteria;
     const version = ++this.loadVersion;
     this.loading = true;
     this.loadError = '';
     forkJoin({
-      orders: this.api.purchaseOrders(),
-      products: this.api.allProducts(),
-    }).subscribe({
-      next: ({ orders, products }) => {
-        if (version !== this.loadVersion) return;
-        const catalogProducts = new Map(products.map((product) => [product.id, product]));
-        this.orders = orders.map((order) => ({
-          ...order,
-          items: order.items.map((item) => ({
-            ...item,
-            productName: catalogProducts.get(item.productId)?.name ?? item.productName,
-            thumbnailUrl: catalogProducts.get(item.productId)?.thumbnailUrl ?? item.thumbnailUrl,
-          })),
-        }));
-        this.orders.forEach((order) => this.initializeOrder(order));
-        if (!this.expansionInitialized && this.orders.length) {
-          this.expandedOrders.add(this.orders[0].id);
-          this.expansionInitialized = true;
-        }
-        this.loading = false;
-        this.changeDetector.markForCheck();
-      },
-      error: () => {
-        if (version !== this.loadVersion) return;
-        this.loading = false;
-        this.loadError = this.i18n.t('ordersLoadFailed');
-        this.changeDetector.markForCheck();
-      },
-    });
+      page: this.api.searchOrders(criteria),
+      products: this.api.allProducts().pipe(catchError(() => of([]))),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ page, products }) => {
+          if (version !== this.loadVersion) return;
+          this.page = page;
+          this.criteria = { ...criteria, page: page.page };
+          const catalogProducts = new Map(products.map((product) => [product.id, product]));
+          this.orders = page.orders.map((order) => ({
+            ...order,
+            items: order.items.map((item) => ({
+              ...item,
+              productName: catalogProducts.get(item.productId)?.name ?? item.productName,
+              thumbnailUrl: catalogProducts.get(item.productId)?.thumbnailUrl ?? item.thumbnailUrl,
+            })),
+          }));
+          this.orders.forEach((order) => this.initializeOrder(order));
+          if (!this.expansionInitialized && this.orders.length) {
+            this.expandedOrders.add(this.orders[0].id);
+            this.expansionInitialized = true;
+          }
+          this.loading = false;
+          this.changeDetector.markForCheck();
+        },
+        error: () => {
+          if (version !== this.loadVersion) return;
+          this.page = undefined;
+          this.orders = [];
+          this.loading = false;
+          this.loadError = this.i18n.t('ordersLoadFailed');
+          this.changeDetector.markForCheck();
+        },
+      });
   }
 
   selectChannel(order: PurchaseOrder, channel: PaymentChannel): void {
@@ -227,33 +259,77 @@ export class PurchaseOrdersComponent implements OnInit {
   }
 
   cancelOrder(order: PurchaseOrder): void {
+    if (this.cancelling.has(order.id)) return;
     this.cancelling.add(order.id);
+    delete this.notices[order.id];
     this.api
       .cancelOrder(order.id, this.cancellationReasons[order.id] ?? '')
-      .pipe(finalize(() => this.cancelling.delete(order.id)))
+      .pipe(
+        switchMap((updated) => {
+          this.orders = this.orders.map((value) => (value.id === updated.id ? updated : value));
+          this.cancelForms.delete(order.id);
+          this.changeDetector.markForCheck();
+          return updated.status === 'CANCELLING'
+            ? this.awaitOrder(order.id, (current) => current.status !== 'CANCELLING')
+            : of(updated);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => {
+          this.cancelling.delete(order.id);
+          this.changeDetector.markForCheck();
+        }),
+      )
       .subscribe({
         next: (updated) => {
           this.orders = this.orders.map((value) => (value.id === updated.id ? updated : value));
           this.cancelForms.delete(order.id);
-          this.notices[order.id] = { type: 'success', text: this.i18n.t('orderCancelled') };
+          this.notices[order.id] =
+            updated.status === 'CANCELLED'
+              ? { type: 'success', text: this.i18n.t('orderCancelled') }
+              : { type: 'danger', text: this.i18n.t('orderCancelFailed') };
         },
         error: (error) =>
-          (this.notices[order.id] = {
-            type: 'danger',
-            text: error.error?.message ?? this.i18n.t('orderCancelFailed'),
-          }),
+          (this.notices[order.id] =
+            error instanceof TimeoutError
+              ? { type: 'info', text: this.i18n.t('orderStatusPending') }
+              : { type: 'danger', text: error.error?.message ?? this.i18n.t('orderCancelFailed') }),
       });
   }
 
   refresh(order: PurchaseOrder): void {
-    this.api.purchaseOrder(order.id).subscribe((updated) => {
-      this.orders = this.orders.map((item) => (item.id === updated.id ? updated : item));
-      this.notices[order.id] = {
-        type: updated.status === 'PAID' ? 'success' : 'info',
-        text: this.i18n.t(updated.status === 'PAID' ? 'signedCallbackPaid' : 'waitingCallback'),
-      };
-      this.changeDetector.markForCheck();
-    });
+    if (this.refreshingPayment.has(order.id)) return;
+    this.refreshingPayment.add(order.id);
+    this.api
+      .purchaseOrder(order.id)
+      .pipe(
+        switchMap((updated) => {
+          this.updatePaymentOrder(updated, 'waitingCallback');
+          this.changeDetector.markForCheck();
+          return this.paymentAwaitingOrder(updated)
+            ? this.awaitOrder(order.id, (current) => current.status !== 'PENDING_PAYMENT')
+            : of(updated);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => {
+          this.refreshingPayment.delete(order.id);
+          this.changeDetector.markForCheck();
+        }),
+      )
+      .subscribe({
+        next: (updated) => {
+          this.updatePaymentOrder(updated, 'waitingCallback');
+        },
+        error: (error) => {
+          this.notices[order.id] =
+            error instanceof TimeoutError
+              ? { type: 'info', text: this.i18n.t('paymentAwaitingOrder') }
+              : { type: 'danger', text: error.error?.message ?? this.i18n.t('requestFailed') };
+        },
+      });
+  }
+
+  paymentAwaitingOrder(order: PurchaseOrder): boolean {
+    return order.status === 'PENDING_PAYMENT' && order.payment?.status === 'SUCCESS';
   }
 
   openCheckout(order: PurchaseOrder): void {
@@ -268,13 +344,27 @@ export class PurchaseOrdersComponent implements OnInit {
   }
 
   receive(order: PurchaseOrder): void {
-    this.api.receiveOrder(order.id).subscribe((updated) => {
-      this.orders = this.orders.map((o) => (o.id === updated.id ? updated : o));
-      this.notices[order.id] = {
-        type: 'success',
-        text: this.i18n.t('receiptConfirmed'),
-      };
-    });
+    if (this.receiving.has(order.id)) return;
+    this.receiving.add(order.id);
+    delete this.notices[order.id];
+    this.api
+      .receiveOrder(order.id)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => {
+          this.receiving.delete(order.id);
+          this.changeDetector.markForCheck();
+        }),
+      )
+      .subscribe({
+        next: (updated) => {
+          this.orders = this.orders.map((o) => (o.id === updated.id ? updated : o));
+          this.notices[order.id] = { type: 'success', text: this.i18n.t('receiptConfirmed') };
+        },
+        error: (error) => {
+          this.notices[order.id] = { type: 'danger', text: error.error?.message ?? this.i18n.t('requestFailed') };
+        },
+      });
   }
 
   async copyTracking(order: PurchaseOrder): Promise<void> {
@@ -324,7 +414,9 @@ export class PurchaseOrdersComponent implements OnInit {
   }
 
   requestRefund(order: PurchaseOrder): void {
+    if (this.refunding.has(order.id)) return;
     this.refunding.add(order.id);
+    delete this.notices[order.id];
     this.api
       .requestRefund(
         order.id,
@@ -332,35 +424,60 @@ export class PurchaseOrdersComponent implements OnInit {
         this.refundReasons[order.id] ?? 'CUSTOMER_CANCELLED',
         this.refundDetails[order.id] ?? '',
       )
-      .pipe(finalize(() => this.refunding.delete(order.id)))
-      .subscribe({
-        next: (refund) => {
-          this.orders = this.orders.map((value) =>
-            value.id === order.id
-              ? {
-                  ...value,
-                  status: refund.status === 'SUCCEEDED' ? 'REFUNDED' : 'REFUNDING',
-                  refund,
-                }
-              : value,
-          );
+      .pipe(
+        switchMap((refund) => {
+          if (!['SUCCEEDED', 'FAILED'].includes(refund.status)) {
+            this.orders = this.orders.map((value) =>
+              value.id === order.id ? { ...value, status: 'REFUNDING', refund } : value,
+            );
+            this.notices[order.id] = {
+              type: 'info',
+              text: this.i18n.t('refundProcessing', { refund: refund.refundNumber }),
+            };
+          }
           this.refundForms.delete(order.id);
-          this.notices[order.id] = {
-            type: refund.status === 'SUCCEEDED' ? 'success' : 'info',
-            text: this.i18n.t(refund.status === 'SUCCEEDED' ? 'refundSucceeded' : 'refundProcessing', {
-              refund: refund.refundNumber,
-            }),
-          };
+          this.changeDetector.markForCheck();
+          return this.awaitOrder(
+            order.id,
+            (current) =>
+              current.refund?.refundNumber === refund.refundNumber &&
+              ((current.refund.status === 'SUCCEEDED' && current.status === 'REFUNDED') ||
+                (current.refund.status === 'FAILED' && current.status !== 'REFUNDING')),
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => {
+          this.refunding.delete(order.id);
+          this.changeDetector.markForCheck();
+        }),
+      )
+      .subscribe({
+        next: (updated) => {
+          this.orders = this.orders.map((value) => (value.id === updated.id ? updated : value));
+          this.notices[order.id] =
+            updated.refund?.status === 'SUCCEEDED'
+              ? { type: 'success', text: this.i18n.t('refundSucceeded', { refund: updated.refund.refundNumber }) }
+              : { type: 'danger', text: updated.refund?.failureReason || this.i18n.t('refundFailed') };
         },
         error: (error) =>
-          (this.notices[order.id] = {
-            type: 'danger',
-            text: error.error?.message ?? this.i18n.t('refundFailed'),
-          }),
+          (this.notices[order.id] =
+            error instanceof TimeoutError
+              ? { type: 'info', text: this.i18n.t('orderStatusPending') }
+              : { type: 'danger', text: error.error?.message ?? this.i18n.t('refundFailed') }),
       });
   }
 
+  private awaitOrder(id: number, complete: (order: PurchaseOrder) => boolean): Observable<PurchaseOrder> {
+    return timer(0, 1000).pipe(
+      exhaustMap(() => this.api.purchaseOrder(id)),
+      filter(complete),
+      take(1),
+      timeout({ first: 60000 }),
+    );
+  }
+
   private execute(order: PurchaseOrder, attempt: PaymentAttempt, replay: boolean): void {
+    if (this.paying.has(order.id)) return;
     this.paying.add(order.id);
     this.notices[order.id] = {
       type: 'info',
@@ -379,13 +496,7 @@ export class PurchaseOrdersComponent implements OnInit {
           attempt.paymentNumber = updated.payment?.paymentNumber;
           this.lastAttempts[order.id] = attempt;
           this.persist(order.id, attempt);
-          this.orders = this.orders.map((item) => (item.id === updated.id ? updated : item));
-          this.notices[order.id] = {
-            type: 'info',
-            text: this.i18n.t('paymentPending', {
-              payment: attempt.paymentNumber ?? '',
-            }),
-          };
+          this.updatePaymentOrder(updated, 'paymentPending');
         },
         error: (error) => {
           if (!replay || !this.lastAttempts[order.id]) {
@@ -408,6 +519,7 @@ export class PurchaseOrdersComponent implements OnInit {
         this.lastAttempts[order.id] = attempt;
         this.selectedChannels[order.id] = attempt.channel;
         this.draftKeys[order.id] = attempt.key;
+        this.prepareRetry(order);
         return;
       } catch {
         sessionStorage.removeItem(this.storageKey(order.id));
@@ -415,6 +527,47 @@ export class PurchaseOrdersComponent implements OnInit {
     }
     this.selectedChannels[order.id] = (order.payment?.channel as PaymentChannel) ?? 'ALIPAY';
     this.draftKeys[order.id] = crypto.randomUUID();
+  }
+
+  private updatePaymentOrder(order: PurchaseOrder, pendingKey: string): void {
+    this.orders = this.orders.map((item) => (item.id === order.id ? order : item));
+    this.prepareRetry(order);
+    const status = order.payment?.status;
+    if (this.paymentAwaitingOrder(order)) {
+      this.notices[order.id] = { type: 'info', text: this.i18n.t('paymentAwaitingOrder') };
+    } else if (status === 'SUCCESS') {
+      this.notices[order.id] = { type: 'success', text: this.i18n.t('signedCallbackPaid') };
+    } else if (this.canRetryPayment(order)) {
+      this.notices[order.id] = {
+        type: 'warning',
+        text: this.i18n.t(status === 'EXPIRED' ? 'paymentExpiredRetry' : 'paymentEndedRetry'),
+      };
+    } else if (status === 'PENDING' || !status) {
+      this.notices[order.id] = {
+        type: 'info',
+        text: this.i18n.t(pendingKey, { payment: order.payment?.paymentNumber ?? '' }),
+      };
+    } else {
+      delete this.notices[order.id];
+    }
+  }
+
+  private canRetryPayment(order: PurchaseOrder): boolean {
+    return (
+      !!order.payment && this.hasAction(order, 'PAY') && ['FAILED', 'EXPIRED', 'CLOSED'].includes(order.payment.status)
+    );
+  }
+
+  private prepareRetry(order: PurchaseOrder): void {
+    if (!this.canRetryPayment(order)) return;
+    const previous = this.lastAttempts[order.id];
+    if (
+      previous?.paymentNumber &&
+      previous.paymentNumber === order.payment?.paymentNumber &&
+      this.draftKeys[order.id] === previous.key
+    ) {
+      this.draftKeys[order.id] = crypto.randomUUID();
+    }
   }
 
   private persist(orderId: number, attempt: PaymentAttempt): void {

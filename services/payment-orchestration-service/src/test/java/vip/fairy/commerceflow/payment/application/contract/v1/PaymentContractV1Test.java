@@ -14,6 +14,7 @@ class PaymentContractV1Test {
 
   @Test
   void frozenCommerceFixturesRemainCompatible() throws Exception {
+    assertEquals("UNION_PAY", json.readValue("\"UNION_PAY\"", PaymentChannelV1.class).name());
     try (InputStream createFixture = getClass().getResourceAsStream(
       "/contracts/payment/payment-create-command-v1.json");
          InputStream closeFixture = getClass().getResourceAsStream(

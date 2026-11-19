@@ -3,11 +3,15 @@ package vip.fairy.commerceflow.commerce.inventory.infrastructure.transport;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import tools.jackson.core.JacksonException;
@@ -15,9 +19,11 @@ import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandResultV1;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandV1;
 import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryReservationQuery;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.StockAvailabilityQuery;
+import vip.fairy.commerceflow.commerce.shared.application.ExternalServiceUnavailableException;
 
 @Component
-public class InventoryRemoteCommandClient implements InventoryReservationQuery {
+public class InventoryRemoteCommandClient implements InventoryReservationQuery, StockAvailabilityQuery {
 
   private static final String TARGET = "/internal/v1/inventory/commands";
 
@@ -78,6 +84,27 @@ public class InventoryRemoteCommandClient implements InventoryReservationQuery {
         throw exception;
       }
       throw new InventoryRemoteUnavailableException(exception);
+    }
+  }
+
+  @Override
+  public Map<Long, Stock> availability(Collection<Long> productIds) {
+    List<Long> ids = productIds.stream().distinct().toList();
+    Map<Long, Stock> stocks = new HashMap<>();
+    String target = "/internal/v1/inventory/availability";
+    try {
+      for (int start = 0; start < ids.size(); start += 200) {
+        String payload = mapper.writeValueAsString(ids.subList(start, Math.min(start + 200, ids.size())));
+        List<Stock> batch = client.post().uri(URI.create(baseUrl + target))
+          .headers(headers -> signer.sign(headers, "POST", target, signer.contentHash(payload)))
+          .contentType(MediaType.APPLICATION_JSON)
+          .body(payload).retrieve().requiredBody(new ParameterizedTypeReference<>() {});
+        batch.forEach(stock -> stocks.put(stock.productId(), stock));
+      }
+      return stocks;
+    } catch (RuntimeException exception) {
+      throw new ExternalServiceUnavailableException("STOCK_LOOKUP_UNAVAILABLE",
+        "Stock availability could not be checked", exception);
     }
   }
 

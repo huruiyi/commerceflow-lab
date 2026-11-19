@@ -1,0 +1,80 @@
+<section class="order-filter" [attr.aria-label]="'searchOrders' | t">
+  <div *ngIf="merchant() && result() as queues" class="d-flex flex-wrap gap-2 mb-3">
+    <button
+      hlmBtn
+      variant="outline"
+      type="button"
+      [attr.aria-pressed]="applied().status === 'PAID'"
+      (click)="selectQueue('PAID')"
+    >
+      {{ i18n.t('merchantPendingConfirm', { count: queues.pendingConfirm }) }}
+    </button>
+    <button
+      hlmBtn
+      variant="outline"
+      type="button"
+      [attr.aria-pressed]="applied().status === 'CONFIRMED'"
+      (click)="selectQueue('CONFIRMED')"
+    >
+      {{ i18n.t('merchantPendingShip', { count: queues.pendingShip }) }}
+    </button>
+  </div>
+  <form class="filter-controls" (ngSubmit)="apply()">
+    <label>
+      <span>{{ 'searchOrders' | t }}</span>
+      <input
+        class="form-control"
+        type="search"
+        name="query"
+        maxlength="120"
+        [(ngModel)]="draft.q"
+        [placeholder]="(merchant() ? 'merchantOrderSearchHint' : 'customerOrderSearchHint') | t"
+      />
+    </label>
+    <label>
+      <span>{{ 'status' | t }}</span>
+      <select class="form-select" name="status" [(ngModel)]="draft.status">
+        <option value="">{{ 'allStatuses' | t }}</option>
+        <option *ngFor="let option of statuses" [value]="option">{{ option | t }}</option>
+      </select>
+    </label>
+    <label>
+      <span>{{ 'orderDateFrom' | t }}</span>
+      <input class="form-control" type="date" name="from" [(ngModel)]="draft.from" />
+    </label>
+    <label>
+      <span>{{ 'orderDateTo' | t }}</span>
+      <input class="form-control" type="date" name="to" [(ngModel)]="draft.to" />
+    </label>
+    <div class="d-flex flex-wrap gap-2">
+      <button hlmBtn type="submit" [disabled]="invalidDateRange">{{ 'search' | t }}</button>
+      <button hlmBtn variant="outline" type="button" (click)="clear()">{{ 'clearOrderFilters' | t }}</button>
+    </div>
+  </form>
+  <p *ngIf="invalidDateRange" role="alert">{{ 'invalidOrderDates' | t }}</p>
+  <p *ngIf="loading()" class="filter-result" role="status">{{ 'loading' | t }}</p>
+  <ng-container *ngIf="!loading() && result() as page">
+    <p class="filter-result" role="status">
+      {{ page.total ? i18n.t('orderSearchTotal', { count: page.total }) : ('noOrdersMatch' | t) }}
+    </p>
+    <nav
+      *ngIf="pageCount > 1"
+      class="d-flex flex-wrap align-items-center gap-2 mt-2"
+      [attr.aria-label]="'orderPagination' | t"
+    >
+      <button hlmBtn variant="outline" type="button" [disabled]="page.page === 0" (click)="go(page.page - 1)">
+        {{ 'orderPreviousPage' | t }}
+      </button>
+      <span>{{ i18n.t('orderPageOf', { page: page.page + 1, total: pageCount }) }}</span>
+      <button
+        hlmBtn
+        variant="outline"
+        type="button"
+        [disabled]="page.page + 1 >= pageCount"
+        (click)="go(page.page + 1)"
+      >
+        {{ 'orderNextPage' | t }}
+      </button>
+    </nav>
+  </ng-container>
+</section>

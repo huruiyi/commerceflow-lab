@@ -76,6 +76,10 @@ public class MerchantFulfillmentService {
       .toList();
   }
 
+  public MerchantOrderResponse get(Long merchantId, Long id) {
+    return listResponse(require(merchantId, id), merchantId);
+  }
+
   public OperationResult confirm(Long merchantId, Long id) {
     ShopOrderView prepared = require(merchantId, id);
     if (!"PAID".equals(prepared.getStatus())) {
@@ -187,14 +191,22 @@ public class MerchantFulfillmentService {
   }
 
   private MerchantOrderResponse response(ShopOrderView order) {
-    RefundSnapshotV1 refund = payments.refund(
+    return listResponse(order, null);
+  }
+
+  public MerchantOrderResponse listResponse(ShopOrderView order, Long merchantId) {
+    var orderItems = orders.items(order.getId());
+    var merchantItems = merchantId == null ? orderItems
+      : orderItems.stream().filter(item -> merchantId.equals(item.getMerchantId())).toList();
+    boolean sharedOrder = merchantItems.size() < orderItems.size();
+    RefundSnapshotV1 refund = sharedOrder ? null : payments.refund(
       new PaymentQueryV1(PaymentQueryV1.VERSION, order.getId())).orElse(null);
-    List<ShopOrderResponse.Item> items = orders.items(order.getId())
+    List<ShopOrderResponse.Item> items = merchantItems
       .stream()
       .map(ShopOrderResponse.Item::from)
       .toList();
     ShopOrderResponse.Address address = ShopOrderResponse.Address.from(orders.address(order.getId()));
-    List<MerchantOrderResponse.Event> events = orders.events(order.getId())
+    List<MerchantOrderResponse.Event> events = sharedOrder ? List.of() : orders.events(order.getId())
       .stream()
       .filter(event -> visibleEvent(event.getEventType(), event.getDetail()))
       .map(MerchantOrderResponse.Event::from)
@@ -204,7 +216,8 @@ public class MerchantFulfillmentService {
       order.getOrderNumber(),
       order.getStatus(),
       order.getInventoryStatus(),
-      order.getTotalAmount(),
+      sharedOrder ? items.stream().map(ShopOrderResponse.Item::subtotal)
+        .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add) : order.getTotalAmount(),
       order.getCurrency(),
       order.getCreatedAt(),
       order.getConfirmedAt(),

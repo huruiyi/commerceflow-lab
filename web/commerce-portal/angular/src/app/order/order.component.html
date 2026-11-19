@@ -1,78 +1,164 @@
 <div class="d-flex justify-content-between align-items-center">
   <h2>{{ 'shoppingCart' | t }}</h2>
-  <button *ngIf="customerOrders.length" class="btn btn-outline-danger" (click)="clearCart()">
+  <button
+    *ngIf="customerOrders.length"
+    class="btn btn-outline-danger"
+    (click)="clearCart()"
+    [disabled]="checkingOut || loadingCart || changingCart || updatingOrderIds.size > 0"
+  >
     {{ 'clearCart' | t }}
   </button>
 </div>
-<div *ngIf="customerOrders && customerOrders.length > 0">
+<div *ngIf="cartLoadFailed" class="alert alert-danger" role="alert">
+  {{ 'requestFailed' | t }}
+  <button class="btn btn-outline-danger" type="button" (click)="refreshCart()">{{ 'retry' | t }}</button>
+</div>
+<div *ngIf="customerOrders.length > 0">
   <div *ngIf="checkoutError" class="alert alert-danger">
     {{ checkoutError }} <a routerLink="/addresses">{{ 'manageAddresses' | t }}</a>
   </div>
-  <table class="table table-hover">
-    <thead>
-      <tr>
-        <th scope="col">{{ 'itemId' | t }}</th>
-        <th scope="col">{{ 'productImage' | t }}</th>
-        <th scope="col">{{ 'updated' | t }}</th>
-        <th scope="col">{{ 'productName' | t }}</th>
-        <th scope="col">{{ 'unitPrice' | t }}</th>
-        <th scope="col">{{ 'quantity' | t }}</th>
-        <th scope="col">{{ 'subtotal' | t }}</th>
-        <th scope="col">{{ 'action' | t }}</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let order of customerOrders">
-        <td>{{ order.id }}</td>
-        <td><img src="{{ order.thumbnailUrl }}" class="img-thumbnail" /></td>
-        <td>{{ order.createdAt | trdate }}</td>
-        <td>{{ order.productName }}</td>
-        <td>{{ order.price | trcurrency }}</td>
-        <td>
-          <div class="input-group input-group-sm" style="width: 145px">
-            <button
-              class="btn btn-outline-secondary"
-              type="button"
-              (click)="changeQuantity(order, order.quantity - 1)"
-              [disabled]="order.quantity <= 1 || updatingOrderIds.has(order.id)"
-              [attr.aria-label]="'decreaseQuantity' | t"
-            >
-              −
-            </button>
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th scope="col">
+            <label class="d-flex align-items-center gap-2 text-nowrap">
+              <input
+                #allItems
+                class="form-check-input mt-0"
+                type="checkbox"
+                [checked]="selectedItems.length === customerOrders.length"
+                [indeterminate]="selectedItems.length > 0 && selectedItems.length < customerOrders.length"
+                [disabled]="checkingOut || loadingCart || changingCart"
+                (change)="selectAll(allItems.checked)"
+              />
+              {{ 'selectAllCartItems' | t }}
+            </label>
+          </th>
+          <th scope="col">{{ 'itemId' | t }}</th>
+          <th scope="col">{{ 'productImage' | t }}</th>
+          <th scope="col">{{ 'updated' | t }}</th>
+          <th scope="col">{{ 'productName' | t }}</th>
+          <th scope="col">{{ 'unitPrice' | t }}</th>
+          <th scope="col">{{ 'quantity' | t }}</th>
+          <th scope="col">{{ 'subtotal' | t }}</th>
+          <th scope="col">{{ 'action' | t }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let order of customerOrders">
+          <td>
             <input
-              type="number"
-              class="form-control text-center"
-              min="1"
-              max="99"
-              [value]="order.quantity"
-              (change)="quantityInput(order, $event)"
-              [disabled]="updatingOrderIds.has(order.id)"
-              [attr.aria-label]="'orderQuantity' | t"
+              #selected
+              class="form-check-input"
+              type="checkbox"
+              [checked]="isSelected(order)"
+              [disabled]="checkingOut || loadingCart || changingCart"
+              [attr.aria-label]="i18n.t('selectCartItem', { product: order.productName })"
+              (change)="selectItem(order, selected.checked)"
             />
+          </td>
+          <td>{{ order.id }}</td>
+          <td><img src="{{ order.thumbnailUrl }}" class="img-thumbnail" /></td>
+          <td>{{ order.createdAt | trdate }}</td>
+          <td>
+            {{ order.productName }}
+            <p *ngIf="stockProblem(order) as problem" class="text-danger mb-0">{{ problem }}</p>
+          </td>
+          <td>{{ order.price | trcurrency }}</td>
+          <td>
+            <div class="input-group input-group-sm" style="width: 145px">
+              <button
+                class="btn btn-outline-secondary"
+                type="button"
+                (click)="changeQuantity(order, order.quantity - 1)"
+                [disabled]="
+                  checkingOut || loadingCart || changingCart || order.quantity <= 1 || updatingOrderIds.has(order.id)
+                "
+                [attr.aria-label]="'decreaseQuantity' | t"
+              >
+                −
+              </button>
+              <input
+                type="number"
+                class="form-control text-center"
+                min="1"
+                max="99"
+                [value]="order.quantity"
+                (change)="quantityInput(order, $event)"
+                [disabled]="checkingOut || loadingCart || changingCart || updatingOrderIds.has(order.id)"
+                [attr.aria-label]="'orderQuantity' | t"
+              />
+              <button
+                class="btn btn-outline-secondary"
+                type="button"
+                (click)="changeQuantity(order, order.quantity + 1)"
+                [disabled]="
+                  checkingOut || loadingCart || changingCart || order.quantity >= 99 || updatingOrderIds.has(order.id)
+                "
+                [attr.aria-label]="'increaseQuantity' | t"
+              >
+                +
+              </button>
+            </div>
+          </td>
+          <td>{{ order.totalPrice | trcurrency }}</td>
+          <td>
             <button
-              class="btn btn-outline-secondary"
-              type="button"
-              (click)="changeQuantity(order, order.quantity + 1)"
-              [disabled]="order.quantity >= 99 || updatingOrderIds.has(order.id)"
-              [attr.aria-label]="'increaseQuantity' | t"
+              class="btn btn-sm btn-outline-danger"
+              (click)="remove(order)"
+              [disabled]="checkingOut || loadingCart || changingCart || updatingOrderIds.size > 0"
             >
-              +
+              {{ 'remove' | t }}
             </button>
-          </div>
-        </td>
-        <td>{{ order.totalPrice | trcurrency }}</td>
-        <td>
-          <button class="btn btn-sm btn-outline-danger" (click)="remove(order)">{{ 'remove' | t }}</button>
-        </td>
-      </tr>
-    </tbody>
-  </table>
-  <div class="text-end">
-    <button class="btn btn-success" (click)="checkout()" [disabled]="checkingOut">
-      {{ checkingOut ? '...' : ('checkout' | t) }}
-    </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </div>
+  <section class="border rounded p-3">
+    <h3 class="h5">{{ 'checkoutReview' | t }}</h3>
+    <div *ngIf="loadingAddresses" role="status">{{ 'checkoutAddressesLoading' | t }}</div>
+    <div *ngIf="addressError" role="alert">
+      {{ 'checkoutAddressesFailed' | t }}
+      <button class="btn btn-link" type="button" (click)="loadAddresses()">{{ 'retry' | t }}</button>
+    </div>
+    <label *ngIf="!loadingAddresses && !addressError && addresses.length" class="d-block">
+      {{ 'addresses' | t }}
+      <select class="form-select mt-1" [(ngModel)]="addressId" [disabled]="checkingOut">
+        <option [ngValue]="undefined" disabled>{{ 'chooseCheckoutAddress' | t }}</option>
+        <option *ngFor="let address of addresses" [ngValue]="address.id">
+          {{ address.recipientName }} · {{ address.phone }} · {{ address.stateProvince }} {{ address.city }}
+          {{ address.district }} {{ address.addressLine1 }} {{ address.addressLine2 }}
+        </option>
+      </select>
+    </label>
+    <p *ngIf="!loadingAddresses && !addressError && !addresses.length" role="status">
+      {{ 'checkoutAddressRequired' | t }}
+    </p>
+    <div class="d-flex flex-wrap gap-3 align-items-center">
+      <a routerLink="/addresses">{{ 'manageAddresses' | t }}</a>
+      <button
+        *ngIf="hasStockProblems"
+        class="btn btn-outline-secondary"
+        type="button"
+        (click)="refreshCart()"
+        [disabled]="loadingCart || updatingOrderIds.size > 0"
+      >
+        {{ 'refreshStock' | t }}
+      </button>
+    </div>
+    <div class="text-end mt-3">
+      <p aria-live="polite">
+        <span class="d-block">{{ i18n.t('selectedCartQuantity', { count: selectedQuantity }) }}</span>
+        {{ 'checkoutAmount' | t }} <strong>{{ total | trcurrency }}</strong>
+      </p>
+      <button class="btn btn-success" type="button" (click)="checkout()" [disabled]="!canCheckout">
+        {{ checkingOut ? '...' : ('checkout' | t) }}
+      </button>
+    </div>
+  </section>
 </div>
-<div *ngIf="customerOrders && customerOrders.length === 0" class="alert alert-info" role="status">
+<div *ngIf="!loadingCart && !cartLoadFailed && customerOrders.length === 0" class="alert alert-info" role="status">
   {{ 'emptyCart' | t }}
 </div>

@@ -1,5 +1,8 @@
 package vip.fairy.commerceflow.commerce.ordering.application.port;
 
+import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderListPage;
+import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderListQuery;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -40,6 +43,8 @@ public interface OrderStorePort {
   Optional<ShopOrderView> lockById(Long id);
 
   List<ShopOrderView> listMerchant(Long merchantId);
+
+  OrderListPage<ShopOrderView> search(Long customerId, Long merchantId, OrderListQuery criteria);
 
   Optional<ShopOrderView> findMerchant(Long merchantId, Long orderId);
 

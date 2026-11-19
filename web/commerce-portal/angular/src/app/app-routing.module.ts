@@ -13,6 +13,7 @@ import { ProfileComponent } from './profile/profile.component';
 import { SchedulingAdminComponent } from './scheduling-admin/scheduling-admin.component';
 import { LogisticsCallbackAdminComponent } from './logistics-callback-admin/logistics-callback-admin.component';
 import { MerchantInventoryComponent } from './merchant-inventory/merchant-inventory.component';
+import { MerchantCatalogComponent } from './merchant-catalog/merchant-catalog.component';
 import { InventoryReconciliationAdminComponent } from './inventory-reconciliation-admin/inventory-reconciliation-admin.component';
 
 const routes: Routes = [
@@ -30,6 +31,12 @@ const routes: Routes = [
   {
     path: 'merchant/inventory',
     component: MerchantInventoryComponent,
+    canActivate: [AuthGuard],
+    data: { roles: ['MERCHANT'] },
+  },
+  {
+    path: 'merchant/products',
+    component: MerchantCatalogComponent,
     canActivate: [AuthGuard],
     data: { roles: ['MERCHANT'] },
   },

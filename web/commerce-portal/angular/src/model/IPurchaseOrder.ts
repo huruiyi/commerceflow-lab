@@ -108,6 +108,7 @@ export type OrderAction =
   | 'REVIEW_ITEM';
 
 export interface PurchaseOrder {
+  inventoryStatus?: string;
   shipmentVersion?: number;
   id: number;
   orderNumber: string;
@@ -133,3 +134,22 @@ export interface PurchaseOrder {
   logistics?: OrderLogistics;
   refund?: OrderRefund;
 }
+
+export interface OrderSearchCriteria {
+  q: string;
+  status: string;
+  from: string;
+  to: string;
+  page: number;
+}
+
+export interface OrderSearchPage {
+  orders: PurchaseOrder[];
+  total: number;
+  page: number;
+  size: number;
+  pendingConfirm: number;
+  pendingShip: number;
+}
+
+export const initialOrderSearch: OrderSearchCriteria = { q: '', status: '', from: '', to: '', page: 0 };

@@ -1,5 +1,7 @@
 package vip.fairy.commerceflow.order.infrastructure.persistence;
 
+import vip.fairy.commerceflow.order.application.contract.v1.OrderSearchV1;
+
 import java.util.List;
 
 import org.apache.ibatis.annotations.Mapper;
@@ -27,6 +29,12 @@ public interface OrderStoreMapper {
   OrderView findCustomer(Query query);
 
   List<OrderView> listMerchant(@Param("merchantId") Long merchantId);
+
+  long countSearch(@Param("request") OrderSearchV1.Request request);
+
+  List<OrderView> search(@Param("request") OrderSearchV1.Request request, @Param("offset") long offset);
+
+  OrderSearchV1.PendingCounts countPendingMerchant(@Param("merchantId") Long merchantId);
 
   OrderView findMerchant(Query query);
 

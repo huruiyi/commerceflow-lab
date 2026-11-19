@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { FormsModule } from '@angular/forms';
 import { of, throwError } from 'rxjs';
 import { PurchaseOrder } from 'src/model/IPurchaseOrder';
 import { PurchaseOrdersComponent } from './purchase-orders.component';
@@ -6,11 +7,13 @@ import { ApiService } from '../services/api.service';
 import { TranslatePipe } from '../pipes/translate.pipe';
 import { TrdatePipe } from '../pipes/trdate.pipe';
 import { TrcurrencyPipe } from '../pipes/trcurrency.pipe';
+import { OrderListFilterComponent } from '../order-list-filter/order-list-filter.component';
 
 describe('PurchaseOrdersComponent', () => {
   let fixture: ComponentFixture<PurchaseOrdersComponent>;
   let api: {
-    purchaseOrders: jasmine.Spy;
+    searchOrders: jasmine.Spy;
+    purchaseOrder: jasmine.Spy;
     allProducts: jasmine.Spy;
     payOrder: jasmine.Spy;
     reviewOrderItem: jasmine.Spy;
@@ -52,8 +55,18 @@ describe('PurchaseOrdersComponent', () => {
   beforeEach(async () => {
     sessionStorage.clear();
     api = {
-      purchaseOrders: jasmine.createSpy().and.returnValue(of([order])),
+      searchOrders: jasmine.createSpy().and.returnValue(
+        of({
+          orders: [order],
+          total: 1,
+          page: 0,
+          size: 10,
+          pendingConfirm: 0,
+          pendingShip: 0,
+        }),
+      ),
       allProducts: jasmine.createSpy().and.returnValue(of([])),
+      purchaseOrder: jasmine.createSpy(),
       payOrder: jasmine.createSpy().and.returnValue(
         of({
           ...order,
@@ -87,7 +100,8 @@ describe('PurchaseOrdersComponent', () => {
       receiveOrder: jasmine.createSpy().and.returnValue(of({ ...order, status: 'RECEIVED' })),
     };
     await TestBed.configureTestingModule({
-      declarations: [PurchaseOrdersComponent, TranslatePipe, TrdatePipe, TrcurrencyPipe],
+      imports: [FormsModule],
+      declarations: [PurchaseOrdersComponent, OrderListFilterComponent, TranslatePipe, TrdatePipe, TrcurrencyPipe],
       providers: [{ provide: ApiService, useValue: api }],
     }).compileComponents();
     fixture = TestBed.createComponent(PurchaseOrdersComponent);
@@ -229,13 +243,21 @@ describe('PurchaseOrdersComponent', () => {
     expect(api.reviewOrderItem).toHaveBeenCalledOnceWith(1, 4, 'Useful learning product.');
     expect(component.reviewed.has(1)).toBeTrue();
   });
-  it('opens a full-refund form and preserves its idempotency key', () => {
+  it('opens a full-refund form and preserves its idempotency key', async () => {
     const component = fixture.componentInstance;
+    api.purchaseOrder.and.returnValue(
+      of({
+        ...order,
+        status: 'REFUNDED',
+        refund: { refundNumber: 'REF-1', status: 'SUCCEEDED' },
+      }),
+    );
     component.showRefund(order);
     const key = component.refundKeys[42];
     expect(component.expandedOrders.has(42)).toBeTrue();
     expect(component.refundForms.has(42)).toBeTrue();
     component.requestRefund(order);
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(api.requestRefund).toHaveBeenCalledOnceWith(42, key, 'CUSTOMER_CANCELLED', '');
     expect(component.orders[0].status).toBe('REFUNDED');
     expect(component.refundForms.has(42)).toBeFalse();

@@ -217,3 +217,15 @@
     justify-content: space-between;
   }
 }
+.catalog-sort {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-block: 0 1rem;
+}
+
+.catalog-sort select {
+  width: auto;
+  max-width: 100%;
+}

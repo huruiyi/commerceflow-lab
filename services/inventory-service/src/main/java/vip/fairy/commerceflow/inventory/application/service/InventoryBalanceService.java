@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryCommandV1;
 import vip.fairy.commerceflow.inventory.domain.InventoryReservation;
 import vip.fairy.commerceflow.inventory.domain.ProductInventory;
+import vip.fairy.commerceflow.inventory.domain.StockAvailability;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryMapper;
 
 @Service
@@ -37,6 +38,10 @@ public class InventoryBalanceService {
   public Map<Long, Integer> activeReservations(Long orderId) {
     return inventory.activeReservations(orderId).stream()
       .collect(Collectors.toMap(InventoryReservation::productId, InventoryReservation::quantity));
+  }
+
+  public List<StockAvailability> availability(List<Long> productIds) {
+    return productIds.isEmpty() ? List.of() : inventory.availability(productIds);
   }
 
   public void requireCommittedReservations(Long orderId) {

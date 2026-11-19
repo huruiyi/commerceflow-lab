@@ -22,6 +22,8 @@ import vip.fairy.commerceflow.commerce.ordering.domain.OrderAddressView;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderEventView;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderItemSnapshot;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderItemView;
+import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderListPage;
+import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderListQuery;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderReviewableItem;
 import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
 
@@ -108,6 +110,14 @@ public class RemoteOrderStoreAdapter implements OrderStorePort {
   @Override
   public List<ShopOrderView> listMerchant(Long merchantId) {
     return safe(query(new Query("LIST_MERCHANT", null, merchantId, null, null)).orders());
+  }
+
+  @Override
+  public OrderListPage<ShopOrderView> search(Long customerId, Long merchantId, OrderListQuery criteria) {
+    SearchResult result = post("/internal/v1/orders/store/search",
+      new SearchRequest(customerId, merchantId, criteria), SearchResult.class);
+    return new OrderListPage<>(result.orders(), result.total(), result.page(), result.size(),
+      result.pendingConfirm(), result.pendingShip());
   }
 
   @Override
@@ -278,6 +288,13 @@ public class RemoteOrderStoreAdapter implements OrderStorePort {
 
   private record Query(String type, Long customerId, Long merchantId, Long orderId,
                        Long itemId) {
+  }
+
+  private record SearchRequest(Long customerId, Long merchantId, OrderListQuery criteria) {
+  }
+
+  private record SearchResult(List<ShopOrderView> orders, long total, int page, int size,
+                              long pendingConfirm, long pendingShip) {
   }
 
   private record QueryResult(boolean found, String status, Long customerId, ShopOrderView order,

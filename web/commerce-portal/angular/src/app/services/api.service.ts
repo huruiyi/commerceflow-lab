@@ -1,12 +1,19 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
+import { exhaustMap, filter, forkJoin, map, Observable, of, switchMap, take, timeout, timer } from 'rxjs';
 import { CreateOrderRequest } from 'src/model/IOrder';
 import { OrderList } from 'src/model/IOrderList';
 import { Product } from 'src/model/IProduct';
 import { IUser } from 'src/model/IUser';
 import { ShippingAddress, ShippingAddressRequest } from 'src/model/IShippingAddress';
-import { OrderLogistics, OrderRefund, PaymentChannel, PurchaseOrder } from 'src/model/IPurchaseOrder';
+import {
+  OrderLogistics,
+  OrderRefund,
+  OrderSearchCriteria,
+  OrderSearchPage,
+  PaymentChannel,
+  PurchaseOrder,
+} from 'src/model/IPurchaseOrder';
 import { ScheduledTask, ScheduledTaskEvent, SchedulingPolicy, SchedulingPolicyEvent } from 'src/model/IScheduling';
 import { LogisticsCallbackAuditEvent, LogisticsCallbackOutbox } from 'src/model/ILogisticsCallbackAdmin';
 import { CustomerNotification } from 'src/model/INotification';
@@ -21,6 +28,24 @@ import {
   WarehouseEvidenceLine,
   WarehouseEvidenceReceipt,
 } from 'src/model/IInventoryReconciliation';
+
+export interface MerchantProduct {
+  productId: number;
+  name: string;
+  brief: string;
+  description: string;
+  imageUrl: string;
+  thumbnailUrl: string;
+  unitPrice: number;
+  lifecycleStatus: 'ACTIVE' | 'INACTIVE';
+  businessVersion: number;
+}
+
+export interface StockAvailability {
+  productId: number;
+  listed: boolean;
+  available: number;
+}
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -67,6 +92,16 @@ export class ApiService {
     return this.http.get<Product[]>(
       `/api/products?lang=${encodeURIComponent(localStorage.getItem('commerceflow-locale') || 'en')}`,
     );
+  }
+
+  productAvailability(ids: number[]): Observable<Record<number, StockAvailability>> {
+    const requests = [];
+    for (let start = 0; start < ids.length; start += 200) {
+      requests.push(
+        this.http.post<Record<number, StockAvailability>>('/api/products/availability', ids.slice(start, start + 200)),
+      );
+    }
+    return requests.length ? forkJoin(requests).pipe(map((batches) => Object.assign({}, ...batches))) : of({});
   }
 
   addOrder(productId: number, quantity: number): Observable<OrderList> {
@@ -122,12 +157,24 @@ export class ApiService {
     return this.http.delete<void>(`/api/addresses/${id}`);
   }
 
-  checkout(): Observable<PurchaseOrder> {
-    return this.http.post<PurchaseOrder>('/api/purchase-orders/checkout', {});
+  checkout(addressId: number, expectedTotal: number, itemIds: number[]): Observable<PurchaseOrder> {
+    return this.http.post<PurchaseOrder>('/api/purchase-orders/checkout', { addressId, expectedTotal, itemIds });
   }
 
-  purchaseOrders(): Observable<PurchaseOrder[]> {
-    return this.http.get<PurchaseOrder[]>('/api/purchase-orders');
+  searchOrders(criteria: OrderSearchCriteria, merchant = false): Observable<OrderSearchPage> {
+    const { q, status, from, to, page } = criteria;
+    const params: Record<string, string | number> = {
+      page,
+      q,
+      status,
+      lang: localStorage.getItem('commerceflow-locale') || 'en',
+      zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    };
+    if (from) params['from'] = from;
+    if (to) params['to'] = to;
+    return this.http.get<OrderSearchPage>(merchant ? '/api/merchant/orders/search' : '/api/purchase-orders/search', {
+      params,
+    });
   }
 
   purchaseOrder(id: number): Observable<PurchaseOrder> {
@@ -171,12 +218,16 @@ export class ApiService {
     return this.http.patch<void>('/api/notifications/read-all', {});
   }
 
-  merchantOrders(): Observable<PurchaseOrder[]> {
-    return this.http.get<PurchaseOrder[]>('/api/merchant/orders');
-  }
-
   merchantInventory(): Observable<MerchantInventoryItem[]> {
     return this.http.get<MerchantInventoryItem[]>('/api/merchant/inventory');
+  }
+
+  merchantProducts(): Observable<MerchantProduct[]> {
+    return this.http.get<MerchantProduct[]>('/api/merchant/catalog/v1/products');
+  }
+
+  updateMerchantProduct(id: number, area: 'profile' | 'price' | 'status', value: object): Observable<MerchantProduct> {
+    return this.http.put<MerchantProduct>(`/api/merchant/catalog/v1/products/${id}/${area}`, value);
   }
 
   merchantInventoryMovements(productId: number): Observable<InventoryMovement[]> {
@@ -188,11 +239,15 @@ export class ApiService {
   }
 
   confirmMerchantOrder(id: number): Observable<PurchaseOrder> {
-    return this.http.post<PurchaseOrder>(`/api/merchant/orders/${id}/confirm`, {});
+    return this.http
+      .post<PurchaseOrder>(`/api/merchant/orders/${id}/confirm`, {}, { observe: 'response' })
+      .pipe(switchMap((response) => this.awaitMerchantOperation(id, response)));
   }
 
   shipMerchantOrder(id: number, carrier: string, trackingNumber: string): Observable<PurchaseOrder> {
-    return this.http.post<PurchaseOrder>(`/api/merchant/orders/${id}/ship`, { carrier, trackingNumber });
+    return this.http
+      .post<PurchaseOrder>(`/api/merchant/orders/${id}/ship`, { carrier, trackingNumber }, { observe: 'response' })
+      .pipe(switchMap((response) => this.awaitMerchantOperation(id, response)));
   }
 
   updateMerchantShipment(
@@ -201,11 +256,38 @@ export class ApiService {
     trackingNumber: string,
     expectedVersion: number,
   ): Observable<PurchaseOrder> {
-    return this.http.put<PurchaseOrder>(`/api/merchant/orders/${id}/shipment`, {
-      carrier,
-      trackingNumber,
-      expectedVersion,
-    });
+    return this.http
+      .put<PurchaseOrder>(
+        `/api/merchant/orders/${id}/shipment`,
+        { carrier, trackingNumber, expectedVersion },
+        { observe: 'response' },
+      )
+      .pipe(switchMap((response) => this.awaitMerchantOperation(id, response)));
+  }
+
+  private awaitMerchantOperation(id: number, response: HttpResponse<PurchaseOrder>): Observable<PurchaseOrder> {
+    if (!response.body) throw new Error('Fulfillment response is missing the order');
+    if (response.status !== 202) return of(response.body);
+
+    const location = response.headers.get('Location');
+    const base = `/api/merchant/orders/${id}`;
+    const command =
+      location?.startsWith(`${base}/fulfillment-operations/`) &&
+      /^[a-f0-9-]{36}$/i.test(location.slice(`${base}/fulfillment-operations/`.length));
+    if (!location || (location !== `${base}/shipment-operation` && !command)) {
+      throw new Error('Fulfillment response is missing a valid status location');
+    }
+
+    return timer(0, 1000).pipe(
+      exhaustMap(() => this.http.get<{ status: string }>(location)),
+      filter((operation) => operation.status !== 'PENDING'),
+      take(1),
+      timeout({ first: 60000 }),
+      switchMap((operation) => {
+        if (operation.status !== 'COMPLETED') throw new Error('Fulfillment operation did not complete');
+        return this.http.get<PurchaseOrder>(base);
+      }),
+    );
   }
 
   receiveOrder(id: number): Observable<PurchaseOrder> {

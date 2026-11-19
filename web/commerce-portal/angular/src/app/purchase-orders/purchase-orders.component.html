@@ -19,6 +19,12 @@
   <p hlmAlertDescription>{{ loadError }}</p>
   <button hlmBtn variant="outline" type="button" (click)="reload()">{{ 'retry' | t }}</button>
 </section>
+<app-order-list-filter
+  [result]="page"
+  [applied]="criteria"
+  [loading]="loading"
+  (changed)="reload($event)"
+></app-order-list-filter>
 <article *ngFor="let order of orders; trackBy: trackOrder" hlmCard class="order-card" [attr.data-status]="order.status">
   <header class="order-header">
     <div class="order-leading">
@@ -49,7 +55,13 @@
         <button hlmBtn *ngIf="hasAction(order, 'PAY')" type="button" (click)="showPayment(order)">
           {{ 'payNow' | t }}
         </button>
-        <button hlmBtn *ngIf="hasAction(order, 'CONFIRM_RECEIPT')" type="button" (click)="receive(order)">
+        <button
+          hlmBtn
+          *ngIf="hasAction(order, 'CONFIRM_RECEIPT')"
+          type="button"
+          (click)="receive(order)"
+          [disabled]="receiving.has(order.id)"
+        >
           {{ 'confirmReceipt' | t }}
         </button>
         <button
@@ -79,6 +91,9 @@
       </button>
     </div>
   </header>
+  <p *ngIf="order.inventoryStatus === 'RESERVATION_REJECTED'" class="alert alert-warning" role="status">
+    {{ 'orderStockRejected' | t }}
+  </p>
   <div *ngIf="notices[order.id] as notice" class="summary-notice alert" [ngClass]="'alert-' + notice.type">
     {{ notice.text }}
   </div>
@@ -368,7 +383,12 @@
         {{ notice.text }}
       </div>
       <div class="payment-actions">
-        <button type="button" class="btn btn-primary" (click)="pay(order, false)" [disabled]="paying.has(order.id)">
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="pay(order, false)"
+          [disabled]="paying.has(order.id) || paymentAwaitingOrder(order)"
+        >
           {{ (paying.has(order.id) ? 'creating' : 'createPayment') | t }}
         </button>
         <button
@@ -454,14 +474,24 @@
       <p *ngIf="payment.failureReason" class="failure-reason">
         {{ payment.failureReason === 'Simulated decline' ? ('simulatedDecline' | t) : payment.failureReason }}
       </p>
-      <div class="cashier-actions" *ngIf="payment.status === 'PENDING'">
-        <div *ngIf="payment.qrPayload" class="qr-payload">
+      <div class="cashier-actions" *ngIf="payment.status === 'PENDING' || paymentAwaitingOrder(order)">
+        <div *ngIf="payment.status === 'PENDING' && payment.qrPayload" class="qr-payload">
           <strong>{{ 'qrPayload' | t }}</strong><code>{{ payment.qrPayload }}</code>
         </div>
-        <button type="button" class="btn btn-primary" (click)="openCheckout(order)">
+        <button
+          *ngIf="payment.status === 'PENDING'"
+          type="button"
+          class="btn btn-primary"
+          (click)="openCheckout(order)"
+        >
           {{ 'openCashier' | t }}
         </button>
-        <button type="button" class="btn btn-outline-primary" (click)="refresh(order)">
+        <button
+          type="button"
+          class="btn btn-outline-primary"
+          (click)="refresh(order)"
+          [disabled]="refreshingPayment.has(order.id)"
+        >
           {{ 'refreshStatus' | t }}
         </button>
       </div>
@@ -561,7 +591,3 @@
     </ng-container>
   </div>
 </article>
-<div *ngIf="!loading && !loadError && orders.length === 0" class="empty-state">
-  <h3>{{ 'noOrders' | t }}</h3>
-  <p>{{ 'noOrdersHint' | t }}</p>
-</div>

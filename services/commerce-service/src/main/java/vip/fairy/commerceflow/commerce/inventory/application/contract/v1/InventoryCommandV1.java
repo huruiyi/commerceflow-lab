@@ -23,6 +23,7 @@ public record InventoryCommandV1(
 ) {
 
   public static final int VERSION = 1;
+  public static final String REVIEWED_CHECKOUT = "Reviewed checkout inventory reservation";
   public static final Pattern TRACEPARENT = Pattern.compile(
     "^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$");
 
@@ -33,6 +34,11 @@ public record InventoryCommandV1(
   public static InventoryCommandV1 reserve(String commandId, Long orderId, List<Item> items) {
     return command(commandId, InventoryCommandTypeV1.RESERVE, "ordering", orderId, items,
       "Checkout inventory reservation", commandId);
+  }
+
+  public static InventoryCommandV1 reserveReviewedCheckout(String commandId, Long orderId, List<Item> items) {
+    return command(commandId, InventoryCommandTypeV1.RESERVE, "ordering", orderId, items,
+      REVIEWED_CHECKOUT, commandId);
   }
 
   public static InventoryCommandV1 commit(String commandId, Long orderId, String causationId) {

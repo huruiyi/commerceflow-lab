@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { FormsModule } from '@angular/forms';
 import { RouterTestingModule } from '@angular/router/testing';
 import { of } from 'rxjs';
 
@@ -12,7 +13,7 @@ describe('DashboardComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [RouterTestingModule],
+      imports: [RouterTestingModule, FormsModule],
       declarations: [DashboardComponent, TranslatePipe],
       providers: [{ provide: ApiService, useValue: { allProducts: () => of([]) } }],
     }).compileComponents();

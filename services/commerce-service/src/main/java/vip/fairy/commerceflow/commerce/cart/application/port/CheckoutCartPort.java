@@ -11,5 +11,7 @@ public interface CheckoutCartPort {
 
   CheckoutAddressSnapshot selectedAddress(Long customerId);
 
-  void clear(Long customerId);
+  CheckoutAddressSnapshot address(Long customerId, Long addressId);
+
+  int removeItems(Long customerId, List<Long> itemIds);
 }

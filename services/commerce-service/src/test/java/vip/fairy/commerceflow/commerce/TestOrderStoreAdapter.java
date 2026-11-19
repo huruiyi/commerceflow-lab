@@ -1,5 +1,7 @@
 package vip.fairy.commerceflow.commerce;
 
+import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderListPage;
+import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderListQuery;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
@@ -25,6 +27,12 @@ import vip.fairy.commerceflow.commerce.ordering.domain.OrderReviewableItem;
 import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
 
 final class TestOrderStoreAdapter implements OrderStorePort {
+
+  @Override
+  public OrderListPage<ShopOrderView> search(Long customerId, Long merchantId, OrderListQuery criteria) {
+    throw new UnsupportedOperationException("Order search is served by order-service");
+  }
+
 
   private final JdbcTemplate jdbc;
   private final SqlSessionTemplate session;

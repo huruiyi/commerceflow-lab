@@ -1,0 +1,32 @@
+.order-filter {
+  margin-block: 0 1rem;
+}
+
+.filter-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.filter-controls label {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.filter-result {
+  margin: 0.65rem 0 0;
+  color: var(--bs-secondary-color);
+}
+
+@media (max-width: 575px) {
+  .filter-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .filter-controls button {
+    justify-self: start;
+  }
+}

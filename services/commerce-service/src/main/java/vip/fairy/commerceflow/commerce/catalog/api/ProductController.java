@@ -9,15 +9,29 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.StockAvailabilityQuery;
 
 @RestController
 @RequestMapping("/api/products")
 public class ProductController {
 
   private final ProductCatalogService catalog;
+  private final StockAvailabilityQuery stocks;
 
-  public ProductController(ProductCatalogService catalog) {
+  public ProductController(ProductCatalogService catalog, StockAvailabilityQuery stocks) {
     this.catalog = catalog;
+    this.stocks = stocks;
+  }
+
+  @PostMapping("/availability")
+  Map<Long, StockAvailabilityQuery.Stock> availability(@RequestBody List<Long> ids) {
+    if (ids.size() > 200 || ids.stream().anyMatch(id -> id == null || id < 1)) {
+      throw new IllegalArgumentException("Invalid product IDs");
+    }
+    return stocks.availability(ids);
   }
 
   @GetMapping

@@ -2,6 +2,13 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryMapper">
 
+  <select id="availability" resultType="vip.fairy.commerceflow.inventory.domain.StockAvailability">
+    SELECT product_id AS productId, catalog_lifecycle_status = 'ACTIVE' AS listed, stock_available AS available
+    FROM product_inventory
+    WHERE product_id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+  </select>
+
   <update id="reserve">
     UPDATE product_inventory
     SET stock_available=stock_available-#{quantity},stock_reserved=stock_reserved+#{quantity}

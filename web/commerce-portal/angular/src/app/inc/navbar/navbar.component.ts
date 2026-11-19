@@ -130,6 +130,7 @@ export class NavbarComponent implements OnInit {
 
   search(): void {
     const query = this.searchText.trim();
-    void this.router.navigate(['/dashboard'], { queryParams: query ? { q: query } : {} });
+    const currentSort = this.router.parseUrl(this.router.url).queryParams['sort'];
+    void this.router.navigate(['/dashboard'], { queryParams: { q: query || null, sort: currentSort || null } });
   }
 }

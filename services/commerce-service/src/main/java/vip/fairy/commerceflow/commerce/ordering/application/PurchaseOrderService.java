@@ -6,6 +6,8 @@ import vip.fairy.commerceflow.commerce.cart.application.port.CheckoutCartPort;
 import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
 import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
 import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryReservationQuery;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.StockAvailabilityQuery;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandV1;
 import vip.fairy.commerceflow.commerce.logistics.application.LogisticsService;
 import vip.fairy.commerceflow.commerce.ordering.api.ShopOrderResponse;
 import vip.fairy.commerceflow.commerce.ordering.api.CreatePaymentRequest;
@@ -26,6 +28,7 @@ import vip.fairy.commerceflow.commerce.scheduling.application.ScheduledTaskServi
 import vip.fairy.commerceflow.commerce.scheduling.application.ScheduledTaskTypes;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
+import vip.fairy.commerceflow.commerce.shared.application.ExternalServiceUnavailableException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -34,6 +37,7 @@ import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -49,6 +53,7 @@ public class PurchaseOrderService {
   private final LogisticsService logistics;
   private final InventoryCommandPort inventory;
   private final InventoryReservationQuery reservations;
+  private final StockAvailabilityQuery stocks;
   private final InventoryCommandPort.ImmediateDelivery inventoryDelivery;
   private final TransactionTemplate transactions;
 
@@ -59,6 +64,7 @@ public class PurchaseOrderService {
                               LogisticsService logistics,
                               InventoryCommandPort inventory,
                               InventoryReservationQuery reservations,
+                              StockAvailabilityQuery stocks,
                               InventoryCommandPort.ImmediateDelivery inventoryDelivery,
                               TransactionTemplate transactions) {
     this.orders = orders;
@@ -70,24 +76,44 @@ public class PurchaseOrderService {
     this.logistics = logistics;
     this.inventory = inventory;
     this.reservations = reservations;
+    this.stocks = stocks;
     this.inventoryDelivery = inventoryDelivery;
     this.transactions = transactions;
   }
 
   public ShopOrderResponse checkout(AppUser user) {
-    Long orderId = transactions.execute(status -> createOrder(user));
+    return checkout(user, null, null, null);
+  }
+
+  public ShopOrderResponse checkout(AppUser user, Long addressId, BigDecimal expectedTotal, List<Long> itemIds) {
+    Set<Long> selection = itemIds == null ? null : Set.copyOf(itemIds);
+    if (selection != null && (selection.isEmpty() || selection.size() != itemIds.size() || expectedTotal == null)) {
+      throw new IllegalArgumentException("Select distinct cart items and confirm the total before checkout");
+    }
+    Checkout checkout = transactions.execute(status -> createOrder(user, addressId, expectedTotal, selection));
+    Long orderId = checkout.orderId();
     inventoryDelivery.deliver(reservationCommandId(orderId));
     ShopOrderView order = orders.find(user.getId(), orderId)
       .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+    if (expectedTotal != null && "RESERVATION_REJECTED".equals(order.getInventoryStatus())) {
+      List<CheckoutStockException.Line> problems;
+      try {
+        problems = stockProblems(checkout.items());
+      } catch (ExternalServiceUnavailableException exception) {
+        problems = List.of();
+      }
+      throw new CheckoutStockException(problems);
+    }
     return assemble(order, null, null);
   }
 
-  private Long createOrder(AppUser user) {
-    List<CheckoutCartItem> items = carts.lockItems(user.getId());
+  private Checkout createOrder(AppUser user, Long addressId, BigDecimal expectedTotal, Set<Long> selection) {
+    List<CheckoutCartItem> items = selectedCartItems(user.getId(), selection);
     if (items.isEmpty()) {
       throw new BusinessRuleException("Cart is empty");
     }
-    CheckoutAddressSnapshot address = carts.selectedAddress(user.getId());
+    CheckoutAddressSnapshot address = addressId == null
+      ? carts.selectedAddress(user.getId()) : carts.address(user.getId(), addressId);
     if (address == null) {
       throw new BusinessRuleException("Select a valid shipping address before checkout");
     }
@@ -96,22 +122,54 @@ public class PurchaseOrderService {
     }
     inventory.requireWritable();
     BigDecimal total = items.stream().map(CheckoutCartItem::subtotal).reduce(BigDecimal.ZERO, BigDecimal::add);
+    if (expectedTotal != null && total.compareTo(expectedTotal) != 0) {
+      throw new BusinessRuleException("The cart total changed. Review the updated cart before checking out.");
+    }
+    if (expectedTotal != null) {
+      var problems = stockProblems(items);
+      if (!problems.isEmpty()) throw new CheckoutStockException(problems);
+    }
     Instant paymentDueAt = Instant.now().plus(lifecycle.getPaymentTimeout());
     NewOrder order = new NewOrder(number("ORD"), user.getId(), total, "CNY", paymentDueAt);
     List<OrderItemSnapshot> orderItems = items.stream().map(OrderItemSnapshot::from).toList();
     orders.insertOrder(order, orderItems, OrderAddressSnapshot.from(address), user.getId());
-    inventory.handle(InventoryCommandPort.reserve(
-      reservationCommandId(order.getId()),
-      order.getId(),
-      items.stream()
-        .map(item -> InventoryCommandPort.item(
-          item.getProductId(), item.getProductName(), item.getQuantity()))
-        .toList()
-    ));
+    String commandId = reservationCommandId(order.getId());
+    var stockItems = items.stream().map(item -> InventoryCommandPort.item(
+      item.getProductId(), item.getProductName(), item.getQuantity())).toList();
+    inventory.handle(expectedTotal == null
+      ? InventoryCommandPort.reserve(commandId, order.getId(), stockItems)
+      : InventoryCommandV1.reserveReviewedCheckout(commandId, order.getId(), stockItems));
     scheduledTasks.schedule(ScheduledTaskTypes.PAYMENT_TIMEOUT, "order:" + order.getId(), "ORDER",
       order.getId().toString(), paymentDueAt, Map.of("orderId", order.getId()));
-    carts.clear(user.getId());
-    return order.getId();
+    if (carts.removeItems(user.getId(), items.stream().map(CheckoutCartItem::getId).toList()) != items.size()) {
+      throw new IllegalStateException("Selected cart items changed during checkout");
+    }
+    return new Checkout(order.getId(), items);
+  }
+
+  private List<CheckoutCartItem> selectedCartItems(Long customerId, Set<Long> selection) {
+    var locked = carts.lockItems(customerId);
+    if (selection == null) return locked;
+    var selected = locked.stream().filter(item -> selection.contains(item.getId())).toList();
+    if (selected.size() != selection.size()) {
+      throw new BusinessRuleException("Selected cart items changed. Review the cart before checking out.");
+    }
+    return selected;
+  }
+
+  private List<CheckoutStockException.Line> stockProblems(List<CheckoutCartItem> items) {
+    var available = stocks.availability(items.stream().map(CheckoutCartItem::getProductId).toList());
+    return items.stream().filter(item -> {
+      var stock = available.get(item.getProductId());
+      return stock == null || !stock.listed() || stock.available() < item.getQuantity();
+    }).map(item -> {
+      var stock = available.get(item.getProductId());
+      return new CheckoutStockException.Line(item.getProductId(), item.getProductName(), item.getQuantity(),
+        stock == null ? null : stock.available(), stock != null && stock.listed());
+    }).toList();
+  }
+
+  private record Checkout(Long orderId, List<CheckoutCartItem> items) {
   }
 
   private String reservationCommandId(Long orderId) {
@@ -129,6 +187,10 @@ public class PurchaseOrderService {
     return orders.find(user.getId(), id)
       .map(order -> assemble(order, null))
       .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+  }
+
+  public ShopOrderResponse response(ShopOrderView order) {
+    return assemble(order, null);
   }
 
   public ShopOrderResponse pay(AppUser user, Long id, CreatePaymentRequest request) {

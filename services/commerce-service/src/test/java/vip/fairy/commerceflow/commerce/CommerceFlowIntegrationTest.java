@@ -69,6 +69,8 @@ import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.Invento
 import vip.fairy.commerceflow.commerce.inventory.domain.InventoryMovementView;
 import vip.fairy.commerceflow.commerce.inventory.domain.MerchantInventoryItem;
 import vip.fairy.commerceflow.commerce.inventory.infrastructure.transport.MerchantInventoryRemoteClient;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.StockAvailabilityQuery.Stock;
+import vip.fairy.commerceflow.commerce.inventory.infrastructure.transport.InventoryRemoteCommandClient;
 import vip.fairy.commerceflow.commerce.ordering.application.PurchaseOrderService;
 import vip.fairy.commerceflow.commerce.ordering.api.CreatePaymentRequest;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
@@ -235,6 +237,8 @@ class CommerceFlowIntegrationTest {
   CatalogServiceClient catalogServiceClient;
   @MockitoBean
   MerchantInventoryRemoteClient merchantInventoryRemoteClient;
+  @MockitoBean
+  InventoryRemoteCommandClient inventoryRemoteCommandClient;
 
   @BeforeEach
   void catalogServiceContract() {
@@ -944,6 +948,54 @@ class CommerceFlowIntegrationTest {
       "SELECT COUNT(*) FROM payment_records WHERE order_id=?", Integer.class, paidOrderId));
     org.junit.jupiter.api.Assertions.assertEquals(0, jdbc.queryForObject(
       "SELECT COUNT(*) FROM order_events WHERE order_id=?", Integer.class, paidOrderId));
+  }
+
+  @Test
+  @Transactional
+  void checkoutOnlyConsumesSelectedCartItemsAndRejectsARepeatedSelection() throws Exception {
+    CsrfContext customer = login("demo@example.com", false);
+    Long customerId = jdbc.queryForObject("SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
+    jdbc.update("DELETE FROM cart_items WHERE cart_id IN (SELECT id FROM carts WHERE user_id=?)", customerId);
+    for (long productId : List.of(1L, 2L)) {
+      mvc.perform(post("/api/cart/items").session(customer.session()).cookie(customer.cookie())
+          .header("X-XSRF-TOKEN", customer.token()).contentType("application/json")
+          .content(json.writeValueAsString(Map.of("productId", productId, "quantity", 1))))
+        .andExpect(status().isOk());
+    }
+    long itemId = jdbc.queryForObject("""
+      SELECT i.id FROM cart_items i JOIN carts c ON c.id=i.cart_id
+      WHERE c.user_id=? AND i.product_id=?
+      """, Long.class, customerId, 1L);
+    MvcResult address = mvc.perform(post("/api/addresses").session(customer.session()).cookie(customer.cookie())
+        .header("X-XSRF-TOKEN", customer.token()).contentType("application/json")
+        .content("""
+          {"recipientName":"Selection Customer","phone":"13800000000","countryCode":"CN","stateProvince":"Shanghai",
+           "city":"Shanghai","district":"Pudong","addressLine1":"Cart Road","addressLine2":"","postalCode":"200000",
+           "label":"Selection","isDefault":false}
+          """))
+      .andExpect(status().isOk()).andReturn();
+    long addressId = json.readTree(address.getResponse().getContentAsString()).get("id").asLong();
+    when(inventoryRemoteCommandClient.availability(List.of(1L))).thenReturn(Map.of(1L, new Stock(1L, true, 1)));
+    String payload = json.writeValueAsString(Map.of("addressId", addressId, "expectedTotal", 1299, "itemIds", List.of(itemId)));
+    MvcResult result = mvc.perform(post("/api/purchase-orders/checkout").session(customer.session()).cookie(customer.cookie())
+        .header("X-XSRF-TOKEN", customer.token()).contentType("application/json").content(payload))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.totalAmount").value(1299))
+      .andExpect(jsonPath("$.items.length()").value(1))
+      .andExpect(jsonPath("$.items[0].productId").value(1)).andReturn();
+    long orderId = json.readTree(result.getResponse().getContentAsString()).get("id").asLong();
+    String reservation = jdbc.queryForObject(
+      "SELECT payload FROM inventory_command_delivery_outbox WHERE command_id=?", String.class,
+      "order:" + orderId + ":reserve");
+    InventoryCommandV1 command = json.readValue(reservation, InventoryCommandV1.class);
+    assertEquals(List.of(1L), command.items().stream().map(InventoryCommandV1.Item::productId).toList());
+    mvc.perform(post("/api/purchase-orders/checkout").session(customer.session()).cookie(customer.cookie())
+        .header("X-XSRF-TOKEN", customer.token()).contentType("application/json").content(payload))
+      .andExpect(status().isConflict());
+    mvc.perform(get("/api/cart").session(customer.session()))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.length()").value(1))
+      .andExpect(jsonPath("$[0].productId").value(2));
   }
 
   @Test

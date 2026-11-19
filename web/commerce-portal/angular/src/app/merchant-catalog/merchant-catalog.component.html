@@ -1,0 +1,103 @@
+<h2>{{ 'merchantProducts' | t }}</h2>
+<p *ngIf="loading()" role="status">{{ 'merchantProductsLoading' | t }}</p>
+<div *ngIf="loadFailed()" class="alert alert-danger" role="alert">
+  {{ 'merchantProductsLoadFailed' | t }}
+  <button type="button" class="btn btn-outline-danger" (click)="load()">{{ 'retry' | t }}</button>
+</div>
+<p *ngIf="!loading() && !loadFailed() && !products().length">{{ 'merchantProductsEmpty' | t }}</p>
+<div class="table-responsive" *ngIf="products().length">
+  <table class="table align-middle">
+    <thead>
+      <tr>
+        <th scope="col">{{ 'productName' | t }}</th>
+        <th scope="col">{{ 'unitPrice' | t }}</th>
+        <th scope="col">{{ 'status' | t }}</th>
+        <th scope="col">{{ 'action' | t }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let item of products()">
+        <th scope="row">{{ item.name }}</th>
+        <td>{{ item.unitPrice | trcurrency }}</td>
+        <td>{{ (item.lifecycleStatus === 'ACTIVE' ? 'catalogActive' : 'catalogInactive') | t }}</td>
+        <td>
+          <button class="btn btn-outline-primary" type="button" (click)="edit(item)" [disabled]="saving() || loading()">
+            {{ 'editMerchantProduct' | t }}
+          </button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+<section *ngIf="draft as product" class="border rounded p-3">
+  <h3 class="h5">{{ 'editMerchantProduct' | t }} #{{ product.productId }}</h3>
+  <p *ngIf="saved()" class="text-success" role="status">{{ 'merchantProductSaved' | t }}</p>
+  <div *ngIf="saveFailed()" class="alert alert-danger" role="alert">
+    {{ 'merchantProductSaveFailed' | t }}
+    <button type="button" class="btn btn-outline-danger" (click)="load()">{{ 'reloadMerchantProduct' | t }}</button>
+  </div>
+  <form #profile="ngForm" (ngSubmit)="save('profile', product)" class="mb-3">
+    <fieldset class="row g-2" [disabled]="saving() || loading()">
+      <label class="col-md-6"
+        >{{ 'productName' | t }}
+        <input class="form-control" name="name" [(ngModel)]="product.name" required maxlength="160" />
+      </label>
+      <label class="col-md-6"
+        >{{ 'catalogBrief' | t }}
+        <input class="form-control" name="brief" [(ngModel)]="product.brief" required maxlength="300" />
+      </label>
+      <label class="col-12"
+        >{{ 'catalogDescription' | t }}
+        <textarea
+          class="form-control"
+          name="description"
+          [(ngModel)]="product.description"
+          required
+          maxlength="2000"
+        ></textarea>
+      </label>
+      <label class="col-md-6"
+        >{{ 'catalogImageUrl' | t }}
+        <input class="form-control" name="imageUrl" [(ngModel)]="product.imageUrl" required maxlength="500" />
+      </label>
+      <label class="col-md-6"
+        >{{ 'catalogThumbnailUrl' | t }}
+        <input class="form-control" name="thumbnailUrl" [(ngModel)]="product.thumbnailUrl" required maxlength="500" />
+      </label>
+      <div class="col-12">
+        <button class="btn btn-primary" type="submit" [disabled]="profile.invalid">
+          {{ 'saveCatalogProfile' | t }}
+        </button>
+      </div>
+    </fieldset>
+  </form>
+  <form #price="ngForm" (ngSubmit)="save('price', product)" class="mb-3">
+    <fieldset class="d-flex flex-wrap gap-2 align-items-end" [disabled]="saving() || loading()">
+      <label
+        >{{ 'unitPrice' | t }} (CNY)
+        <input
+          class="form-control"
+          name="unitPrice"
+          type="number"
+          [(ngModel)]="product.unitPrice"
+          required
+          min="0.01"
+          step="0.01"
+        />
+      </label>
+      <button class="btn btn-primary" type="submit" [disabled]="price.invalid">{{ 'saveCatalogPrice' | t }}</button>
+    </fieldset>
+  </form>
+  <form (ngSubmit)="save('status', product)">
+    <fieldset class="d-flex flex-wrap gap-2 align-items-end" [disabled]="saving() || loading()">
+      <label
+        >{{ 'status' | t }}
+        <select class="form-select" name="lifecycleStatus" [(ngModel)]="product.lifecycleStatus">
+          <option value="ACTIVE">{{ 'catalogActive' | t }}</option>
+          <option value="INACTIVE">{{ 'catalogInactive' | t }}</option>
+        </select>
+      </label>
+      <button class="btn btn-primary" type="submit">{{ 'saveCatalogStatus' | t }}</button>
+    </fieldset>
+  </form>
+</section>
