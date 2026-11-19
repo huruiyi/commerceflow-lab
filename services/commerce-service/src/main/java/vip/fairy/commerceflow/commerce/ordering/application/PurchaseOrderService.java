@@ -373,6 +373,11 @@ public class PurchaseOrderService {
     return assemble(order, null);
   }
 
+  public OrderStorePort.WarehousePlan warehousePlan(Long customerId, Long orderId) {
+    orders.find(customerId, orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+    return orders.warehousePlan(orderId);
+  }
+
   public ShopOrderResponse pay(AppUser user, Long id, CreatePaymentRequest request) {
     paymentWrites.requireWritable();
     ShopOrderView order = orders.find(user.getId(), id)
@@ -388,8 +393,16 @@ public class PurchaseOrderService {
     }
     Map<Long, Integer> required = orders.items(id).stream().collect(Collectors.toMap(
       OrderItemView::getProductId, OrderItemView::getQuantity, Math::addExact));
-    if (required.isEmpty() || !required.equals(reservations.activeReservations(id))) {
+    var allocations = reservations.activeAllocations(id);
+    Map<Long, Integer> allocated = allocations.stream().collect(Collectors.toMap(
+      value -> value.productId(), value -> value.quantity(), Math::addExact));
+    if (required.isEmpty() || !required.equals(allocated)) {
       throw new BusinessRuleException("Inventory reservations do not cover the order items");
+    }
+    var warehouseSnapshot = allocations.stream().map(value ->
+      new OrderStorePort.WarehouseReservation(value.productId(), value.warehouseId(), value.quantity())).toList();
+    if (!orders.freezeWarehouseAllocation(id, warehouseSnapshot)) {
+      throw new BusinessRuleException("Warehouse allocations cannot be fixed for this payment");
     }
     String commandId = UUID.randomUUID().toString();
     String correlationId = UUID.randomUUID().toString();

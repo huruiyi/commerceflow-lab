@@ -14,6 +14,7 @@ import vip.fairy.commerceflow.inventory.application.contract.v1.CatalogProductEv
 import vip.fairy.commerceflow.inventory.application.contract.v1.CatalogProductEventV1;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryCatalogEventInboxMapper;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryMapper;
+import vip.fairy.commerceflow.inventory.infrastructure.persistence.WarehouseStockMapper;
 
 @Service
 public class InventoryCatalogEventService {
@@ -21,12 +22,15 @@ public class InventoryCatalogEventService {
   private final InventoryCatalogEventInboxMapper inbox;
   private final InventoryMapper inventory;
   private final ObjectMapper mapper;
+  private final WarehouseStockMapper warehouses;
 
   public InventoryCatalogEventService(InventoryCatalogEventInboxMapper inbox,
-                                      InventoryMapper inventory, ObjectMapper mapper) {
+                                      InventoryMapper inventory, ObjectMapper mapper,
+                                      WarehouseStockMapper warehouses) {
     this.inbox = inbox;
     this.inventory = inventory;
     this.mapper = mapper;
+    this.warehouses = warehouses;
   }
 
   @Transactional
@@ -56,6 +60,7 @@ public class InventoryCatalogEventService {
         throw new IllegalStateException("Inventory product snapshot does not exist");
       }
       inventory.createCatalogSnapshot(event);
+      warehouses.createDefault(event.productId());
       if (inbox.complete(event.eventId(), "APPLIED") != 1) {
         throw new IllegalStateException("Inventory catalog event could not be confirmed");
       }

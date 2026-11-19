@@ -5,6 +5,6 @@ public interface OrderLineRefundV1 {
   boolean apply(Command command);
 
   record Command(String action, String caseId, Long orderId, Long orderLineId, Long customerId,
-                 Long merchantId, int quantity) {
+                 Long merchantId, int quantity, Long warehouseId) {
   }
 }

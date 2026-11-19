@@ -5,7 +5,7 @@
   <sql id="columns">
     id,order_id,order_line_id,product_id,customer_id,merchant_id,quantity,merchandise_amount,
     shipping_amount,currency,kind,status,reason,decision,tracking_number,refund_number,return_shipping_cost,
-    received_quantity,last_error
+    received_quantity,last_error,warehouse_id,outbound_id
   </sql>
 
   <select id="find" resultType="vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale">
@@ -33,9 +33,9 @@
   </select>
   <insert id="insert">
     INSERT INTO line_after_sales(id,order_id,order_line_id,product_id,customer_id,merchant_id,quantity,
-      merchandise_amount,shipping_amount,currency,kind,status,reason)
+      merchandise_amount,shipping_amount,currency,kind,status,reason,warehouse_id,outbound_id)
     VALUES (#{id},#{orderId},#{orderLineId},#{productId},#{customerId},#{merchantId},#{quantity},
-      #{merchandiseAmount},#{shippingAmount},#{currency},#{kind},#{status},#{reason})
+      #{merchandiseAmount},#{shippingAmount},#{currency},#{kind},#{status},#{reason},#{warehouseId},#{outboundId})
   </insert>
   <update id="customerReturn">
     UPDATE line_after_sales

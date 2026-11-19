@@ -7,21 +7,23 @@
   </select>
   <select id="find"
           resultType="vip.fairy.commerceflow.order.infrastructure.persistence.OrderLineRefundMapper$Admission">
-    SELECT order_id,order_line_id,quantity,status FROM order_line_refund_admissions WHERE case_id=#{caseId} FOR UPDATE
+    SELECT order_id,order_line_id,quantity,status,warehouse_id
+    FROM order_line_refund_admissions WHERE case_id=#{caseId} FOR UPDATE
   </select>
   <select id="item" resultType="vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1$ItemView">
     SELECT * FROM order_items WHERE order_id=#{orderId} AND id=#{orderLineId}
   </select>
-  <select id="settledQuantity" resultType="int">
-    SELECT COALESCE(SUM(quantity),0) FROM order_line_refund_admissions
-    WHERE order_id=#{orderId} AND order_line_id=#{orderLineId} AND status='SETTLED'
-  </select>
   <select id="heldCount" resultType="int">
     SELECT COUNT(*) FROM order_line_refund_admissions WHERE order_id=#{orderId} AND status='HELD'
   </select>
+
+  <select id="settledAtWarehouse" resultType="int">
+    SELECT COALESCE(SUM(quantity),0) FROM order_line_refund_admissions
+    WHERE order_id=#{orderId} AND order_line_id=#{orderLineId} AND status='SETTLED' AND warehouse_id=#{warehouseId}
+  </select>
   <insert id="hold">
-    INSERT INTO order_line_refund_admissions(case_id,order_id,order_line_id,quantity,status)
-    VALUES (#{caseId},#{orderId},#{orderLineId},#{quantity},'HELD')
+    INSERT INTO order_line_refund_admissions(case_id,order_id,order_line_id,quantity,status,warehouse_id)
+    VALUES (#{caseId},#{orderId},#{orderLineId},#{quantity},'HELD',COALESCE(#{warehouseId},1))
   </insert>
   <update id="finish">
     UPDATE order_line_refund_admissions SET status=#{status} WHERE case_id=#{caseId} AND status='HELD'

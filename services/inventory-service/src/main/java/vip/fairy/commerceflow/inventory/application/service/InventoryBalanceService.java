@@ -1,6 +1,9 @@
 package vip.fairy.commerceflow.inventory.application.service;
 
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -13,31 +16,73 @@ import vip.fairy.commerceflow.inventory.domain.InventoryReservation;
 import vip.fairy.commerceflow.inventory.domain.ProductInventory;
 import vip.fairy.commerceflow.inventory.domain.StockAvailability;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryMapper;
+import vip.fairy.commerceflow.inventory.infrastructure.persistence.WarehouseStockMapper;
+import vip.fairy.commerceflow.inventory.infrastructure.persistence.WarehouseStockMapper.AvailableStock;
 
 @Service
 public class InventoryBalanceService {
 
   private final InventoryMapper inventory;
+  private final WarehouseStockMapper warehouses;
 
-  public InventoryBalanceService(InventoryMapper inventory) {
+  public InventoryBalanceService(InventoryMapper inventory, WarehouseStockMapper warehouses) {
     this.inventory = inventory;
+    this.warehouses = warehouses;
   }
 
   @Transactional(propagation = Propagation.NESTED)
   public void reserve(Long orderId, List<InventoryCommandV1.Item> items) {
-    for (InventoryCommandV1.Item item : items) {
-      if (inventory.reserve(item.productId(), item.quantity()) != 1) {
-        throw new InventoryReservationRejectedException(item.productId());
+    Map<Long, Integer> demand = new LinkedHashMap<>();
+    items.stream().sorted(Comparator.comparing(InventoryCommandV1.Item::productId))
+      .forEach(item -> demand.merge(item.productId(), item.quantity(), Math::addExact));
+    for (long product : demand.keySet()) {
+      if (inventory.lockInventory(product) == null) throw new InventoryReservationRejectedException(product);
+    }
+    var available = new ArrayList<>(warehouses.lockAvailable(List.copyOf(demand.keySet())));
+    available.sort(Comparator.comparingInt(AvailableStock::priority).thenComparingLong(AvailableStock::warehouseId));
+    Long wholeWarehouse = wholeWarehouse(demand, available);
+    for (var entry : demand.entrySet()) {
+      long productId = entry.getKey();
+      int remaining = entry.getValue();
+      for (var stock : available) {
+        if (stock.productId() != productId || (wholeWarehouse != null && wholeWarehouse != stock.warehouseId())) {
+          continue;
+        }
+        int quantity = Math.min(remaining, stock.available());
+        if (quantity > 0) {
+          reserveAtWarehouse(orderId, productId, stock.warehouseId(), quantity);
+          remaining -= quantity;
+        }
+        if (remaining == 0) break;
       }
-      inventory.insertReservation(orderId, item.productId(), item.quantity());
-      movement("reserve:" + UUID.randomUUID(), orderId, item.productId(), "RESERVED",
-        item.quantity(), "Stock reserved during checkout");
+      if (remaining > 0) throw new InventoryReservationRejectedException(productId);
     }
   }
 
+  private Long wholeWarehouse(Map<Long, Integer> demand, List<AvailableStock> available) {
+    return available.stream().map(AvailableStock::warehouseId).distinct().filter(warehouseId ->
+      available.stream().filter(stock -> stock.warehouseId() == warehouseId
+        && stock.available() >= demand.get(stock.productId())).count() == demand.size())
+      .findFirst().orElse(null);
+  }
+
+  private void reserveAtWarehouse(Long orderId, Long productId, long warehouseId, int quantity) {
+    if (inventory.reserve(productId, quantity) != 1
+        || warehouses.adjust(productId, warehouseId, -quantity, quantity, 0) != 1) {
+      throw new InventoryReservationRejectedException(productId);
+    }
+    inventory.insertReservation(orderId, productId, quantity, warehouseId);
+    movement("reserve:" + UUID.randomUUID(), orderId, productId, "RESERVED",
+      quantity, "Stock reserved during checkout", warehouseId);
+  }
+
   public Map<Long, Integer> activeReservations(Long orderId) {
-    return inventory.activeReservations(orderId).stream()
-      .collect(Collectors.toMap(InventoryReservation::productId, InventoryReservation::quantity));
+    return activeAllocations(orderId).stream()
+      .collect(Collectors.toMap(InventoryReservation::productId, InventoryReservation::quantity, Math::addExact));
+  }
+
+  public List<InventoryReservation> activeAllocations(Long orderId) {
+    return inventory.activeReservations(orderId);
   }
 
   public List<StockAvailability> availability(List<Long> productIds) {
@@ -67,10 +112,12 @@ public class InventoryBalanceService {
         requireChanged(inventory.commitReserved(reservation.productId(), reservation.quantity()),
           "Reserved stock is inconsistent");
         movementType = "COMMITTED";
+        adjustWarehouse(reservation, 0, -reservation.quantity(), reservation.quantity());
       } else if ("RELEASED".equals(reservation.status())) {
         requireChanged(inventory.commitReleased(reservation.productId(), reservation.quantity()),
           "Stock is unavailable after a late successful payment");
         movementType = "LATE_PAYMENT_COMMITTED";
+        adjustWarehouse(reservation, -reservation.quantity(), 0, reservation.quantity());
       } else {
         throw new InventoryBusinessRuleException("Cannot commit reservation in state "
           + reservation.status());
@@ -78,7 +125,7 @@ public class InventoryBalanceService {
       requireChanged(inventory.markCommitted(reservation.id(), reservation.status()),
         "Inventory reservation changed concurrently");
       movement(eventId + ":commit:" + reservation.id(), orderId, reservation.productId(),
-        movementType, reservation.quantity(), "Payment completed the inventory reservation");
+        movementType, reservation.quantity(), "Payment completed the inventory reservation", reservation.warehouseId());
     }
   }
 
@@ -89,10 +136,11 @@ public class InventoryBalanceService {
       }
       requireChanged(inventory.release(reservation.productId(), reservation.quantity()),
         "Reserved stock is inconsistent");
+      adjustWarehouse(reservation, reservation.quantity(), -reservation.quantity(), 0);
       requireChanged(inventory.markReleased(reservation.id()),
         "Inventory reservation changed concurrently");
       movement(eventId + ":release:" + reservation.id(), orderId, reservation.productId(),
-        "RELEASED", reservation.quantity(), reason);
+        "RELEASED", reservation.quantity(), reason, reservation.warehouseId());
     }
   }
 
@@ -103,20 +151,26 @@ public class InventoryBalanceService {
       }
       requireChanged(inventory.refund(reservation.productId(), reservation.quantity()),
         "Sold stock is inconsistent");
+      adjustWarehouse(reservation, reservation.quantity(), 0, -reservation.quantity());
       requireChanged(inventory.markRefunded(reservation.id()),
         "Inventory reservation changed concurrently");
       movement(eventId + ":refund:" + reservation.id(), orderId, reservation.productId(),
-        "REFUNDED", reservation.quantity(), "Successful refund returned sold stock");
+        "REFUNDED", reservation.quantity(), "Successful refund returned sold stock", reservation.warehouseId());
     }
   }
 
+  private void adjustWarehouse(InventoryReservation reservation, int available, int reserved, int sold) {
+    requireChanged(warehouses.adjust(reservation.productId(), reservation.warehouseId(), available, reserved, sold),
+      "Allocated warehouse stock is inconsistent");
+  }
+
   private void movement(String eventId, Long orderId, Long productId, String type,
-                        int quantity, String detail) {
+                        int quantity, String detail, long warehouseId) {
     ProductInventory balance = inventory.inventory(productId);
     if (balance == null) {
       throw new IllegalStateException("Product inventory not found");
     }
-    inventory.insertMovement(eventId, orderId, productId, type, quantity, balance, detail);
+    inventory.insertWarehouseMovement(eventId, orderId, productId, type, quantity, balance, detail, warehouseId);
   }
 
   private void requireChanged(int changed, String message) {

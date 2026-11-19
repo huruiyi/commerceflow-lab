@@ -86,6 +86,7 @@ public class RemoteFulfillmentDownstream implements FulfillmentDownstream {
     command.put("merchantId", task.merchantId());
     command.put("lines", lines);
     if (task.packageShipment()) command.put("partial", true);
+    if (task.warehouseId() != null) command.put("warehouseId", task.warehouseId());
     JsonNode receipt = post(inventory, OUTBOUND_PATH, command);
     if (!task.commandId().equals(receipt.path("outboundId").asText())
         || task.orderId() != receipt.path("orderId").asLong() || receipt.path("lineCount").asInt() != lines.size()) {
@@ -95,9 +96,11 @@ public class RemoteFulfillmentDownstream implements FulfillmentDownstream {
 
   @Override
   public PackageReservation reservePackage(ExecutionTask task) {
-    JsonNode reply = post(order, ORDER_PATH + "/packages/reserve", Map.of("packageId", task.commandId(),
+    var command = new HashMap<String, Object>(Map.of("packageId", task.commandId(),
       "orderId", task.orderId(), "merchantId", task.merchantId(), "carrier", task.carrier(),
       "trackingNumber", task.trackingNumber(), "lines", mapper.readTree(task.packageLines())));
+    if (task.warehouseId() != null) command.put("warehouseId", task.warehouseId());
+    JsonNode reply = post(order, ORDER_PATH + "/packages/reserve", command);
     if (!reply.path("accepted").isBoolean() || !reply.path("lines").isArray()) {
       throw new IllegalStateException("Invalid order package allocation receipt");
     }

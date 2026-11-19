@@ -57,6 +57,11 @@ public class RemoteOrderBoundaryAdapter implements OrderFulfillmentPort, OrderLo
   }
 
   @Override
+  public OrderStorePort.WarehousePlan warehousePlan(Long orderId) {
+    return orders.warehousePlan(orderId);
+  }
+
+  @Override
   public void statusUpdated(Long orderId, String logisticsStatus, Instant occurredAt,
                             String detail, String triggerSource) {
     if ("DELIVERED".equals(logisticsStatus)) {

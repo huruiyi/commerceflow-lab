@@ -42,11 +42,11 @@ public class InventoryOutboundService {
     List<Line> lines = validate(requested);
     String id = requested.outboundId().toString();
     Document document = new Document(requested.outboundId(), requested.orderId(), requested.merchantId(),
-      lines, requested.partial());
+      lines, requested.partial(), requested.warehouseId());
     String digest = DeliveredInventoryReconciliationService.hash(mapper.writeValueAsString(document));
     Receipt receipt = new Receipt(document.outboundId(), document.orderId(), lines.size());
     List<InventoryReservation> reservations = inventory.lockByOrder(document.orderId());
-    if (store.claim(id, document.orderId(), document.merchantId(), digest) == 0) {
+    if (store.claim(id, document.orderId(), document.merchantId(), digest, document.warehouse()) == 0) {
       if (!digest.equals(store.fingerprint(id))) {
         throw new InventoryBusinessRuleException("Outbound document conflicts with an existing shipment");
       }
@@ -66,15 +66,22 @@ public class InventoryOutboundService {
 
   private void requireCommittedQuantities(Document document, List<InventoryReservation> reservations) {
     long orderId = document.orderId();
+    long warehouse = document.warehouse();
+    if ((document.warehouseId() == null || !Boolean.TRUE.equals(document.partial()))
+        && reservations.stream().anyMatch(reservation -> reservation.warehouseId() != warehouse)) {
+      throw new InventoryBusinessRuleException("The requested shipment must identify its allocated warehouse");
+    }
     Map<Long, Long> posted = new HashMap<>();
-    store.postedQuantities(orderId).forEach(quantity -> posted.put(quantity.productId(), quantity.quantity()));
+    store.postedQuantities(orderId, warehouse)
+      .forEach(quantity -> posted.put(quantity.productId(), quantity.quantity()));
     Map<Long, Long> remainingByProduct = new HashMap<>();
     for (InventoryReservation reservation : reservations) {
+      if (reservation.warehouseId() != warehouse) continue;
       if (!"COMMITTED".equals(reservation.status())) {
         throw new InventoryBusinessRuleException("Outbound posting requires committed inventory");
       }
       long remaining = reservation.quantity()
-        - credits.creditedProduct(orderId, reservation.productId(), "BEFORE_SHIPMENT")
+        - credits.creditedProduct(orderId, reservation.productId(), "BEFORE_SHIPMENT", warehouse)
         - posted.getOrDefault(reservation.productId(), 0L);
       if (remaining < 0) {
         throw new InventoryBusinessRuleException("Posted quantities and refunds exceed committed inventory");
@@ -96,16 +103,18 @@ public class InventoryOutboundService {
     String id = document.outboundId().toString();
     String eventId = "outbound:" + id + ":" + line.orderLineId();
     store.insertLine(id, line);
-    inventory.insertMovement(eventId, document.orderId(), line.productId(), "OUTBOUND_POSTED",
-      line.quantity(), inventory.lockInventory(line.productId()), "Outbound document " + id);
+    inventory.insertWarehouseMovement(eventId, document.orderId(), line.productId(), "OUTBOUND_POSTED",
+      line.quantity(), inventory.lockInventory(line.productId()), "Outbound document " + id, document.warehouse());
     Event event = new Event(1, "INVENTORY_OUTBOUND_POSTED", eventId, document.outboundId(),
-      document.orderId(), document.merchantId(), line.orderLineId(), line.productId(), line.quantity(), occurredAt);
+      document.orderId(), document.merchantId(), line.orderLineId(), line.productId(), line.quantity(),
+      occurredAt, document.warehouse());
     store.enqueue(eventId, id, line.orderLineId(), mapper.writeValueAsString(event));
   }
 
   private List<Line> validate(Document document) {
     if (document == null || document.outboundId() == null || document.orderId() <= 0
-        || document.merchantId() <= 0 || document.lines() == null || document.lines().isEmpty()) {
+        || document.merchantId() <= 0 || document.warehouse() <= 0
+        || document.lines() == null || document.lines().isEmpty()) {
       throw new IllegalArgumentException("Outbound document is incomplete");
     }
     Set<Long> orderLines = new HashSet<>();

@@ -14,7 +14,7 @@ public interface InventoryMapper {
   int reserve(@Param("productId") Long productId, @Param("quantity") int quantity);
 
   void insertReservation(@Param("orderId") Long orderId, @Param("productId") Long productId,
-                         @Param("quantity") int quantity);
+                         @Param("quantity") int quantity, @Param("warehouseId") long warehouseId);
 
   List<InventoryReservation> lockByOrder(Long orderId);
 
@@ -48,6 +48,11 @@ public interface InventoryMapper {
                       @Param("productId") Long productId, @Param("movementType") String movementType,
                       @Param("quantity") int quantity, @Param("inventory") ProductInventory inventory,
                       @Param("detail") String detail);
+
+  void insertWarehouseMovement(@Param("eventId") String eventId, @Param("orderId") Long orderId,
+                               @Param("productId") Long productId, @Param("movementType") String movementType,
+                               @Param("quantity") int quantity, @Param("inventory") ProductInventory inventory,
+                               @Param("detail") String detail, @Param("warehouseId") long warehouseId);
 
   Long catalogBusinessVersion(Long productId);
 

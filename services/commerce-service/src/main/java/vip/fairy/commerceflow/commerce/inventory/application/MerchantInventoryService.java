@@ -24,7 +24,7 @@ public class MerchantInventoryService {
     return inventory.movements(merchantId, productId);
   }
 
-  public MerchantInventoryItem adjust(Long merchantId, Long productId, int delta, String reason) {
-    return inventory.adjust(merchantId, productId, delta, reason);
+  public MerchantInventoryItem adjust(Long merchantId, Long productId, int delta, String reason, Long warehouseId) {
+    return inventory.adjust(merchantId, productId, delta, reason, warehouseId);
   }
 }

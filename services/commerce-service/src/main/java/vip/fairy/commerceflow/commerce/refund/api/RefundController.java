@@ -117,7 +117,8 @@ public class RefundController {
   @PostMapping("/api/purchase-orders/{orderId}/after-sales/quote")
   @PreAuthorize("hasRole('CUSTOMER')")
   Offer quote(@PathVariable Long orderId, @Valid @RequestBody Quote request, Authentication authentication) {
-    return afterSales.quote(users.require(authentication).getId(), orderId, request.orderLineId(), request.quantity());
+    return afterSales.quote(users.require(authentication).getId(), orderId, request.orderLineId(), request.quantity(),
+      request.warehouseId(), request.outboundId());
   }
 
   @PostMapping("/api/purchase-orders/{orderId}/after-sales")
@@ -126,7 +127,7 @@ public class RefundController {
   LineAfterSale apply(@PathVariable Long orderId, @Valid @RequestBody Application request,
                      Authentication authentication) {
     return afterSales.submit(users.require(authentication).getId(), orderId, request.orderLineId(), request.quantity(),
-      request.requestId(), request.reason());
+      request.requestId(), request.reason(), request.warehouseId(), request.outboundId());
   }
 
   @PostMapping("/api/purchase-orders/after-sales/{id}/return")
@@ -162,11 +163,12 @@ public class RefundController {
       request.receivedQuantity(), request.note());
   }
 
-  record Quote(@NotNull @Positive Long orderLineId, @Positive int quantity) {
+  record Quote(@NotNull @Positive Long orderLineId, @Positive int quantity, @Positive Long warehouseId,
+               String outboundId) {
   }
 
   record Application(@NotNull @Positive Long orderLineId, @Positive int quantity, @NotNull UUID requestId,
-                     @NotBlank @Size(max = 300) String reason) {
+                     @NotBlank @Size(max = 300) String reason, @Positive Long warehouseId, String outboundId) {
   }
 
   record ReturnParcel(@NotBlank @Size(max = 100) String carrier, @NotBlank @Size(max = 120) String trackingNumber,

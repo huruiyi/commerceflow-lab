@@ -5,6 +5,7 @@ import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderLis
 
 import java.time.Instant;
 import java.util.List;
+import java.math.BigDecimal;
 import java.util.Optional;
 
 import vip.fairy.commerceflow.commerce.ordering.domain.NewOrder;
@@ -49,6 +50,23 @@ public interface OrderStorePort {
   Optional<ShopOrderView> findMerchant(Long merchantId, Long orderId);
 
   List<OrderItemView> items(Long orderId);
+
+  boolean freezeWarehouseAllocation(Long orderId, List<WarehouseReservation> reservations);
+
+  WarehousePlan warehousePlan(Long orderId);
+
+  record WarehouseReservation(long productId, long warehouseId, int quantity) {
+  }
+
+  record WarehousePlan(List<WarehouseAmount> amounts, List<WarehouseShipment> shipments) {
+  }
+
+  record WarehouseAmount(long orderId, long orderLineId, long productId, long warehouseId, int quantity,
+                         BigDecimal grossAmount, BigDecimal discountAmount, BigDecimal freightAmount) {
+  }
+
+  record WarehouseShipment(String packageId, long warehouseId, long orderLineId, int quantity) {
+  }
 
   OrderAddressView address(Long orderId);
 

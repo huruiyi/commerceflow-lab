@@ -6,6 +6,7 @@ import java.net.http.HttpClient;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -56,6 +57,20 @@ public class RemoteOrderStoreAdapter implements OrderStorePort, OrderLineRefundV
   @Override
   public String status(Long id) {
     return query(new Query("STATUS", null, null, id, null)).status();
+  }
+
+  @Override
+  public boolean freezeWarehouseAllocation(Long orderId, List<WarehouseReservation> reservations) {
+    return post("/internal/v1/orders/store/warehouse-amounts",
+      new WarehouseSnapshot(orderId, reservations), Boolean.class);
+  }
+
+  private record WarehouseSnapshot(Long orderId, List<WarehouseReservation> reservations) {
+  }
+
+  @Override
+  public WarehousePlan warehousePlan(Long orderId) {
+    return post("/internal/v1/orders/store/warehouse-amounts/query", Map.of("orderId", orderId), WarehousePlan.class);
   }
 
   @Override

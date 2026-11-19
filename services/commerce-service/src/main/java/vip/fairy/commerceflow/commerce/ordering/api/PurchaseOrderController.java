@@ -4,6 +4,7 @@ import vip.fairy.commerceflow.commerce.cart.application.contract.v1.RepurchaseCa
 import vip.fairy.commerceflow.commerce.identity.application.CurrentUserService;
 import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
 import vip.fairy.commerceflow.commerce.logistics.api.LogisticsResponse;
+import vip.fairy.commerceflow.commerce.ordering.application.port.OrderStorePort.WarehousePlan;
 import vip.fairy.commerceflow.commerce.logistics.application.LogisticsService;
 import vip.fairy.commerceflow.commerce.ordering.application.OrderCancellationService;
 import vip.fairy.commerceflow.commerce.ordering.application.OrderRepurchaseService;
@@ -114,6 +115,11 @@ public class PurchaseOrderController {
   @GetMapping("/{id}/logistics")
   LogisticsResponse logistics(@PathVariable Long id, Authentication authentication) {
     return logistics.require(currentUsers.require(authentication), id);
+  }
+
+  @GetMapping("/{id}/warehouse-plan")
+  WarehousePlan warehousePlan(@PathVariable Long id, Authentication authentication) {
+    return orders.warehousePlan(currentUsers.require(authentication).getId(), id);
   }
 
   @PostMapping("/{id}/repurchase")

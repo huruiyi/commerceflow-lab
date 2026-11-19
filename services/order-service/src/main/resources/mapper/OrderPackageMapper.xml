@@ -3,7 +3,7 @@
 <mapper namespace="vip.fairy.commerceflow.order.infrastructure.persistence.OrderPackageMapper">
 
   <select id="find" resultType="vip.fairy.commerceflow.order.infrastructure.persistence.OrderPackageMapper$Allocation">
-    SELECT order_id,merchant_id,carrier,tracking_number,posted_at IS NOT NULL AS posted
+    SELECT order_id,merchant_id,carrier,tracking_number,posted_at IS NOT NULL AS posted,warehouse_id
     FROM order_package_allocations WHERE package_id=#{packageId}
   </select>
 
@@ -13,10 +13,6 @@
     WHERE l.package_id=#{packageId} ORDER BY l.order_line_id
   </select>
 
-  <select id="allocatedQuantity" resultType="int">
-    SELECT COALESCE(SUM(quantity),0) FROM order_package_lines WHERE order_line_id=#{orderLineId}
-  </select>
-
   <select id="trackingUsed" resultType="boolean">
     SELECT EXISTS (
       SELECT 1 FROM order_package_allocations WHERE order_id=#{orderId}
@@ -24,9 +20,15 @@
     )
   </select>
 
+  <select id="allocatedAtWarehouse" resultType="int">
+    SELECT COALESCE(SUM(l.quantity),0) FROM order_package_lines l
+    JOIN order_package_allocations p ON p.package_id=l.package_id
+    WHERE l.order_line_id=#{orderLineId} AND p.warehouse_id=#{warehouseId}
+  </select>
+
   <insert id="insert">
-    INSERT INTO order_package_allocations(package_id,order_id,merchant_id,carrier,tracking_number)
-    VALUES (#{packageId},#{orderId},#{merchantId},#{carrier},#{trackingNumber})
+    INSERT INTO order_package_allocations(package_id,order_id,merchant_id,carrier,tracking_number,warehouse_id)
+    VALUES (#{packageId},#{orderId},#{merchantId},#{carrier},#{trackingNumber},COALESCE(#{warehouseId},1))
   </insert>
 
   <insert id="insertLine">

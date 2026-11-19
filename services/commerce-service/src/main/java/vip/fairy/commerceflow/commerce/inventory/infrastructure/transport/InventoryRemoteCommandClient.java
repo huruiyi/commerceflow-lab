@@ -48,8 +48,8 @@ public class InventoryRemoteCommandClient implements InventoryReservationQuery, 
   }
 
   @Override
-  public Map<Long, Integer> activeReservations(Long orderId) {
-    String target = "/internal/v1/inventory/reservations/" + orderId;
+  public List<Allocation> activeAllocations(Long orderId) {
+    String target = "/internal/v1/inventory/reservations/" + orderId + "/allocations";
     try {
       return client.get().uri(URI.create(baseUrl + target))
         .headers(headers -> signer.sign(headers, "GET", target, signer.contentHash("")))

@@ -7,7 +7,6 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -17,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
 import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryReservationQuery;
+import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryReservationQuery.Allocation;
 import vip.fairy.commerceflow.commerce.ordering.api.CreatePaymentRequest;
 import vip.fairy.commerceflow.commerce.ordering.application.PurchaseOrderService;
 import vip.fairy.commerceflow.commerce.ordering.application.port.OrderStorePort;
@@ -60,8 +60,10 @@ class PurchaseOrderPaymentAdmissionTest {
     when(item.getQuantity()).thenReturn(2);
 
     CreatePaymentRequest request = new CreatePaymentRequest("payment-test", false, PaymentChannelV1.ALIPAY);
-    for (Map<Long, Integer> actual : List.of(Map.<Long, Integer>of(), Map.of(30L, 1), Map.of(40L, 2))) {
-      when(reservations.activeReservations(20L)).thenReturn(actual);
+    for (List<Allocation> actual : List.of(List.<Allocation>of(),
+      List.of(new Allocation(1, 30, 1, "RESERVED", 1)),
+      List.of(new Allocation(2, 40, 2, "RESERVED", 1)))) {
+      when(reservations.activeAllocations(20L)).thenReturn(actual);
       assertThatThrownBy(() -> purchaseOrders.pay(buyer, 20L, request))
         .isInstanceOf(BusinessRuleException.class).hasMessageContaining("reservations");
     }

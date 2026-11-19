@@ -30,6 +30,16 @@ import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
 final class TestOrderStoreAdapter implements OrderStorePort {
 
   @Override
+  public boolean freezeWarehouseAllocation(Long orderId, List<WarehouseReservation> reservations) {
+    return true;
+  }
+
+  @Override
+  public WarehousePlan warehousePlan(Long orderId) {
+    return new WarehousePlan(List.of(), List.of());
+  }
+
+  @Override
   public OrderListPage<ShopOrderView> search(Long customerId, Long merchantId, OrderListQuery criteria) {
     throw new UnsupportedOperationException("Order search is served by order-service");
   }

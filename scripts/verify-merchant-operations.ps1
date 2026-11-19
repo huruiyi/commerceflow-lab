@@ -1,6 +1,6 @@
 #requires -Version 7.0
 param(
-  [ValidateSet('Store','Settlement','Payout','Packages','Search')][string]$Chapter='Store',
+  [ValidateSet('Store','Settlement','Payout','Packages','Search','Warehouses')][string]$Chapter='Store',
   [string]$BaseUrl='http://localhost:14200',
   [string]$PaymentBaseUrl='http://localhost:14201',
   [string]$LogisticsUrl='http://localhost:18083',
@@ -88,11 +88,12 @@ function Open-FixtureStore {
   @{id=$account.id;actor=$actor;path=$path;name=$profile.name;suffix=$suffix;email=$email;password=$password}
 }
 
-function New-Product($shop,[int]$Quantity=5,[string]$Name,[string]$Description='Merchant scope verification'){
+function New-Product($shop,[int]$Quantity=5,[string]$Name,[string]$Description='Merchant scope verification',
+                     [decimal]$Price=80){
   $session=$shop.actor
   if(!$Name){$Name="Acceptance product $($shop.suffix)"}
   $request=@{requestId=[guid]::NewGuid();name=$Name;
-    description=$Description;unitPrice=80;imageUrl=$baselineProduct.imageUrl}
+    description=$Description;unitPrice=$Price;imageUrl=$baselineProduct.imageUrl}
   $draft=Api $session '/api/merchant/catalog/v1/products' Post $request
   $id=$draft.productId
   if($draft.lifecycleStatus-ne'INACTIVE' -or $draft.merchantId-ne$shop.id -or
@@ -277,11 +278,12 @@ function Start-PackageOrder($shop,$product){
   } 'Order did not confirm for split shipment'
 }
 
-function Ship-Package($shop,$order,[int]$quantity,[string]$expected){
+function Ship-Package($shop,$order,[int]$quantity,[string]$expected,[long]$WarehouseId=0){
   $packageId=[guid]::NewGuid().ToString()
   $path="/api/merchant/orders/$($order.id)/packages"
   $document=@{packageId=$packageId;carrier='CommerceFlow Express';trackingNumber="PACK-$packageId";
     lines=@(@{orderLineId=$order.items[0].id;quantity=$quantity})}
+  if($WarehouseId){$document.warehouseId=$WarehouseId}
   Reject $buyer $path Post $document @(403)
   $submission=Api $shop.actor $path Post $document
   if($submission.commandId-ne$packageId){throw 'Wrong package ID'}
@@ -349,6 +351,91 @@ function Verify-Packages($shop,$product){
   if($normal.status-ne'COMPLETED' -or !$normal.logistics.merchantShipmentNo){throw 'Single-shipment flow regressed'}
   @{order=$id;packages=@($first,$second);legacyOrder=$normal.id;refund=$returned.refundNumber;
     unshippedRefundOrder=$refundId}
+}
+
+function Warehouse-Order($shop){
+  $product=New-Product $shop 1 -Price 100
+  $sku=[long]$product.productId
+  Api $shop.actor "/api/merchant/inventory/$sku/adjustments" Post @{
+    delta=1;reason='Second warehouse acceptance stock';warehouseId=2
+  }|Out-Null
+  $campaign=Api $shop.actor '/api/merchant/coupon-campaigns' Post @{
+    title='Warehouse allocation acceptance';minimumAmount=200;discountAmount=15.01;supply=1
+    startsAt=[datetimeoffset]::UtcNow.AddMinutes(-1).ToString('o');expiresAt=[datetimeoffset]::UtcNow.AddHours(1).ToString('o')
+  }
+  $coupon=Api $buyer "/api/coupons/campaigns/$($campaign.id)/claim" Post @{}
+  $cart=Api $buyer '/api/cart/items' Post @{productId=$sku;quantity=2}
+  $selection=@{itemIds=@($cart.id);couponId=$coupon.id}
+  $order=Pay (Submit-VerifiedCheckout $BaseUrl $buyer.Session $buyer.Headers $selection)
+  $id=[long]$order.id
+  if($order.discountAmount-ne15.01 -or $order.shippingFee-ne12.01 -or $order.totalAmount-ne197){
+    throw 'Order amount snapshot differs from warehouse acceptance totals'
+  }
+  $amounts=(Api $buyer "/api/purchase-orders/$id/warehouse-plan").amounts
+  $merchant=(Api $shop.actor "/api/merchant/orders/$id/warehouse-plan").amounts
+  if($amounts.Count-ne2 -or $merchant.Count-ne2 -or
+    $amounts[0].warehouseId-ne1 -or $amounts[0].discountAmount-ne7.50 -or $amounts[0].freightAmount-ne6.00 -or
+    $amounts[1].warehouseId-ne2 -or $amounts[1].discountAmount-ne7.51 -or $amounts[1].freightAmount-ne6.01 -or
+    @($amounts|Where-Object {$_.quantity-ne1 -or $_.grossAmount-ne100}).Count){
+    throw 'Warehouse quantity, discount or freight allocation is inconsistent'
+  }
+  $reserved=@(Sql inventory-db inventory "SELECT CONCAT(warehouse_id,'/',quantity,'/',status) FROM inventory_reservations WHERE order_id=$id ORDER BY warehouse_id")
+  if(($reserved-join'|')-ne'1/1/COMMITTED|2/1/COMMITTED'){throw 'Inventory did not commit both warehouse allocations'}
+  Api $shop.actor "/api/merchant/orders/$id/confirm" Post @{}|Out-Null
+  Wait-Value {
+    $result=Api $buyer "/api/purchase-orders/$id"
+    if($result.status-eq'CONFIRMED'){$result}
+  } 'Warehouse order was not confirmed'
+}
+
+function Verify-Warehouses($shop){
+  Api $shop.actor '/api/merchant/shipping-template' Put @{defaultFee=12.01;regions=@()}|Out-Null
+  $split=Warehouse-Order $shop
+  $id=[long]$split.id
+  $a=Ship-Package $shop $split 1 'COMPLETED' 1
+  $null=Ship-Package $shop $split 1 'REJECTED' 1
+  $b=Ship-Package $shop $split 1 'COMPLETED' 2
+  $out=@(Sql inventory-db inventory "SELECT CONCAT(d.warehouse_id,'/',l.quantity) FROM inventory_outbound_documents d JOIN inventory_outbound_lines l USING(outbound_id) WHERE d.order_id=$id ORDER BY d.warehouse_id")
+  if(($out-join'|')-ne'1/1|2/1' -or (Api $buyer "/api/purchase-orders/$id").packages.Count-ne2){
+    throw 'Expected two warehouse outbounds and two logistics packages'
+  }
+  Delivery "CFL-PACKAGE-$a"
+  Delivery "CFL-PACKAGE-$b"
+  $cancel=Warehouse-Order $shop
+  $partial=[long]$cancel.id
+  $origin=Ship-Package $shop $cancel 1 'COMPLETED' 1
+  $line=$cancel.items[0].id
+  $route="/api/purchase-orders/$partial/after-sales"
+  Reject $buyer "$route/quote" Post @{orderLineId=$line;quantity=1;warehouseId=1} @(409)
+  $refund=Api $buyer $route Post @{
+    orderLineId=$line;quantity=1;warehouseId=2;requestId=[guid]::NewGuid();reason='Cancel unshipped B parcel'
+  }
+  if($refund.merchandiseAmount-ne92.49 -or $refund.shippingAmount-ne0){throw 'Unexpected B cancellation amount'}
+  Api $shop.actor "/api/merchant/after-sales/$($refund.id)/review" Post @{accepted=$true;note='B not shipped'}|Out-Null
+  $null=Wait-Value {
+    $value=Api $buyer $route|Where-Object id -eq $refund.id
+    if($value.status-eq'COMPLETED'){$value}
+  } 'B warehouse refund did not complete'
+  Delivery "CFL-PACKAGE-$origin"
+  $null=Wait-Value {
+    $value=Api $buyer "/api/purchase-orders/$partial"
+    if($value.status-eq'SHIPPED' -and $value.packages[0].status-eq'DELIVERED'){$value}
+  } 'A parcel did not finish after canceling B'
+  Api $buyer "/api/purchase-orders/$partial/receive" Post @{}|Out-Null
+  Reject $buyer "$route/quote" Post @{orderLineId=$line;quantity=1;warehouseId=2;outboundId=$origin} @(409)
+  $sale=Api $buyer $route Post @{
+    orderLineId=$line;quantity=1;warehouseId=1;outboundId=$origin;requestId=[guid]::NewGuid();
+    reason='Return A parcel to its dispatch warehouse'
+  }
+  $returned=Refund-Return $shop $sale
+  if($returned.merchandiseAmount-ne92.50 -or $returned.shippingAmount-ne0){throw 'Unexpected A return amount'}
+  $movements=@(Sql inventory-db inventory "SELECT CONCAT(warehouse_id,'/',movement_type,'/',quantity) FROM inventory_movements WHERE order_id=$partial AND movement_type IN ('OUTBOUND_POSTED','UNSHIPPED_REFUND_RESTOCKED','RETURN_RESTOCKED') ORDER BY id")
+  if(($movements-join'|')-ne'1/OUTBOUND_POSTED/1|2/UNSHIPPED_REFUND_RESTOCKED/1|1/RETURN_RESTOCKED/1'){
+    throw 'Warehouse inventory restitution ledger is inconsistent'
+  }
+  $normal=Complete-Order $shop (New-Product $shop 2) 1
+  @{splitOrder=$id;cancelOrder=$partial;warehouseRefund=$refund.id;warehouseReturn=$returned.id;
+    legacyOrder=$normal.id;warehouseA=92.50;warehouseB=92.49}
 }
 
 function Refund-Return($shop,$sale){
@@ -586,6 +673,14 @@ if($baselineShop.status-ne'ACTIVE' -or $baselineProduct.merchantId-ne$baselineSh
 $shop=Open-FixtureStore
 $otherShop=$null
 try{
+  if($Chapter-eq'Warehouses'){
+    $result=Verify-Warehouses $shop
+    if((Archives)-ne$archive){throw 'Historical archives changed'}
+    $actualCart=@(Api $buyer '/api/cart' | Sort-Object id | ForEach-Object {"$($_.id)/$($_.productId)/$($_.quantity)"}) -join '|'
+    if($actualCart-ne$originalCart){throw 'Pre-existing cart items changed'}
+    @{chapter=$Chapter;isolated=$isolated;result=$result;fiveArchivesVerified=$true}|ConvertTo-Json -Depth 5
+    return
+  }
   if($Chapter-eq'Search'){
     $otherShop=Open-FixtureStore
     $result=Verify-Search $shop $otherShop

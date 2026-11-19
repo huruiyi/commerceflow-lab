@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.order.infrastructure.persistence.OrderWarehouseAmountMapper">
+  <select id="orderAmounts" resultType="vip.fairy.commerceflow.order.application.OrderWarehouseAmounts$Amount">
+    SELECT a.order_id,a.order_line_id,i.product_id,a.warehouse_id,a.quantity,
+      a.gross_amount,a.discount_amount,a.freight_amount
+    FROM order_warehouse_amounts a JOIN order_items i ON i.id=a.order_line_id
+    WHERE a.order_id=#{orderId} ORDER BY a.order_line_id,a.warehouse_id
+  </select>
+
+  <insert id="insert">
+    INSERT INTO order_warehouse_amounts(
+      order_id,order_line_id,warehouse_id,quantity,gross_amount,discount_amount,freight_amount
+    )
+    VALUES (#{orderId},#{orderLineId},#{warehouseId},#{quantity},#{grossAmount},#{discountAmount},#{freightAmount})
+  </insert>
+
+  <select id="shippedLines" resultType="vip.fairy.commerceflow.order.application.OrderWarehouseAmounts$Shipment">
+    SELECT p.package_id,p.warehouse_id,l.order_line_id,l.quantity
+    FROM order_package_allocations p JOIN order_package_lines l ON l.package_id=p.package_id
+    WHERE p.order_id=#{orderId} AND p.posted_at IS NOT NULL ORDER BY p.posted_at,p.package_id,l.order_line_id
+  </select>
+</mapper>

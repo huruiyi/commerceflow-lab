@@ -16,6 +16,7 @@ import vip.fairy.commerceflow.commerce.identity.application.CurrentUserService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -33,6 +34,7 @@ import java.util.List;
 import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderListReadV1;
 import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderListPage;
 import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderListQuery;
+import vip.fairy.commerceflow.commerce.ordering.application.port.OrderStorePort.WarehousePlan;
 
 @RestController
 @RequestMapping("/api/merchant/orders")
@@ -75,6 +77,11 @@ public class MerchantFulfillmentController {
     return service.get(users.require(authentication).getId(), id);
   }
 
+  @GetMapping("/{id}/warehouse-plan")
+  WarehousePlan warehousePlan(@PathVariable Long id, Authentication authentication) {
+    return service.warehousePlan(users.require(authentication).getId(), id);
+  }
+
   @PostMapping("/fulfillment-v1/commands")
   ResponseEntity<CommandResult> submitCommand(@Valid @RequestBody FulfillmentCommandV1 command,
                                                Authentication authentication) {
@@ -94,14 +101,15 @@ public class MerchantFulfillmentController {
                                             Authentication authentication) {
     Long merchantId = users.require(authentication).getId();
     var command = new FulfillmentCommandV1(1, request.packageId(), FulfillmentCommandV1.Operation.SHIP,
-      merchantId, id, Instant.now(), request.carrier(), request.trackingNumber(), null, request.lines());
+      merchantId, id, Instant.now(), request.carrier(), request.trackingNumber(), null,
+      request.lines(), request.warehouseId());
     return submitCommand(command, authentication);
   }
 
   record PackageRequest(@NotNull UUID packageId, @NotBlank @Size(max = 100) String carrier,
                         @NotBlank @Size(max = 120) String trackingNumber,
                         @NotNull @Size(min = 1, max = 200)
-                        List<@NotNull @Valid PackageLine> lines) {
+                        List<@NotNull @Valid PackageLine> lines, @Positive Long warehouseId) {
   }
 
   @PostMapping("/{id}/confirm")

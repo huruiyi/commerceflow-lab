@@ -15,6 +15,7 @@ public interface OrderRefundPort {
   Optional<ShopOrderView> lock(Long orderId);
 
   List<OrderItemView> items(Long orderId);
+  OrderStorePort.WarehousePlan warehousePlan(Long orderId);
 
   boolean start(Long orderId, String fromStatus);
 

@@ -3,10 +3,14 @@
 <mapper namespace="vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryMapper">
 
   <select id="availability" resultType="vip.fairy.commerceflow.inventory.domain.StockAvailability">
-    SELECT product_id AS productId, catalog_lifecycle_status = 'ACTIVE' AS listed, stock_available AS available
-    FROM product_inventory
-    WHERE product_id IN
+    SELECT p.product_id AS productId,p.catalog_lifecycle_status='ACTIVE' AS listed,
+      COALESCE(SUM(CASE WHEN w.enabled THEN s.stock_available END),0) AS available
+    FROM product_inventory p
+    LEFT JOIN inventory_warehouse_stock s ON s.product_id=p.product_id
+    LEFT JOIN inventory_warehouses w ON w.id=s.warehouse_id
+    WHERE p.product_id IN
     <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    GROUP BY p.product_id,p.catalog_lifecycle_status
   </select>
 
   <update id="reserve">
@@ -17,22 +21,23 @@
   </update>
 
   <insert id="insertReservation">
-    INSERT INTO inventory_reservations(order_id,product_id,quantity,status)
-    VALUES(#{orderId},#{productId},#{quantity},'RESERVED')
+    INSERT INTO inventory_reservations(order_id,product_id,quantity,status,warehouse_id)
+    VALUES(#{orderId},#{productId},#{quantity},'RESERVED',#{warehouseId})
   </insert>
 
   <select id="lockByOrder"
           resultType="vip.fairy.commerceflow.inventory.domain.InventoryReservation">
-    SELECT id,product_id AS productId,quantity,status
+    SELECT id,product_id AS productId,quantity,status,warehouse_id
     FROM inventory_reservations
     WHERE order_id=#{orderId}
-    ORDER BY id
+    ORDER BY product_id,warehouse_id
     FOR UPDATE
   </select>
 
   <select id="activeReservations" resultType="vip.fairy.commerceflow.inventory.domain.InventoryReservation">
-    SELECT id,product_id AS productId,quantity,status FROM inventory_reservations
+    SELECT id,product_id AS productId,quantity,status,warehouse_id FROM inventory_reservations
     WHERE order_id=#{orderId} AND status='RESERVED'
+    ORDER BY warehouse_id,product_id
   </select>
 
   <sql id="missingReservationLine">
@@ -40,6 +45,7 @@
       SELECT 1 FROM inventory_movements m
       LEFT JOIN inventory_reservations r
         ON r.order_id=m.order_id AND r.product_id=m.product_id AND r.quantity=m.quantity
+        AND r.warehouse_id=m.warehouse_id
       WHERE m.order_id=#{orderId} AND m.movement_type='RESERVED' AND r.id IS NULL
     )
   </sql>
@@ -125,6 +131,13 @@
   <select id="catalogBusinessVersion" resultType="java.lang.Long">
     SELECT catalog_business_version FROM product_inventory WHERE product_id=#{productId}
   </select>
+
+  <insert id="insertWarehouseMovement">
+    INSERT INTO inventory_movements(event_id,order_id,product_id,movement_type,quantity,
+      available_after,reserved_after,sold_after,detail,warehouse_id)
+    VALUES(#{eventId},#{orderId},#{productId},#{movementType},#{quantity},
+      #{inventory.stockAvailable},#{inventory.stockReserved},#{inventory.stockSold},#{detail},#{warehouseId})
+  </insert>
 
   <insert id="createCatalogSnapshot">
     INSERT INTO product_inventory(product_id,merchant_id,product_name,thumbnail_url,unit_price,

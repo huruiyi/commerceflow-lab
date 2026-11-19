@@ -65,6 +65,18 @@
               <td colspan="5">
                 <div class="inventory-detail">
                   <form (ngSubmit)="adjust(item)">
+                    <label>
+                      {{ 'fulfillmentWarehouse' | t }}
+                      <select
+                        class="form-select"
+                        name="warehouse{{ item.productId }}"
+                        [ngModel]="warehouse[item.productId] ?? 1"
+                        (ngModelChange)="warehouse[item.productId] = $event"
+                      >
+                        <option [ngValue]="1">{{ 'defaultWarehouse' | t }}</option>
+                        <option [ngValue]="2">{{ 'secondaryWarehouse' | t }}</option>
+                      </select>
+                    </label>
                     <label
                       >{{ 'inventoryDelta' | t
                       }}<input

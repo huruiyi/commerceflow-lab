@@ -1026,7 +1026,7 @@ class CommerceFlowIntegrationTest {
       1L, null, 1L, "MANUAL_INCREASE", 5, 45, 0, 0,
       "Cycle count correction", Instant.now());
     when(merchantInventoryRemoteClient.list(merchantId)).thenReturn(List.of(before));
-    when(merchantInventoryRemoteClient.adjust(merchantId, 1L, 5, "Cycle count correction"))
+    when(merchantInventoryRemoteClient.adjust(merchantId, 1L, 5, "Cycle count correction", null))
       .thenReturn(after);
     when(merchantInventoryRemoteClient.movements(merchantId, 1L))
       .thenReturn(List.of(movement));
@@ -1049,7 +1049,7 @@ class CommerceFlowIntegrationTest {
     mvc.perform(get("/api/merchant/inventory").session(customer.session()))
       .andExpect(status().isForbidden());
     org.mockito.Mockito.verify(merchantInventoryRemoteClient)
-      .adjust(merchantId, 1L, 5, "Cycle count correction");
+      .adjust(merchantId, 1L, 5, "Cycle count correction", null);
   }
 
   @Test

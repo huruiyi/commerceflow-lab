@@ -48,9 +48,9 @@ class InventoryOutboundServiceTest {
   @Test
   void permitsTheRemainingQuantityOfTheSameLine() {
     Document document = packageDocument(2);
-    when(store.claim(eq(document.outboundId().toString()), eq(40L), eq(5L), anyString())).thenReturn(1);
+    when(store.claim(eq(document.outboundId().toString()), eq(40L), eq(5L), anyString(), eq(1L))).thenReturn(1);
     when(inventory.lockByOrder(40L)).thenReturn(List.of(new InventoryReservation(1L, 7L, 3, "COMMITTED")));
-    when(store.postedQuantities(40)).thenReturn(List.of(new OutboundProductQuantity(7, 1)));
+    when(store.postedQuantities(40, 1)).thenReturn(List.of(new OutboundProductQuantity(7, 1)));
 
     assertThat(service.post(document).outboundId()).isEqualTo(document.outboundId());
     verify(store).insertLine(document.outboundId().toString(), document.lines().getFirst());
@@ -59,10 +59,10 @@ class InventoryOutboundServiceTest {
   @Test
   void rejectsAQuantityAlreadyPostedOrCreditedBeforeShipment() {
     Document document = packageDocument(2);
-    when(store.claim(eq(document.outboundId().toString()), eq(40L), eq(5L), anyString())).thenReturn(1);
+    when(store.claim(eq(document.outboundId().toString()), eq(40L), eq(5L), anyString(), eq(1L))).thenReturn(1);
     when(inventory.lockByOrder(40L)).thenReturn(List.of(new InventoryReservation(1L, 7L, 3, "COMMITTED")));
-    when(store.postedQuantities(40)).thenReturn(List.of(new OutboundProductQuantity(7, 1)));
-    when(credits.creditedProduct(40L, 7L, "BEFORE_SHIPMENT")).thenReturn(1);
+    when(store.postedQuantities(40, 1)).thenReturn(List.of(new OutboundProductQuantity(7, 1)));
+    when(credits.creditedProduct(40L, 7L, "BEFORE_SHIPMENT", 1)).thenReturn(1);
 
     assertThatThrownBy(() -> service.post(document)).isInstanceOf(InventoryBusinessRuleException.class);
     verify(store, never()).insertLine(anyString(), any());

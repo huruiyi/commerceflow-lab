@@ -11,9 +11,18 @@ public final class InventoryOutboundV1 {
   }
 
   public record Document(UUID outboundId, long orderId, long merchantId, List<Line> lines,
-                         @JsonInclude(JsonInclude.Include.NON_NULL) Boolean partial) {
+                         @JsonInclude(JsonInclude.Include.NON_NULL) Boolean partial,
+                         @JsonInclude(JsonInclude.Include.NON_NULL) Long warehouseId) {
     public Document {
       if (Boolean.FALSE.equals(partial)) partial = null;
+    }
+
+    public Document(UUID outboundId, long orderId, long merchantId, List<Line> lines, Boolean partial) {
+      this(outboundId, orderId, merchantId, lines, partial, null);
+    }
+
+    public long warehouse() {
+      return warehouseId == null ? 1 : warehouseId;
     }
   }
 
@@ -25,6 +34,6 @@ public final class InventoryOutboundV1 {
 
   public record Event(int schemaVersion, String eventType, String eventId, UUID outboundId,
                       long orderId, long merchantId, long orderLineId, long productId,
-                      int quantity, Instant occurredAt) {
+                      int quantity, Instant occurredAt, long warehouseId) {
   }
 }

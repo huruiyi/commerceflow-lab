@@ -9,6 +9,7 @@ import { TranslatePipe } from '../pipes/translate.pipe';
 import { TrdatePipe } from '../pipes/trdate.pipe';
 import { TrcurrencyPipe } from '../pipes/trcurrency.pipe';
 import { OrderListFilterComponent } from '../order-list-filter/order-list-filter.component';
+import { LineAfterSalesComponent } from '../line-after-sales/line-after-sales.component';
 
 describe('PurchaseOrdersComponent', () => {
   let fixture: ComponentFixture<PurchaseOrdersComponent>;
@@ -102,7 +103,14 @@ describe('PurchaseOrdersComponent', () => {
     };
     await TestBed.configureTestingModule({
       imports: [FormsModule, RouterTestingModule],
-      declarations: [PurchaseOrdersComponent, OrderListFilterComponent, TranslatePipe, TrdatePipe, TrcurrencyPipe],
+      declarations: [
+        PurchaseOrdersComponent,
+        OrderListFilterComponent,
+        LineAfterSalesComponent,
+        TranslatePipe,
+        TrdatePipe,
+        TrcurrencyPipe,
+      ],
       providers: [{ provide: ApiService, useValue: api }],
     }).compileComponents();
     fixture = TestBed.createComponent(PurchaseOrdersComponent);

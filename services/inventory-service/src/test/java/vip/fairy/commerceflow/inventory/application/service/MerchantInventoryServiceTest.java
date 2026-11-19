@@ -18,6 +18,7 @@ import vip.fairy.commerceflow.inventory.domain.MerchantInventoryItem;
 import vip.fairy.commerceflow.inventory.domain.ProductInventory;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryMapper;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.MerchantInventoryMapper;
+import vip.fairy.commerceflow.inventory.infrastructure.persistence.WarehouseStockMapper;
 
 @ExtendWith(MockitoExtension.class)
 class MerchantInventoryServiceTest {
@@ -28,6 +29,9 @@ class MerchantInventoryServiceTest {
   @Mock
   private InventoryMapper inventory;
 
+  @Mock
+  private WarehouseStockMapper warehouses;
+
   @Test
   void adjustsOwnedInventoryAndRecordsTheResultingBalance() {
     MerchantInventoryItem before = mock(MerchantInventoryItem.class);
@@ -35,13 +39,14 @@ class MerchantInventoryServiceTest {
     ProductInventory balance = new ProductInventory(1L, 45, 2, 3);
     when(merchantInventory.find(7L, 1L)).thenReturn(before, after);
     when(merchantInventory.adjust(7L, 1L, 5)).thenReturn(1);
+    when(warehouses.adjust(1L, 1L, 5, 0, 0)).thenReturn(1);
     when(inventory.inventory(1L)).thenReturn(balance);
 
     MerchantInventoryItem result = service().adjust(7L, 1L, 5, " Cycle count ");
 
     assertThat(result).isSameAs(after);
-    verify(inventory).insertMovement(anyString(), eq(null), eq(1L), eq("MANUAL_INCREASE"),
-      eq(5), eq(balance), eq("Cycle count"));
+    verify(inventory).insertWarehouseMovement(anyString(), eq(null), eq(1L), eq("MANUAL_INCREASE"),
+      eq(5), eq(balance), eq("Cycle count"), eq(1L));
   }
 
   @Test
@@ -62,6 +67,6 @@ class MerchantInventoryServiceTest {
   }
 
   private MerchantInventoryService service() {
-    return new MerchantInventoryService(merchantInventory, inventory);
+    return new MerchantInventoryService(merchantInventory, inventory, warehouses);
   }
 }

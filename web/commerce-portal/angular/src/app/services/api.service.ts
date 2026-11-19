@@ -13,6 +13,7 @@ import {
   OrderSearchPage,
   PaymentChannel,
   PurchaseOrder,
+  WarehousePlan,
   RepurchaseResult,
 } from 'src/model/IPurchaseOrder';
 import { ScheduledTask, ScheduledTaskEvent, SchedulingPolicy, SchedulingPolicyEvent } from 'src/model/IScheduling';
@@ -37,6 +38,8 @@ export interface AfterSaleOffer {
 }
 
 export interface AfterSale extends Pick<AfterSaleOffer, 'merchandiseAmount' | 'shippingAmount'> {
+  warehouseId?: number;
+  outboundId?: string;
   id: string;
   status: string;
   reason: string;
@@ -256,16 +259,36 @@ export class ApiService {
     return this.http.get<AfterSale[]>(base + '/' + orderId + '/after-sales');
   }
 
-  quoteAfterSale(orderId: number, orderLineId: number, quantity: number): Observable<AfterSaleOffer> {
+  warehousePlan(orderId: number, merchant: boolean): Observable<WarehousePlan> {
+    const base = merchant ? '/api/merchant/orders' : '/api/purchase-orders';
+    return this.http.get<WarehousePlan>(`${base}/${orderId}/warehouse-plan`);
+  }
+
+  quoteAfterSale(
+    orderId: number,
+    orderLineId: number,
+    quantity: number,
+    warehouseId?: number,
+    outboundId?: string,
+  ): Observable<AfterSaleOffer> {
     return this.http.post<AfterSaleOffer>('/api/purchase-orders/' + orderId + '/after-sales/quote', {
       orderLineId,
       quantity,
+      warehouseId,
+      outboundId,
     });
   }
 
   submitAfterSale(
     orderId: number,
-    body: { orderLineId: number; quantity: number; reason: string; requestId: string },
+    body: {
+      orderLineId: number;
+      quantity: number;
+      reason: string;
+      requestId: string;
+      warehouseId?: number;
+      outboundId?: string;
+    },
   ): Observable<AfterSale> {
     return this.http.post<AfterSale>('/api/purchase-orders/' + orderId + '/after-sales', body);
   }
@@ -420,8 +443,17 @@ export class ApiService {
     return this.http.get<InventoryMovement[]>(`/api/merchant/inventory/${productId}/movements`);
   }
 
-  adjustMerchantInventory(productId: number, delta: number, reason: string): Observable<MerchantInventoryItem> {
-    return this.http.post<MerchantInventoryItem>(`/api/merchant/inventory/${productId}/adjustments`, { delta, reason });
+  adjustMerchantInventory(
+    productId: number,
+    delta: number,
+    reason: string,
+    warehouseId?: number,
+  ): Observable<MerchantInventoryItem> {
+    return this.http.post<MerchantInventoryItem>(`/api/merchant/inventory/${productId}/adjustments`, {
+      delta,
+      reason,
+      warehouseId,
+    });
   }
 
   confirmMerchantOrder(id: number): Observable<PurchaseOrder> {
@@ -436,10 +468,17 @@ export class ApiService {
     carrier: string,
     trackingNumber: string,
     lines: { orderLineId: number; quantity: number }[],
+    warehouseId?: number,
   ): Observable<void> {
     const statusUrl = `/api/merchant/orders/fulfillment-v1/commands/${packageId}`;
     return this.http
-      .post<{ status: string }>(`/api/merchant/orders/${id}/packages`, { packageId, carrier, trackingNumber, lines })
+      .post<{ status: string }>(`/api/merchant/orders/${id}/packages`, {
+        packageId,
+        carrier,
+        trackingNumber,
+        lines,
+        warehouseId,
+      })
       .pipe(
         switchMap((receipt) =>
           receipt.status === 'PENDING'

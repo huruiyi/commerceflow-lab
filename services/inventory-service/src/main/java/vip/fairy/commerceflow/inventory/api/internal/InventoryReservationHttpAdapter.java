@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import vip.fairy.commerceflow.inventory.application.service.InventoryBalanceService;
 import vip.fairy.commerceflow.inventory.domain.StockAvailability;
+import vip.fairy.commerceflow.inventory.domain.InventoryReservation;
 import vip.fairy.commerceflow.inventory.infrastructure.transport.InventoryTrafficGate;
 
 @RestController
@@ -37,5 +38,11 @@ public class InventoryReservationHttpAdapter {
         org.springframework.http.HttpStatus.BAD_REQUEST, "Invalid product IDs");
     }
     return inventory.availability(productIds);
+  }
+
+  @GetMapping("/internal/v1/inventory/reservations/{orderId}/allocations")
+  List<InventoryReservation> allocations(@PathVariable Long orderId) {
+    traffic.requireOpen();
+    return inventory.activeAllocations(orderId);
   }
 }

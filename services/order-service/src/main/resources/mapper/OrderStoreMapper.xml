@@ -227,6 +227,9 @@
     WHERE id=#{mutation.orderId} AND status='CONFIRMED' AND inventory_status='COMMITTED'
       AND (shipment_intent_key IS NULL OR (NOT #{unreservedOnly} AND shipment_intent_key=#{key}))
       AND NOT EXISTS (SELECT 1 FROM order_package_allocations p WHERE p.order_id=shop_orders.id)
+      AND NOT EXISTS (
+        SELECT 1 FROM order_warehouse_amounts w WHERE w.order_id=shop_orders.id AND w.warehouse_id&lt;&gt;1
+      )
       AND NOT EXISTS (SELECT 1 FROM order_line_refund_admissions a WHERE a.order_id=shop_orders.id AND a.status='HELD')
       AND EXISTS (SELECT 1 FROM order_items WHERE order_id=shop_orders.id AND merchant_id=#{mutation.actorId})
   </update>

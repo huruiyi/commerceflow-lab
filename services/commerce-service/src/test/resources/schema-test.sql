@@ -962,6 +962,8 @@ CREATE TABLE line_after_sales (
   return_shipping_cost DECIMAL(12,2) NULL,
   received_quantity INT NULL,
   last_error VARCHAR(300) NULL,
+  warehouse_id BIGINT NULL,
+  outbound_id CHAR(36) NULL,
   next_attempt_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

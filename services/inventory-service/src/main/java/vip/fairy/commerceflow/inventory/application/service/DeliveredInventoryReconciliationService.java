@@ -18,6 +18,7 @@ import vip.fairy.commerceflow.inventory.application.contract.v1.DeliveredInvento
 import vip.fairy.commerceflow.inventory.application.contract.v1.DeliveredInventoryEvidenceV1.Line;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.DeliveredInventoryReconciliationMapper;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryMapper;
+import vip.fairy.commerceflow.inventory.infrastructure.persistence.WarehouseStockMapper;
 
 @Service
 public class DeliveredInventoryReconciliationService {
@@ -25,12 +26,15 @@ public class DeliveredInventoryReconciliationService {
   private final DeliveredInventoryReconciliationMapper reconciliation;
   private final InventoryMapper inventory;
   private final ObjectMapper mapper;
+  private final WarehouseStockMapper warehouses;
 
   public DeliveredInventoryReconciliationService(DeliveredInventoryReconciliationMapper reconciliation,
-                                                 InventoryMapper inventory, ObjectMapper mapper) {
+                                                 InventoryMapper inventory, ObjectMapper mapper,
+                                                 WarehouseStockMapper warehouses) {
     this.reconciliation = reconciliation;
     this.inventory = inventory;
     this.mapper = mapper;
+    this.warehouses = warehouses;
   }
 
   @Transactional
@@ -62,7 +66,8 @@ public class DeliveredInventoryReconciliationService {
     if (reconciliation.orderMovementCount(orderId, line.productId()) != 0) {
       throw new InventoryBusinessRuleException("Order product already has an inventory movement");
     }
-    if (reconciliation.claimAvailable(line.productId(), line.quantity(), line.expectedAvailable()) != 1) {
+    if (reconciliation.claimAvailable(line.productId(), line.quantity(), line.expectedAvailable()) != 1
+        || warehouses.adjust(line.productId(), 1, -line.quantity(), 0, line.quantity()) != 1) {
       throw new InventoryBusinessRuleException("Available stock changed or is insufficient");
     }
     reconciliation.insertCommitted(orderId, line.productId(), line.quantity());

@@ -22,6 +22,7 @@ import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryCommand
 import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryCommandV1;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryCommandInboxMapper;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryMapper;
+import vip.fairy.commerceflow.inventory.infrastructure.persistence.WarehouseStockMapper;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.DeliveredInventoryReconciliationMapper;
 
 @ExtendWith(MockitoExtension.class)
@@ -90,7 +91,7 @@ class InventoryCommandServiceTest {
   void emptyCommitAndReplayOfLegacyEmptySuccessBothFail() {
     InventoryMapper balances = mock(InventoryMapper.class);
     InventoryCommandService commands = new InventoryCommandService(inbox,
-      new InventoryBalanceService(balances), reconciliation);
+      new InventoryBalanceService(balances, mock(WarehouseStockMapper.class)), reconciliation);
     InventoryCommandV1 command = new InventoryCommandV1(1, "empty-commit", InventoryCommandTypeV1.COMMIT,
       Instant.now(), "payment-orchestration-service", 100L, List.of(), "Payment succeeded",
       "payment-100", "payment-result", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01");

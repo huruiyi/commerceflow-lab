@@ -77,9 +77,9 @@ public class MerchantInventoryRemoteClient {
     }
   }
 
-  public MerchantInventoryItem adjust(Long merchantId, Long productId, int delta, String reason) {
+  public MerchantInventoryItem adjust(Long merchantId, Long productId, int delta, String reason, Long warehouseId) {
     String target = merchantTarget(merchantId) + "/items/" + productId + "/adjustments";
-    String payload = payload(delta, reason);
+    String payload = payload(delta, reason, warehouseId);
     try {
       MerchantInventoryItem result = client.post().uri(URI.create(baseUrl + target))
         .contentType(MediaType.APPLICATION_JSON)
@@ -103,9 +103,10 @@ public class MerchantInventoryRemoteClient {
     return "/internal/v1/inventory/merchants/" + merchantId;
   }
 
-  private String payload(int delta, String reason) {
+  private String payload(int delta, String reason, Long warehouseId) {
     try {
-      return mapper.writeValueAsString(Map.of("delta", delta, "reason", reason));
+      return mapper.writeValueAsString(warehouseId == null ? Map.of("delta", delta, "reason", reason)
+        : Map.of("delta", delta, "reason", reason, "warehouseId", warehouseId));
     } catch (JacksonException exception) {
       throw new IllegalArgumentException("Inventory adjustment cannot be serialized", exception);
     }

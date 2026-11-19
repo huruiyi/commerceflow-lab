@@ -11,6 +11,7 @@ import vip.fairy.commerceflow.inventory.application.contract.v1.StocktakeV1.Rece
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.DeliveredInventoryReconciliationMapper;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryMapper;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.StocktakeMapper;
+import vip.fairy.commerceflow.inventory.infrastructure.persistence.WarehouseStockMapper;
 
 @Service
 public class StocktakeService {
@@ -19,13 +20,15 @@ public class StocktakeService {
   private final DeliveredInventoryReconciliationMapper reconciliations;
   private final InventoryMapper inventory;
   private final ObjectMapper json;
+  private final WarehouseStockMapper warehouses;
 
   public StocktakeService(StocktakeMapper stocktakes, DeliveredInventoryReconciliationMapper reconciliations,
-                          InventoryMapper inventory, ObjectMapper json) {
+                          InventoryMapper inventory, ObjectMapper json, WarehouseStockMapper warehouses) {
     this.stocktakes = stocktakes;
     this.reconciliations = reconciliations;
     this.inventory = inventory;
     this.json = json;
+    this.warehouses = warehouses;
   }
 
   @Transactional
@@ -68,6 +71,9 @@ public class StocktakeService {
     }
     if (adjustment != 0) {
       stocktakes.setAvailable(request.productId(), request.countedAvailable());
+      if (warehouses.adjust(request.productId(), 1, adjustment, 0, 0) != 1) {
+        throw new InventoryBusinessRuleException("Count adjustment exceeds default warehouse stock");
+      }
       String eventId = "stocktake:" + request.reference();
       inventory.insertMovement(eventId, null, request.productId(), "CYCLE_COUNT_ADJUSTMENT",
         Math.abs(adjustment), inventory.lockInventory(request.productId()), "Stocktake " + request.reference());

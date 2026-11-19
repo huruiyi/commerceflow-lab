@@ -9,11 +9,13 @@ import vip.fairy.commerceflow.inventory.domain.OutboundProductQuantity;
 public interface InventoryOutboundMapper {
 
   int claim(@Param("outboundId") String outboundId, @Param("orderId") long orderId,
-            @Param("merchantId") long merchantId, @Param("fingerprint") String fingerprint);
+            @Param("merchantId") long merchantId, @Param("fingerprint") String fingerprint,
+            @Param("warehouseId") long warehouseId);
 
   String fingerprint(String outboundId);
 
-  List<OutboundProductQuantity> postedQuantities(long orderId);
+  List<OutboundProductQuantity> postedQuantities(@Param("orderId") long orderId,
+                                                @Param("warehouseId") long warehouseId);
 
   void insertLine(@Param("outboundId") String outboundId, @Param("line") Line line);
 

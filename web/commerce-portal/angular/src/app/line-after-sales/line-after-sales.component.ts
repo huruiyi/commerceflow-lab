@@ -1,7 +1,7 @@
 import { ChangeDetectorRef, Component, DestroyRef, Input, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { finalize, Observable } from 'rxjs';
-import { OrderLogistics, PurchaseOrder } from 'src/model/IPurchaseOrder';
+import { finalize, forkJoin, Observable } from 'rxjs';
+import { OrderLogistics, PurchaseOrder, WarehousePlan } from 'src/model/IPurchaseOrder';
 import { ApiService, AfterSale, AfterSaleOffer } from '../services/api.service';
 
 @Component({
@@ -18,6 +18,9 @@ export class LineAfterSalesComponent {
   cases?: AfterSale[];
   offer?: AfterSaleOffer;
   lineId?: number;
+  warehouseId?: number;
+  outboundId?: string;
+  plan?: WarehousePlan;
   quantity = 1;
   reason = '';
   busy = false;
@@ -39,9 +42,41 @@ export class LineAfterSalesComponent {
   }
 
   load(): void {
-    this.run(this.api.lineAfterSales(this.order.id, this.merchant), (cases) => {
-      this.cases = cases;
-    });
+    this.run(
+      forkJoin({
+        cases: this.api.lineAfterSales(this.order.id, this.merchant),
+        plan: this.api.warehousePlan(this.order.id, this.merchant),
+      }),
+      ({ cases, plan }) => {
+        this.cases = cases;
+        this.plan = plan;
+      },
+    );
+  }
+
+  get needsWarehouse(): boolean {
+    return this.plan?.amounts.some((value) => value.warehouseId !== 1) ?? false;
+  }
+
+  get returning(): boolean {
+    return ['RECEIVED', 'COMPLETED'].includes(this.order.status);
+  }
+
+  get warehouses(): number[] {
+    return (this.plan?.amounts ?? [])
+      .filter((value) => value.orderLineId === this.lineId)
+      .map((value) => value.warehouseId);
+  }
+
+  get originalPackages(): WarehousePlan['shipments'] {
+    return (this.plan?.shipments ?? []).filter(
+      (value) => value.orderLineId === this.lineId && value.warehouseId === this.warehouseId,
+    );
+  }
+
+  selectSource(): void {
+    this.outboundId = undefined;
+    this.invalidate();
   }
 
   invalidate(): void {
@@ -51,10 +86,13 @@ export class LineAfterSalesComponent {
 
   quote(): void {
     if (!this.lineId || this.quantity < 1) return;
-    this.run(this.api.quoteAfterSale(this.order.id, this.lineId, this.quantity), (offer) => {
-      this.offer = offer;
-      this.requestId = crypto.randomUUID();
-    });
+    this.run(
+      this.api.quoteAfterSale(this.order.id, this.lineId, this.quantity, this.warehouseId, this.outboundId),
+      (offer) => {
+        this.offer = offer;
+        this.requestId = crypto.randomUUID();
+      },
+    );
   }
 
   submit(): void {
@@ -65,6 +103,8 @@ export class LineAfterSalesComponent {
         quantity: this.quantity,
         reason: this.reason.trim(),
         requestId: this.requestId,
+        warehouseId: this.warehouseId,
+        outboundId: this.outboundId,
       }),
       (value) => {
         this.update(value);

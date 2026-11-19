@@ -9,9 +9,16 @@
     {{ error === 'REQUEST_FAILED' ? ('requestFailed' | t) : error }}
   </p>
   <ng-container *ngIf="cases">
+    <ul *ngIf="needsWarehouse && !merchant">
+      <li *ngFor="let parcel of plan?.shipments">
+        {{ 'fulfillmentWarehouse' | t }} {{ parcel.warehouseId }} · CFL-PACKAGE-{{ parcel.packageId }} ·
+        {{ 'packageQuantity' | t }} {{ parcel.quantity }}
+      </li>
+    </ul>
     <div *ngFor="let value of cases" class="border-bottom py-3">
       <strong>{{ 'afterSaleState_' + value.status | t }}</strong>
       <span class="ms-2">{{ 'afterSaleQuantity' | t }} {{ value.quantity }}</span>
+      <span *ngIf="value.warehouseId" class="ms-2">{{ 'fulfillmentWarehouse' | t }} {{ value.warehouseId }}</span>
       <p class="mb-1">{{ value.reason }}</p>
       <small class="d-block">
         {{ 'productRefundAmount' | t }} {{ value.merchandiseAmount | trcurrency }} · {{ 'shippingRefundAmount' | t }}
@@ -119,9 +126,30 @@
     <div *ngIf="canApply" class="row g-2 align-items-end mt-2">
       <label class="col-md-4"
         >{{ 'afterSaleOrderLine' | t }}
-        <select class="form-select" [(ngModel)]="lineId" (ngModelChange)="invalidate()" [disabled]="busy">
+        <select
+          class="form-select"
+          [(ngModel)]="lineId"
+          (ngModelChange)="warehouseId = undefined; selectSource()"
+          [disabled]="busy"
+        >
           <option [ngValue]="undefined"></option>
           <option *ngFor="let item of order.items" [ngValue]="item.id">{{ item.productName }}</option>
+        </select>
+      </label>
+      <label *ngIf="needsWarehouse" class="col-md-3">
+        {{ 'fulfillmentWarehouse' | t }}
+        <select class="form-select" [(ngModel)]="warehouseId" (ngModelChange)="selectSource()">
+          <option [ngValue]="undefined"></option>
+          <option *ngFor="let warehouse of warehouses" [ngValue]="warehouse">{{ warehouse }}</option>
+        </select>
+      </label>
+      <label *ngIf="needsWarehouse && returning" class="col-md-4">
+        {{ 'returnOriginalPackage' | t }}
+        <select class="form-select" [(ngModel)]="outboundId" (ngModelChange)="invalidate()">
+          <option [ngValue]="undefined"></option>
+          <option *ngFor="let parcel of originalPackages" [ngValue]="parcel.packageId">
+            CFL-PACKAGE-{{ parcel.packageId }}
+          </option>
         </select>
       </label>
       <label class="col-md-2"
@@ -145,7 +173,9 @@
           type="button"
           class="btn btn-outline-primary"
           (click)="quote()"
-          [disabled]="busy || !lineId || quantity < 1"
+          [disabled]="
+            busy || !lineId || quantity < 1 || (needsWarehouse && (!warehouseId || (returning && !outboundId)))
+          "
         >
           {{ 'previewAfterSale' | t }}
         </button>

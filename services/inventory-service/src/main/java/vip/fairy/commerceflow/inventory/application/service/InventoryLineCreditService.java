@@ -5,16 +5,20 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryLineCreditMapper;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryMapper;
+import vip.fairy.commerceflow.inventory.infrastructure.persistence.WarehouseStockMapper;
 
 @Service
 public class InventoryLineCreditService {
 
   private final InventoryLineCreditMapper credits;
   private final InventoryMapper inventory;
+  private final WarehouseStockMapper warehouses;
 
-  public InventoryLineCreditService(InventoryLineCreditMapper credits, InventoryMapper inventory) {
+  public InventoryLineCreditService(InventoryLineCreditMapper credits, InventoryMapper inventory,
+                                    WarehouseStockMapper warehouses) {
     this.credits = credits;
     this.inventory = inventory;
+    this.warehouses = warehouses;
   }
 
   @Transactional
@@ -22,22 +26,29 @@ public class InventoryLineCreditService {
     if (value == null || value.caseId() == null || !value.caseId().matches("[0-9a-f-]{36}")
         || value.orderId() == null || value.orderLineId() == null || value.productId() == null
         || value.merchantId() == null || value.quantity() <= 0 || value.kind() == null
-        || !Set.of("BEFORE_SHIPMENT", "RETURN").contains(value.kind())) {
+        || !Set.of("BEFORE_SHIPMENT", "RETURN").contains(value.kind()) || value.warehouse() <= 0
+        || (value.outboundId() != null && (!"RETURN".equals(value.kind())
+          || !value.outboundId().matches("[0-9a-f-]{36}")))) {
       throw new IllegalArgumentException("Invalid after-sales inventory credit");
     }
-    var reservation = inventory.lockByOrder(value.orderId()).stream()
-      .filter(item -> item.productId().equals(value.productId()) && "COMMITTED".equals(item.status()))
+    var reservations = inventory.lockByOrder(value.orderId());
+    var reservation = reservations.stream()
+      .filter(item -> item.productId().equals(value.productId()) && "COMMITTED".equals(item.status())
+        && item.warehouseId() == value.warehouse())
       .findFirst().orElse(null);
     var existing = credits.find(value.caseId());
     if (existing != null) return existing.equals(value);
     if (reservation == null) return false;
-    int creditedBefore = credits.creditedProduct(value.orderId(), value.productId(), "BEFORE_SHIPMENT");
-    int creditedReturn = credits.creditedProduct(value.orderId(), value.productId(), "RETURN");
-    if (value.quantity() > reservation.quantity() - creditedBefore - creditedReturn) return false;
     boolean returned = "RETURN".equals(value.kind());
+    boolean warehouseOrder = reservations.stream().anyMatch(item -> item.warehouseId() != 1);
+    if (warehouseOrder && (value.warehouseId() == null || (returned && value.outboundId() == null))) return false;
+    int creditedBefore = credits.creditedProduct(value.orderId(), value.productId(), "BEFORE_SHIPMENT",
+      value.warehouse());
+    int creditedReturn = credits.creditedProduct(value.orderId(), value.productId(), "RETURN", value.warehouse());
+    if (value.quantity() > reservation.quantity() - creditedBefore - creditedReturn) return false;
     if (returned) {
       int outboundQuantity = credits.outboundQuantity(value);
-      int alreadyCredited = credits.creditedLine(value.orderId(), value.orderLineId());
+      int alreadyCredited = credits.creditedLine(value);
       if (value.quantity() > outboundQuantity - alreadyCredited) {
         return false;
       }
@@ -45,17 +56,23 @@ public class InventoryLineCreditService {
       return false;
     }
     if (!apply) return true;
-    if (inventory.refund(value.productId(), value.quantity()) != 1) {
+    if (inventory.refund(value.productId(), value.quantity()) != 1
+        || warehouses.adjust(value.productId(), value.warehouse(), value.quantity(), 0, -value.quantity()) != 1) {
       throw new IllegalStateException("Sold inventory is inconsistent for after-sales credit");
     }
     credits.insert(value);
-    inventory.insertMovement("after-sale:" + value.caseId(), value.orderId(), value.productId(),
+    inventory.insertWarehouseMovement("after-sale:" + value.caseId(), value.orderId(), value.productId(),
       returned ? "RETURN_RESTOCKED" : "UNSHIPPED_REFUND_RESTOCKED", value.quantity(),
-      inventory.lockInventory(value.productId()), "Inventory credit for after-sales case " + value.caseId());
+      inventory.lockInventory(value.productId()), "Inventory credit for after-sales case " + value.caseId(),
+      value.warehouse());
     return true;
   }
 
   public record Credit(String caseId, Long orderId, Long orderLineId, Long merchantId, Long productId,
-                       int quantity, String kind) {
+                       int quantity, String kind, Long warehouseId, String outboundId) {
+
+    public long warehouse() {
+      return warehouseId == null ? 1 : warehouseId;
+    }
   }
 }

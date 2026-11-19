@@ -2,8 +2,8 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryOutboundMapper">
   <insert id="claim">
-    INSERT IGNORE INTO inventory_outbound_documents(outbound_id,order_id,merchant_id,payload_fingerprint)
-    VALUES(#{outboundId},#{orderId},#{merchantId},#{fingerprint})
+    INSERT IGNORE INTO inventory_outbound_documents(outbound_id,order_id,merchant_id,payload_fingerprint,warehouse_id)
+    VALUES(#{outboundId},#{orderId},#{merchantId},#{fingerprint},#{warehouseId})
   </insert>
 
   <select id="fingerprint" resultType="java.lang.String">
@@ -16,7 +16,7 @@
     SELECT l.product_id AS productId,SUM(l.quantity) AS quantity
     FROM inventory_outbound_documents d
     JOIN inventory_outbound_lines l ON l.outbound_id=d.outbound_id
-    WHERE d.order_id=#{orderId}
+    WHERE d.order_id=#{orderId} AND d.warehouse_id=#{warehouseId}
     GROUP BY l.product_id
   </select>
 

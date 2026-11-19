@@ -17,6 +17,7 @@ import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.order.application.OrderStoreService;
 import vip.fairy.commerceflow.order.application.OrderLineRefundService;
 import vip.fairy.commerceflow.order.application.OrderPackageService;
+import vip.fairy.commerceflow.order.application.OrderWarehouseAmounts;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderSearchV1;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.CreateOrder;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.Mutation;
@@ -39,15 +40,17 @@ public class OrderStoreV1Controller {
   private final OrderStoreService store;
   private final OrderLineRefundService lineRefunds;
   private final OrderPackageService packages;
+  private final OrderWarehouseAmounts warehouseAmounts;
   private final OrderShadowProperties properties;
   private final ObjectMapper mapper;
 
   public OrderStoreV1Controller(OrderStoreService store, OrderShadowProperties properties,
                                 ObjectMapper mapper, OrderLineRefundService lineRefunds,
-                                OrderPackageService packages) {
+                                OrderPackageService packages, OrderWarehouseAmounts warehouseAmounts) {
     this.store = store;
     this.lineRefunds = lineRefunds;
     this.packages = packages;
+    this.warehouseAmounts = warehouseAmounts;
     this.properties = properties;
     this.mapper = mapper;
   }
@@ -101,6 +104,27 @@ public class OrderStoreV1Controller {
   OrderPackageService.Receipt reservePackage(@RequestBody String payload, HttpServletRequest request) {
     requireFulfillment(payload, request);
     return packages.reserve(mapper.readValue(payload, OrderPackageService.Command.class));
+  }
+
+  @PostMapping("/warehouse-amounts")
+  boolean freezeWarehouseAmounts(@RequestBody String payload, HttpServletRequest request) {
+    requireTrafficAndHash(payload, request);
+    if (!"commerce-service".equals(request.getHeader("X-CommerceFlow-Service"))) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+    }
+    return warehouseAmounts.freeze(mapper.readValue(payload, OrderWarehouseAmounts.Snapshot.class));
+  }
+
+  @PostMapping("/warehouse-amounts/query")
+  OrderWarehouseAmounts.Plan warehousePlan(@RequestBody String payload, HttpServletRequest request) {
+    requireTrafficAndHash(payload, request);
+    if (!"commerce-service".equals(request.getHeader("X-CommerceFlow-Service"))) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+    }
+    return warehouseAmounts.plan(mapper.readValue(payload, OrderReference.class).orderId());
+  }
+
+  record OrderReference(long orderId) {
   }
 
   @PostMapping("/packages/finish")

@@ -10,28 +10,40 @@
       <arg column="product_id" javaType="java.lang.Long"/>
       <arg column="quantity" javaType="_int"/>
       <arg column="kind" javaType="java.lang.String"/>
+      <arg column="warehouse_id" javaType="java.lang.Long"/>
+      <arg column="outbound_id" javaType="java.lang.String"/>
     </constructor>
   </resultMap>
   <select id="find" resultMap="credit">
-    SELECT case_id,order_id,order_line_id,merchant_id,product_id,quantity,kind
+    SELECT case_id,order_id,order_line_id,merchant_id,product_id,quantity,kind,warehouse_id,outbound_id
     FROM inventory_line_credits WHERE case_id=#{caseId} FOR UPDATE
   </select>
   <select id="creditedProduct" resultType="int">
     SELECT COALESCE(SUM(quantity),0) FROM inventory_line_credits
     WHERE order_id=#{orderId} AND product_id=#{productId} AND kind=#{kind}
+      AND COALESCE(warehouse_id,1)=#{warehouseId}
   </select>
   <select id="creditedLine" resultType="int">
     SELECT COALESCE(SUM(quantity),0) FROM inventory_line_credits
     WHERE order_id=#{orderId} AND order_line_id=#{orderLineId} AND kind='RETURN'
+      AND COALESCE(warehouse_id,1)=COALESCE(#{warehouseId},1)
+    <if test="outboundId != null">
+      AND (outbound_id=#{outboundId} OR outbound_id IS NULL)
+    </if>
   </select>
   <select id="outboundQuantity" resultType="int">
     SELECT COALESCE(SUM(l.quantity),0) FROM inventory_outbound_lines l
     JOIN inventory_outbound_documents d ON d.outbound_id=l.outbound_id
     WHERE d.order_id=#{orderId} AND d.merchant_id=#{merchantId}
       AND l.order_line_id=#{orderLineId} AND l.product_id=#{productId}
+      AND d.warehouse_id=COALESCE(#{warehouseId},1)
+    <if test="outboundId != null">AND d.outbound_id=#{outboundId}</if>
   </select>
   <insert id="insert">
-    INSERT INTO inventory_line_credits(case_id,order_id,order_line_id,merchant_id,product_id,quantity,kind)
-    VALUES (#{caseId},#{orderId},#{orderLineId},#{merchantId},#{productId},#{quantity},#{kind})
+    INSERT INTO inventory_line_credits(
+      case_id,order_id,order_line_id,merchant_id,product_id,quantity,kind,warehouse_id,outbound_id
+    )
+    VALUES (#{caseId},#{orderId},#{orderLineId},#{merchantId},#{productId},#{quantity},#{kind},
+      #{warehouseId},#{outboundId})
   </insert>
 </mapper>

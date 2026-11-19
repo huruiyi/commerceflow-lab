@@ -69,6 +69,14 @@ public class MerchantFulfillmentService {
     return listResponse(require(merchantId, id), merchantId);
   }
 
+  public OrderStorePort.WarehousePlan warehousePlan(Long merchantId, Long id) {
+    require(merchantId, id);
+    if (orders.items(id).stream().anyMatch(item -> !merchantId.equals(item.getMerchantId()))) {
+      return new OrderStorePort.WarehousePlan(List.of(), List.of());
+    }
+    return orderStore.warehousePlan(id);
+  }
+
   public OperationResult confirm(Long merchantId, Long id) {
     ShopOrderView prepared = require(merchantId, id);
     if (!"PAID".equals(prepared.getStatus())) {
@@ -155,7 +163,7 @@ public class MerchantFulfillmentService {
   private FulfillmentCommandV1 legacyCommand(Operation operation, Long merchantId, Long orderId,
                                              String carrier, String tracking, Long expectedVersion) {
     return new FulfillmentCommandV1(1, UUID.randomUUID(), operation, merchantId, orderId, Instant.now(),
-      carrier, tracking, expectedVersion, null);
+      carrier, tracking, expectedVersion, null, null);
   }
 
   private MerchantOrderResponse current(Long merchantId, Long id) {

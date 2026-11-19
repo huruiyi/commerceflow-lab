@@ -8,16 +8,20 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vip.fairy.commerceflow.order.infrastructure.persistence.OrderLineRefundMapper;
 import vip.fairy.commerceflow.order.infrastructure.persistence.OrderPackageMapper;
+import vip.fairy.commerceflow.order.infrastructure.persistence.OrderWarehouseAmountMapper;
 
 @Service
 public class OrderPackageService {
 
   private final OrderLineRefundMapper orders;
   private final OrderPackageMapper packages;
+  private final OrderWarehouseAmountMapper amounts;
 
-  public OrderPackageService(OrderLineRefundMapper orders, OrderPackageMapper packages) {
+  public OrderPackageService(OrderLineRefundMapper orders, OrderPackageMapper packages,
+                             OrderWarehouseAmountMapper amounts) {
     this.orders = orders;
     this.packages = packages;
+    this.amounts = amounts;
   }
 
   @Transactional
@@ -28,6 +32,7 @@ public class OrderPackageService {
     var prior = packages.find(command.packageId());
     if (prior != null) {
       if (prior.orderId() != command.orderId() || prior.merchantId() != command.merchantId()
+          || prior.warehouseId() != command.warehouse()
           || !prior.carrier().equals(command.carrier()) || !prior.trackingNumber().equals(command.trackingNumber())) {
         return rejected();
       }
@@ -44,11 +49,18 @@ public class OrderPackageService {
         || packages.trackingUsed(command.orderId(), command.carrier(), command.trackingNumber())) {
       return rejected();
     }
+    var planned = amounts.orderAmounts(command.orderId());
+    if (command.warehouseId() == null && planned.stream().anyMatch(amount -> amount.warehouseId() != 1)) {
+      return rejected();
+    }
     for (Line line : command.lines()) {
       var item = orders.item(command.orderId(), line.orderLineId());
       if (item == null || item.merchantId() != command.merchantId()) return rejected();
-      int remaining = item.quantity() - orders.settledQuantity(command.orderId(), line.orderLineId())
-        - packages.allocatedQuantity(line.orderLineId());
+      int capacity = planned.isEmpty() && command.warehouse() == 1 ? item.quantity() : planned.stream()
+        .filter(amount -> amount.orderLineId() == line.orderLineId() && amount.warehouseId() == command.warehouse())
+        .mapToInt(OrderWarehouseAmounts.Amount::quantity).sum();
+      int remaining = capacity - orders.settledAtWarehouse(command.orderId(), line.orderLineId(), command.warehouse())
+        - packages.allocatedAtWarehouse(line.orderLineId(), command.warehouse());
       if (line.quantity() > remaining) return rejected();
     }
     if (packages.hold(command.orderId(), command.packageId()) != 1) {
@@ -84,7 +96,8 @@ public class OrderPackageService {
     if (command == null || command.orderId() <= 0 || command.merchantId() <= 0
         || command.carrier() == null || command.carrier().isBlank() || command.carrier().length() > 100
         || command.trackingNumber() == null || command.trackingNumber().isBlank()
-        || command.trackingNumber().length() > 120 || command.lines() == null || command.lines().isEmpty()) {
+        || command.trackingNumber().length() > 120 || command.lines() == null || command.lines().isEmpty()
+        || command.warehouse() <= 0) {
       throw new IllegalArgumentException("Invalid package allocation");
     }
     requirePackageId(command.packageId());
@@ -107,7 +120,11 @@ public class OrderPackageService {
   }
 
   public record Command(String packageId, long orderId, long merchantId, String carrier, String trackingNumber,
-                        List<Line> lines) {
+                        List<Line> lines, Long warehouseId) {
+
+    public long warehouse() {
+      return warehouseId == null ? 1 : warehouseId;
+    }
   }
 
   public record Line(long orderLineId, int quantity) {

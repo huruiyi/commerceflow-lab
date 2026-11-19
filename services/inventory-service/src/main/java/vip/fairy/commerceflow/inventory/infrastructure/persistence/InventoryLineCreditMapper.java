@@ -6,9 +6,9 @@ public interface InventoryLineCreditMapper {
 
   Credit find(String caseId);
 
-  int creditedProduct(Long orderId, Long productId, String kind);
+  int creditedProduct(Long orderId, Long productId, String kind, long warehouseId);
 
-  int creditedLine(Long orderId, Long orderLineId);
+  int creditedLine(Credit credit);
 
   int outboundQuantity(Credit credit);
 

@@ -15,6 +15,7 @@ export class MerchantInventoryComponent implements OnInit {
   expanded = new Set<number>();
   delta: Record<number, number | null> = {};
   reason: Record<number, string> = {};
+  warehouse: Record<number, number> = {};
   saving = new Set<number>();
   notice = '';
   error = '';
@@ -58,7 +59,7 @@ export class MerchantInventoryComponent implements OnInit {
     const reason = (this.reason[item.productId] || '').trim();
     if (!delta || !reason || this.saving.has(item.productId)) return;
     this.saving.add(item.productId);
-    this.api.adjustMerchantInventory(item.productId, delta, reason).subscribe({
+    this.api.adjustMerchantInventory(item.productId, delta, reason, this.warehouse[item.productId] ?? 1).subscribe({
       next: (updated) => {
         this.items = this.items.map((value) => (value.productId === updated.productId ? updated : value));
         this.delta[item.productId] = null;

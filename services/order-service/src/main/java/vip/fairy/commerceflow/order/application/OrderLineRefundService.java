@@ -5,16 +5,20 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vip.fairy.commerceflow.order.infrastructure.persistence.OrderLineRefundMapper;
 import vip.fairy.commerceflow.order.infrastructure.persistence.OrderPackageMapper;
+import vip.fairy.commerceflow.order.infrastructure.persistence.OrderWarehouseAmountMapper;
 
 @Service
 public class OrderLineRefundService {
 
   private final OrderLineRefundMapper store;
   private final OrderPackageMapper packages;
+  private final OrderWarehouseAmountMapper amounts;
 
-  public OrderLineRefundService(OrderLineRefundMapper store, OrderPackageMapper packages) {
+  public OrderLineRefundService(OrderLineRefundMapper store, OrderPackageMapper packages,
+                                OrderWarehouseAmountMapper amounts) {
     this.store = store;
     this.packages = packages;
+    this.amounts = amounts;
   }
 
   @Transactional
@@ -22,7 +26,7 @@ public class OrderLineRefundService {
     if (command == null || command.action() == null || !Set.of("HOLD", "SETTLE", "RELEASE").contains(command.action())
         || command.caseId() == null || !command.caseId().matches("[0-9a-f-]{36}") || command.quantity() <= 0
         || command.orderId() == null || command.orderLineId() == null || command.customerId() == null
-        || command.merchantId() == null) {
+        || command.merchantId() == null || command.warehouse() <= 0) {
       throw new IllegalArgumentException("Invalid line refund admission");
     }
     var order = store.lockOrder(command.orderId());
@@ -31,18 +35,26 @@ public class OrderLineRefundService {
         || !command.merchantId().equals(line.merchantId())) return false;
     var prior = store.find(command.caseId());
     if (prior == null) {
+      var planned = amounts.orderAmounts(command.orderId());
+      if (command.warehouseId() == null && planned.stream().anyMatch(amount -> amount.warehouseId() != 1)) {
+        return false;
+      }
+      int capacity = planned.isEmpty() && command.warehouse() == 1 ? line.quantity() : planned.stream()
+        .filter(amount -> amount.orderLineId() == command.orderLineId() && amount.warehouseId() == command.warehouse())
+        .mapToInt(OrderWarehouseAmounts.Amount::quantity).sum();
       if (!"HOLD".equals(command.action()) || !Set.of("PAID", "CONFIRMED").contains(order.status())
           || !"COMMITTED".equals(order.inventoryStatus()) || order.shipmentIntentKey() != null
           || store.heldCount(command.orderId()) != 0
-          || command.quantity() > line.quantity() - store.settledQuantity(command.orderId(), command.orderLineId())
-            - packages.allocatedQuantity(command.orderLineId())) {
+          || command.quantity() > capacity
+            - store.settledAtWarehouse(command.orderId(), command.orderLineId(), command.warehouse())
+            - packages.allocatedAtWarehouse(command.orderLineId(), command.warehouse())) {
         return false;
       }
       store.hold(command);
       return true;
     }
     if (!command.orderId().equals(prior.orderId()) || !command.orderLineId().equals(prior.orderLineId())
-        || prior.quantity() != command.quantity()) return false;
+        || prior.quantity() != command.quantity() || prior.warehouseId() != command.warehouse()) return false;
     if ("HOLD".equals(command.action())) return !"RELEASED".equals(prior.status());
     String target = "SETTLE".equals(command.action()) ? "SETTLED" : "RELEASED";
     if (target.equals(prior.status())) return true;
@@ -55,6 +67,10 @@ public class OrderLineRefundService {
   }
 
   public record Command(String action, String caseId, Long orderId, Long orderLineId, Long customerId,
-                        Long merchantId, int quantity) {
+                        Long merchantId, int quantity, Long warehouseId) {
+
+    public long warehouse() {
+      return warehouseId == null ? 1 : warehouseId;
+    }
   }
 }

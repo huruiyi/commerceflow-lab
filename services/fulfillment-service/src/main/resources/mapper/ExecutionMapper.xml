@@ -105,9 +105,9 @@
       <when test="operation.name() == 'SHIP'">
         INSERT INTO fulfillment_shipment_jobs
           (command_id,order_id,merchant_id,order_number,carrier,tracking_number,step,status,next_attempt_at,
-           package_lines)
+           package_lines,warehouse_id)
         VALUES (#{commandId},#{orderId},#{merchantId},#{orderNumber},#{carrier},#{trackingNumber},
-          #{step},'PENDING',CURRENT_TIMESTAMP(6),#{packageLines})
+          #{step},'PENDING',CURRENT_TIMESTAMP(6),#{packageLines},#{warehouseId})
       </when>
       <otherwise>
         INSERT INTO fulfillment_merchant_jobs
@@ -121,17 +121,18 @@
 
   <select id="find" resultType="vip.fairy.commerceflow.fulfillment.domain.ExecutionTask">
     SELECT command_id,order_id,merchant_id,'SHIP' AS operation,order_number,
-      carrier,tracking_number,NULL AS expected_version,NULL AS detail,step,status,last_error AS error_code,package_lines
+      carrier,tracking_number,NULL AS expected_version,NULL AS detail,step,status,last_error AS error_code,
+      package_lines,warehouse_id
     FROM fulfillment_shipment_jobs WHERE command_id=#{commandId}
     UNION ALL
     SELECT command_id,order_id,merchant_id,operation,NULL AS order_number,carrier,tracking_number,
-      CASE WHEN operation='UPDATE_SHIPMENT' THEN expected_version END,detail,step,status,last_error,NULL
+      CASE WHEN operation='UPDATE_SHIPMENT' THEN expected_version END,detail,step,status,last_error,NULL,NULL
     FROM fulfillment_merchant_jobs WHERE command_id=#{commandId}
   </select>
 
   <select id="shipment" resultType="vip.fairy.commerceflow.fulfillment.domain.ExecutionTask">
     SELECT command_id,order_id,merchant_id,'SHIP' AS operation,order_number,carrier,tracking_number,
-      NULL AS expected_version,NULL AS detail,step,status,last_error AS error_code,package_lines
+      NULL AS expected_version,NULL AS detail,step,status,last_error AS error_code,package_lines,warehouse_id
     FROM fulfillment_shipment_jobs WHERE order_id=#{orderId}
     ORDER BY (<include refid="reservationRejected"/>) ASC,created_at DESC,command_id DESC LIMIT 1
   </select>

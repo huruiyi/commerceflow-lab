@@ -8,7 +8,7 @@ import java.util.UUID;
 /** 受理标识、商家归属和原始运单参数。occurredAt 属于传输元数据。 */
 public record FulfillmentCommand(Integer version, UUID commandId, Operation operation, Long merchantId,
                                  Long orderId, Instant occurredAt, String carrier, String trackingNumber,
-                                 Long expectedShipmentVersion, List<PackageLine> lines) {
+                                 Long expectedShipmentVersion, List<PackageLine> lines, Long warehouseId) {
 
   public FulfillmentCommand {
     carrier = carrier == null ? null : carrier.strip();
@@ -19,6 +19,9 @@ public record FulfillmentCommand(Integer version, UUID commandId, Operation oper
     if (!Integer.valueOf(1).equals(version) || commandId == null || operation == null
         || merchantId == null || merchantId <= 0 || orderId == null || orderId <= 0 || occurredAt == null) {
       throw new IllegalArgumentException("Invalid fulfillment command");
+    }
+    if (warehouseId != null && (warehouseId <= 0 || lines == null || operation != Operation.SHIP)) {
+      throw new IllegalArgumentException("Warehouse requires explicit package lines");
     }
     if (lines != null) {
       if (operation != Operation.SHIP || lines.isEmpty() || lines.size() > 200) {

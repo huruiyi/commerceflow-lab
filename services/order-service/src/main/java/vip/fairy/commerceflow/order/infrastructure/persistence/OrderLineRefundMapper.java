@@ -2,6 +2,7 @@ package vip.fairy.commerceflow.order.infrastructure.persistence;
 
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import vip.fairy.commerceflow.order.application.OrderLineRefundService.Command;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.ItemView;
 
@@ -14,7 +15,8 @@ public interface OrderLineRefundMapper {
 
   ItemView item(Long orderId, Long orderLineId);
 
-  int settledQuantity(Long orderId, Long orderLineId);
+  int settledAtWarehouse(@Param("orderId") long orderId, @Param("orderLineId") long orderLineId,
+                         @Param("warehouseId") long warehouseId);
 
   int heldCount(Long orderId);
 
@@ -29,6 +31,6 @@ public interface OrderLineRefundMapper {
   record OrderLock(Long customerId, String status, String inventoryStatus, String shipmentIntentKey) {
   }
 
-  record Admission(Long orderId, Long orderLineId, int quantity, String status) {
+  record Admission(Long orderId, Long orderLineId, int quantity, String status, long warehouseId) {
   }
 }

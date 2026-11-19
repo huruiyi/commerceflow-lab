@@ -19,7 +19,8 @@ public record FulfillmentCommandV1(@NotNull @Min(1) @Max(1) Integer version, @No
                                    @NotNull @Positive Long orderId, @NotNull Instant occurredAt,
                                    @Size(max = 100) String carrier, @Size(max = 120) String trackingNumber,
                                    @PositiveOrZero @Max(Long.MAX_VALUE - 1) Long expectedShipmentVersion,
-                                   @Size(min = 1, max = 200) List<@NotNull @Valid PackageLine> lines) {
+                                   @Size(min = 1, max = 200) List<@NotNull @Valid PackageLine> lines,
+                                   @Positive Long warehouseId) {
 
   public FulfillmentCommandV1 {
     carrier = carrier == null ? null : carrier.strip();
@@ -29,7 +30,8 @@ public record FulfillmentCommandV1(@NotNull @Min(1) @Max(1) Integer version, @No
   @AssertTrue(message = "Fields do not match the fulfillment operation")
   @JsonIgnore
   public boolean isOperationShapeValid() {
-    if (operation == null || (operation != Operation.SHIP && lines != null)) return false;
+    if (operation == null || (operation != Operation.SHIP && lines != null)
+        || (warehouseId != null && lines == null)) return false;
     if (operation == Operation.CONFIRM) {
       return carrier == null && trackingNumber == null && expectedShipmentVersion == null;
     }

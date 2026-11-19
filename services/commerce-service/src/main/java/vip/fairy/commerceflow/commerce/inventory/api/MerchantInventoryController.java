@@ -46,6 +46,6 @@ public class MerchantInventoryController {
   MerchantInventoryItem adjust(@PathVariable Long productId,
                                @Valid @RequestBody InventoryAdjustmentRequest request, Authentication authentication) {
     return inventory.adjust(currentUsers.require(authentication).getId(), productId,
-      request.delta(), request.reason());
+      request.delta(), request.reason(), request.warehouseId());
   }
 }

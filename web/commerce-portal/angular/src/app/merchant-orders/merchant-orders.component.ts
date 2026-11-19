@@ -2,6 +2,7 @@ import { ChangeDetectorRef, Component, DestroyRef, OnInit } from '@angular/core'
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, finalize, forkJoin, Observable, of, TimeoutError } from 'rxjs';
 import { initialOrderSearch, OrderSearchCriteria, OrderSearchPage, PurchaseOrder } from 'src/model/IPurchaseOrder';
+import { WarehousePlan } from 'src/model/IPurchaseOrder';
 import { ApiService } from '../services/api.service';
 import { I18nService } from '../services/i18n.service';
 
@@ -21,6 +22,8 @@ export class MerchantOrdersComponent implements OnInit {
   carrier: Record<number, string> = {};
   tracking: Record<number, string> = {};
   packageQuantities: Record<number, number | null> = {};
+  warehouses: Record<number, number | undefined> = {};
+  plans: Record<number, WarehousePlan> = {};
   private packageRequests = new Map<number, { key: string; id: string }>();
   expandedOrders = new Set<number>();
   notice?: { type: 'success' | 'danger' | 'info'; text: string };
@@ -111,13 +114,15 @@ export class MerchantOrdersComponent implements OnInit {
     if (!lines.length || lines.some((line) => !Number.isInteger(line.quantity))) return;
     const carrier = this.carrier[order.id].trim();
     const trackingNumber = this.tracking[order.id].trim();
-    const key = JSON.stringify({ carrier, trackingNumber, lines });
+    const warehouseId = this.warehouses[order.id];
+    if (this.warehouseOptions(order.id).some((value) => value !== 1) && !warehouseId) return;
+    const key = JSON.stringify({ carrier, trackingNumber, lines, warehouseId });
     const previous = this.packageRequests.get(order.id);
     const id = previous?.key === key ? previous.id : crypto.randomUUID();
     this.packageRequests.set(order.id, { key, id });
     this.pending.add(order.id);
     this.api
-      .shipMerchantPackage(order.id, id, carrier, trackingNumber, lines)
+      .shipMerchantPackage(order.id, id, carrier, trackingNumber, lines, warehouseId)
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         finalize(() => {
@@ -131,6 +136,7 @@ export class MerchantOrdersComponent implements OnInit {
           order.items.forEach((item) => delete this.packageQuantities[item.id]);
           this.notice = { type: 'success', text: this.i18n.t('packageShipped') };
           this.load();
+          this.loadWarehousePlan(order.id);
         },
         error: (error) => {
           if (error instanceof Error && error.message === 'REJECTED') this.packageRequests.delete(order.id);
@@ -155,13 +161,43 @@ export class MerchantOrdersComponent implements OnInit {
   }
 
   toggleDetails(orderId: number): void {
-    this.expandedOrders.has(orderId) ? this.expandedOrders.delete(orderId) : this.expandedOrders.add(orderId);
+    if (this.expandedOrders.has(orderId)) {
+      this.expandedOrders.delete(orderId);
+    } else {
+      this.expandedOrders.add(orderId);
+      this.loadWarehousePlan(orderId);
+    }
   }
 
   prepareShipment(order: PurchaseOrder): void {
     if (order.carrier) this.carrier[order.id] = order.carrier;
     if (order.trackingNumber) this.tracking[order.id] = order.trackingNumber;
     this.expandedOrders.add(order.id);
+    this.loadWarehousePlan(order.id);
+  }
+
+  warehouseOptions(orderId: number): number[] {
+    return [...new Set((this.plans[orderId]?.amounts ?? []).map((value) => value.warehouseId))];
+  }
+
+  isMultiWarehouse(orderId: number): boolean {
+    return this.warehouseOptions(orderId).some((warehouse) => warehouse !== 1);
+  }
+
+  private loadWarehousePlan(orderId: number): void {
+    this.api
+      .warehousePlan(orderId, true)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (plan) => {
+          this.plans[orderId] = plan;
+          this.changeDetector.markForCheck();
+        },
+        error: () => {
+          this.notice = { type: 'danger', text: this.i18n.t('requestFailed') };
+          this.changeDetector.markForCheck();
+        },
+      });
   }
 
   async copyOrderNumber(order: PurchaseOrder): Promise<void> {

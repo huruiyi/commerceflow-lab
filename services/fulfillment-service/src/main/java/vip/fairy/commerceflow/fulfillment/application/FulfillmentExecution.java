@@ -129,7 +129,7 @@ public class FulfillmentExecution {
     };
     return new ExecutionTask(command.commandId().toString(), command.orderId(), command.merchantId(), operation,
       operation == Operation.SHIP ? order.orderNumber() : null, command.carrier(), command.trackingNumber(),
-      command.expectedShipmentVersion(), detail, step, "PENDING", null, packageLines(command));
+      command.expectedShipmentVersion(), detail, step, "PENDING", null, packageLines(command), command.warehouseId());
   }
 
   @Scheduled(fixedDelayString = "${commerceflow.fulfillment.execution-delay:1s}")
@@ -236,6 +236,7 @@ public class FulfillmentExecution {
         || !Objects.equals(command.carrier(), prior.carrier())
         || !Objects.equals(command.trackingNumber(), prior.trackingNumber())
         || !Objects.equals(command.expectedShipmentVersion(), prior.expectedVersion())
+        || !Objects.equals(command.warehouseId(), prior.warehouseId())
         || !Objects.equals(packageLines(command), prior.packageLines())) {
       throw error(HttpStatus.CONFLICT, "Fulfillment command ID was reused with different parameters");
     }

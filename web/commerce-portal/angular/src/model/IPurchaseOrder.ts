@@ -11,6 +11,18 @@ export interface PurchaseOrderItem {
   discountAmount?: number;
 }
 
+export interface WarehousePlan {
+  amounts: {
+    orderLineId: number;
+    warehouseId: number;
+    quantity: number;
+    grossAmount: number;
+    discountAmount: number;
+    freightAmount: number;
+  }[];
+  shipments: { packageId: string; warehouseId: number; orderLineId: number; quantity: number }[];
+}
+
 export interface OrderLogisticsEvent {
   eventId: string;
   eventType: string;

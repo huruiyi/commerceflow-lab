@@ -64,7 +64,8 @@ public class MerchantInventoryHttpAdapter {
     try {
       AdjustmentRequest adjustment = mapper.readValue(payload, AdjustmentRequest.class);
       adjustment.validate();
-      return inventory.adjust(merchantId, productId, adjustment.delta(), adjustment.reason());
+      return inventory.adjust(merchantId, productId, adjustment.delta(), adjustment.reason(),
+        adjustment.warehouseId() == null ? 1 : adjustment.warehouseId());
     } catch (JacksonException exception) {
       throw new IllegalArgumentException("Inventory adjustment payload is invalid", exception);
     }
@@ -84,12 +85,13 @@ public class MerchantInventoryHttpAdapter {
 
   public record AdjustmentRequest(
     @NotNull @Min(-100000) @Max(100000) Integer delta,
-    @NotBlank @Size(max = 300) String reason
+    @NotBlank @Size(max = 300) String reason,
+    Long warehouseId
   ) {
 
     void validate() {
       if (delta == null || delta < -100000 || delta > 100000
-          || reason == null || reason.isBlank() || reason.length() > 300) {
+          || reason == null || reason.isBlank() || reason.length() > 300 || (warehouseId != null && warehouseId < 1)) {
         throw new IllegalArgumentException("Inventory adjustment payload is invalid");
       }
     }
