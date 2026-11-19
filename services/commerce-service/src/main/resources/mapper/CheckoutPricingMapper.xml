@@ -36,7 +36,8 @@
     </foreach>
   </insert>
 
-  <select id="receipt" resultType="vip.fairy.commerceflow.commerce.ordering.infrastructure.CheckoutPricingMapper$Receipt">
+  <select id="receipt"
+          resultType="vip.fairy.commerceflow.commerce.ordering.infrastructure.CheckoutPricingMapper$Receipt">
     SELECT scope_hash, order_id
     FROM checkout_receipts
     WHERE customer_id = #{customerId} AND quote_id = #{quoteId}

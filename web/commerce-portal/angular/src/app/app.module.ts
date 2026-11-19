@@ -34,7 +34,7 @@ import { TranslatePipe } from './pipes/translate.pipe';
 import { SchedulingAdminComponent } from './scheduling-admin/scheduling-admin.component';
 import { LogisticsCallbackAdminComponent } from './logistics-callback-admin/logistics-callback-admin.component';
 import { MerchantInventoryComponent } from './merchant-inventory/merchant-inventory.component';
-import { InventoryReconciliationAdminComponent } from './inventory-reconciliation-admin/inventory-reconciliation-admin.component';
+import { InventoryReconciliationAdminComponent } from './inventory-reconciliation/inventory-reconciliation.component';
 
 @NgModule({
   declarations: [

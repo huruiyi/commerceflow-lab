@@ -17,20 +17,36 @@ import { SchedulingAdminComponent } from './scheduling-admin/scheduling-admin.co
 import { LogisticsCallbackAdminComponent } from './logistics-callback-admin/logistics-callback-admin.component';
 import { MerchantInventoryComponent } from './merchant-inventory/merchant-inventory.component';
 import { MerchantCatalogComponent } from './merchant-catalog/merchant-catalog.component';
-import { InventoryReconciliationAdminComponent } from './inventory-reconciliation-admin/inventory-reconciliation-admin.component';
+import { InventoryReconciliationAdminComponent } from './inventory-reconciliation/inventory-reconciliation.component';
 
 const routes: Routes = [
   { path: '', component: LoginComponent }, //LoginGuard
   { path: 'dashboard', component: DashboardComponent, canActivate: [AuthGuard] },
   { path: 'stores/:id', component: StoresComponent, data: { mode: 'public' } },
-  { path: 'merchant/store', component: StoresComponent, canActivate: [AuthGuard],
-    data: { mode: 'merchant', roles: ['MERCHANT'] } },
-  { path: 'admin/stores', component: StoresComponent, canActivate: [AuthGuard],
-    data: { mode: 'admin', roles: ['ADMIN'] } },
-  { path: 'admin/stores/:id/settlements', component: SettlementsComponent, canActivate: [AuthGuard],
-    data: { admin: true, roles: ['ADMIN'] } },
-  { path: 'merchant/settlements', component: SettlementsComponent, canActivate: [AuthGuard],
-    data: { roles: ['MERCHANT'] } },
+  {
+    path: 'merchant/store',
+    component: StoresComponent,
+    canActivate: [AuthGuard],
+    data: { mode: 'merchant', roles: ['MERCHANT'] },
+  },
+  {
+    path: 'admin/stores',
+    component: StoresComponent,
+    canActivate: [AuthGuard],
+    data: { mode: 'admin', roles: ['ADMIN'] },
+  },
+  {
+    path: 'admin/stores/:id/settlements',
+    component: SettlementsComponent,
+    canActivate: [AuthGuard],
+    data: { admin: true, roles: ['ADMIN'] },
+  },
+  {
+    path: 'merchant/settlements',
+    component: SettlementsComponent,
+    canActivate: [AuthGuard],
+    data: { roles: ['MERCHANT'] },
+  },
   { path: 'coupons', component: CouponsComponent, canActivate: [AuthGuard], data: { roles: ['CUSTOMER'] } },
   {
     path: 'merchant/coupons',

@@ -685,7 +685,10 @@ class CommerceFlowIntegrationTest {
     mvc.perform(put("/api/admin/scheduling/policies/REVIEW_REMINDER")
         .session(admin.session()).cookie(admin.cookie()).header("X-XSRF-TOKEN", admin.token())
         .contentType("application/json")
-        .content("{\"enabled\":true,\"primaryTrigger\":\"DATABASE\",\"reconciliationEnabled\":true,\"gracePeriodSeconds\":60,\"claimLeaseSeconds\":30,\"maxAttempts\":4,\"retryDelaySeconds\":5}"))
+        .content("""
+          {"enabled":true,"primaryTrigger":"DATABASE","reconciliationEnabled":true,
+          "gracePeriodSeconds":60,"claimLeaseSeconds":30,"maxAttempts":4,"retryDelaySeconds":5}
+          """))
       .andExpect(status().isOk())
       .andExpect(jsonPath("$.source").value("DATABASE_OVERRIDE"))
       .andExpect(jsonPath("$.maxAttempts").value(4));
@@ -700,17 +703,26 @@ class CommerceFlowIntegrationTest {
     mvc.perform(put("/api/admin/scheduling/policies/UNREGISTERED_TASK")
         .session(admin.session()).cookie(admin.cookie()).header("X-XSRF-TOKEN", admin.token())
         .contentType("application/json")
-        .content("{\"enabled\":true,\"primaryTrigger\":\"DATABASE\",\"reconciliationEnabled\":true,\"gracePeriodSeconds\":60,\"claimLeaseSeconds\":30,\"maxAttempts\":4,\"retryDelaySeconds\":5}"))
+        .content("""
+          {"enabled":true,"primaryTrigger":"DATABASE","reconciliationEnabled":true,
+          "gracePeriodSeconds":60,"claimLeaseSeconds":30,"maxAttempts":4,"retryDelaySeconds":5}
+          """))
       .andExpect(status().isConflict());
     mvc.perform(put("/api/admin/scheduling/policies/REVIEW_REMINDER")
         .session(admin.session()).cookie(admin.cookie()).header("X-XSRF-TOKEN", admin.token())
         .contentType("application/json")
-        .content("{\"enabled\":true,\"primaryTrigger\":\"RABBITMQ\",\"reconciliationEnabled\":true,\"gracePeriodSeconds\":60,\"claimLeaseSeconds\":30,\"maxAttempts\":4,\"retryDelaySeconds\":5}"))
+        .content("""
+          {"enabled":true,"primaryTrigger":"RABBITMQ","reconciliationEnabled":true,
+          "gracePeriodSeconds":60,"claimLeaseSeconds":30,"maxAttempts":4,"retryDelaySeconds":5}
+          """))
       .andExpect(status().isConflict());
     mvc.perform(put("/api/admin/scheduling/policies/REVIEW_REMINDER")
         .session(admin.session()).cookie(admin.cookie()).header("X-XSRF-TOKEN", admin.token())
         .contentType("application/json")
-        .content("{\"enabled\":true,\"primaryTrigger\":\"ROCKETMQ\",\"reconciliationEnabled\":true,\"gracePeriodSeconds\":60,\"claimLeaseSeconds\":30,\"maxAttempts\":4,\"retryDelaySeconds\":5}"))
+        .content("""
+          {"enabled":true,"primaryTrigger":"ROCKETMQ","reconciliationEnabled":true,
+          "gracePeriodSeconds":60,"claimLeaseSeconds":30,"maxAttempts":4,"retryDelaySeconds":5}
+          """))
       .andExpect(status().isConflict());
     mvc.perform(delete("/api/admin/scheduling/policies/REVIEW_REMINDER")
         .session(admin.session()).cookie(admin.cookie()).header("X-XSRF-TOKEN", admin.token()))
@@ -722,7 +734,12 @@ class CommerceFlowIntegrationTest {
   void paymentTimeoutTaskUsesTheSharedCancellationHandler() throws Exception {
     Long customerId = jdbc.queryForObject(
       "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
-    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,created_at,updated_at) VALUES('TIMEOUT-ORDER',?,'PENDING_PAYMENT',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", customerId);
+    jdbc.update("""
+      INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,
+        created_at,updated_at)
+      VALUES('TIMEOUT-ORDER',?,'PENDING_PAYMENT',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP)
+      """, customerId);
     Long orderId = jdbc.queryForObject(
       "SELECT id FROM shop_orders WHERE order_number='TIMEOUT-ORDER'", Long.class);
     var task = scheduledTasks.schedule(ScheduledTaskTypes.PAYMENT_TIMEOUT, "order:" + orderId,
@@ -740,7 +757,8 @@ class CommerceFlowIntegrationTest {
     org.junit.jupiter.api.Assertions.assertEquals("CANCELLED",
       jdbc.queryForObject("SELECT status FROM shop_orders WHERE id=?", String.class, orderId));
     org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
-      "SELECT COUNT(*) FROM order_events WHERE order_id=? AND event_type='ORDER_CANCELLED' AND trigger_source='SCHEDULED_TASK' AND scheduled_task_id=?",
+      "SELECT COUNT(*) FROM order_events WHERE order_id=? AND event_type='ORDER_CANCELLED' "
+        + "AND trigger_source='SCHEDULED_TASK' AND scheduled_task_id=?",
       Integer.class, orderId, task.getId()));
     org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
       "SELECT COUNT(*) FROM order_effect_outbox WHERE aggregate_id=? AND event_type='ORDER_CANCELLED'",
@@ -753,7 +771,11 @@ class CommerceFlowIntegrationTest {
       "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
     String suffix = UUID.randomUUID().toString().replace("-", "");
     String orderNumber = "ORDER-ILLEGAL-" + suffix;
-    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,created_at,updated_at) VALUES(?,?,'PAID',77.00,'CNY',?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+    jdbc.update("""
+      INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,
+        created_at,updated_at)
+      VALUES(?,?,'PAID',77.00,'CNY',?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+      """,
       orderNumber, customerId, java.sql.Timestamp.from(Instant.now().plusSeconds(60)));
     Long paidOrderId = jdbc.queryForObject(
       "SELECT id FROM shop_orders WHERE order_number=?", Long.class, orderNumber);
@@ -785,7 +807,8 @@ class CommerceFlowIntegrationTest {
     jdbc.update("DELETE FROM cart_items WHERE cart_id IN (SELECT id FROM carts WHERE user_id=?)", customerId);
     String orderNumber = "REPURCHASE-" + UUID.randomUUID();
     jdbc.update("""
-      INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,created_at,updated_at)
+      INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,
+        created_at,updated_at)
       VALUES (?,?,'RECEIVED',20,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
       """, orderNumber, customerId);
     Long orderId = jdbc.queryForObject("SELECT id FROM shop_orders WHERE order_number=?", Long.class, orderNumber);
@@ -875,7 +898,8 @@ class CommerceFlowIntegrationTest {
     mvc.perform(get("/api/cart").session(customer.session()))
       .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(2));
     String payload = quoteAndConfirm(customer, selection);
-    MvcResult result = mvc.perform(post("/api/purchase-orders/checkout").session(customer.session()).cookie(customer.cookie())
+    MvcResult result = mvc.perform(post("/api/purchase-orders/checkout")
+        .session(customer.session()).cookie(customer.cookie())
         .header("X-XSRF-TOKEN", customer.token()).contentType("application/json").content(payload))
       .andExpect(status().isOk())
       .andExpect(jsonPath("$.totalAmount").value(1350))
@@ -912,12 +936,25 @@ class CommerceFlowIntegrationTest {
       "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
     Long merchantId = catalogMerchantId;
     jdbc.update("UPDATE products SET merchant_id=? WHERE id=1", merchantId);
-    jdbc.update("MERGE INTO carts(user_id,created_at,updated_at) KEY(user_id) VALUES(?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", customerId);
+    jdbc.update("""
+      MERGE INTO carts(user_id,created_at,updated_at) KEY(user_id)
+      VALUES(?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+      """, customerId);
     Long cartId = jdbc.queryForObject("SELECT id FROM carts WHERE user_id=?", Long.class, customerId);
     jdbc.update("DELETE FROM cart_items WHERE cart_id=?", cartId);
-    jdbc.update("INSERT INTO cart_items(cart_id,product_id,merchant_id,product_name,thumbnail_url,unit_price,quantity,created_at,updated_at) VALUES(?,1,?,'Learning Laptop','thumb',1299,2,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", cartId, merchantId);
-    jdbc.update("INSERT INTO shipping_addresses(user_id,recipient_name,phone,country_code,state_province,city,district,address_line1,address_line2,postal_code,label,is_default,created_at,updated_at) VALUES(?,'Inventory Customer','13800000000','CN','Shanghai','Shanghai','Pudong','Stock Road','','200000','Inventory',TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", customerId);
-    Long addressId = jdbc.queryForObject("SELECT MAX(id) FROM shipping_addresses WHERE user_id=?", Long.class, customerId);
+    jdbc.update("""
+      INSERT INTO cart_items(cart_id,product_id,merchant_id,product_name,thumbnail_url,unit_price,
+        quantity,created_at,updated_at)
+      VALUES(?,1,?,'Learning Laptop','thumb',1299,2,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+      """, cartId, merchantId);
+    jdbc.update("""
+      INSERT INTO shipping_addresses(user_id,recipient_name,phone,country_code,state_province,city,
+        district,address_line1,address_line2,postal_code,label,is_default,created_at,updated_at)
+      VALUES(?,'Inventory Customer','13800000000','CN','Shanghai','Shanghai','Pudong','Stock Road',
+        '','200000','Inventory',TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+      """, customerId);
+    Long addressId = jdbc.queryForObject(
+      "SELECT MAX(id) FROM shipping_addresses WHERE user_id=?", Long.class, customerId);
     jdbc.update("UPDATE carts SET selected_address_id=? WHERE id=?", addressId, cartId);
     CsrfContext customer = login("demo@example.com", false);
     when(catalogServiceClient.snapshots(List.of(1L))).thenReturn(List.of(new CatalogProductSnapshotV1(
@@ -940,7 +977,8 @@ class CommerceFlowIntegrationTest {
         .contentType("application/json").content("{\"reason\":\"Inventory test cancellation\"}"))
       .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"));
     Map<String, Object> outbox = jdbc.queryForMap(
-      "SELECT event_id,event_type,aggregate_id,payload FROM order_effect_outbox WHERE aggregate_id=? AND event_type='ORDER_CANCELLED' ORDER BY id DESC LIMIT 1",
+      "SELECT event_id,event_type,aggregate_id,payload FROM order_effect_outbox WHERE "
+        + "aggregate_id=? AND event_type='ORDER_CANCELLED' ORDER BY id DESC LIMIT 1",
       Long.toString(orderId));
     Object payloadValue = outbox.get("PAYLOAD");
     String payload = payloadValue instanceof byte[] bytes
@@ -1018,7 +1056,12 @@ class CommerceFlowIntegrationTest {
   void automaticReceiptAndCompletionUseSharedScheduledTaskHandlers() {
     Long customerId = jdbc.queryForObject(
       "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
-    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,logistics_delivered_at,created_at,updated_at) VALUES('AUTO-LIFECYCLE-ORDER',?,'SHIPPED',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", customerId);
+    jdbc.update("""
+      INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,
+        logistics_delivered_at,created_at,updated_at)
+      VALUES('AUTO-LIFECYCLE-ORDER',?,'SHIPPED',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+      """, customerId);
     Long orderId = jdbc.queryForObject(
       "SELECT id FROM shop_orders WHERE order_number='AUTO-LIFECYCLE-ORDER'", Long.class);
 
@@ -1039,7 +1082,8 @@ class CommerceFlowIntegrationTest {
     Long completeTaskId = jdbc.queryForObject(
       "SELECT id FROM scheduled_tasks WHERE task_type='AUTO_COMPLETE' AND task_key=?",
       Long.class, "order:" + orderId);
-    jdbc.update("UPDATE scheduled_tasks SET due_at=? WHERE id=?", java.sql.Timestamp.from(Instant.now().minusSeconds(1)), completeTaskId);
+    jdbc.update("UPDATE scheduled_tasks SET due_at=? WHERE id=?",
+      java.sql.Timestamp.from(Instant.now().minusSeconds(1)), completeTaskId);
     org.junit.jupiter.api.Assertions.assertTrue(
       scheduledTaskExecutor.execute(completeTaskId, TaskTriggerSource.DATABASE_SCAN));
     org.junit.jupiter.api.Assertions.assertEquals("COMPLETED",
@@ -1047,13 +1091,15 @@ class CommerceFlowIntegrationTest {
     org.junit.jupiter.api.Assertions.assertNotNull(
       jdbc.queryForObject("SELECT completed_at FROM shop_orders WHERE id=?", java.sql.Timestamp.class, orderId));
     org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
-      "SELECT COUNT(*) FROM order_events WHERE order_id=? AND event_type='ORDER_AUTO_COMPLETED' AND scheduled_task_id=?",
+      "SELECT COUNT(*) FROM order_events WHERE order_id=? AND "
+        + "event_type='ORDER_AUTO_COMPLETED' AND scheduled_task_id=?",
       Integer.class, orderId, completeTaskId));
 
     receiptLifecycle.autoReceive(orderId, receiveTaskId);
     receiptLifecycle.autoComplete(orderId, completeTaskId);
     org.junit.jupiter.api.Assertions.assertEquals(2, jdbc.queryForObject(
-      "SELECT COUNT(*) FROM order_events WHERE order_id=? AND event_type IN ('ORDER_AUTO_RECEIVED','ORDER_AUTO_COMPLETED')",
+      "SELECT COUNT(*) FROM order_events WHERE order_id=? AND event_type IN "
+        + "('ORDER_AUTO_RECEIVED','ORDER_AUTO_COMPLETED')",
       Integer.class, orderId));
   }
 
@@ -1061,7 +1107,12 @@ class CommerceFlowIntegrationTest {
   void manualReceiptCancelsAutoReceiveAndCreatesOneAutoCompleteTask() {
     Long customerId = jdbc.queryForObject(
       "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
-    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,logistics_delivered_at,created_at,updated_at) VALUES('MANUAL-RECEIPT-ORDER',?,'SHIPPED',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", customerId);
+    jdbc.update("""
+      INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,
+        logistics_delivered_at,created_at,updated_at)
+      VALUES('MANUAL-RECEIPT-ORDER',?,'SHIPPED',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+      """, customerId);
     Long orderId = jdbc.queryForObject(
       "SELECT id FROM shop_orders WHERE order_number='MANUAL-RECEIPT-ORDER'", Long.class);
     receiptLifecycle.scheduleAutoReceive(orderId, Instant.now().plusSeconds(3600));
@@ -1086,7 +1137,12 @@ class CommerceFlowIntegrationTest {
   void manualAndAutomaticReceiptRaceProducesOneTransitionAndOneCompletionTask() throws Exception {
     Long customerId = jdbc.queryForObject(
       "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
-    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,logistics_delivered_at,created_at,updated_at) VALUES('RECEIPT-RACE-ORDER',?,'SHIPPED',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", customerId);
+    jdbc.update("""
+      INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,
+        logistics_delivered_at,created_at,updated_at)
+      VALUES('RECEIPT-RACE-ORDER',?,'SHIPPED',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+      """, customerId);
     Long orderId = jdbc.queryForObject(
       "SELECT id FROM shop_orders WHERE order_number='RECEIPT-RACE-ORDER'", Long.class);
     receiptLifecycle.scheduleAutoReceive(orderId, Instant.now().minusSeconds(2));
@@ -1131,7 +1187,8 @@ class CommerceFlowIntegrationTest {
     int executionsBefore = reminderExecutions.get();
     var task = scheduledTasks.schedule(ScheduledTaskTypes.REVIEW_REMINDER,
       "lease-recovery-test", "ORDER", "1", Instant.now().minusSeconds(5), Map.of("orderId", 1));
-    jdbc.update("UPDATE scheduled_tasks SET status='PROCESSING',attempts=1,claimed_by='crashed-worker',lease_until=? WHERE id=?",
+    jdbc.update("UPDATE scheduled_tasks SET status='PROCESSING',attempts=1,claimed_by='crashed-worker',"
+        + "lease_until=? WHERE id=?",
       java.sql.Timestamp.from(Instant.now().minusSeconds(2)), task.getId());
 
     org.junit.jupiter.api.Assertions.assertEquals(1, scheduledTaskExecutor.recoverExpiredLeases(10));
@@ -1151,10 +1208,20 @@ class CommerceFlowIntegrationTest {
   void logisticsExceptionRequiresExplicitRecoveryAndDoesNotScheduleReceipt() throws Exception {
     Long customerId = jdbc.queryForObject(
       "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
-    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,created_at,updated_at) VALUES('LOGISTICS-EXCEPTION-ORDER',?,'SHIPPED',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", customerId);
+    jdbc.update("""
+      INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,
+        created_at,updated_at)
+      VALUES('LOGISTICS-EXCEPTION-ORDER',?,'SHIPPED',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP)
+      """, customerId);
     Long orderId = jdbc.queryForObject(
       "SELECT id FROM shop_orders WHERE order_number='LOGISTICS-EXCEPTION-ORDER'", Long.class);
-    jdbc.update("INSERT INTO shipment_records(order_id,merchant_shipment_no,platform_shipment_no,carrier,tracking_number,status,shipped_at) VALUES(?,'MS-EXCEPTION','LGS-EXCEPTION','Demo Carrier','TRACK-EXCEPTION','IN_TRANSIT',CURRENT_TIMESTAMP)", orderId);
+    jdbc.update("""
+      INSERT INTO shipment_records(order_id,merchant_shipment_no,platform_shipment_no,carrier,
+        tracking_number,status,shipped_at)
+      VALUES(?,'MS-EXCEPTION','LGS-EXCEPTION','Demo Carrier','TRACK-EXCEPTION','IN_TRANSIT',
+        CURRENT_TIMESTAMP)
+      """, orderId);
 
     acceptLogisticsNotice("EXCEPTION", "EXCEPTION", "Exception center", "Parcel held for review");
     org.junit.jupiter.api.Assertions.assertEquals("EXCEPTION", jdbc.queryForObject(
@@ -1179,10 +1246,20 @@ class CommerceFlowIntegrationTest {
   void logisticsReconciliationBackfillsMissingEventsIdempotently() {
     Long customerId = jdbc.queryForObject(
       "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
-    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,created_at,updated_at) VALUES('LOGISTICS-RECONCILIATION-ORDER',?,'SHIPPED',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", customerId);
+    jdbc.update("""
+      INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,
+        created_at,updated_at)
+      VALUES('LOGISTICS-RECONCILIATION-ORDER',?,'SHIPPED',1299,'CNY',CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+      """, customerId);
     Long orderId = jdbc.queryForObject(
       "SELECT id FROM shop_orders WHERE order_number='LOGISTICS-RECONCILIATION-ORDER'", Long.class);
-    jdbc.update("INSERT INTO shipment_records(order_id,merchant_shipment_no,platform_shipment_no,carrier,tracking_number,status,shipped_at) VALUES(?,'MS-RECONCILE','LGS-RECONCILE','Current Carrier','TRACK-RECONCILE','REQUESTED',CURRENT_TIMESTAMP)", orderId);
+    jdbc.update("""
+      INSERT INTO shipment_records(order_id,merchant_shipment_no,platform_shipment_no,carrier,
+        tracking_number,status,shipped_at)
+      VALUES(?,'MS-RECONCILE','LGS-RECONCILE','Current Carrier','TRACK-RECONCILE','REQUESTED',
+        CURRENT_TIMESTAMP)
+      """, orderId);
     Instant createdAt = Instant.now().minusSeconds(10);
     LogisticsGatewayClient.Result authoritative = new LogisticsGatewayClient.Result(
       1L, "MS-RECONCILE", "LGS-RECONCILE", "LOGISTICS-RECONCILIATION-ORDER",
@@ -1201,7 +1278,8 @@ class CommerceFlowIntegrationTest {
     org.junit.jupiter.api.Assertions.assertEquals("PICKED_UP", jdbc.queryForObject(
       "SELECT status FROM shipment_records WHERE order_id=?", String.class, orderId));
     org.junit.jupiter.api.Assertions.assertEquals(2, jdbc.queryForObject(
-      "SELECT COUNT(*) FROM shipment_notifications WHERE shipment_id=(SELECT id FROM shipment_records WHERE order_id=?) AND processing_status='RECONCILED'",
+      "SELECT COUNT(*) FROM shipment_notifications WHERE shipment_id=(SELECT id FROM "
+        + "shipment_records WHERE order_id=?) AND processing_status='RECONCILED'",
       Integer.class, orderId));
   }
 
@@ -1213,11 +1291,19 @@ class CommerceFlowIntegrationTest {
     String orderNumber = "LOGISTICS-ORDERING-" + suffix;
     String merchantNo = "MS-ORDERING-" + suffix;
     String platformNo = "LGS-ORDERING-" + suffix;
-    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,created_at,updated_at) VALUES(?,?,'SHIPPED',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+    jdbc.update("""
+      INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,
+        created_at,updated_at)
+      VALUES(?,?,'SHIPPED',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+      """,
       orderNumber, customerId);
     Long orderId = jdbc.queryForObject(
       "SELECT id FROM shop_orders WHERE order_number=?", Long.class, orderNumber);
-    jdbc.update("INSERT INTO shipment_records(order_id,merchant_shipment_no,platform_shipment_no,carrier,tracking_number,status,shipped_at) VALUES(?,?,?,'Stable Carrier','TRACK-STABLE','OUT_FOR_DELIVERY',CURRENT_TIMESTAMP)",
+    jdbc.update("""
+      INSERT INTO shipment_records(order_id,merchant_shipment_no,platform_shipment_no,carrier,
+        tracking_number,status,shipped_at)
+      VALUES(?,?,?,'Stable Carrier','TRACK-STABLE','OUT_FOR_DELIVERY',CURRENT_TIMESTAMP)
+      """,
       orderId, merchantNo, platformNo);
 
     acceptLogisticsNotice(merchantNo, platformNo, "PROGRESS", "DELIVERED",
@@ -1247,13 +1333,31 @@ class CommerceFlowIntegrationTest {
   void customerCannotAccessAnotherCustomersCartAddressOrOrder() throws Exception {
     Long ownerId = jdbc.queryForObject("SELECT id FROM app_users WHERE email='customer2@example.com'", Long.class);
     Long merchantId = jdbc.queryForObject("SELECT merchant_id FROM products WHERE id=1", Long.class);
-    jdbc.update("MERGE INTO carts(user_id,created_at,updated_at) KEY(user_id) VALUES(?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", ownerId);
+    jdbc.update("""
+      MERGE INTO carts(user_id,created_at,updated_at) KEY(user_id)
+      VALUES(?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+      """, ownerId);
     Long cartId = jdbc.queryForObject("SELECT id FROM carts WHERE user_id=?", Long.class, ownerId);
-    jdbc.update("MERGE INTO cart_items(cart_id,product_id,merchant_id,product_name,thumbnail_url,unit_price,quantity,created_at,updated_at) KEY(cart_id,product_id) VALUES(?,1,?,'Learning Laptop','thumb',1299,3,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", cartId, merchantId);
-    Long cartItemId = jdbc.queryForObject("SELECT id FROM cart_items WHERE cart_id=? AND product_id=1", Long.class, cartId);
-    jdbc.update("INSERT INTO shipping_addresses(user_id,recipient_name,phone,country_code,state_province,city,district,address_line1,address_line2,postal_code,label,is_default,created_at,updated_at) VALUES(?,'Owner','13800000000','CN','Shanghai','Shanghai','Pudong','Owner Road','','200000','Home',TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", ownerId);
+    jdbc.update("""
+      MERGE INTO cart_items(cart_id,product_id,merchant_id,product_name,thumbnail_url,unit_price,
+        quantity,created_at,updated_at) KEY(cart_id,product_id)
+      VALUES(?,1,?,'Learning Laptop','thumb',1299,3,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+      """, cartId, merchantId);
+    Long cartItemId = jdbc.queryForObject(
+      "SELECT id FROM cart_items WHERE cart_id=? AND product_id=1", Long.class, cartId);
+    jdbc.update("""
+      INSERT INTO shipping_addresses(user_id,recipient_name,phone,country_code,state_province,city,
+        district,address_line1,address_line2,postal_code,label,is_default,created_at,updated_at)
+      VALUES(?,'Owner','13800000000','CN','Shanghai','Shanghai','Pudong','Owner Road','','200000',
+        'Home',TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+      """, ownerId);
     Long addressId = jdbc.queryForObject("SELECT MAX(id) FROM shipping_addresses WHERE user_id=?", Long.class, ownerId);
-    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,created_at,updated_at) VALUES('OWNER-ORDER',?,'PENDING_PAYMENT',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", ownerId);
+    jdbc.update("""
+      INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,
+        created_at,updated_at)
+      VALUES('OWNER-ORDER',?,'PENDING_PAYMENT',1299,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP)
+      """, ownerId);
     Long orderId = jdbc.queryForObject("SELECT MAX(id) FROM shop_orders WHERE customer_id=?", Long.class, ownerId);
 
     CsrfContext other = login("demo@example.com", false);
@@ -1262,7 +1366,11 @@ class CommerceFlowIntegrationTest {
       .andExpect(status().isNotFound());
     mvc.perform(put("/api/addresses/{id}", addressId).session(other.session()).cookie(other.cookie())
         .header("X-XSRF-TOKEN", other.token()).contentType("application/json")
-        .content("{\"recipientName\":\"Attacker\",\"phone\":\"13900000000\",\"countryCode\":\"CN\",\"stateProvince\":\"Beijing\",\"city\":\"Beijing\",\"district\":\"Haidian\",\"addressLine1\":\"Changed\",\"addressLine2\":\"\",\"postalCode\":\"100000\",\"label\":\"Other\",\"isDefault\":false}"))
+        .content("""
+          {"recipientName":"Attacker","phone":"13900000000","countryCode":"CN",
+          "stateProvince":"Beijing","city":"Beijing","district":"Haidian","addressLine1":"Changed",
+          "addressLine2":"","postalCode":"100000","label":"Other","isDefault":false}
+          """))
       .andExpect(status().isNotFound());
     mvc.perform(get("/api/purchase-orders/{id}", orderId).session(other.session()))
       .andExpect(status().isNotFound());
@@ -1312,7 +1420,8 @@ class CommerceFlowIntegrationTest {
   }
 
   private void acceptLogisticsNotice(String merchantShipmentNo, String platformShipmentNo,
-                                     String eventType, String status, String location, String description) throws Exception {
+                                     String eventType, String status, String location,
+                                     String description) throws Exception {
     String raw = json.writeValueAsString(Map.of(
       "notificationId", UUID.randomUUID().toString(),
       "merchantShipmentNo", merchantShipmentNo,

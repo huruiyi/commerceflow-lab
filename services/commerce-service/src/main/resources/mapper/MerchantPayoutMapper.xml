@@ -21,7 +21,8 @@
     ORDER BY next_attempt_at,id LIMIT 10
   </select>
   <insert id="insert">
-    INSERT INTO merchant_payout_attempts(id,statement_id,merchant_id,amount,currency,status,simulate_failure,requested_by)
+    INSERT INTO merchant_payout_attempts(id,statement_id,merchant_id,amount,currency,status,
+                                         simulate_failure,requested_by)
     VALUES(#{id},#{statementId},#{merchantId},#{amount},#{currency},'REQUESTED',#{simulateFailure},#{requestedBy})
   </insert>
   <update id="observe">

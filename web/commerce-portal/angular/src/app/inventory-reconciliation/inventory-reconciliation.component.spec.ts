@@ -6,7 +6,7 @@ import { InventoryRecovery, WarehouseEvidenceContext } from 'src/model/IInventor
 import { TranslatePipe } from '../pipes/translate.pipe';
 import { TrdatePipe } from '../pipes/trdate.pipe';
 import { ApiService } from '../services/api.service';
-import { InventoryReconciliationAdminComponent } from './inventory-reconciliation-admin.component';
+import { InventoryReconciliationAdminComponent } from './inventory-reconciliation.component';
 
 describe('InventoryReconciliationAdminComponent', () => {
   const recovery: InventoryRecovery = {

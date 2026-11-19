@@ -85,7 +85,8 @@ const en: Record<string, string> = {
   warehouseReconciliation: 'Inventory reconciliation',
   stocktakeTitle: 'Stocktake reconciliation',
   stocktakeExplanation:
-    'Use a verified warehouse count for orders without outbound documents. Count sellable units only, excluding reserved stock. A second administrator must review and approve the report.',
+    'Use a verified warehouse count for orders without outbound documents. Count sellable units ' +
+    'only, excluding reserved stock. A second administrator must review and approve the report.',
   stocktakeReference: 'Stocktake report reference',
   stocktakeProduct: 'Product ID',
   stocktakeCapture: 'Read ledger baseline',
@@ -142,7 +143,8 @@ const en: Record<string, string> = {
   inventoryChapter: 'MERCHANT · STOCK CONTROL',
   inventoryCenter: 'Inventory center',
   inventoryHelp:
-    'Review available, reserved, and sold balances. Every manual adjustment requires a reason and creates an audit movement.',
+    'Review available, reserved, and sold balances. Every manual adjustment requires a reason and ' +
+    'creates an audit movement.',
   inventoryProducts: 'managed products',
   inventorySnapshotHint: 'total available units',
   inventoryLoadFailed: 'Inventory is unavailable.',

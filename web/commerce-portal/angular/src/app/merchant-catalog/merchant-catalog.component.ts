@@ -96,8 +96,12 @@ export class MerchantCatalogComponent implements OnInit {
     if (this.createRequest?.content !== content) this.createRequest = { key: crypto.randomUUID(), content };
     this.saving.set(true);
     this.saveFailed.set(false);
-    this.api.createMerchantProduct({ ...this.creation, requestId: this.createRequest.key })
-      .pipe(takeUntilDestroyed(this.destroyRef), finalize(() => this.saving.set(false)))
+    this.api
+      .createMerchantProduct({ ...this.creation, requestId: this.createRequest.key })
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.saving.set(false)),
+      )
       .subscribe({
         next: (product) => {
           this.products.update((items) => [...items.filter((item) => item.productId !== product.productId), product]);

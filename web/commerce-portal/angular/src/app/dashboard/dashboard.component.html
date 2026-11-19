@@ -93,8 +93,12 @@
                 <span hlmBadge variant="secondary">{{ selectedProduct.price | trcurrency }}</span>
               </h3>
               <div>{{ selectedProduct.description }}</div>
-              <a *ngIf="selectedProduct.merchantId" [routerLink]="['/stores', selectedProduct.merchantId]"
-                data-bs-dismiss="modal">{{ 'visitStore' | t }}</a>
+              <a
+                *ngIf="selectedProduct.merchantId"
+                [routerLink]="['/stores', selectedProduct.merchantId]"
+                data-bs-dismiss="modal"
+                >{{ 'visitStore' | t }}</a
+              >
               <div class="mt-3">
                 <h6>{{ 'customerReviews' | t }}</h6>
                 <div *ngFor="let review of selectedProduct.reviews" class="border-bottom py-2">

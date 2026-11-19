@@ -311,7 +311,8 @@ const messages: Record<Locale, Record<string, string>> = {
     noRealFunds: 'No real funds are transferred',
     logout: 'Sign out',
     mfaNotice:
-      'This account must enable MFA. Enroll TOTP in Security Center before rotating keys, disabling merchants, or changing permissions.',
+      'This account must enable MFA. Enroll TOTP in Security Center before rotating keys, disabling ' +
+      'merchants, or changing permissions.',
     refundLedger: 'REFUND DOMAIN',
     refundTitle: 'Channel Refund Ledger',
     refundDescription:
@@ -328,7 +329,8 @@ const messages: Record<Locale, Record<string, string>> = {
     loginLead: 'Understand every payment,',
     loginAccent: 'from credentials to channel transactions.',
     loginDescription:
-      'An independent database, Redis sessions, three channel adapters, and a least-privilege console. Every operation stays in the local learning environment.',
+      'An independent database, Redis sessions, three channel adapters, and a least-privilege console. ' +
+      'Every operation stays in the local learning environment.',
     simulatedChannels: 'simulated channels',
     credentialEncryption: 'credential encryption',
     leastPrivilege: 'least privilege',
@@ -361,7 +363,8 @@ const messages: Record<Locale, Record<string, string>> = {
     recentTransactions: 'Recent channel transactions',
     viewAll: 'View all →',
     noVisibleTransactions:
-      'No visible transactions yet. An administrator can create a merchant, then run the three-channel lab under Channel Transactions.',
+      'No visible transactions yet. An administrator can create a merchant, then run the three-channel ' +
+      'lab under Channel Transactions.',
     transactionNo: 'Transaction',
     channel: 'Channel',
     amount: 'Amount',
@@ -399,7 +402,8 @@ const messages: Record<Locale, Record<string, string>> = {
     requestSigningAlgorithm: 'Request signing algorithm',
     merchantRsaPublicKey: 'Merchant RSA public key (X.509 PEM)',
     credentialNotice:
-      'The key is displayed only at creation; callback URLs are configured by the merchant console and cannot be overridden per transaction.',
+      'The key is displayed only at creation; callback URLs are configured by the merchant console and ' +
+      'cannot be overridden per transaction.',
     issueCredential: 'Issue merchant credential',
     stepUpFirst: 'Complete step-up authentication in Security Center, then perform this action immediately.',
     createFailed: 'Creation failed',
@@ -408,7 +412,8 @@ const messages: Record<Locale, Record<string, string>> = {
     signedApiLab: 'SIGNED API LAB',
     transactionTitle: 'Merchant Request Signature Lab',
     transactionDescription:
-      'Web Crypto signs HMAC/RSA requests in the browser; the server verifies time windows, digests, and replay records.',
+      'Web Crypto signs HMAC/RSA requests in the browser; the server verifies time windows, digests, ' +
+      'and replay records.',
     signedRequests: 'SIGNED REQUESTS',
     merchantSdkSimulator: 'MERCHANT SDK SIMULATOR',
     createSignedTransaction: 'Create signed transaction',
@@ -419,7 +424,8 @@ const messages: Record<Locale, Record<string, string>> = {
     faultScenario: 'Fault scenario',
     sendSigned: 'Sign and send',
     signatureHint:
-      'Signature input: METHOD + PATH + TIMESTAMP + NONCE + REQUEST_ID + BODY_SHA256. Keys are never stored in localStorage.',
+      'Signature input: METHOD + PATH + TIMESTAMP + NONCE + REQUEST_ID + BODY_SHA256. Keys are never ' +
+      'stored in localStorage.',
     liveLedger: 'LIVE LEDGER',
     channelLedger: 'Channel transaction ledger',
     refresh: 'Refresh',

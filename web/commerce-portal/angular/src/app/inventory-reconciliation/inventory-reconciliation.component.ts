@@ -24,8 +24,8 @@ interface EvidenceDraft {
 @Component({
   standalone: false,
   selector: 'app-inventory-reconciliation-admin',
-  templateUrl: './inventory-reconciliation-admin.component.html',
-  styleUrls: ['./inventory-reconciliation-admin.component.css'],
+  templateUrl: './inventory-reconciliation.component.html',
+  styleUrls: ['./inventory-reconciliation.component.css'],
 })
 export class InventoryReconciliationAdminComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);

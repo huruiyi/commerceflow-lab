@@ -12,7 +12,8 @@ export class HlmAlertTitle {
   constructor() {
     classes(
       () =>
-        'font-medium group-has-[>ng-icon]/alert:col-start-2 [&_a]:hover:text-foreground [&_a]:underline [&_a]:underline-offset-3',
+        'font-medium group-has-[>ng-icon]/alert:col-start-2 [&_a]:hover:text-foreground [&_a]:underline ' +
+        '[&_a]:underline-offset-3',
     );
   }
 }

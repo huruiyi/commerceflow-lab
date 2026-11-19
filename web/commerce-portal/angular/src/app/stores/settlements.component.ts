@@ -77,7 +77,10 @@ export class SettlementsComponent {
   detail(value: Statement): void {
     const path = `${this.statementPath}/${value.id}`;
     this.run(
-      forkJoin({ entries: this.http.get<Entry[]>(path + '/entries'), payouts: this.http.get<Payout[]>(path + '/payouts') }),
+      forkJoin({
+        entries: this.http.get<Entry[]>(path + '/entries'),
+        payouts: this.http.get<Payout[]>(path + '/payouts'),
+      }),
       (details) => {
         this.selected.set(value.id);
         this.entries.set(details.entries);
@@ -105,7 +108,10 @@ export class SettlementsComponent {
   reload(): void {
     const pending = this.admin ? `${this.adminBase}/settlement/pending` : '/api/merchant/settlement/pending';
     this.run(
-      forkJoin({ statements: this.http.get<Statement[]>(this.statementPath), pending: this.http.get<Entry[]>(pending) }),
+      forkJoin({
+        statements: this.http.get<Statement[]>(this.statementPath),
+        pending: this.http.get<Entry[]>(pending),
+      }),
       (value) => {
         this.statements.set(value.statements);
         this.pending.set(value.pending);

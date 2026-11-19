@@ -4,10 +4,12 @@
     <h2>我的店铺 / My store</h2>
     <p *ngIf="store() as value">状态 / Status · {{ value.status }}</p>
     <form (ngSubmit)="save()" class="row g-3">
-      <label class="col-md-5">店铺名称 / Store name
+      <label class="col-md-5"
+        >店铺名称 / Store name
         <input class="form-control" [(ngModel)]="name" name="name" required maxlength="120" />
       </label>
-      <label class="col-md-7">公开介绍 / Public description
+      <label class="col-md-7"
+        >公开介绍 / Public description
         <textarea class="form-control" [(ngModel)]="description" name="description" maxlength="500"></textarea>
       </label>
       <div class="col"><button class="btn btn-primary" [disabled]="busy() || !name.trim()">保存 / Save</button></div>
@@ -16,17 +18,23 @@
   <ng-container *ngIf="mode === 'admin'">
     <h2>店铺审核 / Store approval</h2>
     <form (ngSubmit)="createAccount()" class="row g-2 mb-4 align-items-end">
-      <label class="col-sm">商家姓名 / Merchant name
+      <label class="col-sm"
+        >商家姓名 / Merchant name
         <input class="form-control" name="accountName" [(ngModel)]="account.name" required maxlength="60" />
       </label>
-      <label class="col-sm">邮箱 / Email
+      <label class="col-sm"
+        >邮箱 / Email
         <input class="form-control" name="accountEmail" [(ngModel)]="account.email" type="email" required />
       </label>
-      <label class="col-sm">初始口令 / Initial password
+      <label class="col-sm"
+        >初始口令 / Initial password
         <input class="form-control" name="accountPassword" [(ngModel)]="account.password" type="password" required />
       </label>
       <div class="col-auto">
-        <button class="btn btn-primary" [disabled]="busy() || !account.name || !account.email || account.password.length < 10">
+        <button
+          class="btn btn-primary"
+          [disabled]="busy() || !account.name || !account.email || account.password.length < 10"
+        >
           创建商家账号 / Create merchant
         </button>
       </div>
@@ -38,12 +46,33 @@
         <a class="btn btn-outline-secondary" [routerLink]="['/admin/stores', value.merchantId, 'settlements']">
           应结账单 / Settlements
         </a>
-        <button *ngIf="['PENDING', 'DISABLED'].includes(value.status)" type="button" class="btn btn-outline-primary"
-          [disabled]="busy()" (click)="decide(value, 'ACTIVE')">启用 / Enable</button>
-        <button *ngIf="value.status === 'PENDING'" type="button" class="btn btn-outline-secondary"
-          [disabled]="busy()" (click)="decide(value, 'REJECTED')">驳回 / Reject</button>
-        <button *ngIf="value.status === 'ACTIVE'" type="button" class="btn btn-outline-danger"
-          [disabled]="busy()" (click)="decide(value, 'DISABLED')">停用 / Disable</button>
+        <button
+          *ngIf="['PENDING', 'DISABLED'].includes(value.status)"
+          type="button"
+          class="btn btn-outline-primary"
+          [disabled]="busy()"
+          (click)="decide(value, 'ACTIVE')"
+        >
+          启用 / Enable
+        </button>
+        <button
+          *ngIf="value.status === 'PENDING'"
+          type="button"
+          class="btn btn-outline-secondary"
+          [disabled]="busy()"
+          (click)="decide(value, 'REJECTED')"
+        >
+          驳回 / Reject
+        </button>
+        <button
+          *ngIf="value.status === 'ACTIVE'"
+          type="button"
+          class="btn btn-outline-danger"
+          [disabled]="busy()"
+          (click)="decide(value, 'DISABLED')"
+        >
+          停用 / Disable
+        </button>
       </div>
     </article>
   </ng-container>
