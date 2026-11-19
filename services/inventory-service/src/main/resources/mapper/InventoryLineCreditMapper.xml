@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryLineCreditMapper">
+  <resultMap id="credit" type="vip.fairy.commerceflow.inventory.application.service.InventoryLineCreditService$Credit">
+    <constructor>
+      <arg column="case_id" javaType="java.lang.String"/>
+      <arg column="order_id" javaType="java.lang.Long"/>
+      <arg column="order_line_id" javaType="java.lang.Long"/>
+      <arg column="merchant_id" javaType="java.lang.Long"/>
+      <arg column="product_id" javaType="java.lang.Long"/>
+      <arg column="quantity" javaType="_int"/>
+      <arg column="kind" javaType="java.lang.String"/>
+    </constructor>
+  </resultMap>
+  <select id="find" resultMap="credit">
+    SELECT case_id,order_id,order_line_id,merchant_id,product_id,quantity,kind
+    FROM inventory_line_credits WHERE case_id=#{caseId} FOR UPDATE
+  </select>
+  <select id="creditedProduct" resultType="int">
+    SELECT COALESCE(SUM(quantity),0) FROM inventory_line_credits
+    WHERE order_id=#{orderId} AND product_id=#{productId} AND kind=#{kind}
+  </select>
+  <select id="creditedLine" resultType="int">
+    SELECT COALESCE(SUM(quantity),0) FROM inventory_line_credits
+    WHERE order_id=#{orderId} AND order_line_id=#{orderLineId} AND kind='RETURN'
+  </select>
+  <select id="outboundQuantity" resultType="int">
+    SELECT COALESCE(SUM(l.quantity),0) FROM inventory_outbound_lines l
+    JOIN inventory_outbound_documents d ON d.outbound_id=l.outbound_id
+    WHERE d.order_id=#{orderId} AND d.merchant_id=#{merchantId}
+      AND l.order_line_id=#{orderLineId} AND l.product_id=#{productId}
+  </select>
+  <select id="hasOutbound" resultType="boolean">
+    SELECT EXISTS (SELECT 1 FROM inventory_outbound_documents WHERE order_id=#{orderId})
+  </select>
+  <insert id="insert">
+    INSERT INTO inventory_line_credits(case_id,order_id,order_line_id,merchant_id,product_id,quantity,kind)
+    VALUES (#{caseId},#{orderId},#{orderLineId},#{merchantId},#{productId},#{quantity},#{kind})
+  </insert>
+</mapper>

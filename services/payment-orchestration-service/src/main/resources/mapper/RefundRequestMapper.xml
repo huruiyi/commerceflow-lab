@@ -8,10 +8,6 @@
     <result property="failed_at" column="failed_at" javaType="java.sql.Timestamp"/>
   </resultMap>
 
-  <select id="latestRefund" resultMap="refundRow">
-    SELECT * FROM refund_records WHERE order_id=#{orderId} ORDER BY id DESC LIMIT 1
-  </select>
-
   <select id="lockCommandInbox" resultType="map">
     SELECT payload_fingerprint, response_payload FROM payment_remote_message_inbox WHERE
       message_id=#{commandId} FOR UPDATE
@@ -30,9 +26,9 @@
     INSERT INTO refund_records(refund_number, order_id, payment_id, customer_id, idempotency_key,
       request_fingerprint, amount, currency, reason_code, reason_detail, status, inventory_status,
       order_status_before_refund, channel_refund_no, failure_reason, requested_at, created_at, updated_at,
-      version) VALUES (#{refundNumber}, #{orderId}, #{paymentId}, #{customerId}, #{idempotencyKey},
+      version, after_sale_id) VALUES (#{refundNumber}, #{orderId}, #{paymentId}, #{customerId}, #{idempotencyKey},
       #{fingerprint}, #{amount}, #{currency}, #{reasonCode}, #{reasonDetail}, 'REQUESTED', 'NOT_STARTED',
-      #{orderStatus}, NULL, '', CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6), 0)
+      #{orderStatus}, NULL, '', CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6), 0, #{afterSaleId})
   </insert>
 
   <select id="findRefundId" resultType="java.lang.Long">

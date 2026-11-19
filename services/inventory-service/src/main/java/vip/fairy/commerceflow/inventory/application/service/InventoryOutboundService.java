@@ -17,17 +17,21 @@ import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryOutboun
 import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryOutboundV1.Line;
 import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryOutboundV1.Receipt;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryMapper;
+import vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryLineCreditMapper;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryOutboundMapper;
 
 @Service
 public class InventoryOutboundService {
 
   private final InventoryMapper inventory;
+  private final InventoryLineCreditMapper credits;
   private final InventoryOutboundMapper store;
   private final ObjectMapper mapper;
 
-  public InventoryOutboundService(InventoryMapper inventory, InventoryOutboundMapper store, ObjectMapper mapper) {
+  public InventoryOutboundService(InventoryMapper inventory, InventoryOutboundMapper store, ObjectMapper mapper,
+                                  InventoryLineCreditMapper credits) {
     this.inventory = inventory;
+    this.credits = credits;
     this.store = store;
     this.mapper = mapper;
   }
@@ -63,7 +67,10 @@ public class InventoryOutboundService {
       if (!"COMMITTED".equals(reservation.status())) {
         throw new InventoryBusinessRuleException("Outbound posting requires committed inventory");
       }
-      allocated.put(reservation.productId(), reservation.quantity());
+      int remaining = reservation.quantity()
+        - credits.creditedProduct(orderId, reservation.productId(), "BEFORE_SHIPMENT");
+      if (remaining < 0) throw new InventoryBusinessRuleException("Line refunds exceed committed inventory");
+      if (remaining > 0) allocated.put(reservation.productId(), remaining);
     }
     Map<Long, Integer> shipped = new HashMap<>();
     lines.forEach(line -> shipped.merge(line.productId(), line.quantity(), Math::addExact));

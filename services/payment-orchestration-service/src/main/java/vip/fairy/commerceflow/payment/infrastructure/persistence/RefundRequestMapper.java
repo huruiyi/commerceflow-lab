@@ -8,8 +8,6 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface RefundRequestMapper {
 
-  List<Map<String,Object>> latestRefund(@Param("orderId") long orderId);
-
   List<Map<String,Object>> lockCommandInbox(@Param("commandId") String commandId);
 
   List<Map<String,Object>> lockRefundByPayment(@Param("paymentId") Object paymentId);
@@ -27,7 +25,8 @@ public interface RefundRequestMapper {
     @Param("currency") Object currency,
     @Param("reasonCode") String reasonCode,
     @Param("reasonDetail") String reasonDetail,
-    @Param("orderStatus") String orderStatus);
+    @Param("orderStatus") String orderStatus,
+    @Param("afterSaleId") String afterSaleId);
 
   Long findRefundId(@Param("refundNumber") String refundNumber);
 

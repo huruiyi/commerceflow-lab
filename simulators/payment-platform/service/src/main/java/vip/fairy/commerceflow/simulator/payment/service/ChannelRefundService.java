@@ -13,6 +13,7 @@ import vip.fairy.commerceflow.simulator.payment.security.SignedRequestContext;
 import vip.fairy.commerceflow.simulator.payment.web.dto.ChannelRefundResponse;
 import vip.fairy.commerceflow.simulator.payment.web.dto.CreateChannelRefundRequest;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -45,24 +46,28 @@ public class ChannelRefundService {
   @Transactional
   public ChannelRefundResponse create(SignedRequestContext signed, CreateChannelRefundRequest request) {
     PaymentMerchant merchant = signed.merchant();
+    ChannelTransaction payment = transactions.lockRefundPayment(merchant.getId(), request.channelTransactionNo());
     ChannelRefund existing = refunds.selectOne(new LambdaQueryWrapper<ChannelRefund>()
       .eq(ChannelRefund::getMerchantId, merchant.getId())
       .eq(ChannelRefund::getMerchantRefundNo, request.merchantRefundNo()));
     if (existing != null) {
       return replay(existing, request);
     }
-    ChannelTransaction payment = transactions.selectOne(new LambdaQueryWrapper<ChannelTransaction>()
-      .eq(ChannelTransaction::getMerchantId, merchant.getId())
-      .eq(ChannelTransaction::getChannelTransactionNo, request.channelTransactionNo()));
     if (payment == null) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "原渠道交易不存在");
     }
     if (!"SUCCESS".equals(payment.getStatus())) {
       throw new ResponseStatusException(HttpStatus.CONFLICT, "只有支付成功交易可以退款");
     }
-    if (payment.getAmount().compareTo(request.amount()) != 0
-      || !payment.getCurrency().equals(request.currency())) {
-      throw new ResponseStatusException(HttpStatus.CONFLICT, "首版只支持原币种全额退款");
+    BigDecimal alreadyRefunded = refunds.selectList(new LambdaQueryWrapper<ChannelRefund>()
+      .eq(ChannelRefund::getMerchantId, merchant.getId())
+      .eq(ChannelRefund::getChannelTransactionNo, request.channelTransactionNo())
+      .ne(ChannelRefund::getStatus, "FAILED"))
+      .stream().map(ChannelRefund::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+    if (request.amount().stripTrailingZeros().scale() > 2 || request.amount().signum() <= 0
+        || alreadyRefunded.add(request.amount()).compareTo(payment.getAmount()) > 0
+        || !payment.getCurrency().equals(request.currency())) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "币种不匹配或退款超过交易剩余额度");
     }
     ChannelRefund value = new ChannelRefund();
     value.setChannelRefundNo("CR" + UUID.randomUUID().toString().replace("-", "").toUpperCase());

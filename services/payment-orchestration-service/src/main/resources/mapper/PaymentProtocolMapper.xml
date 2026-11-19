@@ -54,7 +54,7 @@
   </select>
 
   <select id="latestRefund" resultMap="refundRow">
-    SELECT * FROM refund_records WHERE order_id=#{orderId} ORDER BY id DESC LIMIT 1
+    SELECT * FROM refund_records WHERE order_id=#{orderId} AND after_sale_id IS NULL ORDER BY id DESC LIMIT 1
   </select>
 
   <select id="refundByNumber" resultMap="refundRow">
@@ -105,7 +105,7 @@
 
   <select id="lockRefundForChannel" resultMap="refundRow">
     SELECT r.*, p.payment_number, p.channel AS payment_channel FROM refund_records r JOIN payment_records p ON
-      p.id=r.payment_id WHERE r.refund_number=#{refundNumber} FOR UPDATE
+      p.id=r.payment_id WHERE r.refund_number=#{refundNumber}
   </select>
 
   <select id="recoverableProcesses" resultType="map">
@@ -178,8 +178,9 @@
   </update>
 
   <update id="recordRefundedAmount">
-    UPDATE payment_records SET refunded_amount=GREATEST(refunded_amount, #{amount}),
+    UPDATE payment_records SET refunded_amount=refunded_amount + #{amount},
       updated_at=CURRENT_TIMESTAMP(6), version=version+1 WHERE id=#{paymentId}
+      AND refunded_amount + #{amount} &lt;= amount
   </update>
 
   <insert id="insertResult">

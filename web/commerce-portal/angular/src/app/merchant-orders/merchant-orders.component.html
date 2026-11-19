@@ -73,6 +73,7 @@
   </div>
 
   <div *ngIf="expandedOrders.has(order.id)" class="order-details">
+    <app-line-after-sales [order]="order" [merchant]="true"></app-line-after-sales>
     <div class="items">
       <div *ngFor="let item of order.items">
         <img [src]="item.thumbnailUrl" [alt]="item.productName" /><span

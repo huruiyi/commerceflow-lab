@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.refund.infrastructure.LineAfterSaleMapper">
+
+  <sql id="columns">
+    id,order_id,order_line_id,product_id,customer_id,merchant_id,quantity,merchandise_amount,
+    shipping_amount,currency,kind,status,reason,decision,tracking_number,refund_number,return_shipping_cost,received_quantity,last_error
+  </sql>
+
+  <select id="find" resultType="vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale">
+    SELECT <include refid="columns"/> FROM line_after_sales WHERE id=#{id}
+  </select>
+  <select id="forCustomer" resultType="vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale">
+    SELECT <include refid="columns"/> FROM line_after_sales
+    WHERE customer_id=#{customerId} AND order_id=#{orderId} ORDER BY created_at DESC,id DESC
+  </select>
+  <select id="forMerchant" resultType="vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale">
+    SELECT <include refid="columns"/> FROM line_after_sales
+    WHERE merchant_id=#{merchantId} AND order_id=#{orderId} ORDER BY created_at DESC,id DESC
+  </select>
+  <select id="lockForOrder" resultType="vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale">
+    SELECT <include refid="columns"/> FROM line_after_sales WHERE order_id=#{orderId} FOR UPDATE
+  </select>
+  <select id="due" resultType="vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale">
+    SELECT <include refid="columns"/> FROM line_after_sales
+    WHERE status IN ('PREPARING','REFUNDING','RESTOCKING','RELEASING')
+      AND next_attempt_at &lt;= CURRENT_TIMESTAMP(6)
+    ORDER BY next_attempt_at,id LIMIT 30
+  </select>
+  <insert id="insert">
+    INSERT INTO line_after_sales(id,order_id,order_line_id,product_id,customer_id,merchant_id,quantity,
+      merchandise_amount,shipping_amount,currency,kind,status,reason)
+    VALUES (#{id},#{orderId},#{orderLineId},#{productId},#{customerId},#{merchantId},#{quantity},
+      #{merchandiseAmount},#{shippingAmount},#{currency},#{kind},#{status},#{reason})
+  </insert>
+  <update id="customerReturn">
+    UPDATE line_after_sales SET tracking_number=#{trackingNumber},return_shipping_cost=#{returnShippingCost},status='RETURN_SENT',updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{id} AND customer_id=#{customerId} AND status='WAITING_RETURN'
+  </update>
+  <update id="merchantDecision">
+    UPDATE line_after_sales SET status=#{to},decision=#{decision},received_quantity=#{receivedQuantity},
+      next_attempt_at=CURRENT_TIMESTAMP(6),updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{id} AND merchant_id=#{merchantId} AND status=#{from}
+  </update>
+  <update id="advance">
+    UPDATE line_after_sales SET status=#{to},refund_number=COALESCE(#{refundNumber},refund_number),
+      last_error=NULL,next_attempt_at=CURRENT_TIMESTAMP(6),updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{id} AND status=#{from}
+  </update>
+  <update id="defer">
+    UPDATE line_after_sales SET last_error=#{error},
+      next_attempt_at=TIMESTAMPADD(SECOND, 5, CURRENT_TIMESTAMP(6)),updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{id} AND status=#{status}
+  </update>
+</mapper>

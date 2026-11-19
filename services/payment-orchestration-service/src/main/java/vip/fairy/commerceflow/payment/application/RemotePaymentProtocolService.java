@@ -288,7 +288,8 @@ public class RemotePaymentProtocolService {
       return receipt(result.resultId(), fingerprint, "UNMATCHED", result.traceparent());
     }
     Map<String,Object> payment = payments.getFirst();
-    String processId = processId(result.orderId());
+    String processId = result.refundNumber() == null ? processId(result.orderId())
+      : "refund-" + result.refundNumber();
     if (result.outcome() != PaymentResultOutcomeV1.SUCCEEDED) {
       String processStatus = result.outcome() == PaymentResultOutcomeV1.RECONCILIATION_REQUIRED
         ? "RECONCILIATION_REQUIRED" : "COMPENSATION_REQUIRED";
@@ -343,11 +344,14 @@ public class RemotePaymentProtocolService {
     Map<String,Object> refund = rows.getFirst();
     String current = text(refund, "status");
     String target = succeeded ? "SUCCEEDED" : "FAILED";
-    if (target.equals(current)) return "IGNORED_REFUND_ALREADY_" + target;
+    if (number(refund.get("payment_id")) != number(payment.get("id"))) return "IGNORED_REFUND_PAYMENT_MISMATCH";
+    if (List.of("SUCCEEDED", "FAILED").contains(current)) return "IGNORED_REFUND_ALREADY_" + current;
     store.applyRefundResult(target, "RMT-" + compact(result.resultId(), 24), succeeded ? "" : result.message(),
-        succeeded, succeeded, number(refund.get("id")));
+        succeeded, !succeeded, number(refund.get("id")));
     if (succeeded) {
-      store.recordRefundedAmount(refund.get("amount"), number(payment.get("id")));
+      if (store.recordRefundedAmount(refund.get("amount"), number(payment.get("id"))) != 1) {
+        throw new ProtocolConflictException("Confirmed refund exceeds the paid amount");
+      }
     }
     store.insertRefundEvent(number(refund.get("id")), result.resultId(),
       "CALLBACK_" + target, current, target, result.message());

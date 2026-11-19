@@ -24,6 +24,7 @@ import { GlobalErrorHandler } from './services/GlobalErrorHandler';
 import { UseritemComponent } from './inc/useritem/useritem.component';
 import { AddressesComponent } from './addresses/addresses.component';
 import { PurchaseOrdersComponent } from './purchase-orders/purchase-orders.component';
+import { LineAfterSalesComponent } from './line-after-sales/line-after-sales.component';
 import { MerchantOrdersComponent } from './merchant-orders/merchant-orders.component';
 import { OrderListFilterComponent } from './order-list-filter/order-list-filter.component';
 import { MerchantCatalogComponent } from './merchant-catalog/merchant-catalog.component';
@@ -50,6 +51,7 @@ import { InventoryReconciliationAdminComponent } from './inventory-reconciliatio
     AddressesComponent,
     PurchaseOrdersComponent,
     MerchantOrdersComponent,
+    LineAfterSalesComponent,
     OrderListFilterComponent,
     MerchantCatalogComponent,
     ProfileComponent,

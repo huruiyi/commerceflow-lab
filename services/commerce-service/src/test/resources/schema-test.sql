@@ -873,3 +873,29 @@ CREATE TABLE checkout_receipts (
   order_id BIGINT NOT NULL UNIQUE,
   PRIMARY KEY (customer_id, quote_id)
 );
+
+CREATE TABLE line_after_sales (
+  id CHAR(36) NOT NULL,
+  order_id BIGINT NOT NULL,
+  order_line_id BIGINT NOT NULL,
+  product_id BIGINT NOT NULL,
+  customer_id BIGINT NOT NULL,
+  merchant_id BIGINT NOT NULL,
+  quantity INT NOT NULL,
+  merchandise_amount DECIMAL(12,2) NOT NULL,
+  shipping_amount DECIMAL(12,2) NOT NULL,
+  currency CHAR(3) NOT NULL,
+  kind VARCHAR(24) NOT NULL,
+  status VARCHAR(24) NOT NULL,
+  reason VARCHAR(300) NOT NULL,
+  decision VARCHAR(300) NULL,
+  tracking_number VARCHAR(120) NULL,
+  refund_number VARCHAR(40) NULL,
+  return_shipping_cost DECIMAL(12,2) NULL,
+  received_quantity INT NULL,
+  last_error VARCHAR(300) NULL,
+  next_attempt_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+);

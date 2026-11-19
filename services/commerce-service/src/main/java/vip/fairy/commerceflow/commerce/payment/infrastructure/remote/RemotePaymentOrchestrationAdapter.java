@@ -14,6 +14,7 @@ import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCloseCommandV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCloseResultV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCreateCommandV1;
@@ -77,8 +78,11 @@ public class RemotePaymentOrchestrationAdapter implements PaymentOrchestrationV1
   @Override
   public RefundSnapshotV1 requestRefund(RefundCreateCommandV1 command) {
     command.validate();
-    post(ROOT + "/refunds", command, Object.class);
-    return refund(new PaymentQueryV1(PaymentQueryV1.VERSION, command.orderId()))
+    JsonNode accepted = post(ROOT + "/refunds", command, JsonNode.class);
+    if (accepted == null || !accepted.path("refundNumber").isTextual()) {
+      throw unavailable("Payment service returned no refund number", null);
+    }
+    return refund(new RefundQueryV1(RefundQueryV1.VERSION, accepted.path("refundNumber").asText()))
       .orElseThrow(() -> unavailable("Payment service accepted a refund but returned no snapshot",
         null));
   }

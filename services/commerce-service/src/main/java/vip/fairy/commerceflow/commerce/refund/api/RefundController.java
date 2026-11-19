@@ -1,6 +1,16 @@
 package vip.fairy.commerceflow.commerce.refund.api;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.PositiveOrZero;
+import java.math.BigDecimal;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
+import vip.fairy.commerceflow.commerce.refund.application.LineAfterSaleService;
+import vip.fairy.commerceflow.commerce.refund.application.LineAfterSaleService.Offer;
+import vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale;
 import vip.fairy.commerceflow.commerce.identity.application.CurrentUserService;
 import vip.fairy.commerceflow.commerce.ordering.application.port.OrderRefundPort;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentQueryV1;
@@ -30,13 +40,16 @@ public class RefundController {
   private final OrderRefundPort orders;
   private final PaymentOrchestrationV1 payments;
   private final PaymentWriteAdmissionV1 paymentWrites;
+  private final LineAfterSaleService afterSales;
 
   public RefundController(CurrentUserService users, OrderRefundPort orders,
-                          PaymentOrchestrationV1 payments, PaymentWriteAdmissionV1 paymentWrites) {
+                          PaymentOrchestrationV1 payments, PaymentWriteAdmissionV1 paymentWrites,
+                          LineAfterSaleService afterSales) {
     this.users = users;
     this.orders = orders;
     this.payments = payments;
     this.paymentWrites = paymentWrites;
+    this.afterSales = afterSales;
   }
 
   @PostMapping("/api/purchase-orders/{orderId}/refunds")
@@ -86,6 +99,69 @@ public class RefundController {
       .findAny().orElseThrow(() -> new ResourceNotFoundException("Merchant order not found"));
     return payments.refund(new PaymentQueryV1(PaymentQueryV1.VERSION, orderId))
       .map(RefundResponse::from).orElse(null);
+  }
+
+  @GetMapping("/api/purchase-orders/{orderId}/after-sales")
+  @PreAuthorize("hasRole('CUSTOMER')")
+  List<LineAfterSale> customerCases(@PathVariable Long orderId, Authentication authentication) {
+    return afterSales.customerCases(users.require(authentication).getId(), orderId);
+  }
+
+  @PostMapping("/api/purchase-orders/{orderId}/after-sales/quote")
+  @PreAuthorize("hasRole('CUSTOMER')")
+  Offer quote(@PathVariable Long orderId, @Valid @RequestBody Quote request, Authentication authentication) {
+    return afterSales.quote(users.require(authentication).getId(), orderId, request.orderLineId(), request.quantity());
+  }
+
+  @PostMapping("/api/purchase-orders/{orderId}/after-sales")
+  @PreAuthorize("hasRole('CUSTOMER')")
+  @ResponseStatus(HttpStatus.ACCEPTED)
+  LineAfterSale apply(@PathVariable Long orderId, @Valid @RequestBody Application request, Authentication authentication) {
+    return afterSales.submit(users.require(authentication).getId(), orderId, request.orderLineId(), request.quantity(),
+      request.requestId(), request.reason());
+  }
+
+  @PostMapping("/api/purchase-orders/after-sales/{id}/return")
+  @PreAuthorize("hasRole('CUSTOMER')")
+  LineAfterSale sendReturn(@PathVariable UUID id, @Valid @RequestBody ReturnParcel request, Authentication authentication) {
+    return afterSales.sendReturn(users.require(authentication).getId(), id.toString(), request.trackingNumber(), request.returnShippingCost());
+  }
+
+  @GetMapping("/api/merchant/orders/{orderId}/after-sales")
+  @PreAuthorize("hasRole('MERCHANT')")
+  List<LineAfterSale> merchantCases(@PathVariable Long orderId, Authentication authentication) {
+    return afterSales.merchantCases(users.require(authentication).getId(), orderId);
+  }
+
+  @PostMapping("/api/merchant/after-sales/{id}/review")
+  @PreAuthorize("hasRole('MERCHANT')")
+  LineAfterSale review(@PathVariable UUID id, @Valid @RequestBody Decision request, Authentication authentication) {
+    return afterSales.review(users.require(authentication).getId(), id.toString(), request.accepted(), request.note());
+  }
+
+  @PostMapping("/api/merchant/after-sales/{id}/inspection")
+  @PreAuthorize("hasRole('MERCHANT')")
+  LineAfterSale inspect(@PathVariable UUID id, @Valid @RequestBody Inspection request, Authentication authentication) {
+    return afterSales.inspect(users.require(authentication).getId(), id.toString(), request.accepted(),
+      request.receivedQuantity(), request.note());
+  }
+
+  record Quote(@NotNull @Positive Long orderLineId, @Positive int quantity) {
+  }
+
+  record Application(@NotNull @Positive Long orderLineId, @Positive int quantity, @NotNull UUID requestId,
+                     @NotBlank @Size(max = 300) String reason) {
+  }
+
+  record ReturnParcel(@NotBlank @Size(max = 120) String trackingNumber,
+                      @PositiveOrZero @Digits(integer = 10, fraction = 2) BigDecimal returnShippingCost) {
+  }
+
+  record Decision(@NotNull Boolean accepted, @NotBlank @Size(max = 300) String note) {
+  }
+
+  record Inspection(@NotNull Boolean accepted, @NotNull @PositiveOrZero Integer receivedQuantity,
+                    @NotBlank @Size(max = 300) String note) {
   }
 
   private String traceparent() {

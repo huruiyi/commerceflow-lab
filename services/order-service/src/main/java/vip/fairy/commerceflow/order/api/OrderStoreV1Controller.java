@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.order.application.OrderStoreService;
+import vip.fairy.commerceflow.order.application.OrderLineRefundService;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderSearchV1;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.CreateOrder;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.Mutation;
@@ -34,12 +35,14 @@ public class OrderStoreV1Controller {
     MutationType.MERCHANT_SHIP, MutationType.UPDATE_SHIPMENT);
 
   private final OrderStoreService store;
+  private final OrderLineRefundService lineRefunds;
   private final OrderShadowProperties properties;
   private final ObjectMapper mapper;
 
   public OrderStoreV1Controller(OrderStoreService store, OrderShadowProperties properties,
-                                ObjectMapper mapper) {
+                                ObjectMapper mapper, OrderLineRefundService lineRefunds) {
     this.store = store;
+    this.lineRefunds = lineRefunds;
     this.properties = properties;
     this.mapper = mapper;
   }
@@ -78,6 +81,15 @@ public class OrderStoreV1Controller {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN);
     }
     return store.search(mapper.readValue(payload, OrderSearchV1.Request.class));
+  }
+
+  @PostMapping("/line-refunds")
+  boolean lineRefund(@RequestBody String payload, HttpServletRequest request) {
+    requireTrafficAndHash(payload, request);
+    if (!"commerce-service".equals(request.getHeader("X-CommerceFlow-Service"))) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+    }
+    return lineRefunds.apply(mapper.readValue(payload, OrderLineRefundService.Command.class));
   }
 
   private boolean isFulfillment(HttpServletRequest request) {

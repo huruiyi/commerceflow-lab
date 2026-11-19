@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.order.infrastructure.persistence.OrderLineRefundMapper">
+  <select id="lockOrder" resultType="vip.fairy.commerceflow.order.infrastructure.persistence.OrderLineRefundMapper$OrderLock">
+    SELECT customer_id,status,inventory_status,shipment_intent_key FROM shop_orders WHERE id=#{orderId} FOR UPDATE
+  </select>
+  <select id="find" resultType="vip.fairy.commerceflow.order.infrastructure.persistence.OrderLineRefundMapper$Admission">
+    SELECT order_id,order_line_id,quantity,status FROM order_line_refund_admissions WHERE case_id=#{caseId} FOR UPDATE
+  </select>
+  <select id="item" resultType="vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1$ItemView">
+    SELECT * FROM order_items WHERE order_id=#{orderId} AND id=#{orderLineId}
+  </select>
+  <select id="settledQuantity" resultType="int">
+    SELECT COALESCE(SUM(quantity),0) FROM order_line_refund_admissions
+    WHERE order_id=#{orderId} AND order_line_id=#{orderLineId} AND status='SETTLED'
+  </select>
+  <select id="heldCount" resultType="int">
+    SELECT COUNT(*) FROM order_line_refund_admissions WHERE order_id=#{orderId} AND status='HELD'
+  </select>
+  <insert id="hold">
+    INSERT INTO order_line_refund_admissions(case_id,order_id,order_line_id,quantity,status)
+    VALUES (#{caseId},#{orderId},#{orderLineId},#{quantity},'HELD')
+  </insert>
+  <update id="finish">
+    UPDATE order_line_refund_admissions SET status=#{status} WHERE case_id=#{caseId} AND status='HELD'
+  </update>
+  <update id="closeEmptyOrder">
+    UPDATE shop_orders SET status='REFUNDED',inventory_status='REFUNDED',updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{orderId} AND status IN ('PAID','CONFIRMED') AND shipment_intent_key IS NULL
+      AND (SELECT SUM(quantity) FROM order_items WHERE order_id=#{orderId})
+          = (SELECT SUM(quantity) FROM order_line_refund_admissions WHERE order_id=#{orderId} AND status='SETTLED')
+  </update>
+  <select id="shipmentItems" resultType="vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1$ItemView">
+    SELECT i.id,i.product_id,i.merchant_id,i.product_name,i.thumbnail_url,i.unit_price,
+           i.quantity-COALESCE(r.quantity,0) AS quantity,i.subtotal,i.discount_amount
+    FROM order_items i LEFT JOIN (
+      SELECT order_line_id,SUM(quantity) AS quantity FROM order_line_refund_admissions
+      WHERE order_id=#{orderId} AND status='SETTLED' GROUP BY order_line_id
+    ) r ON i.id=r.order_line_id
+    WHERE i.order_id=#{orderId} AND i.quantity&gt;COALESCE(r.quantity,0) ORDER BY i.id
+  </select>
+</mapper>

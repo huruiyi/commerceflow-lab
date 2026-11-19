@@ -30,6 +30,23 @@ import {
   WarehouseEvidenceReceipt,
 } from 'src/model/IInventoryReconciliation';
 
+export interface AfterSaleOffer {
+  availableQuantity: number;
+  merchandiseAmount: number;
+  shippingAmount: number;
+}
+
+export interface AfterSale extends Pick<AfterSaleOffer, 'merchandiseAmount' | 'shippingAmount'> {
+  id: string;
+  status: string;
+  reason: string;
+  quantity: number;
+  trackingNumber?: string;
+  returnShippingCost?: number;
+  refundNumber?: string;
+  decision?: string;
+}
+
 export interface CheckoutSelection {
   addressId: number;
   itemIds: number[];
@@ -180,6 +197,43 @@ export class ApiService {
 
   deleteAddress(id: number): Observable<void> {
     return this.http.delete<void>(`/api/addresses/${id}`);
+  }
+
+  lineAfterSales(orderId: number, merchant: boolean): Observable<AfterSale[]> {
+    const base = merchant ? '/api/merchant/orders' : '/api/purchase-orders';
+    return this.http.get<AfterSale[]>(base + '/' + orderId + '/after-sales');
+  }
+
+  quoteAfterSale(orderId: number, orderLineId: number, quantity: number): Observable<AfterSaleOffer> {
+    return this.http.post<AfterSaleOffer>('/api/purchase-orders/' + orderId + '/after-sales/quote', {
+      orderLineId,
+      quantity,
+    });
+  }
+
+  submitAfterSale(
+    orderId: number,
+    body: { orderLineId: number; quantity: number; reason: string; requestId: string },
+  ): Observable<AfterSale> {
+    return this.http.post<AfterSale>('/api/purchase-orders/' + orderId + '/after-sales', body);
+  }
+
+  sendAfterSaleReturn(id: string, trackingNumber: string, returnShippingCost: number | null): Observable<AfterSale> {
+    return this.http.post<AfterSale>('/api/purchase-orders/after-sales/' + id + '/return', {
+      trackingNumber,
+      returnShippingCost,
+    });
+  }
+
+  decideAfterSale(
+    id: string,
+    inspection: boolean,
+    body: { accepted: boolean; note: string; receivedQuantity?: number },
+  ): Observable<AfterSale> {
+    return this.http.post<AfterSale>(
+      '/api/merchant/after-sales/' + id + (inspection ? '/inspection' : '/review'),
+      body,
+    );
   }
 
   checkoutQuote(selection: CheckoutSelection): Observable<CheckoutQuote> {

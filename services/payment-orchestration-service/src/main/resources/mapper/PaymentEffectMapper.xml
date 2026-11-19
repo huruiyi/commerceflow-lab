@@ -103,6 +103,6 @@
   </update>
 
   <select id="findRefundPreviousState" resultType="map">
-    SELECT order_status_before_refund, customer_id FROM refund_records WHERE refund_number=#{refundNumber}
+    SELECT order_status_before_refund, customer_id, after_sale_id FROM refund_records WHERE refund_number=#{refundNumber}
   </select>
 </mapper>

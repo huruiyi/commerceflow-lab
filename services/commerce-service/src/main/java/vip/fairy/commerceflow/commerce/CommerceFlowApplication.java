@@ -21,6 +21,7 @@ import vip.fairy.commerceflow.commerce.notification.infrastructure.NotificationD
   "vip.fairy.commerceflow.commerce.cart.infrastructure",
   "vip.fairy.commerceflow.commerce.customer.infrastructure",
   "vip.fairy.commerceflow.commerce.ordering.infrastructure",
+  "vip.fairy.commerceflow.commerce.refund.infrastructure",
   "vip.fairy.commerceflow.commerce.inventory.infrastructure",
   "vip.fairy.commerceflow.commerce.fulfillment.infrastructure",
   "vip.fairy.commerceflow.commerce.logistics.infrastructure",

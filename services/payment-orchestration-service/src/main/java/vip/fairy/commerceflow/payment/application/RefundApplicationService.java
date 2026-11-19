@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -38,17 +39,6 @@ public class RefundApplicationService {
     if (!command.orderId().equals(order.id()) || !command.customerId().equals(order.customerId())) {
       throw new ProtocolConflictException("Refund command does not match the order owner");
     }
-    List<Map<String,Object>> existing = store.latestRefund(command.orderId());
-    if (!existing.isEmpty()) {
-      Map<String,Object> row = existing.getFirst();
-      if (!command.idempotencyKey().equals(row.get("idempotency_key"))) {
-        throw new ProtocolConflictException("Payment already has a different refund request");
-      }
-      return receipt(row);
-    }
-    if (!List.of("PAID", "CONFIRMED").contains(order.status())) {
-      throw new ProtocolConflictException("Only paid or confirmed orders can be refunded");
-    }
     return transactions.execute(status -> prepare(command, order.status()));
   }
 
@@ -62,6 +52,7 @@ public class RefundApplicationService {
   }
 
   private RefundReceipt prepare(RefundCreateCommandV1 command, String orderStatus) {
+    Map<String,Object> payment = successfulPayment(command.orderId());
     String fingerprint = PaymentContractSemantics.sha256(mapper.writeValueAsString(command));
     List<Map<String,Object>> replay = store.lockCommandInbox(command.commandId());
     if (!replay.isEmpty()) {
@@ -71,31 +62,47 @@ public class RefundApplicationService {
       return mapper.readValue(String.valueOf(replay.getFirst().get("response_payload")),
         RefundReceipt.class);
     }
-    Map<String,Object> payment = successfulPayment(command.orderId());
     List<Map<String,Object>> existing = store.lockRefundByPayment(payment.get("id"));
-    if (!existing.isEmpty()) {
-      Map<String,Object> row = existing.getFirst();
-      if (!command.idempotencyKey().equals(row.get("idempotency_key"))) {
-        throw new ProtocolConflictException("Payment already has a different refund request");
+    boolean partial = command.afterSaleId() != null;
+    BigDecimal paid = (BigDecimal) payment.get("amount");
+    BigDecimal amount = partial ? command.amount() : paid;
+    for (Map<String,Object> row : existing) {
+      if (command.idempotencyKey().equals(row.get("idempotency_key"))) {
+        if (!Objects.equals(command.afterSaleId(), row.get("after_sale_id"))
+            || amount.compareTo((BigDecimal) row.get("amount")) != 0
+            || !command.reasonCode().equals(row.get("reason_code"))
+            || !detail(command).equals(row.get("reason_detail"))) {
+          throw new ProtocolConflictException("Refund key was reused with different details");
+        }
+        return receipt(row);
       }
-      return receipt(row);
+    }
+    boolean allowed = List.of("PAID", "CONFIRMED").contains(orderStatus)
+      || partial && List.of("RECEIVED", "COMPLETED").contains(orderStatus);
+    if (!allowed) {
+      throw new ProtocolConflictException("Order does not allow this refund");
+    }
+    BigDecimal allocated = existing.stream().filter(row -> !"FAILED".equals(row.get("status")))
+      .map(row -> (BigDecimal) row.get("amount")).reduce(BigDecimal.ZERO, BigDecimal::add);
+    if (amount.add(allocated).compareTo(paid) > 0) {
+      throw new ProtocolConflictException("Refund exceeds the remaining paid amount");
     }
     store.insertRefundInbox(command.commandId(), fingerprint);
     String refundNumber = "REF-RMT-" + compact(command.commandId(), 16);
     String requestFingerprint = PaymentContractSemantics.sha256(command.customerId() + "|"
-      + command.orderId() + "|" + payment.get("id") + "|" + payment.get("amount") + "|"
+      + command.orderId() + "|" + payment.get("id") + "|" + amount + "|"
       + payment.get("currency") + "|" + command.reasonCode() + "|" + detail(command));
     store.insertRefund(refundNumber, command.orderId(), payment.get("id"), command.customerId(),
-        command.idempotencyKey(), requestFingerprint, payment.get("amount"), payment.get("currency"),
-        command.reasonCode(), detail(command), orderStatus);
+        command.idempotencyKey(), requestFingerprint, amount, payment.get("currency"),
+        command.reasonCode(), detail(command), orderStatus, command.afterSaleId());
     long refundId = store.findRefundId(refundNumber);
     store.insertRefundRequestedEvent(refundId, UUID.randomUUID().toString(), "REFUND_REQUESTED", command.reasonCode());
     RefundReceipt response = new RefundReceipt(refundNumber, command.orderId(), "REQUESTED",
-      (BigDecimal) payment.get("amount"), String.valueOf(payment.get("currency")), Instant.now());
+      amount, String.valueOf(payment.get("currency")), Instant.now());
     store.finishRefundInbox(mapper.writeValueAsString(response), command.commandId());
     store.insertRefundRequestedOutbox(command.commandId(), refundNumber,
       mapper.writeValueAsString(Map.of("refundNumber", refundNumber, "orderId", command.orderId(),
-        "customerId", command.customerId(), "traceparent", command.traceparent())));
+        "customerId", command.customerId(), "traceparent", command.traceparent(), "lineRefund", partial)));
     return response;
   }
 

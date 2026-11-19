@@ -14,12 +14,13 @@ import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.DeliveredInventoryEvidenceV1;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryLineCreditV1;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.DeliveredInventoryEvidenceV1.Receipt;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.StocktakeV1;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 
 @Component
-public class DeliveredInventoryRemoteClient {
+public class DeliveredInventoryRemoteClient implements InventoryLineCreditV1 {
 
   private static final String TARGET = "/internal/v1/inventory/delivered-reconciliations";
   private static final String STOCKTAKES = "/internal/v1/inventory/stocktakes";
@@ -38,6 +39,20 @@ public class DeliveredInventoryRemoteClient {
     this.client = builder.baseUrl(baseUrl).requestFactory(factory).build();
     this.signer = signer;
     this.mapper = mapper;
+  }
+
+  @Override
+  public boolean credit(InventoryLineCreditV1.Credit credit, boolean apply) {
+    String target = "/internal/v1/inventory/line-credits";
+    String payload = mapper.writeValueAsString(new LineCreditRequest(credit, apply));
+    Boolean result = client.post().uri(target).contentType(MediaType.APPLICATION_JSON)
+      .headers(headers -> signer.sign(headers, "POST", target, signer.contentHash(payload)))
+      .body(payload).retrieve().body(Boolean.class);
+    if (result == null) throw new IllegalStateException("Missing inventory line credit response");
+    return result;
+  }
+
+  private record LineCreditRequest(InventoryLineCreditV1.Credit credit, boolean apply) {
   }
 
   public Receipt reconcile(DeliveredInventoryEvidenceV1 evidence) {

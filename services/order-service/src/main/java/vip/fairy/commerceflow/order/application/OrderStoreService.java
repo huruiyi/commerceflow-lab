@@ -23,6 +23,7 @@ import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.OrderVi
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.Query;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.QueryResult;
 import vip.fairy.commerceflow.order.infrastructure.persistence.OrderStoreMapper;
+import vip.fairy.commerceflow.order.infrastructure.persistence.OrderLineRefundMapper;
 import vip.fairy.commerceflow.order.infrastructure.persistence.OrderStoreMapper.GeneratedOrderKey;
 import vip.fairy.commerceflow.order.infrastructure.persistence.OrderStoreMapper.OrderEvent;
 
@@ -30,12 +31,14 @@ import vip.fairy.commerceflow.order.infrastructure.persistence.OrderStoreMapper.
 public class OrderStoreService {
 
   private final OrderStoreMapper store;
+  private final OrderLineRefundMapper lineRefunds;
   private final ObjectMapper mapper;
   private final TransactionTemplate transactions;
 
   public OrderStoreService(OrderStoreMapper store, ObjectMapper mapper,
-                           PlatformTransactionManager manager) {
+                           PlatformTransactionManager manager, OrderLineRefundMapper lineRefunds) {
     this.store = store;
+    this.lineRefunds = lineRefunds;
     this.mapper = mapper;
     this.transactions = new TransactionTemplate(manager);
   }
@@ -109,7 +112,7 @@ public class OrderStoreService {
 
   private QueryResult shipmentLines(Query request) {
     var order = store.findMerchant(request);
-    var items = order == null ? List.<ItemView>of() : store.items(request.orderId());
+    var items = order == null ? List.<ItemView>of() : lineRefunds.shipmentItems(request.orderId());
     boolean canShip = !items.isEmpty()
       && items.stream().allMatch(item -> request.merchantId().equals(item.merchantId()));
     return new QueryResult(canShip, null, null, canShip ? order : null, null,

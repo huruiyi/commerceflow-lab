@@ -131,6 +131,10 @@ public class PaymentEffectDispatcher {
     Long orderId = payload.get("orderId").asLong();
     String refundNumber = payload.get("refundNumber").asText();
     String traceparent = payload.get("traceparent").asText();
+    if (payload.path("lineRefund").asBoolean(false)) {
+      enqueueRefundCommand(refundNumber, orderId, eventId, traceparent);
+      return;
+    }
     var admission = orders.startRefund(eventId + ":order:refund-admission", orderId, refundNumber);
     if (!admission.accepted()) {
       store.rejectRefundAdmission(refundNumber);
@@ -177,6 +181,8 @@ public class PaymentEffectDispatcher {
   }
 
   private void applyRefundSuccess(String eventId, PaymentResultV1 result) {
+    var refund = store.findRefundPreviousState(result.refundNumber());
+    if (refund != null && refund.get("after_sale_id") != null) return;
     OrderView order = orders.order(result.orderId());
     orders.status(eventId + ":order:refunded", order.id(), "REFUNDING", "REFUNDED");
     if ("COMMITTED".equals(order.inventoryStatus())) {
@@ -193,6 +199,7 @@ public class PaymentEffectDispatcher {
 
   private void applyRefundFailure(String eventId, PaymentResultV1 result) {
     Map<String,Object> refund = store.findRefundPreviousState(result.refundNumber());
+    if (refund != null && refund.get("after_sale_id") != null) return;
     String target = String.valueOf(refund.get("order_status_before_refund"));
     orders.status(eventId + ":order:refund-failed", result.orderId(), "REFUNDING", target);
     orders.event(eventId + ":order:event", result.orderId(),

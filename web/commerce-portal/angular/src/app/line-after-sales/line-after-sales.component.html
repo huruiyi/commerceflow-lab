@@ -1,0 +1,136 @@
+<section class="border rounded p-3 my-3">
+  <div class="d-flex flex-wrap align-items-center gap-2">
+    <h4 class="h6 mb-0">{{ 'lineAfterSales' | t }}</h4>
+    <button type="button" class="btn btn-sm btn-outline-primary" (click)="load()" [disabled]="busy">
+      {{ (cases ? 'refreshAfterSales' : 'openAfterSales') | t }}
+    </button>
+  </div>
+  <p *ngIf="error" class="text-danger mt-2" role="alert">
+    {{ error === 'REQUEST_FAILED' ? ('requestFailed' | t) : error }}
+  </p>
+  <ng-container *ngIf="cases">
+    <div *ngFor="let value of cases" class="border-bottom py-3">
+      <strong>{{ 'afterSaleState_' + value.status | t }}</strong>
+      <span class="ms-2">{{ 'afterSaleQuantity' | t }} {{ value.quantity }}</span>
+      <p class="mb-1">{{ value.reason }}</p>
+      <small class="d-block">
+        {{ 'productRefundAmount' | t }} {{ value.merchandiseAmount | trcurrency }} · {{ 'shippingRefundAmount' | t }}
+        {{ value.shippingAmount | trcurrency }}
+      </small>
+      <small *ngIf="value.trackingNumber" class="d-block">{{ 'returnTracking' | t }} {{ value.trackingNumber }}</small>
+      <small *ngIf="value.returnShippingCost !== null && value.returnShippingCost !== undefined" class="d-block">
+        {{ 'returnShippingCost' | t }} {{ value.returnShippingCost | trcurrency }}
+      </small>
+      <small *ngIf="value.refundNumber" class="d-block"
+        >{{ 'afterSaleRefundNumber' | t }} {{ value.refundNumber }}</small
+      >
+      <small *ngIf="value.decision" class="d-block">{{ value.decision }}</small>
+
+      <div *ngIf="!merchant && value.status === 'WAITING_RETURN'" class="d-flex flex-wrap gap-2 mt-2">
+        <label
+          >{{ 'returnTracking' | t }}
+          <input class="form-control" maxlength="120" [(ngModel)]="tracking[value.id]" />
+        </label>
+        <label
+          >{{ 'returnShippingCost' | t }}
+          <input class="form-control" type="number" min="0" step="0.01" [(ngModel)]="returnCost[value.id]" />
+        </label>
+        <button
+          type="button"
+          class="btn btn-outline-primary align-self-end"
+          [disabled]="busy || !tracking[value.id]"
+          (click)="sendReturn(value)"
+        >
+          {{ 'registerReturn' | t }}
+        </button>
+      </div>
+
+      <div
+        *ngIf="
+          merchant &&
+          (value.status === 'APPLIED' || value.status === 'RETURN_SENT' || value.status === 'REVIEW_REQUIRED') &&
+          !value.refundNumber
+        "
+        class="d-flex flex-wrap gap-2 mt-2"
+      >
+        <label
+          >{{ 'afterSaleDecision' | t }}
+          <input class="form-control" maxlength="300" [(ngModel)]="notes[value.id]" />
+        </label>
+        <label *ngIf="value.status !== 'APPLIED'">
+          {{ 'returnReceivedQuantity' | t }}
+          <input
+            class="form-control"
+            type="number"
+            min="0"
+            step="1"
+            [ngModel]="received[value.id] ?? value.quantity"
+            (ngModelChange)="received[value.id] = $event"
+          />
+        </label>
+        <button
+          type="button"
+          class="btn btn-outline-primary align-self-end"
+          [disabled]="busy || !notes[value.id]"
+          (click)="decide(value, true, value.status !== 'APPLIED')"
+        >
+          {{ (value.status === 'APPLIED' ? 'approveAfterSale' : 'acceptReturn') | t }}
+        </button>
+        <button
+          type="button"
+          class="btn btn-outline-danger align-self-end"
+          [disabled]="busy || !notes[value.id]"
+          (click)="decide(value, false, value.status !== 'APPLIED')"
+        >
+          {{ (value.status === 'APPLIED' ? 'rejectAfterSale' : 'flagReturn') | t }}
+        </button>
+      </div>
+    </div>
+
+    <div *ngIf="canApply" class="row g-2 align-items-end mt-2">
+      <label class="col-md-4"
+        >{{ 'afterSaleOrderLine' | t }}
+        <select class="form-select" [(ngModel)]="lineId" (ngModelChange)="invalidate()" [disabled]="busy">
+          <option [ngValue]="undefined"></option>
+          <option *ngFor="let item of order.items" [ngValue]="item.id">{{ item.productName }}</option>
+        </select>
+      </label>
+      <label class="col-md-2"
+        >{{ 'afterSaleQuantity' | t }}
+        <input
+          class="form-control"
+          type="number"
+          min="1"
+          step="1"
+          [(ngModel)]="quantity"
+          (ngModelChange)="invalidate()"
+          [disabled]="busy"
+        />
+      </label>
+      <label class="col-md-4"
+        >{{ 'afterSaleReason' | t }}
+        <input class="form-control" maxlength="300" [(ngModel)]="reason" [disabled]="busy" />
+      </label>
+      <div class="col-md-2">
+        <button
+          type="button"
+          class="btn btn-outline-primary"
+          (click)="quote()"
+          [disabled]="busy || !lineId || quantity < 1"
+        >
+          {{ 'previewAfterSale' | t }}
+        </button>
+      </div>
+      <div *ngIf="offer as current" class="col-12" aria-live="polite">
+        <p class="mb-1">{{ 'afterSaleAvailableQuantity' | t }} {{ current.availableQuantity }}</p>
+        <p>
+          {{ 'productRefundAmount' | t }} {{ current.merchandiseAmount | trcurrency }} ·
+          {{ 'shippingRefundAmount' | t }} {{ current.shippingAmount | trcurrency }}
+        </p>
+        <button type="button" class="btn btn-primary" (click)="submit()" [disabled]="busy || !reason.trim()">
+          {{ 'submitAfterSale' | t }}
+        </button>
+      </div>
+    </div>
+  </ng-container>
+</section>

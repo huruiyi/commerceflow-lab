@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.commerce.ordering.application.port.OrderStorePort;
+import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderLineRefundV1;
 import vip.fairy.commerceflow.commerce.ordering.domain.NewOrder;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderAddressSnapshot;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderAddressView;
@@ -28,7 +29,7 @@ import vip.fairy.commerceflow.commerce.ordering.domain.OrderReviewableItem;
 import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
 
 @Component
-public class RemoteOrderStoreAdapter implements OrderStorePort {
+public class RemoteOrderStoreAdapter implements OrderStorePort, OrderLineRefundV1 {
 
   private static final String CREATE = "/internal/v1/orders/store/create";
   private static final String QUERY = "/internal/v1/orders/store/query";
@@ -236,6 +237,11 @@ public class RemoteOrderStoreAdapter implements OrderStorePort {
                             long version, String detail) {
     return apply(new Mutation(commandId, "UPDATE_SHIPMENT", orderId, merchantId,
       null, null, null, carrier, tracking, null, detail, null, null, null, version));
+  }
+
+  @Override
+  public boolean apply(OrderLineRefundV1.Command command) {
+    return post("/internal/v1/orders/store/line-refunds", command, Boolean.class);
   }
 
   private int simple(String type, Long orderId) {

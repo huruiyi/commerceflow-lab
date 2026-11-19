@@ -62,3 +62,4 @@ verify-scheduling	BaseUrl
 verify-upgrade-restart-recovery	MaxWaitSeconds,SkipMigrationRehearsal
 verify-fulfillment-shadow-runtime	BaseUrl
 verify-checkout-pricing	BaseUrl,PaymentBaseUrl,HistoricalOrderId,ExercisePricing
+verify-line-after-sales	BaseUrl,PaymentBaseUrl,LogisticsUrl,ProjectName

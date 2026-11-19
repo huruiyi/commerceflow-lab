@@ -119,6 +119,7 @@
     {{ notice.text }}
   </div>
   <div class="order-content" *ngIf="detailId !== null || expandedOrders.has(order.id)">
+    <app-line-after-sales [order]="order"></app-line-after-sales>
     <section *ngIf="order.productSubtotal !== undefined" class="milestone-strip" [attr.aria-label]="'orderAmount' | t">
       <div>
         <small>{{ 'productSubtotal' | t }}</small><strong>{{ order.productSubtotal | trcurrency }}</strong>
