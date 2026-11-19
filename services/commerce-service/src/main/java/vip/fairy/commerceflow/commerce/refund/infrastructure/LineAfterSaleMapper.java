@@ -27,6 +27,10 @@ public interface LineAfterSaleMapper {
   int merchantDecision(String id, Long merchantId, String from, String to, String decision, Integer receivedQuantity);
 
   int advance(String id, String from, String to, String refundNumber);
+  int projectWarehouse(String id, Long warehouseId, String outboundId, String warehouseStatus,
+                       Integer receivedQuantity, String to);
+  int acceptWarehouse(String id, Long merchantId, String to, String note);
+  void waitForWarehouse(String id);
 
   void defer(String id, String status, String error);
 }

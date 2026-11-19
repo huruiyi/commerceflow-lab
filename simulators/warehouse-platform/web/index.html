@@ -13,7 +13,13 @@
       <form id="filters">
         <label>管理令牌<input id="token" type="password" required autocomplete="off" /></label>
         <label>订单编号<input id="order" type="number" min="1" inputmode="numeric" placeholder="全部订单" /></label>
-        <button>查询出库单</button>
+        <label>单据类型
+          <select id="kind">
+            <option value="outbounds">出库单</option>
+            <option value="returns">退货单</option>
+          </select>
+        </label>
+        <button>查询</button>
       </form>
       <p id="feedback" role="status" aria-live="polite"></p>
       <section id="outbounds" aria-label="出库单"></section>

@@ -239,7 +239,7 @@
       )
       AND NOT EXISTS (
         SELECT 1 FROM order_line_refund_admissions a
-        WHERE a.order_id=shop_orders.id AND a.status IN ('HELD','SETTLED')
+        WHERE a.order_id=shop_orders.id AND a.status='HELD'
       )
       AND EXISTS (SELECT 1 FROM order_items WHERE order_id=shop_orders.id AND merchant_id=#{mutation.actorId})
   </update>
@@ -263,7 +263,7 @@
         SELECT 1 FROM order_package_allocations p WHERE p.order_id=shop_orders.id AND p.voided_at IS NULL
       )
       AND NOT EXISTS (
-        SELECT 1 FROM order_line_refund_admissions a WHERE a.order_id=shop_orders.id AND a.status IN ('HELD','SETTLED')
+        SELECT 1 FROM order_line_refund_admissions a WHERE a.order_id=shop_orders.id AND a.status='HELD'
       )
   </update>
 

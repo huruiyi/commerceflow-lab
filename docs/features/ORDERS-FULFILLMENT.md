@@ -41,7 +41,8 @@ WMS 出库作业台位于 `http://127.0.0.1:18118`，输入部署使用的 `WARE
 - 整单发货请求由模拟仓自动确认全量实发，也经过签名回执。可输入短发数量的流程使用包裹入口。
 
 仓库结果首次确认后固定。同一提交和结果可以幂等查询，履约重启可以从同一出库单恢复。
-退货实收与质检是后续章节。见[WMS 验收](../architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#32-wms-出库实发与短发验收)。
+退货实收与质检使用同一作业台的「退货单」入口。见[退货与退款规则](PAYMENTS-AFTER-SALES.md#wms-退货实收与质检)
+和[WMS 出库验收](../architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#32-wms-出库实发与短发验收)。
 
 ## 两仓拆履约
 

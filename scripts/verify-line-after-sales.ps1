@@ -3,7 +3,8 @@ param(
   [string]$BaseUrl='http://localhost:14200',
   [string]$PaymentBaseUrl='http://localhost:14201',
   [string]$LogisticsUrl='http://localhost:18083',
-  [string]$ProjectName='fairy-commerceflow'
+  [string]$ProjectName='fairy-commerceflow',
+  [string]$WarehouseBaseUrl='http://127.0.0.1:18118'
 )
 
 $ErrorActionPreference='Stop'
@@ -12,7 +13,8 @@ $isolated=$ProjectName -ne 'fairy-commerceflow'
 if($isolated -and ($ProjectName -notmatch '^fairy-commerceflow-(aftersale|return-tracking)-isolated-' -or
     !([uri]$BaseUrl).IsLoopback -or ([uri]$BaseUrl).Port-eq14200 -or
     !([uri]$LogisticsUrl).IsLoopback -or ([uri]$LogisticsUrl).Port-eq18083 -or
-    !([uri]$PaymentBaseUrl).IsLoopback -or ([uri]$PaymentBaseUrl).Port-eq14201)){
+    !([uri]$PaymentBaseUrl).IsLoopback -or ([uri]$PaymentBaseUrl).Port-eq14201 -or
+    !([uri]$WarehouseBaseUrl).IsLoopback -or ([uri]$WarehouseBaseUrl).Port-eq18118)){
   throw 'Destructive fixture writes require a dedicated after-sales isolation project'
 }
 function DbContainer([string]$Service){
@@ -141,6 +143,27 @@ function Shipment-Step([string]$ShipmentNo,[string]$Verb,[string]$Expected,[stri
   if($remote.status-ne$Expected){throw "Expected $Expected, got $($remote.status)"}
 }
 
+function Confirm-WarehouseReturn($case){
+  if(!([uri]$WarehouseBaseUrl).IsLoopback){throw 'Warehouse administration must be local'}
+  $token=$env:WAREHOUSE_ADMIN_TOKEN
+  if(!$token){$token='demo-warehouse-admin-token'}
+  $headers=@{Authorization="Bearer $token"}
+  $base="$WarehouseBaseUrl/api/admin/returns"
+  $receipt=Wait-Value {
+    Invoke-RestMethod "$base`?orderId=$($case.orderId)" -Headers $headers -TimeoutSec 12 |
+      Where-Object returnId -eq $case.id
+  } 'Warehouse return was not registered'
+  if($receipt.outboundId-ne$case.outboundId -or $receipt.warehouseId-ne$case.warehouseId){
+    throw 'Wrong warehouse return source'
+  }
+  $body=@{warehouseId=$case.warehouseId;quantity=$case.quantity;rejected=$false}|ConvertTo-Json -Compress
+  Invoke-RestMethod "$base/$($case.id)/receipt" -Method Put -Headers $headers -Body $body `
+    -ContentType application/json -TimeoutSec 12 | Out-Null
+  $body=@{warehouseId=$case.warehouseId;passed=$true}|ConvertTo-Json -Compress
+  Invoke-RestMethod "$base/$($case.id)/quality" -Method Put -Headers $headers -Body $body `
+    -ContentType application/json -TimeoutSec 12 | Out-Null
+}
+
 function Advance-Logistics([string]$ShipmentNo){
   foreach($status in 'PICKED_UP','IN_TRANSIT','AT_STATION','OUT_FOR_DELIVERY','DELIVERED'){
     Shipment-Step $ShipmentNo advance $status
@@ -239,7 +262,7 @@ function Verify-ReturnOwnership($Case,$Registered){
       Reject $actor "/api/purchase-orders/after-sales/$caseId/return" Post @{carrier=$Registered.carrier;trackingNumber=$Registered.trackingNumber} 404
     }else{
       Reject $actor "/api/merchant/after-sales/$caseId/return-tracking" Get $null 404
-      Reject $actor "/api/merchant/after-sales/$caseId/inspection" Post @{accepted=$true;receivedQuantity=1;note='Wrong merchant'} 404
+      Reject $actor "/api/merchant/after-sales/$caseId/inspection" Post @{accepted=$true;note='Wrong merchant'} 404
     }
   }
   Reject $buyer "/api/purchase-orders/after-sales/$caseId/return" Post @{carrier=$Registered.carrier;trackingNumber='Different parcel'} 409
@@ -356,7 +379,7 @@ try{
   $created=Register-Return $returned "RETURN-$($withReturn.id)" $isolated
   if($created.merchantShipmentNo-eq$shipped.logistics.merchantShipmentNo -or
       $created.platformShipmentNo-eq$shipped.logistics.platformShipmentNo){throw 'Return reused the outbound shipment'}
-  Reject $merchant $inspect Post @{accepted=$true;receivedQuantity=1;note='Too early'} 409
+  Reject $merchant $inspect Post @{accepted=$true;note='Too early'} 409
   if($isolated){
     Verify-ReturnOwnership $returned $created
     Verify-ReturnCallbacks $returned $created
@@ -373,12 +396,10 @@ try{
   }
   $null=Wait-Case $returned 'RETURN_SENT'
   $beforeInspection=PaymentAndCredits $received 1 $pre.merchandiseAmount 1
-  if($isolated){
-    Api $merchant $inspect Post @{accepted=$true;receivedQuantity=0;note='Mismatch fixture'}|Out-Null
-    $null=Wait-Case $returned 'REVIEW_REQUIRED'
-    $null=PaymentAndCredits $received 1 $pre.merchandiseAmount 1
-  }
-  Api $merchant $inspect Post @{accepted=$true;receivedQuantity=1;note='Verified saleable piece'}|Out-Null
+  Reject $merchant $inspect Post @{accepted=$true;note='Warehouse evidence pending'} 409
+  Confirm-WarehouseReturn $returned
+  $null=Wait-Case $returned 'WAITING_MERCHANT'
+  Api $merchant $inspect Post @{accepted=$true;note='Accept inspected warehouse receipt'}|Out-Null
   $returned=Wait-Case $returned 'COMPLETED'
   $net=([decimal]$withReturn.items[0].subtotal-[decimal]$withReturn.items[0].discountAmount)*100
   $expected=([math]::Floor($net*2/3)-[math]::Floor($net/3))/100

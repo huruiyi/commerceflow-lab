@@ -48,10 +48,8 @@ public class ReturnShipmentService {
       .map(shipment -> LogisticsResponse.from(shipment, shipments.events(shipment.getId()))).orElse(null);
   }
 
-  public void requireDelivered(String caseId) {
-    if (shipments.byReturn(caseId).filter(shipment -> !"DELIVERED".equals(shipment.getStatus())).isPresent()) {
-      throw new BusinessRuleException("Return shipment has not been delivered");
-    }
+  public boolean delivered(String caseId) {
+    return shipments.byReturn(caseId).filter(shipment -> "DELIVERED".equals(shipment.getStatus())).isPresent();
   }
 
   @Scheduled(fixedDelayString = "${commerceflow.logistics-platform.return-dispatch-delay:2s}")

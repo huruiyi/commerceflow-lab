@@ -30,7 +30,6 @@ export class LineAfterSalesComponent {
   carriers: Record<string, string> = {};
   parcels: Record<string, OrderLogistics | null | undefined> = {};
   returnCost: Record<string, number | null> = {};
-  received: Record<string, number> = {};
   private requestId?: string;
 
   get canApply(): boolean {
@@ -70,12 +69,12 @@ export class LineAfterSalesComponent {
 
   get originalPackages(): WarehousePlan['shipments'] {
     return (this.plan?.shipments ?? []).filter(
-      (value) => value.orderLineId === this.lineId && value.warehouseId === this.warehouseId,
+      (value) => value.orderLineId === this.lineId && (!this.warehouseId || value.warehouseId === this.warehouseId),
     );
   }
 
   selectSource(): void {
-    this.outboundId = undefined;
+    this.outboundId = this.originalPackages.length === 1 ? this.originalPackages[0].packageId : undefined;
     this.invalidate();
   }
 
@@ -130,18 +129,10 @@ export class LineAfterSalesComponent {
     });
   }
 
-  canInspect(value: AfterSale): boolean {
-    const parcel = this.parcels[value.id];
-    return parcel === null || parcel?.status === 'DELIVERED';
-  }
-
   decide(value: AfterSale, accepted: boolean, inspection: boolean): void {
     const note = this.notes[value.id]?.trim();
     if (!note) return;
-    const receivedQuantity = inspection ? (this.received[value.id] ?? value.quantity) : undefined;
-    this.run(this.api.decideAfterSale(value.id, inspection, { accepted, note, receivedQuantity }), (updated) =>
-      this.update(updated),
-    );
+    this.run(this.api.decideAfterSale(value.id, inspection, { accepted, note }), (updated) => this.update(updated));
   }
 
   private update(value: AfterSale): void {

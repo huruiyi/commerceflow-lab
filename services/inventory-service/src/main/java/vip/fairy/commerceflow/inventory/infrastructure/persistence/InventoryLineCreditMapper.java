@@ -1,6 +1,9 @@
 package vip.fairy.commerceflow.inventory.infrastructure.persistence;
 
+import java.util.List;
 import vip.fairy.commerceflow.inventory.application.service.InventoryLineCreditService.Credit;
+import vip.fairy.commerceflow.inventory.application.service.InventoryLineCreditService.Origin;
+import vip.fairy.commerceflow.inventory.application.service.InventoryLineCreditService.Source;
 
 public interface InventoryLineCreditMapper {
 
@@ -11,6 +14,7 @@ public interface InventoryLineCreditMapper {
   int creditedLine(Credit credit);
 
   int outboundQuantity(Credit credit);
+  List<Source> sources(Origin request);
 
 
   void insert(Credit credit);

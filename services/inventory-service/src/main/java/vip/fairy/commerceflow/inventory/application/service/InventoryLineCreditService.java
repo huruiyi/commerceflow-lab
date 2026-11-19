@@ -1,5 +1,6 @@
 package vip.fairy.commerceflow.inventory.application.service;
 
+import java.util.List;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,16 @@ public class InventoryLineCreditService {
     this.credits = credits;
     this.inventory = inventory;
     this.warehouses = warehouses;
+  }
+
+  public List<Source> sources(Origin request) {
+    if (request.orderId() <= 0 || request.orderLineId() <= 0 || request.merchantId() <= 0
+        || request.productId() <= 0
+        || (request.outboundId() != null && !request.outboundId().matches("[0-9a-f-]{36}"))
+        || (request.warehouseId() != null && request.warehouseId() <= 0)) {
+      throw new IllegalArgumentException("Invalid return source query");
+    }
+    return credits.sources(request);
   }
 
   @Transactional
@@ -66,6 +77,13 @@ public class InventoryLineCreditService {
       inventory.lockInventory(value.productId()), "Inventory credit for after-sales case " + value.caseId(),
       value.warehouse());
     return true;
+  }
+
+  public record Origin(long orderId, long orderLineId, long merchantId, long productId,
+                       Long warehouseId, String outboundId) {
+  }
+
+  public record Source(long warehouseId, String outboundId, int quantity) {
   }
 
   public record Credit(String caseId, Long orderId, Long orderLineId, Long merchantId, Long productId,

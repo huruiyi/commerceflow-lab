@@ -158,9 +158,8 @@ public class RefundController {
 
   @PostMapping("/api/merchant/after-sales/{id}/inspection")
   @PreAuthorize("hasRole('MERCHANT')")
-  LineAfterSale inspect(@PathVariable UUID id, @Valid @RequestBody Inspection request, Authentication authentication) {
-    return afterSales.inspect(users.require(authentication).getId(), id.toString(), request.accepted(),
-      request.receivedQuantity(), request.note());
+  LineAfterSale inspect(@PathVariable UUID id, @Valid @RequestBody Decision request, Authentication authentication) {
+    return afterSales.inspect(users.require(authentication).getId(), id.toString(), request.accepted(), request.note());
   }
 
   record Quote(@NotNull @Positive Long orderLineId, @Positive int quantity, @Positive Long warehouseId,
@@ -176,10 +175,6 @@ public class RefundController {
   }
 
   record Decision(@NotNull Boolean accepted, @NotBlank @Size(max = 300) String note) {
-  }
-
-  record Inspection(@NotNull Boolean accepted, @NotNull @PositiveOrZero Integer receivedQuantity,
-                    @NotBlank @Size(max = 300) String note) {
   }
 
   private String traceparent() {

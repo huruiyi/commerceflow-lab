@@ -52,6 +52,21 @@ public class DeliveredInventoryRemoteClient implements InventoryLineCreditV1 {
     return result;
   }
 
+  @Override
+  public List<Source> sources(Origin request) {
+    String target = "/internal/v1/inventory/line-credits/sources";
+    String payload = mapper.writeValueAsString(request);
+    try {
+      Source[] result = client.post().uri(target).contentType(MediaType.APPLICATION_JSON)
+        .headers(headers -> signer.sign(headers, "POST", target, signer.contentHash(payload)))
+        .body(payload).retrieve().body(Source[].class);
+      if (result == null) throw new IllegalStateException("Missing inventory outbound sources");
+      return List.of(result);
+    } catch (RestClientException failure) {
+      throw new InventoryRemoteUnavailableException(failure);
+    }
+  }
+
   private record LineCreditRequest(InventoryLineCreditV1.Credit credit, boolean apply) {
   }
 

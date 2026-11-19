@@ -5,7 +5,7 @@
   <sql id="columns">
     id,order_id,order_line_id,product_id,customer_id,merchant_id,quantity,merchandise_amount,
     shipping_amount,currency,kind,status,reason,decision,tracking_number,refund_number,return_shipping_cost,
-    received_quantity,last_error,warehouse_id,outbound_id
+    received_quantity,last_error,warehouse_id,outbound_id,warehouse_return_status
   </sql>
 
   <select id="find" resultType="vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale">
@@ -27,7 +27,7 @@
   </select>
   <select id="due" resultType="vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale">
     SELECT <include refid="columns"/> FROM line_after_sales
-    WHERE status IN ('PREPARING','REFUNDING','RESTOCKING','RELEASING')
+    WHERE status IN ('RETURN_SENT','PREPARING','REFUNDING','RESTOCKING','RELEASING')
       AND next_attempt_at &lt;= CURRENT_TIMESTAMP(6)
     ORDER BY next_attempt_at,id LIMIT 30
   </select>
@@ -52,6 +52,26 @@
     UPDATE line_after_sales SET status=#{to},refund_number=COALESCE(#{refundNumber},refund_number),
       last_error=NULL,next_attempt_at=CURRENT_TIMESTAMP(6),updated_at=CURRENT_TIMESTAMP(6)
     WHERE id=#{id} AND status=#{from}
+  </update>
+  <update id="projectWarehouse">
+    UPDATE line_after_sales SET warehouse_id=#{warehouseId},outbound_id=#{outboundId},
+      warehouse_return_status=#{warehouseStatus},received_quantity=#{receivedQuantity},status=#{to},
+      last_error=NULL,next_attempt_at=TIMESTAMPADD(SECOND,5,CURRENT_TIMESTAMP(6)),updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{id} AND status='RETURN_SENT'
+      AND (warehouse_return_status IS NULL
+        OR (warehouse_return_status='WAITING_RECEIPT' AND #{warehouseStatus}&lt;&gt;'WAITING_RECEIPT')
+        OR (warehouse_return_status='RECEIVED' AND #{warehouseStatus} IN ('PASSED','FAILED')))
+  </update>
+  <update id="acceptWarehouse">
+    UPDATE line_after_sales SET status=#{to},decision=#{note},next_attempt_at=CURRENT_TIMESTAMP(6),
+      updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{id} AND merchant_id=#{merchantId} AND status='WAITING_MERCHANT'
+      AND warehouse_return_status='PASSED' AND received_quantity=quantity
+      AND outbound_id IS NOT NULL AND warehouse_id IS NOT NULL
+  </update>
+  <update id="waitForWarehouse">
+    UPDATE line_after_sales SET next_attempt_at=TIMESTAMPADD(SECOND,5,CURRENT_TIMESTAMP(6))
+    WHERE id=#{id} AND status='RETURN_SENT'
   </update>
   <update id="defer">
     UPDATE line_after_sales SET last_error=#{error},

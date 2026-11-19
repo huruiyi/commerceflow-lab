@@ -19,6 +19,13 @@
       <strong>{{ 'afterSaleState_' + value.status | t }}</strong>
       <span class="ms-2">{{ 'afterSaleQuantity' | t }} {{ value.quantity }}</span>
       <span *ngIf="value.warehouseId" class="ms-2">{{ 'fulfillmentWarehouse' | t }} {{ value.warehouseId }}</span>
+      <small *ngIf="value.outboundId" class="d-block">{{ 'returnOriginalPackage' | t }} {{ value.outboundId }}</small>
+      <small *ngIf="value.warehouseReturnStatus" class="d-block" aria-live="polite">
+        {{ 'warehouseReturn_' + value.warehouseReturnStatus | t }}
+        <ng-container *ngIf="value.receivedQuantity !== null && value.receivedQuantity !== undefined">
+          · {{ 'returnReceivedQuantity' | t }} {{ value.receivedQuantity }} / {{ value.quantity }}
+        </ng-container>
+      </small>
       <p class="mb-1">{{ value.reason }}</p>
       <small class="d-block">
         {{ 'productRefundAmount' | t }} {{ value.merchandiseAmount | trcurrency }} · {{ 'shippingRefundAmount' | t }}
@@ -44,7 +51,10 @@
         </button>
         <ng-container *ngIf="parcels[value.id] as parcel">
           <p class="mb-1 mt-2" aria-live="polite">{{ parcel.carrier }} · {{ parcel.status | t }}</p>
-          <p *ngIf="parcel.status === 'DELIVERED' && value.status === 'RETURN_SENT'" class="mb-1">
+          <p
+            *ngIf="parcel.status === 'DELIVERED' && value.status === 'RETURN_SENT' && !value.warehouseReturnStatus"
+            class="mb-1"
+          >
             {{ 'returnAwaitingInspection' | t }}
           </p>
           <ul *ngIf="parcel.events.length" class="list-unstyled mb-1">
@@ -81,28 +91,12 @@
       </div>
 
       <div
-        *ngIf="
-          merchant &&
-          (value.status === 'APPLIED' ||
-            ((value.status === 'RETURN_SENT' || value.status === 'REVIEW_REQUIRED') && canInspect(value))) &&
-          !value.refundNumber
-        "
+        *ngIf="merchant && (value.status === 'APPLIED' || value.status === 'WAITING_MERCHANT') && !value.refundNumber"
         class="d-flex flex-wrap gap-2 mt-2"
       >
         <label
           >{{ 'afterSaleDecision' | t }}
           <input class="form-control" maxlength="300" [(ngModel)]="notes[value.id]" />
-        </label>
-        <label *ngIf="value.status !== 'APPLIED'">
-          {{ 'returnReceivedQuantity' | t }}
-          <input
-            class="form-control"
-            type="number"
-            min="0"
-            step="1"
-            [ngModel]="received[value.id] ?? value.quantity"
-            (ngModelChange)="received[value.id] = $event"
-          />
         </label>
         <button
           type="button"
@@ -143,7 +137,7 @@
           <option *ngFor="let warehouse of warehouses" [ngValue]="warehouse">{{ warehouse }}</option>
         </select>
       </label>
-      <label *ngIf="needsWarehouse && returning" class="col-md-4">
+      <label *ngIf="returning && originalPackages.length > 0" class="col-md-4">
         {{ 'returnOriginalPackage' | t }}
         <select class="form-select" [(ngModel)]="outboundId" (ngModelChange)="invalidate()">
           <option [ngValue]="undefined"></option>
@@ -174,7 +168,11 @@
           class="btn btn-outline-primary"
           (click)="quote()"
           [disabled]="
-            busy || !lineId || quantity < 1 || (needsWarehouse && (!warehouseId || (returning && !outboundId)))
+            busy ||
+            !lineId ||
+            quantity < 1 ||
+            (needsWarehouse && !warehouseId) ||
+            (returning && originalPackages.length > 0 && !outboundId)
           "
         >
           {{ 'previewAfterSale' | t }}

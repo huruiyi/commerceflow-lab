@@ -899,3 +899,40 @@ WMS 使用独立 MySQL，Flyway V1 持久化计划、实发、仓号和结果时
 `wms-outbound-isolated.json`、`wms-outbound-browser.json`、`wms-outbound-daily.json`
 和 `wms-outbound-daily-evidence.json`。门户模板格式整理后的 `main-7QA2AROC.js` 单独完成隔离与日常静态烟测，
 镜像及资源核对见 `wms-outbound-final-portal.json`。Angular 单测 33 项通过。
+
+## 33. WMS 退货实收与质检验收
+
+库存服务通过签名查询提供原出库凭证，按订单、订单行、商家、商品、可选仓号及原包裹交叉核对。
+唯一凭证可自动带入，有多个可选包裹时由顾客选择。结算快照继续负责计算退款金额和运费。
+
+商城 V63 保存 WMS 状态投影。WMS V2 使用售后单号作为稳定退货单号，在物流送达后受理，
+独立记录实收和质检时间。同一回执可以重复读取，已确认的数量和结果发生冲突时拒绝改写。
+仓库足量实收且质检合格才允许商家验收。商家确认后，支付结果成功才触发原仓库存回补。
+短收、拒收和质检不合格进入待复核。存量在途退货从原出库凭证补齐关联，来源无法唯一确定时进入待复核。
+
+隔离和日常均运行 [PowerShell 7 验收脚本](../../scripts/verify-merchant-operations.ps1) 的 `WmsReturn` 章节。
+隔离模式传入独立项目以及商城、支付、物流和 WMS 后台地址。日常使用以下命令。
+
+```powershell
+pwsh -NoProfile -File scripts/verify-merchant-operations.ps1 -Chapter WmsReturn
+```
+
+- 隔离订单 732 由 A 仓出库 1 件，B 仓未发取消退 92.49 元。A 仓退货绑定原包裹。
+  原仓等待实收、等待质检和等待商家验收期间核对无新增退款或回补。
+  质检合格并验收后退 92.50 元，保留原运费 12.01 元，回补 A 仓 1 件。
+- 隔离验证错仓、错包裹、越权验收和冲突回执。退款确认后用隔离库存库故障阻断回补，
+  核对库存事务回滚，解除故障后同一退款只回补一次。
+- 隔离订单 733、734、735 依次验证短收、拒收和质检不通过。三单进入待复核，退款与库存回补记录均为零。
+  Chromium 核对仓库作业台和顾客订单的质检结果，Angular 33 项单测通过。
+
+日常沿用隔离通过的六个镜像，商城升级至 V63，WMS 升级至 V2。六个容器均健康，九个 Prometheus 抓取目标在线。
+
+- 日常订单 727 验证 B 仓未发取消 92.49 元，A 仓退货完成质检和商家验收后退款 92.50 元。
+  保留原运费 12.01 元。库存分别为 B 仓未发回补 1 件和 A 仓退货回补 1 件。
+- 日常订单 728、729、730 分别验证短收、拒收和质检不通过。三单均待复核，无退款或回补。
+- 升级后十个原数据库容器、商家历史售后、原 WMS 出库、存量订单金额、包裹、付款及仓库存量核对一致。
+  五笔历史归档和原预占投递审计摘要一致，原投递保持 `CLOSED`、各尝试 5 次，关联流水为零。
+
+本地验收结果保存在 `%LOCALAPPDATA%/CommerceFlow/releases/merchant-20261120` 下，
+包括 `wms-return-isolated.json`、`wms-return-browser.json`、`wms-return-daily.json`
+和 `wms-return-daily-evidence.json`。

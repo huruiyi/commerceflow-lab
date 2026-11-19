@@ -19,6 +19,7 @@ import vip.fairy.commerceflow.commerce.payment.application.contract.v1.RefundCre
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.RefundQueryV1;
 import vip.fairy.commerceflow.commerce.refund.infrastructure.LineAfterSaleMapper;
 import vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale;
+import vip.fairy.commerceflow.commerce.refund.infrastructure.WarehouseReturnClient;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
 
@@ -35,11 +36,12 @@ public class LineAfterSaleService {
   private final PaymentWriteAdmissionV1 paymentWrites;
   private final InventoryLineCreditV1 stock;
   private final ReturnShipmentService returns;
+  private final WarehouseReturnClient warehouse;
 
   public LineAfterSaleService(LineAfterSaleMapper cases, OrderRefundPort orders,
                               OrderLineRefundV1 admission, PaymentOrchestrationV1 payments,
                               PaymentWriteAdmissionV1 paymentWrites, InventoryLineCreditV1 stock,
-                              ReturnShipmentService returns) {
+                              ReturnShipmentService returns, WarehouseReturnClient warehouse) {
     this.cases = cases;
     this.orders = orders;
     this.admission = admission;
@@ -47,6 +49,7 @@ public class LineAfterSaleService {
     this.paymentWrites = paymentWrites;
     this.stock = stock;
     this.returns = returns;
+    this.warehouse = warehouse;
   }
 
   @Transactional
@@ -62,7 +65,8 @@ public class LineAfterSaleService {
     if (prior != null) {
       if (customerId.equals(prior.customerId()) && orderId.equals(prior.orderId())
           && lineId.equals(prior.orderLineId()) && prior.quantity() == quantity && prior.reason().equals(reason)
-          && Objects.equals(warehouseId, prior.warehouseId()) && Objects.equals(outboundId, prior.outboundId())) {
+          && (Objects.equals(warehouseId, prior.warehouseId()) || (warehouseId == null && !beforeShipment(prior)))
+          && (Objects.equals(outboundId, prior.outboundId()) || (outboundId == null && !beforeShipment(prior)))) {
         return prior;
       }
       throw new BusinessRuleException("After-sales request identifier is already in use");
@@ -70,7 +74,8 @@ public class LineAfterSaleService {
     Offer offer = offer(customerId, orderId, lineId, quantity, existing, warehouseId, outboundId);
     LineAfterSale value = new LineAfterSale(requestId.toString(), orderId, lineId, offer.productId(), customerId,
       offer.merchantId(), quantity, offer.merchandiseAmount(), offer.shippingAmount(), offer.currency(),
-      offer.kind(), "APPLIED", reason, null, null, null, null, null, null, warehouseId, outboundId);
+      offer.kind(), "APPLIED", reason, null, null, null, null, null, null,
+      offer.warehouseId(), offer.outboundId(), null);
     cases.insert(value);
     return value;
   }
@@ -92,33 +97,33 @@ public class LineAfterSaleService {
     List<LineAfterSale> completed = existing.stream().filter(value -> "COMPLETED".equals(value.status())).toList();
     var plan = orders.warehousePlan(orderId);
     boolean warehouseOrder = plan.amounts().stream().anyMatch(amount -> amount.warehouseId() != 1);
-    if (warehouseOrder && (warehouseId == null || (!unshipped && outboundId == null))) {
-      throw new BusinessRuleException("Choose the allocated warehouse and original package for a return");
+    if (unshipped && ((warehouseOrder && warehouseId == null) || outboundId != null)) {
+      throw new BusinessRuleException("Choose an allocated warehouse for the unshipped refund");
     }
-    if (unshipped && outboundId != null) throw new BusinessRuleException("Unshipped refund cannot name a package");
+    var source = unshipped ? null
+      : requireOrigin(orderId, lineId, line.getMerchantId(), line.getProductId(), warehouseId, outboundId);
+    Long resolvedWarehouse = source == null ? warehouseId : Long.valueOf(source.warehouseId());
     int assigned = line.getQuantity();
     BigDecimal net = line.getSubtotal().subtract(line.getDiscountAmount());
-    if (warehouseId != null) {
+    if (resolvedWarehouse != null && (!plan.amounts().isEmpty() || resolvedWarehouse != 1)) {
       var amount = plan.amounts().stream()
-        .filter(value -> value.orderLineId() == lineId && value.warehouseId() == warehouseId)
+        .filter(value -> value.orderLineId() == lineId && value.warehouseId() == resolvedWarehouse)
         .findFirst().orElseThrow(() -> new BusinessRuleException("Order line is not allocated to the warehouse"));
       assigned = amount.quantity();
       net = amount.grossAmount().subtract(amount.discountAmount());
     }
-    var previousCases = completed.stream().filter(value -> lineId.equals(value.orderLineId())
-      && (warehouseId == null || warehouseId.equals(value.warehouseId() == null ? 1L : value.warehouseId()))).toList();
+    var previousCases = completed.stream().filter(value -> lineId.equals(value.orderLineId()))
+      .filter(value -> resolvedWarehouse == null
+        || resolvedWarehouse.equals(value.warehouseId() == null ? 1L : value.warehouseId())).toList();
     int previous = previousCases.stream().mapToInt(LineAfterSale::quantity).sum();
     int remaining = assigned - previous;
     if (unshipped) {
       int sent = plan.shipments().stream().filter(ship -> ship.orderLineId() == lineId
         && (warehouseId == null || ship.warehouseId() == warehouseId)).mapToInt(ship -> ship.quantity()).sum();
       remaining -= sent;
-    } else if (outboundId != null) {
-      var source = plan.shipments().stream().filter(ship -> ship.packageId().equals(outboundId)
-          && ship.orderLineId() == lineId && warehouseId != null && ship.warehouseId() == warehouseId)
-        .findFirst().orElseThrow(() -> new BusinessRuleException("Return does not match an outbound package line"));
+    } else {
       int returned = previousCases.stream().filter(value -> !beforeShipment(value)
-          && (value.outboundId() == null || outboundId.equals(value.outboundId())))
+          && (value.outboundId() == null || source.outboundId().equals(value.outboundId())))
         .mapToInt(LineAfterSale::quantity).sum();
       remaining = Math.min(remaining, source.quantity() - returned);
     }
@@ -132,7 +137,8 @@ public class LineAfterSaleService {
     BigDecimal freight = finalUnshipped && completed.stream().noneMatch(value -> value.shippingAmount().signum() > 0)
       ? order.getShippingFee() : BigDecimal.ZERO.setScale(2);
     return new Offer(line.getProductId(), line.getMerchantId(), remaining,
-      unshipped ? "BEFORE_SHIPMENT" : "RETURN", amount, freight, order.getCurrency());
+      unshipped ? "BEFORE_SHIPMENT" : "RETURN", amount, freight, order.getCurrency(),
+      resolvedWarehouse, source == null ? null : source.outboundId());
   }
 
   public List<LineAfterSale> customerCases(Long customerId, Long orderId) {
@@ -183,15 +189,57 @@ public class LineAfterSaleService {
     return require(id);
   }
 
-  public LineAfterSale inspect(Long merchantId, String id, boolean resellable, int receivedQuantity, String note) {
+  public LineAfterSale inspect(Long merchantId, String id, boolean accepted, String note) {
     LineAfterSale value = owned(merchantId, id);
-    returns.requireDelivered(id);
-    String target = resellable && receivedQuantity == value.quantity() ? "PREPARING" : "REVIEW_REQUIRED";
-    if (target.equals(value.status()) && note.equals(value.decision())) return value;
-    String from = "REVIEW_REQUIRED".equals(value.status()) && value.trackingNumber() != null
-      && value.refundNumber() == null ? "REVIEW_REQUIRED" : "RETURN_SENT";
-    requireTransition(cases.merchantDecision(id, merchantId, from, target, note, receivedQuantity));
+    String target = accepted ? "PREPARING" : "REVIEW_REQUIRED";
+    boolean alreadyAccepted = accepted && Set.of("PREPARING", "REFUNDING", "RESTOCKING", "COMPLETED")
+      .contains(value.status());
+    if ("PASSED".equals(value.warehouseReturnStatus()) && note.equals(value.decision())
+        && (alreadyAccepted || target.equals(value.status()))) return value;
+    requireTransition(cases.acceptWarehouse(id, merchantId, target, note));
     return require(id);
+  }
+
+  private InventoryLineCreditV1.Source requireOrigin(long orderId, long lineId, long merchantId, long productId,
+                                                      Long warehouseId, String outboundId) {
+    var sources = stock.sources(new InventoryLineCreditV1.Origin(orderId, lineId, merchantId, productId,
+      warehouseId, outboundId));
+    if (sources.size() != 1) {
+      throw new BusinessRuleException("Choose an original outbound package for this order line and warehouse");
+    }
+    return sources.getFirst();
+  }
+
+  private void readWarehouse(LineAfterSale value) {
+    if (!returns.delivered(value.id())) {
+      cases.waitForWarehouse(value.id());
+      return;
+    }
+    Long warehouseId = value.warehouseId();
+    String outboundId = value.outboundId();
+    if (warehouseId == null || outboundId == null) {
+      try {
+        var origin = requireOrigin(value.orderId(), value.orderLineId(), value.merchantId(), value.productId(),
+          warehouseId, outboundId);
+        warehouseId = origin.warehouseId();
+        outboundId = origin.outboundId();
+      } catch (BusinessRuleException failure) {
+        cases.projectWarehouse(value.id(), warehouseId, outboundId, "ORIGIN_UNRESOLVED", null, "REVIEW_REQUIRED");
+        return;
+      }
+    }
+    var receipt = warehouse.submit(new WarehouseReturnClient.Plan(value.id(), outboundId, value.orderId(),
+      value.orderLineId(), warehouseId, value.trackingNumber(), value.quantity()));
+    String next = switch (receipt.status()) {
+      case "WAITING_RECEIPT", "RECEIVED" -> "RETURN_SENT";
+      case "PASSED" -> "WAITING_MERCHANT";
+      default -> "REVIEW_REQUIRED";
+    };
+    if (receipt.status().equals(value.warehouseReturnStatus())) {
+      cases.waitForWarehouse(value.id());
+    } else {
+      cases.projectWarehouse(value.id(), warehouseId, outboundId, receipt.status(), receipt.receivedQuantity(), next);
+    }
   }
 
   @Scheduled(fixedDelayString = "${commerceflow.after-sales.dispatch-delay:2s}")
@@ -199,6 +247,7 @@ public class LineAfterSaleService {
     for (LineAfterSale value : cases.due()) {
       try {
         switch (value.status()) {
+          case "RETURN_SENT" -> readWarehouse(value);
           case "PREPARING" -> prepare(value);
           case "REFUNDING" -> pollRefund(value);
           case "RESTOCKING" -> restock(value);
@@ -213,6 +262,12 @@ public class LineAfterSaleService {
   }
 
   private void prepare(LineAfterSale value) {
+    if (!beforeShipment(value) && (!"PASSED".equals(value.warehouseReturnStatus())
+        || !Objects.equals(value.receivedQuantity(), value.quantity())
+        || value.warehouseId() == null || value.outboundId() == null)) {
+      cases.advance(value.id(), value.status(), "REVIEW_REQUIRED", null);
+      return;
+    }
     if (beforeShipment(value) && !admission.apply(orderCommand(value, "HOLD"))) {
       cases.advance(value.id(), value.status(), "FAILED", null);
       return;
@@ -292,6 +347,7 @@ public class LineAfterSaleService {
   }
 
   public record Offer(Long productId, Long merchantId, int availableQuantity, String kind,
-                      BigDecimal merchandiseAmount, BigDecimal shippingAmount, String currency) {
+                      BigDecimal merchandiseAmount, BigDecimal shippingAmount, String currency,
+                      Long warehouseId, String outboundId) {
   }
 }

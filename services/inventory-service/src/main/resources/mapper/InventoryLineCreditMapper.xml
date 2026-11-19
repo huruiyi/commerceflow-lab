@@ -39,6 +39,16 @@
       AND d.warehouse_id=COALESCE(#{warehouseId},1)
     <if test="outboundId != null">AND d.outbound_id=#{outboundId}</if>
   </select>
+  <select id="sources"
+          resultType="vip.fairy.commerceflow.inventory.application.service.InventoryLineCreditService$Source">
+    SELECT d.warehouse_id,d.outbound_id,l.quantity
+    FROM inventory_outbound_lines l JOIN inventory_outbound_documents d ON d.outbound_id=l.outbound_id
+    WHERE d.order_id=#{orderId} AND d.merchant_id=#{merchantId}
+      AND l.order_line_id=#{orderLineId} AND l.product_id=#{productId}
+    <if test="warehouseId != null">AND d.warehouse_id=#{warehouseId}</if>
+    <if test="outboundId != null">AND d.outbound_id=#{outboundId}</if>
+    ORDER BY d.outbound_id
+  </select>
   <insert id="insert">
     INSERT INTO inventory_line_credits(
       case_id,order_id,order_line_id,merchant_id,product_id,quantity,kind,warehouse_id,outbound_id

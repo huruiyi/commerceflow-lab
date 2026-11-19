@@ -40,6 +40,8 @@ export interface AfterSaleOffer {
 export interface AfterSale extends Pick<AfterSaleOffer, 'merchandiseAmount' | 'shippingAmount'> {
   warehouseId?: number;
   outboundId?: string;
+  warehouseReturnStatus?: string;
+  receivedQuantity?: number;
   id: string;
   status: string;
   reason: string;
@@ -311,11 +313,7 @@ export class ApiService {
     return this.http.get<OrderLogistics | null>(path + id + '/return-tracking');
   }
 
-  decideAfterSale(
-    id: string,
-    inspection: boolean,
-    body: { accepted: boolean; note: string; receivedQuantity?: number },
-  ): Observable<AfterSale> {
+  decideAfterSale(id: string, inspection: boolean, body: { accepted: boolean; note: string }): Observable<AfterSale> {
     return this.http.post<AfterSale>(
       '/api/merchant/after-sales/' + id + (inspection ? '/inspection' : '/review'),
       body,

@@ -964,6 +964,7 @@ CREATE TABLE line_after_sales (
   last_error VARCHAR(300) NULL,
   warehouse_id BIGINT NULL,
   outbound_id CHAR(36) NULL,
+  warehouse_return_status VARCHAR(24) NULL,
   next_attempt_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.warehouse.WarehouseReturnMapper">
+  <sql id="fields">
+    return_id,outbound_id,order_id,order_line_id,warehouse_id,tracking_number,
+    expected_quantity,received_quantity,status,received_at,inspected_at
+  </sql>
+
+  <insert id="insert">
+    INSERT INTO warehouse_returns (
+      return_id,outbound_id,order_id,order_line_id,warehouse_id,tracking_number,expected_quantity
+    ) VALUES (#{returnId},#{outboundId},#{orderId},#{orderLineId},#{warehouseId},#{trackingNumber},#{expectedQuantity})
+    ON DUPLICATE KEY UPDATE return_id=return_id
+  </insert>
+
+  <select id="lock" resultType="vip.fairy.commerceflow.warehouse.WarehouseReturns$Receipt">
+    SELECT <include refid="fields"/> FROM warehouse_returns WHERE return_id=#{id} FOR UPDATE
+  </select>
+
+  <select id="list" resultType="vip.fairy.commerceflow.warehouse.WarehouseReturns$Receipt">
+    SELECT <include refid="fields"/> FROM warehouse_returns
+    <if test="orderId != null">WHERE order_id=#{orderId}</if>
+    ORDER BY created_at DESC,return_id LIMIT 100
+  </select>
+
+  <update id="receive">
+    UPDATE warehouse_returns SET received_quantity=#{quantity},status=#{status},received_at=CURRENT_TIMESTAMP(6)
+    WHERE return_id=#{id} AND status='WAITING_RECEIPT'
+  </update>
+
+  <update id="inspect">
+    UPDATE warehouse_returns SET status=#{status},inspected_at=CURRENT_TIMESTAMP(6)
+    WHERE return_id=#{id} AND status='RECEIVED'
+  </update>
+</mapper>

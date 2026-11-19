@@ -6,7 +6,7 @@ public record LineAfterSale(String id, Long orderId, Long orderLineId, Long prod
             int quantity, BigDecimal merchandiseAmount, BigDecimal shippingAmount, String currency,
             String kind, String status, String reason, String decision, String trackingNumber,
             String refundNumber, BigDecimal returnShippingCost, Integer receivedQuantity, String lastError,
-            Long warehouseId, String outboundId) {
+            Long warehouseId, String outboundId, String warehouseReturnStatus) {
   public BigDecimal total() {
     return merchandiseAmount.add(shippingAmount);
   }
