@@ -11,6 +11,15 @@
     WHERE outbound_id=#{outboundId} FOR UPDATE
   </select>
 
+  <select id="postedQuantities"
+          resultType="vip.fairy.commerceflow.inventory.domain.OutboundProductQuantity">
+    SELECT l.product_id AS productId,SUM(l.quantity) AS quantity
+    FROM inventory_outbound_documents d
+    JOIN inventory_outbound_lines l ON l.outbound_id=d.outbound_id
+    WHERE d.order_id=#{orderId}
+    GROUP BY l.product_id
+  </select>
+
   <insert id="insertLine">
     INSERT INTO inventory_outbound_lines(outbound_id,order_line_id,product_id,quantity)
     VALUES(#{outboundId},#{line.orderLineId},#{line.productId},#{line.quantity})

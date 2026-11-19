@@ -41,7 +41,7 @@ public class InventoryLineCreditService {
       if (value.quantity() > outboundQuantity - alreadyCredited) {
         return false;
       }
-    } else if (credits.hasOutbound(value.orderId())) {
+    } else if (value.quantity() > reservation.quantity() - creditedBefore - credits.outboundQuantity(value)) {
       return false;
     }
     if (!apply) return true;

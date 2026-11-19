@@ -33,6 +33,7 @@ public record ShopOrderResponse(
   Address address,
   Payment payment,
   LogisticsResponse logistics,
+  List<LogisticsResponse> packages,
   RefundSnapshotV1 refund) {
   public record Item(
     Long id,

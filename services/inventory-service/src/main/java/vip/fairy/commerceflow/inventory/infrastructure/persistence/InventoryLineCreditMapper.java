@@ -12,7 +12,6 @@ public interface InventoryLineCreditMapper {
 
   int outboundQuantity(Credit credit);
 
-  boolean hasOutbound(Long orderId);
 
   void insert(Credit credit);
 }

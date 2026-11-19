@@ -80,12 +80,43 @@ public class RemoteFulfillmentDownstream implements FulfillmentDownstream {
 
   @Override
   public void postOutbound(ExecutionTask task, List<ShipmentLine> lines) {
-    JsonNode receipt = post(inventory, OUTBOUND_PATH, Map.of("outboundId", task.commandId(),
-      "orderId", task.orderId(), "merchantId", task.merchantId(), "lines", lines));
+    var command = new HashMap<String, Object>();
+    command.put("outboundId", task.commandId());
+    command.put("orderId", task.orderId());
+    command.put("merchantId", task.merchantId());
+    command.put("lines", lines);
+    if (task.packageShipment()) command.put("partial", true);
+    JsonNode receipt = post(inventory, OUTBOUND_PATH, command);
     if (!task.commandId().equals(receipt.path("outboundId").asText())
         || task.orderId() != receipt.path("orderId").asLong() || receipt.path("lineCount").asInt() != lines.size()) {
       throw new IllegalStateException("Invalid inventory outbound receipt");
     }
+  }
+
+  @Override
+  public PackageReservation reservePackage(ExecutionTask task) {
+    JsonNode reply = post(order, ORDER_PATH + "/packages/reserve", Map.of("packageId", task.commandId(),
+      "orderId", task.orderId(), "merchantId", task.merchantId(), "carrier", task.carrier(),
+      "trackingNumber", task.trackingNumber(), "lines", mapper.readTree(task.packageLines())));
+    if (!reply.path("accepted").isBoolean() || !reply.path("lines").isArray()) {
+      throw new IllegalStateException("Invalid order package allocation receipt");
+    }
+    var lines = new ArrayList<ShipmentLine>();
+    for (JsonNode line : reply.path("lines")) {
+      lines.add(mapper.treeToValue(line, ShipmentLine.class));
+    }
+    if (reply.path("accepted").booleanValue() && lines.isEmpty()) {
+      throw new IllegalStateException("Accepted package has no reserved lines");
+    }
+    return new PackageReservation(reply.path("accepted").booleanValue(), List.copyOf(lines));
+  }
+
+  @Override
+  public boolean finishPackage(ExecutionTask task) {
+    JsonNode reply = post(order, ORDER_PATH + "/packages/finish", Map.of("packageId", task.commandId(),
+      "orderId", task.orderId(), "merchantId", task.merchantId())).path("finished");
+    if (!reply.isBoolean()) throw new IllegalStateException("Invalid order package completion receipt");
+    return reply.booleanValue();
   }
 
   @Override
@@ -131,6 +162,7 @@ public class RemoteFulfillmentDownstream implements FulfillmentDownstream {
     command.put("carrier", task.carrier());
     command.put("trackingNumber", task.trackingNumber());
     command.put("expectedVersion", task.expectedVersion());
+    if (task.packageShipment()) command.put("packageId", task.commandId());
     JsonNode reply = post(logistics, LOGISTICS_PATH + "/commands", command);
     long expected = task.shipment() ? 0L : task.expectedVersion() + 1;
     if (!id.equals(reply.path("commandId").asText()) || reply.path("platformShipmentNo").asText("").isBlank()

@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.order.infrastructure.persistence.OrderPackageMapper">
+
+  <select id="find" resultType="vip.fairy.commerceflow.order.infrastructure.persistence.OrderPackageMapper$Allocation">
+    SELECT order_id,merchant_id,carrier,tracking_number,posted_at IS NOT NULL AS posted
+    FROM order_package_allocations WHERE package_id=#{packageId}
+  </select>
+
+  <select id="lines" resultType="vip.fairy.commerceflow.order.application.OrderPackageService$PostedLine">
+    SELECT l.order_line_id,i.product_id,l.quantity
+    FROM order_package_lines l JOIN order_items i ON i.id=l.order_line_id
+    WHERE l.package_id=#{packageId} ORDER BY l.order_line_id
+  </select>
+
+  <select id="allocatedQuantity" resultType="int">
+    SELECT COALESCE(SUM(quantity),0) FROM order_package_lines WHERE order_line_id=#{orderLineId}
+  </select>
+
+  <select id="trackingUsed" resultType="boolean">
+    SELECT EXISTS (
+      SELECT 1 FROM order_package_allocations WHERE order_id=#{orderId}
+        AND carrier=#{carrier} AND tracking_number=#{trackingNumber}
+    )
+  </select>
+
+  <insert id="insert">
+    INSERT INTO order_package_allocations(package_id,order_id,merchant_id,carrier,tracking_number)
+    VALUES (#{packageId},#{orderId},#{merchantId},#{carrier},#{trackingNumber})
+  </insert>
+
+  <insert id="insertLine">
+    INSERT INTO order_package_lines(package_id,order_line_id,quantity)
+    VALUES (#{packageId},#{line.orderLineId},#{line.quantity})
+  </insert>
+
+  <update id="hold">
+    UPDATE shop_orders SET shipment_intent_key=#{packageId},updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{orderId} AND shipment_intent_key IS NULL
+  </update>
+
+  <update id="markPosted">
+    UPDATE order_package_allocations SET posted_at=CURRENT_TIMESTAMP(6)
+    WHERE package_id=#{packageId} AND posted_at IS NULL
+  </update>
+
+  <update id="clearHold">
+    UPDATE shop_orders SET shipment_intent_key=NULL,updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{orderId} AND shipment_intent_key=#{packageId}
+  </update>
+
+  <update id="finishIfFullyAllocated">
+    UPDATE shop_orders o
+    JOIN order_package_allocations p ON p.package_id=(
+      SELECT candidate.package_id FROM order_package_allocations candidate
+      WHERE candidate.order_id=#{orderId} AND candidate.posted_at IS NOT NULL
+      ORDER BY candidate.posted_at DESC,candidate.package_id DESC LIMIT 1
+    )
+    SET o.status='SHIPPED',o.carrier=p.carrier,o.tracking_number=p.tracking_number,
+        o.shipped_at=CURRENT_TIMESTAMP(6),o.updated_at=CURRENT_TIMESTAMP(6)
+    WHERE o.id=#{orderId} AND o.status='CONFIRMED' AND o.shipment_intent_key IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM order_items i WHERE i.order_id=#{orderId} AND i.quantity &gt;
+          (SELECT COALESCE(SUM(l.quantity),0) FROM order_package_lines l
+           JOIN order_package_allocations a ON a.package_id=l.package_id
+           WHERE l.order_line_id=i.id AND a.posted_at IS NOT NULL)
+          + (SELECT COALESCE(SUM(r.quantity),0) FROM order_line_refund_admissions r
+             WHERE r.order_line_id=i.id AND r.status='SETTLED')
+      )
+  </update>
+</mapper>

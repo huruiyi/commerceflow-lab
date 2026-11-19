@@ -2,8 +2,10 @@ package vip.fairy.commerceflow.commerce.fulfillment.api;
 
 import java.net.URI;
 import java.time.LocalDate;
+import java.time.Instant;
 import java.util.UUID;
 import vip.fairy.commerceflow.commerce.fulfillment.application.contract.FulfillmentCommandV1;
+import vip.fairy.commerceflow.commerce.fulfillment.application.contract.FulfillmentCommandV1.PackageLine;
 import vip.fairy.commerceflow.commerce.fulfillment.application.MerchantFulfillmentService.CommandResult;
 import vip.fairy.commerceflow.commerce.fulfillment.domain.ShipmentJob.Status;
 import vip.fairy.commerceflow.commerce.fulfillment.application.MerchantFulfillmentService;
@@ -12,6 +14,9 @@ import vip.fairy.commerceflow.commerce.fulfillment.application.MerchantFulfillme
 import vip.fairy.commerceflow.commerce.fulfillment.application.MerchantFulfillmentService.OperationStatus;
 import vip.fairy.commerceflow.commerce.identity.application.CurrentUserService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -82,6 +87,21 @@ public class MerchantFulfillmentController {
   @GetMapping("/fulfillment-v1/commands/{commandId}")
   CommandResult commandStatus(@PathVariable UUID commandId, Authentication authentication) {
     return service.commandStatus(users.require(authentication).getId(), commandId.toString());
+  }
+
+  @PostMapping("/{id}/packages")
+  ResponseEntity<CommandResult> shipPackage(@PathVariable Long id, @Valid @RequestBody PackageRequest request,
+                                            Authentication authentication) {
+    Long merchantId = users.require(authentication).getId();
+    var command = new FulfillmentCommandV1(1, request.packageId(), FulfillmentCommandV1.Operation.SHIP,
+      merchantId, id, Instant.now(), request.carrier(), request.trackingNumber(), null, request.lines());
+    return submitCommand(command, authentication);
+  }
+
+  record PackageRequest(@NotNull UUID packageId, @NotBlank @Size(max = 100) String carrier,
+                        @NotBlank @Size(max = 120) String trackingNumber,
+                        @NotNull @Size(min = 1, max = 200)
+                        List<@NotNull @Valid PackageLine> lines) {
   }
 
   @PostMapping("/{id}/confirm")

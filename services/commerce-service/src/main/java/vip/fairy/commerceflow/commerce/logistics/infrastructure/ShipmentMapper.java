@@ -12,12 +12,16 @@ public interface ShipmentMapper {
 
   void prepare(
     @Param("orderId") Long orderId,
+    @Param("packageId") String packageId,
     @Param("merchantNo") String merchantNo,
     @Param("carrier") String carrier,
     @Param("tracking") String tracking
   );
 
   Optional<ShipmentRecordView> byOrder(Long orderId);
+  List<ShipmentRecordView> packages(Long orderId);
+  List<PackageDelivery> pendingPackageDeliveries();
+  void checkPackageDelivery(@Param("orderId") Long orderId, @Param("reported") boolean reported);
 
   Optional<ShipmentRecordView> byReturn(String afterSaleId);
 
@@ -88,4 +92,8 @@ public interface ShipmentMapper {
   int markReconciled(Long id);
 
   int markReconciliationFailed(@Param("id") Long id, @Param("error") String error);
+
+  /** 最后一只包裹送达后可核对的订单。 */
+  record PackageDelivery(Long orderId, Instant deliveredAt) {
+  }
 }

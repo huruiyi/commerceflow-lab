@@ -654,7 +654,12 @@ CREATE TABLE shipment_records
   id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
   order_id             BIGINT       NOT NULL,
   after_sale_id        VARCHAR(36) UNIQUE,
-  outbound_order_id    BIGINT GENERATED ALWAYS AS (CASE WHEN after_sale_id IS NULL THEN order_id END) UNIQUE,
+  package_id           CHAR(36) UNIQUE,
+  package_delivery_checked_at TIMESTAMP,
+  package_delivery_reported BOOLEAN NOT NULL DEFAULT FALSE,
+  outbound_order_id    BIGINT GENERATED ALWAYS AS (
+    CASE WHEN after_sale_id IS NULL AND package_id IS NULL THEN order_id END
+  ) UNIQUE,
   order_number         VARCHAR(100),
   last_event_at        TIMESTAMP,
   merchant_shipment_no VARCHAR(100) NOT NULL UNIQUE,
@@ -907,6 +912,7 @@ CREATE TABLE fulfillment_write_admission (
 INSERT INTO fulfillment_write_admission (singleton_id, frozen, write_owner) VALUES (1, TRUE, 'FULFILLMENT');
 
 CREATE TABLE logistics_fulfillment_commands (
+  package_id CHAR(36),
   command_id CHAR(36) NOT NULL PRIMARY KEY,
   operation VARCHAR(16) NOT NULL,
   order_id BIGINT NOT NULL,

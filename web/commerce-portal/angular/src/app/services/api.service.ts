@@ -400,6 +400,33 @@ export class ApiService {
       .pipe(switchMap((response) => this.awaitMerchantOperation(id, response)));
   }
 
+  shipMerchantPackage(
+    id: number,
+    packageId: string,
+    carrier: string,
+    trackingNumber: string,
+    lines: { orderLineId: number; quantity: number }[],
+  ): Observable<void> {
+    const statusUrl = `/api/merchant/orders/fulfillment-v1/commands/${packageId}`;
+    return this.http
+      .post<{ status: string }>(`/api/merchant/orders/${id}/packages`, { packageId, carrier, trackingNumber, lines })
+      .pipe(
+        switchMap((receipt) =>
+          receipt.status === 'PENDING'
+            ? timer(0, 1000).pipe(
+                exhaustMap(() => this.http.get<{ status: string }>(statusUrl)),
+                filter((value) => value.status !== 'PENDING'),
+                take(1),
+                timeout(25000),
+              )
+            : of(receipt),
+        ),
+        map((receipt) => {
+          if (receipt.status !== 'COMPLETED') throw new Error(receipt.status);
+        }),
+      );
+  }
+
   shipMerchantOrder(id: number, carrier: string, trackingNumber: string): Observable<PurchaseOrder> {
     return this.http
       .post<PurchaseOrder>(`/api/merchant/orders/${id}/ship`, { carrier, trackingNumber }, { observe: 'response' })

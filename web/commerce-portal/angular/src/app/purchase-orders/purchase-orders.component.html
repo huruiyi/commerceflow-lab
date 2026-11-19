@@ -61,7 +61,8 @@
     </div>
     <div class="order-state">
       <span class="status" [attr.aria-label]="('orderStatus' | t) + ': ' + (order.status | t)">
-        <span class="status-dot"></span>{{ order.status | t }}
+        <span class="status-dot"></span>
+        {{ (order.status === 'CONFIRMED' && order.packages?.length ? 'partiallyShipped' : order.status) | t }}
       </span>
       <span *ngIf="showPaymentState(order)" class="payment-state">
         {{ 'paymentStatus' | t }}·{{ order.payment!.status | t }}
@@ -377,6 +378,15 @@
         </button>
       </div>
     </form>
+    <section *ngFor="let parcel of order.packages; index as index" class="logistics-panel">
+      <h4>{{ 'shipmentPackage' | t }} {{ index + 1 }} · {{ parcel.status | t }}</h4>
+      <p>{{ parcel.carrier }} · {{ parcel.trackingNumber }}</p>
+      <ol class="logistics-timeline">
+        <li *ngFor="let event of parcel.events">
+          {{ event.status | t }} · {{ event.occurredAt | trdate }} · {{ event.description }}
+        </li>
+      </ol>
+    </section>
     <section
       class="logistics-panel"
       *ngIf="hasAction(order, 'VIEW_LOGISTICS') && order.logistics as logistics"

@@ -87,6 +87,7 @@
       <choose>
         <when test="operation.name() == 'SHIP'">
           SELECT 1 FROM fulfillment_shipment_jobs WHERE order_id=#{orderId}
+            AND (#{packageLines} IS NULL OR package_lines IS NULL)
             AND NOT (<include refid="reservationRejected"/>)
         </when>
         <otherwise>
@@ -103,9 +104,10 @@
     <choose>
       <when test="operation.name() == 'SHIP'">
         INSERT INTO fulfillment_shipment_jobs
-          (command_id,order_id,merchant_id,order_number,carrier,tracking_number,step,status,next_attempt_at)
+          (command_id,order_id,merchant_id,order_number,carrier,tracking_number,step,status,next_attempt_at,
+           package_lines)
         VALUES (#{commandId},#{orderId},#{merchantId},#{orderNumber},#{carrier},#{trackingNumber},
-          #{step},'PENDING',CURRENT_TIMESTAMP(6))
+          #{step},'PENDING',CURRENT_TIMESTAMP(6),#{packageLines})
       </when>
       <otherwise>
         INSERT INTO fulfillment_merchant_jobs
@@ -119,17 +121,17 @@
 
   <select id="find" resultType="vip.fairy.commerceflow.fulfillment.domain.ExecutionTask">
     SELECT command_id,order_id,merchant_id,'SHIP' AS operation,order_number,
-      carrier,tracking_number,NULL AS expected_version,NULL AS detail,step,status,last_error AS error_code
+      carrier,tracking_number,NULL AS expected_version,NULL AS detail,step,status,last_error AS error_code,package_lines
     FROM fulfillment_shipment_jobs WHERE command_id=#{commandId}
     UNION ALL
     SELECT command_id,order_id,merchant_id,operation,NULL AS order_number,carrier,tracking_number,
-      CASE WHEN operation='UPDATE_SHIPMENT' THEN expected_version END,detail,step,status,last_error
+      CASE WHEN operation='UPDATE_SHIPMENT' THEN expected_version END,detail,step,status,last_error,NULL
     FROM fulfillment_merchant_jobs WHERE command_id=#{commandId}
   </select>
 
   <select id="shipment" resultType="vip.fairy.commerceflow.fulfillment.domain.ExecutionTask">
     SELECT command_id,order_id,merchant_id,'SHIP' AS operation,order_number,carrier,tracking_number,
-      NULL AS expected_version,NULL AS detail,step,status,last_error AS error_code
+      NULL AS expected_version,NULL AS detail,step,status,last_error AS error_code,package_lines
     FROM fulfillment_shipment_jobs WHERE order_id=#{orderId}
     ORDER BY (<include refid="reservationRejected"/>) ASC,created_at DESC,command_id DESC LIMIT 1
   </select>
@@ -138,7 +140,8 @@
     SELECT command_id FROM
     <choose>
       <when test="command.operation.name() == 'SHIP'">
-        fulfillment_shipment_jobs WHERE order_id=#{command.orderId} AND NOT (<include refid="reservationRejected"/>)
+        fulfillment_shipment_jobs WHERE order_id=#{command.orderId} AND package_lines IS NULL
+          AND NOT (<include refid="reservationRejected"/>)
         ORDER BY created_at DESC,command_id DESC
       </when>
       <otherwise>

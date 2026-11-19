@@ -1,5 +1,6 @@
 package vip.fairy.commerceflow.commerce.logistics.application;
 
+import java.util.List;
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
 import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
 import vip.fairy.commerceflow.commerce.logistics.domain.ShipmentRecordView;
@@ -32,5 +33,10 @@ public class LogisticsService {
     return shipments.byOrder(orderId)
       .map(value -> LogisticsResponse.from(value, shipments.events(value.getId())))
       .orElse(null);
+  }
+
+  public List<LogisticsResponse> packages(Long orderId) {
+    return shipments.packages(orderId).stream()
+      .map(value -> LogisticsResponse.from(value, shipments.events(value.getId()))).toList();
   }
 }

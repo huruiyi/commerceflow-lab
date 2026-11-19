@@ -127,6 +127,7 @@ export interface RepurchaseResult {
 }
 
 export interface PurchaseOrder {
+  packages?: OrderLogistics[];
   inventoryStatus?: string;
   shipmentVersion?: number;
   id: number;

@@ -32,7 +32,8 @@
     </div>
     <div class="order-state">
       <span [class]="'order-status status-' + order.status.toLowerCase()"
-        ><i aria-hidden="true"></i>{{ order.status | t }}</span
+        ><i aria-hidden="true"></i
+        >{{ (order.status === 'CONFIRMED' && order.packages?.length ? 'partiallyShipped' : order.status) | t }}</span
       ><strong>{{ order.totalAmount | trcurrency }}</strong>
     </div>
   </header>
@@ -63,7 +64,7 @@
       <i class="bi bi-truck" aria-hidden="true"></i>{{ 'prepareShipment' | t }}
     </button>
     <button
-      *ngIf="order.status === 'SHIPPED'"
+      *ngIf="order.status === 'SHIPPED' && !order.packages?.length"
       class="action-button primary"
       type="button"
       (click)="prepareShipment(order)"
@@ -90,8 +91,8 @@
       >
     </p>
     <form
-      *ngIf="order.status === 'CONFIRMED' || order.status === 'SHIPPED'"
-      (ngSubmit)="saveShipment(order)"
+      *ngIf="order.status === 'CONFIRMED' || (order.status === 'SHIPPED' && !order.packages?.length)"
+      (ngSubmit)="order.status === 'CONFIRMED' ? savePackage(order) : saveShipment(order)"
       class="ship-form"
     >
       <input
@@ -107,6 +108,20 @@
         [placeholder]="'tracking' | t"
         required
       />
+      <ng-container *ngIf="order.status === 'CONFIRMED'">
+        <label *ngFor="let item of order.items">
+          {{ item.productName }} · {{ 'packageQuantity' | t }}
+          <input
+            class="form-control"
+            type="number"
+            min="0"
+            [max]="item.quantity"
+            step="1"
+            name="packageQuantity{{ item.id }}"
+            [(ngModel)]="packageQuantities[item.id]"
+          />
+        </label>
+      </ng-container>
       <button
         class="btn btn-success"
         [disabled]="pending.has(order.id) || shipmentInvalid(order) || shipmentUnchanged(order)"
@@ -115,6 +130,13 @@
         >{{ (order.status === 'SHIPPED' ? 'saveShipment' : 'markShipped') | t }}
       </button>
     </form>
+    <section *ngFor="let parcel of order.packages; index as index" class="order-timeline">
+      <h4>{{ 'shipmentPackage' | t }} {{ index + 1 }} · {{ parcel.status | t }}</h4>
+      <p>{{ parcel.carrier }} · {{ parcel.trackingNumber }}</p>
+      <ol>
+        <li *ngFor="let event of parcel.events">{{ event.status | t }} · {{ event.occurredAt | trdate }}</li>
+      </ol>
+    </section>
     <section *ngIf="order.refund as refund" class="merchant-refund">
       <span>{{ 'latestRefund' | t }}</span><strong>{{ refund.status | t }} · {{ refund.amount | trcurrency }}</strong
       ><small>{{ refund.refundNumber }} · {{ refund.reasonCode | t }}</small>

@@ -72,9 +72,14 @@ public class LogisticsFulfillmentService implements LogisticsFulfillmentV1 {
   private LogisticsGatewayClient.Result callChannel(Command command) {
     Long order = command.orderId();
     if (command.operation() == Operation.ENSURE_SHIPMENT) {
-      shipments.prepare(order, reference(order), command.carrier(), command.trackingNumber());
-      return gateway.findShipment(order).orElseGet(() ->
-        gateway.create(order, command.orderNumber(), command.carrier(), command.trackingNumber()));
+      String reference = reference(command);
+      shipments.prepare(order, command.packageId(), reference, command.carrier(), command.trackingNumber());
+      if (command.packageId() == null) {
+        return gateway.findShipment(order).orElseGet(() ->
+          gateway.create(order, command.orderNumber(), command.carrier(), command.trackingNumber()));
+      }
+      return gateway.findShipment(reference).orElseGet(() ->
+        gateway.create(reference, command.orderNumber(), command.carrier(), command.trackingNumber()));
     }
     return gateway.update(order, command.carrier(), command.trackingNumber(), command.expectedVersion());
   }
@@ -82,7 +87,7 @@ public class LogisticsFulfillmentService implements LogisticsFulfillmentV1 {
   private void validate(Command command, LogisticsGatewayClient.Result result) {
     long expected = command.operation() == Operation.ENSURE_SHIPMENT ? 0 : command.expectedVersion() + 1;
     if (result == null || result.shipmentVersion() != expected || result.platformShipmentNo() == null
-        || !reference(command.orderId()).equals(result.merchantShipmentNo())
+        || !reference(command).equals(result.merchantShipmentNo())
         || !command.carrier().equals(result.carrier()) || !command.trackingNumber().equals(result.trackingNumber())
         || (command.operation() == Operation.ENSURE_SHIPMENT && !command.orderNumber().equals(result.orderNumber()))) {
       throw new BusinessRuleException("Logistics response does not match the original command");
@@ -90,7 +95,7 @@ public class LogisticsFulfillmentService implements LogisticsFulfillmentV1 {
   }
 
   private void applyProjection(Command command, LogisticsGatewayClient.Result result) {
-    ShipmentRecordView projection = shipments.lockByMerchantNo(reference(command.orderId())).orElseThrow();
+    ShipmentRecordView projection = shipments.lockByMerchantNo(reference(command)).orElseThrow();
     boolean samePlatform = Objects.equals(projection.getPlatformShipmentNo(), result.platformShipmentNo());
     boolean sameDetails = command.carrier().equals(projection.getCarrier())
       && command.trackingNumber().equals(projection.getTrackingNumber());
@@ -110,7 +115,7 @@ public class LogisticsFulfillmentService implements LogisticsFulfillmentV1 {
     throw new BusinessRuleException("Shipment projection conflicts with the logistics response");
   }
 
-  private String reference(Long orderId) {
-    return "CFL-ORDER-" + orderId;
+  private String reference(Command command) {
+    return command.packageId() == null ? "CFL-ORDER-" + command.orderId() : "CFL-PACKAGE-" + command.packageId();
   }
 }

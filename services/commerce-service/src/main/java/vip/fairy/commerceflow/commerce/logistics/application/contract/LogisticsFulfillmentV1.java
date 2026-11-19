@@ -1,6 +1,7 @@
 package vip.fairy.commerceflow.commerce.logistics.application.contract;
 
 import java.util.Optional;
+import org.apache.ibatis.annotations.AutomapConstructor;
 
 public interface LogisticsFulfillmentV1 {
 
@@ -12,7 +13,16 @@ public interface LogisticsFulfillmentV1 {
 
   /** 命令标识由履约步骤派生。订单号用于建单，前置版本用于条件修改，承运商与运单号为原始受理参数。 */
   record Command(String commandId, Operation operation, Long orderId, String orderNumber,
-                 String carrier, String trackingNumber, Long expectedVersion) {
+                 String carrier, String trackingNumber, Long expectedVersion, String packageId) {
+
+    @AutomapConstructor
+    public Command {
+    }
+
+    public Command(String commandId, Operation operation, Long orderId, String orderNumber,
+                   String carrier, String trackingNumber, Long expectedVersion) {
+      this(commandId, operation, orderId, orderNumber, carrier, trackingNumber, expectedVersion, null);
+    }
   }
 
   enum Operation {

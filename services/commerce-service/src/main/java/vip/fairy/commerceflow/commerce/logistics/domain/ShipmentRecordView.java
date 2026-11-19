@@ -20,6 +20,8 @@ public class ShipmentRecordView {
   private Long orderId;
   /** 逆向运单关联的售后单号，正向运单为空。 */
   private String afterSaleId;
+  /** 履约包裹的稳定标识。 */
+  private String packageId;
   /** 退货运单补建时发送给物流平台的原订单编号。 */
   private String orderNumber;
   /** 最近应用的退货物流事件发生时间。 */
@@ -41,6 +43,10 @@ public class ShipmentRecordView {
 
   public Long getId() {
     return id;
+  }
+
+  public String getPackageId() {
+    return packageId;
   }
 
   public Long getOrderId() {

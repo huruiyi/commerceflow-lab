@@ -38,7 +38,10 @@ public class InternalRequestSignature {
         case "commerce-service" -> commerceSecret;
         case "payment-orchestration-service" -> paymentSecret;
         case "fulfillment-service" -> "POST".equals(method)
-          && ("/internal/v1/orders/store/query".equals(target) || "/internal/v1/orders/store/mutations".equals(target))
+          && ("/internal/v1/orders/store/query".equals(target)
+            || "/internal/v1/orders/store/mutations".equals(target)
+            || "/internal/v1/orders/store/packages/reserve".equals(target)
+            || "/internal/v1/orders/store/packages/finish".equals(target))
           ? fulfillmentSecret : null;
         default -> null;
       };

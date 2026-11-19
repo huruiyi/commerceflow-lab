@@ -67,9 +67,12 @@ public class LogisticsFulfillmentBridgeController {
         || command.trackingNumber() == null || command.trackingNumber().isBlank()
         || command.trackingNumber().length() > 120) throw new IllegalArgumentException("Invalid logistics command");
     if (command.operation() == Operation.ENSURE_SHIPMENT) {
+      if (command.packageId() != null && !UUID.fromString(command.packageId()).toString().equals(command.packageId())) {
+        throw new IllegalArgumentException("Invalid package ID");
+      }
       if (command.expectedVersion() != null || command.orderNumber() == null || command.orderNumber().isBlank()
           || command.orderNumber().length() > 64) throw new IllegalArgumentException("Invalid shipment creation");
-    } else if (command.orderNumber() != null || command.expectedVersion() == null
+    } else if (command.packageId() != null || command.orderNumber() != null || command.expectedVersion() == null
         || command.expectedVersion() < 0 || command.expectedVersion() == Long.MAX_VALUE) {
       throw new IllegalArgumentException("Invalid shipment detail update");
     }

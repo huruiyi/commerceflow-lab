@@ -1,6 +1,6 @@
 #requires -Version 7.0
 param(
-  [ValidateSet('Store','Settlement','Payout')][string]$Chapter='Store',
+  [ValidateSet('Store','Settlement','Payout','Packages')][string]$Chapter='Store',
   [string]$BaseUrl='http://localhost:14200',
   [string]$PaymentBaseUrl='http://localhost:14201',
   [string]$LogisticsUrl='http://localhost:18083',
@@ -160,6 +160,90 @@ function Apply-Return($order){
   Api $buyer "/api/purchase-orders/$($order.id)/after-sales" Post @{
     requestId=[guid]::NewGuid();orderLineId=$order.items[0].id;quantity=1;reason='Settlement reversal verification'
   }
+}
+
+function Start-PackageOrder($shop,$product){
+  $cart=Api $buyer '/api/cart/items' Post @{productId=$product.productId;quantity=3}
+  $order=Pay (Submit-VerifiedCheckout $BaseUrl $buyer.Session $buyer.Headers @{itemIds=@($cart.id)})
+  Api $shop.actor "/api/merchant/orders/$($order.id)/confirm" Post @{}|Out-Null
+  Wait-Value {
+    $value=Api $buyer "/api/purchase-orders/$($order.id)"
+    if($value.status-eq'CONFIRMED'){$value}
+  } 'Order did not confirm for split shipment'
+}
+
+function Ship-Package($shop,$order,[int]$quantity,[string]$expected){
+  $packageId=[guid]::NewGuid().ToString()
+  $path="/api/merchant/orders/$($order.id)/packages"
+  $document=@{packageId=$packageId;carrier='CommerceFlow Express';trackingNumber="PACK-$packageId";
+    lines=@(@{orderLineId=$order.items[0].id;quantity=$quantity})}
+  Reject $buyer $path Post $document @(403)
+  $submission=Api $shop.actor $path Post $document
+  if($submission.commandId-ne$packageId){throw 'Wrong package ID'}
+  $state=Wait-Value {
+    $receipt=Api $shop.actor "/api/merchant/orders/fulfillment-v1/commands/$packageId"
+    if($receipt.status-ne'PENDING'){$receipt}
+  } 'Package command did not finish'
+  if($state.status-ne$expected){throw "Unexpected package result: $($state|ConvertTo-Json -Compress)"}
+  if((Api $shop.actor $path Post $document).status-ne$expected){throw 'Package replay changed the result'}
+  $packageId
+}
+
+function Verify-Packages($shop,$product){
+  $order=Start-PackageOrder $shop $product
+  $id=[long]$order.id
+  $first=Ship-Package $shop $order 1 'COMPLETED'
+  (Api $buyer "/api/purchase-orders/$id").status | ForEach-Object {
+    if($_-ne'CONFIRMED'){throw 'First parcel completed the whole order'}
+  }
+  $null=Ship-Package $shop $order 3 'REJECTED'
+  Delivery "CFL-PACKAGE-$first"
+  $null=Wait-Value {
+    $partial=Api $buyer "/api/purchase-orders/$id"
+    if($partial.packages[0].status-eq'DELIVERED'){
+      if($partial.logisticsDeliveredAt){throw 'First parcel marked the whole order as delivered'}
+      $true
+    }
+  } 'First package delivery not projected'
+  $second=Ship-Package $shop $order 2 'COMPLETED'
+  $outbound=Sql inventory-db inventory "SELECT GROUP_CONCAT(l.quantity ORDER BY l.quantity) FROM inventory_outbound_lines l JOIN inventory_outbound_documents d ON d.outbound_id=l.outbound_id WHERE d.order_id=$id"
+  $movements=Sql inventory-db inventory "SELECT COUNT(*) FROM inventory_movements WHERE order_id=$id AND movement_type='OUTBOUND_POSTED'"
+  $allocations=Sql order-db orders "SELECT COUNT(*) FROM order_package_allocations WHERE order_id=$id AND posted_at IS NOT NULL"
+  if($outbound-ne'1,2' -or $movements-ne'2' -or $allocations-ne'2'){throw 'Partial outbound ledgers do not agree'}
+  $merchant=Api $shop.actor "/api/merchant/orders/$id"
+  if($merchant.status-ne'SHIPPED' -or $merchant.packages.Count-ne2){throw 'Merchant package projection incomplete'}
+  Delivery "CFL-PACKAGE-$second"
+  $null=Wait-Value {
+    $complete=Api $buyer "/api/purchase-orders/$id"
+    if($complete.logisticsDeliveredAt -and @($complete.packages|Where-Object status -eq 'DELIVERED').Count-eq2){
+      $true
+    }
+  } 'Order did not reach aggregate delivery'
+  Api $buyer "/api/purchase-orders/$id/receive" Post @{}|Out-Null
+  $returned=Refund-Return $shop (Apply-Return $order)
+  if($returned.merchandiseAmount-ne80 -or $returned.shippingAmount-ne0){throw 'Incorrect package return amount'}
+  $refundOrder=Start-PackageOrder $shop $product
+  $refundId=[long]$refundOrder.id
+  $null=Ship-Package $shop $refundOrder 1 'COMPLETED'
+  $unshipped=Apply-Return $refundOrder
+  if($unshipped.kind-ne'BEFORE_SHIPMENT' -or $unshipped.shippingAmount-ne0){
+    throw 'Refund of the outstanding quantity did not retain order freight'
+  }
+  Api $shop.actor "/api/merchant/after-sales/$($unshipped.id)/review" Post @{accepted=$true;note='Outstanding quantity'}|Out-Null
+  $null=Wait-Value {
+    $value=Api $buyer "/api/purchase-orders/$refundId/after-sales"|Where-Object id -eq $unshipped.id
+    if($value.status-eq'COMPLETED' -and $value.merchandiseAmount-eq80){$true}
+  } 'Before-shipment refund did not complete after the first parcel'
+  $null=Ship-Package $shop $refundOrder 2 'REJECTED'
+  $null=Ship-Package $shop $refundOrder 1 'COMPLETED'
+  $balance=Sql inventory-db inventory "SELECT COUNT(*) FROM inventory_movements WHERE order_id=$refundId AND movement_type='UNSHIPPED_REFUND_RESTOCKED' AND quantity=1"
+  if($balance-ne'1' -or (Api $buyer "/api/purchase-orders/$refundId").status-ne'SHIPPED'){
+    throw 'Restock count or remaining package status is incorrect'
+  }
+  $normal=Complete-Order $shop $product 1
+  if($normal.status-ne'COMPLETED' -or !$normal.logistics.merchantShipmentNo){throw 'Single-shipment flow regressed'}
+  @{order=$id;packages=@($first,$second);legacyOrder=$normal.id;refund=$returned.refundNumber;
+    unshippedRefundOrder=$refundId}
 }
 
 function Refund-Return($shop,$sale){
@@ -397,6 +481,15 @@ if($baselineShop.status-ne'ACTIVE' -or $baselineProduct.merchantId-ne$baselineSh
 $shop=Open-FixtureStore
 $otherShop=$null
 try{
+  if($Chapter-eq'Packages'){
+    $product=New-Product $shop 10
+    $result=Verify-Packages $shop $product
+    if((Archives)-ne$archive){throw 'Historical archives changed'}
+    $actualCart=@(Api $buyer '/api/cart' | Sort-Object id | ForEach-Object {"$($_.id)/$($_.productId)/$($_.quantity)"}) -join '|'
+    if($actualCart-ne$originalCart){throw 'Pre-existing cart items changed'}
+    @{chapter=$Chapter;isolated=$isolated;result=$result;fiveArchivesVerified=$true}|ConvertTo-Json -Depth 5
+    return
+  }
   $product=New-Product $shop
   if($Chapter-eq'Payout'){
     $result=Verify-Payout $shop $product

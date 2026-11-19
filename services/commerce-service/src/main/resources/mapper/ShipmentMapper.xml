@@ -4,8 +4,8 @@
 
   <insert id="prepare">
     <![CDATA[
-      INSERT INTO shipment_records(order_id, merchant_shipment_no, carrier, tracking_number, status)
-      VALUES (#{orderId}, #{merchantNo}, #{carrier}, #{tracking}, 'REQUESTED')
+      INSERT INTO shipment_records(order_id, package_id, merchant_shipment_no, carrier, tracking_number, status)
+      VALUES (#{orderId}, #{packageId}, #{merchantNo}, #{carrier}, #{tracking}, 'REQUESTED')
       ON DUPLICATE KEY UPDATE order_id = order_id
     ]]>
   </insert>
@@ -17,6 +17,28 @@
       WHERE outbound_order_id = #{orderId}
     ]]>
   </select>
+
+  <select id="packages" resultType="vip.fairy.commerceflow.commerce.logistics.domain.ShipmentRecordView">
+    SELECT * FROM shipment_records WHERE order_id=#{orderId} AND package_id IS NOT NULL ORDER BY id
+  </select>
+
+  <select id="pendingPackageDeliveries"
+          resultType="vip.fairy.commerceflow.commerce.logistics.infrastructure.ShipmentMapper$PackageDelivery">
+    SELECT order_id,MAX(delivered_at) AS delivered_at FROM shipment_records
+    WHERE package_id IS NOT NULL AND package_delivery_reported=FALSE
+    GROUP BY order_id
+    HAVING COUNT(*)=COUNT(delivered_at)
+      AND (MAX(package_delivery_checked_at) IS NULL
+        OR MAX(package_delivery_checked_at) &lt; TIMESTAMPADD(SECOND,-15,CURRENT_TIMESTAMP(6)))
+    ORDER BY MAX(package_delivery_checked_at),order_id LIMIT 20
+  </select>
+
+  <update id="checkPackageDelivery">
+    UPDATE shipment_records
+    SET package_delivery_checked_at=CURRENT_TIMESTAMP(6),
+        package_delivery_reported=package_delivery_reported OR #{reported}
+    WHERE order_id=#{orderId} AND package_id IS NOT NULL
+  </update>
 
   <select id="byReturn" resultType="vip.fairy.commerceflow.commerce.logistics.domain.ShipmentRecordView">
     SELECT * FROM shipment_records WHERE after_sale_id = #{afterSaleId}
@@ -85,7 +107,7 @@
       SET platform_shipment_no = #{platformNo},
           carrier = #{carrier},
           tracking_number = #{tracking},
-          status = #{status},
+          status = CASE WHEN last_event_at IS NULL THEN #{status} ELSE status END,
           shipped_at = COALESCE(shipped_at, CURRENT_TIMESTAMP),
           updated_at = CURRENT_TIMESTAMP
       WHERE id = #{id}

@@ -3,6 +3,7 @@ package vip.fairy.commerceflow.order.api;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
+import java.util.Map;
 import java.util.Set;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,6 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.order.application.OrderStoreService;
 import vip.fairy.commerceflow.order.application.OrderLineRefundService;
+import vip.fairy.commerceflow.order.application.OrderPackageService;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderSearchV1;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.CreateOrder;
 import vip.fairy.commerceflow.order.application.contract.v1.OrderStoreV1.Mutation;
@@ -36,13 +38,16 @@ public class OrderStoreV1Controller {
 
   private final OrderStoreService store;
   private final OrderLineRefundService lineRefunds;
+  private final OrderPackageService packages;
   private final OrderShadowProperties properties;
   private final ObjectMapper mapper;
 
   public OrderStoreV1Controller(OrderStoreService store, OrderShadowProperties properties,
-                                ObjectMapper mapper, OrderLineRefundService lineRefunds) {
+                                ObjectMapper mapper, OrderLineRefundService lineRefunds,
+                                OrderPackageService packages) {
     this.store = store;
     this.lineRefunds = lineRefunds;
+    this.packages = packages;
     this.properties = properties;
     this.mapper = mapper;
   }
@@ -90,6 +95,23 @@ public class OrderStoreV1Controller {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN);
     }
     return lineRefunds.apply(mapper.readValue(payload, OrderLineRefundService.Command.class));
+  }
+
+  @PostMapping("/packages/reserve")
+  OrderPackageService.Receipt reservePackage(@RequestBody String payload, HttpServletRequest request) {
+    requireFulfillment(payload, request);
+    return packages.reserve(mapper.readValue(payload, OrderPackageService.Command.class));
+  }
+
+  @PostMapping("/packages/finish")
+  Map<String, Boolean> finishPackage(@RequestBody String payload, HttpServletRequest request) {
+    requireFulfillment(payload, request);
+    return Map.of("finished", packages.finish(mapper.readValue(payload, OrderPackageService.Finish.class)));
+  }
+
+  private void requireFulfillment(String payload, HttpServletRequest request) {
+    requireTrafficAndHash(payload, request);
+    if (!isFulfillment(request)) throw new ResponseStatusException(HttpStatus.FORBIDDEN);
   }
 
   private boolean isFulfillment(HttpServletRequest request) {

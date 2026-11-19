@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.apache.ibatis.annotations.Param;
 import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryOutboundV1.Line;
+import vip.fairy.commerceflow.inventory.domain.OutboundProductQuantity;
 
 public interface InventoryOutboundMapper {
 
@@ -11,6 +12,8 @@ public interface InventoryOutboundMapper {
             @Param("merchantId") long merchantId, @Param("fingerprint") String fingerprint);
 
   String fingerprint(String outboundId);
+
+  List<OutboundProductQuantity> postedQuantities(long orderId);
 
   void insertLine(@Param("outboundId") String outboundId, @Param("line") Line line);
 

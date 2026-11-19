@@ -3,13 +3,18 @@ package vip.fairy.commerceflow.inventory.application.contract.v1;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 public final class InventoryOutboundV1 {
 
   private InventoryOutboundV1() {
   }
 
-  public record Document(UUID outboundId, long orderId, long merchantId, List<Line> lines) {
+  public record Document(UUID outboundId, long orderId, long merchantId, List<Line> lines,
+                         @JsonInclude(JsonInclude.Include.NON_NULL) Boolean partial) {
+    public Document {
+      if (Boolean.FALSE.equals(partial)) partial = null;
+    }
   }
 
   public record Line(long orderLineId, long productId, int quantity) {

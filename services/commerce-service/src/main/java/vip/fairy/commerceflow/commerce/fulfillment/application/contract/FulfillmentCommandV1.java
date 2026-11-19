@@ -1,10 +1,12 @@
 package vip.fairy.commerceflow.commerce.fulfillment.application.contract;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -16,7 +18,8 @@ public record FulfillmentCommandV1(@NotNull @Min(1) @Max(1) Integer version, @No
                                    @NotNull Operation operation, @NotNull @Positive Long merchantId,
                                    @NotNull @Positive Long orderId, @NotNull Instant occurredAt,
                                    @Size(max = 100) String carrier, @Size(max = 120) String trackingNumber,
-                                   @PositiveOrZero @Max(Long.MAX_VALUE - 1) Long expectedShipmentVersion) {
+                                   @PositiveOrZero @Max(Long.MAX_VALUE - 1) Long expectedShipmentVersion,
+                                   @Size(min = 1, max = 200) List<@NotNull @Valid PackageLine> lines) {
 
   public FulfillmentCommandV1 {
     carrier = carrier == null ? null : carrier.strip();
@@ -26,7 +29,7 @@ public record FulfillmentCommandV1(@NotNull @Min(1) @Max(1) Integer version, @No
   @AssertTrue(message = "Fields do not match the fulfillment operation")
   @JsonIgnore
   public boolean isOperationShapeValid() {
-    if (operation == null) return false;
+    if (operation == null || (operation != Operation.SHIP && lines != null)) return false;
     if (operation == Operation.CONFIRM) {
       return carrier == null && trackingNumber == null && expectedShipmentVersion == null;
     }
@@ -36,5 +39,8 @@ public record FulfillmentCommandV1(@NotNull @Min(1) @Max(1) Integer version, @No
 
   public enum Operation {
     CONFIRM, SHIP, UPDATE_SHIPMENT
+  }
+
+  public record PackageLine(@Positive long orderLineId, @Positive int quantity) {
   }
 }

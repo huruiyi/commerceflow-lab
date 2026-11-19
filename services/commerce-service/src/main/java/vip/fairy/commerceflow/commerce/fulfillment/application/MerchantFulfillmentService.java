@@ -7,6 +7,7 @@ import vip.fairy.commerceflow.commerce.fulfillment.application.contract.Fulfillm
 import vip.fairy.commerceflow.commerce.fulfillment.domain.ShipmentJob;
 import vip.fairy.commerceflow.commerce.fulfillment.domain.MerchantFulfillmentJob;
 import vip.fairy.commerceflow.commerce.ordering.api.ShopOrderResponse;
+import vip.fairy.commerceflow.commerce.logistics.application.LogisticsService;
 import vip.fairy.commerceflow.commerce.ordering.application.port.OrderFulfillmentPort;
 import vip.fairy.commerceflow.commerce.ordering.application.port.OrderStorePort;
 import vip.fairy.commerceflow.commerce.ordering.domain.ShopOrderView;
@@ -31,15 +32,17 @@ public class MerchantFulfillmentService {
   private final OrderFulfillmentPort orders;
   private final PaymentOrchestrationV1 payments;
   private final MerchantFulfillmentRoute route;
+  private final LogisticsService logistics;
 
   public MerchantFulfillmentService(OrderStorePort orderStore,
                                     OrderFulfillmentPort orders,
                                     PaymentOrchestrationV1 payments,
-                                    MerchantFulfillmentRoute route) {
+                                    MerchantFulfillmentRoute route, LogisticsService logistics) {
     this.orderStore = orderStore;
     this.orders = orders;
     this.payments = payments;
     this.route = route;
+    this.logistics = logistics;
   }
 
   public CommandResult submitCommand(Long merchantId, FulfillmentCommandV1 command) {
@@ -152,7 +155,7 @@ public class MerchantFulfillmentService {
   private FulfillmentCommandV1 legacyCommand(Operation operation, Long merchantId, Long orderId,
                                              String carrier, String tracking, Long expectedVersion) {
     return new FulfillmentCommandV1(1, UUID.randomUUID(), operation, merchantId, orderId, Instant.now(),
-      carrier, tracking, expectedVersion);
+      carrier, tracking, expectedVersion, null);
   }
 
   private MerchantOrderResponse current(Long merchantId, Long id) {
@@ -208,6 +211,7 @@ public class MerchantFulfillmentService {
       items,
       address,
       events,
+      sharedOrder ? List.of() : logistics.packages(order.getId()),
       refund);
   }
 

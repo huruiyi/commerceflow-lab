@@ -20,6 +20,8 @@ export class MerchantOrdersComponent implements OnInit {
   private loadVersion = 0;
   carrier: Record<number, string> = {};
   tracking: Record<number, string> = {};
+  packageQuantities: Record<number, number | null> = {};
+  private packageRequests = new Map<number, { key: string; id: string }>();
   expandedOrders = new Set<number>();
   notice?: { type: 'success' | 'danger' | 'info'; text: string };
   pending = new Set<number>();
@@ -99,6 +101,45 @@ export class MerchantOrdersComponent implements OnInit {
       if (value.status !== 'SHIPPED') return 'shipmentAccepted';
       return order.status === 'SHIPPED' ? 'shipmentUpdated' : 'orderShipped';
     });
+  }
+
+  savePackage(order: PurchaseOrder): void {
+    if (this.shipmentInvalid(order) || this.pending.has(order.id)) return;
+    const lines = order.items
+      .map((item) => ({ orderLineId: item.id, quantity: this.packageQuantities[item.id] ?? 0 }))
+      .filter((line) => line.quantity > 0);
+    if (!lines.length || lines.some((line) => !Number.isInteger(line.quantity))) return;
+    const carrier = this.carrier[order.id].trim();
+    const trackingNumber = this.tracking[order.id].trim();
+    const key = JSON.stringify({ carrier, trackingNumber, lines });
+    const previous = this.packageRequests.get(order.id);
+    const id = previous?.key === key ? previous.id : crypto.randomUUID();
+    this.packageRequests.set(order.id, { key, id });
+    this.pending.add(order.id);
+    this.api
+      .shipMerchantPackage(order.id, id, carrier, trackingNumber, lines)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => {
+          this.pending.delete(order.id);
+          this.changeDetector.markForCheck();
+        }),
+      )
+      .subscribe({
+        next: () => {
+          this.tracking[order.id] = '';
+          order.items.forEach((item) => delete this.packageQuantities[item.id]);
+          this.notice = { type: 'success', text: this.i18n.t('packageShipped') };
+          this.load();
+        },
+        error: (error) => {
+          if (error instanceof Error && error.message === 'REJECTED') this.packageRequests.delete(order.id);
+          this.notice = {
+            type: error instanceof TimeoutError ? 'info' : 'danger',
+            text: this.i18n.t(error instanceof TimeoutError ? 'orderStatusPending' : 'requestFailed'),
+          };
+        },
+      });
   }
 
   shipmentInvalid(order: PurchaseOrder): boolean {

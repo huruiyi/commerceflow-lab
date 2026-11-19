@@ -4,14 +4,15 @@
 
   <insert id="register">
     INSERT INTO logistics_fulfillment_commands
-      (command_id,operation,order_id,order_number,carrier,tracking_number,expected_version)
-    VALUES (#{commandId},#{operation},#{orderId},#{orderNumber},#{carrier},#{trackingNumber},#{expectedVersion})
+      (command_id,operation,order_id,order_number,carrier,tracking_number,expected_version,package_id)
+    VALUES (#{commandId},#{operation},#{orderId},#{orderNumber},#{carrier},#{trackingNumber},#{expectedVersion},
+      #{packageId})
     ON DUPLICATE KEY UPDATE command_id=command_id
   </insert>
 
   <select id="find"
           resultType="vip.fairy.commerceflow.commerce.logistics.application.contract.LogisticsFulfillmentV1$Command">
-    SELECT command_id,operation,order_id,order_number,carrier,tracking_number,expected_version
+    SELECT command_id,operation,order_id,order_number,carrier,tracking_number,expected_version,package_id
     FROM logistics_fulfillment_commands WHERE command_id=#{commandId}
   </select>
 

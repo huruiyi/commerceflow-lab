@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Set;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -17,6 +18,9 @@ import vip.fairy.commerceflow.commerce.logistics.infrastructure.ShipmentMapper;
 import vip.fairy.commerceflow.commerce.ordering.application.port.OrderLogisticsPort;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -24,6 +28,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class LogisticsNotificationService {
 
+  private static final Logger LOG = LoggerFactory.getLogger(LogisticsNotificationService.class);
   private static final List<String> FLOW = List.of(
     "REQUESTED", "CREATED", "PICKED_UP", "IN_TRANSIT",
     "AT_STATION", "OUT_FOR_DELIVERY", "DELIVERED"
@@ -82,11 +87,31 @@ public class LogisticsNotificationService {
     return new ReconciliationResult(processed, duplicates, rejected);
   }
 
+  @Scheduled(fixedDelayString = "${commerceflow.logistics-platform.package-delivery-delay:5s}")
+  public void reconcilePackageDeliveries() {
+    for (var delivery : shipments.pendingPackageDeliveries()) {
+      Long orderId = delivery.orderId();
+      try {
+        String state = orders.orderStatus(orderId);
+        boolean fulfilled = state != null && Set.of("SHIPPED", "RECEIVED", "COMPLETED").contains(state);
+        if (fulfilled) {
+          if ("SHIPPED".equals(state)) lifecycle.scheduleAutoReceive(orderId, delivery.deliveredAt());
+          orders.markDelivered(orderId, delivery.deliveredAt());
+        }
+        shipments.checkPackageDelivery(orderId, fulfilled);
+      } catch (RuntimeException failure) {
+        LOG.warn("Package delivery reconciliation for order {} will retry", orderId, failure);
+        shipments.checkPackageDelivery(orderId, false);
+      }
+    }
+  }
+
   private Result apply(Notice notice, String digest, String source, String processedStatus) {
     if (shipments.notificationCount(notice.notificationId()) > 0) return new Result("DUPLICATE");
     ShipmentRecordView shipment = shipments.lockByMerchantNo(notice.merchantShipmentNo()).orElse(null);
     if (shipment == null) return new Result("UNKNOWN_SHIPMENT");
     boolean returning = shipment.getAfterSaleId() != null;
+    boolean packaged = shipment.getPackageId() != null;
     if (shipment.getPlatformShipmentNo() != null && notice.platformShipmentNo() != null
       && !shipment.getPlatformShipmentNo().equals(notice.platformShipmentNo())) {
       shipments.insertNotification(
@@ -102,12 +127,12 @@ public class LogisticsNotificationService {
       );
       return new Result("REJECTED");
     }
-    if (returning && (notice.platformShipmentNo() == null || notice.platformShipmentNo().isBlank()
+    if ((returning || packaged) && (notice.platformShipmentNo() == null || notice.platformShipmentNo().isBlank()
       || !shipment.getCarrier().equals(notice.carrier())
       || !shipment.getTrackingNumber().equals(notice.trackingNumber())
       || notice.occurredAt() == null)) {
       shipments.insertNotification(
-        shipment.getId(), notice.notificationId(), "REJECTED", digest, "Return shipment details mismatch"
+        shipment.getId(), notice.notificationId(), "REJECTED", digest, "Shipment details mismatch"
       );
       return new Result("REJECTED");
     }
@@ -118,10 +143,10 @@ public class LogisticsNotificationService {
       shipment.getId(), notice.notificationId(), eventType, notice.status(),
       notice.location(), notice.description(), notice.occurredAt()
     );
-    if (inserted == 1 && returning && shouldApplyReturn(shipment, notice, eventType)) {
+    if (inserted == 1 && (returning || packaged) && shouldApplyReturn(shipment, notice, eventType)) {
       shipments.updateReturnStatus(shipment.getId(), notice.status(), notice.occurredAt());
     }
-    if (inserted == 1 && !returning && shouldApply(shipment.getStatus(), notice.status(), eventType)) {
+    if (inserted == 1 && !returning && !packaged && shouldApply(shipment.getStatus(), notice.status(), eventType)) {
       shipments.updateStatus(shipment.getId(), notice.status(), notice.occurredAt());
       if ("DELIVERED".equals(notice.status())) {
         lifecycle.scheduleAutoReceive(shipment.getOrderId(), notice.occurredAt());

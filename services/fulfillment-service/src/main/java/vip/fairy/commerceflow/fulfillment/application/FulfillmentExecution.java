@@ -4,11 +4,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.Comparator;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.fulfillment.application.ShadowReplication.CommandStatus;
 import vip.fairy.commerceflow.fulfillment.domain.ExecutionTask;
 import vip.fairy.commerceflow.fulfillment.domain.FulfillmentCommand;
@@ -23,11 +25,14 @@ public class FulfillmentExecution {
   private final FulfillmentMode mode;
   private final ShadowDatabases databases;
   private final FulfillmentDownstream downstream;
+  private final ObjectMapper mapper;
 
-  public FulfillmentExecution(FulfillmentMode mode, ShadowDatabases databases, FulfillmentDownstream downstream) {
+  public FulfillmentExecution(FulfillmentMode mode, ShadowDatabases databases, FulfillmentDownstream downstream,
+                              ObjectMapper mapper) {
     this.mode = mode;
     this.databases = databases;
     this.downstream = downstream;
+    this.mapper = mapper;
   }
 
   public CommandStatus accept(FulfillmentCommand command, boolean legacy) {
@@ -43,7 +48,8 @@ public class FulfillmentExecution {
     } catch (RuntimeException failure) {
       throw error(HttpStatus.SERVICE_UNAVAILABLE, "Order ownership cannot be verified");
     }
-    if (facts != null && command.operation() == Operation.SHIP && shipmentLines(command).isEmpty()) {
+    if (facts != null && command.operation() == Operation.SHIP && command.lines() == null
+        && shipmentLines(command).isEmpty()) {
       throw error(HttpStatus.CONFLICT, "Shipment requires all order lines to belong to the merchant");
     }
 
@@ -123,7 +129,7 @@ public class FulfillmentExecution {
     };
     return new ExecutionTask(command.commandId().toString(), command.orderId(), command.merchantId(), operation,
       operation == Operation.SHIP ? order.orderNumber() : null, command.carrier(), command.trackingNumber(),
-      command.expectedShipmentVersion(), detail, step, "PENDING", null);
+      command.expectedShipmentVersion(), detail, step, "PENDING", null, packageLines(command));
   }
 
   @Scheduled(fixedDelayString = "${commerceflow.fulfillment.execution-delay:1s}")
@@ -171,6 +177,10 @@ public class FulfillmentExecution {
     String stepId = UUID.nameUUIDFromBytes((id + ":" + task.step()).getBytes(StandardCharsets.UTF_8)).toString();
     return switch (task.step()) {
       case "RESERVE" -> {
+        if (task.packageShipment()) {
+          yield downstream.reservePackage(task).accepted() ? new StepResult("LOGISTICS", null, null)
+            : new StepResult(null, "REJECTED", "PACKAGE_ADMISSION_REJECTED");
+        }
         if (strictReservation && downstream.hasShipment(task.orderId())) {
           yield new StepResult(null, "REVIEW_REQUIRED", "EXISTING_LOGISTICS_EVIDENCE");
         }
@@ -189,7 +199,9 @@ public class FulfillmentExecution {
       }
       case "FINISH_ORDER" -> {
         postOutbound(task);
-        yield downstream.mutateOrder(stepId, "MERCHANT_SHIP", task)
+        boolean finished = task.packageShipment() ? downstream.finishPackage(task)
+          : downstream.mutateOrder(stepId, "MERCHANT_SHIP", task);
+        yield finished
           ? completed() : new StepResult(null, "REVIEW_REQUIRED", "ORDER_SHIPMENT_COMPLETION_REJECTED");
       }
       case "ORDER" -> {
@@ -202,7 +214,8 @@ public class FulfillmentExecution {
   }
 
   private void postOutbound(ExecutionTask task) {
-    var lines = downstream.shipmentLines(task.merchantId(), task.orderId());
+    var lines = task.packageShipment() ? downstream.reservePackage(task).lines()
+      : downstream.shipmentLines(task.merchantId(), task.orderId());
     if (lines.isEmpty()) throw new IllegalStateException("Order shipment lines are unavailable");
     downstream.postOutbound(task, lines);
   }
@@ -222,10 +235,17 @@ public class FulfillmentExecution {
     if (command.orderId() != prior.orderId() || command.operation() != prior.operation()
         || !Objects.equals(command.carrier(), prior.carrier())
         || !Objects.equals(command.trackingNumber(), prior.trackingNumber())
-        || !Objects.equals(command.expectedShipmentVersion(), prior.expectedVersion())) {
+        || !Objects.equals(command.expectedShipmentVersion(), prior.expectedVersion())
+        || !Objects.equals(packageLines(command), prior.packageLines())) {
       throw error(HttpStatus.CONFLICT, "Fulfillment command ID was reused with different parameters");
     }
     return status(prior);
+  }
+
+  private String packageLines(FulfillmentCommand command) {
+    if (command.lines() == null) return null;
+    return mapper.writeValueAsString(command.lines().stream()
+      .sorted(Comparator.comparingLong(FulfillmentCommand.PackageLine::orderLineId)).toList());
   }
 
   private CommandStatus status(ExecutionTask task) {

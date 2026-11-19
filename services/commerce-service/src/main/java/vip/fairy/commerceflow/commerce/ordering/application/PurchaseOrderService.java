@@ -438,6 +438,7 @@ public class PurchaseOrderService {
       ShopOrderResponse.Address.from(orders.address(order.getId())),
       ShopOrderResponse.Payment.from(resolved),
       logistics.find(order.getId()),
+      logistics.packages(order.getId()),
       refund);
   }
 

@@ -30,9 +30,6 @@
     WHERE d.order_id=#{orderId} AND d.merchant_id=#{merchantId}
       AND l.order_line_id=#{orderLineId} AND l.product_id=#{productId}
   </select>
-  <select id="hasOutbound" resultType="boolean">
-    SELECT EXISTS (SELECT 1 FROM inventory_outbound_documents WHERE order_id=#{orderId})
-  </select>
   <insert id="insert">
     INSERT INTO inventory_line_credits(case_id,order_id,order_line_id,merchant_id,product_id,quantity,kind)
     VALUES (#{caseId},#{orderId},#{orderLineId},#{merchantId},#{productId},#{quantity},#{kind})
