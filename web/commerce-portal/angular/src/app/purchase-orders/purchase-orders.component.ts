@@ -22,6 +22,7 @@ import {
   OrderSearchPage,
   PaymentChannel,
   PurchaseOrder,
+  RepurchaseResult,
 } from 'src/model/IPurchaseOrder';
 import { ApiService } from '../services/api.service';
 import { I18nService } from '../services/i18n.service';
@@ -109,6 +110,8 @@ export class PurchaseOrdersComponent implements OnInit {
   cancellationReasons: Record<number, string> = {};
   unavailableProductImages = new Set<number>();
   expandedOrders = new Set<number>();
+  repurchasing = new Set<number>();
+  repurchaseResults: Record<number, RepurchaseResult> = {};
   loading = true;
   loadError = '';
   private loadVersion = 0;
@@ -371,6 +374,34 @@ export class PurchaseOrdersComponent implements OnInit {
     if (!order.logistics?.trackingNumber) return;
     await navigator.clipboard.writeText(order.logistics.trackingNumber);
     this.notices[order.id] = { type: 'success', text: this.i18n.t('trackingCopied') };
+  }
+
+  repurchase(order: PurchaseOrder): void {
+    if (!this.hasAction(order, 'REPURCHASE') || this.repurchasing.has(order.id)) return;
+    const storageKey = `commerceflow:repurchase:${order.id}`;
+    const requestId = sessionStorage.getItem(storageKey) ?? crypto.randomUUID();
+    sessionStorage.setItem(storageKey, requestId);
+    this.repurchasing.add(order.id);
+    delete this.repurchaseResults[order.id];
+    delete this.notices[order.id];
+    this.api
+      .repurchase(order.id, requestId)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => {
+          this.repurchasing.delete(order.id);
+          this.changeDetector.markForCheck();
+        }),
+      )
+      .subscribe({
+        next: (result) => {
+          this.repurchaseResults[order.id] = result;
+          sessionStorage.removeItem(storageKey);
+        },
+        error: () => {
+          this.notices[order.id] = { type: 'danger', text: this.i18n.t('repurchaseFailed') };
+        },
+      });
   }
 
   review(order: PurchaseOrder, itemId: number): void {

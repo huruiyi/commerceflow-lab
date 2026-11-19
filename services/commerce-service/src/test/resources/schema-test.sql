@@ -116,6 +116,15 @@ CREATE TABLE cart_items
   updated_at TIMESTAMP,
   UNIQUE (cart_id, product_id)
 );
+CREATE TABLE cart_repurchase_requests
+(
+  customer_id BIGINT NOT NULL,
+  request_id CHAR(36) NOT NULL,
+  order_id BIGINT NOT NULL,
+  result_json CLOB NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (customer_id, request_id)
+);
 CREATE TABLE shipping_addresses
 (
   id             BIGINT AUTO_INCREMENT PRIMARY KEY,

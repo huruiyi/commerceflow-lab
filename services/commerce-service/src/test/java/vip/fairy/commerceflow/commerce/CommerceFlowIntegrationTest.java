@@ -74,6 +74,7 @@ import vip.fairy.commerceflow.commerce.inventory.infrastructure.transport.Invent
 import vip.fairy.commerceflow.commerce.ordering.application.PurchaseOrderService;
 import vip.fairy.commerceflow.commerce.ordering.api.CreatePaymentRequest;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
+import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentChannelV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCloseCommandV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCloseResultV1;
@@ -948,6 +949,53 @@ class CommerceFlowIntegrationTest {
       "SELECT COUNT(*) FROM payment_records WHERE order_id=?", Integer.class, paidOrderId));
     org.junit.jupiter.api.Assertions.assertEquals(0, jdbc.queryForObject(
       "SELECT COUNT(*) FROM order_events WHERE order_id=?", Integer.class, paidOrderId));
+  }
+
+  @Test
+  @Transactional
+  void repurchaseReplaysTheCartResultAndUsesCurrentProductFacts() throws Exception {
+    var customer = login("demo@example.com", false);
+    Long customerId = jdbc.queryForObject("SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
+    jdbc.update("DELETE FROM cart_items WHERE cart_id IN (SELECT id FROM carts WHERE user_id=?)", customerId);
+    String orderNumber = "REPURCHASE-" + UUID.randomUUID();
+    jdbc.update("""
+      INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,payment_due_at,created_at,updated_at)
+      VALUES (?,?,'RECEIVED',20,'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+      """, orderNumber, customerId);
+    Long orderId = jdbc.queryForObject("SELECT id FROM shop_orders WHERE order_number=?", Long.class, orderNumber);
+    for (long productId : List.of(1L, 2L, 3L)) {
+      jdbc.update("""
+        INSERT INTO order_items(order_id,product_id,merchant_id,product_name,thumbnail_url,unit_price,quantity,subtotal)
+        VALUES (?,?,5,'Previous item','thumb',10,2,20)
+        """, orderId, productId);
+    }
+    when(catalogServiceClient.detail(org.mockito.ArgumentMatchers.eq(2L), nullable(String.class)))
+      .thenThrow(new ResourceNotFoundException("Product not found"));
+    when(inventoryRemoteCommandClient.availability(any())).thenReturn(Map.of(
+      1L, new Stock(1L, true, 5), 2L, new Stock(2L, false, 10), 3L, new Stock(3L, true, 1)));
+    mvc.perform(post("/api/cart/items").session(customer.session()).cookie(customer.cookie())
+        .header("X-XSRF-TOKEN", customer.token()).contentType("application/json")
+        .content("{\"productId\":1,\"quantity\":1}"))
+      .andExpect(status().isOk());
+    String request = json.writeValueAsString(Map.of("requestId", UUID.randomUUID()));
+    for (int attempt = 0; attempt < 2; attempt++) {
+      mvc.perform(post("/api/purchase-orders/{id}/repurchase", orderId).session(customer.session())
+          .cookie(customer.cookie()).header("X-XSRF-TOKEN", customer.token())
+          .contentType("application/json").content(request))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.added.length()").value(1))
+        .andExpect(jsonPath("$.added[0].cartQuantity").value(3))
+        .andExpect(jsonPath("$.added[0].unitPrice").value(1299))
+        .andExpect(jsonPath("$.skipped[0].reason").value("UNLISTED"))
+        .andExpect(jsonPath("$.skipped[1].reason").value("INSUFFICIENT_STOCK"));
+    }
+    mvc.perform(get("/api/cart").session(customer.session()))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.length()").value(1))
+      .andExpect(jsonPath("$[0].quantity").value(3));
+    assertEquals(1, jdbc.queryForObject(
+      "SELECT COUNT(*) FROM cart_repurchase_requests WHERE customer_id=? AND order_id=?",
+      Integer.class, customerId, orderId));
   }
 
   @Test

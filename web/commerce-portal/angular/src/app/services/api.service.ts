@@ -13,6 +13,7 @@ import {
   OrderSearchPage,
   PaymentChannel,
   PurchaseOrder,
+  RepurchaseResult,
 } from 'src/model/IPurchaseOrder';
 import { ScheduledTask, ScheduledTaskEvent, SchedulingPolicy, SchedulingPolicyEvent } from 'src/model/IScheduling';
 import { LogisticsCallbackAuditEvent, LogisticsCallbackOutbox } from 'src/model/ILogisticsCallbackAdmin';
@@ -179,6 +180,10 @@ export class ApiService {
 
   purchaseOrder(id: number): Observable<PurchaseOrder> {
     return this.http.get<PurchaseOrder>(`/api/purchase-orders/${id}`);
+  }
+
+  repurchase(id: number, requestId: string): Observable<RepurchaseResult> {
+    return this.http.post<RepurchaseResult>(`/api/purchase-orders/${id}/repurchase`, { requestId });
   }
 
   orderLogistics(id: number): Observable<OrderLogistics> {

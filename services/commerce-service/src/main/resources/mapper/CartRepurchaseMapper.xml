@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.cart.infrastructure.CartRepurchaseMapper">
+
+  <select id="find" resultType="vip.fairy.commerceflow.commerce.cart.infrastructure.CartRepurchaseMapper$Receipt">
+    SELECT order_id AS orderId, result_json AS resultJson
+    FROM cart_repurchase_requests
+    WHERE customer_id = #{customerId} AND request_id = #{requestId}
+    FOR UPDATE
+  </select>
+
+  <insert id="insert">
+    INSERT INTO cart_repurchase_requests (customer_id, request_id, order_id, result_json)
+    VALUES (#{customerId}, #{requestId}, #{orderId}, #{resultJson})
+  </insert>
+</mapper>

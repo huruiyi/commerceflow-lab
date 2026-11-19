@@ -153,6 +153,37 @@
         </div>
       </div>
     </section>
+    <section *ngIf="hasAction(order, 'REPURCHASE')" class="border rounded p-3">
+      <button
+        hlmBtn
+        variant="outline"
+        type="button"
+        (click)="repurchase(order)"
+        [disabled]="repurchasing.has(order.id)"
+      >
+        {{ (repurchasing.has(order.id) ? 'repurchasePending' : 'repurchase') | t }}
+      </button>
+      <div *ngIf="repurchaseResults[order.id] as result" class="mt-3" aria-live="polite">
+        <h4 *ngIf="result.added.length" class="h6">{{ 'repurchaseAdded' | t }}</h4>
+        <ul *ngIf="result.added.length">
+          <li *ngFor="let item of result.added">
+            {{ item.productName }} · {{ i18n.t('repurchaseAddedQuantity', { count: item.addedQuantity }) }} ·
+            {{ item.unitPrice | trcurrency }}
+          </li>
+        </ul>
+        <h4 *ngIf="result.skipped.length" class="h6">{{ 'repurchaseSkipped' | t }}</h4>
+        <ul *ngIf="result.skipped.length">
+          <li *ngFor="let item of result.skipped">
+            {{ item.productName }} · {{ 'repurchaseReason_' + item.reason | t }}
+            <span *ngIf="item.additionalAvailable !== null && item.reason !== 'SOLD_OUT'">
+              · {{ i18n.t('repurchaseAdditionalAvailable', { count: item.additionalAvailable }) }}
+            </span>
+          </li>
+        </ul>
+        <p *ngIf="!result.added.length && !result.skipped.length">{{ 'repurchaseNoItems' | t }}</p>
+        <a routerLink="/cart">{{ 'repurchaseViewCart' | t }}</a>
+      </div>
+    </section>
     <section class="items-panel">
       <div *ngFor="let item of order.items" class="item-card">
         <div class="item-row">

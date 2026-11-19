@@ -1,16 +1,19 @@
 package vip.fairy.commerceflow.commerce.ordering.api;
 
+import vip.fairy.commerceflow.commerce.cart.application.contract.v1.RepurchaseCartV1;
 import vip.fairy.commerceflow.commerce.identity.application.CurrentUserService;
 import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
 import vip.fairy.commerceflow.commerce.logistics.api.LogisticsResponse;
 import vip.fairy.commerceflow.commerce.logistics.application.LogisticsService;
 import vip.fairy.commerceflow.commerce.ordering.application.OrderCancellationService;
+import vip.fairy.commerceflow.commerce.ordering.application.OrderRepurchaseService;
 import vip.fairy.commerceflow.commerce.ordering.application.PurchaseOrderService;
 import vip.fairy.commerceflow.commerce.ordering.application.CheckoutStockException;
 import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderListReadV1;
 import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderListPage;
 import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderListQuery;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -28,6 +31,7 @@ import java.util.List;
 import java.time.LocalDate;
 import java.time.Instant;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/purchase-orders")
@@ -39,15 +43,17 @@ public class PurchaseOrderController {
   private final LogisticsService logistics;
   private final OrderCancellationService cancellations;
   private final OrderListReadV1 search;
+  private final OrderRepurchaseService repurchase;
 
   public PurchaseOrderController(CurrentUserService currentUsers, PurchaseOrderService orders,
                                  OrderCancellationService cancellations, LogisticsService logistics,
-                                 OrderListReadV1 search) {
+                                 OrderListReadV1 search, OrderRepurchaseService repurchase) {
     this.currentUsers = currentUsers;
     this.orders = orders;
     this.cancellations = cancellations;
     this.logistics = logistics;
     this.search = search;
+    this.repurchase = repurchase;
   }
 
   @PostMapping("/checkout")
@@ -92,6 +98,15 @@ public class PurchaseOrderController {
   @GetMapping("/{id}/logistics")
   LogisticsResponse logistics(@PathVariable Long id, Authentication authentication) {
     return logistics.require(currentUsers.require(authentication), id);
+  }
+
+  @PostMapping("/{id}/repurchase")
+  RepurchaseCartV1.Result repurchase(@PathVariable Long id, @Valid @RequestBody RepurchaseRequest request,
+                                    Authentication authentication) {
+    return repurchase.addToCart(currentUsers.require(authentication).getId(), id, request.requestId());
+  }
+
+  record RepurchaseRequest(@NotNull UUID requestId) {
   }
 
   @PostMapping("/{id}/payments")

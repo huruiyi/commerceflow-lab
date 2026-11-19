@@ -278,6 +278,7 @@ public class PurchaseOrderService {
         actions.add("VIEW_LOGISTICS");
         actions.add("COPY_TRACKING_NUMBER");
         actions.add("REVIEW_ITEM");
+        actions.add("REPURCHASE");
       }
       default -> {
       }

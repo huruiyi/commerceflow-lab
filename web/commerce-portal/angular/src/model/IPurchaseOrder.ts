@@ -105,7 +105,25 @@ export type OrderAction =
   | 'VIEW_LOGISTICS'
   | 'COPY_TRACKING_NUMBER'
   | 'CONFIRM_RECEIPT'
-  | 'REVIEW_ITEM';
+  | 'REVIEW_ITEM'
+  | 'REPURCHASE';
+
+export interface RepurchaseResult {
+  added: {
+    productId: number;
+    productName: string;
+    addedQuantity: number;
+    cartQuantity: number;
+    unitPrice: number;
+  }[];
+  skipped: {
+    productId: number;
+    productName: string;
+    requestedQuantity: number;
+    reason: 'UNLISTED' | 'SOLD_OUT' | 'INSUFFICIENT_STOCK' | 'CART_LIMIT';
+    additionalAvailable: number | null;
+  }[];
+}
 
 export interface PurchaseOrder {
   inventoryStatus?: string;
