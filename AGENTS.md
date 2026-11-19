@@ -99,3 +99,10 @@ fairy-commerceflow-rabbitmq-broker
 详细规则见 `docs/CODE-STYLE.md`。架构层待办只记录在 `docs/architecture/`，不与业务 `docs/TODO.md` 混用。
 
 详细理由、现状差异和未来迁移步骤见 `docs/NAMING-CONVENTIONS.md`。
+
+## 8. 临时兼容
+
+兼容只允许用于有明确退出条件的过渡期。引入前记录范围、负责人、移除条件和截止日期或批次。
+事项最终验收前必须完成数据和调用方迁移，移除临时兼容分支及正式运行对旧入口、旧源和旧权限的依赖。
+最终发布保留统一契约和唯一权威写入方。详见 [代码规范第 7 节](docs/CODE-STYLE.md#7-临时兼容与最终验收)
+及[最终验收门禁](docs/VERIFICATION-SYSTEM.md#12-临时兼容退出验收)。
