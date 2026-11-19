@@ -40,7 +40,7 @@ services:
       SOURCE_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
       RUNTIME_DATABASE_USERNAME: ${COMMERCE_RUNTIME_DATABASE_USERNAME:-commerce_runtime}
       RUNTIME_DATABASE_PASSWORD: ${COMMERCE_RUNTIME_DATABASE_PASSWORD:-commerce-runtime-password}
-      FULFILLMENT_SOURCE_OWNER: COMMERCE
+      FULFILLMENT_SOURCE_OWNER: FULFILLMENT
     volumes:
       - ./infrastructure/commerce/freeze-source-access.sh:/access/freeze-source-access.sh:ro
     depends_on:
@@ -161,7 +161,6 @@ services:
     restart: unless-stopped
 
   fulfillment-db:
-    profiles: [fulfillment-shadow]
     container_name: fairy-commerceflow-fulfillment-db
     image: mysql:8.4
     environment:
@@ -199,29 +198,37 @@ services:
     restart: "no"
 
   fulfillment-service:
-    profiles: [fulfillment-shadow]
     container_name: fairy-commerceflow-fulfillment-service
     build:
       context: ./services/fulfillment-service
     environment:
-      FULFILLMENT_RUNTIME_MODE: SHADOW
+      FULFILLMENT_RUNTIME_MODE: EXECUTION
+      FULFILLMENT_REQUIRE_PROMOTED_MODE: "true"
       FULFILLMENT_DATABASE_URL: jdbc:mysql://fulfillment-db:3306/fulfillment?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
-      FULFILLMENT_SOURCE_URL: jdbc:mysql://commerce-db:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
-      FULFILLMENT_ORDER_AUDIT_URL: jdbc:mysql://order-db:3306/orders?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
       FULFILLMENT_DATABASE_USERNAME: ${FULFILLMENT_DATABASE_USERNAME:-fulfillment}
       FULFILLMENT_DATABASE_PASSWORD: ${FULFILLMENT_DATABASE_PASSWORD:-fulfillment-password}
-      FULFILLMENT_READER_PASSWORD: ${FULFILLMENT_READER_PASSWORD:-fulfillment-shadow-reader}
-      FULFILLMENT_INTERNAL_SECRET: ${FULFILLMENT_INTERNAL_SECRET:-demo-fulfillment-shadow-secret}
-      FULFILLMENT_SHADOW_DELAY: ${FULFILLMENT_SHADOW_DELAY:-5s}
+      FULFILLMENT_INTERNAL_SECRET: ${FULFILLMENT_INTERNAL_SECRET:-demo-fulfillment-internal-secret}
+      FULFILLMENT_RECOVERY_ENABLED: "true"
+      FULFILLMENT_ADMIN_SECRET: ${FULFILLMENT_ADMIN_SECRET:-demo-fulfillment-admin-secret}
+      FULFILLMENT_ORDER_ENDPOINT: http://order-service:8080
+      FULFILLMENT_ORDER_SECRET: ${FULFILLMENT_ORDER_SECRET:-demo-fulfillment-order-secret}
+      FULFILLMENT_LOGISTICS_ENDPOINT: http://commerce-service:8080
+      FULFILLMENT_LOGISTICS_SECRET: ${FULFILLMENT_LOGISTICS_SECRET:-demo-fulfillment-logistics-secret}
+      FULFILLMENT_INVENTORY_ENDPOINT: http://inventory-service:8080
+      FULFILLMENT_INVENTORY_SECRET: ${FULFILLMENT_INVENTORY_SECRET:-demo-fulfillment-inventory-secret}
     ports:
       - "127.0.0.1:18091:8080"
     depends_on:
       fulfillment-db:
         condition: service_healthy
-      fulfillment-shadow-access:
+      commerce-source-access-freezer:
         condition: service_completed_successfully
+      order-service:
+        condition: service_healthy
+      inventory-service:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health/readiness"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -623,8 +630,11 @@ services:
     build:
       context: ./services/commerce-service
     environment:
-      FULFILLMENT_REMOTE_ENABLED: "false"
-      FULFILLMENT_LOGISTICS_BRIDGE_ENABLED: "false"
+      FULFILLMENT_SERVICE_BASE_URL: http://fulfillment-service:8080
+      FULFILLMENT_INTERNAL_SECRET: ${FULFILLMENT_INTERNAL_SECRET:-demo-fulfillment-internal-secret}
+      FULFILLMENT_ADMIN_SECRET: ${FULFILLMENT_ADMIN_SECRET:-demo-fulfillment-admin-secret}
+      FULFILLMENT_LOGISTICS_BRIDGE_ENABLED: "true"
+      FULFILLMENT_LOGISTICS_SECRET: ${FULFILLMENT_LOGISTICS_SECRET:-demo-fulfillment-logistics-secret}
       DATABASE_URL: jdbc:mysql://commerce-db:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&sessionVariables=innodb_lock_wait_timeout=${DATABASE_LOCK_WAIT_TIMEOUT_SECONDS:-5}
       DATABASE_USERNAME: ${COMMERCE_RUNTIME_DATABASE_USERNAME:-commerce_runtime}
       DATABASE_PASSWORD: ${COMMERCE_RUNTIME_DATABASE_PASSWORD:-commerce-runtime-password}
@@ -712,6 +722,8 @@ services:
     ports:
       - "18081:8080"
     depends_on:
+      fulfillment-service:
+        condition: service_healthy
       commerce-source-access-freezer:
         condition: service_completed_successfully
       commerce-redis:
@@ -894,7 +906,7 @@ services:
     build:
       context: ./services/order-service
     environment:
-      FULFILLMENT_ORDER_SECRET: ""
+      FULFILLMENT_ORDER_SECRET: ${FULFILLMENT_ORDER_SECRET:-demo-fulfillment-order-secret}
       DATABASE_URL: jdbc:mysql://order-db:3306/orders?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       DATABASE_USERNAME: ${ORDER_DATABASE_USERNAME:-orders}
       DATABASE_PASSWORD: ${ORDER_DATABASE_PASSWORD:-orders-password}
@@ -958,6 +970,23 @@ services:
       retries: 30
       start_period: 20s
     restart: unless-stopped
+
+  payment-demo-init:
+    image: mysql:8.4
+    profiles: ["demo-data"]
+    entrypoint:
+      - sh
+      - -ec
+      - 'MYSQL_PWD="$$PAYMENT_PASSWORD" exec mysql -h payment-db -u "$$PAYMENT_USERNAME" --default-character-set=utf8mb4 payments < /demo/init-payment.sql'
+    environment:
+      PAYMENT_USERNAME: ${PAYMENT_ORCHESTRATION_DATABASE_USERNAME:-payments}
+      PAYMENT_PASSWORD: ${PAYMENT_ORCHESTRATION_DATABASE_PASSWORD:-payments-password}
+    volumes:
+      - ./infrastructure/demo/init-payment.sql:/demo/init-payment.sql:ro
+    depends_on:
+      payment-orchestration-service:
+        condition: service_healthy
+    restart: "no"
 
   inventory-data-migrator:
     container_name: fairy-commerceflow-inventory-data-migrator

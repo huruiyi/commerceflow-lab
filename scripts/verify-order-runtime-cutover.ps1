@@ -23,6 +23,15 @@ function WaitHealthy([string]$Container) {
   throw "$Container did not become healthy"
 }
 
+function Get-SourceOrderState {
+  $exists = DbScalar commerce-db root local-root-password commerceflow @'
+SELECT COUNT(*) FROM information_schema.tables
+WHERE table_schema='commerceflow' AND table_name='shop_orders';
+'@
+  if ($exists -eq '0') { return 'retired' }
+  return DbScalar commerce-db root local-root-password commerceflow 'SELECT COUNT(*) FROM shop_orders;'
+}
+
 docker compose up -d --wait order-service commerce-service | Out-Null
 $orderEnvironment = docker inspect fairy-commerceflow-order-service `
   --format '{{range .Config.Env}}{{println .}}{{end}}'
@@ -31,12 +40,12 @@ if ($orderEnvironment -notcontains 'ORDER_ACCEPTING_TRAFFIC=true' -or
   throw 'Order service is not in runtime-only cutover mode'
 }
 
-docker compose exec -T commerce-db mysql --user=commerce_runtime `
-  --password=commerce-runtime-password commerceflow -e 'SELECT COUNT(*) FROM shop_orders;' 2>$null | Out-Null
-if ($LASTEXITCODE -eq 0) { throw 'Commerce runtime user can still read the order source table' }
-
-$sourceBefore = [long](DbScalar commerce-db root local-root-password commerceflow `
-  'SELECT COUNT(*) FROM shop_orders;')
+$sourceBefore = Get-SourceOrderState
+if ($sourceBefore -ne 'retired') {
+  docker compose exec -T commerce-db mysql --user=commerce_runtime `
+    --password=commerce-runtime-password commerceflow -e 'SELECT COUNT(*) FROM shop_orders;' 2>$null | Out-Null
+  if ($LASTEXITCODE -eq 0) { throw 'Commerce runtime user can still read the order source table' }
+}
 $targetBefore = [long](DbScalar order-db orders orders-password orders `
   'SELECT COUNT(*) FROM shop_orders;')
 
@@ -52,8 +61,7 @@ Invoke-RestMethod "$BaseUrl/api/cart/items" -Method Post -WebSession $session `
 $order = Invoke-RestMethod "$BaseUrl/api/purchase-orders/checkout" -Method Post `
   -WebSession $session -Headers $headers -ContentType application/json -Body '{}'
 
-$sourceAfter = [long](DbScalar commerce-db root local-root-password commerceflow `
-  'SELECT COUNT(*) FROM shop_orders;')
+$sourceAfter = Get-SourceOrderState
 $targetAfter = [long](DbScalar order-db orders orders-password orders `
   'SELECT COUNT(*) FROM shop_orders;')
 $targetRow = [long](DbScalar order-db orders orders-password orders `
@@ -73,4 +81,4 @@ try {
   WaitHealthy fairy-commerceflow-order-service
 }
 
-Write-Host "Order runtime cutover passed: order=$($order.id), source=$sourceAfter unchanged, target=$targetAfter, source access denied, outage=503." -ForegroundColor Green
+Write-Host "Order runtime cutover passed: order=$($order.id), source=$sourceAfter unchanged, target=$targetAfter, outage=503." -ForegroundColor Green

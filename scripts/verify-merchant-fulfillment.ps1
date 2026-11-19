@@ -1,7 +1,11 @@
-param([string]$BaseUrl='http://localhost:14200')
+param(
+  [string]$BaseUrl='http://localhost:14200',
+  [string]$PaymentBaseUrl='http://localhost:14201',
+  [string]$PaymentOrchestrationUrl='http://localhost:18090'
+)
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $ErrorActionPreference='Stop'
-$paymentResult=& "$PSScriptRoot/verify-payment-notifications.ps1" -BaseUrl $BaseUrl
+$paymentResult=& "$PSScriptRoot/verify-payment-notifications.ps1" -BaseUrl $BaseUrl -PaymentBaseUrl $PaymentBaseUrl -PaymentOrchestrationUrl $PaymentOrchestrationUrl
 if(-not$?){throw 'Could not create a paid order'}
 $paymentResult|Write-Output
 $sampleNumber=[regex]::Match(($paymentResult -join ' '),'order=(ORD-[A-Z0-9]+)').Groups[1].Value

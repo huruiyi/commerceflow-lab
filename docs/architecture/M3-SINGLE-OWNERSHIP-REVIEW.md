@@ -63,13 +63,18 @@ PostgreSQL 专项按[数据库演进计划](DATABASE-EVOLUTION-PLAN.md)另行评
   见[旧轻量订单退役](#9-旧轻量订单退役)。
 - [x] 履约发布使用执行配置和显式版本镜像，密钥由各环境注入。带存量数据的重新部署、新出库和有新写入的六表回退均已演练。
   见[独立恢复、发布与回退](FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#22-独立恢复发布与回退)。
-- [ ] 保留版本化回退工件与商城旧履约分支，直到下一发布版本也通过存量恢复及带新写入的回退。通过后再评审旧分支和 Mapper 退役。
+- [x] 履约候选版本 `r20261119-fulfillment-01` 已通过九库存量恢复、新发货、带新写入的六表回退及退役门禁验证。[履约新版本验收](FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#23-2026-11-19-履约新版本恢复与回退验收)
+- [x] 完成商城旧履约分支和 Mapper 退役评审，核对日常运行入口、读写授权、脚本以及版本化工件。[退役评审](FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#24-2026-11-19-商城旧履约分支退役评审)
+- [x] 独立履约回退包已脱离当前检出完成恢复、回传及旧商城镜像接管。新运单仍可查，重复发货继续幂等。[独立回退包验收](FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#25-2026-11-19-履约独立回退包验收)
+- [x] 商城本地履约执行代码及专用 Mapper 已退役，空卷、存量重启、商家发货、管理员恢复和错误归属门禁已通过隔离验收。[商城本地履约代码退役](FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#26-2026-11-19-商城本地履约代码退役)
 - [x] 日常环境已部署真实预占付款校验和库存提交门禁，保留原数据库及五笔归档。订单 695 拒绝付款、发货和两次空扣减；订单 696 扣减两件并生成一张运单。[验收记录](INVENTORY-RECONCILIATION-REVIEW.md#2026-11-19-日常环境库存门禁验收)
 - [x] 商城从自己的 `inventory_command_delivery_outbox` 分别统计待对账、未完成投递数量及最老等待时长。隔离 MySQL 已逐项核对物理行、指标和告警状态，确认已确认和已关闭记录排除在积压之外。库存服务的出库积压和发布失败独立触发及恢复。[库存命令监控验收](INVENTORY-RECONCILIATION-REVIEW.md#2026-11-19-库存命令监控验收)
-- [ ] **下一项为订单、目录和通知的业务链路监控。** 以可复跑的只读检查核对数据所有者、源授权、存量差异和未决账本。
-- [ ] 在隔离环境验证取消订单的跨库中断窗口。`OrderCancellationService.finish` 先通过 Order V1 写入取消终态，再写商城的取消效果与通知 Outbox。顾客重复取消遇到 `CANCELLED` 会直接返回。需覆盖两次写入之间的进程中断，验证重启后库存释放和取消通知各完成一次。日常订单 695 验证的是成功路径。
-- [ ] 以保留期、备份恢复及重新部署演练作为旧表归档的门禁。按服务收尾旧表、旧触发器和历史配置；
-  删除数据需先完成归档和恢复验证，并获得该操作授权。
+- [x] 订单服务已报告发货意图滞留、取消协议待恢复及采集失败。隔离 MySQL 逐项核对指标与告警，日常库通过只读脚本复核订单所有者、旧表授权、历史身份差异及取消效果投递记录。[订单监控与只读核对](ORDER-SERVICE-EVOLUTION-PLAN.md#10-订单监控与只读核对)
+- [x] 目录和通知监控已通过隔离 MySQL 和 Kafka 验收，日常只读脚本核对数据所有者、旧表授权、下游事件匹配和未决账本。[目录与通知监控验收](#10-目录与通知监控验收)
+- [x] 取消订单跨库中断恢复已通过隔离验收。商城在调用 Order V1 写终态前提交完成记录，重启时回放稳定的订单命令并在本地事务补齐取消效果和通知。库存释放和通知各完成一次。[恢复验收记录](#11-取消订单跨库中断恢复验收)
+- [x] 旧履约六表和捕获对象已完成归档评审及隔离恢复。原授权脚本仍依赖旧水位表，临时拆分初始化后已通过无旧源重部署和业务验证。[归档评审](FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#27-2026-11-19-商城旧履约源归档评审)
+- [x] 履约正式启动、审计和回退入口已支持有旧源和无旧源两种部署。隔离验证归档恢复、六表回传和旧镜像接管。[入口改造验收](FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#28-2026-11-19-履约归档后启动审计与回退)
+- [x] 履约候选版完成隔离回退及日常发布。旧源经恢复验证与依赖核对后已清理，五笔库存历史归档完整。[P4 验收记录](FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#29-2026-11-20-p4-日常发布和旧源清理)
 
 初次复核使用现有服务、仓库源码、MySQL 元数据与行级汇总、Prometheus 当前目标及支付静态切流审计。
 库存防重灌验收在隔离库执行，现有库单独登记迁移状态标记。
@@ -167,7 +172,7 @@ docker compose --profile notification-migration run --rm --no-deps notification-
 
 ```powershell
 docker compose -p fairy-commerceflow-shadow-qa -f compose.yaml -f compose.legacy-shadow.yaml up -d --build --wait order-service payment-orchestration-service
-docker compose -p fairy-commerceflow-shadow-qa -f compose.yaml --profile fulfillment-shadow up -d --build --wait fulfillment-service
+docker compose -p fairy-commerceflow-shadow-qa -f compose.yaml -f compose.fulfillment-shadow.yaml --profile fulfillment-shadow up -d --build --wait fulfillment-service
 ```
 
 运行仓库中的订单或支付影子验收脚本时，通过 `COMPOSE_PROJECT_NAME` 和 `COMPOSE_FILE` 显式指定上述项目和两个配置文件。

@@ -33,16 +33,17 @@ SELECT (id,email) ON commerceflow.app_users
 SELECT (command_id,status,created_at) ON commerceflow.inventory_command_delivery_outbox
 SELECT (id,task_type,task_key,status,trigger_publish_attempts,trigger_last_error,last_trigger_source,primary_trigger_snapshot) ON commerceflow.scheduled_tasks
 SELECT (task_id,event_type) ON commerceflow.scheduled_task_events
-SELECT (id,order_id,platform_shipment_no,carrier,tracking_number) ON commerceflow.shipment_records
+SELECT (id,order_id,merchant_shipment_no,platform_shipment_no,carrier,tracking_number,status,shipped_at,delivered_at) ON commerceflow.shipment_records
 SELECT (shipment_id,event_id) ON commerceflow.shipment_events
 SELECT (shipment_id,notification_id,processing_status) ON commerceflow.shipment_notifications
+SELECT (id,order_item_id,product_id,customer_id,rating,comment,created_at) ON commerceflow.product_reviews
 SQL
     configure order-db order_audit "$ORDER_AUDIT_PASSWORD" <<'SQL'
-SELECT (id,customer_id,status,logistics_delivered_at) ON orders.shop_orders
+SELECT (id,order_number,customer_id,status,total_amount,currency,confirmed_at,shipped_at,carrier,tracking_number,payment_due_at,cancelled_at,cancel_reason,received_at,completed_at,logistics_delivered_at) ON orders.shop_orders
 SELECT (order_id,event_type) ON orders.order_events
 SQL
     configure payment-db payment_audit "$PAYMENT_AUDIT_PASSWORD" <<'SQL'
-SELECT (order_id,status) ON payments.payment_records
+SELECT (id,order_id,payment_number,amount,status,channel,currency,channel_transaction_no,paid_at,expires_at,refunded_amount) ON payments.payment_records
 SQL
     ;;
   --legacy-reader)

@@ -129,6 +129,8 @@ pwsh -File ./scripts/verify-fresh-volume-lifecycle.ps1 -TemporaryProjectName com
 ```
 
 默认保留该临时项目卷用于失败排查。只有显式传入 `-RemoveTemporaryVolumes` 才会删除本次随机临时项目卷。
+脚本使用独立 Compose 项目和容器名，执行期间会临时停用日常项目以释放端口。演示目录显式初始化，商品数从
+`catalog-db` 核对，订单和订单事件从 `order-db` 核对，商城库用于核对用户、调度、评价及物流投影。
 
 ### 6.3 旧卷升级和重启恢复
 
@@ -136,7 +138,7 @@ pwsh -File ./scripts/verify-fresh-volume-lifecycle.ps1 -TemporaryProjectName com
 pwsh -File ./scripts/verify-upgrade-restart-recovery.ps1
 ```
 
-该入口会重启三库、Redis、Kafka、RabbitMQ、RocketMQ 和业务服务，并写入可识别的恢复夹具任务；它不删除卷。运行前确认当前学习环境允许短暂中断。
+该入口会重启商城、订单、支付及两个模拟器的数据库，以及 Redis、Kafka、RabbitMQ、RocketMQ 和相关业务服务，并写入可识别的恢复夹具任务。订单、支付和商城各自计算历史摘要。数据卷保留，运行前应安排日常环境可中断时段。
 
 ## 7. 可靠性和并发专项
 
@@ -144,6 +146,7 @@ pwsh -File ./scripts/verify-upgrade-restart-recovery.ps1
 | --- | --- | --- |
 | 支付/取消行锁 | `verify-payment-cancellation-lock-timeout` | `503/DATABASE_CONCURRENCY_RETRY`、超时事务无中间态、重试成功 |
 | 支付/取消进程退出 | `verify-payment-cancellation-crash-recovery` | 四个精确事务窗口、回滚/重放、单一业务事实 |
+| 切流后取消订单跨库进程退出 | `verify-order-cancellation-cutover-recovery` | 订单终态已提交、商城 Outbox 尚未提交时 SIGKILL，重启自动恢复，库存释放与可见通知各一次 |
 | 支付/取消竞态 | `verify-payment-cancellation-race` / `stress` | 种子、轮数、合法终态分布、矛盾记录为 0 |
 | 物流乱序 | `verify-logistics-ordering-stress` | 时长、并发、唯一回调数、状态不倒退、不变字段未覆盖 |
 | MQ 重复/毒消息 | `verify-mq-scheduling-idempotency` | ignored 指标、DLQ、领取/成功/副作用各一次 |

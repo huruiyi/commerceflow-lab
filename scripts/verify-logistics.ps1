@@ -1,6 +1,8 @@
 param(
   [string]$BaseUrl = 'http://localhost:14200',
-  [string]$LogisticsUrl = 'http://localhost:18083'
+  [string]$LogisticsUrl = 'http://localhost:18083',
+  [string]$PaymentBaseUrl = 'http://localhost:14201',
+  [string]$PaymentOrchestrationUrl = 'http://localhost:18090'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -29,7 +31,7 @@ function Wait-Projection([long]$OrderId, [string]$Status, [string]$EventType = '
   throw "Storefront projection did not reach $Status / $EventType (last=$($projection.status))"
 }
 
-& "$PSScriptRoot/verify-merchant-fulfillment.ps1" -BaseUrl $BaseUrl
+& "$PSScriptRoot/verify-merchant-fulfillment.ps1" -BaseUrl $BaseUrl -PaymentBaseUrl $PaymentBaseUrl -PaymentOrchestrationUrl $PaymentOrchestrationUrl
 if (-not $?) { throw 'Could not create a shipped order' }
 
 $customer = [Microsoft.PowerShell.Commands.WebRequestSession]::new()

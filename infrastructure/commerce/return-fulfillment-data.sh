@@ -21,6 +21,14 @@ fulfillment() {
     --default-character-set=utf8mb4 --init-command="SET time_zone='+00:00'" -N -B fulfillment "$@"
 }
 
+source_objects=$(commerce < /recovery/inspect-fulfillment-source.sql) ||
+  fail 'Could not inspect Commerce fulfillment source objects'
+case "$source_objects" in
+  8/18/1) ;;
+  0/0/0) fail 'Commerce fulfillment source is archived; verify and restore the scoped archive before planning or applying a return' ;;
+  *) fail "Commerce fulfillment source is incomplete ($source_objects); verify the complete archive before recovery" ;;
+esac
+
 drained="
   NOT EXISTS (SELECT 1 FROM fulfillment_shipment_jobs
     WHERE status IN ('PENDING','REVIEW_REQUIRED') OR owner_token IS NOT NULL OR lease_until IS NOT NULL)

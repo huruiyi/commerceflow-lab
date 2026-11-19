@@ -13,7 +13,6 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -24,10 +23,10 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.commerce.fulfillment.application.FulfillmentRecoveryRoute;
-import vip.fairy.commerceflow.commerce.fulfillment.application.MerchantFulfillmentRecoveryService.Review;
+import vip.fairy.commerceflow.commerce.fulfillment.application.FulfillmentRecoveryRoute.MerchantReview;
 import vip.fairy.commerceflow.commerce.fulfillment.application.MerchantFulfillmentRoute;
 import vip.fairy.commerceflow.commerce.fulfillment.application.MerchantFulfillmentService.CommandResult;
-import vip.fairy.commerceflow.commerce.fulfillment.application.ShipmentRecoveryService.ShipmentReview;
+import vip.fairy.commerceflow.commerce.fulfillment.application.FulfillmentRecoveryRoute.ShipmentReview;
 import vip.fairy.commerceflow.commerce.fulfillment.application.contract.FulfillmentCommandV1;
 import vip.fairy.commerceflow.commerce.fulfillment.domain.MerchantFulfillmentJob;
 import vip.fairy.commerceflow.commerce.fulfillment.domain.MerchantFulfillmentRecovery;
@@ -38,7 +37,6 @@ import vip.fairy.commerceflow.commerce.shared.application.ExternalServiceUnavail
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
 
 @Component
-@ConditionalOnProperty(name = "commerceflow.fulfillment.remote.enabled", havingValue = "true")
 public class RemoteFulfillmentRoute implements MerchantFulfillmentRoute, FulfillmentRecoveryRoute {
 
   private static final String ROOT = "/internal/v1/fulfillment";
@@ -71,7 +69,7 @@ public class RemoteFulfillmentRoute implements MerchantFulfillmentRoute, Fulfill
   }
 
   @Override
-  public CommandResult legacy(FulfillmentCommandV1 command, String orderNumber, String detail) {
+  public CommandResult legacy(FulfillmentCommandV1 command) {
     CommandResult result = request(ROOT + "/legacy-commands", command, businessKey, CommandResult.class);
     if (result.status() == ShipmentJob.Status.REJECTED || result.status() == ShipmentJob.Status.REVIEW_REQUIRED) {
       throw new BusinessRuleException("Fulfillment operation was rejected or requires manual reconciliation");
@@ -115,9 +113,11 @@ public class RemoteFulfillmentRoute implements MerchantFulfillmentRoute, Fulfill
   }
 
   @Override
-  public Review merchantOperation(String commandId) {
+  public MerchantReview merchantOperation(String commandId) {
     RemoteReview result = request(ADMIN + "/merchant-operations/" + id(commandId), null, adminKey, RemoteReview.class);
-    return new Review(result.operation().merchant(), result.history().stream().map(Recovery::merchant).toList());
+    return new MerchantReview(
+      result.operation().merchant(),
+      result.history().stream().map(Recovery::merchant).toList());
   }
 
   @Override

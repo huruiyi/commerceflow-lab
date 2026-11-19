@@ -69,17 +69,27 @@
 
 ## 一键启动
 
-在本目录执行：
+在已完成履约交接或初始化的环境中，从本目录执行：
 
 ```powershell
 docker compose up --build -d --wait
 docker compose ps
 ```
 
-已有目录库可直接启动。全新环境会先建表，商品列表初始为空。需要体验加购和下单时，启动完成后显式初始化演示商品和库存：
+商城默认使用独立履约服务。首次使用全新卷时，通过空库配置显式建立履约所有权，后续启动使用上面的默认命令。
+
+```powershell
+docker compose -f compose.yaml -f compose.fulfillment-fresh.yaml up --build -d --wait
+```
+
+已有商城本地履约数据的环境先完成所有权切换。使用独立签名密钥的环境可叠加 `compose.fulfillment-execution.yaml`，
+回退时使用已验收的版本化回退包。见[履约演进计划](docs/architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md)。
+
+已有目录库可直接启动。全新环境会先建表。体验加购、下单和支付时，启动后显式初始化演示商品、库存及支付渠道。
 
 ```powershell
 docker compose --profile demo-data run --rm catalog-demo-init
+docker compose --profile demo-data run --rm payment-demo-init
 ```
 
 从旧商城库导入目录数据时使用[手工迁移入口](docs/architecture/M3-SINGLE-OWNERSHIP-REVIEW.md#5-目录启动与初始化验收)。

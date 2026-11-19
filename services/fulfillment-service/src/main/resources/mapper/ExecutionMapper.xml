@@ -3,7 +3,25 @@
 <mapper namespace="vip.fairy.commerceflow.fulfillment.infrastructure.ExecutionMapper">
 
   <update id="initializeMode">
-    UPDATE fulfillment_runtime_mode SET mode=#{mode} WHERE singleton_id=1 AND mode IS NULL
+    <choose>
+      <when test="mode == 'EXECUTION'">
+        UPDATE fulfillment_runtime_mode AS runtime
+        JOIN fulfillment_shadow_watermark AS watermark USING (singleton_id)
+        SET runtime.mode=#{mode}, watermark.generation=1
+        WHERE runtime.singleton_id=1 AND runtime.mode IS NULL
+          AND watermark.generation=0 AND watermark.source_sequence=0
+          AND NOT EXISTS (SELECT 1 FROM fulfillment_shadow_quarantine)
+          AND NOT EXISTS (SELECT 1 FROM fulfillment_order_locks)
+          AND NOT EXISTS (SELECT 1 FROM fulfillment_command_ids)
+          AND NOT EXISTS (SELECT 1 FROM fulfillment_shipment_jobs)
+          AND NOT EXISTS (SELECT 1 FROM fulfillment_merchant_jobs)
+          AND NOT EXISTS (SELECT 1 FROM fulfillment_shipment_recoveries)
+          AND NOT EXISTS (SELECT 1 FROM fulfillment_merchant_recoveries)
+      </when>
+      <otherwise>
+        UPDATE fulfillment_runtime_mode SET mode=#{mode} WHERE singleton_id=1 AND mode IS NULL
+      </otherwise>
+    </choose>
   </update>
 
   <select id="mode" resultType="string">

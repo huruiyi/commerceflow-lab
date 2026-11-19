@@ -819,72 +819,16 @@ SELECT id,merchant_id,name,thumbnail_url,price,100,0,0 FROM products;
 INSERT INTO product_translations(product_id, locale, name, brief, description)
 VALUES (1, 'zh-CN', '学习笔记本电脑', '编程电脑', '学习工作站');
 
-CREATE TABLE fulfillment_shipment_jobs (
-  order_id BIGINT NOT NULL,
-  command_id CHAR(36) NOT NULL PRIMARY KEY,
-  merchant_id BIGINT NOT NULL,
-  order_number VARCHAR(64) NOT NULL,
-  carrier VARCHAR(100) NOT NULL,
-  tracking_number VARCHAR(120) NOT NULL,
-  step VARCHAR(32) NOT NULL,
-  status VARCHAR(20) NOT NULL,
-  attempts INT NOT NULL DEFAULT 0,
-  owner_token CHAR(36),
-  lease_until TIMESTAMP(6),
-  next_attempt_at TIMESTAMP(6) NOT NULL,
-  last_error VARCHAR(300),
-  created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE fulfillment_shipment_recoveries (
-  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  order_id BIGINT NOT NULL,
-  recovery_id CHAR(36) NOT NULL,
-  command_id CHAR(36) NOT NULL,
-  operator_id BIGINT NOT NULL,
-  step VARCHAR(32) NOT NULL,
-  previous_error VARCHAR(300),
+CREATE TABLE order_cancellation_completion (
+  order_id BIGINT NOT NULL PRIMARY KEY,
+  customer_id BIGINT NOT NULL,
+  actor_id BIGINT NULL,
   reason VARCHAR(300) NOT NULL,
-  evidence VARCHAR(500) NOT NULL,
-  created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (order_id,recovery_id)
-);
-
-CREATE TABLE fulfillment_merchant_jobs (
-  command_id CHAR(36) NOT NULL PRIMARY KEY,
-  order_id BIGINT NOT NULL,
-  merchant_id BIGINT NOT NULL,
-  operation VARCHAR(24) NOT NULL,
-  expected_version BIGINT NOT NULL,
-  carrier VARCHAR(100) NULL,
-  tracking_number VARCHAR(120) NULL,
-  detail VARCHAR(500) NULL,
-  step VARCHAR(24) NOT NULL,
-  status VARCHAR(20) NOT NULL,
-  attempts INT NOT NULL DEFAULT 0,
-  owner_token CHAR(36) NULL,
-  lease_until TIMESTAMP(6) NULL,
-  next_attempt_at TIMESTAMP(6) NOT NULL,
-  last_error VARCHAR(80) NULL,
-  updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE fulfillment_merchant_recoveries (
-  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  command_id CHAR(36) NOT NULL REFERENCES fulfillment_merchant_jobs (command_id),
-  recovery_id CHAR(36) NOT NULL,
-  operator_id BIGINT NOT NULL,
-  step VARCHAR(24) NOT NULL,
-  previous_error VARCHAR(80),
-  reason VARCHAR(300) NOT NULL,
-  evidence VARCHAR(500) NOT NULL,
-  created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (command_id,recovery_id)
-);
-
-CREATE TABLE fulfillment_order_locks (
-  order_id BIGINT NOT NULL PRIMARY KEY
+  trigger_source VARCHAR(40) NOT NULL,
+  scheduled_task_id BIGINT NULL,
+  created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  next_attempt_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  completed_at TIMESTAMP(6) NULL
 );
 
 CREATE TABLE fulfillment_write_admission (
@@ -894,12 +838,7 @@ CREATE TABLE fulfillment_write_admission (
   CHECK (write_owner = 'COMMERCE' OR (write_owner = 'FULFILLMENT' AND frozen = TRUE))
 );
 
-INSERT INTO fulfillment_write_admission (singleton_id, frozen) VALUES (1, FALSE);
-
-CREATE TABLE fulfillment_command_ids (
-  command_id CHAR(36) NOT NULL PRIMARY KEY,
-  order_id BIGINT NOT NULL
-);
+INSERT INTO fulfillment_write_admission (singleton_id, frozen, write_owner) VALUES (1, TRUE, 'FULFILLMENT');
 
 CREATE TABLE logistics_fulfillment_commands (
   command_id CHAR(36) NOT NULL PRIMARY KEY,
@@ -913,16 +852,4 @@ CREATE TABLE logistics_fulfillment_commands (
   shipment_version BIGINT,
   owner_token CHAR(36),
   lease_until TIMESTAMP(6)
-);
-
-CREATE TABLE order_cancellation_completion (
-  order_id BIGINT NOT NULL PRIMARY KEY,
-  customer_id BIGINT NOT NULL,
-  actor_id BIGINT NULL,
-  reason VARCHAR(300) NOT NULL,
-  trigger_source VARCHAR(40) NOT NULL,
-  scheduled_task_id BIGINT NULL,
-  created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-  next_attempt_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-  completed_at TIMESTAMP(6) NULL
 );

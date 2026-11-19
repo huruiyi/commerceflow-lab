@@ -1,0 +1,19 @@
+services:
+  fulfillment-service:
+    profiles: [fulfillment-shadow]
+    environment:
+      FULFILLMENT_RUNTIME_MODE: SHADOW
+      FULFILLMENT_REQUIRE_PROMOTED_MODE: "false"
+      FULFILLMENT_RECOVERY_ENABLED: "false"
+      FULFILLMENT_INTERNAL_SECRET: ${FULFILLMENT_INTERNAL_SECRET:-demo-fulfillment-shadow-secret}
+      FULFILLMENT_SOURCE_URL: jdbc:mysql://commerce-db:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      FULFILLMENT_ORDER_AUDIT_URL: jdbc:mysql://order-db:3306/orders?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      FULFILLMENT_READER_PASSWORD: ${FULFILLMENT_READER_PASSWORD:-fulfillment-shadow-reader}
+      FULFILLMENT_SHADOW_DELAY: ${FULFILLMENT_SHADOW_DELAY:-5s}
+    depends_on: !override
+      fulfillment-db:
+        condition: service_healthy
+      fulfillment-shadow-access:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]

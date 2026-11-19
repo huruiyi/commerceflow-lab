@@ -1,0 +1,24 @@
+services:
+  commerce-fulfillment-initializer:
+    image: mysql:8.4
+    entrypoint:
+      - sh
+      - -ec
+      - 'MYSQL_PWD="$$SOURCE_ROOT_PASSWORD" exec mysql --protocol=tcp -h commerce-db -uroot commerceflow < /access/initialize-fulfillment-source.sql'
+    environment:
+      SOURCE_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
+    volumes:
+      - ./infrastructure/commerce/initialize-fulfillment-source.sql:/access/initialize-fulfillment-source.sql:ro
+    depends_on:
+      commerce-schema-migrator:
+        condition: service_completed_successfully
+    restart: "no"
+
+  commerce-source-access-freezer:
+    depends_on:
+      commerce-fulfillment-initializer:
+        condition: service_completed_successfully
+
+  fulfillment-service:
+    environment:
+      FULFILLMENT_REQUIRE_PROMOTED_MODE: "false"

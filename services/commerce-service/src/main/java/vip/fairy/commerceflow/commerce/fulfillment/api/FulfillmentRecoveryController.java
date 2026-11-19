@@ -19,8 +19,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import vip.fairy.commerceflow.commerce.fulfillment.application.FulfillmentRecoveryRoute;
 import vip.fairy.commerceflow.commerce.fulfillment.application.FulfillmentRecoveryRoute.Retry;
-import vip.fairy.commerceflow.commerce.fulfillment.application.MerchantFulfillmentRecoveryService.Review;
-import vip.fairy.commerceflow.commerce.fulfillment.application.ShipmentRecoveryService.ShipmentReview;
+import vip.fairy.commerceflow.commerce.fulfillment.application.FulfillmentRecoveryRoute.MerchantReview;
+import vip.fairy.commerceflow.commerce.fulfillment.application.FulfillmentRecoveryRoute.ShipmentReview;
 import vip.fairy.commerceflow.commerce.fulfillment.domain.MerchantFulfillmentJob;
 import vip.fairy.commerceflow.commerce.fulfillment.domain.MerchantFulfillmentRecovery;
 import vip.fairy.commerceflow.commerce.fulfillment.domain.ShipmentJob;
@@ -70,7 +70,7 @@ public class FulfillmentRecoveryController {
   }
 
   @GetMapping("/merchant-operations/{commandId}")
-  Review merchantOperation(@PathVariable UUID commandId) {
+  MerchantReview merchantOperation(@PathVariable UUID commandId) {
     return recoveries.merchantOperation(commandId.toString());
   }
 

@@ -4,7 +4,6 @@ import vip.fairy.commerceflow.commerce.fulfillment.api.FulfillmentRequest;
 import vip.fairy.commerceflow.commerce.fulfillment.api.MerchantOrderResponse;
 import vip.fairy.commerceflow.commerce.fulfillment.api.ShipmentUpdateRequest;
 import vip.fairy.commerceflow.commerce.fulfillment.application.contract.FulfillmentCommandV1;
-import vip.fairy.commerceflow.commerce.fulfillment.domain.FulfillmentOperation;
 import vip.fairy.commerceflow.commerce.fulfillment.domain.ShipmentJob;
 import vip.fairy.commerceflow.commerce.fulfillment.domain.MerchantFulfillmentJob;
 import vip.fairy.commerceflow.commerce.ordering.api.ShopOrderResponse;
@@ -54,19 +53,6 @@ public class MerchantFulfillmentService {
 
   public record CommandResult(int version, String commandId, Long orderId, String operation, String step,
                               ShipmentJob.Status status, Long shipmentVersion, String errorCode) {
-
-    static CommandResult from(FulfillmentOperation operation) {
-      Long version = null;
-      if (operation.status() == ShipmentJob.Status.COMPLETED) {
-        version = switch (operation.operation()) {
-          case "SHIP" -> 0L;
-          case "UPDATE_SHIPMENT" -> operation.expectedShipmentVersion() + 1;
-          default -> null;
-        };
-      }
-      return new CommandResult(1, operation.commandId(), operation.orderId(), operation.operation(), operation.step(),
-        operation.status(), version, operation.errorCode());
-    }
   }
 
   public List<MerchantOrderResponse> list(Long merchantId) {
@@ -86,7 +72,7 @@ public class MerchantFulfillmentService {
       throw new BusinessRuleException("Only paid orders can be confirmed");
     }
     return operationResult(merchantId, prepared, route.legacy(
-      legacyCommand(Operation.CONFIRM, merchantId, id, null, null, null), prepared.getOrderNumber(), null));
+      legacyCommand(Operation.CONFIRM, merchantId, id, null, null, null)));
   }
 
   public MerchantOrderResponse ship(Long merchantId, Long id, FulfillmentRequest request) {
@@ -101,7 +87,7 @@ public class MerchantFulfillmentService {
     }
     requireInventoryCommitted(prepared);
     FulfillmentCommandV1 command = legacyCommand(Operation.SHIP, merchantId, id, carrier, tracking, null);
-    route.legacy(command, prepared.getOrderNumber(), null);
+    route.legacy(command);
     return current(merchantId, id);
   }
 
@@ -133,12 +119,10 @@ public class MerchantFulfillmentService {
       && Objects.equals(current.getTrackingNumber(), tracking)) {
       return new OperationResult(response(current), null);
     }
-    String before = shipmentDetail(current.getCarrier(), current.getTrackingNumber());
-    String after = shipmentDetail(carrier, tracking);
     FulfillmentCommandV1 command = legacyCommand(Operation.UPDATE_SHIPMENT,
       merchantId, id, carrier, tracking, expected);
     return operationResult(merchantId, current,
-      route.legacy(command, current.getOrderNumber(), before + " -> " + after));
+      route.legacy(command));
   }
 
   public OperationStatus operationStatus(Long merchantId, Long id, String commandId) {
@@ -169,10 +153,6 @@ public class MerchantFulfillmentService {
                                              String carrier, String tracking, Long expectedVersion) {
     return new FulfillmentCommandV1(1, UUID.randomUUID(), operation, merchantId, orderId, Instant.now(),
       carrier, tracking, expectedVersion);
-  }
-
-  private String shipmentDetail(String carrier, String tracking) {
-    return carrier + " / " + tracking;
   }
 
   private MerchantOrderResponse current(Long merchantId, Long id) {

@@ -2,8 +2,6 @@ package vip.fairy.commerceflow.commerce.fulfillment.application;
 
 import java.util.List;
 
-import vip.fairy.commerceflow.commerce.fulfillment.application.MerchantFulfillmentRecoveryService.Review;
-import vip.fairy.commerceflow.commerce.fulfillment.application.ShipmentRecoveryService.ShipmentReview;
 import vip.fairy.commerceflow.commerce.fulfillment.domain.MerchantFulfillmentJob;
 import vip.fairy.commerceflow.commerce.fulfillment.domain.MerchantFulfillmentRecovery;
 import vip.fairy.commerceflow.commerce.fulfillment.domain.ShipmentJob;
@@ -19,9 +17,15 @@ public interface FulfillmentRecoveryRoute {
 
   List<MerchantFulfillmentJob> merchantOperations(int limit);
 
-  Review merchantOperation(String commandId);
+  MerchantReview merchantOperation(String commandId);
 
   MerchantFulfillmentRecovery retryMerchantOperation(String commandId, Retry retry);
+
+  record ShipmentReview(ShipmentJob operation, List<ShipmentRecovery> recoveries) {
+  }
+
+  record MerchantReview(MerchantFulfillmentJob operation, List<MerchantFulfillmentRecovery> recoveries) {
+  }
 
   record Retry(String recoveryId, Long operatorId, String reason, String evidence) {
   }
