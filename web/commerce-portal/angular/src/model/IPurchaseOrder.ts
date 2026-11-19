@@ -171,3 +171,28 @@ export interface OrderSearchPage {
 }
 
 export const initialOrderSearch: OrderSearchCriteria = { q: '', status: '', from: '', to: '', page: 0 };
+
+export const orderSearchStatuses: readonly string[] = [
+  'PENDING_PAYMENT',
+  'PAID',
+  'CONFIRMED',
+  'SHIPPED',
+  'RECEIVED',
+  'COMPLETED',
+  'CANCELLING',
+  'CANCELLED',
+  'REFUNDING',
+  'REFUNDED',
+];
+
+export const orderDetailSections = ['payment', 'refund', 'logistics', 'receipt', 'cancellation'] as const;
+export type OrderDetailSection = (typeof orderDetailSections)[number];
+
+export function notificationOrderSection(type: string): OrderDetailSection | undefined {
+  if (type.startsWith('PAYMENT_') || type === 'ORDER_PAID') return 'payment';
+  if (type.startsWith('REFUND_') || type === 'ORDER_REFUNDED') return 'refund';
+  if (type.startsWith('LOGISTICS_') || type.startsWith('SHIPMENT_') || type === 'ORDER_SHIPPED') return 'logistics';
+  if (['ORDER_RECEIVED', 'ORDER_AUTO_RECEIVED', 'ORDER_COMPLETED', 'ORDER_AUTO_COMPLETED'].includes(type))
+    return 'receipt';
+  return type === 'ORDER_CANCELLED' ? 'cancellation' : undefined;
+}

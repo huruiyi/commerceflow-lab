@@ -1,5 +1,10 @@
-import { Component, inject, input, output } from '@angular/core';
-import { initialOrderSearch, OrderSearchCriteria, OrderSearchPage } from 'src/model/IPurchaseOrder';
+import { Component, inject, input, OnChanges, output, SimpleChanges } from '@angular/core';
+import {
+  initialOrderSearch,
+  OrderSearchCriteria,
+  OrderSearchPage,
+  orderSearchStatuses,
+} from 'src/model/IPurchaseOrder';
 import { I18nService } from '../services/i18n.service';
 
 @Component({
@@ -8,26 +13,31 @@ import { I18nService } from '../services/i18n.service';
   templateUrl: './order-list-filter.component.html',
   styleUrl: './order-list-filter.component.css',
 })
-export class OrderListFilterComponent {
+export class OrderListFilterComponent implements OnChanges {
   readonly i18n = inject(I18nService);
   readonly merchant = input(false);
   readonly result = input<OrderSearchPage>();
   readonly loading = input(false);
   readonly applied = input(initialOrderSearch);
   readonly changed = output<OrderSearchCriteria>();
-  readonly statuses = [
-    'PENDING_PAYMENT',
-    'PAID',
-    'CONFIRMED',
-    'SHIPPED',
-    'RECEIVED',
-    'COMPLETED',
-    'CANCELLING',
-    'CANCELLED',
-    'REFUNDING',
-    'REFUNDED',
-  ];
+  readonly statuses = orderSearchStatuses;
   draft = { ...initialOrderSearch };
+
+  ngOnChanges(changes: SimpleChanges<OrderListFilterComponent>): void {
+    const change = changes.applied;
+    if (!change) return;
+    const previous = change.previousValue as OrderSearchCriteria | undefined;
+    const current = this.applied();
+    if (
+      !previous ||
+      previous.q !== current.q ||
+      previous.status !== current.status ||
+      previous.from !== current.from ||
+      previous.to !== current.to
+    ) {
+      this.draft = { ...current };
+    }
+  }
 
   get invalidDateRange(): boolean {
     return !!(this.draft.from && this.draft.to && this.draft.from > this.draft.to);

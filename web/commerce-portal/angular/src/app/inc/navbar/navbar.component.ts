@@ -1,10 +1,11 @@
-import { Component, ElementRef, HostListener, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, HostListener, OnInit } from '@angular/core';
 import { AccountService } from 'src/app/services/account.service';
 import { UserProfile } from 'src/model/IUserLogin';
 import { I18nService } from '../../services/i18n.service';
 import { Router } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 import { CustomerNotification } from 'src/model/INotification';
+import { notificationOrderSection } from 'src/model/IPurchaseOrder';
 
 @Component({
   standalone: false,
@@ -18,6 +19,7 @@ export class NavbarComponent implements OnInit {
   unreadNotifications = 0;
   notificationOpen = false;
   notificationUnavailable = false;
+  notificationReadFailed = false;
   bilgiler: UserProfile = {
     id: 0,
     firstName: '',
@@ -33,6 +35,7 @@ export class NavbarComponent implements OnInit {
     private router: Router,
     private api: ApiService,
     private elementRef: ElementRef<HTMLElement>,
+    private changeDetector: ChangeDetectorRef,
   ) {
     const userInfo = this.accountService.loginControl();
 
@@ -51,9 +54,11 @@ export class NavbarComponent implements OnInit {
         this.notificationUnavailable = false;
         this.notifications = notifications;
         this.unreadNotifications = notifications.filter((item) => item.status === 'UNREAD').length;
+        this.changeDetector.markForCheck();
       },
       error: () => {
         this.notificationUnavailable = true;
+        this.changeDetector.markForCheck();
       },
     });
   }
@@ -79,13 +84,29 @@ export class NavbarComponent implements OnInit {
     this.closeNotifications();
   }
 
-  markNotificationRead(notification: CustomerNotification): void {
-    this.closeNotifications();
+  openNotification(notification: CustomerNotification): void {
+    this.markNotificationRead(notification);
+    const id = notification.orderId;
+    if (id && Number.isSafeInteger(id) && id > 0) {
+      this.closeNotifications();
+      void this.router.navigate(['/orders', id], { fragment: notificationOrderSection(notification.notificationType) });
+    }
+  }
+
+  private markNotificationRead(notification: CustomerNotification): void {
+    this.notificationReadFailed = false;
     if (notification.status === 'READ') return;
     this.api.markNotificationRead(notification.eventId).subscribe({
       next: () => {
         notification.status = 'READ';
-        this.unreadNotifications = Math.max(0, this.unreadNotifications - 1);
+        const current = this.notifications.find((item) => item.eventId === notification.eventId);
+        if (current) current.status = 'READ';
+        this.unreadNotifications = this.notifications.filter((item) => item.status === 'UNREAD').length;
+        this.changeDetector.markForCheck();
+      },
+      error: () => {
+        this.notificationReadFailed = true;
+        this.changeDetector.markForCheck();
       },
     });
   }

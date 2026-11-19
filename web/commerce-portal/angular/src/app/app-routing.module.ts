@@ -22,6 +22,7 @@ const routes: Routes = [
   { path: 'cart', component: OrderComponent, canActivate: [AuthGuard], data: { roles: ['CUSTOMER'] } },
   { path: 'addresses', component: AddressesComponent, canActivate: [AuthGuard], data: { roles: ['CUSTOMER'] } },
   { path: 'orders', component: PurchaseOrdersComponent, canActivate: [AuthGuard], data: { roles: ['CUSTOMER'] } },
+  { path: 'orders/:id', component: PurchaseOrdersComponent, canActivate: [AuthGuard], data: { roles: ['CUSTOMER'] } },
   {
     path: 'merchant/orders',
     component: MerchantOrdersComponent,

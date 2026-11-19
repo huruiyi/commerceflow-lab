@@ -130,6 +130,9 @@
               </div>
             </div>
             <div class="notification-list">
+              <div class="notification-empty" *ngIf="notificationReadFailed" role="status">
+                {{ 'notificationReadFailed' | t }}
+              </div>
               <div class="notification-empty" *ngIf="notificationUnavailable">
                 {{ 'notificationUnavailable' | t }}
                 <button type="button" (click)="loadNotifications()">{{ 'retry' | t }}</button>
@@ -142,7 +145,7 @@
                 class="notification-item"
                 *ngFor="let notification of notifications"
                 [class.unread]="notification.status === 'UNREAD'"
-                (click)="markNotificationRead(notification)"
+                (click)="openNotification(notification)"
               >
                 <span class="notification-dot" aria-hidden="true"></span>
                 <span

@@ -1,6 +1,6 @@
 import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, inject, OnInit, ViewChild } from '@angular/core';
 import { FormBuilder, FormControl, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { finalize } from 'rxjs';
 import { AccountService } from '../services/account.service';
@@ -21,6 +21,7 @@ export class LoginComponent implements OnInit, AfterViewInit {
   isSubmitting = false;
   loginMessage = '';
   private readonly formBuilder = inject(FormBuilder);
+  private readonly route = inject(ActivatedRoute);
 
   formLoginGroup = this.formBuilder.group({
     email: new FormControl('', [Validators.required, Validators.email]),
@@ -41,7 +42,7 @@ export class LoginComponent implements OnInit, AfterViewInit {
 
   ngOnInit(): void {
     if (this.accountService.isLoggedIn()) {
-      void this.router.navigate(['/dashboard']);
+      this.redirectAfterLogin();
     }
   }
 
@@ -68,10 +69,19 @@ export class LoginComponent implements OnInit, AfterViewInit {
         }),
       )
       .subscribe({
-        next: () => void this.router.navigate(['/dashboard']),
+        next: () => this.redirectAfterLogin(),
         error: (error) => this.rejectLogin(error),
       });
   };
+
+  private redirectAfterLogin(): void {
+    const target = this.route.snapshot.queryParamMap.get('returnUrl');
+    if (target && /^\/(?![/?#\\])/.test(target) && target.length > 1 && !target.includes('\\')) {
+      void this.router.navigateByUrl(target);
+    } else {
+      void this.router.navigate(['/dashboard']);
+    }
+  }
 
   private rejectLogin(error: HttpErrorResponse): void {
     this.isFormDataValid = false;

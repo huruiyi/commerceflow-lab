@@ -155,6 +155,21 @@
   min-width: 0;
 }
 
+.order-identity a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.order-detail-heading h2 {
+  margin: 0.6rem 0 1rem;
+}
+
+.order-detail-heading [tabindex='-1'],
+.order-content [tabindex='-1'] {
+  scroll-margin-block-start: 1rem;
+}
+
 .order-identity h3 {
   margin: 0.08rem 0 0.16rem;
   overflow: hidden;

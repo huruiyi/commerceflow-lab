@@ -1,11 +1,14 @@
-import { ChangeDetectorRef, Component, DestroyRef, OnInit } from '@angular/core';
+import { afterNextRender, ChangeDetectorRef, Component, DestroyRef, ElementRef, Injector, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, NavigationSkipped, NavigationSkippedCode, ParamMap, Router } from '@angular/router';
 import {
   catchError,
+  distinctUntilChanged,
   exhaustMap,
   filter,
   finalize,
   forkJoin,
+  map,
   Observable,
   of,
   switchMap,
@@ -17,9 +20,11 @@ import {
 import {
   initialOrderSearch,
   OrderAction,
+  orderDetailSections,
   OrderEvent,
   OrderSearchCriteria,
   OrderSearchPage,
+  orderSearchStatuses,
   PaymentChannel,
   PurchaseOrder,
   RepurchaseResult,
@@ -114,6 +119,8 @@ export class PurchaseOrdersComponent implements OnInit {
   repurchaseResults: Record<number, RepurchaseResult> = {};
   loading = true;
   loadError = '';
+  detailId: string | null = null;
+  detailUnavailable = false;
   private loadVersion = 0;
   private expansionInitialized = false;
 
@@ -122,11 +129,81 @@ export class PurchaseOrdersComponent implements OnInit {
     private changeDetector: ChangeDetectorRef,
     public i18n: I18nService,
     private destroyRef: DestroyRef,
+    private route: ActivatedRoute,
+    private router: Router,
+    private element: ElementRef<HTMLElement>,
+    private injector: Injector,
   ) {}
 
   ngOnInit(): void {
-    this.reload();
+    if (this.route.snapshot.paramMap.has('id')) {
+      this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+        this.criteria = this.readSearch(params);
+      });
+      this.route.paramMap
+        .pipe(
+          map((params) => params.get('id')),
+          distinctUntilChanged(),
+          takeUntilDestroyed(this.destroyRef),
+        )
+        .subscribe((id) => {
+          this.detailId = id;
+          this.orders = [];
+          this.reload();
+        });
+      this.route.fragment.pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+        if (!this.loading && this.orders.length) this.focusOrderDetail();
+      });
+      this.router.events.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((event) => {
+        if (
+          event instanceof NavigationSkipped &&
+          event.code === NavigationSkippedCode.IgnoredSameUrlNavigation &&
+          event.url === this.router.url &&
+          !this.loading &&
+          this.orders.length
+        ) {
+          this.focusOrderDetail();
+        }
+      });
+    } else {
+      this.route.queryParamMap
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((params) => this.reload(this.readSearch(params)));
+    }
     this.i18n.localeChanged.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.reload());
+  }
+
+  get listQueryParams() {
+    return this.searchParams(this.criteria);
+  }
+
+  applyCriteria(criteria: OrderSearchCriteria): void {
+    void this.router.navigate([], { relativeTo: this.route, queryParams: this.searchParams(criteria) });
+  }
+
+  private readSearch(params: ParamMap): OrderSearchCriteria {
+    const status = params.get('status') ?? '';
+    const page = Number(params.get('page') ?? 0);
+    const from = params.get('from') ?? '';
+    const to = params.get('to') ?? '';
+    const date = /^\d{4}-\d{2}-\d{2}$/;
+    return {
+      q: (params.get('q') ?? '').trim().slice(0, 120),
+      status: orderSearchStatuses.includes(status) ? status : '',
+      from: date.test(from) ? from : '',
+      to: date.test(to) && (!date.test(from) || from <= to) ? to : '',
+      page: Number.isInteger(page) && page >= 0 && page <= 2147483647 ? page : 0,
+    };
+  }
+
+  private searchParams(criteria: OrderSearchCriteria) {
+    return {
+      q: criteria.q || null,
+      status: criteria.status || null,
+      from: criteria.from || null,
+      to: criteria.to || null,
+      page: criteria.page || null,
+    };
   }
 
   reload(criteria: OrderSearchCriteria = this.criteria): void {
@@ -134,6 +211,11 @@ export class PurchaseOrdersComponent implements OnInit {
     const version = ++this.loadVersion;
     this.loading = true;
     this.loadError = '';
+    this.detailUnavailable = false;
+    if (this.detailId !== null) {
+      this.loadDetail(this.detailId, version);
+      return;
+    }
     forkJoin({
       page: this.api.searchOrders(criteria),
       products: this.api.allProducts().pipe(catchError(() => of([]))),
@@ -170,6 +252,52 @@ export class PurchaseOrdersComponent implements OnInit {
           this.changeDetector.markForCheck();
         },
       });
+  }
+
+  private loadDetail(value: string, version: number): void {
+    const id = Number(value);
+    if (!/^\d+$/.test(value) || !Number.isSafeInteger(id) || id <= 0) {
+      this.loading = false;
+      this.detailUnavailable = true;
+      return;
+    }
+    this.api
+      .purchaseOrder(id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (order) => {
+          if (version !== this.loadVersion) return;
+          this.orders = [order];
+          this.initializeOrder(order);
+          this.loading = false;
+          this.changeDetector.markForCheck();
+          this.focusOrderDetail();
+        },
+        error: (error) => {
+          if (version !== this.loadVersion) return;
+          this.orders = [];
+          this.loading = false;
+          this.detailUnavailable = [403, 404].includes(error.status);
+          if (!this.detailUnavailable) this.loadError = this.i18n.t('ordersLoadFailed');
+          this.changeDetector.markForCheck();
+        },
+      });
+  }
+
+  private focusOrderDetail(): void {
+    const version = this.loadVersion;
+    afterNextRender(
+      () => {
+        if (version !== this.loadVersion) return;
+        const fragment = orderDetailSections.find((section) => section === this.route.snapshot.fragment);
+        const host = this.element.nativeElement;
+        const section = fragment ? host.querySelector<HTMLElement>(`#${fragment}`) : null;
+        const target = section ?? host.querySelector<HTMLElement>('#order-detail-heading');
+        target?.focus({ preventScroll: true });
+        target?.scrollIntoView({ block: 'start' });
+      },
+      { injector: this.injector },
+    );
   }
 
   selectChannel(order: PurchaseOrder, channel: PaymentChannel): void {

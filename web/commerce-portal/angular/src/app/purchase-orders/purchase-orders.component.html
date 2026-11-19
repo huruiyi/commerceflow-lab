@@ -1,4 +1,4 @@
-<section class="payment-hero">
+<section *ngIf="detailId === null" class="payment-hero">
   <div>
     <span class="chapter-label">{{ 'paymentChapter' | t }}</span>
     <h2>{{ 'paymentLab' | t }}</h2>
@@ -8,6 +8,10 @@
     <strong>{{ 'realisticFlow' | t }}</strong><span>{{ 'realisticFlowDetail' | t }}</span>
   </div>
 </section>
+<header *ngIf="detailId !== null" class="order-detail-heading">
+  <a [routerLink]="['/orders']" [queryParams]="listQueryParams">{{ 'backToOrders' | t }}</a>
+  <h2 id="order-detail-heading" tabindex="-1">{{ 'orderDetailsTitle' | t }}</h2>
+</header>
 <section *ngIf="loading" class="orders-loading" aria-live="polite">
   <div class="skeleton-card" *ngFor="let placeholder of [1, 2, 3]">
     <span></span><strong></strong>
@@ -19,11 +23,15 @@
   <p hlmAlertDescription>{{ loadError }}</p>
   <button hlmBtn variant="outline" type="button" (click)="reload()">{{ 'retry' | t }}</button>
 </section>
+<section *ngIf="detailUnavailable" hlmAlert class="orders-error" role="alert">
+  <h3 hlmAlertTitle>{{ 'orderDetailUnavailable' | t }}</h3>
+</section>
 <app-order-list-filter
+  *ngIf="detailId === null"
   [result]="page"
   [applied]="criteria"
   [loading]="loading"
-  (changed)="reload($event)"
+  (changed)="applyCriteria($event)"
 ></app-order-list-filter>
 <article *ngFor="let order of orders; trackBy: trackOrder" hlmCard class="order-card" [attr.data-status]="order.status">
   <header class="order-header">
@@ -31,11 +39,23 @@
       <span class="order-status-mark" aria-hidden="true"><i class="bi bi-receipt"></i></span>
       <div class="order-identity">
         <span class="eyebrow">{{ 'order' | t }}</span>
-        <h3>{{ order.orderNumber }}</h3>
+        <h3>
+          <a
+            *ngIf="detailId === null; else currentOrderNumber"
+            [routerLink]="['/orders', order.id]"
+            [queryParams]="listQueryParams"
+            [attr.aria-label]="i18n.t('openOrderDetails', { order: order.orderNumber })"
+          >
+            {{ order.orderNumber }}
+          </a>
+          <ng-template #currentOrderNumber>{{ order.orderNumber }}</ng-template>
+        </h3>
         <small>{{ 'orderedAt' | t }} {{ order.createdAt | trdate }}</small>
         <div class="order-meta">
           <span><i class="bi bi-box-seam" aria-hidden="true"></i>{{ order.items.length }} {{ 'itemsCount' | t }}</span>
-          <span><i class="bi bi-person" aria-hidden="true"></i>{{ order.address.recipientName }}</span>
+          <span *ngIf="order.address as address"
+            ><i class="bi bi-person" aria-hidden="true"></i>{{ address.recipientName }}</span
+          >
         </div>
       </div>
     </div>
@@ -75,6 +95,7 @@
         </button>
       </div>
       <button
+        *ngIf="detailId === null"
         hlmBtn
         variant="ghost"
         type="button"
@@ -97,7 +118,7 @@
   <div *ngIf="notices[order.id] as notice" class="summary-notice alert" [ngClass]="'alert-' + notice.type">
     {{ notice.text }}
   </div>
-  <div class="order-content" *ngIf="expandedOrders.has(order.id)">
+  <div class="order-content" *ngIf="detailId !== null || expandedOrders.has(order.id)">
     <section class="milestone-strip" aria-label="Order milestones">
       <div>
         <small>{{ 'orderedAt' | t }}</small><strong>{{ order.createdAt | trdate }}</strong>
@@ -129,6 +150,8 @@
       *ngIf="order.status === 'RECEIVED' || order.status === 'COMPLETED'"
       class="receipt-state-panel"
       [class.completed]="order.status === 'COMPLETED'"
+      [attr.id]="detailId !== null ? 'receipt' : null"
+      [attr.tabindex]="detailId !== null ? '-1' : null"
     >
       <div class="receipt-state-icon" aria-hidden="true">
         <i
@@ -267,16 +290,21 @@
           </ng-template>
         </section>
       </div>
-      <div class="address">
-        <span>{{ 'shipTo' | t }} · {{ order.address.label }}</span
-        ><strong>{{ order.address.recipientName }} · {{ order.address.phone }}</strong>
+      <div *ngIf="order.address as address" class="address">
+        <span>{{ 'shipTo' | t }} · {{ address.label }}</span
+        ><strong>{{ address.recipientName }} · {{ address.phone }}</strong>
         <p>
-          {{ order.address.addressLine1 }} {{ order.address.addressLine2 }}, {{ order.address.district }},
-          {{ order.address.city }}, {{ order.address.stateProvince }}, {{ order.address.countryCode }}
-          {{ order.address.postalCode }}
+          {{ address.addressLine1 }} {{ address.addressLine2 }}, {{ address.district }}, {{ address.city }},
+          {{ address.stateProvince }}, {{ address.countryCode }}
+          {{ address.postalCode }}
         </p>
       </div>
-      <div *ngIf="order.status === 'CANCELLING' || order.status === 'CANCELLED'" class="cancellation-summary">
+      <div
+        *ngIf="order.status === 'CANCELLING' || order.status === 'CANCELLED'"
+        class="cancellation-summary"
+        [attr.id]="detailId !== null ? 'cancellation' : null"
+        [attr.tabindex]="detailId !== null ? '-1' : null"
+      >
         <strong>{{ (order.status === 'CANCELLING' ? 'orderCancelling' : 'orderCancelled') | t }}</strong>
         <span *ngIf="order.cancelReason">{{ order.cancelReason }}</span>
         <small *ngIf="order.cancelledAt">{{ order.cancelledAt | trdate }}</small>
@@ -331,7 +359,12 @@
         </button>
       </div>
     </form>
-    <section class="logistics-panel" *ngIf="hasAction(order, 'VIEW_LOGISTICS') && order.logistics as logistics">
+    <section
+      class="logistics-panel"
+      *ngIf="hasAction(order, 'VIEW_LOGISTICS') && order.logistics as logistics"
+      [attr.id]="detailId !== null ? 'logistics' : null"
+      [attr.tabindex]="detailId !== null ? '-1' : null"
+    >
       <div class="section-heading">
         <div>
           <span class="eyebrow">{{ 'logisticsDetails' | t }}</span>
@@ -362,7 +395,12 @@
         </li>
       </ol>
     </section>
-    <section class="payment-panel" *ngIf="hasAction(order, 'PAY')">
+    <section
+      class="payment-panel"
+      *ngIf="hasAction(order, 'PAY')"
+      [attr.id]="detailId !== null && !order.payment ? 'payment' : null"
+      [attr.tabindex]="detailId !== null && !order.payment ? '-1' : null"
+    >
       <div class="section-heading">
         <div>
           <span class="eyebrow">{{ 'paymentChannel' | t }}</span>
@@ -471,7 +509,12 @@
         </button>
       </details>
     </section>
-    <section class="payment-receipt" *ngIf="order.payment as payment">
+    <section
+      class="payment-receipt"
+      *ngIf="order.payment as payment"
+      [attr.id]="detailId !== null ? 'payment' : null"
+      [attr.tabindex]="detailId !== null ? '-1' : null"
+    >
       <div class="payment-receipt-heading">
         <span class="payment-receipt-icon" aria-hidden="true"><i class="bi bi-credit-card"></i></span>
         <div>
@@ -545,7 +588,12 @@
         </button>
       </details>
     </section>
-    <section class="refund-receipt" *ngIf="order.refund as refund">
+    <section
+      class="refund-receipt"
+      *ngIf="order.refund as refund"
+      [attr.id]="detailId !== null ? 'refund' : null"
+      [attr.tabindex]="detailId !== null ? '-1' : null"
+    >
       <div class="section-heading">
         <div class="refund-status-heading">
           <span class="refund-status-icon" [class.failed]="refund.status === 'FAILED'" aria-hidden="true">
