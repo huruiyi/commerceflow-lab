@@ -6,6 +6,211 @@ evaluation_interval: 1m
 tests:
   - interval: 1m
     input_series:
+      - series: 'commerceflow_catalog_event_delivery_pending{job="catalog-service"}'
+        values: '1 1 1 1 1 0 0 0 0'
+      - series: 'commerceflow_catalog_event_delivery_oldest_seconds{job="catalog-service"}'
+        values: '119 120 180 240 300 0 0 0 0'
+      - series: 'commerceflow_catalog_event_delivery_dead{job="catalog-service"}'
+        values: '0 0 0 1 1 1 1 0 0'
+      - series: 'commerceflow_catalog_event_delivery_metrics_refresh_success{job="catalog-service"}'
+        values: '1 1 1 0 0 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: CommerceFlowCatalogEventDeliveryBacklog
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: CommerceFlowCatalogEventDeliveryBacklog
+        exp_alerts:
+          - exp_labels:
+              job: catalog-service
+              severity: warning
+            exp_annotations:
+              summary: Catalog event delivery backlog is aging
+              description: The oldest pending delivery is at least two minutes old and the condition has persisted for one minute.
+      - eval_time: 4m
+        alertname: CommerceFlowCatalogEventDeliveryBacklog
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: CommerceFlowCatalogEventDeliveryDead
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: CommerceFlowCatalogEventDeliveryMetricsRefreshFailed
+        exp_alerts:
+          - exp_labels:
+              job: catalog-service
+              severity: warning
+            exp_annotations:
+              summary: Catalog event delivery metrics are stale
+              description: The sending service could not refresh its Outbox metrics for one minute.
+      - eval_time: 6m
+        alertname: CommerceFlowCatalogEventDeliveryDead
+        exp_alerts:
+          - exp_labels:
+              job: catalog-service
+              severity: warning
+            exp_annotations:
+              summary: Catalog event delivery requires intervention
+              description: The sending Outbox has contained a DEAD delivery for one minute.
+      - eval_time: 7m
+        alertname: CommerceFlowCatalogEventDeliveryDead
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'commerceflow_notification_delivery_pending{job="commerce-service"}'
+        values: '1 1 1 1 1 0 0 0 0'
+      - series: 'commerceflow_notification_delivery_oldest_seconds{job="commerce-service"}'
+        values: '119 120 180 240 300 0 0 0 0'
+      - series: 'commerceflow_notification_delivery_dead{job="commerce-service"}'
+        values: '0 0 0 1 1 1 1 0 0'
+      - series: 'commerceflow_notification_delivery_metrics_refresh_success{job="commerce-service"}'
+        values: '1 1 1 0 0 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: CommerceFlowNotificationDeliveryBacklog
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: CommerceFlowNotificationDeliveryBacklog
+        exp_alerts:
+          - exp_labels:
+              job: commerce-service
+              severity: warning
+            exp_annotations:
+              summary: Notification command delivery backlog is aging
+              description: The oldest pending delivery is at least two minutes old and the condition has persisted for one minute.
+      - eval_time: 4m
+        alertname: CommerceFlowNotificationDeliveryBacklog
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: CommerceFlowNotificationDeliveryDead
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: CommerceFlowNotificationDeliveryMetricsRefreshFailed
+        exp_alerts:
+          - exp_labels:
+              job: commerce-service
+              severity: warning
+            exp_annotations:
+              summary: Notification command delivery metrics are stale
+              description: The sending service could not refresh its Outbox metrics for one minute.
+      - eval_time: 6m
+        alertname: CommerceFlowNotificationDeliveryDead
+        exp_alerts:
+          - exp_labels:
+              job: commerce-service
+              severity: warning
+            exp_annotations:
+              summary: Notification command delivery requires intervention
+              description: The sending Outbox has contained a DEAD delivery for one minute.
+      - eval_time: 7m
+        alertname: CommerceFlowNotificationDeliveryDead
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'commerceflow_notification_consumer_lag{job="notification-service"}'
+        values: '0 2 2 2 2 0 0 0'
+      - series: 'commerceflow_notification_consumer_metrics_refresh_success{job="notification-service"}'
+        values: '1 1 1 0 0 1 1 1'
+      - series: 'commerceflow_notification_consumer_dead_letters_total{job="notification-service"}'
+        values: '0 0 0 0 0 0 1 1'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: CommerceFlowNotificationConsumerLag
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: CommerceFlowNotificationConsumerLag
+        exp_alerts:
+          - exp_labels:
+              job: notification-service
+              severity: warning
+            exp_annotations:
+              summary: Notification Kafka consumer is behind
+              description: Unconsumed notification command offsets have remained for one minute.
+      - eval_time: 4m
+        alertname: CommerceFlowNotificationConsumerLag
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: CommerceFlowNotificationConsumerMetricsRefreshFailed
+        exp_alerts:
+          - exp_labels:
+              job: notification-service
+              severity: warning
+            exp_annotations:
+              summary: Notification Kafka consumer lag metrics are stale
+              description: The notification service could not refresh broker-side group offsets for one minute.
+      - eval_time: 6m
+        alertname: CommerceFlowNotificationConsumerDeadLetter
+        exp_alerts:
+          - exp_labels:
+              job: notification-service
+              severity: warning
+            exp_annotations:
+              summary: Notification consumer published a dead letter
+              description: A notification command was confirmed on the dead-letter topic in the last two minutes.
+      - eval_time: 7m
+        alertname: CommerceFlowNotificationConsumerDeadLetter
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'commerceflow_order_shipment_intents_pending{job="order-service"}'
+        values: '1 1 1 1 1 1 0 0 0'
+      - series: 'commerceflow_order_shipment_intents_oldest_seconds{job="order-service"}'
+        values: '119 119 120 180 240 300 0 0 0'
+      - series: 'commerceflow_order_cancellation_recovery_required{job="order-service"}'
+        values: '0 0 0 0 1 1 1 1 0'
+      - series: 'commerceflow_order_metrics_refresh_success{job="order-service"}'
+        values: '1 1 1 1 0 0 1 1 1'
+      - series: 'commerceflow_order_cancellation_recovery_required{job="commerce-service"}'
+        values: '1x8'
+      - series: 'commerceflow_order_metrics_refresh_success{job="commerce-service"}'
+        values: '1x8'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: CommerceFlowOrderShipmentIntentStalled
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: CommerceFlowOrderShipmentIntentStalled
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: CommerceFlowOrderShipmentIntentStalled
+        exp_alerts:
+          - exp_labels:
+              job: order-service
+              severity: warning
+            exp_annotations:
+              summary: Order shipment intent is stalled
+              description: A confirmed order with a shipment intent has had no update for at least two minutes, sustained for one minute.
+      - eval_time: 5m
+        alertname: CommerceFlowOrderShipmentIntentStalled
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: CommerceFlowOrderCancellationRecoveryRequired
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: CommerceFlowOrderMetricsRefreshFailed
+        exp_alerts:
+          - exp_labels:
+              job: order-service
+              severity: warning
+            exp_annotations:
+              summary: Order database metrics are stale
+              description: The order service could not refresh its backlog metrics for one minute.
+      - eval_time: 7m
+        alertname: CommerceFlowOrderCancellationRecoveryRequired
+        exp_alerts:
+          - exp_labels:
+              job: order-service
+              severity: warning
+            exp_annotations:
+              summary: Order cancellation protocol requires recovery
+              description: An order cancellation process has required reconciliation, compensation or manual review for one minute.
+      - eval_time: 8m
+        alertname: CommerceFlowOrderCancellationRecoveryRequired
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: CommerceFlowOrderMetricsRefreshFailed
+        exp_alerts: []
+  - interval: 1m
+    input_series:
       - series: 'up{job="commerce-service",instance="commerce-service:8080"}'
         values: '0x3'
     alert_rule_test:

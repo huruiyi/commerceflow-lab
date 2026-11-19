@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.order.infrastructure.persistence.OrderMonitoringMapper">
+
+  <select id="backlog"
+          resultType="vip.fairy.commerceflow.order.infrastructure.persistence.OrderMonitoringMapper$Backlog">
+    SELECT COUNT(*) AS shipmentIntents,
+      COALESCE(GREATEST(0,TIMESTAMPDIFF(SECOND,MIN(updated_at),CURRENT_TIMESTAMP(6))),0)
+        AS oldestShipmentIntentSeconds,
+      (SELECT COUNT(*) FROM order_process_managers
+       WHERE process_type='CANCELLATION'
+         AND status IN ('WAITING_RECONCILIATION','COMPENSATION_REQUIRED','MANUAL_REVIEW'))
+        AS cancellationRecoveryRequired
+    FROM shop_orders
+    WHERE status='CONFIRMED' AND shipment_intent_key IS NOT NULL
+  </select>
+</mapper>

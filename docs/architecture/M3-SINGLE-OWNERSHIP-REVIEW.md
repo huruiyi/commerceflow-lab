@@ -225,3 +225,68 @@ docker compose --profile verification-access run --rm --no-deps verification-db-
 
 现有本地环境已应用 V49→V50。退役归档为 0 行，商城运行账号读取归档返回 MySQL 1142，
 门户旧入口返回 404，Order V1 查询及商城健康检查通过。历史五笔库存投递状态、尝试次数和流水均与升级前一致。
+
+## 10. 目录与通知监控验收
+
+2026-11-19 使用 Windows PowerShell 7、MySQL 8.4、Kafka 4.1.1 和 Prometheus 3.7.3。脚本在独立 Docker
+网络运行最新编译的商城、目录和通知 JAR 与库存服务，四个 MySQL Schema 各使用自己的账号。
+隔离测试和日常只读核对共用一份入口。构建使用 JDK 25，脚本复用本地服务运行镜像。
+
+```powershell
+mvn -f services/catalog-service/pom.xml clean package
+mvn -f services/notification-service/pom.xml clean package
+mvn -f services/commerce-service/pom.xml clean package
+pwsh -NoProfile -File ./scripts/verify-catalog-notification-monitoring.ps1
+pwsh -NoProfile -File ./scripts/verify-catalog-notification-monitoring.ps1 -ReadOnly
+```
+
+隔离库为两个发送链路各准备两条有效合成事件。其中一条预设为只剩最后一次尝试。
+先保持库存 HTTP 和 Kafka 目的端不可用，由实际投递器把两条分别推进为 `RETRY`、`DEAD`。
+每阶段独立查询数据库，并核对 Prometheus 采集值和规则状态。非零年龄允许 20 秒采样时差。
+
+| 阶段 | 目录 MySQL 待发／最老秒数／DEAD／已发 | 商城通知 MySQL 待发／最老秒数／DEAD／已发 | 两端指标与告警 |
+| --- | --- | --- | --- |
+| 空库 | 0／0／0／0 | 0／0／0／0 | 三项业务指标为 0，两条业务告警 `inactive` |
+| 目的端不可用 | 1／224／1／0 | 1／224／1／0 | 两端待发 1、最老 217 秒、DEAD 1，积压和 DEAD 均 `firing` |
+| 目的端恢复 | 0／0／1／1 | 0／0／1／1 | 待发和年龄归零，积压解除，DEAD 仍 `firing` |
+| 隔离夹具重试完成 | 0／0／0／2 | 0／0／0／2 | 三项归零，两条业务告警均 `inactive` |
+
+隔离 SQL 将两个 DEAD 夹具重新置为 RETRY，由原投递器完成实际投递。库存用两个 `eventId` 各匹配一条
+`APPLIED` Inbox，商品快照版本从 1 更新到 2，单价从 40 更新到 42。商城两条有效通知均进入 Kafka。
+
+| 消费阶段 | Broker 或 MySQL 核对结果 | Prometheus 与告警 |
+| --- | --- | --- |
+| 只启采集，暂停消费者 | 干净主题的末端偏移合计 2，消费组尚未提交偏移 | lag=2，消费 lag `firing`，发送告警已恢复 |
+| 恢复消费者 | 消费组 lag=0，两个 eventId 分别匹配一条 Inbox 和一条可见通知 | lag=0，消费 lag `inactive` |
+| 无效通知进入死信 | DLT 末端偏移增加 1，可见通知仍为 2 条 | 死信计数加至 1，消费死信 `firing`，lag=0 |
+| 两分钟窗口结束 | DLT 保留该消息 | 死信累计值为 1，消费死信恢复为 `inactive` |
+
+目录 5 项、通知 2 项、商城 56 项 Maven 测试通过。Prometheus 配置校验加载 39 条规则，两份 `promtool`
+规则文件通过，覆盖年龄门槛、刷新失败、死信时间窗和恢复。日常环境只读复核 2 条目录发布事件与库存
+Inbox 和版本一致，305 条商城已发布通知全部匹配 Inbox 和可见通知，缺失 0、隔离 0、组 lag 0、DLT
+末端偏移 0。两服务使用各自的库，商城对目录、通知旧表的直接及库级权限检查为 0。新增监控在隔离环境运行。
+
+## 11. 取消订单跨库中断恢复验收
+
+支付编排返回 `CLOSED` 后，商城先提交 `order_cancellation_completion`，按订单 ID 保存顾客、触发来源、
+取消原因和可选的超时任务 ID。商城随后通过 Order V1 用稳定的 mutation ID 写取消终态和审计事件。
+恢复时 Order V1 按原 mutation ID 返回已提交结果。商城锁定待恢复行，在同一本地事务写取消效果 Outbox、
+通知 Outbox 和完成时间。后台重启后扫描未完成行。此前已取消且没有完成记录的订单不产生补发。
+
+使用 JDK 25 构建，PowerShell 7 脚本在独立 Docker 网络运行 MySQL 8.4、Kafka、Redis 与真实服务。
+
+```powershell
+mvn -f services/commerce-service/pom.xml clean package
+pwsh -NoProfile -File ./scripts/verify-order-cancellation-cutover-recovery.ps1
+```
+
+| 时点 | 订单库 | 商城库 | 库存与通知库 |
+| --- | --- | --- | --- |
+| 中断前 | 合成订单 101 已为 `CANCELLED / RESERVED`，取消审计 1 条，稳定 mutation 回执 2 个 | 已提交的待恢复记录 1 条。MySQL 证实商城插入 Outbox 正被间隙锁阻塞，取消效果和通知 Outbox 均为 0 | 预占仍为 `RESERVED`，可售／预占为 9／1，释放流水和通知均为 0 |
+| 商城 SIGKILL 后重启 | `CANCELLED / RELEASED`，取消审计仍为 1 条，回执仍为 2 个 | 后台自动补齐，完成记录、取消效果 Outbox、效果 Inbox、已发布通知 Outbox、已确认释放命令各 1 条 | 预占已释放，可售／预占为 10／0，释放流水及命令 Inbox 各 1 条，可见通知及其 Inbox 各 1 条 |
+| 重复请求后 | 原取消原因和来源保留，取消审计与回执数量一致 | 支付关闭回执仍为 1 条。新增恢复记录产生的取消效果、通知和释放投递各 1 条。合成历史已取消订单 102 产生 0 条新效果 | 释放流水和通知数量均保持 1 |
+
+脚本仅对自身隔离容器注入故障，并在结束时回收临时资源。商城 56 项 Maven 测试、Flyway 空库 V1→V52 和
+旧库 V16→V52 均通过。P3 复验使用 V53 的最小运行权限重新演练，并完成日常部署。
+
+[最终隔离与日常验收结果](../IMPLEMENTED.md#211-p3-运行监控与订单取消恢复)。

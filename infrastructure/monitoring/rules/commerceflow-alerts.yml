@@ -14,7 +14,7 @@ groups:
           description: This always-firing alert verifies Prometheus to Alertmanager to webhook delivery.
       - alert: CommerceFlowServiceDown
         expr: |
-          up{job=~"commerce-service|payment-simulator-service|payment-orchestration-service|logistics-simulator-service|inventory-service"} == 0
+          up{job=~"commerce-service|order-service|payment-simulator-service|payment-orchestration-service|logistics-simulator-service|inventory-service|catalog-service|notification-service"} == 0
         for: 1m
         labels:
           severity: critical
@@ -119,6 +119,124 @@ groups:
         annotations:
           summary: Payment runtime metrics are stale
           description: The payment service could not refresh its database-backed runtime metrics.
+
+  - name: commerceflow-catalog-and-notification
+    rules:
+      - alert: CommerceFlowCatalogEventDeliveryBacklog
+        expr: |
+          commerceflow_catalog_event_delivery_pending{job="catalog-service"} > 0
+            and commerceflow_catalog_event_delivery_oldest_seconds{job="catalog-service"} >= 120
+            and commerceflow_catalog_event_delivery_metrics_refresh_success{job="catalog-service"} == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Catalog event delivery backlog is aging
+          description: The oldest pending delivery is at least two minutes old and the condition has persisted for one minute.
+      - alert: CommerceFlowCatalogEventDeliveryDead
+        expr: |
+          commerceflow_catalog_event_delivery_dead{job="catalog-service"} > 0
+            and commerceflow_catalog_event_delivery_metrics_refresh_success{job="catalog-service"} == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Catalog event delivery requires intervention
+          description: The sending Outbox has contained a DEAD delivery for one minute.
+      - alert: CommerceFlowCatalogEventDeliveryMetricsRefreshFailed
+        expr: commerceflow_catalog_event_delivery_metrics_refresh_success{job="catalog-service"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Catalog event delivery metrics are stale
+          description: The sending service could not refresh its Outbox metrics for one minute.
+      - alert: CommerceFlowNotificationDeliveryBacklog
+        expr: |
+          commerceflow_notification_delivery_pending{job="commerce-service"} > 0
+            and commerceflow_notification_delivery_oldest_seconds{job="commerce-service"} >= 120
+            and commerceflow_notification_delivery_metrics_refresh_success{job="commerce-service"} == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Notification command delivery backlog is aging
+          description: The oldest pending delivery is at least two minutes old and the condition has persisted for one minute.
+      - alert: CommerceFlowNotificationDeliveryDead
+        expr: |
+          commerceflow_notification_delivery_dead{job="commerce-service"} > 0
+            and commerceflow_notification_delivery_metrics_refresh_success{job="commerce-service"} == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Notification command delivery requires intervention
+          description: The sending Outbox has contained a DEAD delivery for one minute.
+      - alert: CommerceFlowNotificationDeliveryMetricsRefreshFailed
+        expr: commerceflow_notification_delivery_metrics_refresh_success{job="commerce-service"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Notification command delivery metrics are stale
+          description: The sending service could not refresh its Outbox metrics for one minute.
+      - alert: CommerceFlowNotificationConsumerLag
+        expr: |
+          commerceflow_notification_consumer_lag{job="notification-service"} > 0
+            and commerceflow_notification_consumer_metrics_refresh_success{job="notification-service"} == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Notification Kafka consumer is behind
+          description: Unconsumed notification command offsets have remained for one minute.
+      - alert: CommerceFlowNotificationConsumerDeadLetter
+        expr: increase(commerceflow_notification_consumer_dead_letters_total{job="notification-service"}[2m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: Notification consumer published a dead letter
+          description: A notification command was confirmed on the dead-letter topic in the last two minutes.
+      - alert: CommerceFlowNotificationConsumerMetricsRefreshFailed
+        expr: commerceflow_notification_consumer_metrics_refresh_success{job="notification-service"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Notification Kafka consumer lag metrics are stale
+          description: The notification service could not refresh broker-side group offsets for one minute.
+
+  - name: commerceflow-order
+    rules:
+      - alert: CommerceFlowOrderShipmentIntentStalled
+        expr: |
+          commerceflow_order_shipment_intents_pending{job="order-service"} > 0
+            and commerceflow_order_shipment_intents_oldest_seconds{job="order-service"} >= 120
+            and commerceflow_order_metrics_refresh_success{job="order-service"} == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Order shipment intent is stalled
+          description: A confirmed order with a shipment intent has had no update for at least two minutes, sustained for one minute.
+      - alert: CommerceFlowOrderCancellationRecoveryRequired
+        expr: |
+          commerceflow_order_cancellation_recovery_required{job="order-service"} > 0
+            and commerceflow_order_metrics_refresh_success{job="order-service"} == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Order cancellation protocol requires recovery
+          description: An order cancellation process has required reconciliation, compensation or manual review for one minute.
+      - alert: CommerceFlowOrderMetricsRefreshFailed
+        expr: commerceflow_order_metrics_refresh_success{job="order-service"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Order database metrics are stale
+          description: The order service could not refresh its backlog metrics for one minute.
 
   - name: commerceflow-inventory-command-delivery
     rules:

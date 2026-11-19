@@ -28,7 +28,10 @@ root_mysql() {
 
 grant_statements=$(root_mysql -e "
   SELECT CONCAT(
-    'GRANT SELECT, INSERT, UPDATE, DELETE ON \`commerceflow\`.\`',
+    'GRANT SELECT, INSERT, UPDATE',
+    CASE WHEN table_name IN ('order_cancellation_completion','cart_repurchase_requests')
+      THEN '' ELSE ', DELETE' END,
+    ' ON \`commerceflow\`.\`',
     table_name,
     '\` TO ''${RUNTIME_DATABASE_USERNAME}''@''%'';'
   )

@@ -2,6 +2,7 @@ package vip.fairy.commerceflow.commerce;
 
 import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderListPage;
 import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderListQuery;
+
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
@@ -32,7 +33,6 @@ final class TestOrderStoreAdapter implements OrderStorePort {
   public OrderListPage<ShopOrderView> search(Long customerId, Long merchantId, OrderListQuery criteria) {
     throw new UnsupportedOperationException("Order search is served by order-service");
   }
-
 
   private final JdbcTemplate jdbc;
   private final SqlSessionTemplate session;
@@ -188,9 +188,16 @@ final class TestOrderStoreAdapter implements OrderStorePort {
   }
 
   @Override
-  public int finishCancellation(Long id) {
+  public int finishCancellation(String mutationId, Long id) {
     return jdbc.update("UPDATE shop_orders SET status='CANCELLED',cancelled_at=CURRENT_TIMESTAMP,"
       + "updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='CANCELLING'", id);
+  }
+
+  @Override
+  public void insertCancellationEvent(String mutationId, Long id, Long actorId, String reason,
+                                      String triggerSource, Long scheduledTaskId) {
+    insertEventDetailed(id, actorId, "ORDER_CANCELLED", "CANCELLING", "CANCELLED",
+      reason, triggerSource, scheduledTaskId);
   }
 
   @Override

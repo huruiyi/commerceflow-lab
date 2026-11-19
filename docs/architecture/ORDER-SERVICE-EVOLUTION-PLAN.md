@@ -143,3 +143,32 @@ pwsh -File ./scripts/verify-order-precutover-rehearsal.ps1
 ```powershell
 pwsh -File ./scripts/verify-order-runtime-cutover.ps1
 ```
+
+## 10. 订单监控与只读核对
+
+订单服务从自己的 MySQL 读取未完成发货意图和取消协议待恢复流程。发货滞留按 `shop_orders.updated_at` 计算最近更新后的等待时长，满 120 秒并持续 1 分钟触发告警。取消协议待恢复持续 1 分钟触发独立告警。采集失败由单独规则报告。指标状态口径见[告警文档](../ALERTING.md#3-告警规则)。
+
+Windows PowerShell 7、MySQL 8.4、Prometheus 3.7.3 的隔离验收使用本次构建的订单 JAR 和实际 Prometheus 规则。脚本通过合成行固定各阶段的状态，从 MySQL 按状态分组，再核对 Prometheus 读数和规则状态。非零年龄允许 20 秒采样时差。
+
+| 阶段 | SQL 发货意图／最老秒数／取消待恢复 | Prometheus 发货意图／最老秒数／取消待恢复 | 业务告警 |
+| --- | --- | --- | --- |
+| 空库 | 0／0／0 | 0／0／0 | 均为 `inactive` |
+| 发货滞留 | 1／224／0 | 1／214／0 | 发货滞留 `firing` |
+| 取消待恢复 | 0／0／3 | 0／0／3 | 取消协议待恢复 `firing` |
+| 恢复后 | 0／0／0 | 0／0／0 | 均恢复为 `inactive` |
+
+发货阶段保留创建更早的 `SHIPPED` 行和无意图的 `CONFIRMED` 行。取消阶段的三个样本分别为 `WAITING_RECONCILIATION`、`COMPENSATION_REQUIRED` 和 `MANUAL_REVIEW`，另保留 `WAITING_RESULT` 和 `COMPLETED` 行。采集成功值各阶段均为 1。两项订单 Maven 测试和两份 `promtool` 测试文件通过，规则验收还覆盖 120 秒边界、刷新失败和恢复。
+
+同一份 PowerShell 7 脚本提供隔离验收和日常环境只读核对。隔离验收需要 JDK 25 构建的 JAR 及本地订单服务运行镜像。
+
+```powershell
+mvn -f services/order-service/pom.xml clean package
+pwsh -NoProfile -File ./scripts/verify-order-monitoring.ps1
+pwsh -NoProfile -File ./scripts/verify-order-monitoring.ps1 -ReadOnly -OrderId 695
+```
+
+2026-11-19 日常环境只读基线确认订单服务指向 `order-db/orders`、接单开启、影子关闭。商城旧库 345 笔订单的 ID 与订单号在权威库全部匹配，缺失和不符均为 0。权威库共 696 笔，其中 351 笔只存在于权威库。商城运行账号对旧订单表的直接授权为 0，源水位为 236。发货意图、未完成取消协议、未确认订单命令、未解决影子隔离和商城取消效果积压均为 0。
+
+订单 695 为 `CANCELLED / RELEASED`，商城取消效果为 `PUBLISHED` 且 Inbox 已记录，库存释放投递为 `ACKNOWLEDGED`，通知投递为 `PUBLISHED`。这组读数是成功路径基线。取消终态与商城 Outbox 两次写入之间的中断恢复继续由 M3 专项演练验证。新规则在隔离环境验收，日常环境仅执行只读检查。
+
+[订单监控日常发布与验收](../IMPLEMENTED.md#211-p3-运行监控与订单取消恢复)。

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.ordering.infrastructure.OrderCancellationCompletionMapper">
+
+  <insert id="enqueue">
+    INSERT IGNORE INTO order_cancellation_completion(
+      order_id,customer_id,actor_id,reason,trigger_source,scheduled_task_id
+    )
+    VALUES(#{orderId},#{customerId},#{actorId},#{reason},#{triggerSource},#{scheduledTaskId})
+  </insert>
+
+  <select id="due" resultType="java.lang.Long">
+    SELECT order_id FROM order_cancellation_completion
+    WHERE completed_at IS NULL AND next_attempt_at&lt;=CURRENT_TIMESTAMP(6)
+    ORDER BY next_attempt_at,order_id LIMIT #{limit}
+  </select>
+
+  <select id="lockPending"
+          resultType="vip.fairy.commerceflow.commerce.ordering.infrastructure.OrderCancellationCompletionMapper$Intent">
+    SELECT order_id,customer_id,actor_id,reason,trigger_source,scheduled_task_id
+    FROM order_cancellation_completion WHERE order_id=#{orderId} AND completed_at IS NULL FOR UPDATE
+  </select>
+
+  <update id="complete">
+    UPDATE order_cancellation_completion SET completed_at=CURRENT_TIMESTAMP(6)
+    WHERE order_id=#{orderId} AND completed_at IS NULL
+  </update>
+
+  <update id="defer">
+    UPDATE order_cancellation_completion SET next_attempt_at=#{nextAttemptAt}
+    WHERE order_id=#{orderId} AND completed_at IS NULL
+  </update>
+</mapper>

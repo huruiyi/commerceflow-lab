@@ -18,6 +18,17 @@
     LIMIT #{batchSize}
   </select>
 
+  <select id="backlog"
+          resultType="vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogEventOutboxMapper$Backlog">
+    SELECT COUNT(CASE WHEN status IN ('NEW','RETRY') THEN 1 END) AS pending,
+      COALESCE(GREATEST(0,TIMESTAMPDIFF(SECOND,
+        MIN(CASE WHEN status IN ('NEW','RETRY') THEN created_at END),
+        CURRENT_TIMESTAMP(6))),0) AS oldestSeconds,
+      COUNT(CASE WHEN status='DEAD' THEN 1 END) AS dead
+    FROM catalog_event_outbox
+    WHERE status IN ('NEW','RETRY','DEAD')
+  </select>
+
   <update id="published">
     UPDATE catalog_event_outbox
     SET status='PUBLISHED',attempts=attempts+1,published_at=CURRENT_TIMESTAMP,last_error=NULL

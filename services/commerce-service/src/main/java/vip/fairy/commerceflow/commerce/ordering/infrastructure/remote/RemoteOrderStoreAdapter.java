@@ -175,8 +175,16 @@ public class RemoteOrderStoreAdapter implements OrderStorePort {
   }
 
   @Override
-  public int finishCancellation(Long id) {
-    return simple("FINISH_CANCELLATION", id);
+  public int finishCancellation(String mutationId, Long id) {
+    return apply(new Mutation(mutationId, "FINISH_CANCELLATION", id, null,
+      null, null, null, null, null, null, null, null, null, null));
+  }
+
+  @Override
+  public void insertCancellationEvent(String mutationId, Long id, Long actorId, String reason,
+                                      String triggerSource, Long scheduledTaskId) {
+    apply(new Mutation(mutationId, "INSERT_EVENT", id, actorId, "CANCELLING", "CANCELLED",
+      null, null, null, "ORDER_CANCELLED", reason, triggerSource, scheduledTaskId, null));
   }
 
   @Override

@@ -10,6 +10,11 @@ import org.apache.ibatis.annotations.Param;
 
 public interface CatalogEventOutboxMapper {
 
+  Backlog backlog();
+
+  record Backlog(long pending, long oldestSeconds, long dead) {
+  }
+
   int insert(CatalogProductEventV1 event, String payload);
 
   List<CatalogEventOutbox> pending(int batchSize);

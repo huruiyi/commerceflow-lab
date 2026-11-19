@@ -66,7 +66,10 @@ public interface OrderStorePort {
 
   int startCancellation(Long id, String reason);
 
-  int finishCancellation(Long id);
+  int finishCancellation(String mutationId, Long id);
+
+  void insertCancellationEvent(String mutationId, Long id, Long actorId, String reason,
+                               String triggerSource, Long scheduledTaskId);
 
   int restorePaidAfterCancellationRace(Long id);
 

@@ -914,3 +914,15 @@ CREATE TABLE logistics_fulfillment_commands (
   owner_token CHAR(36),
   lease_until TIMESTAMP(6)
 );
+
+CREATE TABLE order_cancellation_completion (
+  order_id BIGINT NOT NULL PRIMARY KEY,
+  customer_id BIGINT NOT NULL,
+  actor_id BIGINT NULL,
+  reason VARCHAR(300) NOT NULL,
+  trigger_source VARCHAR(40) NOT NULL,
+  scheduled_task_id BIGINT NULL,
+  created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  next_attempt_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  completed_at TIMESTAMP(6) NULL
+);
