@@ -43,6 +43,11 @@ public class SignedRequestFilter extends OncePerRequestFilter {
       request.getHeader("X-Signature"));
     try {
       SignedRequestContext context = signatures.verify(request.getMethod(), target, cached.body(), headers);
+      String path = request.getRequestURI();
+      boolean payoutRoute = path.equals("/api/channel/payouts") || path.startsWith("/api/channel/payouts/");
+      if (payoutRoute != "commerceflow-payout".equals(context.merchant().getAppId())) {
+        throw new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "Payment application scope");
+      }
       cached.setAttribute(SignedRequestContext.ATTRIBUTE, context);
       filterChain.doFilter(cached, response);
     } catch (ResponseStatusException exception) {

@@ -108,6 +108,7 @@ public class SecurityConfiguration {
         .csrfTokenRequestHandler(csrfRequestHandler)
         .ignoringRequestMatchers(
           "/api/logistics-notifications/**",
+          "/api/payout-notifications",
           "/internal/v1/inventory/catalog-events",
           "/internal/v1/logistics/fulfillment/commands",
           "/internal/v1/logistics/fulfillment/shipment-checks"))
@@ -119,6 +120,7 @@ public class SecurityConfiguration {
           "/api/auth/csrf",
           "/api/products/**",
           "/api/stores/**",
+          "/api/payout-notifications",
           "/api/logistics-notifications/**",
           "/internal/v1/inventory/catalog-events",
           "/internal/v1/logistics/fulfillment/commands",

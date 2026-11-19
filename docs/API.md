@@ -24,6 +24,8 @@
 | 商家账号 | `POST /api/users/merchants` | ADMIN |
 | 店铺 | `GET /api/stores/{id}`、`GET/PUT /api/merchant/store`、`GET /api/admin/stores`、`PUT /api/admin/stores/{id}/status` | 公开店铺 / 商家本人 / 管理员 |
 | 新建商品 | `POST /api/merchant/catalog/v1/products` | 已启用店铺的商家 |
+| 商家应结 | `PUT /api/admin/stores/{merchantId}/settlement`、`GET/POST /api/admin/stores/{merchantId}/statements`、`GET /api/merchant/settlement/statements` | 管理员开通和冻结，商家读本店 |
+| 商家打款 | `GET/POST /api/admin/stores/{merchantId}/statements/{id}/payouts`、`GET /api/merchant/settlement/statements/{id}/payouts` | 管理员发起，商家读本店 |
 | 定时任务治理 | `GET/PUT/DELETE /api/admin/scheduling/policies...`、`GET/POST /api/admin/scheduling/tasks...` | ADMIN |
 
 ## 结算与优惠券 API

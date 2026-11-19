@@ -9,6 +9,7 @@ import java.util.List;
 
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,36 +18,46 @@ public class DemoMerchantInitializer implements ApplicationRunner {
 
   private final PaymentMerchantMapper merchants;
   private final CredentialCipher cipher;
+  private final String payoutSecret;
 
-  public DemoMerchantInitializer(PaymentMerchantMapper m, CredentialCipher c) {
+  public DemoMerchantInitializer(PaymentMerchantMapper m, CredentialCipher c,
+                                 @Value("${PAYOUT_PLATFORM_APP_SECRET:demo-merchant-payout-secret}")
+                                 String payoutSecret) {
     merchants = m;
     cipher = c;
+    this.payoutSecret = payoutSecret;
   }
 
   @Override
   @Transactional
   public void run(ApplicationArguments a) {
     for (String channel : List.of("alipay", "wechat-pay", "union-pay")) {
-      String appId = "commerceflow-" + channel;
-      if (merchants.selectCount(new LambdaQueryWrapper<PaymentMerchant>().eq(PaymentMerchant::getAppId, appId)) > 0)
-        continue;
-      String secret = "demo-" + channel + "-secret";
-      PaymentMerchant m = new PaymentMerchant();
-      m.setMerchantNo("CFL-" + channel.toUpperCase());
-      m.setDisplayName("CommerceFlow " + channel);
-      m.setAppId(appId);
-      m.setSecretCipher(cipher.encrypt(secret));
-      m.setSecretLastFour(secret.substring(secret.length() - 4));
-      m.setCredentialVersion(1);
-      m.setSigningAlgorithm("HMAC_SHA256");
-      m.setNotifyUrl("http://payment-orchestration-service:8080/api/payment-notifications/callback");
-      m.setEnabled(true);
-      m.setCreatedBy(1L);
-      m.setUpdatedBy(1L);
-      m.setCreatedAt(LocalDateTime.now());
-      m.setUpdatedAt(LocalDateTime.now());
-      merchants.insert(m);
-      merchants.insertCallbackEndpoint(m.getId(), m.getNotifyUrl());
+      initialize(channel, "demo-" + channel + "-secret",
+        "http://payment-orchestration-service:8080/api/payment-notifications/callback");
     }
+    initialize("payout", payoutSecret, "http://commerce-service:8080/api/payout-notifications");
+  }
+
+  private void initialize(String kind, String secret, String callback) {
+    String appId = "commerceflow-" + kind;
+    if (merchants.selectCount(new LambdaQueryWrapper<PaymentMerchant>().eq(PaymentMerchant::getAppId, appId)) > 0) {
+      return;
+    }
+    PaymentMerchant m = new PaymentMerchant();
+    m.setMerchantNo("CFL-" + kind.toUpperCase(java.util.Locale.ROOT));
+    m.setDisplayName("CommerceFlow " + kind);
+    m.setAppId(appId);
+    m.setSecretCipher(cipher.encrypt(secret));
+    m.setSecretLastFour(secret.substring(secret.length() - 4));
+    m.setCredentialVersion(1);
+    m.setSigningAlgorithm("HMAC_SHA256");
+    m.setNotifyUrl(callback);
+    m.setEnabled(true);
+    m.setCreatedBy(1L);
+    m.setUpdatedBy(1L);
+    m.setCreatedAt(LocalDateTime.now());
+    m.setUpdatedAt(LocalDateTime.now());
+    merchants.insert(m);
+    merchants.insertCallbackEndpoint(m.getId(), m.getNotifyUrl());
   }
 }

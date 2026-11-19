@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.merchant.infrastructure.MerchantPayoutMapper">
+  <sql id="columns">
+    id,statement_id,merchant_id,amount,currency,status,simulate_failure,
+    requested_by,channel_payout_no,created_at,resolved_at
+  </sql>
+  <select id="find" resultType="vip.fairy.commerceflow.commerce.merchant.domain.MerchantPayout">
+    SELECT <include refid="columns"/> FROM merchant_payout_attempts WHERE id=#{id}
+  </select>
+  <select id="lock" resultType="vip.fairy.commerceflow.commerce.merchant.domain.MerchantPayout">
+    SELECT <include refid="columns"/> FROM merchant_payout_attempts WHERE id=#{id} FOR UPDATE
+  </select>
+  <select id="attempts" resultType="vip.fairy.commerceflow.commerce.merchant.domain.MerchantPayout">
+    SELECT <include refid="columns"/> FROM merchant_payout_attempts
+    WHERE statement_id=#{statement} ORDER BY created_at DESC,id DESC
+  </select>
+  <select id="due" resultType="vip.fairy.commerceflow.commerce.merchant.domain.MerchantPayout">
+    SELECT <include refid="columns"/> FROM merchant_payout_attempts
+    WHERE status IN ('REQUESTED','PENDING') AND next_attempt_at &lt;= CURRENT_TIMESTAMP(6)
+    ORDER BY next_attempt_at,id LIMIT 10
+  </select>
+  <insert id="insert">
+    INSERT INTO merchant_payout_attempts(id,statement_id,merchant_id,amount,currency,status,simulate_failure,requested_by)
+    VALUES(#{id},#{statementId},#{merchantId},#{amount},#{currency},'REQUESTED',#{simulateFailure},#{requestedBy})
+  </insert>
+  <update id="observe">
+    UPDATE merchant_payout_attempts SET status=#{status},channel_payout_no=#{channel},resolved_at=#{resolvedAt},
+      next_attempt_at=TIMESTAMPADD(SECOND,5,CURRENT_TIMESTAMP(6))
+    WHERE id=#{id} AND status IN ('REQUESTED','PENDING')
+  </update>
+  <update id="defer">
+    UPDATE merchant_payout_attempts SET next_attempt_at=TIMESTAMPADD(SECOND,5,CURRENT_TIMESTAMP(6))
+    WHERE id=#{id} AND status IN ('REQUESTED','PENDING')
+  </update>
+</mapper>

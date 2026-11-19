@@ -528,6 +528,9 @@ services:
       PAYMENT_CALLBACK_URL: http://payment-orchestration-service:8080/api/payment-notifications/callback
       REFUND_CALLBACK_URL: http://payment-orchestration-service:8080/api/refund-notifications/callback
       PAYMENT_CALLBACK_SECRET: ${PAYMENT_CALLBACK_SECRET:-demo-platform-callback-secret}
+      PAYOUT_CALLBACK_SECRET: ${PAYOUT_CALLBACK_SECRET:-demo-payout-callback-secret}
+      PAYOUT_PLATFORM_APP_SECRET: ${PAYOUT_PLATFORM_APP_SECRET:-demo-merchant-payout-secret}
+      PAYOUT_CALLBACK_URL: http://commerce-service:8080/api/payout-notifications
       TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
       TRACING_OTLP_ENDPOINT: ${TRACING_OTLP_ENDPOINT:-http://tempo:4318/v1/traces}
       TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1.0}
@@ -645,6 +648,9 @@ services:
       PAYMENT_WRITE_FROZEN: ${PAYMENT_WRITE_FROZEN:-false}
       COMMERCEFLOW_PAYMENT_REMOTE_BASE_URL: ${PAYMENT_SERVICE_BASE_URL:-http://payment-orchestration-service:8080}
       COMMERCEFLOW_PAYMENT_REMOTE_SECRET: ${PAYMENT_INTERNAL_SECRET:-demo-payment-internal-secret}
+      PAYOUT_PLATFORM_BASE_URL: http://payment-simulator-service:8080
+      PAYOUT_PLATFORM_APP_SECRET: ${PAYOUT_PLATFORM_APP_SECRET:-demo-merchant-payout-secret}
+      PAYOUT_CALLBACK_SECRET: ${PAYOUT_CALLBACK_SECRET:-demo-payout-callback-secret}
       LOGISTICS_PLATFORM_BASE_URL: http://logistics-simulator-service:8080
       LOGISTICS_APP_ID: ${LOGISTICS_APP_ID:-commerceflow-storefront}
       LOGISTICS_REQUEST_SECRET: ${LOGISTICS_REQUEST_SECRET:-demo-logistics-request-secret}

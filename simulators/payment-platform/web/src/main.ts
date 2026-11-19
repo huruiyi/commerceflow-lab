@@ -25,6 +25,7 @@ const router = createRouter({
       meta: { authority: 'TRANSACTION_READ' },
     },
     { path: '/refunds', component: () => import('./views/RefundView.vue'), meta: { authority: 'REFUND_READ' } },
+    { path: '/payouts', component: () => import('./views/PayoutView.vue'), meta: { authority: 'REFUND_READ' } },
     { path: '/users', component: () => import('./views/UserView.vue'), meta: { authority: 'ADMIN_USER_MANAGE' } },
     { path: '/audit', component: () => import('./views/AuditView.vue'), meta: { authority: 'AUDIT_READ' } },
     { path: '/security', component: () => import('./views/SecurityView.vue') },

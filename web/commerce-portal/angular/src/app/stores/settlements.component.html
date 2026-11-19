@@ -44,6 +44,17 @@
   </ng-template>
   <ng-container *ngIf="selected()"><h3 class="h5">已冻结明细 / Frozen entries</h3>
     <ng-container *ngTemplateOutlet="ledger; context: { $implicit: entries() }"></ng-container>
+    <h3 class="h5">模拟打款 / Simulated payouts</h3>
+    <ul class="list-group mb-3" *ngIf="payouts().length">
+      <li class="list-group-item" *ngFor="let item of payouts()">
+        {{ item.status }} · {{ item.amount | currency:'CNY' }}
+        <span *ngIf="item.channelPayoutNo"> · {{ item.channelPayoutNo }}</span>
+      </li>
+    </ul>
+    <button *ngIf="admin && (!payouts().length || payouts()[0].status === 'FAILED')"
+      class="btn btn-outline-primary" type="button" [disabled]="busy()" (click)="requestPayout()">
+      发起模拟打款 / Request simulated payout
+    </button>
   </ng-container>
   <ng-container *ngIf="pending().length"><h3 class="h5">待结余额记录 / Pending entries</h3>
     <ng-container *ngTemplateOutlet="ledger; context: { $implicit: pending() }"></ng-container>

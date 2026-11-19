@@ -26,6 +26,14 @@ interface Entry extends Amounts {
   occurredAt: string;
 }
 
+interface Payout {
+  id: string;
+  status: string;
+  channelPayoutNo?: string;
+  amount: number;
+  resolvedAt?: string;
+}
+
 @Component({
   selector: 'app-merchant-settlements',
   imports: [CommonModule, FormsModule],
@@ -40,10 +48,12 @@ export class SettlementsComponent {
   readonly entries = signal<Entry[]>([]);
   readonly pending = signal<Entry[]>([]);
   readonly selected = signal<string | undefined>(undefined);
+  readonly payouts = signal<Payout[]>([]);
   readonly busy = signal(false);
   readonly message = signal('');
   commissionBps = 500;
   private closeRequest?: string;
+  private payoutRequest?: { statement: string; id: string };
 
   constructor() {
     this.reload();
@@ -65,10 +75,31 @@ export class SettlementsComponent {
   }
 
   detail(value: Statement): void {
-    this.run(this.http.get<Entry[]>(`${this.statementPath}/${value.id}/entries`), (entries) => {
-      this.selected.set(value.id);
-      this.entries.set(entries);
-    });
+    const path = `${this.statementPath}/${value.id}`;
+    this.run(
+      forkJoin({ entries: this.http.get<Entry[]>(path + '/entries'), payouts: this.http.get<Payout[]>(path + '/payouts') }),
+      (details) => {
+        this.selected.set(value.id);
+        this.entries.set(details.entries);
+        this.payouts.set(details.payouts);
+      },
+    );
+  }
+
+  requestPayout(): void {
+    const statement = this.selected();
+    if (!statement || !this.admin) return;
+    if (this.payoutRequest?.statement !== statement) {
+      this.payoutRequest = { statement, id: crypto.randomUUID() };
+    }
+    this.run(
+      this.http.post<Payout>(`${this.statementPath}/${statement}/payouts`, { requestId: this.payoutRequest.id }),
+      (value) => {
+        this.payoutRequest = undefined;
+        this.payouts.update((items) => [value, ...items.filter((item) => item.id !== value.id)]);
+        this.message.set('打款请求已记录 / Payout request recorded');
+      },
+    );
   }
 
   reload(): void {

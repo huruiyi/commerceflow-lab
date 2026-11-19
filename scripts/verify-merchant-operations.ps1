@@ -1,6 +1,6 @@
 #requires -Version 7.0
 param(
-  [ValidateSet('Store','Settlement')][string]$Chapter='Store',
+  [ValidateSet('Store','Settlement','Payout')][string]$Chapter='Store',
   [string]$BaseUrl='http://localhost:14200',
   [string]$PaymentBaseUrl='http://localhost:14201',
   [string]$LogisticsUrl='http://localhost:18083',
@@ -275,6 +275,117 @@ function Verify-Settlement($shop,$product){
     commissionBps=500;freezeRecovery=$isolated}
 }
 
+function Channel-Payout([string]$Path,[string]$Method='Get',[bool]$CollectionKey=$false){
+  $encoding=[Text.Encoding]::UTF8
+  $secret=if($CollectionKey){'demo-alipay-secret'}else{'demo-merchant-payout-secret'}
+  $app=if($CollectionKey){'commerceflow-alipay'}else{'commerceflow-payout'}
+  $stamp=[datetimeoffset]::UtcNow.ToUnixTimeSeconds().ToString()
+  $nonce=[guid]::NewGuid().ToString('N')
+  $rid=[guid]::NewGuid().ToString('N')
+  $hash=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([byte[]]::new(0))).ToLowerInvariant()
+  $canonical=@($Method.ToUpperInvariant(),$Path,$stamp,$nonce,$rid,$hash)-join[char]10
+  $sig=[Convert]::ToBase64String([Security.Cryptography.HMACSHA256]::HashData($encoding.GetBytes($secret),$encoding.GetBytes($canonical)))
+  $headers=@{'X-App-Id'=$app;'X-Signature-Algorithm'='HMAC_SHA256';'X-Timestamp'=$stamp;'X-Nonce'=$nonce;
+    'X-Request-Id'=$rid;'X-Body-SHA256'=$hash;'X-Signature'=$sig}
+  Invoke-WebRequest "$PaymentBaseUrl$Path" -Method $Method -Headers $headers -TimeoutSec 20 -SkipHttpErrorCheck
+}
+
+function Wait-Payout($shop,[string]$Statement,[string]$Id,[string]$Expected){
+  Wait-Value {
+    $entry=Api $shop.actor "/api/merchant/settlement/statements/$Statement/payouts" | Where-Object id -eq $Id
+    if($entry.status-eq$Expected){$entry}
+  } "Payout $Id never entered $Expected"
+}
+
+function Start-PayoutRecovery($shop,[string]$Path){
+  Sql commerce-db commerceflow "CREATE TRIGGER payout_fixture_block_confirmation BEFORE UPDATE ON merchant_payout_attempts FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='isolated payout outcome interruption'"|Out-Null
+  try{
+    $second=Session 'admin@example.com'
+    $jobs=@()
+    try{
+      foreach($actor in $admin,$second){
+        $json=@{requestId=[guid]::NewGuid();simulateFailure=$false}|ConvertTo-Json -Compress
+        $jobs+=Start-ThreadJob -ArgumentList "$BaseUrl$Path",$actor,$json -ScriptBlock {
+          param($url,$actor,$body)
+          $options=@{Method='Post';WebSession=$actor.Session;Headers=$actor.Headers;Body=$body;
+            ContentType='application/json';TimeoutSec=30}
+          Invoke-RestMethod $url @options
+        }
+      }
+      $responses=@($jobs|Receive-Job -Wait)
+      if($responses.Count-ne2 -or @($responses.id|Sort-Object -Unique).Count-ne1){throw 'Concurrent payout allocated multiple attempts'}
+      $id=$responses[0].id
+    }finally{if($jobs.Count){$jobs|Remove-Job -Force}}
+    $null=Wait-Value {
+      if((Sql payment-simulator-db payment_platform "SELECT status FROM channel_payouts WHERE attempt_id='$id'")-eq'SUCCEEDED'){$true}
+    } 'Channel never persisted the test payout'
+    if((Sql commerce-db commerceflow "SELECT CONCAT(status,'/',COALESCE(channel_payout_no,'missing')) FROM merchant_payout_attempts WHERE id='$id'")-ne'REQUESTED/missing'){
+      throw 'Fault did not interrupt the local payout result'
+    }
+    $target="$ProjectName-commerce-service-1"
+    if((docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' $target)-ne$ProjectName){
+      throw 'Payout restart scope mismatch'
+    }
+    docker restart $target|Out-Null
+    if($LASTEXITCODE){throw 'Isolated restart failed'}
+    $null=Wait-Value {if((docker inspect --format '{{.State.Health.Status}}' $target)-eq'healthy'){$true}} 'Commerce did not recover'
+    $script:buyer=Session 'demo@example.com'
+    $script:admin=Session 'admin@example.com'
+    $script:original=Session 'merchant@example.com'
+    $shop.actor=Session $shop.email $shop.password
+  }finally{
+    Sql commerce-db commerceflow 'DROP TRIGGER payout_fixture_block_confirmation'|Out-Null
+  }
+  return $id
+}
+
+function Verify-Payout($shop,$product){
+  $base="/api/admin/stores/$($shop.id)"
+  Api $admin "$base/settlement" Put @{commissionBps=500}|Out-Null
+  $order=Complete-Order $shop $product 1
+  $statement=Api $admin "$base/statements" Post @{requestId=[guid]::NewGuid()}
+  Assert-Statement $statement 80 0 4 76
+  $reference=$statement.id
+  $path="$base/statements/$reference/payouts"
+  Reject $shop.actor $path Post @{requestId=[guid]::NewGuid()} @(403)
+  Reject $original "/api/merchant/settlement/statements/$reference/payouts" Get $null @(404)
+  if($isolated){
+    $failed=Api $admin $path Post @{requestId=[guid]::NewGuid();simulateFailure=$true}
+    $null=Wait-Payout $shop $reference $failed.id 'FAILED'
+    if((Sql payment-simulator-db payment_platform "SELECT status FROM channel_payouts WHERE attempt_id='$($failed.id)'")-ne'FAILED'){
+      throw 'The channel did not confirm the failed payout'
+    }
+    $id=Start-PayoutRecovery $shop $path
+  }else{
+    $id=(Api $admin $path Post @{requestId=[guid]::NewGuid()}).id
+  }
+  $success=Wait-Payout $shop $reference $id 'SUCCEEDED'
+  if($success.amount-ne76 -or !$success.channelPayoutNo -or
+      (Api $admin $path Post @{requestId=[guid]::NewGuid()}).id-ne$id){
+    throw 'Successful payout did not protect the original statement'
+  }
+  if($isolated){
+    $notify="/api/channel/payouts/$id/notify"
+    if((Channel-Payout "/api/channel/payouts/$id" Get $true).StatusCode-ne403){
+      throw 'Collection credentials could access payouts'
+    }
+    foreach($index in 1..2){
+      if((Channel-Payout $notify Post).StatusCode-ne200){throw 'Valid duplicate channel callback was rejected'}
+    }
+    $fake=@{Method='Post';ContentType='application/json';Body='{}';Headers=@{'X-Payout-Signature'='invalid'};
+      SkipHttpErrorCheck=$true;TimeoutSec=15}
+    $wrong=Invoke-WebRequest "$BaseUrl/api/payout-notifications" @fake
+    if($wrong.StatusCode-ne401){throw 'Unauthenticated payout callback was accepted'}
+  }
+  $channel=Sql payment-simulator-db payment_platform "SELECT CONCAT(COUNT(*),'/',SUM(amount)) FROM channel_payouts WHERE statement_id='$reference' AND status='SUCCEEDED'"
+  if($channel-ne'1/76.00' -or
+      (Sql payment-db payments "SELECT CONCAT(amount,'/',refunded_amount) FROM payment_records WHERE order_id=$($order.id) AND status='SUCCESS'")-ne'80.00/0.00'){
+    throw 'Payout, payment and original statement do not reconcile'
+  }
+  [ordered]@{order=$order.id;statement=$reference;attempt=$id;channel=$success.channelPayoutNo;amount=$success.amount;
+    failureAndRecovery=$isolated;duplicateCallback=$isolated;successfulChannelRows=1}
+}
+
 $archive=Archives
 $buyer=Session 'demo@example.com'
 $original=Session 'merchant@example.com'
@@ -287,6 +398,15 @@ $shop=Open-FixtureStore
 $otherShop=$null
 try{
   $product=New-Product $shop
+  if($Chapter-eq'Payout'){
+    $result=Verify-Payout $shop $product
+    if((Archives)-ne$archive){throw 'Historical archives changed'}
+    $actualCart=@(Api $buyer '/api/cart' | Sort-Object id | ForEach-Object {"$($_.id)/$($_.productId)/$($_.quantity)"}) -join '|'
+    if($actualCart-ne$originalCart){throw 'Pre-existing cart items changed'}
+    [ordered]@{chapter=$Chapter;isolated=$isolated;merchant=$shop.id;payout=$result;fiveArchivesVerified=$true} |
+      ConvertTo-Json -Depth 5
+    return
+  }
   if($Chapter-eq'Settlement'){
     $result=Verify-Settlement $shop $product
     if((Archives)-ne$archive){throw 'Historical archives changed'}

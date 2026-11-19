@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.simulator.payment.mapper.ChannelPayoutMapper">
+  <sql id="columns">
+    attempt_id,statement_id,beneficiary_id,amount,currency,channel_payout_no,
+    status,simulate_failure,created_at,resolved_at,notified_at
+  </sql>
+  <select id="find" resultType="vip.fairy.commerceflow.simulator.payment.domain.ChannelPayout">
+    SELECT <include refid="columns"/> FROM channel_payouts WHERE attempt_id=#{attemptId}
+  </select>
+  <select id="lock" resultType="vip.fairy.commerceflow.simulator.payment.domain.ChannelPayout">
+    SELECT <include refid="columns"/> FROM channel_payouts WHERE attempt_id=#{attemptId} FOR UPDATE
+  </select>
+  <insert id="create">
+    INSERT INTO channel_payouts(attempt_id,statement_id,beneficiary_id,amount,currency,
+      channel_payout_no,status,simulate_failure)
+    VALUES(#{attemptId},#{statementId},#{beneficiaryId},#{amount},#{currency},
+      #{channelPayoutNo},'PENDING',#{simulateFailure})
+  </insert>
+  <select id="pending" resultType="vip.fairy.commerceflow.simulator.payment.domain.ChannelPayout">
+    SELECT <include refid="columns"/> FROM channel_payouts WHERE status='PENDING'
+    ORDER BY created_at,attempt_id LIMIT 20
+  </select>
+  <update id="resolve">
+    UPDATE channel_payouts SET status=IF(simulate_failure,'FAILED','SUCCEEDED'),
+      resolved_at=CURRENT_TIMESTAMP(6),next_notify_at=CURRENT_TIMESTAMP(6)
+    WHERE attempt_id=#{attemptId} AND status='PENDING'
+  </update>
+  <select id="callbacks" resultType="vip.fairy.commerceflow.simulator.payment.domain.ChannelPayout">
+    SELECT <include refid="columns"/> FROM channel_payouts
+    WHERE status IN ('SUCCEEDED','FAILED') AND notified_at IS NULL AND next_notify_at &lt;= CURRENT_TIMESTAMP(6)
+    ORDER BY next_notify_at,attempt_id LIMIT 20
+  </select>
+  <update id="notified">
+    UPDATE channel_payouts SET
+      notified_at=IF(#{delivered},CURRENT_TIMESTAMP(6),NULL),
+      next_notify_at=TIMESTAMPADD(SECOND,5,CURRENT_TIMESTAMP(6))
+    WHERE attempt_id=#{attemptId} AND notified_at IS NULL
+  </update>
+  <select id="recent" resultType="vip.fairy.commerceflow.simulator.payment.domain.ChannelPayout">
+    SELECT <include refid="columns"/> FROM channel_payouts ORDER BY created_at DESC,attempt_id LIMIT 100
+  </select>
+</mapper>

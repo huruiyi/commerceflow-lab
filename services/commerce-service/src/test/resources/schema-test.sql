@@ -826,6 +826,52 @@ CREATE TABLE merchant_stores (
 INSERT INTO merchant_stores(merchant_id,name,description,status)
 SELECT id, 'Demo Store', '', 'ACTIVE' FROM app_users WHERE email='merchant@example.com';
 
+CREATE TABLE merchant_settlement_accounts (
+  merchant_id BIGINT PRIMARY KEY,
+  commission_bps INT NOT NULL,
+  enabled_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE merchant_settlement_statements (
+  id CHAR(36) PRIMARY KEY,
+  merchant_id BIGINT NOT NULL,
+  starts_at TIMESTAMP NOT NULL,
+  cutoff_at TIMESTAMP NOT NULL,
+  merchandise DECIMAL(16,2) NOT NULL,
+  freight DECIMAL(16,2) NOT NULL,
+  commission DECIMAL(16,2) NOT NULL,
+  payable DECIMAL(16,2) NOT NULL,
+  frozen_by BIGINT NOT NULL
+);
+CREATE TABLE merchant_settlement_entries (
+  source_key VARCHAR(100) PRIMARY KEY,
+  merchant_id BIGINT NOT NULL,
+  order_id BIGINT NOT NULL,
+  order_line_id BIGINT,
+  kind VARCHAR(20) NOT NULL,
+  merchandise DECIMAL(14,2) NOT NULL,
+  freight DECIMAL(14,2) NOT NULL,
+  commission DECIMAL(14,2) NOT NULL,
+  occurred_at TIMESTAMP NOT NULL,
+  statement_id CHAR(36)
+);
+CREATE TABLE merchant_payout_attempts (
+  id CHAR(36) PRIMARY KEY,
+  statement_id CHAR(36) NOT NULL,
+  merchant_id BIGINT NOT NULL,
+  amount DECIMAL(16,2) NOT NULL,
+  currency CHAR(3) NOT NULL,
+  status VARCHAR(16) NOT NULL,
+  simulate_failure BOOLEAN NOT NULL,
+  requested_by BIGINT NOT NULL,
+  channel_payout_no VARCHAR(50) UNIQUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  resolved_at TIMESTAMP,
+  next_attempt_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  active_statement_id CHAR(36) GENERATED ALWAYS AS (
+    CASE WHEN status IN ('REQUESTED','PENDING','SUCCEEDED') THEN statement_id END
+  ) UNIQUE
+);
+
 INSERT INTO products(name, brief, description, price, image_url, thumbnail_url)
 VALUES ('Learning Laptop', 'Coding laptop', 'Learning workstation', 1299, 'image', 'thumb');
 UPDATE products
