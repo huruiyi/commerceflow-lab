@@ -35,6 +35,9 @@
       <strong>{{ value.name }}</strong> · {{ value.status }}
       <p>{{ value.description }}</p>
       <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" [routerLink]="['/admin/stores', value.merchantId, 'settlements']">
+          应结账单 / Settlements
+        </a>
         <button *ngIf="['PENDING', 'DISABLED'].includes(value.status)" type="button" class="btn btn-outline-primary"
           [disabled]="busy()" (click)="decide(value, 'ACTIVE')">启用 / Enable</button>
         <button *ngIf="value.status === 'PENDING'" type="button" class="btn btn-outline-secondary"

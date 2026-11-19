@@ -6,6 +6,7 @@ import { ErrorpageComponent } from './errorpage/errorpage.component';
 import { LoginComponent } from './login/login.component';
 import { CouponsComponent } from './coupons/coupons.component';
 import { StoresComponent } from './stores/stores.component';
+import { SettlementsComponent } from './stores/settlements.component';
 import { OrderComponent } from './order/order.component';
 import { UsersComponent } from './users/users.component';
 import { AddressesComponent } from './addresses/addresses.component';
@@ -26,6 +27,10 @@ const routes: Routes = [
     data: { mode: 'merchant', roles: ['MERCHANT'] } },
   { path: 'admin/stores', component: StoresComponent, canActivate: [AuthGuard],
     data: { mode: 'admin', roles: ['ADMIN'] } },
+  { path: 'admin/stores/:id/settlements', component: SettlementsComponent, canActivate: [AuthGuard],
+    data: { admin: true, roles: ['ADMIN'] } },
+  { path: 'merchant/settlements', component: SettlementsComponent, canActivate: [AuthGuard],
+    data: { roles: ['MERCHANT'] } },
   { path: 'coupons', component: CouponsComponent, canActivate: [AuthGuard], data: { roles: ['CUSTOMER'] } },
   {
     path: 'merchant/coupons',

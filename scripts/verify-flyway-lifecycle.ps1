@@ -54,10 +54,10 @@ try {
   Start-MySql $upgradeDb
 
   Migrate $emptyDb
-  if ((Sql $emptyDb 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;') -ne '58' -or
+  if ((Sql $emptyDb 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;') -ne '59' -or
       (Sql $emptyDb 'SELECT COUNT(*) FROM order_cancellation_completion;') -ne '0' -or
       (Sql $emptyDb 'SELECT (SELECT COUNT(*) FROM cart_repurchase_requests) + (SELECT COUNT(*) FROM checkout_receipts) + (SELECT COUNT(*) FROM merchant_shipping_rates) + (SELECT COUNT(*) FROM line_after_sales) + (SELECT COUNT(*) FROM coupon_campaigns) + (SELECT COUNT(*) FROM checkout_intents);') -ne '0') {
-    throw 'Empty database did not migrate through V58 with empty cancellation, repurchase and checkout ledgers'
+    throw 'Empty database did not migrate through V59 with empty cancellation, repurchase and checkout ledgers'
   }
   if ((Sql $emptyDb "SELECT CONCAT(frozen,':',write_owner) FROM fulfillment_write_admission WHERE singleton_id=1;") -ne '0:COMMERCE') {
     throw 'V48 must start with Commerce as the fulfillment owner and writes open'
@@ -120,10 +120,10 @@ try {
   Sql $upgradeDb "INSERT INTO customer_orders(user_id,product_id,created_at,note,quantity) SELECT id,1,'2026-01-01 00:00:00','legacy-order-archive',2 FROM app_users WHERE email='demo@example.com';" | Out-Null
   Sql $upgradeDb "INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,created_at,updated_at) SELECT 'LEGACY-UPGRADE-$suffix',id,'PENDING_PAYMENT',42.00,'CNY','2026-01-01 00:00:00','2026-01-01 00:00:00' FROM app_users WHERE email='demo@example.com';" | Out-Null
   Migrate $upgradeDb
-  if ((Sql $upgradeDb 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;') -ne '58' -or
+  if ((Sql $upgradeDb 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;') -ne '59' -or
       (Sql $upgradeDb 'SELECT COUNT(*) FROM order_cancellation_completion;') -ne '0' -or
       (Sql $upgradeDb 'SELECT (SELECT COUNT(*) FROM cart_repurchase_requests) + (SELECT COUNT(*) FROM checkout_receipts) + (SELECT COUNT(*) FROM merchant_shipping_rates) + (SELECT COUNT(*) FROM line_after_sales) + (SELECT COUNT(*) FROM coupon_campaigns) + (SELECT COUNT(*) FROM checkout_intents);') -ne '0') {
-    throw 'Legacy database did not upgrade through V58 with empty cancellation, repurchase and checkout ledgers'
+    throw 'Legacy database did not upgrade through V59 with empty cancellation, repurchase and checkout ledgers'
   }
   if ((Sql $upgradeDb "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name='customer_orders';") -ne '0' -or
       (Sql $upgradeDb "SELECT CONCAT(product_id,':',quantity) FROM retired_customer_orders WHERE note='legacy-order-archive';") -ne '1:2' -or
@@ -182,7 +182,7 @@ try {
   & docker exec $upgradeDb mysql -N -uroot "-p$password" commerceflow -e "INSERT INTO scheduled_tasks(task_key,task_type,aggregate_type,aggregate_id,payload_json,status,due_at,primary_trigger_snapshot,reconciliation_enabled_snapshot,grace_period_seconds_snapshot,claim_lease_seconds_snapshot,max_attempts,retry_delay_seconds_snapshot,policy_version_snapshot) VALUES('invalid-status','PAYMENT_TIMEOUT','ORDER','1','{}','CORRUPTED',CURRENT_TIMESTAMP,'DATABASE',FALSE,0,30,3,1,1);" 2>$null
   if ($LASTEXITCODE -eq 0) { throw 'Database accepted an illegal scheduled-task status' }
 
-  Write-Host "Flyway lifecycle verification passed: empty V1-V58, legacy V1-V16 -> V58 with archival, ownership, recovery protocols and illegal status rejection." -ForegroundColor Green
+  Write-Host "Flyway lifecycle verification passed: empty V1-V59, legacy V1-V16 -> V59 with archival, ownership, recovery protocols and illegal status rejection." -ForegroundColor Green
 } finally {
   & docker rm -f $emptyDb $upgradeDb 2>$null | Out-Null
   & docker network rm $network 2>$null | Out-Null

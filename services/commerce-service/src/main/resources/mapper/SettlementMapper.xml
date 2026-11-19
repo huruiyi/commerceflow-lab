@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.merchant.infrastructure.SettlementMapper">
+  <select id="now" resultType="java.time.Instant">
+    SELECT CURRENT_TIMESTAMP(6)
+  </select>
+  <select id="lockAccount" resultType="vip.fairy.commerceflow.commerce.merchant.domain.Settlement$Account">
+    SELECT merchant_id,commission_bps,enabled_at FROM merchant_settlement_accounts
+    WHERE merchant_id=#{merchant} FOR UPDATE
+  </select>
+  <insert id="enable">
+    INSERT INTO merchant_settlement_accounts(merchant_id,commission_bps) VALUES(#{merchant},#{rate})
+  </insert>
+  <select id="orderEntries" resultType="vip.fairy.commerceflow.commerce.merchant.domain.Settlement$Entry">
+    SELECT * FROM merchant_settlement_entries WHERE order_id=#{orderId}
+  </select>
+  <select id="pending" resultType="vip.fairy.commerceflow.commerce.merchant.domain.Settlement$Entry">
+    SELECT * FROM merchant_settlement_entries WHERE merchant_id=#{merchant} AND statement_id IS NULL
+    ORDER BY occurred_at,source_key
+  </select>
+  <select id="statementEntries" resultType="vip.fairy.commerceflow.commerce.merchant.domain.Settlement$Entry">
+    SELECT * FROM merchant_settlement_entries WHERE statement_id=#{statement}
+    ORDER BY occurred_at,source_key
+  </select>
+  <insert id="append">
+    INSERT INTO merchant_settlement_entries(source_key,merchant_id,order_id,order_line_id,kind,
+      merchandise,freight,commission,occurred_at)
+    VALUES(#{sourceKey},#{merchantId},#{orderId},#{orderLineId},#{kind},
+      #{merchandise},#{freight},#{commission},#{occurredAt})
+  </insert>
+  <select id="lastCutoff" resultType="java.time.Instant">
+    SELECT MAX(cutoff_at) FROM merchant_settlement_statements WHERE merchant_id=#{merchant}
+  </select>
+  <select id="statement" resultType="vip.fairy.commerceflow.commerce.merchant.domain.Settlement$Statement">
+    SELECT * FROM merchant_settlement_statements WHERE id=#{id}
+  </select>
+  <select id="statements" resultType="vip.fairy.commerceflow.commerce.merchant.domain.Settlement$Statement">
+    SELECT * FROM merchant_settlement_statements WHERE merchant_id=#{merchant} ORDER BY cutoff_at DESC,id
+  </select>
+  <insert id="freeze">
+    INSERT INTO merchant_settlement_statements(id,merchant_id,starts_at,cutoff_at,
+      merchandise,freight,commission,payable,frozen_by)
+    VALUES(#{id},#{merchantId},#{startsAt},#{cutoffAt},#{merchandise},#{freight},#{commission},#{payable},#{frozenBy})
+  </insert>
+  <update id="assign">
+    UPDATE merchant_settlement_entries SET statement_id=#{statement}
+    WHERE merchant_id=#{merchant} AND statement_id IS NULL
+      AND source_key IN
+    <foreach collection="keys" item="key" open="(" separator="," close=")">
+      #{key}
+    </foreach>
+  </update>
+</mapper>

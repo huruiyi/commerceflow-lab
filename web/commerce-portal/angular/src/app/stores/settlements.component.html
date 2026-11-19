@@ -1,0 +1,51 @@
+<section class="container py-3">
+  <h2>商家应结账单 / Settlement statements</h2>
+  <p *ngIf="message()" class="alert alert-info" role="status">{{ message() }}</p>
+  <div class="d-flex flex-wrap align-items-end gap-2 mb-3">
+    <form *ngIf="admin" #setup="ngForm" (ngSubmit)="enable()" class="d-flex align-items-end gap-2">
+      <label>商品佣金（基点） / Commission (bps)
+        <input class="form-control" type="number" name="commissionBps" min="0" max="10000" step="1"
+          [(ngModel)]="commissionBps" required />
+      </label>
+      <button class="btn btn-outline-primary" [disabled]="busy() || setup.invalid">启用结算 / Enable</button>
+    </form>
+    <button *ngIf="admin" class="btn btn-primary" type="button" [disabled]="busy()" (click)="close()">
+      冻结截至当前的账单 / Freeze statement
+    </button>
+    <button class="btn btn-outline-secondary" type="button" [disabled]="busy()" (click)="reload()">
+      刷新 / Refresh
+    </button>
+  </div>
+  <p *ngIf="!statements().length">暂无账单 / No statements</p>
+  <div class="table-responsive" *ngIf="statements().length">
+    <table class="table">
+      <thead><tr><th>账期 / Period</th><th>商品 / Merchandise</th><th>运费 / Freight</th>
+        <th>佣金 / Commission</th><th>应结 / Payable</th><th scope="col">明细 / Details</th></tr></thead>
+      <tbody><tr *ngFor="let item of statements()">
+        <td>{{ item.startsAt | date:'short' }} – {{ item.cutoffAt | date:'short' }}</td>
+        <td>{{ item.merchandise | currency:'CNY' }}</td><td>{{ item.freight | currency:'CNY' }}</td>
+        <td>{{ item.commission | currency:'CNY' }}</td><td>{{ item.payable | currency:'CNY' }}</td>
+        <td><button type="button" class="btn btn-sm btn-outline-primary" [disabled]="busy()" (click)="detail(item)">
+          查看 / View
+        </button></td>
+      </tr></tbody>
+    </table>
+  </div>
+  <ng-template #ledger let-rows>
+    <ul class="list-group mb-3">
+      <li class="list-group-item" *ngFor="let entry of rows">
+        #{{ entry.orderId }} · {{ entry.kind }} · {{ entry.occurredAt | date:'short' }}
+        <span class="d-block text-secondary">
+          商品 {{ entry.merchandise | currency:'CNY' }} · 运费 {{ entry.freight | currency:'CNY' }} ·
+          佣金 {{ entry.commission | currency:'CNY' }}
+        </span>
+      </li>
+    </ul>
+  </ng-template>
+  <ng-container *ngIf="selected()"><h3 class="h5">已冻结明细 / Frozen entries</h3>
+    <ng-container *ngTemplateOutlet="ledger; context: { $implicit: entries() }"></ng-container>
+  </ng-container>
+  <ng-container *ngIf="pending().length"><h3 class="h5">待结余额记录 / Pending entries</h3>
+    <ng-container *ngTemplateOutlet="ledger; context: { $implicit: pending() }"></ng-container>
+  </ng-container>
+</section>
