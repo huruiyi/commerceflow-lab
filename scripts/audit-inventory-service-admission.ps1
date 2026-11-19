@@ -4,6 +4,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+if ($env:COMPOSE_PROJECT_NAME -notlike 'commerceflow-legacy-?*') {
+  throw 'Run the V34 inventory source-admission audit in an isolated commerceflow-legacy-* project. Use verify-inventory-single-owner.ps1 for the current topology.'
+}
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 
 function Invoke-CommerceSql([string]$Query) {

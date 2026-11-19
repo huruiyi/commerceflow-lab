@@ -63,6 +63,12 @@ if [ "$actual_version" -lt "$SOURCE_VERSION" ]; then
   exit 1
 fi
 
+legacy_fact_tables="$(source_query "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('shop_orders','refund_records')")"
+if [ "$legacy_fact_tables" != '2' ]; then
+  echo 'Inventory snapshot import requires the historical commerce order and refund tables; use an isolated historical source' >&2
+  exit 1
+fi
+
 open_facts="$(source_query "SELECT (SELECT COUNT(*) FROM inventory_command_inbox WHERE status<>'SUCCEEDED')+(SELECT COUNT(*) FROM inventory_catalog_event_inbox WHERE status='PROCESSING')+(SELECT COUNT(*) FROM inventory_command_delivery_outbox WHERE status<>'ACKNOWLEDGED')+(SELECT COUNT(*) FROM shop_orders WHERE inventory_status IN ('WAITING_RESERVATION','WAITING_COMMIT','REFUND_PENDING','RECONCILIATION_REQUIRED'))+(SELECT COUNT(*) FROM refund_records WHERE inventory_status IN ('WAITING','RECONCILIATION_REQUIRED'))")"
 if [ "$open_facts" -ne 0 ]; then
   echo "inventory source has ${open_facts} unfinished facts; snapshot refused" >&2

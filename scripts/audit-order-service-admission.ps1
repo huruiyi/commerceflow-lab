@@ -4,6 +4,10 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+if ($env:COMPOSE_PROJECT_NAME -notlike 'commerceflow-legacy-?*' -and
+    $env:COMPOSE_PROJECT_NAME -notlike 'fairy-commerceflow-shadow-?*') {
+  throw 'Run this source-admission audit in an isolated historical project. Use verify-order-monitoring.ps1 -ReadOnly for the current environment.'
+}
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 
 function Invoke-CommerceSql([string]$Query) {

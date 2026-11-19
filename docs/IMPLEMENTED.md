@@ -642,6 +642,7 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - `observability` Profile 已接入 Prometheus、10 条可单测告警规则、Alertmanager、Grafana 的 Prometheus/Tempo
   数据源和只读本地 Webhook 接收端；商城、支付模拟器、物流模拟器三个 Spring Boot Target 均可抓取。
 - `verify-alerting` 已在 Windows 与容器化 Bash 通过：Prometheus/Alertmanager 配置有效，服务宕机/退款积压/物流 `DEAD` 规则单测通过，Watchdog 经真实 Alertmanager 路由到 Webhook。
+- 目录到库存的事件投递、商城通知发送和通知 Kafka 消费分别接入 Prometheus。隔离 MySQL 和 Kafka 实测积压、发送 `DEAD`、消费 lag、消费死信及恢复。[目录与通知监控验收](architecture/M3-SINGLE-OWNERSHIP-REVIEW.md#10-目录与通知监控验收)
 - M2 工程质量总验收已完成：Windows 与容器化 Bash 的默认完整验收、质量审计和 37 对脚本契约审计通过；
   五个正式镜像、默认/全 Profile Compose、默认 11 个核心服务和 8 个主要健康端点已复验。连续执行会在
   全量验收开场通过商户 API 准备测试库存；支付 Web 代理动态解析容器上游；本地单节点 Alertmanager
@@ -656,7 +657,7 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - 有待支付交易时，商城通过 Payment V1 请求支付编排关闭交易，再由 Order V1 完成取消。中断后可从 `CANCELLING` 重试。
 - 支付回调与取消并发时，成功支付可从 `CANCELLING/CANCELLED` 恢复 `PAID`；已取消后到达的成功回调由支付编排记录，按稳定幂等键申请自动退款，再通过 Order V1 推进订单。
 - Database 扫描使用同一个 `PaymentTimeoutTaskHandler` 自动关单；客户提前取消会取消尚未执行的超时任务。
-- 订单服务保存取消终态。商城写入取消效果和通知 Outbox，再由下游幂等处理库存释放及客户通知。订单库与商城库各有本地事务。两次写入之间发生进程中断的恢复仍待隔离验证。
+- 订单服务保存取消终态。商城预先保存取消完成记录，在本地事务写入取消效果和通知 Outbox。隔离验证了订单终态提交后、商城 Outbox 提交前进程退出，重启后库存释放和通知各完成一次。[跨库恢复验收](architecture/M3-SINGLE-OWNERSHIP-REVIEW.md#11-取消订单跨库中断恢复验收)
 - 客户订单响应包含后端统一计算的 `availableActions`；Angular 已使用它展示支付、取消、退款、收货和评价操作。
 - 客户页面已接入未支付订单取消表单，取消后保留原因、时间和历史支付信息；导航通知中心展示未读数量并支持单条或全部已读，使用中性列表、细滚动条和独立正文滚动，面板可通过关闭按钮、页面外点击、`Esc` 或选择通知关闭；语言切换使用紧凑翻译图标并保留无障碍文本。
 - Windows 与容器化 Bash 专项验收覆盖动作契约、无支付取消、重复取消、任务快照/取消和待支付渠道关闭。
@@ -672,6 +673,8 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - `verify-quick` 已作为快速回归入口在 Windows 和容器化 Bash 通过；M2 冻结前两平台默认完整验收也已通过。
   M1 历史标签为 `m1-baseline-2026-11-13`，M2 质量基线标签为 `m2-quality-baseline-2026-11-14`。
 
+- 订单服务已接入发货意图滞留、取消协议待恢复及采集失败告警。隔离 MySQL 核对了指标和规则状态，并按订单号只读对照日常库的订单终态、商城取消效果、库存释放和通知投递。[订单监控与只读核对](architecture/ORDER-SERVICE-EVOLUTION-PLAN.md#10-订单监控与只读核对)
+
 ## 9. 库存预占与商家库存中心
 
 - inventory 自有 `product_inventory` 保存可售、预占和已售三个余额；结算原子扣减可售并增加预占，支付成功转为已售，取消事件幂等释放预占。
@@ -683,7 +686,13 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 
 ## 10. 尚未实现的总边界
 
-P4 履约发布与旧源清理已完成。见[P4 验收记录](architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#29-2026-11-20-p4-日常发布和旧源清理)。
+- 履约候选版本完成隔离九库恢复、新发货、重复发货和带新写入的六表回退。商城接管后仍能查询新运单，独立执行器重启被退役门禁拒绝。[履约新版本验收](architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#23-2026-11-19-履约新版本恢复与回退验收)
+
+- 商城旧履约分支和 Mapper 退役评审已完成。评审记录列出代码退役与数据库归档各自的验收条件。[退役评审](architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#24-2026-11-19-商城旧履约分支退役评审)
+- 独立履约回退包已在仓库外通过隔离恢复、六表回传和旧商城镜像接管验证。新运单可查询，重复发货仍幂等。[独立回退包验收](architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#25-2026-11-19-履约独立回退包验收)
+- 商城已移除本地履约执行及对应 Mapper，保留所有权只读校验、签名远程入口和物流桥。隔离验证了空卷初始化、存量升级和业务入口。[退役记录](architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#26-2026-11-19-商城本地履约代码退役)
+- 完成商城旧履约源归档评审。隔离验证了精确备份、无旧源启动及发货、归档恢复。原启动脚本仍依赖旧水位，运行验证使用临时覆盖。[归档评审](architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#27-2026-11-19-商城旧履约源归档评审)
+- 履约空库初始化已与常规授权拆分，审计区分旧源保留、完整归档和缺件。隔离验证了正式配置无旧源发货、旧源恢复及旧镜像接管。[入口改造验收](architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#28-2026-11-19-履约归档后启动审计与回退)
 
 其他边界如下。
 
