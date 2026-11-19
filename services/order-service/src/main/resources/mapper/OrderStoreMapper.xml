@@ -127,14 +127,15 @@
 
   <insert id="insertOrder" useGeneratedKeys="true" keyProperty="key.id">
     INSERT INTO shop_orders(order_number,customer_id,status,inventory_status,total_amount,
-      currency,payment_due_at,created_at,updated_at,shipping_fee,discount_amount)
+      currency,payment_due_at,created_at,updated_at,shipping_fee,discount_amount,coupon_id)
     VALUES (#{request.orderNumber},#{request.customerId},'PENDING_PAYMENT','WAITING_RESERVATION',
       #{request.totalAmount},#{request.currency},#{request.paymentDueAt},CURRENT_TIMESTAMP(6),CURRENT_TIMESTAMP(6),
-      #{request.shippingFee},#{request.discountAmount})
+      #{request.shippingFee},#{request.discountAmount},#{request.couponId})
   </insert>
 
   <insert id="insertItem">
-    INSERT INTO order_items(order_id,product_id,merchant_id,product_name,thumbnail_url,unit_price,quantity,subtotal,discount_amount)
+    INSERT INTO order_items(order_id,product_id,merchant_id,product_name,thumbnail_url,
+                            unit_price,quantity,subtotal,discount_amount)
     VALUES (#{orderId},#{item.productId},#{item.merchantId},#{item.productName},#{item.thumbnailUrl},
       #{item.unitPrice},#{item.quantity},#{item.subtotal},#{item.discountAmount})
   </insert>
@@ -244,7 +245,9 @@
   <update id="startRefund">
     UPDATE shop_orders SET status='REFUNDING',updated_at=CURRENT_TIMESTAMP(6)
     WHERE id=#{orderId} AND status=#{previous} AND shipment_intent_key IS NULL
-      AND NOT EXISTS (SELECT 1 FROM order_line_refund_admissions a WHERE a.order_id=shop_orders.id AND a.status IN ('HELD','SETTLED'))
+      AND NOT EXISTS (
+        SELECT 1 FROM order_line_refund_admissions a WHERE a.order_id=shop_orders.id AND a.status IN ('HELD','SETTLED')
+      )
   </update>
 
   <update id="updateShipment">

@@ -153,6 +153,29 @@
         {{ 'refreshStock' | t }}
       </button>
     </div>
+    <div class="d-flex flex-wrap align-items-end gap-2 mt-3">
+      <button
+        type="button"
+        class="btn btn-outline-primary"
+        (click)="loadCoupons()"
+        [disabled]="loadingCoupons || checkingOut"
+      >
+        {{ 'couponLoadAvailable' | t }}
+      </button>
+      <a routerLink="/coupons">{{ 'couponAvailableCampaigns' | t }}</a>
+      <label *ngIf="availableCoupons as owned"
+        >{{ 'couponSelect' | t }}
+        <select
+          class="form-select"
+          [(ngModel)]="selectedCoupon"
+          (ngModelChange)="invalidateQuote()"
+          [disabled]="checkingOut"
+        >
+          <option [ngValue]="undefined">{{ 'couponNone' | t }}</option>
+          <option *ngFor="let coupon of owned" [ngValue]="coupon.id">{{ coupon.title }}</option>
+        </select>
+      </label>
+    </div>
     <div class="text-end mt-3">
       <p aria-live="polite">
         <span class="d-block">{{ i18n.t('selectedCartQuantity', { count: selectedQuantity }) }}</span>

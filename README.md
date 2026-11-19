@@ -419,24 +419,19 @@ docker compose down
 
 ## 已实现功能
 
-- Spring Security 邮箱密码登录、BCrypt、CUSTOMER/MERCHANT/ADMIN 权限和注销。
-- Redis 服务端 Session、14 天持久化 Remember-Me、注销撤销令牌和五分钟登录失败限流。
-- `HttpOnly` 会话 Cookie，以及 Angular 兼容的 `XSRF-TOKEN` Cookie / `X-XSRF-TOKEN` Header 防护。
-- 商品查询、去重购物车、数量调整、移除、清空、单价/小计计算和管理员用户列表。
-- 客户收货地址 CRUD、唯一默认地址、中英文地址字段和结算地址选择。
-- 多商品结算、商品与地址快照、订单历史，以及支付宝/微信支付/银联选择、幂等键管理、请求重放和支付回执 UI。
-- 商家确认与发货、客户确认收货、一次性商品评价和评分聚合。
-- 独立模拟物流服务和数据库，支持 HMAC/时间戳/Nonce 防重放、幂等建单、手动/可配置自动六段轨迹、异常件/恢复、回调 Outbox/重试、`DEAD（停止自动重试）` 管理员重放/审计/指标、商城主动对账、投影和客户物流查询。
-- 物流 `DELIVERED（已送达）` 后可通过 `AUTO_RECEIVE（自动确认收货）` 进入 `RECEIVED（已收货）`，再通过 `AUTO_COMPLETE（自动完成订单）` 进入 `COMPLETED（已完成）`；两个观察期可配置。
-- 未发货已支付订单原路全额退款：独立退款单、签名渠道退款、异步通知、请求/通知幂等、退款事件、Outbox、对账补偿，以及客户/商家/支付后台三端展示。
-- MyBatis-Plus 数据访问、Flyway 版本化结构/演示数据初始化。
-- Redis Session、登录限流、商品/评分缓存、支付幂等辅助键、MySQL 降级和健康检查。
-- 中英文运行时切换、商品翻译、稳定错误码和本地语言偏好。
-- Kafka Transactional Outbox、幂等消费、对账补偿和高可用教学 Overlay。
-- 默认 notification-service：独立 MySQL、Kafka Inbox 幂等、签名内部 API、停机恢复和跨进程追踪；
-  commerce 不再保留通知读模型或数据库回退。
-- 可选 `observability` Profile：三服务 Prometheus 抓取、10 条告警规则、Alertmanager 路由、Grafana 数据源和可替换本地 Webhook 接收端。
-- 后端集成测试、支付服务测试、Docker 构建验收、健康检查和 Nginx API 反向代理。
+完整功能、操作路径、金额规则和状态请查阅 [功能文档](docs/features/README.md)。
+
+| 功能模块 | 已交付能力 |
+| --- | --- |
+| [账号、商品与购物车](docs/features/ACCOUNT-CATALOG.md) | 邮箱登录与授权、商品查询和评价、收货地址、购物车、再次购买 |
+| [结算、运费与优惠券](docs/features/CHECKOUT-COUPONS.md) | 勾选结算、统一计价、商家运费模板、单商家满减、订单行分摊、并发锁券、付款核销、取消返还和恢复 |
+| [订单、取消与履约](docs/features/ORDERS-FULFILLMENT.md) | 订单历史、通知跳转、取消补偿、独立履约、物流、收货和自动完成 |
+| [支付、退款与售后](docs/features/PAYMENTS-AFTER-SALES.md) | 三渠道模拟支付、原路全退、按订单行售后与部分退款、退货验收和库存回补 |
+| [库存与商家库存中心](docs/features/INVENTORY.md) | 预占、扣减、释放、回补、库存管理和命令对账 |
+| [外部系统模拟器](docs/features/SIMULATORS.md) | 独立支付与物流模拟器、渠道回调和管理入口 |
+| [部署、监控与验收](docs/features/OPERATIONS.md) | Docker、Flyway、定时任务、分服务告警和隔离验收 |
+
+[文档中心](docs/README.md) 提供架构、API、验收记录和项目计划的入口。
 
 ## 安全和生产边界
 

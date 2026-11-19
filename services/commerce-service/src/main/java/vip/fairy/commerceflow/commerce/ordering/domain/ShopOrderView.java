@@ -38,6 +38,8 @@ public class ShopOrderView {
   private BigDecimal shippingFee;
   /** 订单优惠合计，使用订单币种。 */
   private BigDecimal discountAmount;
+  /** 成交时冻结的券实例。 */
+  private String couponId;
   /**
    * ISO 4217 货币代码，例如 CNY。
    */
@@ -131,6 +133,10 @@ public class ShopOrderView {
 
   public BigDecimal getDiscountAmount() {
     return discountAmount;
+  }
+
+  public String getCouponId() {
+    return couponId;
   }
 
   public String getCurrency() {

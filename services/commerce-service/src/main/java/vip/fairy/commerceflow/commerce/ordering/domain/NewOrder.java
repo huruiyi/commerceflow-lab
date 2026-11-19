@@ -17,18 +17,21 @@ public class NewOrder {
   private final BigDecimal shippingFee;
   /** 订单行优惠分摊合计，使用订单币种。 */
   private final BigDecimal discountAmount;
+  /** 成交时冻结的券实例。 */
+  private final String couponId;
   /** ISO 4217 order currency code. */
   private final String currency;
   /** Latest instant at which the order may enter payment. */
   private Instant paymentDueAt;
 
   public NewOrder(String orderNumber, Long customerId, BigDecimal totalAmount, String currency,
-                  Instant paymentDueAt, BigDecimal shippingFee, BigDecimal discountAmount) {
+                  Instant paymentDueAt, BigDecimal shippingFee, BigDecimal discountAmount, String couponId) {
     this.orderNumber = orderNumber;
     this.customerId = customerId;
     this.totalAmount = totalAmount;
     this.shippingFee = shippingFee;
     this.discountAmount = discountAmount;
+    this.couponId = couponId;
     this.currency = currency;
     this.paymentDueAt = paymentDueAt;
   }
@@ -59,6 +62,10 @@ public class NewOrder {
 
   public BigDecimal getDiscountAmount() {
     return discountAmount;
+  }
+
+  public String getCouponId() {
+    return couponId;
   }
 
   public String getCurrency() {

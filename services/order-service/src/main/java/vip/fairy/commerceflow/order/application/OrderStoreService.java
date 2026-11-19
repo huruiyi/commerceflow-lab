@@ -229,6 +229,10 @@ public class OrderStoreService {
         || !validMoney(value.shippingFee()) || !validMoney(value.discountAmount())) {
       throw new IllegalArgumentException("Order create request is incomplete");
     }
+    if (value.couponId() != null
+        && (!value.couponId().matches("[0-9a-f-]{36}") || value.discountAmount().signum() <= 0)) {
+      throw new IllegalArgumentException("Coupon snapshot requires an instance and a positive reduction");
+    }
     BigDecimal products = BigDecimal.ZERO;
     BigDecimal discounts = BigDecimal.ZERO;
     for (var item : value.items()) {

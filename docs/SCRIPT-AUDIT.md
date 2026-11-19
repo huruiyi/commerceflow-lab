@@ -9,7 +9,9 @@ pwsh -File ./scripts/verify-quick.ps1 -SkipBuild
 
 ## 脚本覆盖
 
-[参数清单](../scripts/script-contracts.tsv) 按脚本名登记全部 58 个 `verify-*` 入口及有序参数。新增验证时在 `scripts/` 中添加一个 `.ps1` 并更新清单。审计会核对名称和参数，检查 PowerShell 语法，并报告重复的平台入口。两份履约审计 SQL 由对应脚本加载。教学视频生成器使用 Windows 图形与语音组件。
+[参数清单](../scripts/script-contracts.tsv) 按脚本名登记所有 `verify-*` 入口及有序参数。新增验证时在 `scripts/` 中添加一个 `.ps1` 并更新清单。审计会核对名称和参数，检查 PowerShell 语法，并报告重复的平台入口。两份履约审计 SQL 由对应脚本加载。教学视频生成器使用 Windows 图形与语音组件。
+
+满减券使用 [verify-coupons.ps1](../scripts/verify-coupons.ps1)。日常环境走创建测试活动、领券、下单、取消、支付与退款。并发、超时与跨库中断注入由脚本识别专用隔离项目后执行。
 
 ## 数据卷
 

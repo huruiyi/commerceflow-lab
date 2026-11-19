@@ -10,7 +10,9 @@
 | 商品 | `GET /api/products?lang=en|zh-CN` | 公开 |
 | 购物车 | `GET /api/cart`、`POST /api/cart/items`、`PUT/DELETE /api/cart/items/{id}`、`DELETE /api/cart` | CUSTOMER |
 | 地址 | `GET/POST /api/addresses`、`PUT/DELETE /api/addresses/{id}`、`PUT /api/addresses/{id}/default|select` | CUSTOMER |
-| 订单 | `POST /api/purchase-orders/checkout`、`GET /api/purchase-orders`、`GET /api/purchase-orders/{id}`、`POST /api/purchase-orders/{id}/cancel` | CUSTOMER |
+| 订单 | `POST /api/purchase-orders/checkout/quote`、`POST /api/purchase-orders/checkout`、`GET /api/purchase-orders`、`GET /api/purchase-orders/{id}`、`POST /api/purchase-orders/{id}/cancel` | CUSTOMER |
+| 顾客优惠券 | `GET /api/coupons/campaigns`、`POST /api/coupons/campaigns/{id}/claim`、`GET /api/coupons` | CUSTOMER |
+| 商家优惠活动 | `GET/POST /api/merchant/coupon-campaigns`、`POST /api/merchant/coupon-campaigns/{id}/disable` | MERCHANT，仅本人活动 |
 | 物流 | `GET /api/purchase-orders/{id}/logistics` | CUSTOMER，仅本人订单 |
 | 支付 | `POST /api/purchase-orders/{id}/payments` | CUSTOMER |
 | 退款 | `POST/GET /api/purchase-orders/{id}/refunds`、`GET /api/refunds/{refundNumber}` | CUSTOMER，仅本人订单 |
@@ -18,6 +20,12 @@
 | 商家履约 | `GET /api/merchant/orders`、`POST /api/merchant/orders/{id}/confirm|ship` | MERCHANT |
 | 用户管理 | `GET /api/users` | ADMIN |
 | 定时任务治理 | `GET/PUT/DELETE /api/admin/scheduling/policies...`、`GET/POST /api/admin/scheduling/tasks...` | ADMIN |
+
+## 结算与优惠券 API
+
+- 创建活动提交 `title`、`minimumAmount`、`discountAmount`、`supply`、`startsAt`、`expiresAt`。开始和结束时间采用带时区的 ISO 8601 时间。领券重试返回原券。
+- 报价提交 `addressId`、`itemIds` 以及可选 `couponId`。确认订单提交同样的结算数据作为 `selection`，并带上 `quoteId`。活动关闭、券已锁定、商品门槛未满足或报价变动时，以服务端校验为准。
+- 订单详情返回 `couponId`、`discountAmount` 和 `items[].discountAmount`。分摊、核销和返还状态见 [结算与优惠券](features/CHECKOUT-COUPONS.md)。
 
 ## 通用定时任务管理 API
 

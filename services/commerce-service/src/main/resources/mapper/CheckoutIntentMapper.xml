@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.ordering.infrastructure.CheckoutIntentMapper">
+  <sql id="columns">quote_id,customer_id,scope_hash,order_number,order_id,coupon_id,status,payload</sql>
+  <select id="find" resultType="vip.fairy.commerceflow.commerce.ordering.infrastructure.CheckoutIntentMapper$Intent">
+    SELECT <include refid="columns"/> FROM checkout_intents WHERE quote_id=#{quoteId}
+  </select>
+  <select id="lock" resultType="vip.fairy.commerceflow.commerce.ordering.infrastructure.CheckoutIntentMapper$Intent">
+    SELECT <include refid="columns"/> FROM checkout_intents WHERE quote_id=#{quoteId} FOR UPDATE
+  </select>
+  <select id="lockOrder"
+          resultType="vip.fairy.commerceflow.commerce.ordering.infrastructure.CheckoutIntentMapper$Intent">
+    SELECT <include refid="columns"/> FROM checkout_intents WHERE order_id=#{orderId} FOR UPDATE
+  </select>
+  <select id="pending" resultType="string">
+    SELECT quote_id FROM checkout_intents WHERE pending_customer_id=#{customerId}
+  </select>
+  <insert id="insert">
+    INSERT INTO checkout_intents(quote_id,customer_id,scope_hash,order_number,coupon_id,status,payload)
+    VALUES(#{quoteId},#{customerId},#{scopeHash},#{orderNumber},#{couponId},'PREPARED',#{payload})
+  </insert>
+  <update id="bind">
+    UPDATE checkout_intents SET order_id=#{orderId},status=#{status},updated_at=CURRENT_TIMESTAMP(6)
+    WHERE quote_id=#{quoteId} AND status='PREPARED'
+  </update>
+  <update id="resolve">
+    UPDATE checkout_intents SET status=#{status},updated_at=CURRENT_TIMESTAMP(6)
+    WHERE quote_id=#{quoteId} AND status='BOUND'
+  </update>
+  <select id="due" resultType="string">
+    SELECT quote_id FROM checkout_intents WHERE status IN ('PREPARED','BOUND')
+      AND next_attempt_at&lt;=CURRENT_TIMESTAMP(6) ORDER BY next_attempt_at,quote_id LIMIT 25
+  </select>
+  <update id="defer">
+    UPDATE checkout_intents SET next_attempt_at=TIMESTAMPADD(SECOND,4,CURRENT_TIMESTAMP(6))
+    WHERE quote_id=#{quoteId} AND status IN ('PREPARED','BOUND')
+  </update>
+</mapper>

@@ -75,7 +75,7 @@ public class RemoteOrderStoreAdapter implements OrderStorePort, OrderLineRefundV
       new AddressSnapshot(address.recipientName(), address.phone(), address.countryCode(),
         address.stateProvince(), address.city(), address.district(), address.addressLine1(),
         address.addressLine2(), address.postalCode(), address.label()),
-      order.getShippingFee(), order.getDiscountAmount());
+      order.getShippingFee(), order.getDiscountAmount(), order.getCouponId());
     ShopOrderView created = post(CREATE, request, ShopOrderView.class);
     order.setId(created.getId());
     order.setPaymentDueAt(created.getPaymentDueAt());
@@ -289,7 +289,7 @@ public class RemoteOrderStoreAdapter implements OrderStorePort, OrderLineRefundV
   private record CreateOrder(String orderNumber, Long customerId, BigDecimal totalAmount,
                              String currency, Instant paymentDueAt, Long actorId,
                              List<ItemSnapshot> items, AddressSnapshot address,
-                             BigDecimal shippingFee, BigDecimal discountAmount) {
+                             BigDecimal shippingFee, BigDecimal discountAmount, String couponId) {
   }
 
   private record ItemSnapshot(Long productId, Long merchantId, String productName,

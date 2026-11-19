@@ -244,6 +244,9 @@
             <small>{{ item.unitPrice | trcurrency }} × {{ item.quantity }}</small>
           </div>
           <b>{{ item.subtotal | trcurrency }}</b>
+          <small *ngIf="item.discountAmount as reduction">
+            {{ 'couponLineAllocation' | t }} {{ reduction | trcurrency }}
+          </small>
         </div>
         <section *ngIf="hasAction(order, 'REVIEW_ITEM')" class="review-panel">
           <form

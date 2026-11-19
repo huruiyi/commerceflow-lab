@@ -23,6 +23,7 @@ public class OrderCancellationCompletion {
   private static final Logger LOG = LoggerFactory.getLogger(OrderCancellationCompletion.class);
 
   private final OrderCancellationCompletionMapper intents;
+  private final CheckoutCouponLifecycle coupons;
   private final OrderStorePort orders;
   private final TransactionTemplate transactions;
   private final ScheduledTaskMapper scheduledTasks;
@@ -32,8 +33,10 @@ public class OrderCancellationCompletion {
   public OrderCancellationCompletion(OrderCancellationCompletionMapper intents, OrderStorePort orders,
                                      TransactionTemplate transactions, ScheduledTaskMapper scheduledTasks,
                                      OrderEventPublisherPort events,
-                                     CustomerNotificationCommandPublisher notifications) {
+                                    CustomerNotificationCommandPublisher notifications,
+                                    CheckoutCouponLifecycle coupons) {
     this.intents = intents;
+    this.coupons = coupons;
     this.orders = orders;
     this.transactions = transactions;
     this.scheduledTasks = scheduledTasks;
@@ -56,6 +59,7 @@ public class OrderCancellationCompletion {
           && "CANCELLED".equals(orders.status(orderId))) {
         orders.insertCancellationEvent("audit-cancellation:" + orderId, orderId, intent.actorId(),
           intent.reason(), intent.triggerSource(), intent.scheduledTaskId());
+        coupons.cancelled(orderId);
         appendEffects(intent);
       }
       intents.complete(orderId);

@@ -47,9 +47,31 @@ export interface AfterSale extends Pick<AfterSaleOffer, 'merchandiseAmount' | 's
   decision?: string;
 }
 
+export interface CouponCampaign {
+  id: string;
+  title: string;
+  minimumAmount: number;
+  discountAmount: number;
+  supply: number;
+  issued: number;
+  expiresAt: string;
+  enabled: boolean;
+}
+
+export interface CustomerCoupon {
+  id: string;
+  campaignId: string;
+  title: string;
+  minimumAmount: number;
+  status: 'AVAILABLE' | 'HELD' | 'USED' | 'EXPIRED';
+  enabled: boolean;
+  expiresAt: string;
+}
+
 export interface CheckoutSelection {
   addressId: number;
   itemIds: number[];
+  couponId?: string;
 }
 
 export interface CheckoutQuote {
@@ -234,6 +256,30 @@ export class ApiService {
       '/api/merchant/after-sales/' + id + (inspection ? '/inspection' : '/review'),
       body,
     );
+  }
+
+  couponCampaigns(merchant: boolean): Observable<CouponCampaign[]> {
+    return this.http.get<CouponCampaign[]>(merchant ? '/api/merchant/coupon-campaigns' : '/api/coupons/campaigns');
+  }
+
+  couponWallet(): Observable<CustomerCoupon[]> {
+    return this.http.get<CustomerCoupon[]>('/api/coupons');
+  }
+
+  createCouponCampaign(
+    command: Pick<CouponCampaign, 'title' | 'minimumAmount' | 'discountAmount' | 'supply' | 'expiresAt'> & {
+      startsAt: string;
+    },
+  ): Observable<CouponCampaign> {
+    return this.http.post<CouponCampaign>('/api/merchant/coupon-campaigns', command);
+  }
+
+  disableCouponCampaign(id: string): Observable<void> {
+    return this.http.post<void>('/api/merchant/coupon-campaigns/' + id + '/disable', {});
+  }
+
+  claimCoupon(id: string): Observable<CustomerCoupon> {
+    return this.http.post<CustomerCoupon>('/api/coupons/campaigns/' + id + '/claim', {});
   }
 
   checkoutQuote(selection: CheckoutSelection): Observable<CheckoutQuote> {

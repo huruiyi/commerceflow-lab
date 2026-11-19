@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.ordering.infrastructure.CouponMapper">
+  <sql id="campaignColumns">
+    id,merchant_id,title,minimum_amount,discount_amount,supply,issued,starts_at,expires_at,enabled
+  </sql>
+  <select id="publicCampaigns" resultType="vip.fairy.commerceflow.commerce.ordering.domain.CouponCampaign">
+    SELECT <include refid="campaignColumns"/> FROM coupon_campaigns
+    WHERE enabled AND starts_at&lt;=CURRENT_TIMESTAMP(6) AND expires_at&gt;CURRENT_TIMESTAMP(6) AND issued&lt;supply
+    ORDER BY starts_at DESC,id LIMIT 100
+  </select>
+  <select id="merchantCampaigns" resultType="vip.fairy.commerceflow.commerce.ordering.domain.CouponCampaign">
+    SELECT <include refid="campaignColumns"/> FROM coupon_campaigns WHERE merchant_id=#{merchantId}
+    ORDER BY starts_at DESC,id LIMIT 100
+  </select>
+  <select id="lockCampaign" resultType="vip.fairy.commerceflow.commerce.ordering.domain.CouponCampaign">
+    SELECT <include refid="campaignColumns"/> FROM coupon_campaigns WHERE id=#{id} FOR UPDATE
+  </select>
+  <insert id="insertCampaign">
+    INSERT INTO coupon_campaigns(id,merchant_id,title,minimum_amount,discount_amount,supply,starts_at,expires_at)
+    VALUES (#{id},#{merchantId},#{title},#{minimumAmount},#{discountAmount},#{supply},#{startsAt},#{expiresAt})
+  </insert>
+  <update id="disableCampaign">
+    UPDATE coupon_campaigns SET enabled=FALSE WHERE id=#{id} AND merchant_id=#{merchantId}
+  </update>
+  <update id="issue">
+    UPDATE coupon_campaigns SET issued=issued+1 WHERE id=#{campaignId} AND enabled
+      AND starts_at&lt;=CURRENT_TIMESTAMP(6) AND expires_at&gt;CURRENT_TIMESTAMP(6) AND issued&lt;supply
+  </update>
+  <select id="claimed" resultType="string">
+    SELECT id FROM customer_coupons WHERE customer_id=#{customerId} AND campaign_id=#{campaignId} FOR UPDATE
+  </select>
+  <insert id="insertCoupon">
+    INSERT INTO customer_coupons(id,campaign_id,customer_id,status)
+    VALUES (#{id},#{campaignId},#{customerId},'AVAILABLE')
+  </insert>
+  <sql id="walletColumns">
+    c.id,c.campaign_id,c.customer_id,a.merchant_id,a.title,a.minimum_amount,a.discount_amount,
+    a.starts_at,a.expires_at,a.enabled,
+    CASE WHEN c.status='AVAILABLE' AND a.expires_at&lt;=CURRENT_TIMESTAMP(6) THEN 'EXPIRED' ELSE c.status END AS status
+  </sql>
+  <select id="wallet" resultType="vip.fairy.commerceflow.commerce.ordering.domain.CustomerCoupon">
+    SELECT <include refid="walletColumns"/> FROM customer_coupons c JOIN coupon_campaigns a ON a.id=c.campaign_id
+    WHERE c.customer_id=#{customerId} ORDER BY c.claimed_at DESC,c.id LIMIT 100
+  </select>
+  <select id="coupon" resultType="vip.fairy.commerceflow.commerce.ordering.domain.CustomerCoupon">
+    SELECT <include refid="walletColumns"/> FROM customer_coupons c JOIN coupon_campaigns a ON a.id=c.campaign_id
+    WHERE c.id=#{id} AND c.customer_id=#{customerId}
+  </select>
+  <update id="hold">
+    UPDATE customer_coupons SET status='HELD',bound_quote=#{quoteId}
+    WHERE id=#{id} AND customer_id=#{customerId} AND status='AVAILABLE'
+  </update>
+  <update id="reconcile">
+    UPDATE customer_coupons c JOIN coupon_campaigns a ON a.id=c.campaign_id
+    SET c.status=CASE WHEN #{consumed} THEN 'USED'
+                      WHEN a.expires_at&lt;=CURRENT_TIMESTAMP(6) THEN 'EXPIRED'
+                      ELSE 'AVAILABLE' END,
+        c.bound_quote=CASE WHEN #{consumed} THEN #{quoteId} ELSE NULL END
+    WHERE c.id=#{id} AND c.status='HELD' AND c.bound_quote=#{quoteId}
+  </update>
+</mapper>

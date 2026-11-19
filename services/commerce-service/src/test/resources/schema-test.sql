@@ -150,6 +150,7 @@ CREATE TABLE shop_orders
   customer_id            BIGINT    NOT NULL,
   status                 VARCHAR(40),
   inventory_status       VARCHAR(40) NOT NULL DEFAULT 'WAITING_RESERVATION',
+  coupon_id VARCHAR(36),
   shipping_fee DECIMAL(12, 2) DEFAULT 0 NOT NULL,
   discount_amount DECIMAL(12, 2) DEFAULT 0 NOT NULL,
   product_subtotal DECIMAL(12, 2) GENERATED ALWAYS AS (total_amount + discount_amount - shipping_fee),
@@ -898,4 +899,53 @@ CREATE TABLE line_after_sales (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id)
+);
+
+CREATE TABLE coupon_campaigns (
+  id CHAR(36) PRIMARY KEY,
+  merchant_id BIGINT NOT NULL,
+  title VARCHAR(100) NOT NULL,
+  minimum_amount DECIMAL(12,2) NOT NULL,
+  discount_amount DECIMAL(12,2) NOT NULL,
+  supply INT NOT NULL,
+  issued INT NOT NULL DEFAULT 0,
+  starts_at TIMESTAMP(6) NOT NULL,
+  expires_at TIMESTAMP(6) NOT NULL,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  CHECK (discount_amount > 0 AND minimum_amount > discount_amount),
+  CHECK (supply > 0 AND issued BETWEEN 0 AND supply),
+  CHECK (starts_at < expires_at)
+);
+
+CREATE TABLE customer_coupons (
+  id CHAR(36) PRIMARY KEY,
+  campaign_id CHAR(36) NOT NULL,
+  customer_id BIGINT NOT NULL,
+  status VARCHAR(12) NOT NULL,
+  bound_quote CHAR(64) NULL,
+  claimed_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  CONSTRAINT uk_customer_coupon_campaign UNIQUE (customer_id,campaign_id),
+  CONSTRAINT fk_customer_coupon_campaign FOREIGN KEY(campaign_id) REFERENCES coupon_campaigns(id),
+  CHECK (status IN ('AVAILABLE','HELD','USED','EXPIRED'))
+);
+
+CREATE TABLE checkout_intents (
+  quote_id CHAR(64) PRIMARY KEY,
+  customer_id BIGINT NOT NULL,
+  scope_hash CHAR(64) NOT NULL,
+  order_number VARCHAR(40) NOT NULL,
+  order_id BIGINT NULL,
+  coupon_id CHAR(36) NULL,
+  status VARCHAR(12) NOT NULL,
+  payload LONGTEXT NOT NULL,
+  next_attempt_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  pending_customer_id BIGINT GENERATED ALWAYS AS (
+    CASE WHEN status = 'PREPARED' THEN customer_id END
+  ),
+  CONSTRAINT uk_checkout_intent_pending_customer UNIQUE (pending_customer_id),
+  CONSTRAINT uk_checkout_intent_order UNIQUE (order_id),
+  CONSTRAINT fk_checkout_intent_coupon FOREIGN KEY(coupon_id) REFERENCES customer_coupons(id),
+  CHECK (status IN ('PREPARED','BOUND','COMPLETE','USED','RETURNED'))
 );

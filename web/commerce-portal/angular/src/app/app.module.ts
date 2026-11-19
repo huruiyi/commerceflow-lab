@@ -15,6 +15,7 @@ import { LoginComponent } from './login/login.component';
 import { DashboardComponent } from './dashboard/dashboard.component';
 import { NavbarComponent } from './inc/navbar/navbar.component';
 import { ErrorpageComponent } from './errorpage/errorpage.component';
+import { CouponsComponent } from './coupons/coupons.component';
 import { OrderComponent } from './order/order.component';
 import { UsersComponent } from './users/users.component';
 import { TrdatePipe } from './pipes/trdate.pipe';
@@ -43,6 +44,7 @@ import { InventoryReconciliationAdminComponent } from './inventory-reconciliatio
     NavbarComponent,
     ErrorpageComponent,
     OrderComponent,
+    CouponsComponent,
     UsersComponent,
     TrdatePipe,
     TrcurrencyPipe,

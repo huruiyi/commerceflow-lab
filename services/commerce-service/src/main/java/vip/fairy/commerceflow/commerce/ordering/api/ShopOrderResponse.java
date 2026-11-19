@@ -19,6 +19,7 @@ public record ShopOrderResponse(
   BigDecimal productSubtotal,
   BigDecimal shippingFee,
   BigDecimal discountAmount,
+  String couponId,
   String currency,
   Instant createdAt,
   Instant paymentDueAt,

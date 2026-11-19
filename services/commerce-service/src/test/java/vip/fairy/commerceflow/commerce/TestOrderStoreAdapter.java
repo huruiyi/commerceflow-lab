@@ -60,8 +60,8 @@ final class TestOrderStoreAdapter implements OrderStorePort {
     GeneratedKeyHolder key = new GeneratedKeyHolder();
     jdbc.update(connection -> {
       var statement = connection.prepareStatement("INSERT INTO shop_orders(order_number,customer_id,"
-          + "status,inventory_status,total_amount,currency,payment_due_at,created_at,updated_at,shipping_fee,discount_amount) "
-          + "VALUES (?,?,'PENDING_PAYMENT','WAITING_RESERVATION',?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,?,?)",
+          + "status,inventory_status,total_amount,currency,payment_due_at,created_at,updated_at,shipping_fee,discount_amount,coupon_id) "
+          + "VALUES (?,?,'PENDING_PAYMENT','WAITING_RESERVATION',?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,?,?,?)",
         new String[]{"id"});
       statement.setString(1, order.getOrderNumber());
       statement.setLong(2, order.getCustomerId());
@@ -70,6 +70,7 @@ final class TestOrderStoreAdapter implements OrderStorePort {
       statement.setTimestamp(5, Timestamp.from(order.getPaymentDueAt()));
       statement.setBigDecimal(6, order.getShippingFee());
       statement.setBigDecimal(7, order.getDiscountAmount());
+      statement.setString(8, order.getCouponId());
       return statement;
     }, key);
     order.setId(key.getKey().longValue());

@@ -8,6 +8,7 @@ export interface PurchaseOrderItem {
   unitPrice: number;
   quantity: number;
   subtotal: number;
+  discountAmount?: number;
 }
 
 export interface OrderLogisticsEvent {

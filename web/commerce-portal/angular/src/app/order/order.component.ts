@@ -1,7 +1,7 @@
 import { ChangeDetectorRef, Component, DestroyRef, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { OrderList } from 'src/model/IOrderList';
-import { ApiService, CheckoutQuote, StockAvailability } from '../services/api.service';
+import { ApiService, CheckoutQuote, CustomerCoupon, StockAvailability } from '../services/api.service';
 import { SeoService } from '../services/seo.service';
 import { Router } from '@angular/router';
 import { I18nService } from '../services/i18n.service';
@@ -19,6 +19,33 @@ export class OrderComponent implements OnInit {
   updatingOrderIds = new Set<number>();
   checkoutError = '';
   quote?: CheckoutQuote;
+  selectedCoupon?: string;
+  availableCoupons?: CustomerCoupon[];
+  loadingCoupons = false;
+
+  loadCoupons(): void {
+    if (this.loadingCoupons) return;
+    this.loadingCoupons = true;
+    this.api
+      .couponWallet()
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => {
+          this.loadingCoupons = false;
+          this.changeDetector.markForCheck();
+        }),
+      )
+      .subscribe({
+        next: (items) => {
+          this.availableCoupons = items.filter((item) => item.status === 'AVAILABLE' && item.enabled);
+          if (this.selectedCoupon && !this.availableCoupons.some((item) => item.id === this.selectedCoupon)) {
+            this.selectedCoupon = undefined;
+            this.invalidateQuote();
+          }
+        },
+        error: () => (this.checkoutError = this.i18n.t('couponOperationFailed')),
+      });
+  }
   checkingOut = false;
   loadingAddresses = true;
   addressError = false;
@@ -290,7 +317,7 @@ export class OrderComponent implements OnInit {
   checkout(): void {
     const addressId = this.addressId;
     if (!addressId || !this.canCheckout) return;
-    const selection = { addressId, itemIds: this.selectedItems.map((item) => item.id) };
+    const selection = { addressId, itemIds: this.selectedItems.map((item) => item.id), couponId: this.selectedCoupon };
     this.checkingOut = true;
     this.checkoutError = '';
     if (!this.quote) {

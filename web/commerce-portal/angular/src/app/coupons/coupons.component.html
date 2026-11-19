@@ -1,0 +1,106 @@
+<h2>{{ (merchant ? 'couponMerchantHeading' : 'couponsHeading') | t }}</h2>
+<p *ngIf="error()" class="alert alert-warning" role="alert">{{ 'couponOperationFailed' | t }}</p>
+<form *ngIf="merchant" #campaign="ngForm" (ngSubmit)="create()" class="border rounded p-3 mb-3">
+  <fieldset class="row g-2 align-items-end" [disabled]="busy()">
+    <label class="col-sm-6"
+      >{{ 'couponTitle' | t }}
+      <input class="form-control" name="title" [(ngModel)]="title" maxlength="100" required />
+    </label>
+    <label class="col-sm-3"
+      >{{ 'couponThreshold' | t }}
+      <input
+        class="form-control"
+        type="number"
+        name="minimum"
+        [(ngModel)]="minimumAmount"
+        min="0.01"
+        step="0.01"
+        required
+      />
+    </label>
+    <label class="col-sm-3"
+      >{{ 'couponReduction' | t }}
+      <input
+        class="form-control"
+        type="number"
+        name="discount"
+        [(ngModel)]="discountAmount"
+        min="0.01"
+        step="0.01"
+        required
+      />
+    </label>
+    <label class="col-sm-3"
+      >{{ 'couponSupply' | t }}
+      <input
+        class="form-control"
+        type="number"
+        name="supply"
+        [(ngModel)]="supply"
+        min="1"
+        max="10000"
+        step="1"
+        required
+      />
+    </label>
+    <label class="col-sm-6"
+      >{{ 'couponExpiry' | t }}
+      <input class="form-control" type="datetime-local" name="expiresAt" [(ngModel)]="expiresAt" required />
+    </label>
+    <div class="col-sm-3">
+      <button
+        type="submit"
+        class="btn btn-primary"
+        [disabled]="campaign.invalid || discountAmount >= minimumAmount || !title.trim()"
+      >
+        {{ 'couponCreate' | t }}
+      </button>
+    </div>
+  </fieldset>
+</form>
+
+<div class="list-group mb-3">
+  <div class="list-group-item d-flex flex-wrap justify-content-between gap-2" *ngFor="let item of campaigns()">
+    <div>
+      <strong>{{ item.title }}</strong>
+      <p class="mb-0">
+        {{ 'couponThreshold' | t }} {{ item.minimumAmount | trcurrency }} · {{ 'couponReduction' | t }}
+        {{ item.discountAmount | trcurrency }}
+      </p>
+      <small>{{ 'couponExpiry' | t }} {{ item.expiresAt | trdate }}</small>
+      <small *ngIf="merchant" class="d-block">{{ 'couponIssued' | t }} {{ item.issued }} / {{ item.supply }}</small>
+    </div>
+    <div>
+      <button
+        *ngIf="merchant"
+        type="button"
+        class="btn btn-outline-danger"
+        [disabled]="busy() || !item.enabled"
+        (click)="disable(item)"
+      >
+        {{ (item.enabled ? 'couponDisable' : 'couponDisabled') | t }}
+      </button>
+      <button
+        *ngIf="!merchant"
+        type="button"
+        class="btn btn-outline-primary"
+        [disabled]="busy() || alreadyClaimed(item.id)"
+        (click)="claim(item)"
+      >
+        {{ (alreadyClaimed(item.id) ? 'couponClaimed' : 'couponClaim') | t }}
+      </button>
+    </div>
+  </div>
+</div>
+<p *ngIf="!busy() && campaigns().length === 0">{{ 'couponNoCampaigns' | t }}</p>
+
+<section *ngIf="!merchant" class="border rounded p-3">
+  <h3 class="h5">{{ 'couponWallet' | t }}</h3>
+  <p *ngIf="wallet().length === 0">{{ 'couponNoOwned' | t }}</p>
+  <ul *ngIf="wallet().length" class="list-unstyled">
+    <li *ngFor="let item of wallet()">
+      {{ item.title }} · {{ 'couponState_' + item.status | t }} · {{ item.expiresAt | trdate }}
+    </li>
+  </ul>
+  <a routerLink="/cart">{{ 'backToCart' | t }}</a>
+</section>

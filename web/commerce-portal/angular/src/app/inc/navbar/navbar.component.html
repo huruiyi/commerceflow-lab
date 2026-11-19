@@ -25,6 +25,9 @@
           >
         </li>
         <li class="nav-item" *ngIf="bilgiler.role === 'CUSTOMER'">
+          <a class="nav-link" routerLink="/coupons" routerLinkActive="active">{{ 'couponsHeading' | t }}</a>
+        </li>
+        <li class="nav-item" *ngIf="bilgiler.role === 'CUSTOMER'">
           <a class="nav-link" aria-current="page" role="button" [routerLink]="['/cart']" routerLinkActive="active">{{
             'cart' | t
           }}</a>
@@ -56,6 +59,11 @@
           <a class="nav-link" [routerLink]="['/admin/inventory-reconciliation']" routerLinkActive="active">
             {{ 'warehouseReconciliation' | t }}
           </a>
+        </li>
+        <li class="nav-item" *ngIf="bilgiler.role === 'MERCHANT'">
+          <a class="nav-link" routerLink="/merchant/coupons" routerLinkActive="active">{{
+            'couponMerchantHeading' | t
+          }}</a>
         </li>
         <li class="nav-item" *ngIf="bilgiler.role === 'MERCHANT'">
           <a class="nav-link" [routerLink]="['/merchant/products']" routerLinkActive="active">{{

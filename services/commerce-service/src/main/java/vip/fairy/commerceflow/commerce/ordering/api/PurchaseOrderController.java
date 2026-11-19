@@ -60,20 +60,23 @@ public class PurchaseOrderController {
 
   @PostMapping("/checkout/quote")
   CheckoutQuote quote(@Valid @RequestBody CheckoutRequest.Selection selection, Authentication authentication) {
-    return orders.quote(currentUsers.require(authentication), selection.addressId(), selection.itemIds());
+    return orders.quote(currentUsers.require(authentication),
+      selection.addressId(), selection.itemIds(), selection.couponId());
   }
 
   @PostMapping("/checkout")
   ShopOrderResponse checkout(@Valid @RequestBody CheckoutRequest request, Authentication authentication) {
     AppUser user = currentUsers.require(authentication);
-    return orders.checkout(user, request.selection().addressId(), request.selection().itemIds(), request.quoteId());
+    return orders.checkout(user, request.selection().addressId(), request.selection().itemIds(),
+      request.selection().couponId(), request.quoteId());
   }
 
   @ExceptionHandler(CheckoutPriceChangedException.class)
   @ResponseStatus(HttpStatus.CONFLICT)
   Map<String, Object> checkoutPrice(CheckoutPriceChangedException exception) {
     return Map.of("timestamp", Instant.now(), "status", HttpStatus.CONFLICT.value(),
-      "code", "CHECKOUT_PRICE_CHANGED", "message", exception.getMessage(), "currentTotal", exception.quote().totalAmount(),
+      "code", "CHECKOUT_PRICE_CHANGED", "message", exception.getMessage(),
+      "currentTotal", exception.quote().totalAmount(),
       "quote", exception.quote());
   }
 

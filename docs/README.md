@@ -1,11 +1,12 @@
 # CommerceFlow Lab 文档中心
 
-本目录按“现状、代办、接口、专题参考、学习材料、历史归档”分工。不要在多份文档里同时维护同一份勾选清单。
+先从 [按功能模块浏览](features/README.md) 了解顾客、商家和管理员可用的功能、操作路径与关键规则。验收、计划和接口各有维护入口。
 
 ## 主入口
 
 | 文档 | 职责 | 更新规则 |
 | --- | --- | --- |
+| [features/](features/README.md) | 账号与商品、结算与优惠券、履约、支付售后、库存、模拟器、运维 | 功能交付后更新页面入口、状态和业务规则 |
 | [PROJECT-STATUS.md](PROJECT-STATUS.md) | 当前完成度、未完成分组和下一里程碑快照 | 只做高层导航，不复制详细验收证据 |
 | [IMPLEMENTED.md](IMPLEMENTED.md) | 已实现能力、验证边界和已知限制 | 只写有代码和验证证据的事实 |
 | [TODO.md](TODO.md) | 唯一进度勾选表、未实现代办和实施顺序 | 已完成保留证据，未完成项只在这里排序 |
@@ -18,10 +19,7 @@
 | [ALERTING.md](ALERTING.md) | Prometheus 规则、Alertmanager 路由、本地 Webhook、阈值和生产边界 | 指标、规则、通知路由或验收入口变更时更新 |
 | [architecture/](architecture/README.md) | 微服务和数据库演进等架构层待办 | 不与当前业务 `TODO.md` 混用 |
 
-M3.2 notification、M3.3 catalog 与 M3.4 inventory 已完成单一所有权切换。inventory 的四类命令和商家
-库存管理均只访问独立服务/独立 MySQL，commerce 运行账号无五张库存源表权限；验收与复跑入口见
-[inventory-service 切换运行手册](architecture/INVENTORY-SERVICE-CUTOVER-RUNBOOK.md)。下一批只进入
-order-service 边界准入治理，不建立长期双实现，也不提前启动 PostgreSQL。
+独立服务的切流与数据所有权见 [架构导航](architecture/README.md)。库存命令与商家库存管理的复跑入口见 [库存切换运行手册](architecture/INVENTORY-SERVICE-CUTOVER-RUNBOOK.md)。
 
 ## 专题参考 `reference/`
 

@@ -30,6 +30,11 @@ import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
 import vip.fairy.commerceflow.commerce.shared.application.ExternalServiceUnavailableException;
 import org.springframework.stereotype.Service;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import vip.fairy.commerceflow.commerce.ordering.infrastructure.CheckoutIntentMapper;
+import vip.fairy.commerceflow.commerce.ordering.infrastructure.CheckoutIntentMapper.Intent;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
@@ -50,6 +55,8 @@ import java.util.stream.Collectors;
 @Service
 public class PurchaseOrderService {
 
+  private static final Logger LOG = LoggerFactory.getLogger(PurchaseOrderService.class);
+
   private final OrderStorePort orders;
   private final CheckoutCartPort carts;
   private final PaymentOrchestrationV1 payments;
@@ -65,6 +72,9 @@ public class PurchaseOrderService {
   private final CheckoutPricingMapper pricing;
   private final ShippingTemplateService shipping;
   private final ObjectMapper json;
+  private final CheckoutIntentMapper intents;
+  private final CouponService coupons;
+  private final CheckoutCouponLifecycle couponLifecycle;
 
   public PurchaseOrderService(OrderStorePort orders, CheckoutCartPort carts,
                               PaymentOrchestrationV1 payments,
@@ -76,7 +86,8 @@ public class PurchaseOrderService {
                               StockAvailabilityQuery stocks,
                               InventoryCommandPort.ImmediateDelivery inventoryDelivery,
                               TransactionTemplate transactions, CheckoutPricingMapper pricing,
-                              ShippingTemplateService shipping, ObjectMapper json) {
+                              ShippingTemplateService shipping, ObjectMapper json, CheckoutIntentMapper intents,
+                              CouponService coupons, CheckoutCouponLifecycle couponLifecycle) {
     this.orders = orders;
     this.carts = carts;
     this.payments = payments;
@@ -92,25 +103,30 @@ public class PurchaseOrderService {
     this.pricing = pricing;
     this.shipping = shipping;
     this.json = json;
+    this.intents = intents;
+    this.coupons = coupons;
+    this.couponLifecycle = couponLifecycle;
   }
 
-  public CheckoutQuote quote(AppUser user, Long addressId, List<Long> itemIds) {
+  public CheckoutQuote quote(AppUser user, Long addressId, List<Long> itemIds, UUID couponId) {
     Set<Long> selection = selection(itemIds);
-    return transactions.execute(status -> price(user.getId(), addressId, selection).quote());
+    return transactions.execute(status -> price(user.getId(), addressId, selection, couponId, false).quote());
   }
 
-  public ShopOrderResponse checkout(AppUser user, Long addressId, List<Long> itemIds, String quoteId) {
+  public ShopOrderResponse checkout(AppUser user, Long addressId, List<Long> itemIds, UUID couponId, String quoteId) {
     Set<Long> selection = selection(itemIds);
-    String scopeHash = fingerprint(new CheckoutScope(addressId, sorted(selection)));
-    Checkout checkout = transactions.execute(status -> createOrder(user, addressId, selection, quoteId, scopeHash));
-    Long orderId = checkout.orderId();
+    String scopeHash = fingerprint(new CheckoutScope(addressId, sorted(selection), couponId));
+    Long replay = transactions.execute(status ->
+      prepare(user.getId(), addressId, selection, couponId, quoteId, scopeHash));
+    Long orderId = replay == null ? finish(quoteId) : replay;
     inventoryDelivery.deliver(reservationCommandId(orderId));
     ShopOrderView order = orders.find(user.getId(), orderId)
       .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
     if ("RESERVATION_REJECTED".equals(order.getInventoryStatus())) {
       List<CheckoutStockException.Line> problems;
       try {
-        problems = checkout.items().isEmpty() ? List.of() : stockProblems(checkout.items());
+        var intent = intents.find(quoteId);
+        problems = intent == null ? List.of() : stockProblems(payload(intent).cartItems());
       } catch (ExternalServiceUnavailableException exception) {
         problems = List.of();
       }
@@ -119,47 +135,121 @@ public class PurchaseOrderService {
     return assemble(order, null, null);
   }
 
-  private Checkout createOrder(AppUser user, Long addressId, Set<Long> selection, String quoteId, String scopeHash) {
-    Long customerId = user.getId();
-    if (carts.lockCart(customerId) == null) {
-      throw new BusinessRuleException("Cart is empty");
-    }
+  private Long prepare(Long customerId, Long addressId, Set<Long> selection, UUID couponId,
+                       String quoteId, String scopeHash) {
+    if (carts.lockCart(customerId) == null) throw new BusinessRuleException("Cart is empty");
     var receipt = pricing.receipt(customerId, quoteId);
     if (receipt != null) {
-      if (!scopeHash.equals(receipt.scopeHash())) {
-        throw new BusinessRuleException("A checkout quote was already used for another request");
-      }
-      return new Checkout(receipt.orderId(), List.of());
+      requireSameRequest(scopeHash, receipt.scopeHash());
+      return receipt.orderId();
     }
-    PricedCart cart = price(customerId, addressId, selection);
-    if (!cart.quote().quoteId().equals(quoteId)) {
-      throw new CheckoutPriceChangedException(cart.quote());
+    var existing = intents.find(quoteId);
+    if (existing != null) {
+      if (!customerId.equals(existing.customerId())) throw new BusinessRuleException("Checkout owner mismatch");
+      requireSameRequest(scopeHash, existing.scopeHash());
+      return existing.orderId();
     }
+    if (intents.pending(customerId) != null) {
+      throw new BusinessRuleException("A previous checkout is still being completed");
+    }
+    PricedCart priced = price(customerId, addressId, selection, couponId, true);
+    if (!priced.quote().quoteId().equals(quoteId)) throw new CheckoutPriceChangedException(priced.quote());
     inventory.requireWritable();
-    var problems = stockProblems(cart.items());
-    if (!problems.isEmpty()) {
-      throw new CheckoutStockException(problems);
-    }
+    var problems = stockProblems(priced.items());
+    if (!problems.isEmpty()) throw new CheckoutStockException(problems);
 
-    // A retry after Order V1 commits but before this transaction commits reuses its order number.
     String orderNumber = "ORD-" + quoteId.substring(0, 32).toUpperCase(Locale.ROOT);
-    NewOrder order = new NewOrder(orderNumber, customerId, cart.quote().totalAmount(), "CNY",
-      Instant.now().plus(lifecycle.getPaymentTimeout()), cart.quote().shippingFee(), cart.quote().discountAmount());
-    orders.insertOrder(order, cart.orderItems(), OrderAddressSnapshot.from(cart.address()), customerId);
-    String commandId = reservationCommandId(order.getId());
-    var stockItems = cart.items().stream().map(item -> InventoryCommandPort.item(
-      item.getProductId(), item.getProductName(), item.getQuantity())).toList();
-    inventory.handle(InventoryCommandV1.reserveReviewedCheckout(commandId, order.getId(), stockItems));
-    scheduledTasks.schedule(ScheduledTaskTypes.PAYMENT_TIMEOUT, "order:" + order.getId(), "ORDER",
-      order.getId().toString(), order.getPaymentDueAt(), Map.of("orderId", order.getId()));
-    if (carts.removeItems(customerId, cart.items().stream().map(CheckoutCartItem::getId).toList()) != cart.items().size()) {
-      throw new IllegalStateException("Selected cart items changed during checkout");
-    }
-    pricing.saveReceipt(customerId, quoteId, scopeHash, order.getId());
-    return new Checkout(order.getId(), cart.items());
+    String id = priced.quote().couponId();
+    coupons.hold(id, customerId, quoteId);
+    var frozen = new FrozenCheckout(priced.items(), priced.orderItems(), OrderAddressSnapshot.from(priced.address()),
+      priced.quote().totalAmount(), priced.quote().shippingFee(), priced.quote().discountAmount(),
+      Instant.now().plus(lifecycle.getPaymentTimeout()));
+    intents.insert(new Intent(quoteId, customerId, scopeHash, orderNumber, null, id, "PREPARED",
+      json.writeValueAsString(frozen)));
+    return null;
   }
 
-  private PricedCart price(Long customerId, Long addressId, Set<Long> selection) {
+  private Long finish(String quoteId) {
+    return transactions.execute(status -> {
+      Intent intent = intents.lock(quoteId);
+      if (intent == null) throw new IllegalStateException("Checkout intent is missing");
+      if (intent.orderId() != null) return intent.orderId();
+      var snapshot = payload(intent);
+      inventory.requireWritable();
+      var order = new NewOrder(intent.orderNumber(), intent.customerId(), snapshot.total(), "CNY",
+        snapshot.paymentDueAt(), snapshot.fee(), snapshot.discount(), intent.couponId());
+      orders.insertOrder(order, snapshot.orderItems(), snapshot.address(), intent.customerId());
+      String commandId = reservationCommandId(order.getId());
+      var stockItems = snapshot.cartItems().stream().map(item -> InventoryCommandPort.item(
+        item.getProductId(), item.getProductName(), item.getQuantity())).toList();
+      inventory.handle(InventoryCommandV1.reserveReviewedCheckout(commandId, order.getId(), stockItems));
+      scheduledTasks.schedule(ScheduledTaskTypes.PAYMENT_TIMEOUT, "order:" + order.getId(), "ORDER",
+        order.getId().toString(), order.getPaymentDueAt(), Map.of("orderId", order.getId()));
+
+      // Preserve cart edits made while a confirmed checkout was being recovered.
+      carts.lockCart(intent.customerId());
+      var frozen = snapshot.cartItems().stream().collect(Collectors.toMap(CheckoutCartItem::getId, item -> item));
+      var unchanged = carts.lockItems(intent.customerId()).stream().filter(item -> {
+        CheckoutCartItem prior = frozen.get(item.getId());
+        return prior != null && prior.getProductId().equals(item.getProductId())
+          && prior.getQuantity() == item.getQuantity();
+      }).map(CheckoutCartItem::getId).toList();
+      if (!unchanged.isEmpty() && carts.removeItems(intent.customerId(), unchanged) != unchanged.size()) {
+        throw new IllegalStateException("Confirmed cart lines changed while locked");
+      }
+      pricing.saveReceipt(intent.customerId(), quoteId, intent.scopeHash(), order.getId());
+      intents.bind(quoteId, order.getId(), intent.couponId() == null ? "COMPLETE" : "BOUND");
+      return order.getId();
+    });
+  }
+
+  @Scheduled(fixedDelayString = "${commerceflow.checkout.recovery-delay:2s}")
+  public void recoverCheckouts() {
+    for (String quoteId : intents.due()) {
+      try {
+        Intent intent = intents.find(quoteId);
+        if ("PREPARED".equals(intent.status())) {
+          inventoryDelivery.deliver(reservationCommandId(finish(quoteId)));
+        } else {
+          reconcileCoupon(intent);
+        }
+      } catch (RuntimeException failure) {
+        LOG.warn("Checkout {} will retry: {}", quoteId, failure.getMessage());
+      } finally {
+        intents.defer(quoteId);
+      }
+    }
+  }
+
+  private void reconcileCoupon(Intent candidate) {
+    transactions.executeWithoutResult(status -> {
+      Intent intent = intents.lock(candidate.quoteId());
+      if (!"BOUND".equals(intent.status())) return;
+      var order = orders.find(intent.customerId(), intent.orderId())
+        .orElseThrow(() -> new IllegalStateException("Confirmed checkout order is missing"));
+      if (Set.of("PAID", "CONFIRMED", "SHIPPED", "RECEIVED", "COMPLETED", "REFUNDING", "REFUNDED")
+          .contains(order.getStatus())) {
+        couponLifecycle.resolve(intent, true);
+      } else if ("CANCELLED".equals(order.getStatus()) || "RESERVATION_REJECTED".equals(order.getInventoryStatus())) {
+        couponLifecycle.resolve(intent, false);
+      }
+    });
+  }
+
+  private void requireSameRequest(String scopeHash, String previous) {
+    if (!scopeHash.equals(previous)) throw new BusinessRuleException("Checkout quote was used for another request");
+  }
+
+  private FrozenCheckout payload(Intent intent) {
+    return json.readValue(intent.payload(), FrozenCheckout.class);
+  }
+
+  private record FrozenCheckout(List<CheckoutCartItem> cartItems, List<OrderItemSnapshot> orderItems,
+                                OrderAddressSnapshot address, BigDecimal total, BigDecimal fee,
+                                BigDecimal discount, Instant paymentDueAt) {
+  }
+
+  private PricedCart price(Long customerId, Long addressId, Set<Long> selection, UUID couponId, boolean lockCampaign) {
     List<CheckoutCartItem> items = selectedCartItems(customerId, selection);
     if (items.isEmpty()) {
       throw new BusinessRuleException("Cart is empty");
@@ -172,13 +262,19 @@ public class PurchaseOrderService {
     List<OrderItemSnapshot> orderItems = currentOrderItems(items);
     BigDecimal products = orderItems.stream().map(OrderItemSnapshot::subtotal).reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal fee = shipping.fee(orderItems.getFirst().merchantId(), address.countryCode(), address.stateProvince());
-    BigDecimal total = products.add(fee);
+    String id = couponId == null ? null : couponId.toString();
+    var coupon = coupons.price(id, customerId, orderItems.getFirst().merchantId(), products, lockCampaign);
+    BigDecimal discount = coupon == null ? BigDecimal.ZERO : coupon.discountAmount();
+    if (coupon != null) orderItems = CouponAllocation.allocate(orderItems, products, discount);
+    BigDecimal total = products.subtract(discount).add(fee);
     if (total.compareTo(new BigDecimal("9999999999.99")) > 0) {
       throw new BusinessRuleException("Checkout amount exceeds the supported amount");
     }
-    String quoteId = fingerprint(java.util.Arrays.asList(customerId, addressId, address,
+    var quoteFacts = new java.util.ArrayList<>(java.util.Arrays.asList(customerId, addressId, address,
       items.stream().map(CheckoutCartItem::getId).toList(), orderItems, fee.stripTrailingZeros()));
-    return new PricedCart(items, orderItems, address, new CheckoutQuote(quoteId, products, BigDecimal.ZERO, fee, total));
+    if (coupon != null) quoteFacts.addAll(List.of(id, coupon.campaignId()));
+    String quoteId = fingerprint(quoteFacts);
+    return new PricedCart(items, orderItems, address, new CheckoutQuote(quoteId, products, discount, fee, total, id));
   }
 
   private Set<Long> selection(List<Long> itemIds) {
@@ -204,7 +300,9 @@ public class PurchaseOrderService {
     }
   }
 
-  private record CheckoutScope(Long addressId, List<Long> itemIds) {
+  private record CheckoutScope(Long addressId, List<Long> itemIds,
+                               @com.fasterxml.jackson.annotation.JsonInclude(
+                                 com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) UUID couponId) {
   }
 
   private record PricedCart(List<CheckoutCartItem> items, List<OrderItemSnapshot> orderItems,
@@ -247,9 +345,6 @@ public class PurchaseOrderService {
       return new CheckoutStockException.Line(item.getProductId(), item.getProductName(), item.getQuantity(),
         stock == null ? null : stock.available(), stock != null && stock.listed());
     }).toList();
-  }
-
-  private record Checkout(Long orderId, List<CheckoutCartItem> items) {
   }
 
   private String reservationCommandId(Long orderId) {
@@ -324,6 +419,7 @@ public class PurchaseOrderService {
       order.getProductSubtotal(),
       order.getShippingFee(),
       order.getDiscountAmount(),
+      order.getCouponId(),
       order.getCurrency(),
       order.getCreatedAt(),
       order.getPaymentDueAt(),
