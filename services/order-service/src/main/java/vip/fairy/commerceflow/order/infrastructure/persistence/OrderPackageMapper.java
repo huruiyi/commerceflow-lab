@@ -12,6 +12,10 @@ public interface OrderPackageMapper {
 
   Allocation find(String packageId);
   List<PostedLine> lines(String packageId);
+  List<PostedLine> actualLines(String packageId);
+  List<Line> countedLines(String packageId);
+  void setActual(@Param("packageId") String packageId, @Param("line") Line line);
+  int markReceived(@Param("packageId") String packageId, @Param("voided") boolean voided);
   int allocatedAtWarehouse(@Param("orderLineId") long orderLineId, @Param("warehouseId") long warehouseId);
   boolean trackingUsed(@Param("orderId") long orderId, @Param("carrier") String carrier,
                        @Param("trackingNumber") String trackingNumber);
@@ -24,6 +28,6 @@ public interface OrderPackageMapper {
 
   /** 订单侧持有的发货数量准入凭证。 */
   record Allocation(long orderId, long merchantId, String carrier, String trackingNumber, boolean posted,
-                    long warehouseId) {
+                    long warehouseId, boolean received, boolean voided) {
   }
 }

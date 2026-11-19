@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: warehouse-simulator-service
+  datasource:
+    url: ${WAREHOUSE_DATABASE_URL}
+    username: ${WAREHOUSE_DATABASE_USERNAME}
+    password: ${WAREHOUSE_DATABASE_PASSWORD}
+  mvc:
+    problemdetails:
+      enabled: true
+
+mybatis-plus:
+  mapper-locations: classpath:/mapper/*.xml
+
+warehouse:
+  fulfillment-secret: ${FULFILLMENT_WAREHOUSE_SECRET}
+  admin-token: ${WAREHOUSE_ADMIN_TOKEN}

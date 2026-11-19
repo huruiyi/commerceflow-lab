@@ -197,6 +197,62 @@ services:
         condition: service_healthy
     restart: "no"
 
+  warehouse-simulator-db:
+    container_name: fairy-commerceflow-warehouse-simulator-db
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: warehouse_platform
+      MYSQL_USER: ${WAREHOUSE_DATABASE_USERNAME:-warehouse}
+      MYSQL_PASSWORD: ${WAREHOUSE_DATABASE_PASSWORD:-warehouse-password}
+      MYSQL_ROOT_PASSWORD: ${WAREHOUSE_MYSQL_ROOT_PASSWORD:-local-warehouse-root-password}
+    volumes:
+      - warehouse-simulator-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
+  warehouse-simulator-service:
+    container_name: fairy-commerceflow-warehouse-simulator-service
+    build:
+      context: ./simulators/warehouse-platform/service
+    environment:
+      WAREHOUSE_DATABASE_URL: jdbc:mysql://warehouse-simulator-db:3306/warehouse_platform?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=UTC
+      WAREHOUSE_DATABASE_USERNAME: ${WAREHOUSE_DATABASE_USERNAME:-warehouse}
+      WAREHOUSE_DATABASE_PASSWORD: ${WAREHOUSE_DATABASE_PASSWORD:-warehouse-password}
+      WAREHOUSE_ADMIN_TOKEN: ${WAREHOUSE_ADMIN_TOKEN:-demo-warehouse-admin-token}
+      FULFILLMENT_WAREHOUSE_SECRET: ${FULFILLMENT_WAREHOUSE_SECRET:-demo-fulfillment-warehouse-secret}
+    depends_on:
+      warehouse-simulator-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  warehouse-simulator-web:
+    container_name: fairy-commerceflow-warehouse-simulator-web
+    build:
+      context: ./simulators/warehouse-platform/web
+    ports:
+      - "127.0.0.1:18118:80"
+    depends_on:
+      warehouse-simulator-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+
   fulfillment-service:
     container_name: fairy-commerceflow-fulfillment-service
     build:
@@ -214,12 +270,16 @@ services:
       FULFILLMENT_ORDER_SECRET: ${FULFILLMENT_ORDER_SECRET:-demo-fulfillment-order-secret}
       FULFILLMENT_LOGISTICS_ENDPOINT: http://commerce-service:8080
       FULFILLMENT_LOGISTICS_SECRET: ${FULFILLMENT_LOGISTICS_SECRET:-demo-fulfillment-logistics-secret}
+      FULFILLMENT_WAREHOUSE_ENDPOINT: http://warehouse-simulator-service:8080
+      FULFILLMENT_WAREHOUSE_SECRET: ${FULFILLMENT_WAREHOUSE_SECRET:-demo-fulfillment-warehouse-secret}
       FULFILLMENT_INVENTORY_ENDPOINT: http://inventory-service:8080
       FULFILLMENT_INVENTORY_SECRET: ${FULFILLMENT_INVENTORY_SECRET:-demo-fulfillment-inventory-secret}
     ports:
       - "127.0.0.1:18091:8080"
     depends_on:
       fulfillment-db:
+        condition: service_healthy
+      warehouse-simulator-service:
         condition: service_healthy
       commerce-source-access-freezer:
         condition: service_completed_successfully
@@ -1057,6 +1117,7 @@ volumes:
   payment-simulator-db-data:
   payment-simulator-redis-data:
   logistics-simulator-db-data:
+  warehouse-simulator-db-data:
   kafka-broker-data:
   rabbitmq-broker-data:
   rocketmq-nameserver-logs:

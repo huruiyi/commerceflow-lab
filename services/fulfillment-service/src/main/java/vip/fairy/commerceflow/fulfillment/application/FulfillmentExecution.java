@@ -166,7 +166,8 @@ public class FulfillmentExecution {
     }
     try (var session = databases.target()) {
       ExecutionMapper store = session.getMapper(ExecutionMapper.class);
-      if (outcome.nextStep() != null) store.advance(task, owner, outcome.nextStep());
+      if (outcome == null) store.waitForWarehouse(task, owner);
+      else if (outcome.nextStep() != null) store.advance(task, owner, outcome.nextStep());
       else store.finish(task, owner, outcome.status(), outcome.errorCode());
       session.commit();
     }
@@ -178,16 +179,17 @@ public class FulfillmentExecution {
     return switch (task.step()) {
       case "RESERVE" -> {
         if (task.packageShipment()) {
-          yield downstream.reservePackage(task).accepted() ? new StepResult("LOGISTICS", null, null)
+          yield downstream.reservePackage(task).accepted() ? new StepResult("WAREHOUSE", null, null)
             : new StepResult(null, "REJECTED", "PACKAGE_ADMISSION_REJECTED");
         }
         if (strictReservation && downstream.hasShipment(task.orderId())) {
           yield new StepResult(null, "REVIEW_REQUIRED", "EXISTING_LOGISTICS_EVIDENCE");
         }
         String type = strictReservation ? "RESERVE_NEW_SHIPMENT" : "RESERVE_SHIPMENT";
-        yield downstream.mutateOrder(stepId, type, task) ? new StepResult("LOGISTICS", null, null)
+        yield downstream.mutateOrder(stepId, type, task) ? new StepResult("WAREHOUSE", null, null)
           : new StepResult(null, "REJECTED", "ORDER_SHIPMENT_ADMISSION_REJECTED");
       }
+      case "WAREHOUSE" -> receiveWarehouseDispatch(task, stepId);
       case "LOGISTICS" -> {
         postOutbound(task);
         downstream.writeLogistics(stepId, "ENSURE_SHIPMENT", task);
@@ -213,10 +215,24 @@ public class FulfillmentExecution {
     };
   }
 
-  private void postOutbound(ExecutionTask task) {
-    var lines = task.packageShipment() ? downstream.reservePackage(task).lines()
+  private StepResult receiveWarehouseDispatch(ExecutionTask task, String stepId) {
+    var planned = task.packageShipment() ? downstream.reservePackage(task).lines()
       : downstream.shipmentLines(task.merchantId(), task.orderId());
-    if (lines.isEmpty()) throw new IllegalStateException("Order shipment lines are unavailable");
+    if (planned.isEmpty()) throw new IllegalStateException("Order shipment lines are unavailable");
+    var result = downstream.warehouseDispatch(task, planned);
+    if ("PENDING".equals(result.status())) return null;
+    boolean voided = "VOIDED".equals(result.status());
+    boolean recorded = task.packageShipment() ? downstream.recordDispatch(task, result.lines())
+      : !voided || downstream.mutateOrder(stepId, "ABORT_SHIPMENT", task);
+    if (!recorded) return new StepResult(null, "REVIEW_REQUIRED", "WAREHOUSE_RECEIPT_REJECTED");
+    return voided ? new StepResult(null, "REJECTED", "WAREHOUSE_NOT_DISPATCHED")
+      : new StepResult("LOGISTICS", null, null);
+  }
+
+  private void postOutbound(ExecutionTask task) {
+    var lines = task.packageShipment() ? downstream.reservePackage(task).actualLines()
+      : downstream.shipmentLines(task.merchantId(), task.orderId());
+    if (lines == null || lines.isEmpty()) throw new IllegalStateException("Order shipment lines are unavailable");
     downstream.postOutbound(task, lines);
   }
 

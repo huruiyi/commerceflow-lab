@@ -1,10 +1,11 @@
 #requires -Version 7.0
 param(
-  [ValidateSet('Store','Settlement','Payout','Packages','Search','Warehouses')][string]$Chapter='Store',
+  [ValidateSet('Store','Settlement','Payout','Packages','Search','Warehouses','WmsOutbound')][string]$Chapter='Store',
   [string]$BaseUrl='http://localhost:14200',
   [string]$PaymentBaseUrl='http://localhost:14201',
   [string]$LogisticsUrl='http://localhost:18083',
-  [string]$ProjectName='fairy-commerceflow'
+  [string]$ProjectName='fairy-commerceflow',
+  [string]$WarehouseBaseUrl='http://127.0.0.1:18118'
 )
 
 $ErrorActionPreference='Stop'
@@ -15,6 +16,10 @@ if($isolated -and ($ProjectName-notmatch '^fairy-commerceflow-merchant-isolated-
     !([uri]$PaymentBaseUrl).IsLoopback -or ([uri]$PaymentBaseUrl).Port-eq14201 -or
     !([uri]$LogisticsUrl).IsLoopback -or ([uri]$LogisticsUrl).Port-eq18083)){
   throw 'Invalid isolated merchant benchmark project'
+}
+if($Chapter-in'WmsOutbound','Packages','Warehouses' -and (!([uri]$WarehouseBaseUrl).IsLoopback -or
+    ($isolated -and ([uri]$WarehouseBaseUrl).Port-eq18118))){
+  throw 'Invalid warehouse acceptance endpoint'
 }
 
 function Sql([string]$Service,[string]$Database,[string]$Query){
@@ -278,6 +283,48 @@ function Start-PackageOrder($shop,$product){
   } 'Order did not confirm for split shipment'
 }
 
+function Warehouse-Api([string]$Path,[string]$Method='Get',$Body,$AcceptedStatus=200){
+  $token=$env:WAREHOUSE_ADMIN_TOKEN
+  if(!$token){$token='demo-warehouse-admin-token'}
+  $params=@{Method=$Method;Headers=@{Authorization="Bearer $token"};TimeoutSec=15;
+    SkipHttpErrorCheck=$true}
+  if($null-ne$Body){$params.Body=$Body|ConvertTo-Json -Depth 7 -Compress;$params.ContentType='application/json'}
+  $response=Invoke-WebRequest "$WarehouseBaseUrl/api/admin/outbounds$Path" @params
+  if($response.StatusCode-ne$AcceptedStatus){throw "Unexpected warehouse status $($response.StatusCode): $Path"}
+  if($AcceptedStatus-eq200){$response.Content|ConvertFrom-Json}
+}
+
+function Start-WarehousePackage($shop,$order,[int]$quantity,[long]$WarehouseId){
+  $id=[guid]::NewGuid().ToString()
+  $path="/api/merchant/orders/$($order.id)/packages"
+  $document=@{packageId=$id;carrier='CommerceFlow Express';trackingNumber="WMS-$id";warehouseId=$WarehouseId;
+    lines=@(@{orderLineId=$order.items[0].id;quantity=$quantity})}
+  $receipt=Api $shop.actor $path Post $document
+  if($receipt.commandId-ne$id -or $receipt.status-ne'PENDING'){throw 'Warehouse request did not queue'}
+  $queued=Wait-Value {
+    Warehouse-Api "?orderId=$($order.id)"|Where-Object outboundId -eq $id
+  } 'Missing pending warehouse outbound'
+  if($queued.status-ne'PENDING' -or $queued.warehouseId-ne$WarehouseId -or
+      $queued.planned[0].quantity-ne$quantity){throw 'Unexpected warehouse dispatch plan'}
+  @{id=$id;path=$path;document=$document;dispatch=$queued}
+}
+
+function Confirm-WarehousePackage($task,[int]$actual){
+  Warehouse-Api "/$($task.id)/result" Put @{warehouseId=$task.dispatch.warehouseId;
+    lines=@(@{orderLineId=$task.dispatch.planned[0].orderLineId;quantity=$actual})}
+}
+
+function Wait-WarehousePackage($shop,$task,[string]$expected){
+  $receipt=Wait-Value {
+    $value=Api $shop.actor "/api/merchant/orders/fulfillment-v1/commands/$($task.id)"
+    if($value.status-ne'PENDING'){$value}
+  } 'Warehouse dispatch did not finish'
+  if($receipt.status-ne$expected -or (Api $shop.actor $task.path Post $task.document).status-ne$expected){
+    throw "Unexpected warehouse fulfillment result: $($receipt|ConvertTo-Json -Compress)"
+  }
+  $receipt
+}
+
 function Ship-Package($shop,$order,[int]$quantity,[string]$expected,[long]$WarehouseId=0){
   $packageId=[guid]::NewGuid().ToString()
   $path="/api/merchant/orders/$($order.id)/packages"
@@ -287,6 +334,12 @@ function Ship-Package($shop,$order,[int]$quantity,[string]$expected,[long]$Wareh
   Reject $buyer $path Post $document @(403)
   $submission=Api $shop.actor $path Post $document
   if($submission.commandId-ne$packageId){throw 'Wrong package ID'}
+  if($expected-eq'COMPLETED'){
+    $dispatch=Wait-Value {
+      Warehouse-Api "?orderId=$($order.id)"|Where-Object outboundId -eq $packageId
+    } 'Missing package warehouse dispatch'
+    Confirm-WarehousePackage @{id=$packageId;dispatch=$dispatch} $quantity|Out-Null
+  }
   $state=Wait-Value {
     $receipt=Api $shop.actor "/api/merchant/orders/fulfillment-v1/commands/$packageId"
     if($receipt.status-ne'PENDING'){$receipt}
@@ -353,12 +406,15 @@ function Verify-Packages($shop,$product){
     unshippedRefundOrder=$refundId}
 }
 
-function Warehouse-Order($shop){
-  $product=New-Product $shop 1 -Price 100
+function Warehouse-Order($shop,[switch]$SingleWarehouse){
+  $stock=if($SingleWarehouse){2}else{1}
+  $product=New-Product $shop $stock -Price 100
   $sku=[long]$product.productId
-  Api $shop.actor "/api/merchant/inventory/$sku/adjustments" Post @{
-    delta=1;reason='Second warehouse acceptance stock';warehouseId=2
-  }|Out-Null
+  if(!$SingleWarehouse){
+    Api $shop.actor "/api/merchant/inventory/$sku/adjustments" Post @{
+      delta=1;reason='Second warehouse acceptance stock';warehouseId=2
+    }|Out-Null
+  }
   $campaign=Api $shop.actor '/api/merchant/coupon-campaigns' Post @{
     title='Warehouse allocation acceptance';minimumAmount=200;discountAmount=15.01;supply=1
     startsAt=[datetimeoffset]::UtcNow.AddMinutes(-1).ToString('o');expiresAt=[datetimeoffset]::UtcNow.AddHours(1).ToString('o')
@@ -373,19 +429,138 @@ function Warehouse-Order($shop){
   }
   $amounts=(Api $buyer "/api/purchase-orders/$id/warehouse-plan").amounts
   $merchant=(Api $shop.actor "/api/merchant/orders/$id/warehouse-plan").amounts
-  if($amounts.Count-ne2 -or $merchant.Count-ne2 -or
+  if(!$SingleWarehouse -and ($amounts.Count-ne2 -or $merchant.Count-ne2 -or
     $amounts[0].warehouseId-ne1 -or $amounts[0].discountAmount-ne7.50 -or $amounts[0].freightAmount-ne6.00 -or
     $amounts[1].warehouseId-ne2 -or $amounts[1].discountAmount-ne7.51 -or $amounts[1].freightAmount-ne6.01 -or
-    @($amounts|Where-Object {$_.quantity-ne1 -or $_.grossAmount-ne100}).Count){
+    @($amounts|Where-Object {$_.quantity-ne1 -or $_.grossAmount-ne100}).Count)){
     throw 'Warehouse quantity, discount or freight allocation is inconsistent'
   }
   $reserved=@(Sql inventory-db inventory "SELECT CONCAT(warehouse_id,'/',quantity,'/',status) FROM inventory_reservations WHERE order_id=$id ORDER BY warehouse_id")
-  if(($reserved-join'|')-ne'1/1/COMMITTED|2/1/COMMITTED'){throw 'Inventory did not commit both warehouse allocations'}
+  $expected=if($SingleWarehouse){'1/2/COMMITTED'}else{'1/1/COMMITTED|2/1/COMMITTED'}
+  if(($reserved-join'|')-ne$expected){throw 'Inventory did not commit the expected warehouse allocations'}
+  if($SingleWarehouse -and ($amounts.Count-ne1 -or $amounts[0].warehouseId-ne1 -or
+      $amounts[0].quantity-ne2 -or $amounts[0].discountAmount-ne15.01 -or $amounts[0].freightAmount-ne12.01)){
+    throw 'Single-warehouse amount snapshot is inconsistent'
+  }
   Api $shop.actor "/api/merchant/orders/$id/confirm" Post @{}|Out-Null
   Wait-Value {
     $result=Api $buyer "/api/purchase-orders/$id"
     if($result.status-eq'CONFIRMED'){$result}
   } 'Warehouse order was not confirmed'
+}
+
+function Verify-WmsOutbound($shop){
+  Api $shop.actor '/api/merchant/shipping-template' Put @{defaultFee=12.01;regions=@()}|Out-Null
+  $unauthorized=Invoke-WebRequest "$WarehouseBaseUrl/api/admin/outbounds" -SkipHttpErrorCheck -TimeoutSec 15
+  if($unauthorized.StatusCode-ne401){throw 'Warehouse administration accepted an anonymous request'}
+  $split=Warehouse-Order $shop
+  $splitId=[long]$split.id
+  $a=Start-WarehousePackage $shop $split 1 1
+  if($isolated){
+    $fixture=@{orderLineId=$split.items[0].id;quantity=1}
+    Warehouse-Api "/$($a.id)/result" Put @{warehouseId=2;lines=@($fixture)} 400
+    $fixture.quantity=2
+    Warehouse-Api "/$($a.id)/result" Put @{warehouseId=1;lines=@($fixture)} 400
+  }
+  Confirm-WarehousePackage $a 1|Out-Null
+  Wait-WarehousePackage $shop $a 'COMPLETED'|Out-Null
+  $b=Start-WarehousePackage $shop $split 1 2
+  Confirm-WarehousePackage $b 1|Out-Null
+  Wait-WarehousePackage $shop $b 'COMPLETED'|Out-Null
+  $splitOut=@(Sql inventory-db inventory "SELECT CONCAT(d.warehouse_id,'/',l.quantity) FROM inventory_outbound_documents d JOIN inventory_outbound_lines l USING(outbound_id) WHERE d.order_id=$splitId ORDER BY d.warehouse_id")
+  if(($splitOut-join'|')-ne'1/1|2/1' -or (Api $buyer "/api/purchase-orders/$splitId").packages.Count-ne2){
+    throw 'Each warehouse must post one outbound and one distinct package'
+  }
+
+  $short=Warehouse-Order $shop -SingleWarehouse
+  $id=[long]$short.id
+  $line=$short.items[0].id
+  $route="/api/purchase-orders/$id/after-sales"
+  $task=Start-WarehousePackage $shop $short 2 1
+  $before=Api $buyer "/api/purchase-orders/$id"
+  if($before.status-ne'CONFIRMED' -or $before.packages.Count -or
+      (Sql inventory-db inventory "SELECT COUNT(*) FROM inventory_outbound_documents WHERE order_id=$id")-ne'0'){
+    throw 'The order shipped before the WMS result'
+  }
+
+  if($isolated){
+    $early=Api $buyer $route Post @{orderLineId=$line;quantity=2;warehouseId=1;requestId=[guid]::NewGuid();
+      reason='Cancellation while warehouse is pending'}
+    Api $shop.actor "/api/merchant/after-sales/$($early.id)/review" Post @{accepted=$true;note='Race check'}|Out-Null
+    $null=Wait-Value {
+      $case=Api $buyer $route|Where-Object id -eq $early.id
+      if($case.status-eq'FAILED' -and !$case.refundNumber){$case}
+    } 'Refund was not blocked while the warehouse held the dispatch'
+    $worker="$ProjectName-fulfillment-service-1"
+    $wms="$ProjectName-warehouse-simulator-service-1"
+    foreach($target in $worker,$wms){
+      if((docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' $target)-ne$ProjectName){
+        throw 'Warehouse restart was not scoped to this isolation project'
+      }
+    }
+    docker stop $worker|Out-Null
+    if($LASTEXITCODE){throw 'Could not stop isolated fulfillment'}
+    try{
+      Confirm-WarehousePackage $task 1|Out-Null
+      docker restart $wms|Out-Null
+      if($LASTEXITCODE){throw 'Could not restart isolated warehouse'}
+      $null=Wait-Value {if((docker inspect --format '{{.State.Health.Status}}' $wms)-eq'healthy'){$true}} 'WMS did not restart'
+      if((Confirm-WarehousePackage $task 1).actual[0].quantity-ne1){throw 'Warehouse receipt changed after restart'}
+      Warehouse-Api "/$($task.id)/result" Put @{warehouseId=1;lines=@(@{orderLineId=$line;quantity=0})} 409
+    }finally{
+      docker start $worker|Out-Null
+      if($LASTEXITCODE){throw 'Could not restart isolated fulfillment'}
+      $null=Wait-Value {
+        if((docker inspect --format '{{.State.Health.Status}}' $worker)-eq'healthy'){$true}
+      } 'Fulfillment did not restart'
+    }
+  }else{
+    Confirm-WarehousePackage $task 1|Out-Null
+  }
+  Wait-WarehousePackage $shop $task 'COMPLETED'|Out-Null
+  Reject $buyer "$route/quote" Post @{orderLineId=$line;quantity=2;warehouseId=1} @(409)
+  $refund=Api $buyer $route Post @{orderLineId=$line;quantity=1;warehouseId=1;requestId=[guid]::NewGuid();
+    reason='Cancel the warehouse shortfall'}
+  if($refund.merchandiseAmount-ne92.49 -or $refund.shippingAmount-ne0){throw 'Incorrect frozen shortfall refund'}
+  Api $shop.actor "/api/merchant/after-sales/$($refund.id)/review" Post @{accepted=$true;note='Verified WMS shortfall'}|Out-Null
+  $finished=Wait-Value {
+    $case=Api $buyer $route|Where-Object id -eq $refund.id
+    if($case.status-eq'COMPLETED'){$case}
+  } 'Shortfall refund did not complete'
+  $actual=Sql order-db orders "SELECT CONCAT(quantity,'/',actual_quantity) FROM order_package_lines WHERE package_id='$($task.id)'"
+  $moves=@(Sql inventory-db inventory "SELECT CONCAT(warehouse_id,'/',movement_type,'/',quantity) FROM inventory_movements WHERE order_id=$id AND movement_type IN ('OUTBOUND_POSTED','UNSHIPPED_REFUND_RESTOCKED') ORDER BY id")
+  $payment=Sql payment-db payments "SELECT CONCAT(amount,'/',refunded_amount) FROM payment_records WHERE order_id=$id AND status='SUCCESS'"
+  $result=Api $buyer "/api/purchase-orders/$id"
+  if($actual-ne'2/1' -or ($moves-join'|')-ne'1/OUTBOUND_POSTED/1|1/UNSHIPPED_REFUND_RESTOCKED/1' -or
+      $payment-ne'197.00/92.49' -or $result.status-ne'SHIPPED' -or $result.packages.Count-ne1){
+    throw 'Shortfall counts, stock, refund or carrier package did not reconcile'
+  }
+
+  $voidedOrder=Warehouse-Order $shop
+  $voided=Start-WarehousePackage $shop $voidedOrder 1 2
+  Confirm-WarehousePackage $voided 0|Out-Null
+  $rejected=Wait-WarehousePackage $shop $voided 'REJECTED'
+  $voidId=[long]$voidedOrder.id
+  if($rejected.errorCode-ne'WAREHOUSE_NOT_DISPATCHED' -or
+      (Sql order-db orders "SELECT COUNT(*) FROM shop_orders WHERE id=$voidId AND shipment_intent_key IS NULL")-ne'1' -or
+      (Sql inventory-db inventory "SELECT COUNT(*) FROM inventory_outbound_documents WHERE order_id=$voidId")-ne'0'){
+    throw 'Voided warehouse dispatch did not release the order intent'
+  }
+  $replacement=Start-WarehousePackage $shop $voidedOrder 1 2
+  Confirm-WarehousePackage $replacement 1|Out-Null
+  Wait-WarehousePackage $shop $replacement 'COMPLETED'|Out-Null
+  $replacementA=Start-WarehousePackage $shop $voidedOrder 1 1
+  Confirm-WarehousePackage $replacementA 1|Out-Null
+  Wait-WarehousePackage $shop $replacementA 'COMPLETED'|Out-Null
+
+  $legacy=Complete-Order $shop (New-Product $shop 2) 1
+  $auto=Warehouse-Api "?orderId=$($legacy.id)"
+  if($auto.Count-ne1 -or $auto[0].status-ne'DISPATCHED' -or $auto[0].actual[0].quantity-ne1){
+    throw 'Whole-order shipment did not pass through the warehouse'
+  }
+  [ordered]@{splitOrder=$splitId;shortOrder=$id;voidedOrder=$voidId;wholeOrder=$legacy.id;planned=2;actual=1;
+    refundAmount=$finished.merchandiseAmount;retainedFreight=12.01;refundNumber=$finished.refundNumber;
+    splitWarehouseA=$a.id;splitWarehouseB=$b.id;shortOutbound=$task.id;warehouseRestartVerified=$isolated}
 }
 
 function Verify-Warehouses($shop){
@@ -673,8 +848,8 @@ if($baselineShop.status-ne'ACTIVE' -or $baselineProduct.merchantId-ne$baselineSh
 $shop=Open-FixtureStore
 $otherShop=$null
 try{
-  if($Chapter-eq'Warehouses'){
-    $result=Verify-Warehouses $shop
+  if($Chapter-in'Warehouses','WmsOutbound'){
+    $result=if($Chapter-eq'WmsOutbound'){Verify-WmsOutbound $shop}else{Verify-Warehouses $shop}
     if((Archives)-ne$archive){throw 'Historical archives changed'}
     $actualCart=@(Api $buyer '/api/cart' | Sort-Object id | ForEach-Object {"$($_.id)/$($_.productId)/$($_.quantity)"}) -join '|'
     if($actualCart-ne$originalCart){throw 'Pre-existing cart items changed'}

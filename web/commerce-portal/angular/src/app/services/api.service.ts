@@ -462,6 +462,12 @@ export class ApiService {
       .pipe(switchMap((response) => this.awaitMerchantOperation(id, response)));
   }
 
+  merchantShipmentStatus(id: number): Observable<{ status: string; step: string; lastError?: string }> {
+    return this.http.get<{ status: string; step: string; lastError?: string }>(
+      `/api/merchant/orders/${id}/shipment-operation`,
+    );
+  }
+
   shipMerchantPackage(
     id: number,
     packageId: string,
@@ -469,31 +475,14 @@ export class ApiService {
     trackingNumber: string,
     lines: { orderLineId: number; quantity: number }[],
     warehouseId?: number,
-  ): Observable<void> {
-    const statusUrl = `/api/merchant/orders/fulfillment-v1/commands/${packageId}`;
-    return this.http
-      .post<{ status: string }>(`/api/merchant/orders/${id}/packages`, {
-        packageId,
-        carrier,
-        trackingNumber,
-        lines,
-        warehouseId,
-      })
-      .pipe(
-        switchMap((receipt) =>
-          receipt.status === 'PENDING'
-            ? timer(0, 1000).pipe(
-                exhaustMap(() => this.http.get<{ status: string }>(statusUrl)),
-                filter((value) => value.status !== 'PENDING'),
-                take(1),
-                timeout(25000),
-              )
-            : of(receipt),
-        ),
-        map((receipt) => {
-          if (receipt.status !== 'COMPLETED') throw new Error(receipt.status);
-        }),
-      );
+  ): Observable<{ status: string; step: string; errorCode?: string }> {
+    return this.http.post<{ status: string; step: string; errorCode?: string }>(`/api/merchant/orders/${id}/packages`, {
+      packageId,
+      carrier,
+      trackingNumber,
+      lines,
+      warehouseId,
+    });
   }
 
   shipMerchantOrder(id: number, carrier: string, trackingNumber: string): Observable<PurchaseOrder> {

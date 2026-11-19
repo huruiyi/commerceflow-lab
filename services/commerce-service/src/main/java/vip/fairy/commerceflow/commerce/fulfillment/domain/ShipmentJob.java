@@ -8,7 +8,7 @@ public record ShipmentJob(Long orderId, String commandId, Long merchantId, Strin
                           String carrier, String trackingNumber, Step step, Status status, String lastError) {
 
   public enum Step {
-    RESERVE, LOGISTICS, FINISH_ORDER
+    RESERVE, WAREHOUSE, LOGISTICS, FINISH_ORDER
   }
 
   public enum Status {

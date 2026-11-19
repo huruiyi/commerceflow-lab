@@ -91,6 +91,7 @@ public interface OrderStoreMapper {
 
   int confirmByMerchant(Mutation mutation);
 
+  int abortShipment(@Param("orderId") long orderId, @Param("key") String key);
   int reserveShipment(@Param("mutation") Mutation mutation, @Param("key") String key,
                       @Param("unreservedOnly") boolean unreservedOnly);
 

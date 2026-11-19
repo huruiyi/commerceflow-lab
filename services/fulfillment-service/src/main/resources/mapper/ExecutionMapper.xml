@@ -73,7 +73,10 @@
   </select>
 
   <sql id="reservationRejected">
-    status='REJECTED' AND step='RESERVE' AND COALESCE(last_error,'')='ORDER_SHIPMENT_ADMISSION_REJECTED'
+    status='REJECTED' AND (
+      (step='RESERVE' AND COALESCE(last_error,'')='ORDER_SHIPMENT_ADMISSION_REJECTED')
+      OR (step='WAREHOUSE' AND COALESCE(last_error,'')='WAREHOUSE_NOT_DISPATCHED')
+    )
   </sql>
 
   <select id="hasRejectedReservation" resultType="boolean">
@@ -134,7 +137,7 @@
     SELECT command_id,order_id,merchant_id,'SHIP' AS operation,order_number,carrier,tracking_number,
       NULL AS expected_version,NULL AS detail,step,status,last_error AS error_code,package_lines,warehouse_id
     FROM fulfillment_shipment_jobs WHERE order_id=#{orderId}
-    ORDER BY (<include refid="reservationRejected"/>) ASC,created_at DESC,command_id DESC LIMIT 1
+    ORDER BY created_at DESC,command_id DESC LIMIT 1
   </select>
 
   <select id="legacySlot" resultType="string">
@@ -191,6 +194,13 @@
     UPDATE <include refid="jobTable"/> SET step=#{step},attempts=0,last_error=NULL,
       owner_token=NULL,lease_until=NULL,next_attempt_at=CURRENT_TIMESTAMP(6),updated_at=CURRENT_TIMESTAMP(6)
     WHERE <include refid="lease"/>
+  </update>
+
+  <update id="waitForWarehouse">
+    UPDATE fulfillment_shipment_jobs
+    SET attempts=0,last_error=NULL,owner_token=NULL,lease_until=NULL,
+      next_attempt_at=TIMESTAMPADD(SECOND,2,CURRENT_TIMESTAMP(6))
+    WHERE <include refid="lease"/> AND step='WAREHOUSE'
   </update>
 
   <update id="finish">

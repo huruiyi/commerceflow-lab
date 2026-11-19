@@ -24,6 +24,7 @@ export class MerchantOrdersComponent implements OnInit {
   packageQuantities: Record<number, number | null> = {};
   warehouses: Record<number, number | undefined> = {};
   plans: Record<number, WarehousePlan> = {};
+  shipmentProgress: Record<number, { status: string; lastError?: string } | undefined> = {};
   private packageRequests = new Map<number, { key: string; id: string }>();
   expandedOrders = new Set<number>();
   notice?: { type: 'success' | 'danger' | 'info'; text: string };
@@ -131,12 +132,14 @@ export class MerchantOrdersComponent implements OnInit {
         }),
       )
       .subscribe({
-        next: () => {
-          this.tracking[order.id] = '';
-          order.items.forEach((item) => delete this.packageQuantities[item.id]);
-          this.notice = { type: 'success', text: this.i18n.t('packageShipped') };
-          this.load();
-          this.loadWarehousePlan(order.id);
+        next: (receipt) => {
+          if (receipt.status === 'REJECTED') this.packageRequests.delete(order.id);
+          if (receipt.status === 'PENDING' || receipt.status === 'COMPLETED') {
+            this.tracking[order.id] = '';
+            order.items.forEach((item) => delete this.packageQuantities[item.id]);
+          }
+          this.shipmentProgress[order.id] = { status: receipt.status, lastError: receipt.errorCode };
+          this.refreshShipment(order.id);
         },
         error: (error) => {
           if (error instanceof Error && error.message === 'REJECTED') this.packageRequests.delete(order.id);
@@ -184,7 +187,26 @@ export class MerchantOrdersComponent implements OnInit {
     return this.warehouseOptions(orderId).some((warehouse) => warehouse !== 1);
   }
 
+  refreshShipment(orderId: number): void {
+    this.load();
+    this.loadWarehousePlan(orderId);
+  }
+
   private loadWarehousePlan(orderId: number): void {
+    this.api
+      .merchantShipmentStatus(orderId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (progress) => {
+          this.shipmentProgress[orderId] = progress;
+          if (progress.status === 'REJECTED') this.packageRequests.delete(orderId);
+          this.changeDetector.markForCheck();
+        },
+        error: (error) => {
+          if (error.status === 404) delete this.shipmentProgress[orderId];
+          this.changeDetector.markForCheck();
+        },
+      });
     this.api
       .warehousePlan(orderId, true)
       .pipe(takeUntilDestroyed(this.destroyRef))

@@ -34,7 +34,7 @@ import vip.fairy.commerceflow.order.infrastructure.OrderShadowProperties;
 public class OrderStoreV1Controller {
 
   private static final Set<MutationType> FULFILLMENT_MUTATIONS = Set.of(MutationType.MERCHANT_CONFIRM,
-    MutationType.RESERVE_SHIPMENT, MutationType.RESERVE_NEW_SHIPMENT,
+    MutationType.RESERVE_SHIPMENT, MutationType.RESERVE_NEW_SHIPMENT, MutationType.ABORT_SHIPMENT,
     MutationType.MERCHANT_SHIP, MutationType.UPDATE_SHIPMENT);
 
   private final OrderStoreService store;
@@ -125,6 +125,12 @@ public class OrderStoreV1Controller {
   }
 
   record OrderReference(long orderId) {
+  }
+
+  @PostMapping("/packages/actual")
+  Map<String, Boolean> recordDispatch(@RequestBody String payload, HttpServletRequest request) {
+    requireFulfillment(payload, request);
+    return Map.of("recorded", packages.recordDispatch(mapper.readValue(payload, OrderPackageService.Dispatch.class)));
   }
 
   @PostMapping("/packages/finish")

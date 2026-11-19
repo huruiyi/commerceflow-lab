@@ -222,15 +222,25 @@
       AND EXISTS (SELECT 1 FROM order_items WHERE order_id=shop_orders.id AND merchant_id=#{actorId})
   </update>
 
+  <update id="abortShipment">
+    UPDATE shop_orders SET shipment_intent_key=NULL,updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{orderId} AND status='CONFIRMED' AND shipment_intent_key=#{key}
+  </update>
+
   <update id="reserveShipment">
     UPDATE shop_orders SET shipment_intent_key=#{key},updated_at=CURRENT_TIMESTAMP(6)
     WHERE id=#{mutation.orderId} AND status='CONFIRMED' AND inventory_status='COMMITTED'
       AND (shipment_intent_key IS NULL OR (NOT #{unreservedOnly} AND shipment_intent_key=#{key}))
-      AND NOT EXISTS (SELECT 1 FROM order_package_allocations p WHERE p.order_id=shop_orders.id)
+      AND NOT EXISTS (
+        SELECT 1 FROM order_package_allocations p WHERE p.order_id=shop_orders.id AND p.voided_at IS NULL
+      )
       AND NOT EXISTS (
         SELECT 1 FROM order_warehouse_amounts w WHERE w.order_id=shop_orders.id AND w.warehouse_id&lt;&gt;1
       )
-      AND NOT EXISTS (SELECT 1 FROM order_line_refund_admissions a WHERE a.order_id=shop_orders.id AND a.status='HELD')
+      AND NOT EXISTS (
+        SELECT 1 FROM order_line_refund_admissions a
+        WHERE a.order_id=shop_orders.id AND a.status IN ('HELD','SETTLED')
+      )
       AND EXISTS (SELECT 1 FROM order_items WHERE order_id=shop_orders.id AND merchant_id=#{mutation.actorId})
   </update>
 
@@ -249,7 +259,9 @@
   <update id="startRefund">
     UPDATE shop_orders SET status='REFUNDING',updated_at=CURRENT_TIMESTAMP(6)
     WHERE id=#{orderId} AND status=#{previous} AND shipment_intent_key IS NULL
-      AND NOT EXISTS (SELECT 1 FROM order_package_allocations p WHERE p.order_id=shop_orders.id)
+      AND NOT EXISTS (
+        SELECT 1 FROM order_package_allocations p WHERE p.order_id=shop_orders.id AND p.voided_at IS NULL
+      )
       AND NOT EXISTS (
         SELECT 1 FROM order_line_refund_admissions a WHERE a.order_id=shop_orders.id AND a.status IN ('HELD','SETTLED')
       )

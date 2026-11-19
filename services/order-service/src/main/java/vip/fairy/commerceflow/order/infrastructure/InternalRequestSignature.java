@@ -41,6 +41,7 @@ public class InternalRequestSignature {
           && ("/internal/v1/orders/store/query".equals(target)
             || "/internal/v1/orders/store/mutations".equals(target)
             || "/internal/v1/orders/store/packages/reserve".equals(target)
+            || "/internal/v1/orders/store/packages/actual".equals(target)
             || "/internal/v1/orders/store/packages/finish".equals(target))
           ? fulfillmentSecret : null;
         default -> null;

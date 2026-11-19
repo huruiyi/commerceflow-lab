@@ -19,8 +19,16 @@ public interface FulfillmentDownstream {
   void postOutbound(ExecutionTask task, List<ShipmentLine> lines);
   PackageReservation reservePackage(ExecutionTask task);
   boolean finishPackage(ExecutionTask task);
+  WarehouseDispatch warehouseDispatch(ExecutionTask task, List<ShipmentLine> planned);
+  boolean recordDispatch(ExecutionTask task, List<DispatchLine> actual);
 
-  record PackageReservation(boolean accepted, List<ShipmentLine> lines) {
+  record PackageReservation(boolean accepted, List<ShipmentLine> lines, List<ShipmentLine> actualLines) {
+  }
+
+  record WarehouseDispatch(String status, List<DispatchLine> lines) {
+  }
+
+  record DispatchLine(long orderLineId, int quantity) {
   }
 
   record ShipmentLine(long orderLineId, long productId, int quantity) {

@@ -14,7 +14,8 @@ $javaRoots = @(
   'services\payment-orchestration-service\src\main\java',
   'services\fulfillment-service\src\main\java',
   'simulators\payment-platform\service\src\main\java',
-  'simulators\logistics-platform\service\src\main\java'
+  'simulators\logistics-platform\service\src\main\java',
+  'simulators\warehouse-platform\service\src\main\java'
 ) | ForEach-Object { Join-Path $ProjectRoot $_ }
 
 $javaSourceRoots = @(
@@ -26,7 +27,8 @@ $javaSourceRoots = @(
   'services\payment-orchestration-service\src',
   'services\fulfillment-service\src',
   'simulators\payment-platform\service\src',
-  'simulators\logistics-platform\service\src'
+  'simulators\logistics-platform\service\src',
+  'simulators\warehouse-platform\service\src'
 ) | ForEach-Object { Join-Path $ProjectRoot $_ }
 
 $mapperRoots = @(
@@ -38,7 +40,8 @@ $mapperRoots = @(
   'services\payment-orchestration-service\src\main\resources\mapper',
   'services\fulfillment-service\src\main\resources\mapper',
   'simulators\payment-platform\service\src\main\resources\mapper',
-  'simulators\logistics-platform\service\src\main\resources\mapper'
+  'simulators\logistics-platform\service\src\main\resources\mapper',
+  'simulators\warehouse-platform\service\src\main\resources\mapper'
 ) | ForEach-Object { Join-Path $ProjectRoot $_ }
 
 $pomFiles = @(
@@ -50,7 +53,8 @@ $pomFiles = @(
   'services\payment-orchestration-service\pom.xml',
   'services\fulfillment-service\pom.xml',
   'simulators\payment-platform\service\pom.xml',
-  'simulators\logistics-platform\service\pom.xml'
+  'simulators\logistics-platform\service\pom.xml',
+  'simulators\warehouse-platform\service\pom.xml'
 ) | ForEach-Object { Join-Path $ProjectRoot $_ }
 
 $javaFiles = @($javaRoots | ForEach-Object { Get-ChildItem $_ -Recurse -File -Filter '*.java' })

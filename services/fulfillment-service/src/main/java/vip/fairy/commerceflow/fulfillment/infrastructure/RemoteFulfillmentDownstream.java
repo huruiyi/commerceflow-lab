@@ -26,6 +26,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.fulfillment.application.FulfillmentDownstream;
 import vip.fairy.commerceflow.fulfillment.domain.ExecutionTask;
+import org.springframework.http.ResponseEntity;
 
 @Component
 public class RemoteFulfillmentDownstream implements FulfillmentDownstream {
@@ -36,6 +37,7 @@ public class RemoteFulfillmentDownstream implements FulfillmentDownstream {
   private final Endpoint order;
   private final Endpoint logistics;
   private final Endpoint inventory;
+  private final Endpoint warehouse;
   private final ObjectMapper mapper;
   private final RestClient client;
 
@@ -45,11 +47,14 @@ public class RemoteFulfillmentDownstream implements FulfillmentDownstream {
     @Value("${commerceflow.fulfillment.logistics-endpoint}") String logisticsEndpoint,
     @Value("${commerceflow.fulfillment.logistics-secret}") String logisticsSecret,
     @Value("${commerceflow.fulfillment.inventory-endpoint}") String inventoryEndpoint,
-    @Value("${commerceflow.fulfillment.inventory-secret}") String inventorySecret) {
+    @Value("${commerceflow.fulfillment.inventory-secret}") String inventorySecret,
+    @Value("${commerceflow.fulfillment.warehouse-endpoint}") String warehouseEndpoint,
+    @Value("${commerceflow.fulfillment.warehouse-secret}") String warehouseSecret) {
     this.mapper = mapper;
     this.order = new Endpoint(orderEndpoint, orderSecret);
     this.logistics = new Endpoint(logisticsEndpoint, logisticsSecret);
     this.inventory = new Endpoint(inventoryEndpoint, inventorySecret);
+    this.warehouse = new Endpoint(warehouseEndpoint, warehouseSecret);
     var http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
     var factory = new JdkClientHttpRequestFactory(http);
     factory.setReadTimeout(Duration.ofSeconds(3));
@@ -111,7 +116,64 @@ public class RemoteFulfillmentDownstream implements FulfillmentDownstream {
     if (reply.path("accepted").booleanValue() && lines.isEmpty()) {
       throw new IllegalStateException("Accepted package has no reserved lines");
     }
-    return new PackageReservation(reply.path("accepted").booleanValue(), List.copyOf(lines));
+    List<ShipmentLine> actual = null;
+    if (reply.path("actualLines").isArray()) {
+      actual = new ArrayList<>();
+      for (JsonNode line : reply.path("actualLines")) actual.add(mapper.treeToValue(line, ShipmentLine.class));
+      actual = List.copyOf(actual);
+    }
+    return new PackageReservation(reply.path("accepted").booleanValue(), List.copyOf(lines), actual);
+  }
+
+  @Override
+  public WarehouseDispatch warehouseDispatch(ExecutionTask task, List<ShipmentLine> planned) {
+    long warehouseId = warehouseId(task);
+    var request = Map.of("outboundId", task.commandId(), "orderId", task.orderId(), "merchantId", task.merchantId(),
+      "warehouseId", warehouseId, "wholeOrder", !task.packageShipment(), "lines", planned);
+    JsonNode reply = post(warehouse, "/internal/v1/outbounds", request);
+    if (!task.commandId().equals(reply.path("outboundId").asText())
+        || task.orderId() != reply.path("orderId").asLong() || task.merchantId() != reply.path("merchantId").asLong()
+        || warehouseId != reply.path("warehouseId").asLong()) {
+      throw new IllegalStateException("Warehouse receipt does not identify the submitted outbound");
+    }
+    String status = reply.path("status").asText();
+    if ("PENDING".equals(status)) return new WarehouseDispatch(status, List.of());
+    if (!reply.path("actual").isArray() || planned.size() != reply.path("actual").size()) {
+      throw new IllegalStateException("Missing warehouse counts");
+    }
+    var remaining = new HashMap<Long, Integer>();
+    for (ShipmentLine line : planned) remaining.put(line.orderLineId(), line.quantity());
+    var counted = new ArrayList<DispatchLine>();
+    for (JsonNode item : reply.path("actual")) {
+      JsonNode quantity = item.path("quantity");
+      long lineId = item.path("orderLineId").longValue();
+      Integer maximum = remaining.remove(lineId);
+      if (maximum == null || !quantity.isIntegralNumber() || !quantity.canConvertToInt()
+          || quantity.intValue() < 0 || quantity.intValue() > maximum
+          || (!task.packageShipment() && quantity.intValue() != 0 && quantity.intValue() != maximum)) {
+        throw new IllegalStateException("Invalid warehouse count");
+      }
+      counted.add(new DispatchLine(lineId, quantity.intValue()));
+    }
+    boolean dispatched = counted.stream().anyMatch(line -> line.quantity() > 0);
+    if (!(dispatched ? "DISPATCHED" : "VOIDED").equals(status)
+        || (!task.packageShipment() && dispatched && counted.stream().anyMatch(line -> line.quantity() == 0))) {
+      throw new IllegalStateException("Warehouse receipt status contradicts the counts");
+    }
+    return new WarehouseDispatch(status, List.copyOf(counted));
+  }
+
+  @Override
+  public boolean recordDispatch(ExecutionTask task, List<DispatchLine> actual) {
+    JsonNode reply = post(order, ORDER_PATH + "/packages/actual", Map.of("packageId", task.commandId(),
+      "orderId", task.orderId(), "merchantId", task.merchantId(), "warehouseId", warehouseId(task),
+      "lines", actual)).path("recorded");
+    if (!reply.isBoolean()) throw new IllegalStateException("Missing Order V1 dispatch result");
+    return reply.booleanValue();
+  }
+
+  private long warehouseId(ExecutionTask task) {
+    return task.warehouseId() == null ? 1 : task.warehouseId();
   }
 
   @Override
@@ -191,23 +253,38 @@ public class RemoteFulfillmentDownstream implements FulfillmentDownstream {
       String requestId = UUID.randomUUID().toString();
       String hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
         .digest(body.getBytes(StandardCharsets.UTF_8)));
-      Mac mac = Mac.getInstance("HmacSHA256");
-      mac.init(new SecretKeySpec(endpoint.secret().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
       String canonical = String.join("\n", "POST", path, timestamp, requestId, hash);
-      String signature = HexFormat.of().formatHex(mac.doFinal(canonical.getBytes(StandardCharsets.UTF_8)));
-      JsonNode reply = client.post().uri(URI.create(endpoint.url() + path))
+      String signature = hmac(endpoint, canonical);
+      ResponseEntity<String> response = client.post().uri(URI.create(endpoint.url() + path))
         .contentType(MediaType.APPLICATION_JSON)
         .header("X-CommerceFlow-Service", "fulfillment-service")
         .header("X-CommerceFlow-Timestamp", timestamp)
         .header("X-CommerceFlow-Request-Id", requestId)
         .header("X-CommerceFlow-Content-SHA256", hash)
         .header("X-CommerceFlow-Signature", signature)
-        .body(body).retrieve().body(JsonNode.class);
-      if (reply == null || !reply.isObject()) throw new IllegalStateException("Missing fulfillment downstream receipt");
+        .body(body).retrieve().toEntity(String.class);
+      String payload = response.getBody();
+      if (payload == null) throw new IllegalStateException("Missing fulfillment downstream receipt");
+      if (endpoint == warehouse) {
+        var signatureHeader = response.getHeaders().getFirst("X-CommerceFlow-Receipt-Signature");
+        String expected = hmac(endpoint, requestId + "\n" + payload);
+        if (signatureHeader == null || !MessageDigest.isEqual(expected.getBytes(StandardCharsets.US_ASCII),
+            signatureHeader.getBytes(StandardCharsets.US_ASCII))) {
+          throw new IllegalStateException("Warehouse receipt signature is invalid");
+        }
+      }
+      JsonNode reply = mapper.readTree(payload);
+      if (!reply.isObject()) throw new IllegalStateException("Invalid fulfillment downstream receipt");
       return reply;
     } catch (GeneralSecurityException exception) {
       throw new IllegalStateException("Could not sign fulfillment downstream request", exception);
     }
+  }
+
+  private String hmac(Endpoint endpoint, String content) throws GeneralSecurityException {
+    Mac mac = Mac.getInstance("HmacSHA256");
+    mac.init(new SecretKeySpec(endpoint.secret().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+    return HexFormat.of().formatHex(mac.doFinal(content.getBytes(StandardCharsets.UTF_8)));
   }
 
   private record Endpoint(String url, String secret) {

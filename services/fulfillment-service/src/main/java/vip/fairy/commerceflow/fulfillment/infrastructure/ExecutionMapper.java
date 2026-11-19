@@ -42,6 +42,7 @@ public interface ExecutionMapper {
   int claim(@Param("task") ExecutionTask task, @Param("owner") String owner);
 
   int advance(@Param("task") ExecutionTask task, @Param("owner") String owner, @Param("step") String step);
+  int waitForWarehouse(@Param("task") ExecutionTask task, @Param("owner") String owner);
 
   int finish(@Param("task") ExecutionTask task, @Param("owner") String owner,
              @Param("status") String status, @Param("error") String error);

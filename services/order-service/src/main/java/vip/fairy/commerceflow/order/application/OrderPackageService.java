@@ -39,7 +39,9 @@ public class OrderPackageService {
       var lines = packages.lines(command.packageId());
       var requested = command.lines().stream().sorted(Comparator.comparingLong(Line::orderLineId)).toList();
       var persisted = lines.stream().map(line -> new Line(line.orderLineId(), line.quantity())).toList();
-      return persisted.equals(requested) ? new Receipt(true, lines) : rejected();
+      return persisted.equals(requested)
+        ? new Receipt(true, lines, prior.received() ? packages.actualLines(command.packageId()) : null)
+        : rejected();
     }
     if (!"CONFIRMED".equals(order.status()) || !"COMMITTED".equals(order.inventoryStatus())
         || order.shipmentIntentKey() != null || orders.heldCount(command.orderId()) != 0) {
@@ -68,7 +70,40 @@ public class OrderPackageService {
     }
     packages.insert(command);
     for (Line line : command.lines()) packages.insertLine(command.packageId(), line);
-    return new Receipt(true, packages.lines(command.packageId()));
+    return new Receipt(true, packages.lines(command.packageId()), null);
+  }
+
+  @Transactional
+  public boolean recordDispatch(Dispatch command) {
+    requirePackageId(command.packageId());
+    if (command.lines() == null || command.lines().stream().anyMatch(java.util.Objects::isNull)) {
+      throw new IllegalArgumentException("Warehouse line counts are required");
+    }
+    var order = orders.lockOrder(command.orderId());
+    if (order == null) return false;
+    var allocation = packages.find(command.packageId());
+    if (allocation == null || allocation.orderId() != command.orderId()
+        || allocation.merchantId() != command.merchantId() || allocation.warehouseId() != command.warehouseId()) {
+      return false;
+    }
+    var planned = packages.lines(command.packageId());
+    var actual = command.lines().stream().sorted(Comparator.comparingLong(Line::orderLineId)).toList();
+    if (planned.size() != actual.size()) return false;
+    for (int index = 0; index < planned.size(); index++) {
+      var expected = planned.get(index);
+      var counted = actual.get(index);
+      if (expected.orderLineId() != counted.orderLineId() || counted.quantity() < 0
+          || counted.quantity() > expected.quantity()) return false;
+    }
+    if (allocation.received()) return packages.countedLines(command.packageId()).equals(actual);
+    if (allocation.posted() || !command.packageId().equals(order.shipmentIntentKey())) return false;
+    boolean voided = actual.stream().noneMatch(line -> line.quantity() > 0);
+    for (Line line : actual) packages.setActual(command.packageId(), line);
+    if (packages.markReceived(command.packageId(), voided) != 1
+        || (voided && packages.clearHold(command.orderId(), command.packageId()) != 1)) {
+      throw new IllegalStateException("Package dispatch receipt changed during recording");
+    }
+    return true;
   }
 
   @Transactional
@@ -83,7 +118,8 @@ public class OrderPackageService {
     if (allocation == null || command.orderId() != allocation.orderId()
         || command.merchantId() != allocation.merchantId()) return false;
     if (allocation.posted()) return true;
-    if (!command.packageId().equals(order.shipmentIntentKey()) || !"CONFIRMED".equals(order.status())) return false;
+    if (!allocation.received() || allocation.voided() || !command.packageId().equals(order.shipmentIntentKey())
+        || !"CONFIRMED".equals(order.status())) return false;
     if (packages.markPosted(command.packageId()) != 1
         || packages.clearHold(command.orderId(), command.packageId()) != 1) {
       throw new IllegalStateException("Package shipment admission changed during finalization");
@@ -116,7 +152,7 @@ public class OrderPackageService {
   }
 
   private Receipt rejected() {
-    return new Receipt(false, List.of());
+    return new Receipt(false, List.of(), null);
   }
 
   public record Command(String packageId, long orderId, long merchantId, String carrier, String trackingNumber,
@@ -133,7 +169,10 @@ public class OrderPackageService {
   public record PostedLine(long orderLineId, long productId, int quantity) {
   }
 
-  public record Receipt(boolean accepted, List<PostedLine> lines) {
+  public record Receipt(boolean accepted, List<PostedLine> lines, List<PostedLine> actualLines) {
+  }
+
+  public record Dispatch(String packageId, long orderId, long merchantId, long warehouseId, List<Line> lines) {
   }
 
   public record Finish(String packageId, long orderId, long merchantId) {

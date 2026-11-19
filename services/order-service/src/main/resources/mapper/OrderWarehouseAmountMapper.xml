@@ -16,8 +16,9 @@
   </insert>
 
   <select id="shippedLines" resultType="vip.fairy.commerceflow.order.application.OrderWarehouseAmounts$Shipment">
-    SELECT p.package_id,p.warehouse_id,l.order_line_id,l.quantity
+    SELECT p.package_id,p.warehouse_id,l.order_line_id,COALESCE(l.actual_quantity,l.quantity) AS quantity
     FROM order_package_allocations p JOIN order_package_lines l ON l.package_id=p.package_id
-    WHERE p.order_id=#{orderId} AND p.posted_at IS NOT NULL ORDER BY p.posted_at,p.package_id,l.order_line_id
+    WHERE p.order_id=#{orderId} AND p.posted_at IS NOT NULL AND COALESCE(l.actual_quantity,l.quantity)&gt;0
+    ORDER BY p.posted_at,p.package_id,l.order_line_id
   </select>
 </mapper>

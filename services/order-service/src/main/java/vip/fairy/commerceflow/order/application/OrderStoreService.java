@@ -156,6 +156,7 @@ public class OrderStoreService {
       case MERCHANT_CONFIRM -> confirmByMerchant(value);
       case RESERVE_SHIPMENT -> store.reserveShipment(value, shipmentKey(value), false);
       case RESERVE_NEW_SHIPMENT -> store.reserveShipment(value, shipmentKey(value), true);
+      case ABORT_SHIPMENT -> store.abortShipment(value.orderId(), shipmentKey(value));
       case MERCHANT_SHIP -> shipByMerchant(value);
       case UPDATE_SHIPMENT -> updateShipment(value);
       case START_REFUND -> throw new IllegalStateException("Refund mutation requires a previous status result");

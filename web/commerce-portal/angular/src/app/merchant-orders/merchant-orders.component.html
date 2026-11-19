@@ -96,6 +96,20 @@
         {{ order.address.city }}, {{ order.address.stateProvince }}</small
       >
     </p>
+    <p *ngIf="shipmentProgress[order.id] as progress" role="status">
+      <ng-container *ngIf="progress.status === 'PENDING'">
+        {{ 'warehouseDispatchPending' | t }}
+      </ng-container>
+      <ng-container *ngIf="progress.lastError === 'WAREHOUSE_NOT_DISPATCHED'">
+        {{ 'warehouseDispatchDeclined' | t }}
+      </ng-container>
+      <ng-container *ngIf="progress.status === 'REVIEW_REQUIRED'">
+        {{ 'orderStatusPending' | t }}
+      </ng-container>
+      <button class="action-button" type="button" (click)="refreshShipment(order.id)">
+        {{ 'refreshShipment' | t }}
+      </button>
+    </p>
     <form
       *ngIf="order.status === 'CONFIRMED' || (order.status === 'SHIPPED' && !order.packages?.length)"
       (ngSubmit)="order.status === 'CONFIRMED' ? savePackage(order) : saveShipment(order)"
@@ -139,6 +153,7 @@
         class="btn btn-success"
         [disabled]="
           pending.has(order.id) ||
+          shipmentProgress[order.id]?.status === 'PENDING' ||
           shipmentInvalid(order) ||
           shipmentUnchanged(order) ||
           (order.status === 'CONFIRMED' && isMultiWarehouse(order.id) && !warehouses[order.id])

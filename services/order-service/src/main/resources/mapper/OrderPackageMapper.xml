@@ -3,7 +3,8 @@
 <mapper namespace="vip.fairy.commerceflow.order.infrastructure.persistence.OrderPackageMapper">
 
   <select id="find" resultType="vip.fairy.commerceflow.order.infrastructure.persistence.OrderPackageMapper$Allocation">
-    SELECT order_id,merchant_id,carrier,tracking_number,posted_at IS NOT NULL AS posted,warehouse_id
+    SELECT order_id,merchant_id,carrier,tracking_number,posted_at IS NOT NULL AS posted,warehouse_id,
+      warehouse_receipt_at IS NOT NULL AS received,voided_at IS NOT NULL AS voided
     FROM order_package_allocations WHERE package_id=#{packageId}
   </select>
 
@@ -13,15 +14,37 @@
     WHERE l.package_id=#{packageId} ORDER BY l.order_line_id
   </select>
 
+  <select id="actualLines" resultType="vip.fairy.commerceflow.order.application.OrderPackageService$PostedLine">
+    SELECT l.order_line_id,i.product_id,l.actual_quantity AS quantity
+    FROM order_package_lines l JOIN order_items i ON i.id=l.order_line_id
+    WHERE l.package_id=#{packageId} AND l.actual_quantity &gt; 0 ORDER BY l.order_line_id
+  </select>
+
+  <select id="countedLines" resultType="vip.fairy.commerceflow.order.application.OrderPackageService$Line">
+    SELECT order_line_id,actual_quantity AS quantity FROM order_package_lines
+    WHERE package_id=#{packageId} ORDER BY order_line_id
+  </select>
+
+  <update id="setActual">
+    UPDATE order_package_lines SET actual_quantity=#{line.quantity}
+    WHERE package_id=#{packageId} AND order_line_id=#{line.orderLineId}
+  </update>
+
+  <update id="markReceived">
+    UPDATE order_package_allocations SET warehouse_receipt_at=CURRENT_TIMESTAMP(6)
+      <if test="voided">,voided_at=CURRENT_TIMESTAMP(6)</if>
+    WHERE package_id=#{packageId} AND warehouse_receipt_at IS NULL AND posted_at IS NULL
+  </update>
+
   <select id="trackingUsed" resultType="boolean">
     SELECT EXISTS (
       SELECT 1 FROM order_package_allocations WHERE order_id=#{orderId}
-        AND carrier=#{carrier} AND tracking_number=#{trackingNumber}
+        AND carrier=#{carrier} AND tracking_number=#{trackingNumber} AND voided_at IS NULL
     )
   </select>
 
   <select id="allocatedAtWarehouse" resultType="int">
-    SELECT COALESCE(SUM(l.quantity),0) FROM order_package_lines l
+    SELECT COALESCE(SUM(COALESCE(l.actual_quantity,l.quantity)),0) FROM order_package_lines l
     JOIN order_package_allocations p ON p.package_id=l.package_id
     WHERE l.order_line_id=#{orderLineId} AND p.warehouse_id=#{warehouseId}
   </select>
@@ -63,7 +86,7 @@
     WHERE o.id=#{orderId} AND o.status='CONFIRMED' AND o.shipment_intent_key IS NULL
       AND NOT EXISTS (
         SELECT 1 FROM order_items i WHERE i.order_id=#{orderId} AND i.quantity &gt;
-          (SELECT COALESCE(SUM(l.quantity),0) FROM order_package_lines l
+          (SELECT COALESCE(SUM(COALESCE(l.actual_quantity,l.quantity)),0) FROM order_package_lines l
            JOIN order_package_allocations a ON a.package_id=l.package_id
            WHERE l.order_line_id=i.id AND a.posted_at IS NOT NULL)
           + (SELECT COALESCE(SUM(r.quantity),0) FROM order_line_refund_admissions r
