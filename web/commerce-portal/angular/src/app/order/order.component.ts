@@ -134,6 +134,7 @@ export class OrderComponent implements OnInit {
         next: ({ addresses, selected }) => {
           this.addresses = addresses;
           this.addressId =
+            addresses.find((address) => address.id === this.addressId)?.id ??
             addresses.find((address) => address.id === selected.addressId)?.id ??
             addresses.find((address) => address.isDefault)?.id;
         },
@@ -167,17 +168,23 @@ export class OrderComponent implements OnInit {
       .subscribe({
         next: ({ orders, products, stocks }) => {
           if (version !== this.cartVersion) return;
-          const names = new Map(products?.map((product) => [product.id, product.name]));
-          this.catalogIds = products ? new Set(names.keys()) : undefined;
+          const catalog = new Map(products?.map((product) => [product.id, product]));
+          this.catalogIds = products ? new Set(catalog.keys()) : undefined;
           this.stocks = stocks;
           const productIds = new Set(orders.map((item) => item.productId));
           for (const id of this.unselectedProducts) {
             if (!productIds.has(id)) this.unselectedProducts.delete(id);
           }
-          this.customerOrders = orders.map((order) => ({
-            ...order,
-            productName: names.get(order.productId) ?? order.productName,
-          }));
+          this.customerOrders = orders.map((order) => {
+            const product = catalog.get(order.productId);
+            if (!product) return order;
+            return {
+              ...order,
+              productName: product.name,
+              price: product.price,
+              totalPrice: (Math.round(product.price * 100) * order.quantity) / 100,
+            };
+          });
           this.changeDetector.markForCheck();
         },
         error: () => {
@@ -202,7 +209,15 @@ export class OrderComponent implements OnInit {
     this.api.updateOrderQuantity(order.id, normalized).subscribe({
       next: (updated) => {
         delete this.stockLines[updated.productId];
-        this.customerOrders = this.customerOrders.map((item) => (item.id === updated.id ? updated : item));
+        this.customerOrders = this.customerOrders.map((item) =>
+          item.id === updated.id
+            ? {
+                ...item,
+                quantity: updated.quantity,
+                totalPrice: (Math.round(item.price * 100) * updated.quantity) / 100,
+              }
+            : item,
+        );
         this.changeDetector.markForCheck();
       },
       error: (err) => {
@@ -287,8 +302,11 @@ export class OrderComponent implements OnInit {
               (err.error.lines ?? []).map((line: { productId: number }) => [line.productId, line]),
             );
             this.checkoutError = this.i18n.t('checkoutStockChanged');
+          } else if (err.error?.code === 'CHECKOUT_PRICE_CHANGED') {
+            this.checkoutError = this.i18n.t('checkoutPriceChanged');
           } else {
             this.checkoutError = err.error?.message ?? this.i18n.t('checkoutFailed');
+            this.loadAddresses();
           }
           this.loadCart();
         },

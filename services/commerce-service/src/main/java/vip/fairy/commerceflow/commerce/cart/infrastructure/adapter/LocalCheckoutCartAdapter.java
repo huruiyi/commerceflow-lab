@@ -1,5 +1,6 @@
 package vip.fairy.commerceflow.commerce.cart.infrastructure.adapter;
 
+import vip.fairy.commerceflow.commerce.cart.application.CartService;
 import vip.fairy.commerceflow.commerce.cart.application.contract.v1.RejectedCheckoutCartV1;
 import vip.fairy.commerceflow.commerce.cart.application.port.CheckoutCartPort;
 import vip.fairy.commerceflow.commerce.cart.domain.CheckoutAddressSnapshot;
@@ -13,13 +14,21 @@ import java.util.List;
 public class LocalCheckoutCartAdapter implements CheckoutCartPort, RejectedCheckoutCartV1 {
 
   private final CheckoutCartMapper checkout;
-  public LocalCheckoutCartAdapter(CheckoutCartMapper checkout) {
+  private final CartService carts;
+
+  public LocalCheckoutCartAdapter(CheckoutCartMapper checkout, CartService carts) {
     this.checkout = checkout;
+    this.carts = carts;
   }
 
   @Override
   public List<CheckoutCartItem> lockItems(Long customerId) {
     return checkout.lockItems(customerId);
+  }
+
+  @Override
+  public List<CheckoutCartItem> priceItems(List<CheckoutCartItem> items) {
+    return carts.priceItems(items);
   }
 
   @Override

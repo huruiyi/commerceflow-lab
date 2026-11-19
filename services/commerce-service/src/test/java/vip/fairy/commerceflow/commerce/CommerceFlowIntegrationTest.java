@@ -1010,10 +1010,11 @@ class CommerceFlowIntegrationTest {
           .content(json.writeValueAsString(Map.of("productId", productId, "quantity", 1))))
         .andExpect(status().isOk());
     }
-    long itemId = jdbc.queryForObject("""
+    List<Long> itemIds = jdbc.queryForList("""
       SELECT i.id FROM cart_items i JOIN carts c ON c.id=i.cart_id
-      WHERE c.user_id=? AND i.product_id=?
-      """, Long.class, customerId, 1L);
+      WHERE c.user_id=? ORDER BY i.product_id
+      """, Long.class, customerId);
+    long itemId = itemIds.getFirst();
     MvcResult address = mvc.perform(post("/api/addresses").session(customer.session()).cookie(customer.cookie())
         .header("X-XSRF-TOKEN", customer.token()).contentType("application/json")
         .content("""
@@ -1024,12 +1025,36 @@ class CommerceFlowIntegrationTest {
       .andExpect(status().isOk()).andReturn();
     long addressId = json.readTree(address.getResponse().getContentAsString()).get("id").asLong();
     when(inventoryRemoteCommandClient.availability(List.of(1L))).thenReturn(Map.of(1L, new Stock(1L, true, 1)));
-    String payload = json.writeValueAsString(Map.of("addressId", addressId, "expectedTotal", 1299, "itemIds", List.of(itemId)));
+    when(catalogServiceClient.snapshots(List.of(1L))).thenReturn(List.of(new CatalogProductSnapshotV1(
+      1, 1L, 5L, "Learning Laptop", new BigDecimal("1350.00"), "thumb", "ACTIVE", 2L)));
+    when(inventoryRemoteCommandClient.availability(List.of(1L, 2L)))
+      .thenReturn(Map.of(1L, new Stock(1L, true, 1), 2L, new Stock(2L, true, 1)));
+    when(catalogServiceClient.snapshots(List.of(1L, 2L))).thenReturn(List.of(
+      new CatalogProductSnapshotV1(1, 1L, 5L, "Learning Laptop", new BigDecimal("1350.00"), "thumb", "ACTIVE", 2L),
+      new CatalogProductSnapshotV1(1, 2L, 9L, "Other Product", new BigDecimal("1299.00"), "thumb", "ACTIVE", 1L)));
+    String mixed = json.writeValueAsString(
+      Map.of("addressId", addressId, "expectedTotal", 2649, "itemIds", itemIds));
+    mvc.perform(post("/api/purchase-orders/checkout").session(customer.session()).cookie(customer.cookie())
+        .header("X-XSRF-TOKEN", customer.token()).contentType("application/json").content(mixed))
+      .andExpect(status().isConflict())
+      .andExpect(jsonPath("$.message").value("Check out products from one merchant at a time"));
+    String stale = json.writeValueAsString(
+      Map.of("addressId", addressId, "expectedTotal", 1299, "itemIds", List.of(itemId)));
+    mvc.perform(post("/api/purchase-orders/checkout").session(customer.session()).cookie(customer.cookie())
+        .header("X-XSRF-TOKEN", customer.token()).contentType("application/json").content(stale))
+      .andExpect(status().isConflict())
+      .andExpect(jsonPath("$.code").value("CHECKOUT_PRICE_CHANGED"))
+      .andExpect(jsonPath("$.currentTotal").value(1350));
+    mvc.perform(get("/api/cart").session(customer.session()))
+      .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(2));
+    String payload = json.writeValueAsString(
+      Map.of("addressId", addressId, "expectedTotal", 1350, "itemIds", List.of(itemId)));
     MvcResult result = mvc.perform(post("/api/purchase-orders/checkout").session(customer.session()).cookie(customer.cookie())
         .header("X-XSRF-TOKEN", customer.token()).contentType("application/json").content(payload))
       .andExpect(status().isOk())
-      .andExpect(jsonPath("$.totalAmount").value(1299))
+      .andExpect(jsonPath("$.totalAmount").value(1350))
       .andExpect(jsonPath("$.items.length()").value(1))
+      .andExpect(jsonPath("$.items[0].unitPrice").value(1350))
       .andExpect(jsonPath("$.items[0].productId").value(1)).andReturn();
     long orderId = json.readTree(result.getResponse().getContentAsString()).get("id").asLong();
     String reservation = jdbc.queryForObject(

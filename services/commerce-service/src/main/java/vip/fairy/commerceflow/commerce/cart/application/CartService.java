@@ -4,6 +4,7 @@ import vip.fairy.commerceflow.commerce.catalog.application.CatalogProductLookup;
 import vip.fairy.commerceflow.commerce.cart.api.OrderRequest;
 import vip.fairy.commerceflow.commerce.cart.api.OrderResponse;
 import vip.fairy.commerceflow.commerce.cart.api.QuantityUpdateRequest;
+import vip.fairy.commerceflow.commerce.cart.domain.CheckoutCartItem;
 import vip.fairy.commerceflow.commerce.cart.infrastructure.CartMapper;
 import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
@@ -40,6 +41,17 @@ public class CartService {
       .findFirst()
       .map(OrderResponse::from)
       .orElseThrow(() -> new ResourceNotFoundException("Cart item not found"));
+  }
+
+  public List<CheckoutCartItem> priceItems(List<CheckoutCartItem> items) {
+    var snapshot = products.snapshots(items.stream().map(CheckoutCartItem::getProductId).distinct().toList());
+    return items.stream().map(item -> {
+      var product = snapshot.get(item.getProductId());
+      if (product == null) {
+        throw new ResourceNotFoundException("Active product not found");
+      }
+      return item.withProductFacts(product.merchantId(), product.name(), product.thumbnailUrl(), product.price());
+    }).toList();
   }
 
   public List<OrderResponse> list(AppUser user) {

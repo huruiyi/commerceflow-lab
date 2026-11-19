@@ -41,7 +41,15 @@ public class CheckoutCartItem {
     return quantity;
   }
 
-  public BigDecimal subtotal() {
-    return unitPrice.multiply(BigDecimal.valueOf(quantity));
+  public CheckoutCartItem withProductFacts(Long merchantId, String name, String thumbnailUrl, BigDecimal price) {
+    CheckoutCartItem item = new CheckoutCartItem();
+    item.id = id;
+    item.productId = productId;
+    item.quantity = quantity;
+    item.merchantId = merchantId;
+    item.productName = name;
+    item.thumbnailUrl = thumbnailUrl;
+    item.unitPrice = price;
+    return item;
   }
 }

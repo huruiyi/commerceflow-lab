@@ -9,6 +9,8 @@ public interface CheckoutCartPort {
 
   List<CheckoutCartItem> lockItems(Long customerId);
 
+  List<CheckoutCartItem> priceItems(List<CheckoutCartItem> items);
+
   CheckoutAddressSnapshot selectedAddress(Long customerId);
 
   CheckoutAddressSnapshot address(Long customerId, Long addressId);

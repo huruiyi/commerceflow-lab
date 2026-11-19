@@ -117,21 +117,18 @@ public class PurchaseOrderService {
     if (address == null) {
       throw new BusinessRuleException("Select a valid shipping address before checkout");
     }
-    if (items.stream().anyMatch(item -> item.getMerchantId() == null)) {
-      throw new BusinessRuleException("A cart product has no merchant");
-    }
     inventory.requireWritable();
-    BigDecimal total = items.stream().map(CheckoutCartItem::subtotal).reduce(BigDecimal.ZERO, BigDecimal::add);
-    if (expectedTotal != null && total.compareTo(expectedTotal) != 0) {
-      throw new BusinessRuleException("The cart total changed. Review the updated cart before checking out.");
-    }
     if (expectedTotal != null) {
       var problems = stockProblems(items);
       if (!problems.isEmpty()) throw new CheckoutStockException(problems);
     }
+    List<OrderItemSnapshot> orderItems = currentOrderItems(items);
+    BigDecimal total = orderItems.stream().map(OrderItemSnapshot::subtotal).reduce(BigDecimal.ZERO, BigDecimal::add);
+    if (expectedTotal != null && total.compareTo(expectedTotal) != 0) {
+      throw new CheckoutPriceChangedException(total);
+    }
     Instant paymentDueAt = Instant.now().plus(lifecycle.getPaymentTimeout());
     NewOrder order = new NewOrder(number("ORD"), user.getId(), total, "CNY", paymentDueAt);
-    List<OrderItemSnapshot> orderItems = items.stream().map(OrderItemSnapshot::from).toList();
     orders.insertOrder(order, orderItems, OrderAddressSnapshot.from(address), user.getId());
     String commandId = reservationCommandId(order.getId());
     var stockItems = items.stream().map(item -> InventoryCommandPort.item(
@@ -145,6 +142,22 @@ public class PurchaseOrderService {
       throw new IllegalStateException("Selected cart items changed during checkout");
     }
     return new Checkout(order.getId(), items);
+  }
+
+  private List<OrderItemSnapshot> currentOrderItems(List<CheckoutCartItem> items) {
+    List<CheckoutCartItem> priced;
+    try {
+      priced = carts.priceItems(items);
+    } catch (ResourceNotFoundException exception) {
+      throw new CheckoutStockException(stockProblems(items));
+    }
+    if (priced.stream().anyMatch(item -> item.getMerchantId() == null)) {
+      throw new BusinessRuleException("A cart product has no merchant");
+    }
+    if (priced.stream().map(CheckoutCartItem::getMerchantId).distinct().count() > 1) {
+      throw new BusinessRuleException("Check out products from one merchant at a time");
+    }
+    return priced.stream().map(OrderItemSnapshot::from).toList();
   }
 
   private List<CheckoutCartItem> selectedCartItems(Long customerId, Set<Long> selection) {

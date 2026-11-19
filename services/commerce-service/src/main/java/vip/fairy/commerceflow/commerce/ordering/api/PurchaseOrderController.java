@@ -8,6 +8,7 @@ import vip.fairy.commerceflow.commerce.logistics.application.LogisticsService;
 import vip.fairy.commerceflow.commerce.ordering.application.OrderCancellationService;
 import vip.fairy.commerceflow.commerce.ordering.application.OrderRepurchaseService;
 import vip.fairy.commerceflow.commerce.ordering.application.PurchaseOrderService;
+import vip.fairy.commerceflow.commerce.ordering.application.CheckoutPriceChangedException;
 import vip.fairy.commerceflow.commerce.ordering.application.CheckoutStockException;
 import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderListReadV1;
 import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderListPage;
@@ -62,6 +63,13 @@ public class PurchaseOrderController {
     AppUser user = currentUsers.require(authentication);
     return request == null ? orders.checkout(user)
       : orders.checkout(user, request.addressId(), request.expectedTotal(), request.itemIds());
+  }
+
+  @ExceptionHandler(CheckoutPriceChangedException.class)
+  @ResponseStatus(HttpStatus.CONFLICT)
+  Map<String, Object> checkoutPrice(CheckoutPriceChangedException exception) {
+    return Map.of("timestamp", Instant.now(), "status", HttpStatus.CONFLICT.value(),
+      "code", "CHECKOUT_PRICE_CHANGED", "message", exception.getMessage(), "currentTotal", exception.currentTotal());
   }
 
   @ExceptionHandler(CheckoutStockException.class)

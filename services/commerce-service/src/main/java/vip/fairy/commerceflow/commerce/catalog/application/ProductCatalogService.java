@@ -7,7 +7,9 @@ import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogProductV1;
 import vip.fairy.commerceflow.commerce.catalog.infrastructure.client.CatalogServiceClient;
 import vip.fairy.commerceflow.commerce.review.application.ProductReviewCatalogQuery;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class ProductCatalogService implements CatalogProductLookup, CatalogCacheInvalidator {
@@ -29,6 +31,19 @@ public class ProductCatalogService implements CatalogProductLookup, CatalogCache
     CatalogProductV1 product = catalog.detail(productId, null);
     return new ProductSnapshot(product.productId(), product.merchantId(), product.name(),
       product.unitPrice(), product.thumbnailUrl());
+  }
+
+  @Override
+  public Map<Long, ProductSnapshot> snapshots(List<Long> productIds) {
+    Map<Long, ProductSnapshot> snapshots = new HashMap<>();
+    for (int start = 0; start < productIds.size(); start += 100) {
+      int end = Math.min(start + 100, productIds.size());
+      for (var product : catalog.snapshots(productIds.subList(start, end))) {
+        snapshots.put(product.productId(), new ProductSnapshot(product.productId(), product.merchantId(),
+          product.name(), product.unitPrice(), product.thumbnailUrl()));
+      }
+    }
+    return snapshots;
   }
 
   public ProductResponse detail(Long productId, String requestedLocale) {
