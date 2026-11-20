@@ -9,15 +9,17 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b && vite build",
+    "build": "vue-tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && vite build",
     "format:check": "prettier --check \"src/**/*.{vue,ts,css}\" \"*.{json,ts,html}\"",
     "format:write": "prettier --write \"src/**/*.{vue,ts,css}\" \"*.{json,ts,html}\"",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@ant-design/icons-vue": "7.0.1",
+    "@commerceflow/simulator-admin": "file:../../admin-ui",
     "@vitejs/plugin-vue": "6.0.10",
     "ant-design-vue": "4.0.0-rc.6",
+    "echarts": "6.1.0",
     "qrcode": "1.5.4",
     "vue": "3.5.45",
     "vue-router": "5.5.0",

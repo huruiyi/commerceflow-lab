@@ -44,7 +44,7 @@ async function complete(outcome: string) {
     <header class="cashier-brand">
       <span class="brand-mark">C</span><strong>CommerceFlow Pay</strong>
       <span>{{ t('localOnly') }}</span>
-      <button class="language-toggle dark" type="button" @click="switchLanguage">{{ languageLabel }}</button>
+      <button class="language-toggle" type="button" @click="switchLanguage">{{ languageLabel }}</button>
     </header>
     <article v-if="tx" class="cashier-card">
       <div class="cashier-heading">

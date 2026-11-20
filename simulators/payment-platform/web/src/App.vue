@@ -1,74 +1,91 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import { theme } from 'ant-design-vue';
+import AdminShell from '@commerceflow/simulator-admin/shell';
 import { useRoute, useRouter } from 'vue-router';
 import { authState } from './main';
 import { api, initializeCsrf } from './api';
-import { languageLabel, switchLanguage, t } from './i18n';
+import { locale, setLanguage, t } from './i18n';
 
+const viewRevision = ref(0);
 const route = useRoute();
 const router = useRouter();
 const publicPage = computed(() => Boolean(route.meta.public));
+const mfaNotice = computed(() =>
+  authState.session?.mfaRequired && !authState.session.mfaEnabled ? t('mfaNotice') : '',
+);
 const can = (authority: string) => authState.session?.authorities.includes(authority);
 
-async function logout() {
+const menu = computed(() => {
+  const item = (key: string, label: string, icon: string) => ({
+    key,
+    href: router.resolve(key).href,
+    label: t(label),
+    icon,
+  });
+  const groups = [
+    { label: t('dashboard'), icon: 'dashboard', items: [item('/', 'paymentOverview', 'dashboard')] },
+    {
+      label: t('collectionsAndRefunds'),
+      icon: 'card',
+      items: [
+        ...(can('TRANSACTION_READ') ? [item('/transactions', 'transactions', 'card')] : []),
+        ...(can('REFUND_READ') ? [item('/refunds', 'refunds', 'refund')] : []),
+      ],
+    },
+    {
+      label: locale.value === 'en' ? 'Settlement' : '结算',
+      icon: 'wallet',
+      items: can('REFUND_READ') ? [item('/payouts', 'merchantPayouts', 'wallet')] : [],
+    },
+    {
+      label: locale.value === 'en' ? 'Administration' : '系统管理',
+      icon: 'settings',
+      items: [
+        ...(can('MERCHANT_MANAGE') ? [item('/merchants', 'merchants', 'merchant')] : []),
+        ...(can('ADMIN_USER_MANAGE') ? [item('/users', 'users', 'users')] : []),
+        ...(can('AUDIT_READ') ? [item('/audit', 'audit', 'audit')] : []),
+        item('/security', 'security', 'security'),
+      ],
+    },
+  ];
+  return groups.filter(({ items }) => items.length);
+});
+
+async function logout(lock = false) {
   await initializeCsrf();
   await api<void>('/api/auth/logout', { method: 'POST' });
   authState.session = null;
   authState.checked = true;
-  await router.push('/login');
+  await router.push(lock ? { path: '/login', query: { redirect: route.fullPath } } : '/login');
 }
 </script>
 
 <template>
   <router-view v-if="publicPage" />
-  <div v-else class="app-shell">
-    <aside class="sidebar">
-      <div class="brand">
-        <span class="brand-mark">C</span>
-        <div>
-          <strong>CommerceFlow Pay</strong><small>{{ t('loginLab') }}</small>
-        </div>
-      </div>
-      <nav>
-        <router-link to="/">◈ {{ t('dashboard') }}</router-link>
-        <router-link v-if="can('MERCHANT_MANAGE')" to="/merchants">▣ {{ t('merchants') }}</router-link>
-        <details v-if="can('TRANSACTION_READ') || can('REFUND_READ')" open>
-          <summary>{{ t('collectionsAndRefunds') }}</summary>
-          <router-link v-if="can('TRANSACTION_READ')" to="/transactions">{{ t('transactions') }}</router-link>
-          <router-link v-if="can('REFUND_READ')" to="/refunds">{{ t('refunds') }}</router-link>
-        </details>
-        <router-link v-if="can('REFUND_READ')" to="/payouts">{{ t('merchantPayouts') }}</router-link>
-        <router-link v-if="can('ADMIN_USER_MANAGE')" to="/users">♙ {{ t('users') }}</router-link>
-        <router-link v-if="can('AUDIT_READ')" to="/audit">⌕ {{ t('audit') }}</router-link>
-        <router-link to="/security">◈ {{ t('security') }}</router-link>
-      </nav>
-      <div class="security-card">
-        <span class="pulse"></span>
-        <div>
-          <strong>{{ t('securityMode') }}</strong><small>Redis Session · CSRF · BCrypt</small>
-        </div>
-      </div>
-    </aside>
-    <main class="main">
-      <header class="topbar">
-        <div>
-          <span class="env">{{ t('localSimulation') }}</span><span class="muted">{{ t('noRealFunds') }}</span>
-        </div>
-        <div class="account">
-          <button class="language-toggle" type="button" @click="switchLanguage">{{ languageLabel }}</button>
-          <div class="avatar">{{ authState.session?.displayName.slice(0, 1) }}</div>
-          <div>
-            <strong>{{ authState.session?.displayName }}</strong><small>{{ authState.session?.username }}</small>
-          </div>
-          <button class="ghost" @click="logout">{{ t('logout') }}</button>
-        </div>
-      </header>
-      <div v-if="authState.session?.mfaRequired && !authState.session?.mfaEnabled" class="notice warn">
-        {{ t('mfaNotice') }}
-      </div>
-      <section class="page">
-        <router-view />
-      </section>
-    </main>
-  </div>
+  <AdminShell
+    v-else
+    title="CommerceFlow Pay"
+    :groups="menu"
+    :active="route.path"
+    :locale="locale === 'en' ? 'en-US' : 'zh-CN'"
+    :account="authState.session?.displayName"
+    :account-detail="authState.session?.email"
+    account-page="/security"
+    :notice="mfaNotice"
+    can-change-language
+    can-lock
+    @navigate="router.push($event)"
+    @language="setLanguage"
+    @refresh="viewRevision++"
+    @logout="logout()"
+    @lock="logout(true)"
+  >
+    <template #default="{ dark }">
+      <a-config-provider :theme="{ algorithm: dark ? theme.darkAlgorithm : theme.defaultAlgorithm }">
+        <div v-if="mfaNotice" class="notice warn">{{ mfaNotice }}</div>
+        <router-view :key="viewRevision" />
+      </a-config-provider>
+    </template>
+  </AdminShell>
 </template>

@@ -1,14 +1,15 @@
-import { createApp, reactive } from 'vue';
+import { createApp, reactive, watchEffect } from 'vue';
+import { installAdminGrid, setAdminLocale } from '@commerceflow/simulator-admin/vxe';
+import { locale } from './i18n';
 import { createRouter, createWebHistory } from 'vue-router';
 import Antd from 'ant-design-vue';
-import VxeUITable from 'vxe-table';
 import App from './App.vue';
 import type { Session } from './types';
 import { api } from './api';
 import './style.css';
 import './responsive.css';
 import 'ant-design-vue/dist/reset.css';
-import 'vxe-table/lib/style.css';
+import '@commerceflow/simulator-admin/style.css';
 
 export const authState = reactive<{ session: Session | null; checked: boolean }>({ session: null, checked: false });
 
@@ -48,4 +49,7 @@ router.beforeEach(async (to) => {
   return true;
 });
 
-createApp(App).use(router).use(Antd).use(VxeUITable).mount('#app');
+const app = createApp(App).use(router).use(Antd);
+installAdminGrid(app);
+watchEffect(() => setAdminLocale(locale.value === 'en' ? 'en-US' : 'zh-CN'));
+app.mount('#app');

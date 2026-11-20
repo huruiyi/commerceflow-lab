@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
+import type { VxeGridProps } from 'vxe-table';
+import PaymentLedger from '../PaymentLedger.vue';
 import { api } from '../api';
 import { formatDate, t } from '../i18n';
 
@@ -30,26 +32,31 @@ async function load() {
 }
 
 onMounted(load);
+
+const columns = computed<VxeGridProps<Payout>['columns']>(() => [
+  { field: 'channelPayoutNo', title: t('payoutNumber'), minWidth: 190 },
+  { field: 'statementId', title: t('settlementReference'), minWidth: 190 },
+  { field: 'beneficiaryId', title: t('merchants'), width: 110 },
+  { field: 'status', title: t('status'), width: 120 },
+  { field: 'amount', title: t('payoutAmount'), width: 130, slots: { default: 'amount' } },
+  { field: 'resolvedAt', title: t('payoutResolvedAt'), minWidth: 140, slots: { default: 'resolvedAt' } },
+]);
 </script>
 
 <template>
-  <div class="page-title">
-    <h1>{{ t('merchantPayouts') }}</h1>
-    <a-button :loading="loading" @click="load">{{ t('refresh') }}</a-button>
-  </div>
   <a-alert v-if="error" type="error" show-icon :message="error" />
-  <article class="card">
-    <vxe-table :data="rows" border stripe show-overflow>
-      <vxe-column field="channelPayoutNo" :title="t('payoutNumber')" min-width="190" />
-      <vxe-column field="statementId" :title="t('settlementReference')" min-width="190" />
-      <vxe-column field="beneficiaryId" :title="t('merchants')" width="110" />
-      <vxe-column field="status" :title="t('status')" width="120" />
-      <vxe-column field="amount" :title="t('payoutAmount')" width="130">
-        <template #default="{ row }">{{ row.currency }} {{ Number(row.amount).toFixed(2) }}</template>
-      </vxe-column>
-      <vxe-column field="resolvedAt" :title="t('payoutResolvedAt')" min-width="140">
-        <template #default="{ row }">{{ row.resolvedAt ? formatDate(row.resolvedAt) : '—' }}</template>
-      </vxe-column>
-    </vxe-table>
-  </article>
+  <PaymentLedger
+    id="payment-payout"
+    :title="t('merchantPayouts')"
+    :rows="rows"
+    :columns="columns"
+    row-key="channelPayoutNo"
+    :search-fields="['channelPayoutNo', 'statementId', 'beneficiaryId']"
+    status-field="status"
+    :loading="loading"
+    @refresh="load"
+  >
+    <template #amount="{ row }">{{ row.currency }} {{ Number(row.amount).toFixed(2) }}</template>
+    <template #resolvedAt="{ row }">{{ row.resolvedAt ? formatDate(row.resolvedAt) : '—' }}</template>
+  </PaymentLedger>
 </template>

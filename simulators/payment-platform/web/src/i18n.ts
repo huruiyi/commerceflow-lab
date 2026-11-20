@@ -1,3 +1,4 @@
+import { formatAdminDate } from '@commerceflow/simulator-admin/preferences';
 import { computed, ref, watch } from 'vue';
 
 export type Locale = 'zh-CN' | 'en';
@@ -7,9 +8,22 @@ const messages: Record<Locale, Record<string, string>> = {
     language: 'English',
     appTitle: 'CommerceFlow Pay · 模拟支付平台',
     dashboard: '控制台',
+    paymentOverview: '支付概览',
+    paymentStatistics: '支付统计',
+    paymentStatisticsError: '支付统计加载失败，请刷新当前页重试。',
+    paymentStatisticsScope: '当前账号可见账本累计',
+    paymentTrendPeriod: '近 30 天',
+    paymentTrendCount: '交易趋势',
+    paymentTrendAmount: '实收金额',
+    paymentTrendCreated: '创建交易',
+    paymentTrendPaid: '支付成功',
+    paymentByChannel: '支付渠道对比',
+    paymentByStatus: '交易状态分布',
+    paymentByScenario: '模拟场景分布',
     merchants: '商户与凭据',
     transactions: '渠道交易',
     refunds: '退款账本',
+    details: '详情',
     collectionsAndRefunds: '收款与退款',
     merchantPayouts: '商家打款',
     payoutLoadFailed: '打款账本查询失败',
@@ -25,6 +39,7 @@ const messages: Record<Locale, Record<string, string>> = {
     refundDescription: '查看由商城签名请求创建的原路退款及其独立资金状态。',
     noRefunds: '暂无退款记录。',
     refundNumber: '退款单号',
+    merchantRefundNumber: '商户退款单号',
     originalTransaction: '原交易号',
     reason: '原因',
     refundLoadFailed: '退款列表加载失败',
@@ -293,9 +308,22 @@ const messages: Record<Locale, Record<string, string>> = {
     language: '中文',
     appTitle: 'CommerceFlow Pay · Simulated Payment Platform',
     dashboard: 'Dashboard',
+    paymentOverview: 'Payment overview',
+    paymentStatistics: 'Payment statistics',
+    paymentStatisticsError: 'Payment statistics could not be loaded. Refresh this page to retry.',
+    paymentStatisticsScope: 'All transactions visible to this account',
+    paymentTrendPeriod: 'Last 30 days',
+    paymentTrendCount: 'Transaction trend',
+    paymentTrendAmount: 'Gross payments',
+    paymentTrendCreated: 'Transactions created',
+    paymentTrendPaid: 'Payments received',
+    paymentByChannel: 'Payment channels',
+    paymentByStatus: 'Transaction statuses',
+    paymentByScenario: 'Simulator scenarios',
     merchants: 'Merchants & Credentials',
     transactions: 'Channel Transactions',
     refunds: 'Refund Ledger',
+    details: 'Details',
     collectionsAndRefunds: 'Collections and refunds',
     merchantPayouts: 'Merchant payouts',
     payoutLoadFailed: 'Could not load payouts',
@@ -319,6 +347,7 @@ const messages: Record<Locale, Record<string, string>> = {
       'Review original-payment refunds created by signed storefront requests and their independent funds status.',
     noRefunds: 'No refunds yet.',
     refundNumber: 'Refund',
+    merchantRefundNumber: 'Merchant refund number',
     originalTransaction: 'Original transaction',
     reason: 'Reason',
     refundLoadFailed: 'Unable to load refunds',
@@ -609,17 +638,21 @@ export function enumLabel(value?: string): string {
 }
 
 export function switchLanguage(): void {
-  locale.value = locale.value === 'zh-CN' ? 'en' : 'zh-CN';
+  setLanguage(locale.value === 'zh-CN' ? 'en-US' : 'zh-CN');
+}
+
+export function setLanguage(value: 'zh-CN' | 'en-US'): void {
+  locale.value = value === 'zh-CN' ? 'zh-CN' : 'en';
   localStorage.setItem('commerceflow-pay-locale', locale.value);
   document.documentElement.lang = locale.value;
 }
 
 export function formatDate(value: string): string {
-  return new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(value));
+  return formatAdminDate(value, locale.value);
 }
 
 export function formatTime(value: string): string {
-  return new Intl.DateTimeFormat(locale.value, { timeStyle: 'medium' }).format(new Date(value));
+  return formatAdminDate(value, locale.value, false);
 }
 
 document.documentElement.lang = locale.value;

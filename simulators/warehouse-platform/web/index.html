@@ -2,27 +2,11 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>CommerceFlow 仓库作业台</title>
-    <link rel="stylesheet" href="warehouse.css" />
-    <script defer src="warehouse.js"></script>
   </head>
   <body>
-    <main>
-      <h1>仓库作业台</h1>
-      <form id="filters">
-        <label>管理令牌<input id="token" type="password" required autocomplete="off" /></label>
-        <label>订单编号<input id="order" type="number" min="1" inputmode="numeric" placeholder="全部订单" /></label>
-        <label>单据类型
-          <select id="kind">
-            <option value="outbounds">出库单</option>
-            <option value="returns">退货单</option>
-          </select>
-        </label>
-        <button>查询</button>
-      </form>
-      <p id="feedback" role="status" aria-live="polite"></p>
-      <section id="outbounds" aria-label="出库单"></section>
-    </main>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -238,7 +238,6 @@ body {
     padding: 22px 18px 50px;
   }
 
-  .metric-grid,
   .content-grid,
   .merchant-grid {
     grid-template-columns: 1fr;

@@ -1,5 +1,10 @@
 <script setup lang="ts">
+import { formatAdminDate } from '@commerceflow/simulator-admin/preferences';
 import { computed, ref } from 'vue';
+import type { VxeGridProps } from 'vxe-table';
+import AdminGrid from '@commerceflow/simulator-admin/grid';
+import AdminShell from '@commerceflow/simulator-admin/shell';
+import AdminLogin from '@commerceflow/simulator-admin/login';
 import {
   admin,
   RequestError,
@@ -11,14 +16,10 @@ import {
 } from './app-api';
 
 const channels: { id: Channel; label: string; symbol: string }[] = [
-  { id: 'SMS', label: '短信', symbol: '◫' },
-  { id: 'EMAIL', label: '邮件', symbol: '✉' },
+  { id: 'SMS', label: '短信', symbol: 'sms' },
+  { id: 'EMAIL', label: '邮件', symbol: 'email' },
 ];
 const states = { ACCEPTED: '已受理', DELIVERED: '已送达', FAILED: '送达失败' };
-const formats = new Intl.DateTimeFormat('zh-CN', {
-  dateStyle: 'medium',
-  timeStyle: 'medium',
-});
 const tokenInput = ref('');
 const token = ref('');
 const faultsEnabled = ref(false);
@@ -43,14 +44,46 @@ const retry = ref<{ key: string; command: Command }>();
 let readSequence = 0;
 let detailSequence = 0;
 const current = computed(() => channels.find((value) => value.id === channel.value)!);
-const pageCount = computed(() => Math.max(1, Math.ceil(total.value / 20)));
+const groups = [
+  {
+    label: '消息投递',
+    icon: 'messages',
+    items: channels.map(({ id, label, symbol }) => ({
+      key: id,
+      label: label + '投递',
+      icon: symbol,
+    })),
+  },
+];
+const columns: VxeGridProps<Delivery>['columns'] = [
+  { field: 'reference', title: '业务关联号', minWidth: 240 },
+  { field: 'recipientMask', title: '模拟收件人', minWidth: 150 },
+  { field: 'status', title: '投递状态', width: 110, slots: { default: 'status' } },
+  { field: 'acceptedAt', title: '受理时间', width: 190, slots: { default: 'acceptedAt' } },
+  { field: 'actions', title: '操作', width: 85, fixed: 'right', slots: { default: 'operations' } },
+];
+const applied = ref({ status: '', reference: '' });
+
+function search() {
+  applied.value = { status: status.value, reference: reference.value.trim() };
+  void load(1);
+}
+
+function reset() {
+  status.value = reference.value = '';
+  search();
+}
+
+function navigate(key: string) {
+  if (key === 'SMS' || key === 'EMAIL') choose(key);
+}
 
 function readable(failure: unknown) {
   return failure instanceof RequestError ? failure.message : '连接失败，请检查本地服务后重试。';
 }
 
 function time(value: string | null) {
-  return value ? formats.format(new Date(value)) : '—';
+  return value ? formatAdminDate(value) : '—';
 }
 
 async function signIn() {
@@ -82,6 +115,8 @@ function logout() {
   notice.value = '';
   composeOpen.value = false;
   retry.value = undefined;
+  status.value = reference.value = '';
+  applied.value = { status: '', reference: '' };
 }
 
 async function load(number = page.value) {
@@ -93,8 +128,8 @@ async function load(number = page.value) {
     channel: channel.value,
     page: String(number),
   });
-  if (status.value) params.set('status', status.value);
-  if (reference.value.trim()) params.set('reference', reference.value.trim());
+  if (applied.value.status) params.set('status', applied.value.status);
+  if (applied.value.reference) params.set('reference', applied.value.reference);
   try {
     const result = await admin<DeliveryPage>(token.value, 'deliveries?' + params);
     if (id !== readSequence) return;
@@ -113,6 +148,7 @@ function choose(value: Channel) {
   detailSequence++;
   channel.value = value;
   status.value = reference.value = notice.value = '';
+  applied.value = { status: '', reference: '' };
   selected.value = null;
   records.value = [];
   composeOpen.value = false;
@@ -165,6 +201,7 @@ async function submit() {
     retry.value = undefined;
     composeOpen.value = false;
     reference.value = status.value = '';
+    applied.value = { status: '', reference: '' };
     await load(1);
   } catch (failure) {
     error.value = readable(failure);
@@ -186,153 +223,120 @@ async function detail(id: string) {
 </script>
 
 <template>
-  <main v-if="!token" class="login">
-    <form class="login-panel" @submit.prevent="signIn">
-      <div class="brand-icon" aria-hidden="true">M</div>
-      <h1>消息模拟平台</h1>
+  <AdminLogin
+    v-if="!token"
+    brand="CommerceFlow 消息"
+    title="登录消息模拟平台"
+    description="输入管理令牌，查看短信和邮件投递记录。"
+  >
+    <form class="sim-auth-form" @submit.prevent="signIn">
       <label>管理令牌<input v-model="tokenInput" type="password" autocomplete="off" required /></label>
-      <p v-if="error" class="error" role="alert">{{ error }}</p>
-      <button class="primary" :disabled="loading">
-        {{ loading ? '正在连接…' : '进入后台' }}
-      </button>
+      <p v-if="error" class="sim-auth-error" role="alert">{{ error }}</p>
+      <button class="sim-button primary" :disabled="loading">{{ loading ? '正在连接…' : '进入后台' }}</button>
     </form>
-  </main>
-  <div v-else class="shell">
-    <aside class="sidebar">
-      <div class="brand">
-        <span class="brand-icon" aria-hidden="true">M</span>
-        <div><strong>CommerceFlow</strong><small>消息模拟平台</small></div>
+  </AdminLogin>
+  <AdminShell
+    v-else
+    title="消息模拟平台"
+    :groups="groups"
+    :active="channel"
+    :busy="sending"
+    :notice="error || notice"
+    @navigate="navigate"
+    @refresh="load()"
+    @logout="logout"
+  >
+    <p v-if="error" class="error" role="alert">{{ error }}</p>
+    <p v-if="notice" class="notice" role="status">{{ notice }}</p>
+    <form v-if="composeOpen" class="panel compose" @submit.prevent="submit">
+      <h2>新建{{ current.label }}投递</h2>
+      <div class="form-grid">
+        <label>模拟收件人<input v-model="recipient" required /></label>
+        <label>业务关联号<input v-model="tracking" maxlength="120" required /></label>
+        <label v-if="channel === 'EMAIL'">主题<input v-model="subject" maxlength="160" required /></label>
+        <label v-if="faultsEnabled">
+          模拟结果
+          <select v-model="fault">
+            <option value="">正常送达</option>
+            <option value="THROTTLE_ONCE">首次限流</option>
+            <option value="TIMEOUT_AFTER_ACCEPT">受理后超时</option>
+            <option value="DELIVERY_FAILED">送达失败</option>
+          </select>
+        </label>
+        <label class="wide"
+          >消息内容<textarea v-model="message" :maxlength="channel === 'SMS' ? 320 : 4000" required></textarea>
+        </label>
       </div>
-      <nav aria-label="消息渠道">
-        <button
-          v-for="item in channels"
-          :key="item.id"
-          type="button"
-          :class="{ active: channel === item.id }"
-          :aria-current="channel === item.id ? 'page' : undefined"
-          :disabled="sending"
-          @click="choose(item.id)"
-        >
-          <span aria-hidden="true">{{ item.symbol }}</span> {{ item.label }}
+      <div class="actions">
+        <button class="primary" :disabled="sending">
+          {{ sending ? '正在提交…' : retry ? '重试原投递' : '提交模拟投递' }}
         </button>
-      </nav>
-    </aside>
-    <main class="workspace">
-      <header class="top">
-        <span>本地模拟环境</span><button type="button" :disabled="sending" @click="logout">退出</button>
-      </header>
-      <div class="page">
-        <header class="heading">
-          <div>
-            <h1>{{ current.label }}投递</h1>
-            <p>共 {{ total }} 条记录</p>
-          </div>
-          <button class="primary" type="button" :disabled="sending" @click="openCompose">新建模拟投递</button>
-        </header>
-        <p v-if="error" class="error" role="alert">{{ error }}</p>
-        <p v-if="notice" class="notice" role="status">{{ notice }}</p>
-        <form v-if="composeOpen" class="panel compose" @submit.prevent="submit">
-          <h2>新建{{ current.label }}投递</h2>
-          <div class="form-grid">
-            <label>模拟收件人<input v-model="recipient" required /></label>
-            <label>业务关联号<input v-model="tracking" maxlength="120" required /></label>
-            <label v-if="channel === 'EMAIL'">主题<input v-model="subject" maxlength="160" required /></label>
-            <label v-if="faultsEnabled">
-              模拟结果
-              <select v-model="fault">
-                <option value="">正常送达</option>
-                <option value="THROTTLE_ONCE">首次限流</option>
-                <option value="TIMEOUT_AFTER_ACCEPT">受理后超时</option>
-                <option value="DELIVERY_FAILED">送达失败</option>
-              </select>
-            </label>
-            <label class="wide"
-              >消息内容<textarea v-model="message" :maxlength="channel === 'SMS' ? 320 : 4000" required></textarea>
-            </label>
-          </div>
-          <div class="actions">
-            <button class="primary" :disabled="sending">
-              {{ sending ? '正在提交…' : retry ? '重试原投递' : '提交模拟投递' }}
-            </button>
-            <button type="button" :disabled="sending" @click="composeOpen = false">关闭</button>
-          </div>
-        </form>
-        <section class="panel ledger" aria-label="投递账本">
-          <form class="filters" @submit.prevent="load(1)">
-            <label>
-              投递状态
-              <select v-model="status">
-                <option value="">全部状态</option>
-                <option v-for="(label, key) in states" :key="key" :value="key">
-                  {{ label }}
-                </option>
-              </select>
-            </label>
-            <label>业务关联号<input v-model="reference" maxlength="120" placeholder="输入完整关联号" /></label>
-            <button type="submit" :disabled="loading">查询</button>
-            <button type="button" :disabled="loading" @click="load()">刷新</button>
-          </form>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>业务关联号</th>
-                  <th>模拟收件人</th>
-                  <th>投递状态</th>
-                  <th>受理时间</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="entry in records" :key="entry.requestId">
-                  <td>{{ entry.reference }}</td>
-                  <td>{{ entry.recipientMask }}</td>
-                  <td>
-                    <span class="state" :class="entry.status.toLowerCase()">{{ states[entry.status] }}</span>
-                  </td>
-                  <td>{{ time(entry.acceptedAt) }}</td>
-                  <td>
-                    <button type="button" class="link" @click="detail(entry.requestId)">详情</button>
-                  </td>
-                </tr>
-                <tr v-if="!records.length">
-                  <td class="empty" colspan="5">
-                    {{ loading ? '正在读取投递…' : '没有符合条件的投递记录' }}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div class="paging">
-            <button type="button" :disabled="loading || page <= 1" @click="load(page - 1)">上一页</button>
-            <span>{{ page }} / {{ pageCount }}</span>
-            <button type="button" :disabled="loading || page >= pageCount" @click="load(page + 1)">下一页</button>
-          </div>
-        </section>
-        <section v-if="selected" class="panel detail" aria-label="投递详情">
-          <header>
-            <h2>投递详情</h2>
-            <button type="button" @click="selected = null">关闭详情</button>
-          </header>
-          <dl>
-            <dt>投递编号</dt>
-            <dd>{{ selected.requestId }}</dd>
-            <dt>供应商单号</dt>
-            <dd>{{ selected.providerId }}</dd>
-            <dt>业务关联号</dt>
-            <dd>{{ selected.reference }}</dd>
-            <dt>模拟收件人</dt>
-            <dd>{{ selected.recipientMask }}</dd>
-            <dt>当前状态</dt>
-            <dd>{{ states[selected.status] }}</dd>
-            <dt>受理时间</dt>
-            <dd>{{ time(selected.acceptedAt) }}</dd>
-            <dt>结果时间</dt>
-            <dd>{{ time(selected.finishedAt) }}</dd>
-          </dl>
-          <button type="button" @click="detail(selected.requestId)">刷新详情</button>
-        </section>
+        <button type="button" :disabled="sending" @click="composeOpen = false">关闭</button>
       </div>
-    </main>
-  </div>
+    </form>
+    <AdminGrid
+      :key="channel"
+      :id="'messaging-' + channel"
+      :title="current.label + '投递列表'"
+      :rows="records"
+      :columns="columns"
+      row-key="requestId"
+      :total="total"
+      :page="page"
+      :loading="loading"
+      fixed-page-size
+      @search="search"
+      @reset="reset"
+      @refresh="load()"
+      @page="load($event)"
+    >
+      <template #filters>
+        <label>业务关联号<input v-model="reference" maxlength="120" placeholder="输入完整关联号" /></label>
+      </template>
+      <template #advancedFilters>
+        <label
+          >投递状态
+          <select v-model="status">
+            <option value="">全部状态</option>
+            <option v-for="(label, key) in states" :key="key" :value="key">{{ label }}</option>
+          </select>
+        </label>
+      </template>
+      <template #actions>
+        <button class="sim-button primary" type="button" :disabled="sending" @click="openCompose">新建模拟投递</button>
+      </template>
+      <template #status="{ row }"
+        ><span class="state" :class="row.status.toLowerCase()">{{
+          states[row.status as keyof typeof states]
+        }}</span></template
+      >
+      <template #acceptedAt="{ row }">{{ time(row.acceptedAt) }}</template>
+      <template #operations="{ row }"
+        ><button type="button" class="sim-text-button" @click="detail(row.requestId)">详情</button></template
+      >
+    </AdminGrid>
+    <section v-if="selected" class="panel detail" aria-label="投递详情">
+      <header>
+        <h2>投递详情</h2>
+        <button type="button" @click="selected = null">关闭详情</button>
+      </header>
+      <dl>
+        <dt>投递编号</dt>
+        <dd>{{ selected.requestId }}</dd>
+        <dt>供应商单号</dt>
+        <dd>{{ selected.providerId }}</dd>
+        <dt>业务关联号</dt>
+        <dd>{{ selected.reference }}</dd>
+        <dt>模拟收件人</dt>
+        <dd>{{ selected.recipientMask }}</dd>
+        <dt>当前状态</dt>
+        <dd>{{ states[selected.status] }}</dd>
+        <dt>受理时间</dt>
+        <dd>{{ time(selected.acceptedAt) }}</dd>
+        <dt>结果时间</dt>
+        <dd>{{ time(selected.finishedAt) }}</dd>
+      </dl>
+      <button type="button" @click="detail(selected.requestId)">刷新详情</button>
+    </section>
+  </AdminShell>
 </template>

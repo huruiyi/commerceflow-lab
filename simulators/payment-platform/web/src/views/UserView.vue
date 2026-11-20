@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
+import type { VxeGridProps } from 'vxe-table';
+import PaymentLedger from '../PaymentLedger.vue';
 import { api, takeStepUpToken } from '../api';
 import type { AdminUser, Merchant } from '../types';
 import { enumLabel, t } from '../i18n';
@@ -63,6 +65,13 @@ async function grantAccess() {
     error.value = e instanceof Error ? e.message : t('authorizationFailed');
   }
 }
+
+const columns = computed<VxeGridProps<AdminUser>['columns']>(() => [
+  { field: 'displayName', title: t('account'), minWidth: 220, slots: { default: 'displayName' } },
+  { field: 'roles', title: t('role'), minWidth: 190, slots: { default: 'roles' } },
+  { field: 'mfaEnabled', title: t('mfa'), width: 160, slots: { default: 'mfaEnabled' } },
+  { field: 'status', title: t('status'), width: 130, slots: { default: 'status' } },
+]);
 </script>
 <template>
   <div class="page-title">
@@ -105,29 +114,30 @@ async function grantAccess() {
           <h3>{{ t('account') }}</h3>
         </div>
       </div>
-      <vxe-table :data="users" border stripe show-overflow height="420">
-        <vxe-column field="displayName" :title="t('account')" min-width="220">
-          <template #default="{ row }"
-            ><b>{{ row.displayName }}</b
-            ><small>{{ row.username }} · {{ row.email }}</small>
-          </template>
-        </vxe-column>
-        <vxe-column field="roles" :title="t('role')" min-width="190">
-          <template #default="{ row }">{{ row.roles.map(enumLabel).join(', ') }}</template>
-        </vxe-column>
-        <vxe-column field="mfaEnabled" :title="t('mfa')" width="160">
-          <template #default="{ row }"
-            >{{ row.mfaEnabled ? t('enabled') : row.mfaRequired ? t('pendingEnrollment') : t('notRequired') }}
-          </template>
-        </vxe-column>
-        <vxe-column field="status" :title="t('status')" width="130">
-          <template #default="{ row }">
-            <a-tag :color="row.accountLocked ? 'error' : 'success'"
-              >{{ enumLabel(row.accountLocked ? 'LOCKED' : row.status) }}
-            </a-tag>
-          </template>
-        </vxe-column>
-      </vxe-table>
+      <PaymentLedger
+        id="payment-user"
+        :title="t('users')"
+        :rows="users"
+        :columns="columns"
+        row-key="id"
+        :search-fields="['username', 'displayName', 'email', 'roles']"
+        status-field="status"
+        @refresh="load"
+      >
+        <template #displayName="{ row }"
+          ><b>{{ row.displayName }}</b
+          ><small>{{ row.username }} · {{ row.email }}</small></template
+        >
+        <template #roles="{ row }">{{ row.roles.map(enumLabel).join(', ') }}</template>
+        <template #mfaEnabled="{ row }">{{
+          row.mfaEnabled ? t('enabled') : row.mfaRequired ? t('pendingEnrollment') : t('notRequired')
+        }}</template>
+        <template #status="{ row }"
+          ><a-tag :color="row.accountLocked ? 'error' : 'success'"
+            >{{ enumLabel(row.accountLocked ? 'LOCKED' : row.status) }}
+          </a-tag></template
+        >
+      </PaymentLedger>
       <form class="grant-form" @submit.prevent="grantAccess">
         <h4>{{ t('assignMerchantScope') }}</h4>
         <select v-model.number="grant.userId" required>

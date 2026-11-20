@@ -241,6 +241,8 @@ services:
     container_name: fairy-commerceflow-messaging-simulator-web
     build:
       context: ./simulators/messaging-platform/web
+      additional_contexts:
+        simulator-admin: ./simulators/admin-ui
     ports:
       - "127.0.0.1:18119:80"
     depends_on:
@@ -297,6 +299,8 @@ services:
     container_name: fairy-commerceflow-warehouse-simulator-web
     build:
       context: ./simulators/warehouse-platform/web
+      additional_contexts:
+        simulator-admin: ./simulators/admin-ui
     ports:
       - "127.0.0.1:18118:80"
     depends_on:
@@ -670,6 +674,8 @@ services:
     container_name: fairy-commerceflow-payment-simulator-web
     build:
       context: ./simulators/payment-platform/web
+      additional_contexts:
+        simulator-admin: ./simulators/admin-ui
     ports:
       - "14201:80"
     depends_on:

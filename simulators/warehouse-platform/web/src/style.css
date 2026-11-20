@@ -1,0 +1,92 @@
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  color: #1d2939;
+  background: #f1f4f8;
+  font:
+    14px/1.5 'Microsoft Yahei',
+    system-ui,
+    sans-serif;
+}
+.warehouse-login {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: 16px;
+}
+.warehouse-login form {
+  width: min(100%, 380px);
+}
+.warehouse-panel {
+  padding: 16px;
+  background: white;
+  border: 1px solid #dce2eb;
+  border-radius: 8px;
+}
+.warehouse-panel h1,
+.warehouse-panel h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.warehouse-panel p {
+  overflow-wrap: anywhere;
+}
+.warehouse-panel label {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0;
+}
+.warehouse-panel input {
+  border: 1px solid #dce2eb;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: inherit;
+}
+.warehouse-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.warehouse-actions h2 {
+  margin-inline-end: auto;
+}
+.warehouse-lines {
+  width: 100%;
+  text-align: left;
+  border-collapse: collapse;
+  margin: 10px 0;
+}
+.warehouse-lines :is(th, td) {
+  border-bottom: 1px solid #e6e9ee;
+  padding: 6px;
+}
+.warehouse-lines input {
+  max-width: 100px;
+}
+.warehouse-error,
+.warehouse-notice {
+  border-radius: 6px;
+  padding: 8px;
+}
+.warehouse-error {
+  background: #fbe9ec;
+  color: #a51d2c;
+}
+.warehouse-notice {
+  background: #e2f5eb;
+  color: #146247;
+}
+.warehouse-status {
+  padding: 2px 7px;
+  color: #0c5197;
+  background: #e4f0ff;
+  border-radius: 10px;
+}
+.warehouse-login .sim-button {
+  color: #fff;
+  background: #0868ce;
+  border-color: #0868ce;
+}

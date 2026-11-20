@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
+import type { VxeGridProps } from 'vxe-table';
+import PaymentLedger from '../PaymentLedger.vue';
 import { api, signedApi } from '../api';
-import { enumLabel, t } from '../i18n';
+import { enumLabel, t, locale, formatDate } from '../i18n';
 import type { Transaction } from '../types';
 
 const transactions = ref<Transaction[]>([]);
@@ -53,133 +55,119 @@ async function close(item: Transaction) {
     error.value = reason instanceof Error ? reason.message : t('closeFailed');
   }
 }
+
+const showCreate = ref(false);
+
+const columns = computed<VxeGridProps<Transaction>['columns']>(() => [
+  {
+    field: 'channelTransactionNo',
+    title: t('channelTransactionNo'),
+    minWidth: 150,
+    slots: { default: 'channelTransactionNo' },
+  },
+  { field: 'merchantRequestNo', title: t('merchantRequestNo'), minWidth: 145 },
+  { field: 'channel', title: t('channel'), width: 88, slots: { default: 'channel' } },
+  { field: 'subject', title: t('subject'), minWidth: 140 },
+  { field: 'amount', title: t('amount'), width: 84, slots: { default: 'amount' } },
+  { field: 'faultScenario', title: t('fault'), width: 104, slots: { default: 'faultScenario' } },
+  { field: 'status', title: t('status'), width: 98, slots: { default: 'status' } },
+  { field: 'createdAt', title: t('time'), minWidth: 140, slots: { default: 'createdAt' } },
+  {
+    field: 'actions',
+    title: locale.value === 'en' ? 'Actions' : '操作',
+    width: 100,
+    fixed: 'right',
+    slots: { default: 'actionsCell' },
+  },
+]);
 </script>
 
 <template>
-  <div class="page-title">
-    <div>
-      <span class="eyebrow">{{ t('signedApiLab') }} · 05A-3</span>
-      <h1>{{ t('transactionTitle') }}</h1>
-      <p>{{ t('transactionDescription') }}</p>
-    </div>
-    <span class="badge success">{{ t('signedRequests') }}</span>
-  </div>
   <a-alert v-if="error" type="error" show-icon :message="error" />
-  <div class="content-grid transaction-layout">
-    <form class="card" @submit.prevent="create">
-      <div class="card-head">
-        <div>
-          <span class="eyebrow">{{ t('merchantSdkSimulator') }}</span>
-          <h3>{{ t('createSignedTransaction') }}</h3>
-        </div>
-        <span class="badge pending">05A-3</span>
+  <form v-if="showCreate" class="card payment-create" @submit.prevent="create">
+    <div class="card-head">
+      <div>
+        <h3>{{ t('createSignedTransaction') }}</h3>
       </div>
-      <label>App ID<input v-model="form.appId" required /></label>
-      <label
-        >{{ t('signingAlgorithm')
-        }}<select v-model="form.algorithm">
-          <option value="HMAC_SHA256">HMAC_SHA256</option>
-          <option value="RSA_SHA256">RSA_SHA256</option>
-        </select></label
-      >
-      <label v-if="form.algorithm === 'HMAC_SHA256'"
-        >{{ t('appSecret') }}<input v-model="form.appSecret" type="password" required autocomplete="off"
-      /></label>
-      <label v-else
-        >{{ t('rsaPrivateKey')
-        }}<textarea v-model="form.privateKey" rows="6" required placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
-      </label>
-      <label>{{ t('merchantRequestNo') }}<input v-model="form.merchantRequestNo" required /></label>
-      <label>{{ t('subject') }}<input v-model="form.subject" required /></label>
-      <div class="form-row">
-        <label
-          >{{ t('channel')
-          }}<select v-model="form.channel">
-            <option value="ALIPAY">{{ enumLabel('ALIPAY') }}</option>
-            <option value="WECHAT_PAY">{{ enumLabel('WECHAT_PAY') }}</option>
-            <option value="UNION_PAY">{{ enumLabel('UNION_PAY') }}</option>
-          </select></label
-        ><label>{{ t('amount') }}<input v-model.number="form.amount" type="number" min="0.01" step="0.01" /></label>
-      </div>
-      <label
-        >{{ t('faultScenario')
-        }}<select v-model="form.faultScenario">
-          <option value="NONE">{{ enumLabel('NONE') }}</option>
-          <option value="CREATE_FAILURE">{{ enumLabel('CREATE_FAILURE') }}</option>
-          <option value="DELAYED_SUCCESS">{{ enumLabel('DELAYED_SUCCESS') }}</option>
-          <option value="NOTIFY_LOST">{{ enumLabel('NOTIFY_LOST') }}</option>
-        </select></label
-      >
-      <a-button type="primary" html-type="submit" block>{{ t('sendSigned') }}</a-button>
-      <p class="muted small">{{ t('signatureHint') }}</p>
-    </form>
-    <article class="card span-2">
-      <div class="card-head">
-        <div>
-          <span class="eyebrow">{{ t('liveLedger') }}</span>
-          <h3>{{ t('channelLedger') }}</h3>
-        </div>
-        <a-button @click="load">{{ t('refresh') }}</a-button>
-      </div>
-      <vxe-table :data="transactions" border stripe show-overflow height="520" :empty-text="t('noLedgerTransactions')">
-        <vxe-column field="channelTransactionNo" :title="t('channelTransactionNo')" width="220">
-          <template #default="{ row }"
-            ><span class="mono">{{ row.channelTransactionNo.slice(0, 18) }}…</span
-            ><small>{{ row.merchantRequestNo }}</small></template
-          >
-        </vxe-column>
-        <vxe-column field="channel" :title="t('channelAndSubject')" min-width="190">
-          <template #default="{ row }"
-            ><b>{{ enumLabel(row.channel) }}</b
-            ><small>{{ row.subject }}</small></template
-          >
-        </vxe-column>
-        <vxe-column field="amount" :title="t('amount')" width="110">
-          <template #default="{ row }">¥{{ row.amount }}</template>
-        </vxe-column>
-        <vxe-column field="faultScenario" :title="t('fault')" width="160">
-          <template #default="{ row }">{{ enumLabel(row.faultScenario) }}</template>
-        </vxe-column>
-        <vxe-column field="status" :title="t('status')" width="130">
-          <template #default="{ row }">
-            <a-tag :color="row.status === 'SUCCESS' ? 'success' : row.status === 'FAILED' ? 'error' : 'processing'"
-              >{{ enumLabel(row.status) }}
-            </a-tag>
-          </template>
-        </vxe-column>
-        <vxe-column width="100" fixed="right">
-          <template #default="{ row }">
-            <a-button v-if="row.status === 'PENDING'" danger type="link" @click="close(row)">{{ t('close') }}</a-button>
-          </template>
-        </vxe-column>
-      </vxe-table>
-    </article>
-  </div>
-  <section class="card" style="margin-top: 18px">
-    <span class="eyebrow">{{ t('securityPipeline') }}</span>
-    <h3>{{ t('verificationOrder') }}</h3>
-    <div class="stat-grid">
-      <div class="stat">
-        <span>01</span><strong>{{ t('timeWindow') }}</strong
-        ><small>{{ t('fiveMinutes') }}</small>
-      </div>
-      <div class="stat">
-        <span>02</span><strong>{{ t('digest') }}</strong
-        ><small>{{ t('detectTampering') }}</small>
-      </div>
-      <div class="stat">
-        <span>03</span><strong>HMAC / RSA</strong><small>{{ t('constantTime') }}</small>
-      </div>
-      <div class="stat">
-        <span>04</span><strong>{{ t('redisNonce') }}</strong
-        ><small>{{ t('atomicTtl') }}</small>
-      </div>
-      <div class="stat">
-        <span>05</span><strong>{{ t('mysqlConstraint') }}</strong
-        ><small>{{ t('finalReplayProtection') }}</small>
-      </div>
+      <button type="button" class="sim-button" @click="showCreate = false">{{ t('close') }}</button>
     </div>
-  </section>
+    <label>App ID<input v-model="form.appId" required /></label>
+    <label
+      >{{ t('signingAlgorithm')
+      }}<select v-model="form.algorithm">
+        <option value="HMAC_SHA256">HMAC_SHA256</option>
+        <option value="RSA_SHA256">RSA_SHA256</option>
+      </select></label
+    >
+    <label v-if="form.algorithm === 'HMAC_SHA256'"
+      >{{ t('appSecret') }}<input v-model="form.appSecret" type="password" required autocomplete="off"
+    /></label>
+    <label v-else
+      >{{ t('rsaPrivateKey')
+      }}<textarea v-model="form.privateKey" rows="6" required placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
+    </label>
+    <label>{{ t('merchantRequestNo') }}<input v-model="form.merchantRequestNo" required /></label>
+    <label>{{ t('subject') }}<input v-model="form.subject" required /></label>
+    <div class="form-row">
+      <label
+        >{{ t('channel')
+        }}<select v-model="form.channel">
+          <option value="ALIPAY">{{ enumLabel('ALIPAY') }}</option>
+          <option value="WECHAT_PAY">{{ enumLabel('WECHAT_PAY') }}</option>
+          <option value="UNION_PAY">{{ enumLabel('UNION_PAY') }}</option>
+        </select></label
+      ><label>{{ t('amount') }}<input v-model.number="form.amount" type="number" min="0.01" step="0.01" /></label>
+    </div>
+    <label
+      >{{ t('faultScenario')
+      }}<select v-model="form.faultScenario">
+        <option value="NONE">{{ enumLabel('NONE') }}</option>
+        <option value="CREATE_FAILURE">{{ enumLabel('CREATE_FAILURE') }}</option>
+        <option value="DELAYED_SUCCESS">{{ enumLabel('DELAYED_SUCCESS') }}</option>
+        <option value="NOTIFY_LOST">{{ enumLabel('NOTIFY_LOST') }}</option>
+      </select></label
+    >
+    <a-button type="primary" html-type="submit" block>{{ t('sendSigned') }}</a-button>
+    <p class="muted small">{{ t('signatureHint') }}</p>
+  </form>
+  <PaymentLedger
+    id="payment-transaction"
+    :title="t('channelLedger')"
+    :rows="transactions"
+    :columns="columns"
+    row-key="channelTransactionNo"
+    :search-fields="['channelTransactionNo', 'merchantRequestNo', 'subject', 'channel']"
+    status-field="status"
+    :empty-text="t('noLedgerTransactions')"
+    @refresh="load"
+  >
+    <template #actions
+      ><button type="button" class="sim-button primary" @click="showCreate = !showCreate">
+        {{ t('createSignedTransaction') }}
+      </button></template
+    >
+    <template #channelTransactionNo="{ row }">
+      <span class="sim-cell mono" :title="row.channelTransactionNo">{{ row.channelTransactionNo }}</span>
+    </template>
+    <template #channel="{ row }">{{ enumLabel(row.channel) }}</template>
+    <template #amount="{ row }"
+      ><span class="sim-amount">¥{{ Number(row.amount).toFixed(2) }}</span></template
+    >
+    <template #createdAt="{ row }"
+      ><span class="sim-cell" :title="formatDate(row.createdAt)">{{ formatDate(row.createdAt) }}</span></template
+    >
+    <template #faultScenario="{ row }">{{ enumLabel(row.faultScenario) }}</template>
+    <template #status="{ row }"
+      ><a-tag :color="row.status === 'SUCCESS' ? 'success' : row.status === 'FAILED' ? 'error' : 'processing'"
+        >{{ enumLabel(row.status) }}
+      </a-tag></template
+    >
+    <template #actionsCell="{ row }"
+      ><a-button v-if="row.status === 'PENDING'" danger type="link" @click="close(row)">{{
+        t('close')
+      }}</a-button></template
+    >
+  </PaymentLedger>
   <div v-if="result" class="result-drawer">
     <div>
       <span class="eyebrow">{{ t('verifiedResponse') }}</span>

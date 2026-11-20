@@ -1,0 +1,1546 @@
+@import "./vben-tokens.css";
+@import "./vben-dark-tokens.css";
+@import "./vben-layout-utilities.css";
+
+.sim-admin,
+.sim-grid {
+  --sim-accent: #0868ce;
+  --sim-accent-soft: #e4f0ff;
+  --sim-ink: #1d2939;
+  --sim-muted: #536379;
+  --sim-border: #dce2eb;
+  --sim-background: #f1f4f8;
+  --vxe-ui-font-primary-color: var(--sim-accent);
+  --vxe-ui-table-header-background-color: #f4f6f9;
+  color: var(--sim-ink);
+}
+
+.sim-admin {
+  --sim-sidebar-width: 226px;
+  display: grid;
+  grid-template-columns: var(--sim-sidebar-width) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  height: 100dvh;
+  background: var(--sim-background);
+}
+.sim-admin.sim-nav-hidden {
+  grid-template-columns: minmax(0, 1fr);
+}
+.sim-sidebar {
+  background: white;
+  border-right: 1px solid var(--sim-border);
+  padding: 0 8px;
+}
+.sim-sidebar-controls {
+  /* Vben LayoutSidebar collapseHeight. */
+  flex: 0 0 42px;
+}
+.sim-sidebar-controls button {
+  border: 0;
+}
+@media (width > 520px) {
+  .sim-admin.sim-nav-rail:not(.sim-nav-hidden) {
+    grid-template-columns: 60px minmax(0, 1fr);
+  }
+  .sim-sidebar-overlay {
+    width: var(--sim-sidebar-width);
+    z-index: 20;
+  }
+  .sim-sidebar-collapsed :is(.sim-brand, .sim-menu-heading, .sim-menu-link) {
+    justify-content: center;
+    padding-inline: 0;
+  }
+  .sim-sidebar-collapsed
+    :is(
+      .sim-brand strong,
+      .sim-menu-heading span,
+      .sim-caret,
+      .sim-menu-items
+    ) {
+    display: none;
+  }
+}
+.sim-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 65px;
+  padding: 0 6px;
+  font-size: 16px;
+}
+.sim-brand strong {
+  font-size: 15px;
+}
+
+.sim-brand span {
+  display: grid;
+  place-items: center;
+  height: 32px;
+  width: 32px;
+  border-radius: 8px;
+  color: white;
+  background: #1268bb;
+}
+.sim-menu-group {
+  margin-bottom: 8px;
+}
+.sim-menu-heading,
+.sim-menu-link {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 6px;
+  text-align: start;
+  background: none;
+  color: var(--sim-ink);
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.sim-menu-heading {
+  font-weight: 650;
+}
+.sim-menu-link {
+  padding-inline-start: 26px;
+}
+.sim-menu-link:hover,
+.sim-menu-heading:hover,
+.sim-icon:hover {
+  background: #f0f5fb;
+}
+.sim-menu-link[aria-current="page"] {
+  background: var(--sim-accent-soft);
+  color: var(--sim-accent);
+  font-weight: 650;
+}
+.sim-caret {
+  margin-inline-start: auto;
+  color: var(--sim-muted);
+}
+.sim-workspace {
+  min-width: 0;
+}
+.sim-topbar,
+.sim-tabs {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  min-width: 0;
+  background: white;
+  border-bottom: 1px solid var(--sim-border);
+}
+.sim-topbar {
+  min-height: 56px;
+  padding: 0 18px;
+  gap: 14px;
+}
+.sim-icon,
+.sim-text-button,
+.sim-tab button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.sim-icon {
+  height: 32px;
+  width: 32px;
+  border-radius: 6px;
+}
+.sim-breadcrumb,
+.sim-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sim-breadcrumb {
+  color: var(--sim-muted);
+}
+.sim-breadcrumb strong {
+  color: var(--sim-ink);
+}
+.sim-top-actions {
+  margin-inline-start: auto;
+}
+.sim-tabs {
+  padding: 4px 14px 0;
+  gap: 4px;
+  overflow-x: auto;
+}
+.sim-tab {
+  display: flex;
+  border-radius: 6px 6px 0 0;
+  white-space: nowrap;
+}
+.sim-tab button {
+  padding: 8px 10px;
+}
+.sim-tab.active {
+  background: var(--sim-accent-soft);
+  color: var(--sim-accent);
+}
+.sim-content {
+  min-width: 0;
+}
+.sim-grid {
+  min-width: 0;
+}
+.sim-search {
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid var(--sim-border);
+}
+.sim-grid-title {
+  font-size: 17px;
+  line-height: 1.3;
+  margin: 0 12px 0 2px;
+}
+.sim-search {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+.sim-search label {
+  display: flex;
+  flex: 1 1 150px;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.sim-search input,
+.sim-search select {
+  width: 100%;
+  min-height: 34px;
+  margin: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--sim-border);
+  border-radius: 6px;
+  background: white;
+  color: var(--sim-ink);
+  font: inherit;
+}
+.sim-search-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-inline-start: auto;
+}
+.sim-button {
+  border: 1px solid var(--sim-border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  color: var(--sim-ink);
+  background: white;
+  cursor: pointer;
+  font: inherit;
+}
+.sim-button.primary {
+  background: var(--sim-accent);
+  border-color: var(--sim-accent);
+  color: white;
+}
+.sim-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.sim-text-button {
+  color: var(--sim-accent);
+}
+.sim-admin :focus-visible,
+.sim-grid :focus-visible {
+  outline: 2px solid var(--sim-accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .sim-content {
+    padding: 8px;
+  }
+  .sim-topbar {
+    gap: 4px;
+    padding: 0 8px;
+  }
+  .sim-breadcrumb span {
+    display: none;
+  }
+  .sim-grid .vxe-pager {
+    height: auto;
+    min-height: 42px;
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .sim-admin {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .sim-sidebar-controls {
+    display: none;
+  }
+  .sim-sidebar {
+    max-height: 45dvh;
+    border-right: 0;
+    border-bottom: 1px solid var(--sim-border);
+    padding-bottom: 2px;
+  }
+  .sim-workspace {
+    grid-row: 2;
+  }
+  .sim-brand {
+    min-height: 44px;
+  }
+  .sim-menu-items {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .sim-menu-link {
+    width: auto;
+    padding-inline: 10px;
+  }
+  .sim-top-actions {
+    gap: 4px;
+  }
+}
+
+/* Shell spacing and typography follow the local Vben Admin design tokens. */
+.sim-admin {
+  --sim-font:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, "Noto Sans", "Microsoft YaHei", sans-serif;
+  --sim-surface: #fff;
+  --sim-hover: #f2f3f5;
+  --sim-accent: #006be6;
+  --sim-accent-soft: #d7e8fc;
+  --sim-background: #f0f2f5;
+  --sim-border: #e0e2e6;
+  font: 14px/1.45 var(--sim-font);
+}
+
+.sim-grid {
+  --sim-accent: inherit;
+  --sim-accent-soft: inherit;
+  --sim-background: inherit;
+  --sim-surface: inherit;
+  --sim-border: inherit;
+  --sim-ink: inherit;
+  --sim-muted: inherit;
+  --vxe-ui-font-family: var(--sim-font);
+  --vxe-ui-font-size-small: 13px;
+  --vxe-ui-table-border-color: hsl(var(--border));
+}
+.sim-sidebar,
+.sim-topbar,
+.sim-tabs,
+.sim-search,
+.sim-button {
+  background: var(--sim-surface);
+}
+.sim-brand {
+  min-height: 54px;
+  gap: 10px;
+}
+.sim-brand span {
+  flex: none;
+  width: 29px;
+  height: 29px;
+  background: #0874d8;
+}
+.sim-brand strong {
+  font-size: 17px;
+  font-weight: 630;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sim-menu-heading,
+.sim-menu-link {
+  min-height: 40px;
+  padding-block: 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.sim-menu-link {
+  padding-inline-start: 29px;
+}
+.sim-menu-heading.sim-menu-active {
+  color: var(--sim-accent);
+}
+.sim-menu-link[aria-current="page"] {
+  font-weight: 550;
+}
+.sim-menu-heading:hover,
+.sim-menu-link:hover,
+.sim-icon:hover,
+.sim-avatar:hover,
+.sim-command-results button:hover {
+  background: var(--sim-hover);
+}
+.sim-topbar svg,
+.sim-sidebar nav svg,
+.sim-tabs svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  stroke-width: 1.8;
+  vertical-align: middle;
+}
+.sim-admin svg.sim-caret,
+.sim-admin svg.sim-breadcrumb-divider {
+  width: 13px;
+  height: 13px;
+}
+.sim-topbar {
+  min-height: 49px;
+  padding-inline: 12px 16px;
+  gap: 10px;
+}
+.sim-topbar .sim-icon {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  min-width: 34px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+}
+.sim-breadcrumb {
+  min-width: 0;
+  gap: 7px;
+  white-space: nowrap;
+}
+.sim-breadcrumb > span,
+.sim-breadcrumb > strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.sim-breadcrumb > span {
+  color: var(--sim-accent);
+}
+.sim-breadcrumb strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 550;
+}
+.sim-top-actions {
+  position: relative;
+  flex: none;
+  gap: 3px;
+}
+.sim-top-actions button:disabled,
+.sim-tab button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.sim-global-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  margin-inline-end: 10px;
+  border-radius: 18px;
+  padding: 5px 8px;
+  color: var(--sim-muted);
+  background: var(--sim-hover);
+  font: inherit;
+  cursor: pointer;
+}
+.sim-global-search kbd {
+  border-radius: 5px;
+  background: var(--sim-surface);
+  font: inherit;
+  padding: 1px 5px;
+}
+.sim-avatar {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--sim-border);
+  border-radius: 50%;
+  height: 32px;
+  width: 32px;
+  margin-inline-start: 6px;
+  padding: 0;
+  background: var(--sim-accent-soft);
+  color: var(--sim-accent);
+  cursor: pointer;
+  font: 650 14px/1 var(--sim-font);
+}
+.sim-notice-dot {
+  position: absolute;
+  top: 6px;
+  right: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sim-accent);
+}
+.sim-header-panel,
+.sim-command-dialog {
+  color: var(--sim-ink);
+  background: var(--sim-surface);
+  border: 1px solid var(--sim-border);
+  border-radius: 9px;
+  box-shadow: 0 10px 30px #11182726;
+}
+.sim-header-panel {
+  position: absolute;
+  z-index: 2200;
+  top: calc(100% + 7px);
+  right: 0;
+  width: 240px;
+  padding: 10px 12px;
+}
+.sim-header-panel header,
+.sim-header-panel label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sim-header-panel header {
+  justify-content: space-between;
+}
+.sim-header-panel label {
+  margin: 8px 0;
+}
+.sim-header-panel input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  min-height: 0;
+}
+.sim-header-panel p {
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+.sim-command-dialog {
+  width: min(600px, calc(100% - 24px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  margin-block-start: min(12dvh, 120px);
+  border-radius: calc(var(--radius) + 4px);
+}
+.sim-command-dialog::backdrop {
+  background: hsl(var(--overlay));
+}
+.sim-command-input {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 52px;
+  border-bottom: 1px solid var(--sim-border);
+  padding: 7px 14px 7px 20px;
+  color: var(--sim-muted);
+}
+.sim-command-input input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 0;
+  border: 0;
+  outline: none;
+  color: var(--sim-ink);
+  background: transparent;
+  font: inherit;
+}
+.sim-admin .sim-command-input input:focus-visible {
+  outline: none;
+}
+.sim-command-input input::placeholder {
+  color: var(--sim-muted);
+}
+.sim-command-results {
+  min-height: 160px;
+  max-height: min(45dvh, 450px);
+  overflow: auto;
+  padding: 8px;
+}
+.sim-command-results ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sim-command-empty {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 42px 8px;
+  margin: 0;
+  text-align: center;
+  color: var(--sim-muted);
+  font-size: 12px;
+}
+.sim-topbar .sim-command-empty svg {
+  width: 32px;
+  height: 32px;
+}
+.sim-command-history {
+  margin: 0 5px 8px;
+  color: var(--sim-muted);
+  font-size: 12px;
+}
+.sim-command-option {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  border-radius: var(--radius);
+  color: var(--sim-ink);
+  background: var(--sim-hover);
+}
+.sim-command-option.active {
+  color: hsl(var(--primary-foreground));
+  background: var(--sim-accent);
+}
+.sim-command-option button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.sim-command-option button[role="option"] {
+  flex: 1;
+  padding: 12px;
+}
+.sim-command-option .sim-command-remove {
+  flex: none;
+  padding: 6px;
+  margin-inline-end: 6px;
+}
+.sim-command-option button:hover {
+  background: transparent;
+}
+.sim-command-footer {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-top: 1px solid var(--sim-border);
+  min-height: 33px;
+  padding: 5px 9px;
+  font-size: 12px;
+}
+.sim-command-footer span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.sim-topbar .sim-command-footer svg {
+  width: 12px;
+  height: 12px;
+}
+.sim-command-footer kbd {
+  font-size: 10px;
+}
+
+.sim-tabs {
+  min-height: 38px;
+  gap: 3px;
+  padding: 3px 12px 0;
+}
+.sim-tab {
+  align-items: stretch;
+}
+.sim-tab button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+}
+.sim-tab button.sim-tab-close {
+  padding-inline: 0 7px;
+}
+.sim-tab button.sim-tab-close svg {
+  width: 13px;
+  height: 13px;
+}
+.sim-search {
+  align-items: center;
+}
+.sim-search label {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.sim-search input,
+.sim-search select {
+  flex: 1;
+  min-width: 0;
+  background: var(--sim-surface);
+}
+.sim-search-actions {
+  white-space: nowrap;
+}
+.sim-grid-title {
+  font-weight: 650;
+}
+.sim-compact .sim-content {
+  padding: 8px;
+}
+.sim-compact .sim-search,
+.sim-compact .sim-menu-heading,
+.sim-compact .sim-menu-link {
+  padding-block: 5px;
+}
+.sim-compact .vxe-body--column .vxe-cell {
+  padding-block: 2px;
+}
+
+.sim-admin.sim-dark {
+  --sim-accent: #6aabff;
+  --sim-accent-soft: #233d62;
+  --sim-ink: #e2e8f0;
+  --sim-muted: #b4c2d3;
+  --sim-border: #364254;
+  --sim-background: #161e2a;
+  --sim-surface: #212c3c;
+  --sim-hover: #2a384b;
+  --vxe-ui-table-header-background-color: #2a384b;
+  --line: var(--sim-border);
+  --ink: var(--sim-ink);
+  --muted: var(--sim-muted);
+  color-scheme: dark;
+}
+.sim-dark .sim-grid {
+  --vxe-ui-table-header-background-color: #2a384b;
+}
+.sim-dark .sim-button.primary {
+  background: #1266c3;
+  border-color: #1266c3;
+}
+.sim-dark
+  :is(
+    .panel,
+    .warehouse-panel,
+    .card,
+    .modal,
+    .result-drawer,
+    .compose input,
+    .compose select,
+    .compose textarea,
+    .warehouse-panel input,
+    .payment-create input,
+    .payment-create select,
+    .payment-create textarea
+  ) {
+  background: var(--sim-surface);
+  color: var(--sim-ink);
+}
+
+@media (max-width: 960px) {
+  .sim-breadcrumb > span,
+  .sim-breadcrumb-divider {
+    display: none !important;
+  }
+  .sim-global-search span,
+  .sim-global-search kbd {
+    display: none;
+  }
+  .sim-global-search {
+    margin: 0;
+  }
+}
+@media (max-width: 760px) {
+  .sim-admin {
+    --sim-sidebar-width: 155px;
+  }
+  .sim-topbar {
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 3px 6px;
+  }
+  .sim-content {
+    padding: 8px;
+  }
+  .sim-search label {
+    flex-direction: column;
+    align-items: start;
+    gap: 4px;
+    white-space: normal;
+  }
+  .sim-search label :is(input, select) {
+    min-height: 34px;
+  }
+}
+@media (max-width: 520px) {
+  .sim-admin {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sim-avatar {
+    margin-inline-start: 2px;
+  }
+}
+
+/* Authentication panel and decorative backdrop follow the Vben split layout. */
+.sim-auth {
+  --sim-surface: #fff;
+  --sim-ink: #172033;
+  --sim-muted: #5c6879;
+  --sim-border: #dce1e8;
+  --sim-accent: #006be6;
+  --sim-auth-art: #f0f3ff;
+  --sim-auth-glow: #dce8ff;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  min-height: 100dvh;
+  background: var(--sim-surface);
+  color: var(--sim-ink);
+  font:
+    14px/1.5 -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    "Microsoft YaHei",
+    sans-serif;
+}
+.sim-auth-dark {
+  --sim-surface: #192230;
+  --sim-ink: #e8edf4;
+  --sim-muted: #b5c1d1;
+  --sim-border: #3a465a;
+  --sim-auth-art: #11192a;
+  --sim-auth-glow: #233b63;
+  color-scheme: dark;
+}
+.sim-auth-header {
+  position: absolute;
+  inset: 0 18px auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 1;
+}
+.sim-auth-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sim-auth-tools .sim-icon {
+  display: grid;
+  place-items: center;
+}
+.sim-auth-tools svg {
+  width: 18px;
+}
+.sim-auth-tools .sim-icon:hover {
+  background: var(--sim-auth-art);
+}
+.sim-auth-art {
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(ellipse at 48% 48%, var(--sim-auth-glow), transparent 55%),
+    var(--sim-auth-art);
+}
+.sim-auth-illustration {
+  width: min(70%, 400px);
+  height: min(52vh, 395px);
+  z-index: 1;
+}
+.sim-auth-main {
+  display: grid;
+  place-items: center;
+  padding: 70px 24px 40px;
+}
+.sim-auth-body {
+  width: min(100%, 390px);
+}
+.sim-auth-body h1 {
+  font-size: 28px;
+  line-height: 1.25;
+  font-weight: 650;
+  margin: 0 0 8px;
+}
+.sim-auth-description {
+  color: var(--sim-muted);
+  margin: 0 0 24px;
+}
+.sim-auth-form {
+  display: grid;
+  gap: 14px;
+}
+.sim-auth-form label {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  font-weight: 550;
+}
+.sim-auth-form input {
+  width: 100%;
+  height: 39px;
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--sim-border);
+  border-radius: 6px;
+  background: var(--sim-surface);
+  color: var(--sim-ink);
+  font: inherit;
+}
+.sim-auth :focus-visible {
+  outline: 2px solid var(--sim-accent);
+  outline-offset: 2px;
+}
+.sim-auth-form > .primary {
+  min-height: 39px;
+}
+.sim-auth-demo {
+  display: grid;
+  gap: 8px;
+  padding-top: 4px;
+  color: var(--sim-muted);
+}
+.sim-auth-demo > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.sim-auth-error {
+  margin: 0;
+  padding: 8px;
+  border-radius: 6px;
+  background: #fbe9ec;
+  color: #9f2338;
+}
+
+.sim-search-fields,
+.sim-search-advanced {
+  display: flex;
+  flex: 1 1 240px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.sim-search-fields label {
+  min-width: 160px;
+}
+.sim-grid .vxe-toolbar {
+  padding: 6px 0;
+  min-height: 43px;
+}
+.sim-grid .vxe-tool--prefix-wrapper {
+  display: flex;
+  gap: 6px;
+  margin-right: 6px;
+}
+.sim-grid .vxe-pager--wrapper {
+  display: flex;
+  align-items: center;
+  padding: 0 3px;
+}
+.sim-grid .vxe-pager--total {
+  margin-inline-end: auto;
+}
+.sim-grid .vxe-pager--total:has(+ .vxe-pager--sizes) {
+  margin-inline-end: 0;
+}
+.sim-grid .vxe-pager--sizes {
+  margin-inline-end: auto;
+}
+.sim-cell {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sim-amount {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .sim-auth {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sim-auth-art {
+    display: none;
+  }
+  .sim-search-advanced {
+    flex-basis: 100%;
+  }
+  .sim-grid .vxe-pager--wrapper {
+    min-width: max-content;
+  }
+}
+
+.sim-admin,
+.sim-auth {
+  --sim-font: var(--font-family);
+  --sim-accent: hsl(var(--primary));
+  --sim-accent-soft: hsl(var(--primary) / 16%);
+  --sim-ink: hsl(var(--foreground));
+  --sim-muted: hsl(var(--muted-foreground));
+  --sim-border: hsl(var(--border));
+  --sim-background: hsl(var(--background-deep));
+  --sim-surface: hsl(var(--background));
+  --sim-hover: hsl(var(--accent));
+  font-family: var(--font-family);
+}
+.sim-auth-art {
+  position: relative;
+  overflow: hidden;
+  background: hsl(var(--background-deep));
+}
+.sim-auth-art::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    154deg,
+    #07070915 30%,
+    hsl(var(--primary) / 30%) 48%,
+    #07070915 64%
+  );
+  filter: blur(100px);
+}
+.sim-auth-dark .sim-auth-art {
+  background: #070709;
+}
+.sim-auth-dark .sim-auth-art::before {
+  opacity: 0.67;
+}
+.sim-auth-tools {
+  border-radius: 999px;
+  background: hsl(var(--accent));
+  padding: 3px 8px;
+}
+.sim-topbar .sim-icon {
+  border-radius: 50%;
+}
+.sim-topbar svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2;
+}
+.sim-topbar .sim-top-actions {
+  gap: 3px;
+}
+.sim-global-search {
+  padding-inline: 8px 6px;
+  margin-inline-end: 8px;
+}
+.sim-topbar .sim-global-search svg {
+  color: hsl(var(--muted-foreground));
+}
+.sim-tabs {
+  height: 38px;
+}
+.sim-tabbar {
+  display: flex;
+  flex: 0 0 38px;
+  min-width: 0;
+  background: var(--sim-surface);
+  border-bottom: 1px solid var(--sim-border);
+}
+.sim-tabbar .sim-tabs {
+  flex: 1;
+  height: 100%;
+  border-bottom: 0;
+}
+.sim-tab-tool {
+  border-style: solid;
+  border-width: 0 0 0 1px;
+  background: transparent;
+}
+.sim-tab-tool:disabled,
+.sim-tab-menu button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.sim-header-panel.sim-tab-menu {
+  top: 100%;
+  width: 190px;
+  max-height: calc(100dvh - 96px);
+  overflow-y: auto;
+  padding: 4px;
+}
+.sim-header-panel.sim-tab-context-menu {
+  position: fixed;
+  right: auto;
+  max-height: calc(100dvh - 8px);
+}
+.sim-tab-menu-divider {
+  margin: 4px -4px;
+  border: 0;
+  border-top: 1px solid var(--sim-border);
+}
+
+.sim-admin.sim-dark,
+.sim-auth.sim-auth-dark {
+  --sim-accent: hsl(var(--primary));
+  --sim-accent-soft: hsl(var(--primary) / 18%);
+  --sim-ink: hsl(var(--foreground));
+  --sim-muted: hsl(var(--muted-foreground));
+  --sim-border: hsl(var(--border));
+  --sim-background: hsl(var(--background-deep));
+  --sim-surface: hsl(var(--background));
+  --sim-hover: hsl(var(--accent));
+}
+.sim-grid .vxe-body--column .vxe-cell--label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sim-admin,
+.sim-admin.sim-dark {
+  --sim-accent: var(--sim-theme-color, hsl(var(--primary)));
+  --sim-accent-soft: color-mix(
+    in srgb,
+    var(--sim-accent) 16%,
+    var(--sim-surface)
+  );
+  font-size: var(--sim-density-font, 14px);
+}
+.sim-admin .sim-menu-heading,
+.sim-admin .sim-menu-link {
+  font-size: inherit;
+}
+.sim-admin .sim-grid {
+  --vxe-ui-font-size-small: calc(var(--sim-density-font, 14px) - 1px);
+}
+.sim-grid .sim-search,
+.sim-button,
+.sim-menu-link {
+  border-radius: var(--radius);
+}
+.sim-sidebar.dark,
+.sim-topbar.dark {
+  --sim-surface: hsl(var(--background));
+  --sim-ink: hsl(var(--foreground));
+  --sim-hover: hsl(var(--accent));
+  --sim-muted: hsl(var(--muted-foreground));
+  --sim-border: hsl(var(--border));
+  color: var(--sim-ink);
+  background: var(--sim-surface);
+}
+.sim-preferences {
+  position: fixed;
+  inset: 0 0 0 auto;
+  margin: 0;
+  padding: 0;
+  width: min(385px, 100vw);
+  max-width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  color: var(--sim-ink);
+  background: var(--sim-surface);
+  border: 0;
+  border-left: 1px solid var(--sim-border);
+  box-shadow: -10px 0 34px #141b2929;
+}
+.sim-preferences[open] {
+  display: flex;
+  flex-direction: column;
+}
+.sim-preferences::backdrop {
+  background: hsl(var(--overlay));
+}
+.sim-preferences-header,
+.sim-preferences footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+}
+.sim-preferences-header {
+  min-height: 55px;
+  border-bottom: 1px solid var(--sim-border);
+}
+.sim-preferences-header div {
+  flex: 1;
+}
+.sim-preferences-header small {
+  display: block;
+  color: var(--sim-muted);
+  font-size: 11px;
+}
+.sim-preferences svg {
+  width: 17px;
+  height: 17px;
+  vertical-align: middle;
+}
+.sim-preferences-body {
+  flex: 1;
+  overflow: auto;
+  padding: 10px 12px 18px;
+}
+.sim-preferences nav {
+  display: flex;
+  gap: 2px;
+  background: var(--sim-hover);
+  padding: 4px;
+  border-radius: var(--radius);
+}
+.sim-preferences button {
+  font: inherit;
+}
+.sim-preferences nav button {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  border-radius: var(--radius);
+  padding: 6px 3px;
+  background: transparent;
+  color: var(--sim-muted);
+  cursor: pointer;
+}
+.sim-preferences nav button[aria-pressed="true"] {
+  color: var(--sim-accent);
+  background: var(--sim-surface);
+  font-weight: 600;
+}
+.sim-preferences h3 {
+  margin: 20px 0 8px;
+  font-size: 15px;
+}
+.sim-preferences-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 9px 12px;
+  margin-bottom: 12px;
+}
+.sim-preferences-tiles button {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  text-align: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--sim-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.sim-preferences-tiles button > span {
+  display: grid;
+  place-items: center;
+  height: 44px;
+  border: 1px solid var(--sim-border);
+  border-radius: var(--radius);
+  color: var(--sim-ink);
+}
+.sim-preferences-tiles button[aria-pressed="true"] > span {
+  border-color: var(--sim-accent);
+  box-shadow: inset 0 0 0 1px var(--sim-accent);
+}
+.sim-preferences-tiles i {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+}
+.sim-preferences .sim-setting {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 44px;
+}
+.sim-setting input[role="switch"] {
+  appearance: none;
+  width: 32px;
+  min-height: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: hsl(var(--border));
+  cursor: pointer;
+  background-image: radial-gradient(
+    circle at 9px 9px,
+    #fff 0 6px,
+    transparent 7px
+  );
+}
+.sim-setting input[role="switch"]:checked {
+  background-color: var(--sim-accent);
+  background-position: 14px 0;
+  background-repeat: no-repeat;
+}
+.sim-preferences-radius {
+  display: flex;
+  gap: 6px;
+}
+.sim-preferences-radius button {
+  flex: 1;
+  border: 1px solid var(--sim-border);
+  padding: 4px;
+  background: var(--sim-surface);
+  color: var(--sim-ink);
+  cursor: pointer;
+}
+.sim-preferences-radius button[aria-pressed="true"] {
+  color: #fff;
+  background: var(--sim-accent);
+}
+.sim-preferences footer {
+  border-top: 1px solid var(--sim-border);
+  justify-content: space-between;
+}
+.sim-preferences footer svg {
+  margin-inline-end: 4px;
+}
+.sim-topbar .sim-clock-globe {
+  position: absolute;
+  right: 6px;
+  bottom: 7px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--sim-surface);
+  box-shadow: 0 0 0 1px var(--sim-surface);
+}
+.sim-avatar {
+  position: relative;
+}
+.sim-avatar-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid var(--sim-surface);
+  background: #4ac779;
+}
+.sim-header-language {
+  width: 132px;
+  padding: 4px;
+}
+.sim-header-timezone {
+  width: 230px;
+}
+.sim-header-timezone label {
+  display: grid;
+  margin-block: 8px;
+}
+.sim-header-timezone select,
+.sim-preferences select {
+  min-width: 0;
+  border: 1px solid var(--sim-border);
+  border-radius: var(--radius);
+  padding: 5px;
+  color: var(--sim-ink);
+  background: var(--sim-surface);
+}
+.sim-header-notifications {
+  width: min(360px, calc(100vw - 24px));
+  padding: 0;
+}
+.sim-header-notifications header,
+.sim-header-notifications footer {
+  display: flex;
+  padding: 10px 14px;
+}
+.sim-header-notifications header {
+  border-bottom: 1px solid var(--sim-border);
+}
+.sim-header-notifications footer {
+  border-top: 1px solid var(--sim-border);
+}
+.sim-header-notifications .sim-notifications-empty {
+  margin: 0;
+  padding: 32px 12px;
+  text-align: center;
+  color: var(--sim-muted);
+}
+.sim-notification-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 360px;
+  overflow: auto;
+}
+.sim-notification-list li {
+  display: flex;
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border-bottom: 1px solid var(--sim-border);
+}
+.sim-notification-list li:last-child {
+  border: 0;
+}
+.sim-notification-list p {
+  margin: 4px 0;
+}
+.sim-notification-list small,
+.sim-account-identity small {
+  color: var(--sim-muted);
+}
+.sim-notification-list .sim-icon {
+  margin-inline-start: auto;
+}
+.sim-notification-icon {
+  display: grid;
+  place-items: center;
+  min-width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--sim-accent-soft);
+  color: var(--sim-accent);
+}
+.sim-header-account {
+  padding: 4px;
+}
+.sim-account-identity {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 6px 12px;
+  border-bottom: 1px solid var(--sim-border);
+}
+.sim-account-identity small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.sim-account-photo {
+  flex: none;
+  width: 40px;
+  height: 40px;
+}
+.sim-menu-action {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 9px;
+  padding: 8px;
+  border: 0;
+  border-radius: var(--radius);
+  color: var(--sim-ink);
+  background: transparent;
+  cursor: pointer;
+  text-align: start;
+  font: inherit;
+}
+.sim-menu-action:hover,
+.sim-menu-action[aria-pressed="true"] {
+  background: var(--sim-hover);
+}
+.sim-choice-dot {
+  min-width: 10px;
+  font-size: 8px;
+}
+
+.sim-preferences-header strong,
+.sim-preferences h3 {
+  font-weight: 650;
+}
+@media (max-width: 520px) {
+  .sim-topbar .sim-top-actions {
+    gap: 0;
+    max-width: 100%;
+  }
+  .sim-topbar .sim-top-actions .sim-icon {
+    width: 29px;
+    min-width: 29px;
+  }
+  .sim-topbar .sim-global-search {
+    margin-inline-end: 2px;
+  }
+  .sim-topbar .sim-avatar {
+    margin-inline-start: 2px;
+  }
+  .sim-header-timezone {
+    max-width: min(230px, calc(100vw - 160px));
+  }
+}
+
+.sim-timezone-dialog {
+  inset: 10vh 0 auto;
+  width: min(520px, calc(100vw - 20px));
+  max-height: min(80dvh, calc(100dvh - 20px));
+  margin: 0 auto;
+  padding: 0;
+  border: 1px solid var(--sim-border);
+  border-radius: var(--radius);
+  color: var(--sim-ink);
+  background: var(--sim-surface);
+  box-shadow: 0 12px 32px #11182726;
+}
+.sim-timezone-dialog::backdrop {
+  background: hsl(var(--overlay));
+}
+.sim-timezone-dialog header,
+.sim-timezone-dialog footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+}
+.sim-timezone-dialog header {
+  justify-content: space-between;
+  border-bottom: 1px solid var(--sim-border);
+  padding: 16px 20px;
+}
+.sim-timezone-dialog header h2 {
+  font: 650 16px/1.4 var(--sim-font);
+  margin: 0;
+}
+.sim-timezone-dialog fieldset {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-height: 160px;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 12px 12px 12px 32px;
+}
+.sim-timezone-dialog fieldset label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font: inherit;
+  cursor: pointer;
+}
+.sim-timezone-dialog input[type="radio"] {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--sim-accent);
+}
+.sim-timezone-dialog footer {
+  justify-content: flex-end;
+  border-top: 1px solid var(--sim-border);
+  padding: 8px;
+}
+.sim-timezone-dialog footer button {
+  min-width: 64px;
+}
+
+@media (width < 768px) {
+  .sim-grid .vxe-pager--wrapper {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 520px) {
+  .sim-search-fields label {
+    flex-basis: 120px;
+    min-width: 0;
+  }
+  .sim-search-advanced {
+    flex-basis: 120px;
+  }
+}
