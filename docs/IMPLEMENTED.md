@@ -407,6 +407,34 @@ pwsh -NoProfile -File scripts/commerce/verify-merchant-operations.ps1 -Chapter O
 [业务说明](features/PAYMENTS-AFTER-SALES.md#退款与工单站外通知) ·
 [模拟后台与状态](features/SIMULATORS.md#短信与邮件)
 
+### 2.25 正式支付运营统计首批隔离验收
+
+支付编排服务提供签名内部接口 `POST /internal/v1/payments/ledger-reports`。请求包含起止日期
+`startDate`、`endDate`，可附加 `timeZone`、`channel`、`currency`。
+起止日期均包含，单次最多 366 天，默认报表时区为 `Asia/Shanghai`。示例请求体：
+
+```json
+{"startDate":"2025-03-09","endDate":"2025-03-10","timeZone":"Asia/Shanghai","channel":"ALIPAY","currency":"CNY"}
+```
+
+同一条 MySQL 汇总语句读取支付与退款账本，按创建、支付成功和退款成功时间分别归日。
+响应包含按日、渠道和币种的明细汇总、渠道汇总和各币种总计，金额以十进制字符串返回。
+缺支付成功时间的成功单按创建日计入异常数，缺退款成功时间的成功退款按申请日计入异常数。
+选定币种的空结果返回该币种零值总计。
+
+验收脚本使用独立 Docker 网络、支付编排容器和 MySQL 8.4 空库，Flyway 从 V1 运行到 V4。
+从 MySQL 读取 9 笔支付和 6 笔退款逐笔计算预期值，并逐项核对接口的日、渠道和币种汇总。
+覆盖同一订单多次支付尝试、CNY 与 USD 分开统计、筛选与空结果、缺少成功时间和非法请求。
+使用上海、UTC 和纽约时区复核微秒边界及纽约夏令时。跨日样例的两笔部分退款合计 30.00 元，
+退款日实收 0.00 元、净收 −30.00 元。真实调用支付和退款回执接口各重放一次，回执各保留一条，汇总结果一致。
+
+```powershell
+pwsh -NoProfile -File scripts/payment/verify-payment-ledger-reports.ps1
+```
+
+支付编排 Docker 构建及 9 项 Maven 测试通过，68 项脚本契约检查通过。
+当前完成范围为内部账本汇总与隔离验收。商家归属、授权、运营页面及日常发布由后续批次验收。
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

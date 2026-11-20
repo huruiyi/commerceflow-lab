@@ -18,7 +18,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.ObjectMapper;
+import vip.fairy.commerceflow.payment.application.PaymentLedgerReportService;
 import vip.fairy.commerceflow.payment.application.RemotePaymentProtocolService;
 import vip.fairy.commerceflow.payment.application.RemotePaymentProtocolService.ContractReceipt;
 import vip.fairy.commerceflow.payment.application.RemotePaymentProtocolService.ProtocolConflictException;
@@ -39,13 +42,16 @@ public class RemotePaymentV1Controller {
 
   private final PaymentShadowProperties properties;
   private final RemotePaymentProtocolService protocol;
+  private final PaymentLedgerReportService reports;
   private final ObjectMapper mapper;
 
   public RemotePaymentV1Controller(PaymentShadowProperties properties,
                                    RemotePaymentProtocolService protocol,
+                                   PaymentLedgerReportService reports,
                                    ObjectMapper mapper) {
     this.properties = properties;
     this.protocol = protocol;
+    this.reports = reports;
     this.mapper = mapper;
   }
 
@@ -64,6 +70,19 @@ public class RemotePaymentV1Controller {
     response.put("payment", protocol.latest(query).orElse(null));
     response.put("refund", protocol.refund(query).orElse(null));
     return response;
+  }
+
+  @PostMapping("/ledger-reports")
+  PaymentLedgerReportService.Report ledgerReport(@RequestBody String payload, HttpServletRequest request) {
+    requireTrafficAndHash(payload, request);
+    PaymentLedgerReportService.Query query;
+    try {
+      query = mapper.readerFor(PaymentLedgerReportService.Query.class)
+        .with(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).readValue(payload);
+    } catch (JacksonException invalid) {
+      throw new IllegalArgumentException("Payment ledger report request is invalid", invalid);
+    }
+    return reports.summarize(query);
   }
 
   @PostMapping("/refund-query")
