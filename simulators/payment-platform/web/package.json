@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@ant-design/icons-vue": "7.0.1",
-    "@commerceflow/simulator-admin": "file:../../admin-ui",
+    "@commerceflow/simulator-admin": "file:../../../web/packages/simulator-admin",
     "@vitejs/plugin-vue": "6.0.10",
     "ant-design-vue": "4.0.0-rc.6",
     "echarts": "6.1.0",

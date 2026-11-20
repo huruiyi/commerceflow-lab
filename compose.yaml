@@ -242,7 +242,7 @@ services:
     build:
       context: ./simulators/messaging-platform/web
       additional_contexts:
-        simulator-admin: ./simulators/admin-ui
+        simulator-admin: ./web/packages/simulator-admin
     ports:
       - "127.0.0.1:18119:80"
     depends_on:
@@ -300,7 +300,7 @@ services:
     build:
       context: ./simulators/warehouse-platform/web
       additional_contexts:
-        simulator-admin: ./simulators/admin-ui
+        simulator-admin: ./web/packages/simulator-admin
     ports:
       - "127.0.0.1:18118:80"
     depends_on:
@@ -675,7 +675,7 @@ services:
     build:
       context: ./simulators/payment-platform/web
       additional_contexts:
-        simulator-admin: ./simulators/admin-ui
+        simulator-admin: ./web/packages/simulator-admin
     ports:
       - "14201:80"
     depends_on:

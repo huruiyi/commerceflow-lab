@@ -37,9 +37,9 @@ VXE Grid 使用 Vben 角色管理页的默认圆角边框，提供分页、刷�
 渠道雷达图对比创建笔数和当前成功状态笔数，环形图统计当前交易状态，玫瑰图统计模拟场景。
 三张分布图覆盖当前账号可见的整份交易账本，趋势仅统计所选时区的近 30 天。
 支付的签名交易入口位于渠道交易工具栏。仓库在相应单据的详情中处理出库实发、退货实收、质检和补检。
-后续物流及电子发票后台共用这些组件。代码位于 `simulators/admin-ui`，Compose 使用名为
+后续物流及电子发票后台共用这些组件。代码位于 `web/packages/simulator-admin`，Compose 使用名为
 `simulator-admin` 的构建上下文将其交给各后台镜像。布局和 Grid 配置参考 Vben Admin
-`e726bc92780c1023c2393042871470d413ad79dc`，MIT 许可见 `simulators/admin-ui/LICENSE.vben`。
+`e726bc92780c1023c2393042871470d413ad79dc`，MIT 许可见 `web/packages/simulator-admin/LICENSE.vben`。
 
 日常 Docker 已更新三个前端。Chromium 复验支付筛选、分页、刷新、全屏、列设置和账本切换，
 消息渠道切换、筛选和详情，以及仓库单据筛选、详情和 390 px 窄屏。
