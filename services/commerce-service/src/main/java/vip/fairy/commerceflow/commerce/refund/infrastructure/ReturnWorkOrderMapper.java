@@ -8,7 +8,11 @@ import vip.fairy.commerceflow.commerce.refund.domain.ReturnWorkOrder.Action;
 @Mapper
 public interface ReturnWorkOrderMapper {
 
-  void sync();
+  List<UnopenedCase> unopened();
+  int open(String caseId);
+
+  record UnopenedCase(String caseId, long orderId, long merchantId) {
+  }
   List<ReturnWorkOrder> forMerchant(long merchantId);
   ReturnWorkOrder find(String caseId, long merchantId);
   List<Action> actions(String caseId);

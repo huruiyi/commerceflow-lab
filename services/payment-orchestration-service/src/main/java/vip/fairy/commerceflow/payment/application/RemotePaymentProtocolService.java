@@ -352,6 +352,13 @@ public class RemotePaymentProtocolService {
       if (store.recordRefundedAmount(refund.get("amount"), number(payment.get("id"))) != 1) {
         throw new ProtocolConflictException("Confirmed refund exceeds the paid amount");
       }
+      String eventId = "offsite-refund:" + result.refundNumber();
+      String payload = json(Map.of("version", 1, "eventId", eventId, "type", "REFUND_SUCCEEDED",
+        "recipientId", number(refund.get("customer_id")), "orderId", result.orderId(),
+        "reference", result.refundNumber(), "amount", refund.get("amount"), "currency", refund.get("currency")));
+      String outboxId = UUID.nameUUIDFromBytes(eventId.getBytes(StandardCharsets.UTF_8)).toString();
+      store.insertResultOutbox(outboxId, "REFUND", result.refundNumber(), "OFFSITE_REFUND_SUCCEEDED",
+        "offsite-notifications", payload);
     }
     store.insertRefundEvent(number(refund.get("id")), result.resultId(),
       "CALLBACK_" + target, current, target, result.message());

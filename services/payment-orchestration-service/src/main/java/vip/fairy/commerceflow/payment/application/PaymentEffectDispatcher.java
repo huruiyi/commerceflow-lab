@@ -9,6 +9,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import vip.fairy.commerceflow.payment.infrastructure.OffsiteNotificationClient;
 import vip.fairy.commerceflow.payment.application.contract.v1.PaymentResultTypeV1;
 import vip.fairy.commerceflow.payment.application.contract.v1.PaymentResultV1;
 import vip.fairy.commerceflow.payment.infrastructure.ChannelGatewayClient;
@@ -28,13 +29,15 @@ public class PaymentEffectDispatcher {
   private final RemoteInventoryEffectClient inventory;
   private final RefundApplicationService refunds;
   private final ChannelGatewayClient gateway;
+  private final OffsiteNotificationClient offsite;
 
   public PaymentEffectDispatcher(PaymentEffectMapper store, ObjectMapper mapper,
                                  PaymentShadowProperties properties,
                                  RemoteOrderEffectClient orders,
                                  RemoteInventoryEffectClient inventory,
                                  RefundApplicationService refunds,
-                                 ChannelGatewayClient gateway) {
+                                 ChannelGatewayClient gateway,
+                                 OffsiteNotificationClient offsite) {
     this.store = store;
     this.mapper = mapper;
     this.properties = properties;
@@ -42,6 +45,7 @@ public class PaymentEffectDispatcher {
     this.inventory = inventory;
     this.refunds = refunds;
     this.gateway = gateway;
+    this.offsite = offsite;
   }
 
   @Scheduled(fixedDelayString = "${commerceflow.payment.effects.dispatch-delay:1s}")
@@ -72,6 +76,10 @@ public class PaymentEffectDispatcher {
   }
 
   void apply(String eventId, String eventType, String payload) {
+    if ("OFFSITE_REFUND_SUCCEEDED".equals(eventType)) {
+      offsite.send(payload);
+      return;
+    }
     if ("REFUND_REQUESTED".equals(eventType)) {
       applyRefundRequested(eventId, mapper.readTree(payload));
       return;

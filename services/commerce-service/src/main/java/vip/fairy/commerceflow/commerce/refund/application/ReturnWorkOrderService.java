@@ -7,6 +7,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vip.fairy.commerceflow.commerce.notification.application.contract.v1.ReturnWorkOpenedPublisher;
 import vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale;
 import vip.fairy.commerceflow.commerce.refund.domain.ReturnWorkOrder;
 import vip.fairy.commerceflow.commerce.refund.domain.ReturnWorkOrder.Action;
@@ -23,18 +24,25 @@ public class ReturnWorkOrderService {
   private final LineAfterSaleMapper cases;
   private final LineAfterSaleService sale;
   private final WarehouseReturnClient warehouse;
+  private final ReturnWorkOpenedPublisher offsite;
 
   ReturnWorkOrderService(ReturnWorkOrderMapper work, LineAfterSaleMapper cases, LineAfterSaleService sale,
-                         WarehouseReturnClient warehouse) {
+                         WarehouseReturnClient warehouse, ReturnWorkOpenedPublisher offsite) {
     this.work = work;
     this.cases = cases;
     this.sale = sale;
     this.warehouse = warehouse;
+    this.offsite = offsite;
   }
 
   @Scheduled(fixedDelayString = "${commerceflow.after-sales.dispatch-delay:2s}")
+  @Transactional
   public void reconcile() {
-    work.sync();
+    for (var candidate : work.unopened()) {
+      if (work.open(candidate.caseId()) == 1) {
+        offsite.opened(candidate.caseId(), candidate.orderId(), candidate.merchantId());
+      }
+    }
   }
 
   public List<ReturnWorkOrder> list(long merchantId) {

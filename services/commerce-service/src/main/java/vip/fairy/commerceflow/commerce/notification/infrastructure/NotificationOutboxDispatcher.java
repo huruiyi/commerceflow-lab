@@ -2,6 +2,7 @@ package vip.fairy.commerceflow.commerce.notification.infrastructure;
 
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandV1;
+import vip.fairy.commerceflow.commerce.notification.application.OffsiteWorkOrderPublisher;
 import vip.fairy.commerceflow.commerce.notification.domain.NotificationOutboxEntry;
 import vip.fairy.commerceflow.commerce.notification.infrastructure.persistence.commerce.NotificationMapper;
 
@@ -17,15 +18,17 @@ public class NotificationOutboxDispatcher {
   private final CustomerNotificationKafkaTransport kafka;
   private final NotificationDeliveryProperties properties;
   private final ObjectMapper mapper;
+  private final OffsiteNotificationClient offsite;
 
   public NotificationOutboxDispatcher(NotificationMapper notifications,
                                       CustomerNotificationKafkaTransport kafka,
                                       NotificationDeliveryProperties properties,
-                                      ObjectMapper mapper) {
+                                      ObjectMapper mapper, OffsiteNotificationClient offsite) {
     this.notifications = notifications;
     this.kafka = kafka;
     this.properties = properties;
     this.mapper = mapper;
+    this.offsite = offsite;
   }
 
   @Scheduled(fixedDelayString = "${commerceflow.notification.delivery.publish-delay:1s}",
@@ -42,9 +45,12 @@ public class NotificationOutboxDispatcher {
 
   private void deliver(NotificationOutboxEntry entry) {
     try {
-      CustomerNotificationCommandV1 command = mapper.readValue(entry.getPayload(),
-        CustomerNotificationCommandV1.class);
-      kafka.send(entry.getTopic(), command);
+      if (OffsiteWorkOrderPublisher.TOPIC.equals(entry.getTopic())) {
+        offsite.send(entry.getPayload());
+      } else {
+        var command = mapper.readValue(entry.getPayload(), CustomerNotificationCommandV1.class);
+        kafka.send(entry.getTopic(), command);
+      }
       notifications.markOutboxPublished(entry.getId());
     } catch (Exception exception) {
       fail(entry, exception);

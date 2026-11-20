@@ -11,13 +11,21 @@
   <sql id="actionColumns">
     request_id,case_id,actor_id,action,note,quantity,evidence_id,created_at
   </sql>
-  <insert id="sync">
-    INSERT INTO return_exception_work_orders(case_id,warehouse_status)
-    SELECT s.id,s.warehouse_return_status FROM line_after_sales s
-    WHERE s.kind='RETURN' AND s.status='REVIEW_REQUIRED' AND s.refund_number IS NULL
+  <sql id="reviewRequired">
+    s.kind='RETURN' AND s.status='REVIEW_REQUIRED' AND s.refund_number IS NULL
       AND s.warehouse_return_status IN ('SHORT_RECEIVED','REJECTED','FAILED')
+  </sql>
+  <select id="unopened"
+      resultType="vip.fairy.commerceflow.commerce.refund.infrastructure.ReturnWorkOrderMapper$UnopenedCase">
+    SELECT s.id AS case_id,s.order_id,s.merchant_id FROM line_after_sales s
+    WHERE <include refid="reviewRequired"/>
       AND NOT EXISTS (SELECT 1 FROM return_exception_work_orders w WHERE w.case_id=s.id)
-    ON DUPLICATE KEY UPDATE case_id=return_exception_work_orders.case_id
+    ORDER BY s.id LIMIT 50
+  </select>
+  <insert id="open">
+    INSERT IGNORE INTO return_exception_work_orders(case_id,warehouse_status)
+    SELECT s.id,s.warehouse_return_status FROM line_after_sales s
+    WHERE s.id=#{caseId} AND <include refid="reviewRequired"/>
   </insert>
   <select id="forMerchant" resultType="vip.fairy.commerceflow.commerce.refund.domain.ReturnWorkOrder">
     <include refid="view"/>
