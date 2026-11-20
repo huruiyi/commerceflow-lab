@@ -1,5 +1,6 @@
 package vip.fairy.commerceflow.payment.application.contract.v1;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
@@ -21,7 +22,8 @@ public record PaymentCreateCommandV1(
   boolean simulateFailure,
   String correlationId,
   String causationId,
-  String traceparent
+  String traceparent,
+  @JsonInclude(JsonInclude.Include.NON_NULL) Long orderMerchantId
 ) {
 
   public static final int VERSION = 1;
@@ -36,7 +38,8 @@ public record PaymentCreateCommandV1(
         && !blank(orderNumber) && channel != null && amount != null && amount.signum() > 0
         && !blank(currency) && paymentDueAt != null && !blank(idempotencyKey)
         && idempotencyKey.length() <= 80 && !blank(correlationId) && !blank(causationId)
-        && !blank(traceparent) && TRACEPARENT.matcher(traceparent).matches());
+        && !blank(traceparent) && TRACEPARENT.matcher(traceparent).matches()
+        && (orderMerchantId == null || orderMerchantId > 0));
     } catch (RuntimeException exception) {
       throw new IllegalArgumentException("Payment create command V1 is invalid", exception);
     }

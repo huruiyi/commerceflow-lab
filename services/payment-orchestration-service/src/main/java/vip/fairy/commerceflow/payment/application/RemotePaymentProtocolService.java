@@ -38,14 +38,16 @@ public class RemotePaymentProtocolService {
   private final ObjectMapper mapper;
   private final TransactionTemplate transactions;
   private final ChannelGatewayClient gateway;
+  private final PaymentReportOwnership reportOwnership;
 
   public RemotePaymentProtocolService(PaymentProtocolMapper store, ObjectMapper mapper,
                                       PlatformTransactionManager manager,
-                                      ChannelGatewayClient gateway) {
+                                      ChannelGatewayClient gateway, PaymentReportOwnership reportOwnership) {
     this.store = store;
     this.mapper = mapper;
     this.transactions = new TransactionTemplate(manager);
     this.gateway = gateway;
+    this.reportOwnership = reportOwnership;
   }
 
   public PaymentSnapshotV1 create(PaymentCreateCommandV1 command) {
@@ -53,7 +55,10 @@ public class RemotePaymentProtocolService {
     String fingerprint = PaymentContractSemantics.fingerprint(command);
     return transactions.execute(status -> {
       PaymentSnapshotV1 replay = replay(command.commandId(), fingerprint, PaymentSnapshotV1.class);
-      if (replay != null) return replay;
+      if (replay != null) {
+        reportOwnership.rememberVerified(command.orderId(), command.orderMerchantId());
+        return replay;
+      }
       insertMessage(command.commandId(), "CREATE", fingerprint);
       List<Map<String,Object>> existing = paymentByIdempotency(command.idempotencyKey(), true);
       if (!existing.isEmpty()) {
@@ -62,6 +67,7 @@ public class RemotePaymentProtocolService {
           throw new ProtocolConflictException(
             "Idempotency key was reused with different payment parameters");
         }
+        reportOwnership.rememberVerified(command.orderId(), command.orderMerchantId());
         return finish(command.commandId(), fingerprint, "IDEMPOTENT_REPLAY",
           snapshot(existing.getFirst()), null);
       }
@@ -86,6 +92,7 @@ public class RemotePaymentProtocolService {
         (command.commandId() + ":channel-result").getBytes(StandardCharsets.UTF_8)).toString();
       store.insertCreateCommand(childCommandId, processId, command.orderId(), fingerprint, json(command),
         command.correlationId(), command.commandId(), command.traceparent());
+      reportOwnership.rememberVerified(command.orderId(), command.orderMerchantId());
       return finish(command.commandId(), fingerprint, "WAITING_RESULT", snapshot(payment), null);
     });
   }

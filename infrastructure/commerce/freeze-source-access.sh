@@ -28,11 +28,11 @@ root_mysql() {
 
 grant_statements=$(root_mysql -e "
   SELECT CONCAT(
-    'GRANT SELECT, INSERT',
-    CASE WHEN table_name = 'checkout_receipts' THEN '' ELSE ', UPDATE' END,
-    CASE WHEN table_name = 'checkout_receipts' THEN ''
-    WHEN table_name IN ('order_cancellation_completion','cart_repurchase_requests')
-      THEN '' ELSE ', DELETE' END,
+    'GRANT SELECT',
+    CASE WHEN table_name = 'payment_report_merchant_grants' THEN '' ELSE ', INSERT' END,
+    CASE WHEN table_name IN ('checkout_receipts','payment_report_merchant_grants') THEN '' ELSE ', UPDATE' END,
+    CASE WHEN table_name IN ('checkout_receipts','payment_report_merchant_grants',
+      'order_cancellation_completion','cart_repurchase_requests') THEN '' ELSE ', DELETE' END,
     ' ON \`commerceflow\`.\`',
     table_name,
     '\` TO ''${RUNTIME_DATABASE_USERNAME}''@''%'';'

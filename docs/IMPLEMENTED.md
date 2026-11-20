@@ -435,6 +435,34 @@ pwsh -NoProfile -File scripts/payment/verify-payment-ledger-reports.ps1
 支付编排 Docker 构建及 9 项 Maven 测试通过，68 项脚本契约检查通过。
 当前完成范围为内部账本汇总与隔离验收。商家归属、授权、运营页面及日常发布由后续批次验收。
 
+### 2.26 正式支付运营统计第二批商家归属与权限
+
+商城在发起支付时从已读取的 Order V1 订单行快照取得唯一商家，随签名支付命令传递。
+支付库 V5 以 `order_id` 保存归属。同一订单的支付尝试共用该归属，退款沿用原支付的订单与渠道。
+历史归属用内部签名接口 `POST /internal/v1/payments/ledger-reports/ownership-backfill`
+按订单 ID 分批读取 Order V1，传入 `afterOrderId` 和 `limit`（1–50），按返回的
+`nextAfterOrderId` 继续直到 `complete`。批次可以重跑，支付和退款账本保持原值。
+缺失归属可在订单事实补齐后重跑回填，冲突归属由平台对账处理。
+
+- 平台查询使用 `GET /api/admin/payment-ledger-reports`。启用的 `ADMIN` 账号持有
+  `PAYMENT_REPORT_ALL` 角色时可查询全量，也可用 `merchantId` 缩小到单个商家。
+  限定范围的管理员由 DBA 在商城库 V65 的 `payment_report_merchant_grants` 中按账号与商家授权，
+  商城运行账号对该表只有 `SELECT` 权限。
+- 商家查询使用 `GET /api/merchant/payment-ledger-reports`。服务端按启用的账号、当前 `MERCHANT` 角色和店铺归属取范围。
+  查询参数沿用首批的起止日期、时区、渠道与币种，可加 `merchantId` 缩小范围。
+  所有汇总维度遵循同一权限条件。归属缺失或冲突的金额纳入平台全量总计和单列的 `unattributed` 汇总。
+
+隔离 MySQL 8.4 使用共用支付宝渠道账户 1 的两家商户，分别核对收款/退款/净收为
+100/10/90 元和 200/25/175 元。历史缺失与冲突两笔的实收合计 1700 元、退款 11 元，
+只在平台全量结果出现。四笔历史支付和四笔退款回填重跑后保持原值。
+两笔新支付经支付模拟器受理并保存各自归属，重放创建返回原支付单。
+实测全量、单商家和多商家授权、本人店铺、无权限、跨店过滤及既有会话撤权。
+商城和支付编排 Maven 分别通过 58 项和 9 项测试，首批账本专项回归及 69 项脚本契约检查通过。
+
+```powershell
+pwsh -NoProfile -File scripts/payment/verify-payment-ledger-report-access.ps1
+```
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

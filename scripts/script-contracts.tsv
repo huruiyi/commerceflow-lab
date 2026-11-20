@@ -34,6 +34,7 @@ payment/verify-payment-cancellation-lock-timeout.ps1	BaseUrl,LockWaitTimeoutSeco
 payment/verify-payment-cancellation-race.ps1	BaseUrl,PaymentBaseUrl,Iterations,DurationSeconds,Seed,InterIterationDelayMilliseconds,AuditDockerDatabase
 payment/verify-payment-cancellation-stress.ps1	BaseUrl,PaymentBaseUrl,DurationSeconds,MinimumIterations,Seed,InterIterationDelayMilliseconds,InventoryFloor
 payment/verify-payment-effects-rehearsal.ps1	BaseUrl
+payment/verify-payment-ledger-report-access.ps1	SkipBuild
 payment/verify-payment-ledger-reports.ps1	Image
 payment/verify-payment-notifications.ps1	BaseUrl,PaymentBaseUrl,PaymentOrchestrationUrl
 payment/verify-payment-outcomes.ps1	BaseUrl

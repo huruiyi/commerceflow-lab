@@ -14,7 +14,6 @@ import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.JsonNode;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCloseCommandV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCloseResultV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCreateCommandV1;
@@ -91,6 +90,11 @@ public class RemotePaymentOrchestrationAdapter implements PaymentOrchestrationV1
   public PaymentCloseResultV1 closePending(PaymentCloseCommandV1 command) {
     command.validate();
     return post(ROOT + "/close", command, PaymentCloseResultV1.class);
+  }
+
+  @Override
+  public JsonNode ledgerReport(LedgerReportQuery query) {
+    return post(ROOT + "/ledger-reports", query, JsonNode.class);
   }
 
   private QueryResult query(PaymentQueryV1 query) {

@@ -391,7 +391,8 @@ public class PurchaseOrderService {
     if (!"RESERVED".equals(order.getInventoryStatus())) {
       throw new BusinessRuleException("Order inventory has not been reserved");
     }
-    Map<Long, Integer> required = orders.items(id).stream().collect(Collectors.toMap(
+    var orderItems = orders.items(id);
+    Map<Long, Integer> required = orderItems.stream().collect(Collectors.toMap(
       OrderItemView::getProductId, OrderItemView::getQuantity, Math::addExact));
     var allocations = reservations.activeAllocations(id);
     Map<Long, Integer> allocated = allocations.stream().collect(Collectors.toMap(
@@ -404,13 +405,15 @@ public class PurchaseOrderService {
     if (!orders.freezeWarehouseAllocation(id, warehouseSnapshot)) {
       throw new BusinessRuleException("Warehouse allocations cannot be fixed for this payment");
     }
+    var merchantIds = orderItems.stream().map(OrderItemView::getMerchantId).distinct().toList();
+    Long orderMerchantId = merchantIds.size() == 1 ? merchantIds.getFirst() : null;
     String commandId = UUID.randomUUID().toString();
     String correlationId = UUID.randomUUID().toString();
     PaymentCreateCommandV1 command = new PaymentCreateCommandV1(PaymentCreateCommandV1.VERSION,
       commandId, Instant.now(), "commerce-service-ordering", user.getId(), order.getId(),
       order.getOrderNumber(), request.channel(), order.getTotalAmount(), order.getCurrency(),
       order.getPaymentDueAt(), request.idempotencyKey(), request.simulateFailure(), correlationId,
-      correlationId, traceparent());
+      correlationId, traceparent(), orderMerchantId);
     PaymentSnapshotV1 payment = payments.create(command);
     return assemble(orders.find(user.getId(), id).orElseThrow(), payment);
   }

@@ -98,6 +98,7 @@ class MicroserviceReadinessBaselineTest {
       Map.entry("merchant_settlement_statements", "merchant"),
       Map.entry("merchant_payout_attempts", "merchant"),
       Map.entry("user_roles", "identity"),
+      Map.entry("payment_report_merchant_grants", "identity"),
       Map.entry("persistent_logins", "identity"),
       Map.entry("products", "catalog"),
       Map.entry("product_translations", "catalog"),

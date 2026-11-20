@@ -2,14 +2,29 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="vip.fairy.commerceflow.payment.infrastructure.persistence.PaymentLedgerReportMapper">
 
+  <sql id="orderOwnership">
+    LEFT JOIN payment_report_order_ownership o ON o.order_id = p.order_id AND o.status = 'VERIFIED'
+  </sql>
+
+  <sql id="merchantScope">
+    <if test="merchantIds != null">
+      AND o.merchant_id IN
+      <foreach collection="merchantIds" item="merchantId" open="(" separator="," close=")">
+        #{merchantId}
+      </foreach>
+    </if>
+  </sql>
+
   <sql id="paymentFilters">
     <if test="channel != null">AND p.channel = #{channel}</if>
     <if test="currency != null">AND p.currency = #{currency}</if>
+    <include refid="merchantScope"/>
   </sql>
 
   <sql id="refundFilters">
     <if test="channel != null">AND p.channel = #{channel}</if>
     <if test="currency != null">AND r.currency = #{currency}</if>
+    <include refid="merchantScope"/>
   </sql>
 
   <select id="summarize"
@@ -21,35 +36,40 @@
       </foreach>
     ), ledger_facts AS (
       SELECT UNIX_TIMESTAMP(p.created_at) AS occurred_second, p.channel, p.currency, p.status AS payment_status,
+        o.merchant_id IS NULL AS unattributed,
         1 AS created_count, 0 AS paid_count, 0.00 AS received_amount, 0 AS refund_count, 0.00 AS refunded_amount,
         CASE WHEN p.status = 'SUCCESS' AND p.paid_at IS NULL THEN 1 ELSE 0 END AS missing_paid_at_count,
         0 AS missing_refund_succeeded_at_count
       FROM payment_records p
+      <include refid="orderOwnership"/>
       WHERE UNIX_TIMESTAMP(p.created_at) &gt;= #{startSecond} AND UNIX_TIMESTAMP(p.created_at) &lt; #{endSecond}
       <include refid="paymentFilters"/>
       UNION ALL
-      SELECT UNIX_TIMESTAMP(p.paid_at), p.channel, p.currency, NULL,
+      SELECT UNIX_TIMESTAMP(p.paid_at), p.channel, p.currency, NULL, o.merchant_id IS NULL,
         0, 1, p.amount, 0, 0.00, 0, 0
       FROM payment_records p
+      <include refid="orderOwnership"/>
       WHERE p.status = 'SUCCESS'
         AND UNIX_TIMESTAMP(p.paid_at) &gt;= #{startSecond} AND UNIX_TIMESTAMP(p.paid_at) &lt; #{endSecond}
       <include refid="paymentFilters"/>
       UNION ALL
-      SELECT UNIX_TIMESTAMP(r.succeeded_at), p.channel, r.currency, NULL,
+      SELECT UNIX_TIMESTAMP(r.succeeded_at), p.channel, r.currency, NULL, o.merchant_id IS NULL,
         0, 0, 0.00, 1, r.amount, 0, 0
       FROM refund_records r JOIN payment_records p ON p.id = r.payment_id
+      <include refid="orderOwnership"/>
       WHERE r.status = 'SUCCEEDED'
         AND UNIX_TIMESTAMP(r.succeeded_at) &gt;= #{startSecond} AND UNIX_TIMESTAMP(r.succeeded_at) &lt; #{endSecond}
       <include refid="refundFilters"/>
       UNION ALL
-      SELECT UNIX_TIMESTAMP(r.requested_at), p.channel, r.currency, NULL,
+      SELECT UNIX_TIMESTAMP(r.requested_at), p.channel, r.currency, NULL, o.merchant_id IS NULL,
         0, 0, 0.00, 0, 0.00, 0, 1
       FROM refund_records r JOIN payment_records p ON p.id = r.payment_id
+      <include refid="orderOwnership"/>
       WHERE r.status = 'SUCCEEDED' AND r.succeeded_at IS NULL
         AND UNIX_TIMESTAMP(r.requested_at) &gt;= #{startSecond} AND UNIX_TIMESTAMP(r.requested_at) &lt; #{endSecond}
       <include refid="refundFilters"/>
     )
-    SELECT d.report_date, f.channel, f.currency, f.payment_status,
+    SELECT d.report_date, f.channel, f.currency, f.payment_status, f.unattributed,
       SUM(f.created_count) AS created_count,
       SUM(f.paid_count) AS paid_count,
       SUM(f.received_amount) AS received_amount,
@@ -59,7 +79,7 @@
       SUM(f.missing_refund_succeeded_at_count) AS missing_refund_succeeded_at_count
     FROM ledger_facts f
     JOIN report_days d ON f.occurred_second &gt;= d.start_second AND f.occurred_second &lt; d.end_second
-    GROUP BY d.report_date, f.channel, f.currency, f.payment_status
-    ORDER BY d.report_date, f.channel, f.currency, f.payment_status
+    GROUP BY d.report_date, f.channel, f.currency, f.payment_status, f.unattributed
+    ORDER BY d.report_date, f.channel, f.currency, f.payment_status, f.unattributed
   </select>
 </mapper>

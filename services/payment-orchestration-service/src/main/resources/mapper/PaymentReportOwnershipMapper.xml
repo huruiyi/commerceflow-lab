@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.payment.infrastructure.persistence.PaymentReportOwnershipMapper">
+  <insert id="remember">
+    INSERT INTO payment_report_order_ownership(order_id, merchant_id, status)
+    VALUES (#{orderId}, #{merchantId,jdbcType=BIGINT}, #{status})
+    ON DUPLICATE KEY UPDATE
+      status = CASE
+        WHEN status = 'CONFLICT' OR #{status} = 'CONFLICT'
+          OR merchant_id &lt;&gt; #{merchantId,jdbcType=BIGINT} THEN 'CONFLICT'
+        ELSE #{status}
+      END,
+      merchant_id = COALESCE(merchant_id, #{merchantId,jdbcType=BIGINT})
+  </insert>
+
+  <select id="orderIdsAfter" resultType="long">
+    SELECT DISTINCT order_id
+    FROM payment_records
+    WHERE order_id &gt; #{afterOrderId}
+    ORDER BY order_id
+    LIMIT #{limit}
+  </select>
+</mapper>

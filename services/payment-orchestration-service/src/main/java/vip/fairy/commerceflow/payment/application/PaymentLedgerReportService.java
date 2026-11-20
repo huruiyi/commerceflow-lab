@@ -36,6 +36,11 @@ public class PaymentLedgerReportService {
     if (query.currency() != null && !query.currency().matches("[A-Z]{3}")) {
       throw new IllegalArgumentException("Currency must be a three-letter uppercase code");
     }
+    List<Long> merchantIds = query.merchantIds();
+    if (merchantIds != null && (merchantIds.isEmpty()
+        || merchantIds.stream().anyMatch(id -> id == null || id <= 0))) {
+      throw new IllegalArgumentException("Supply a nonempty list of valid merchant identifiers");
+    }
     ZoneId zone = reportZone(query.timeZone());
     List<DayWindow> days = query.startDate().datesUntil(query.endDate().plusDays(1))
       .map(date -> new DayWindow(date, date.atStartOfDay(zone).toEpochSecond(),
@@ -44,23 +49,32 @@ public class PaymentLedgerReportService {
     var daily = new LinkedHashMap<DailyKey, Accumulator>();
     var byChannel = new LinkedHashMap<ChannelKey, Accumulator>();
     var totals = new TreeMap<String, Accumulator>();
+    var unattributed = new TreeMap<String, Accumulator>();
     if (query.currency() != null) {
       totals.put(query.currency(), new Accumulator());
     }
     String channel = query.channel() == null ? null : query.channel().name();
     for (var row : ledger.summarize(days, days.getFirst().startSecond(), days.getLast().endSecond(),
-        channel, query.currency())) {
+        channel, query.currency(), merchantIds)) {
       daily.computeIfAbsent(new DailyKey(row.reportDate(), row.channel(), row.currency()), key -> new Accumulator())
         .add(row);
       byChannel.computeIfAbsent(new ChannelKey(row.channel(), row.currency()), key -> new Accumulator()).add(row);
       totals.computeIfAbsent(row.currency(), key -> new Accumulator()).add(row);
+      if (row.unattributed()) {
+        unattributed.computeIfAbsent(row.currency(), key -> new Accumulator()).add(row);
+      }
     }
     return new Report(query.startDate(), query.endDate(), zone.getId(), query.channel(), query.currency(),
       daily.entrySet().stream().map(entry -> new DailySummary(entry.getKey().date(),
         entry.getKey().channel(), entry.getKey().currency(), entry.getValue().summary())).toList(),
       byChannel.entrySet().stream().map(entry -> new ChannelSummary(entry.getKey().channel(),
         entry.getKey().currency(), entry.getValue().summary())).toList(),
-      totals.entrySet().stream().map(entry -> new CurrencySummary(entry.getKey(), entry.getValue().summary())).toList());
+      currencySummaries(totals), currencySummaries(unattributed));
+  }
+
+  private List<CurrencySummary> currencySummaries(Map<String, Accumulator> summaries) {
+    return summaries.entrySet().stream()
+      .map(entry -> new CurrencySummary(entry.getKey(), entry.getValue().summary())).toList();
   }
 
   private ZoneId reportZone(String timeZone) {
@@ -74,11 +88,12 @@ public class PaymentLedgerReportService {
   }
 
   public record Query(LocalDate startDate, LocalDate endDate, String timeZone, PaymentChannelV1 channel,
-                      String currency) {
+                      String currency, List<Long> merchantIds) {
   }
 
-  public record Report(LocalDate startDate, LocalDate endDate, String timeZone, PaymentChannelV1 channel, String currency,
-                       List<DailySummary> daily, List<ChannelSummary> channels, List<CurrencySummary> totals) {
+  public record Report(LocalDate startDate, LocalDate endDate, String timeZone, PaymentChannelV1 channel,
+                       String currency, List<DailySummary> daily, List<ChannelSummary> channels,
+                       List<CurrencySummary> totals, List<CurrencySummary> unattributed) {
   }
 
   public record DailySummary(LocalDate date, String channel, String currency, Summary summary) {

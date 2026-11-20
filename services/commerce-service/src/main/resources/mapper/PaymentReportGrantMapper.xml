@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.identity.infrastructure.PaymentReportGrantMapper">
+  <select id="platform"
+      resultType="vip.fairy.commerceflow.commerce.identity.infrastructure.PaymentReportGrantMapper$PlatformGrant">
+    SELECT EXISTS (
+      SELECT 1
+      FROM user_roles report_membership JOIN roles report_role ON report_role.id = report_membership.role_id
+      WHERE report_membership.user_id = u.id AND report_role.code = 'PAYMENT_REPORT_ALL'
+    ) AS all_merchants,
+      g.merchant_id
+    FROM app_users u
+    JOIN user_roles membership ON membership.user_id = u.id
+    JOIN roles platform_role ON platform_role.id = membership.role_id AND platform_role.code = 'ADMIN'
+    LEFT JOIN payment_report_merchant_grants g ON g.account_id = u.id
+    WHERE u.id = #{accountId} AND u.enabled = TRUE
+    ORDER BY g.merchant_id
+  </select>
+
+  <select id="ownMerchant" resultType="long">
+    SELECT s.merchant_id
+    FROM merchant_stores s
+    JOIN app_users u ON u.id = s.merchant_id
+    JOIN user_roles membership ON membership.user_id = u.id
+    JOIN roles merchant_role ON merchant_role.id = membership.role_id AND merchant_role.code = 'MERCHANT'
+    WHERE u.id = #{accountId} AND u.enabled = TRUE
+  </select>
+</mapper>

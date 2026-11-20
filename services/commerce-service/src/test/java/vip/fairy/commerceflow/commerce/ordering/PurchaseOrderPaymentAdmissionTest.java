@@ -1,7 +1,10 @@
 package vip.fairy.commerceflow.commerce.ordering;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -68,5 +71,30 @@ class PurchaseOrderPaymentAdmissionTest {
         .isInstanceOf(BusinessRuleException.class).hasMessageContaining("reservations");
     }
     verifyNoInteractions(payments);
+  }
+
+  @Test
+  void paymentCommandTakesMerchantFromOrderItems() {
+    AppUser buyer = mock(AppUser.class);
+    ShopOrderView order = mock(ShopOrderView.class);
+    OrderItemView item = mock(OrderItemView.class);
+    when(buyer.getId()).thenReturn(10L);
+    when(orders.find(10L, 20L)).thenReturn(Optional.of(order));
+    when(order.getId()).thenReturn(20L);
+    when(order.getStatus()).thenReturn("PENDING_PAYMENT");
+    when(order.getPaymentDueAt()).thenReturn(Instant.now().plusSeconds(60));
+    when(order.getInventoryStatus()).thenReturn("RESERVED");
+    when(orders.items(20L)).thenReturn(List.of(item));
+    when(item.getProductId()).thenReturn(30L);
+    when(item.getMerchantId()).thenReturn(40L);
+    when(item.getQuantity()).thenReturn(2);
+    when(reservations.activeAllocations(20L)).thenReturn(List.of(new Allocation(1, 30, 2, "RESERVED", 1)));
+    when(orders.freezeWarehouseAllocation(any(), any())).thenReturn(true);
+    var gatewayStop = new IllegalStateException("Stop after capturing the outgoing payment command");
+    when(payments.create(any())).thenThrow(gatewayStop);
+
+    var request = new CreatePaymentRequest("payment-test", false, PaymentChannelV1.ALIPAY);
+    assertThatThrownBy(() -> purchaseOrders.pay(buyer, 20L, request)).isSameAs(gatewayStop);
+    verify(payments).create(argThat(command -> command.orderId() == 20L && command.orderMerchantId() == 40L));
   }
 }

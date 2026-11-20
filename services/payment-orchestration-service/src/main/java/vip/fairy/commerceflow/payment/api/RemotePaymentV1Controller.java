@@ -22,6 +22,7 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.payment.application.PaymentLedgerReportService;
+import vip.fairy.commerceflow.payment.application.PaymentReportOwnership;
 import vip.fairy.commerceflow.payment.application.RemotePaymentProtocolService;
 import vip.fairy.commerceflow.payment.application.RemotePaymentProtocolService.ContractReceipt;
 import vip.fairy.commerceflow.payment.application.RemotePaymentProtocolService.ProtocolConflictException;
@@ -43,15 +44,18 @@ public class RemotePaymentV1Controller {
   private final PaymentShadowProperties properties;
   private final RemotePaymentProtocolService protocol;
   private final PaymentLedgerReportService reports;
+  private final PaymentReportOwnership ownership;
   private final ObjectMapper mapper;
 
   public RemotePaymentV1Controller(PaymentShadowProperties properties,
                                    RemotePaymentProtocolService protocol,
                                    PaymentLedgerReportService reports,
+                                   PaymentReportOwnership ownership,
                                    ObjectMapper mapper) {
     this.properties = properties;
     this.protocol = protocol;
     this.reports = reports;
+    this.ownership = ownership;
     this.mapper = mapper;
   }
 
@@ -75,14 +79,21 @@ public class RemotePaymentV1Controller {
   @PostMapping("/ledger-reports")
   PaymentLedgerReportService.Report ledgerReport(@RequestBody String payload, HttpServletRequest request) {
     requireTrafficAndHash(payload, request);
-    PaymentLedgerReportService.Query query;
+    return reports.summarize(readReportRequest(payload, PaymentLedgerReportService.Query.class));
+  }
+
+  @PostMapping("/ledger-reports/ownership-backfill")
+  PaymentReportOwnership.BackfillResult backfillOwnership(@RequestBody String payload, HttpServletRequest request) {
+    requireTrafficAndHash(payload, request);
+    return ownership.backfill(readReportRequest(payload, PaymentReportOwnership.BackfillRequest.class));
+  }
+
+  private <T> T readReportRequest(String payload, Class<T> type) {
     try {
-      query = mapper.readerFor(PaymentLedgerReportService.Query.class)
-        .with(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).readValue(payload);
+      return mapper.readerFor(type).with(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).readValue(payload);
     } catch (JacksonException invalid) {
       throw new IllegalArgumentException("Payment ledger report request is invalid", invalid);
     }
-    return reports.summarize(query);
   }
 
   @PostMapping("/refund-query")

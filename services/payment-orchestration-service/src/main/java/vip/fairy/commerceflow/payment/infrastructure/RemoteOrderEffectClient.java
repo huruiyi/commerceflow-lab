@@ -4,6 +4,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -42,6 +43,14 @@ public class RemoteOrderEffectClient {
       throw new IllegalStateException("Order was not found: " + orderId);
     }
     return result.order();
+  }
+
+  public List<Long> itemMerchantIds(long orderId) {
+    QueryResult result = post(QUERY, new Query("ITEMS", null, null, orderId, null), QueryResult.class);
+    if (!result.found() || result.items() == null) {
+      throw new IllegalStateException("Order service returned no item snapshot for " + orderId);
+    }
+    return result.items().stream().map(ItemView::merchantId).distinct().toList();
   }
 
   public int status(String mutationId, Long orderId, String from, String to) {
@@ -94,7 +103,11 @@ public class RemoteOrderEffectClient {
   private record Query(String type, Long customerId, Long merchantId, Long orderId, Long itemId) {
   }
 
-  private record QueryResult(boolean found, String status, Long customerId, OrderView order) {
+  private record QueryResult(boolean found, String status, Long customerId, OrderView order,
+                              List<ItemView> items) {
+  }
+
+  private record ItemView(Long merchantId) {
   }
 
   public record OrderView(Long id, String orderNumber, Long customerId, String status,
