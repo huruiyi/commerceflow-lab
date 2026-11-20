@@ -26,9 +26,22 @@
           · {{ 'returnReceivedQuantity' | t }} {{ value.receivedQuantity }} / {{ value.quantity }}
         </ng-container>
       </small>
+      <p *ngIf="value.workOrderPhase === 'WAITING_EVIDENCE'" class="mb-1">{{ 'returnWork_WAITING_EVIDENCE' | t }}</p>
+      <p *ngIf="value.approvedQuantity as approved" class="mb-1">
+        {{ 'returnWorkApprovedQuantity' | t }} {{ approved }} / {{ value.quantity }}
+        <small *ngIf="approved < value.quantity" class="d-block">
+          {{ 'returnWorkUnapprovedRemainder' | t }} {{ value.quantity - approved }}
+        </small>
+      </p>
       <p class="mb-1">{{ value.reason }}</p>
       <small class="d-block">
-        {{ 'productRefundAmount' | t }} {{ value.merchandiseAmount | trcurrency }} · {{ 'shippingRefundAmount' | t }}
+        {{ 'productRefundAmount' | t }}
+        {{
+          (value.workOrderPhase === 'REJECTED' ? 0 : (value.approvedMerchandiseAmount ?? value.merchandiseAmount))
+            | trcurrency
+        }}
+        ·
+        {{ 'shippingRefundAmount' | t }}
         {{ value.shippingAmount | trcurrency }}
       </small>
       <small *ngIf="value.trackingNumber" class="d-block">{{ 'returnTracking' | t }} {{ value.trackingNumber }}</small>

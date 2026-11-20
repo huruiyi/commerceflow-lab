@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.refund.infrastructure.ReturnWorkOrderMapper">
+  <sql id="view">
+    SELECT w.case_id,s.order_id,s.order_line_id,s.warehouse_id,s.outbound_id,s.tracking_number,
+      w.warehouse_status,w.phase,s.status AS case_status,s.quantity AS requested_quantity,
+      s.received_quantity,s.approved_quantity,s.approved_merchandise_amount AS approved_amount,
+      s.currency,s.refund_number
+    FROM return_exception_work_orders w JOIN line_after_sales s ON s.id=w.case_id
+  </sql>
+  <sql id="actionColumns">
+    request_id,case_id,actor_id,action,note,quantity,evidence_id,created_at
+  </sql>
+  <insert id="sync">
+    INSERT INTO return_exception_work_orders(case_id,warehouse_status)
+    SELECT s.id,s.warehouse_return_status FROM line_after_sales s
+    WHERE s.kind='RETURN' AND s.status='REVIEW_REQUIRED' AND s.refund_number IS NULL
+      AND s.warehouse_return_status IN ('SHORT_RECEIVED','REJECTED','FAILED')
+      AND NOT EXISTS (SELECT 1 FROM return_exception_work_orders w WHERE w.case_id=s.id)
+    ON DUPLICATE KEY UPDATE case_id=return_exception_work_orders.case_id
+  </insert>
+  <select id="forMerchant" resultType="vip.fairy.commerceflow.commerce.refund.domain.ReturnWorkOrder">
+    <include refid="view"/>
+    WHERE s.merchant_id=#{merchantId}
+    ORDER BY CASE WHEN w.phase IN ('OPEN','WAITING_EVIDENCE') THEN 0 ELSE 1 END,w.created_at DESC,w.case_id
+    LIMIT 50
+  </select>
+  <select id="find" resultType="vip.fairy.commerceflow.commerce.refund.domain.ReturnWorkOrder">
+    <include refid="view"/>
+    WHERE w.case_id=#{caseId} AND s.merchant_id=#{merchantId}
+  </select>
+  <select id="actions" resultType="vip.fairy.commerceflow.commerce.refund.domain.ReturnWorkOrder$Action">
+    SELECT <include refid="actionColumns"/> FROM return_exception_actions WHERE case_id=#{caseId}
+    ORDER BY created_at,request_id
+  </select>
+  <select id="action" resultType="vip.fairy.commerceflow.commerce.refund.domain.ReturnWorkOrder$Action">
+    SELECT <include refid="actionColumns"/> FROM return_exception_actions WHERE request_id=#{requestId}
+  </select>
+  <insert id="record">
+    INSERT INTO return_exception_actions(request_id,case_id,actor_id,action,note,quantity,evidence_id)
+    VALUES (#{requestId},#{caseId},#{actorId},#{action},#{note},#{quantity},#{evidenceId})
+  </insert>
+  <update id="advance">
+    UPDATE return_exception_work_orders SET phase=#{phase},updated_at=CURRENT_TIMESTAMP(6)
+    WHERE case_id=#{caseId} AND phase IN ('OPEN','WAITING_EVIDENCE')
+  </update>
+</mapper>

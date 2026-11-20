@@ -5,7 +5,9 @@
   <sql id="columns">
     id,order_id,order_line_id,product_id,customer_id,merchant_id,quantity,merchandise_amount,
     shipping_amount,currency,kind,status,reason,decision,tracking_number,refund_number,return_shipping_cost,
-    received_quantity,last_error,warehouse_id,outbound_id,warehouse_return_status
+    received_quantity,last_error,warehouse_id,outbound_id,warehouse_return_status,
+    approved_quantity,approved_merchandise_amount,
+    (SELECT w.phase FROM return_exception_work_orders w WHERE w.case_id=line_after_sales.id) AS work_order_phase
   </sql>
 
   <select id="find" resultType="vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale">
@@ -72,6 +74,17 @@
   <update id="waitForWarehouse">
     UPDATE line_after_sales SET next_attempt_at=TIMESTAMPADD(SECOND,5,CURRENT_TIMESTAMP(6))
     WHERE id=#{id} AND status='RETURN_SENT'
+  </update>
+  <update id="approveException">
+    UPDATE line_after_sales SET approved_quantity=#{quantity},approved_merchandise_amount=#{amount},
+      status='PREPARING',decision=#{note},next_attempt_at=CURRENT_TIMESTAMP(6),updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{id} AND status='REVIEW_REQUIRED' AND refund_number IS NULL AND approved_quantity IS NULL
+      AND kind='RETURN' AND warehouse_return_status IN ('SHORT_RECEIVED','FAILED')
+      AND received_quantity &gt;= #{quantity} AND outbound_id IS NOT NULL AND warehouse_id IS NOT NULL
+  </update>
+  <update id="noteException">
+    UPDATE line_after_sales SET status=#{to},decision=#{note},updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{id} AND status='REVIEW_REQUIRED' AND refund_number IS NULL
   </update>
   <update id="defer">
     UPDATE line_after_sales SET last_error=#{error},

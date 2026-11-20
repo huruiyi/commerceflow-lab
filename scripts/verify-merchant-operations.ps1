@@ -1,6 +1,6 @@
 #requires -Version 7.0
 param(
-  [ValidateSet('Store','Settlement','Payout','Packages','Search','Warehouses','WmsOutbound','WmsReturn')][string]$Chapter='Store',
+  [ValidateSet('Store','Settlement','Payout','Packages','Search','Warehouses','WmsOutbound','WmsReturn','ReturnWork')][string]$Chapter='Store',
   [string]$BaseUrl='http://localhost:14200',
   [string]$PaymentBaseUrl='http://localhost:14201',
   [string]$LogisticsUrl='http://localhost:18083',
@@ -17,7 +17,7 @@ if($isolated -and ($ProjectName-notmatch '^fairy-commerceflow-merchant-isolated-
     !([uri]$LogisticsUrl).IsLoopback -or ([uri]$LogisticsUrl).Port-eq18083)){
   throw 'Invalid isolated merchant benchmark project'
 }
-if($Chapter-in'WmsOutbound','WmsReturn','Packages','Warehouses','Settlement' -and (!([uri]$WarehouseBaseUrl).IsLoopback -or
+if($Chapter-in'WmsOutbound','WmsReturn','ReturnWork','Packages','Warehouses','Settlement' -and (!([uri]$WarehouseBaseUrl).IsLoopback -or
     ($isolated -and ([uri]$WarehouseBaseUrl).Port-eq18118))){
   throw 'Invalid warehouse acceptance endpoint'
 }
@@ -108,7 +108,9 @@ function New-Product($shop,[int]$Quantity=5,[string]$Name,[string]$Description='
     $stock=Sql inventory-db inventory "SELECT CONCAT(merchant_id,'/',catalog_lifecycle_status,'/',stock_available) FROM product_inventory WHERE product_id=$id"
     if($stock-eq"$($shop.id)/ACTIVE/0"){$true}
   } 'Catalog publish did not create and update its inventory snapshot'
-  Api $session "/api/merchant/inventory/$id/adjustments" Post @{delta=$Quantity;reason='Acceptance quantity'}|Out-Null
+  if($Quantity-ne0){
+    Api $session "/api/merchant/inventory/$id/adjustments" Post @{delta=$Quantity;reason='Acceptance quantity'}|Out-Null
+  }
   $active
 }
 
@@ -406,13 +408,14 @@ function Verify-Packages($shop,$product){
     unshippedRefundOrder=$refundId}
 }
 
-function Warehouse-Order($shop,[switch]$SingleWarehouse){
-  $stock=if($SingleWarehouse){2}else{1}
+function Warehouse-Order($shop,[switch]$SingleWarehouse,[long]$SingleWarehouseId=1){
+  $stock=if($SingleWarehouse){if($SingleWarehouseId-eq1){2}else{0}}else{1}
   $product=New-Product $shop $stock -Price 100
   $sku=[long]$product.productId
-  if(!$SingleWarehouse){
+  if(!$SingleWarehouse -or $SingleWarehouseId-eq2){
+    $added=if($SingleWarehouse){2}else{1}
     Api $shop.actor "/api/merchant/inventory/$sku/adjustments" Post @{
-      delta=1;reason='Second warehouse acceptance stock';warehouseId=2
+      delta=$added;reason='Second warehouse acceptance stock';warehouseId=2
     }|Out-Null
   }
   $campaign=Api $shop.actor '/api/merchant/coupon-campaigns' Post @{
@@ -436,9 +439,9 @@ function Warehouse-Order($shop,[switch]$SingleWarehouse){
     throw 'Warehouse quantity, discount or freight allocation is inconsistent'
   }
   $reserved=@(Sql inventory-db inventory "SELECT CONCAT(warehouse_id,'/',quantity,'/',status) FROM inventory_reservations WHERE order_id=$id ORDER BY warehouse_id")
-  $expected=if($SingleWarehouse){'1/2/COMMITTED'}else{'1/1/COMMITTED|2/1/COMMITTED'}
+  $expected=if($SingleWarehouse){"$SingleWarehouseId/2/COMMITTED"}else{'1/1/COMMITTED|2/1/COMMITTED'}
   if(($reserved-join'|')-ne$expected){throw 'Inventory did not commit the expected warehouse allocations'}
-  if($SingleWarehouse -and ($amounts.Count-ne1 -or $amounts[0].warehouseId-ne1 -or
+  if($SingleWarehouse -and ($amounts.Count-ne1 -or $amounts[0].warehouseId-ne$SingleWarehouseId -or
       $amounts[0].quantity-ne2 -or $amounts[0].discountAmount-ne15.01 -or $amounts[0].freightAmount-ne12.01)){
     throw 'Single-warehouse amount snapshot is inconsistent'
   }
@@ -671,6 +674,148 @@ function Assert-NoReturnEffect($sale){
   $inventory=Sql inventory-db inventory "SELECT COUNT(*) FROM inventory_line_credits WHERE case_id='$key'"
   $state=Sql commerce-db commerceflow "SELECT COALESCE(refund_number,'NONE') FROM line_after_sales WHERE id='$key'"
   if($inventory-ne'0' -or $state-ne'NONE'){throw "Unexpected refund or stock credit for return $key"}
+}
+
+function Wait-WorkOrder($shop,$sale){
+  Wait-Value {
+    Api $shop.actor '/api/merchant/return-work-orders'|Where-Object caseId -eq $sale.id
+  } 'Return exception did not project a work order'
+}
+
+function Race-WorkApproval($shop,[string]$Path,$First,$Second){
+  $jobs=@()
+  try {
+    foreach($request in $First,$Second){
+      $body=$request|ConvertTo-Json -Compress
+      $jobs+=Start-ThreadJob -ArgumentList "$BaseUrl$Path",$shop.actor,$body -ScriptBlock {
+        param($url,$actor,$json)
+        (Invoke-WebRequest $url -Method Post -WebSession $actor.Session -Headers $actor.Headers -Body $json `
+          -ContentType application/json -SkipHttpErrorCheck -TimeoutSec 20).StatusCode
+      }
+    }
+    $statuses=@(Receive-Job $jobs -Wait | Sort-Object)
+    if(($statuses-join'|')-ne'200|409'){throw "Unexpected work order race: $statuses"}
+  }finally{
+    if($jobs){Remove-Job $jobs -Force}
+  }
+}
+
+function Verify-ReturnWork($shop){
+  Api $shop.actor '/api/merchant/shipping-template' Put @{defaultFee=12.01;regions=@()}|Out-Null
+  $order=Warehouse-Order $shop -SingleWarehouse -SingleWarehouseId 2
+  $id=[long]$order.id
+  $outbound=Ship-Package $shop $order 2 COMPLETED 2
+  Delivery "CFL-PACKAGE-$outbound"
+  $null=Wait-Value {
+    $value=Api $buyer "/api/purchase-orders/$id"
+    if($value.packages[0].status-eq'DELIVERED' -and $value.logisticsDeliveredAt){$value}
+  } 'Expected dispatched package delivery'
+  Api $buyer "/api/purchase-orders/$id/receive" Post @{}|Out-Null
+  $caseUrl="/api/purchase-orders/$id/after-sales"
+  $line=$order.items[0].id
+  $request=@{orderLineId=$line;quantity=2;warehouseId=2;outboundId=$outbound;
+    requestId=[guid]::NewGuid();reason='Return two items from the original package'}
+  $sale=Api $buyer $caseUrl Post $request
+  Send-WmsReturn $shop $sale|Out-Null
+  Put-WmsReceipt $sale 1|Out-Null
+  Wait-ReturnCase $sale REVIEW_REQUIRED SHORT_RECEIVED|Out-Null
+  Assert-NoReturnEffect $sale
+  $ticket=Wait-WorkOrder $shop $sale
+  $key=$sale.id
+  $workUrl="/api/merchant/return-work-orders/$key"
+  $actionUrl="$workUrl/actions"
+  if($ticket.phase-ne'OPEN' -or $ticket.outboundId-ne$outbound -or $ticket.warehouseId-ne2 -or
+      $ticket.requestedQuantity-ne2 -or $ticket.receivedQuantity-ne1){throw 'Work order lost its warehouse evidence'}
+  $approve=@{requestId=[guid]::NewGuid();action='APPROVE';quantity=1;note='Approve the single qualified item'}
+  Reject $shop.actor $actionUrl Post $approve @(409)
+  Reject $original $workUrl Get $null @(404)
+  Reject $original $actionUrl Post $approve @(404)
+  Reject $buyer $workUrl Get $null @(403)
+  $evidenceRequest=@{requestId=[guid]::NewGuid();action='REQUEST_EVIDENCE';note='Please document the inspected item'}
+  $opened=Api $shop.actor $actionUrl Post $evidenceRequest
+  $repeat=Api $shop.actor $actionUrl Post $evidenceRequest
+  $customer=Wait-ReturnCase $sale REVIEW_REQUIRED SHORT_RECEIVED
+  if($opened.ticket.phase-ne'WAITING_EVIDENCE' -or $repeat.actions.Count-ne1 -or
+      $customer.workOrderPhase-ne'WAITING_EVIDENCE'){throw 'Evidence request did not persist exactly once'}
+  $proof=@{warehouseId=2;quantity=1;note='Checked one received item and confirmed it is resellable'}
+  if($isolated){
+    Warehouse-Api "/$key/supplement" Put @{warehouseId=1;quantity=1;note='Wrong warehouse'} 400 returns
+    Warehouse-Api "/$key/supplement" Put @{warehouseId=2;quantity=2;note='Too many items'} 400 returns
+  }
+  $receipt=Warehouse-Api "/$key/supplement" Put $proof 200 returns
+  $same=Warehouse-Api "/$key/supplement" Put $proof 200 returns
+  if($receipt.status-ne'SHORT_RECEIVED' -or $same.supplementId-ne$receipt.supplementId){
+    throw 'A supplemental inspection replaced or duplicated the original receipt'
+  }
+  if((Api $shop.actor "$workUrl/evidence").qualifiedQuantity-ne1){throw 'Signed supplemental inspection missing'}
+  Reject $shop.actor $actionUrl Post @{requestId=[guid]::NewGuid();action='APPROVE';quantity=2;note='Excess'} @(409)
+  if($isolated){
+    Sql inventory-db inventory "CREATE TRIGGER return_work_restock_fixture BEFORE INSERT ON inventory_line_credits FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Isolated work order restock retry'"|Out-Null
+  }
+  try{
+    if($isolated){
+      $rival=@{requestId=[guid]::NewGuid();action='APPROVE';quantity=1;note='Concurrent approval of the same item'}
+      Race-WorkApproval $shop $actionUrl $approve $rival
+      $null=Wait-Value {
+        $deferred=Sql commerce-db commerceflow "SELECT COUNT(*) FROM line_after_sales WHERE id='$key' AND status='RESTOCKING' AND last_error IS NOT NULL"
+        if($deferred-eq'1'){$true}
+      } 'Confirmed refund did not reach isolated after-stock retry'
+      if((Sql inventory-db inventory "SELECT COUNT(*) FROM inventory_line_credits WHERE case_id='$key'")-ne'0'){
+        throw 'An interrupted restock left a partial credit'
+      }
+    }else{
+      Api $shop.actor $actionUrl Post $approve|Out-Null
+      Api $shop.actor $actionUrl Post $approve|Out-Null
+    }
+  }finally{
+    if($isolated){Sql inventory-db inventory 'DROP TRIGGER IF EXISTS return_work_restock_fixture'|Out-Null}
+  }
+  $done=Wait-ReturnCase $sale COMPLETED SHORT_RECEIVED
+  $resolved=Api $shop.actor $workUrl
+  $credit=Sql inventory-db inventory "SELECT CONCAT(warehouse_id,'/',outbound_id,'/',quantity) FROM inventory_line_credits WHERE case_id='$key'"
+  $movement=Sql inventory-db inventory "SELECT CONCAT(COUNT(*),'/',SUM(quantity)) FROM inventory_movements WHERE order_id=$id AND warehouse_id=2 AND movement_type='RETURN_RESTOCKED'"
+  $payment=Sql payment-db payments "SELECT refunded_amount FROM payment_records WHERE order_id=$id AND status='SUCCESS'"
+  $approval=@($resolved.actions|Where-Object action -eq APPROVE)
+  if($done.quantity-ne2 -or $done.approvedQuantity-ne1 -or $done.approvedMerchandiseAmount-ne92.49 -or
+      $payment-ne'92.49' -or $credit-ne"2/$outbound/1" -or $movement-ne'1/1' -or
+      $resolved.ticket.caseStatus-ne'COMPLETED' -or $approval.Count-ne1 -or
+      $approval[0].evidenceId-ne$receipt.supplementId){
+    throw 'Work order quantity, payment, audit or original warehouse did not reconcile'
+  }
+  Reject $buyer "$caseUrl/quote" Post @{orderLineId=$line;quantity=2;warehouseId=2;outboundId=$outbound} @(409)
+  $remaining=Api $buyer "$caseUrl/quote" Post @{orderLineId=$line;quantity=1;warehouseId=2;outboundId=$outbound}
+  if($remaining.availableQuantity-ne1 -or $remaining.merchandiseAmount-ne92.50 -or $remaining.shippingAmount-ne0){
+    throw 'Unapproved remaining quantity did not preserve its frozen refund entitlement'
+  }
+
+  $other=Complete-Order $shop (New-Product $shop 2) 1
+  $denied=Apply-Return $other
+  Send-WmsReturn $shop $denied|Out-Null
+  Put-WmsReceipt $denied 0 $true|Out-Null
+  Wait-ReturnCase $denied REVIEW_REQUIRED REJECTED|Out-Null
+  Wait-WorkOrder $shop $denied|Out-Null
+  $close=@{requestId=[guid]::NewGuid();action='REJECT';note='Warehouse refused receipt; carrier handling recorded'}
+  $closed=Api $shop.actor "/api/merchant/return-work-orders/$($denied.id)/actions" Post $close
+  if($closed.ticket.phase-ne'REJECTED' -or $closed.ticket.caseStatus-ne'REJECTED' -or $closed.actions.Count-ne1){
+    throw 'Refused shipment did not close with an audit record'
+  }
+  Assert-NoReturnEffect $denied
+
+  if($isolated){
+    $failedOrder=Complete-Order $shop (New-Product $shop 2) 1
+    $failed=Apply-Return $failedOrder
+    Send-WmsReturn $shop $failed|Out-Null
+    Put-WmsReceipt $failed 1|Out-Null
+    Put-WmsQuality $failed $false|Out-Null
+    Wait-ReturnCase $failed REVIEW_REQUIRED FAILED|Out-Null
+    Wait-WorkOrder $shop $failed|Out-Null
+    Reject $shop.actor "/api/merchant/return-work-orders/$($failed.id)/actions" Post @{
+      requestId=[guid]::NewGuid();action='APPROVE';quantity=1;note='Failed original quality'
+    } @(409)
+    Assert-NoReturnEffect $failed
+  }
+  @{partialOrder=$id;deniedOrder=$other.id;workOrder=$key;warehouse=2;approved=1;refund=92.49;
+    remainingRefund=92.50;freight=12.01;restockRecoveryVerified=$isolated}
 }
 
 function Verify-WmsReturn($shop){
@@ -984,9 +1129,10 @@ if($baselineShop.status-ne'ACTIVE' -or $baselineProduct.merchantId-ne$baselineSh
 $shop=Open-FixtureStore
 $otherShop=$null
 try{
-  if($Chapter-in'Warehouses','WmsOutbound','WmsReturn'){
+  if($Chapter-in'Warehouses','WmsOutbound','WmsReturn','ReturnWork'){
     $result=switch($Chapter){
       'WmsReturn' { Verify-WmsReturn $shop }
+      'ReturnWork' { Verify-ReturnWork $shop }
       'WmsOutbound' { Verify-WmsOutbound $shop }
       default { Verify-Warehouses $shop }
     }

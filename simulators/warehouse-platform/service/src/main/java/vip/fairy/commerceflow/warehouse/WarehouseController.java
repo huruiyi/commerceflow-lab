@@ -104,6 +104,16 @@ class WarehouseController {
     return returns.inspect(id, value.warehouseId(), value.passed());
   }
 
+  @PutMapping("/api/admin/returns/{id}/supplement")
+  WarehouseReturns.Receipt supplement(@RequestHeader(value = "Authorization", required = false) String auth,
+                                      @PathVariable String id, @RequestBody Supplement value) {
+    requireAdmin(auth);
+    return returns.supplement(id, value.warehouseId(), value.quantity(), value.note());
+  }
+
+  private record Supplement(long warehouseId, int quantity, String note) {
+  }
+
   private record PhysicalReceipt(long warehouseId, Integer quantity, Boolean rejected) {
   }
 

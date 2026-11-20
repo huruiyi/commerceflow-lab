@@ -12,4 +12,6 @@ interface WarehouseReturnMapper {
   List<WarehouseReturns.Receipt> list(Long orderId);
   int receive(@Param("id") String id, @Param("quantity") int quantity, @Param("status") String status);
   int inspect(@Param("id") String id, @Param("status") String status);
+  int supplement(@Param("id") String id, @Param("evidenceId") String evidenceId,
+                 @Param("quantity") int quantity, @Param("note") String note);
 }

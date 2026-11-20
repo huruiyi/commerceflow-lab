@@ -129,7 +129,14 @@ function returnDocument(entry) {
     element('p', '预期 ' + entry.expectedQuantity + ' 件 · 实收 ' + (entry.receivedQuantity ?? '—')),
   );
   const awaiting = entry.status === 'WAITING_RECEIPT';
-  if (!awaiting && entry.status !== 'RECEIVED') return article;
+  if (!awaiting && entry.status !== 'RECEIVED') {
+    if (entry.supplementId) {
+      article.append(element('p', '复检合格 ' + entry.qualifiedQuantity + ' 件 · ' + entry.supplementNote));
+    } else if (['SHORT_RECEIVED', 'FAILED'].includes(entry.status) && entry.receivedQuantity > 0) {
+      article.append(supplementForm(entry));
+    }
+    return article;
+  }
 
   const form = element('form');
   const actions = element('div');
@@ -180,6 +187,42 @@ function returnDocument(entry) {
   });
   reject.addEventListener('click', () => void save(false));
   return article;
+}
+
+function supplementForm(entry) {
+  const form = element('form');
+  const quantity = element('input');
+  Object.assign(quantity, { type: 'number', min: '1', max: String(entry.receivedQuantity), required: true });
+  quantity.value = String(entry.receivedQuantity);
+  const note = element('input');
+  Object.assign(note, { required: true, maxLength: 300 });
+  const quantityLabel = element('label', '复检合格件数');
+  const noteLabel = element('label', '复检说明');
+  quantityLabel.append(quantity);
+  noteLabel.append(note);
+  const submit = element('button', '登记补检凭证');
+  form.append(quantityLabel, noteLabel, submit);
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    submit.disabled = true;
+    try {
+      await api('/api/admin/returns/' + entry.returnId + '/supplement', {
+        method: 'PUT',
+        body: JSON.stringify({
+          warehouseId: entry.warehouseId,
+          quantity: quantity.valueAsNumber,
+          note: note.value.trim(),
+        }),
+      });
+      await load();
+      message('补检凭证已登记。');
+    } catch (error) {
+      message(error.message, true);
+    } finally {
+      submit.disabled = false;
+    }
+  });
+  return form;
 }
 
 filter.addEventListener('submit', async (event) => {

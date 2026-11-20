@@ -12,6 +12,7 @@ import { UsersComponent } from './users/users.component';
 import { AddressesComponent } from './addresses/addresses.component';
 import { PurchaseOrdersComponent } from './purchase-orders/purchase-orders.component';
 import { MerchantOrdersComponent } from './merchant-orders/merchant-orders.component';
+import { MerchantReturnWorkOrdersComponent } from './merchant-return-work-orders/merchant-return-work-orders.component';
 import { ProfileComponent } from './profile/profile.component';
 import { SchedulingAdminComponent } from './scheduling-admin/scheduling-admin.component';
 import { LogisticsCallbackAdminComponent } from './logistics-callback-admin/logistics-callback-admin.component';
@@ -61,6 +62,12 @@ const routes: Routes = [
   {
     path: 'merchant/orders',
     component: MerchantOrdersComponent,
+    canActivate: [AuthGuard],
+    data: { roles: ['MERCHANT'] },
+  },
+  {
+    path: 'merchant/return-work-orders',
+    component: MerchantReturnWorkOrdersComponent,
     canActivate: [AuthGuard],
     data: { roles: ['MERCHANT'] },
   },

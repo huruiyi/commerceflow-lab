@@ -31,6 +31,8 @@ public interface LineAfterSaleMapper {
                        Integer receivedQuantity, String to);
   int acceptWarehouse(String id, Long merchantId, String to, String note);
   void waitForWarehouse(String id);
+  int approveException(String id, int quantity, BigDecimal amount, String note);
+  int noteException(String id, String to, String note);
 
   void defer(String id, String status, String error);
 }

@@ -1,0 +1,97 @@
+<section class="container py-4">
+  <header class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h2 class="mb-0">{{ 'returnWorkOrders' | t }}</h2>
+    <button class="btn btn-outline-primary" type="button" [disabled]="busy" (click)="refresh()">
+      {{ 'returnWorkRefresh' | t }}
+    </button>
+  </header>
+  <p *ngIf="error" class="text-danger" role="alert">{{ error | t }}</p>
+  <p *ngIf="!tickets.length && !busy && !error">{{ 'returnWorkEmpty' | t }}</p>
+  <div class="row g-3">
+    <div class="col-md-5">
+      <div class="list-group">
+        <button
+          *ngFor="let item of tickets"
+          type="button"
+          class="list-group-item list-group-item-action d-flex justify-content-between gap-2"
+          [class.active]="detail?.ticket?.caseId === item.caseId"
+          [disabled]="busy"
+          (click)="select(item)"
+        >
+          <span>{{ 'order' | t }} {{ item.orderId }} · {{ 'warehouseReturn_' + item.warehouseStatus | t }}</span>
+          <span>{{ 'returnWork_' + status(item) | t }}</span>
+        </button>
+      </div>
+    </div>
+    <div *ngIf="detail as selected" class="col-md-7">
+      <article class="border rounded p-3">
+        <h3 class="h5">{{ 'order' | t }} {{ selected.ticket.orderId }}</h3>
+        <p class="mb-1">{{ 'returnWork_' + status(selected.ticket) | t }}</p>
+        <p class="mb-1">{{ 'returnOriginalPackage' | t }} {{ selected.ticket.outboundId }}</p>
+        <p class="mb-1">{{ 'fulfillmentWarehouse' | t }} {{ selected.ticket.warehouseId }}</p>
+        <p class="mb-1">{{ 'returnTracking' | t }} {{ selected.ticket.trackingNumber }}</p>
+        <p>
+          {{ 'afterSaleQuantity' | t }} {{ selected.ticket.requestedQuantity }} · {{ 'returnReceivedQuantity' | t }}
+          {{ selected.ticket.receivedQuantity }}
+        </p>
+        <p *ngIf="selected.ticket.approvedQuantity as approved">
+          {{ 'returnWorkApprovedQuantity' | t }} {{ approved }} · {{ 'productRefundAmount' | t }}
+          {{ selected.ticket.approvedAmount ?? 0 | trcurrency }}
+          <small *ngIf="approved < selected.ticket.requestedQuantity" class="d-block">
+            {{ 'returnWorkUnapprovedRemainder' | t }} {{ selected.ticket.requestedQuantity - approved }}
+          </small>
+        </p>
+        <p *ngIf="selected.ticket.refundNumber">{{ 'afterSaleRefundNumber' | t }} {{ selected.ticket.refundNumber }}</p>
+        <div *ngIf="['OPEN', 'WAITING_EVIDENCE'].includes(selected.ticket.phase)" class="border-top pt-3">
+          <button
+            *ngIf="selected.ticket.warehouseStatus !== 'REJECTED'"
+            class="btn btn-sm btn-outline-primary"
+            type="button"
+            (click)="loadEvidence()"
+          >
+            {{ 'returnWorkRefreshEvidence' | t }}
+          </button>
+          <p *ngIf="evidenceError" role="alert">{{ 'returnWorkEvidenceUnavailable' | t }}</p>
+          <p *ngIf="evidence as proof" class="mt-2">
+            {{ 'returnWorkQualified' | t }} {{ proof.qualifiedQuantity }} · {{ proof.note }}
+          </p>
+          <label class="d-block mt-2">
+            {{ 'afterSaleDecision' | t }}
+            <textarea class="form-control" maxlength="300" [(ngModel)]="note"></textarea>
+          </label>
+          <label *ngIf="evidence as proof" class="d-block mt-2">
+            {{ 'returnWorkApprovedQuantity' | t }}
+            <input type="number" class="form-control" min="1" [max]="proof.qualifiedQuantity" [(ngModel)]="quantity" />
+          </label>
+          <div class="d-flex flex-wrap gap-2 mt-3">
+            <button
+              class="btn btn-outline-primary"
+              [disabled]="busy || !note.trim()"
+              (click)="decide('REQUEST_EVIDENCE')"
+            >
+              {{ 'returnWorkRequestEvidence' | t }}
+            </button>
+            <button class="btn btn-outline-danger" [disabled]="busy || !note.trim()" (click)="decide('REJECT')">
+              {{ 'returnWorkReject' | t }}
+            </button>
+            <button
+              *ngIf="evidence as proof"
+              class="btn btn-primary"
+              [disabled]="busy || !note.trim() || !quantity || quantity < 1 || quantity > proof.qualifiedQuantity"
+              (click)="decide('APPROVE')"
+            >
+              {{ 'returnWorkApprove' | t }}
+            </button>
+          </div>
+        </div>
+        <h4 *ngIf="selected.actions.length" class="h6 mt-4">{{ 'returnWorkAudit' | t }}</h4>
+        <ol class="mb-0">
+          <li *ngFor="let action of selected.actions">
+            {{ 'returnWorkAction_' + action.action | t }} · {{ action.createdAt | trdate }} ·
+            {{ 'returnWorkActor' | t }} {{ action.actorId }} · {{ action.note }}
+          </li>
+        </ol>
+      </article>
+    </div>
+  </div>
+</section>

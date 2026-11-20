@@ -75,7 +75,7 @@ public class LineAfterSaleService {
     LineAfterSale value = new LineAfterSale(requestId.toString(), orderId, lineId, offer.productId(), customerId,
       offer.merchantId(), quantity, offer.merchandiseAmount(), offer.shippingAmount(), offer.currency(),
       offer.kind(), "APPLIED", reason, null, null, null, null, null, null,
-      offer.warehouseId(), offer.outboundId(), null);
+      offer.warehouseId(), offer.outboundId(), null, null, null, null);
     cases.insert(value);
     return value;
   }
@@ -115,7 +115,7 @@ public class LineAfterSaleService {
     var previousCases = completed.stream().filter(value -> lineId.equals(value.orderLineId()))
       .filter(value -> resolvedWarehouse == null
         || resolvedWarehouse.equals(value.warehouseId() == null ? 1L : value.warehouseId())).toList();
-    int previous = previousCases.stream().mapToInt(LineAfterSale::quantity).sum();
+    int previous = previousCases.stream().mapToInt(LineAfterSale::executableQuantity).sum();
     int remaining = assigned - previous;
     if (unshipped) {
       int sent = plan.shipments().stream().filter(ship -> ship.orderLineId() == lineId
@@ -124,7 +124,7 @@ public class LineAfterSaleService {
     } else {
       int returned = previousCases.stream().filter(value -> !beforeShipment(value)
           && (value.outboundId() == null || source.outboundId().equals(value.outboundId())))
-        .mapToInt(LineAfterSale::quantity).sum();
+        .mapToInt(LineAfterSale::executableQuantity).sum();
       remaining = Math.min(remaining, source.quantity() - returned);
     }
     if (quantity < 1 || quantity > remaining) {
@@ -133,12 +133,18 @@ public class LineAfterSaleService {
     BigDecimal amount = LineRefundAmount.calculate(net, assigned, previous, quantity);
     int purchased = lines.stream().mapToInt(item -> item.getQuantity()).sum();
     boolean finalUnshipped = unshipped
-      && completed.stream().mapToInt(LineAfterSale::quantity).sum() + quantity == purchased;
+      && completed.stream().mapToInt(LineAfterSale::executableQuantity).sum() + quantity == purchased;
     BigDecimal freight = finalUnshipped && completed.stream().noneMatch(value -> value.shippingAmount().signum() > 0)
       ? order.getShippingFee() : BigDecimal.ZERO.setScale(2);
     return new Offer(line.getProductId(), line.getMerchantId(), remaining,
       unshipped ? "BEFORE_SHIPMENT" : "RETURN", amount, freight, order.getCurrency(),
       resolvedWarehouse, source == null ? null : source.outboundId());
+  }
+
+  BigDecimal repriceException(LineAfterSale value, int quantity, List<LineAfterSale> existing) {
+    var related = existing.stream().filter(item -> !item.id().equals(value.id())).toList();
+    return offer(value.customerId(), value.orderId(), value.orderLineId(), quantity, related,
+      value.warehouseId(), value.outboundId()).merchandiseAmount();
   }
 
   public List<LineAfterSale> customerCases(Long customerId, Long orderId) {
@@ -262,9 +268,7 @@ public class LineAfterSaleService {
   }
 
   private void prepare(LineAfterSale value) {
-    if (!beforeShipment(value) && (!"PASSED".equals(value.warehouseReturnStatus())
-        || !Objects.equals(value.receivedQuantity(), value.quantity())
-        || value.warehouseId() == null || value.outboundId() == null)) {
+    if (!beforeShipment(value) && !qualifiedReturn(value)) {
       cases.advance(value.id(), value.status(), "REVIEW_REQUIRED", null);
       return;
     }
@@ -287,6 +291,14 @@ public class LineAfterSaleService {
       id, "CUSTOMER_CANCELLED", value.reason(), id, id, "00-" + trace + "-" + trace.substring(0, 16) + "-01",
       id, value.total()));
     cases.advance(id, value.status(), "REFUNDING", receipt.refundNumber());
+  }
+
+  private boolean qualifiedReturn(LineAfterSale value) {
+    if (value.warehouseId() == null || value.outboundId() == null || value.receivedQuantity() == null) return false;
+    if (value.approvedQuantity() != null) {
+      return value.approvedMerchandiseAmount() != null && value.approvedQuantity() <= value.receivedQuantity();
+    }
+    return "PASSED".equals(value.warehouseReturnStatus()) && value.receivedQuantity() == value.quantity();
   }
 
   private void pollRefund(LineAfterSale value) {
@@ -323,7 +335,8 @@ public class LineAfterSaleService {
 
   private InventoryLineCreditV1.Credit credit(LineAfterSale value) {
     return new InventoryLineCreditV1.Credit(value.id(), value.orderId(), value.orderLineId(),
-      value.merchantId(), value.productId(), value.quantity(), value.kind(), value.warehouseId(), value.outboundId());
+      value.merchantId(), value.productId(), value.executableQuantity(), value.kind(),
+      value.warehouseId(), value.outboundId());
   }
 
   private boolean beforeShipment(LineAfterSale value) {

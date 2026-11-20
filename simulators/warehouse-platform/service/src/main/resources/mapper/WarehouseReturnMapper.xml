@@ -3,7 +3,8 @@
 <mapper namespace="vip.fairy.commerceflow.warehouse.WarehouseReturnMapper">
   <sql id="fields">
     return_id,outbound_id,order_id,order_line_id,warehouse_id,tracking_number,
-    expected_quantity,received_quantity,status,received_at,inspected_at
+    expected_quantity,received_quantity,status,received_at,inspected_at,
+    supplement_id,qualified_quantity,supplement_note,supplement_at
   </sql>
 
   <insert id="insert">
@@ -31,5 +32,10 @@
   <update id="inspect">
     UPDATE warehouse_returns SET status=#{status},inspected_at=CURRENT_TIMESTAMP(6)
     WHERE return_id=#{id} AND status='RECEIVED'
+  </update>
+  <update id="supplement">
+    UPDATE warehouse_returns SET supplement_id=#{evidenceId},qualified_quantity=#{quantity},
+      supplement_note=#{note},supplement_at=CURRENT_TIMESTAMP(6)
+    WHERE return_id=#{id} AND supplement_id IS NULL AND status IN ('SHORT_RECEIVED','FAILED')
   </update>
 </mapper>

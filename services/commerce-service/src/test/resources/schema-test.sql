@@ -942,6 +942,25 @@ CREATE TABLE checkout_receipts (
   PRIMARY KEY (customer_id, quote_id)
 );
 
+CREATE TABLE return_exception_work_orders (
+  case_id CHAR(36) PRIMARY KEY,
+  warehouse_status VARCHAR(24) NOT NULL,
+  phase VARCHAR(24) NOT NULL DEFAULT 'OPEN',
+  created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+);
+
+CREATE TABLE return_exception_actions (
+  request_id CHAR(36) PRIMARY KEY,
+  case_id CHAR(36) NOT NULL,
+  actor_id BIGINT NOT NULL,
+  action VARCHAR(24) NOT NULL,
+  note VARCHAR(300) NOT NULL,
+  quantity INT NULL,
+  evidence_id CHAR(36) NULL,
+  created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+);
+
 CREATE TABLE line_after_sales (
   id CHAR(36) NOT NULL,
   order_id BIGINT NOT NULL,
@@ -965,6 +984,8 @@ CREATE TABLE line_after_sales (
   warehouse_id BIGINT NULL,
   outbound_id CHAR(36) NULL,
   warehouse_return_status VARCHAR(24) NULL,
+  approved_quantity INT NULL,
+  approved_merchandise_amount DECIMAL(12,2) NULL,
   next_attempt_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

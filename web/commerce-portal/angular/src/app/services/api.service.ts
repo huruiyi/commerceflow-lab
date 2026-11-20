@@ -42,6 +42,9 @@ export interface AfterSale extends Pick<AfterSaleOffer, 'merchandiseAmount' | 's
   outboundId?: string;
   warehouseReturnStatus?: string;
   receivedQuantity?: number;
+  approvedQuantity?: number;
+  approvedMerchandiseAmount?: number;
+  workOrderPhase?: string;
   id: string;
   status: string;
   reason: string;
@@ -50,6 +53,34 @@ export interface AfterSale extends Pick<AfterSaleOffer, 'merchandiseAmount' | 's
   returnShippingCost?: number;
   refundNumber?: string;
   decision?: string;
+}
+
+export interface ReturnWorkTicket {
+  caseId: string;
+  orderId: number;
+  orderLineId: number;
+  warehouseId: number;
+  outboundId: string;
+  trackingNumber: string;
+  warehouseStatus: string;
+  phase: string;
+  caseStatus: string;
+  requestedQuantity: number;
+  receivedQuantity: number;
+  approvedQuantity?: number;
+  approvedAmount?: number;
+  refundNumber?: string;
+}
+
+export interface ReturnWorkDetail {
+  ticket: ReturnWorkTicket;
+  actions: { requestId: string; actorId: number; action: string; note: string; createdAt: string }[];
+}
+
+export interface ReturnWorkEvidence {
+  id: string;
+  qualifiedQuantity: number;
+  note: string;
 }
 
 export interface CouponCampaign {
@@ -318,6 +349,25 @@ export class ApiService {
       '/api/merchant/after-sales/' + id + (inspection ? '/inspection' : '/review'),
       body,
     );
+  }
+
+  returnWorkOrders(): Observable<ReturnWorkTicket[]> {
+    return this.http.get<ReturnWorkTicket[]>('/api/merchant/return-work-orders');
+  }
+
+  returnWorkOrder(caseId: string): Observable<ReturnWorkDetail> {
+    return this.http.get<ReturnWorkDetail>('/api/merchant/return-work-orders/' + caseId);
+  }
+
+  returnWorkEvidence(caseId: string): Observable<ReturnWorkEvidence | null> {
+    return this.http.get<ReturnWorkEvidence | null>('/api/merchant/return-work-orders/' + caseId + '/evidence');
+  }
+
+  decideReturnWork(
+    caseId: string,
+    body: { requestId: string; action: string; note: string; quantity?: number },
+  ): Observable<ReturnWorkDetail> {
+    return this.http.post<ReturnWorkDetail>('/api/merchant/return-work-orders/' + caseId + '/actions', body);
   }
 
   couponCampaigns(merchant: boolean): Observable<CouponCampaign[]> {

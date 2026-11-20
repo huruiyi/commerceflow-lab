@@ -936,3 +936,38 @@ pwsh -NoProfile -File scripts/verify-merchant-operations.ps1 -Chapter WmsReturn
 本地验收结果保存在 `%LOCALAPPDATA%/CommerceFlow/releases/merchant-20261120` 下，
 包括 `wms-return-isolated.json`、`wms-return-browser.json`、`wms-return-daily.json`
 和 `wms-return-daily-evidence.json`。
+
+## 34. 售后异常工单验收
+
+商城 V64 为短收、拒收、质检不通过的待复核售后补建工单，并记录后续操作审计。
+同一售后单只生成一张工单。商家仅可处理本店工单，同一处置请求可以重试。
+WMS V3 在原退货单追加一次补检凭证，保留首次收货数量和质检状态，商城核对签名、原出库来源和件数。
+
+补证、拒绝结案和批准处理分别留审计。批准件数单独保存，按原订单的商品净额、优惠分摊和累计退款限额重算。
+支付确认成功后只向原仓回补。顾客仍可按原包裹剩余可退数申请尚未获批的件数。
+
+隔离和日常均使用[现有 PowerShell 7 验收脚本](../../scripts/verify-merchant-operations.ps1)的 `ReturnWork` 章节。
+
+```powershell
+pwsh -NoProfile -File scripts/verify-merchant-operations.ps1 -Chapter ReturnWork
+```
+
+- 隔离订单 736 向 B 仓原包裹申请退 2 件，实收 1 件。补检只确认 1 件合格。两次并发提交仅一笔批准生效。
+  退款 92.49 元，保留运费 12.01 元，只向 B 仓回补 1 件。后续报价仍允许退 1 件，对应 92.50 元。
+- 隔离覆盖错仓和超量补检、无凭证审批、跨店访问、重复补证和确认。仓库首次短收状态保留。
+  人为阻断已退款后的库存回补，回补事务回滚，恢复后只记一条库存流水。
+- 隔离订单 737 拒收结案且无退款及回补。订单 738 质检不通过，审批被拦截。
+  Chromium 核对商家工单审计、顾客批准件数与未批准件数，以及仓库补检记录。Angular 33 项单测通过。
+
+日常 Docker 发布与隔离镜像一致。商城 V64、WMS V3，四个更新容器均健康。
+
+- 日常订单 731 申请退 2 件，实收和获批各 1 件。退款 92.49 元并只回补原出库 B 仓 1 件。
+  原运费 12.01 元保留。未获批 1 件的可退金额为 92.50 元。
+- 日常订单 732 拒收后结案，退款与库存回补均为零。
+- 日常订单 728、729、730 补建工单，保留原售后待复核状态及 WMS 回执。发布前后核对十个数据库容器、
+  原售后、原 WMS 出库与退货、存量订单金额、包裹、付款和仓库存量一致。
+  五笔历史归档及投递审计摘要一致，原预占保持关闭，关联库存流水为零。
+
+本地验收结果保存在 `%LOCALAPPDATA%/CommerceFlow/releases/merchant-20261120` 下，
+包括 `return-work-isolated.json`、`return-work-browser.json`、`return-work-daily.json`
+和 `return-work-daily-evidence.json`。

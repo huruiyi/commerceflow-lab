@@ -58,7 +58,8 @@ public class WarehouseReturnClient {
       }
       var reply = mapper.readValue(json, Receipt.class);
       if (!plan.equals(new Plan(reply.returnId(), reply.outboundId(), reply.orderId(), reply.orderLineId(),
-          reply.warehouseId(), reply.trackingNumber(), reply.expectedQuantity())) || !validCount(reply)) {
+          reply.warehouseId(), reply.trackingNumber(), reply.expectedQuantity()))
+          || !validCount(reply) || !validSupplement(reply)) {
         throw new IllegalStateException("Warehouse return receipt does not match the submitted plan");
       }
       return reply;
@@ -81,6 +82,16 @@ public class WarehouseReturnClient {
     };
   }
 
+  private boolean validSupplement(Receipt receipt) {
+    if (receipt.supplementId() == null) {
+      return receipt.qualifiedQuantity() == null && receipt.supplementNote() == null && receipt.supplementAt() == null;
+    }
+    var quantity = receipt.qualifiedQuantity();
+    return ("SHORT_RECEIVED".equals(receipt.status()) || "FAILED".equals(receipt.status()))
+      && quantity != null && quantity > 0 && quantity <= receipt.receivedQuantity()
+      && receipt.supplementNote() != null && receipt.supplementAt() != null;
+  }
+
   private String sign(String value) throws GeneralSecurityException {
     Mac mac = Mac.getInstance("HmacSHA256");
     mac.init(new SecretKeySpec(bytes(secret), "HmacSHA256"));
@@ -97,6 +108,7 @@ public class WarehouseReturnClient {
 
   public record Receipt(String returnId, String outboundId, long orderId, long orderLineId, long warehouseId,
                         String trackingNumber, int expectedQuantity, Integer receivedQuantity, String status,
-                        Instant receivedAt, Instant inspectedAt) {
+                        Instant receivedAt, Instant inspectedAt, String supplementId, Integer qualifiedQuantity,
+                        String supplementNote, Instant supplementAt) {
   }
 }

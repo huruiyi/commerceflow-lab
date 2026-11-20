@@ -342,6 +342,16 @@ PowerShell 7 验收入口为 `scripts/verify-line-after-sales.ps1`。带优惠�
 [功能说明](features/PAYMENTS-AFTER-SALES.md#wms-退货实收与质检) ·
 [验收记录](architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#33-wms-退货实收与质检验收)
 
+### 2.22 售后异常工单
+
+商城为仓库短收、拒收和质检不通过的待复核售后建单，商家按本店归属补证、拒绝结案或批准处理。
+WMS 补检保留原回执，批准件数和先前申请分别保存。按原订单快照退款，确认资金结果后只回补原仓。
+
+隔离验证超量拦截、跨店权限、重复处置和退款后回补恢复。日常订单 731 批准 1 件并退 92.49 元，
+只回补 B 仓 1 件。订单 732 拒绝结案且无退款或回补，五笔历史归档一致。
+[功能说明](features/PAYMENTS-AFTER-SALES.md#售后异常工单) ·
+[验收记录](architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#34-售后异常工单验收)
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

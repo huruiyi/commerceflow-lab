@@ -62,6 +62,21 @@ public class WarehouseReturns {
     return required(id);
   }
 
+  @Transactional
+  public Receipt supplement(String id, long warehouseId, int quantity, String note) {
+    var prior = required(id);
+    if (warehouseId != prior.warehouseId() || quantity <= 0 || note == null || note.isBlank()
+        || note.length() > 300 || prior.receivedQuantity() == null || quantity > prior.receivedQuantity()) {
+      throw invalid();
+    }
+    if (prior.supplementId() != null) {
+      if (Objects.equals(prior.qualifiedQuantity(), quantity) && note.equals(prior.supplementNote())) return prior;
+      throw conflict();
+    }
+    if (store.supplement(id, UUID.randomUUID().toString(), quantity, note) != 1) throw conflict();
+    return required(id);
+  }
+
   private Receipt required(String id) {
     if (!canonical(id)) throw invalid();
     var value = store.lock(id);
@@ -91,6 +106,7 @@ public class WarehouseReturns {
 
   public record Receipt(String returnId, String outboundId, long orderId, long orderLineId, long warehouseId,
                         String trackingNumber, int expectedQuantity, Integer receivedQuantity, String status,
-                        Instant receivedAt, Instant inspectedAt) {
+                        Instant receivedAt, Instant inspectedAt, String supplementId, Integer qualifiedQuantity,
+                        String supplementNote, Instant supplementAt) {
   }
 }

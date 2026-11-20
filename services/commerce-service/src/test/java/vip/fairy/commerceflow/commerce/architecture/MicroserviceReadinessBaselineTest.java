@@ -139,6 +139,8 @@ class MicroserviceReadinessBaselineTest {
       Map.entry("payment_shadow_change_log", "payment"),
       Map.entry("refund_records", "refund"),
       Map.entry("line_after_sales", "refund"),
+      Map.entry("return_exception_work_orders", "refund"),
+      Map.entry("return_exception_actions", "refund"),
       Map.entry("refund_events", "refund"),
       Map.entry("refund_notifications", "refund"),
       Map.entry("shipment_records", "logistics"),
