@@ -15,6 +15,7 @@ public class InternalApiSecurityConfiguration implements WebMvcConfigurer {
 
   @Override
   public void addInterceptors(InterceptorRegistry registry) {
-    registry.addInterceptor(signatures).addPathPatterns("/internal/v1/**");
+    registry.addInterceptor(signatures).addPathPatterns("/internal/v1/**")
+      .excludePathPatterns("/internal/v1/offsite-notifications");
   }
 }

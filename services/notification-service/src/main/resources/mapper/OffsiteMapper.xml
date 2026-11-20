@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.notification.offsite.OffsiteMapper">
+
+  <insert id="insertEvent">
+    INSERT IGNORE INTO offsite_notification_inbox(event_id, event_type, recipient_id, order_id, reference, fingerprint)
+    VALUES (#{event.eventId}, #{event.type}, #{event.recipientId}, #{event.orderId}, #{event.reference}, #{fingerprint})
+  </insert>
+
+  <select id="fingerprint" resultType="string">
+    SELECT fingerprint FROM offsite_notification_inbox WHERE event_id=#{eventId} FOR UPDATE
+  </select>
+
+  <insert id="insertDelivery">
+    INSERT INTO offsite_notification_deliveries(request_id, event_id, channel, recipient, subject, message, status)
+    VALUES (#{command.requestId}, #{eventId}, #{command.channel}, #{command.recipient},
+      #{command.subject}, #{command.message}, #{status})
+  </insert>
+
+  <select id="due" resultType="vip.fairy.commerceflow.notification.offsite.OffsiteMapper$Delivery">
+    SELECT request_id, channel, recipient, event_id AS reference, subject, message, attempts, provider_id
+    FROM offsite_notification_deliveries
+    WHERE status IN ('PENDING','RETRY','ACCEPTED') AND next_attempt_at &lt;= CURRENT_TIMESTAMP(6)
+    ORDER BY next_attempt_at, request_id LIMIT 20
+  </select>
+
+  <update id="claim">
+    UPDATE offsite_notification_deliveries SET attempts=attempts+1, lease=#{lease},
+      next_attempt_at=TIMESTAMPADD(SECOND, 30, CURRENT_TIMESTAMP(6))
+    WHERE request_id=#{requestId} AND attempts=#{attempts} AND status IN ('PENDING','RETRY','ACCEPTED')
+      AND next_attempt_at &lt;= CURRENT_TIMESTAMP(6)
+  </update>
+
+  <update id="finish">
+    UPDATE offsite_notification_deliveries SET status=#{status}, provider_id=COALESCE(#{providerId}, provider_id),
+      last_error=#{error}, lease=NULL, next_attempt_at=TIMESTAMPADD(SECOND, #{delaySeconds}, CURRENT_TIMESTAMP(6))
+    WHERE request_id=#{requestId} AND lease=#{lease}
+  </update>
+</mapper>
