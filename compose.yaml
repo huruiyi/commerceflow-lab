@@ -197,6 +197,62 @@ services:
         condition: service_healthy
     restart: "no"
 
+  messaging-simulator-db:
+    container_name: fairy-commerceflow-messaging-simulator-db
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: messaging_platform
+      MYSQL_USER: ${MESSAGING_DATABASE_USERNAME:-messaging}
+      MYSQL_PASSWORD: ${MESSAGING_DATABASE_PASSWORD:-messaging-password}
+      MYSQL_ROOT_PASSWORD: ${MESSAGING_MYSQL_ROOT_PASSWORD:-local-messaging-root-password}
+    volumes:
+      - messaging-simulator-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
+  messaging-simulator-service:
+    container_name: fairy-commerceflow-messaging-simulator-service
+    build:
+      context: ./simulators/messaging-platform/service
+    environment:
+      MESSAGING_DATABASE_URL: jdbc:mysql://messaging-simulator-db:3306/messaging_platform?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=UTC
+      MESSAGING_DATABASE_USERNAME: ${MESSAGING_DATABASE_USERNAME:-messaging}
+      MESSAGING_DATABASE_PASSWORD: ${MESSAGING_DATABASE_PASSWORD:-messaging-password}
+      MESSAGING_ADMIN_TOKEN: ${MESSAGING_ADMIN_TOKEN:-demo-messaging-admin-token}
+      MESSAGING_SENDER_SECRET: ${MESSAGING_SENDER_SECRET:-demo-messaging-sender-secret}
+      MESSAGING_FAULTS_ENABLED: "${MESSAGING_FAULTS_ENABLED:-false}"
+    depends_on:
+      messaging-simulator-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  messaging-simulator-web:
+    container_name: fairy-commerceflow-messaging-simulator-web
+    build:
+      context: ./simulators/messaging-platform/web
+    ports:
+      - "127.0.0.1:18119:80"
+    depends_on:
+      messaging-simulator-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
   warehouse-simulator-db:
     container_name: fairy-commerceflow-warehouse-simulator-db
     image: mysql:8.4
@@ -1120,6 +1176,7 @@ volumes:
   payment-simulator-redis-data:
   logistics-simulator-db-data:
   warehouse-simulator-db-data:
+  messaging-simulator-db-data:
   kafka-broker-data:
   rabbitmq-broker-data:
   rocketmq-nameserver-logs:

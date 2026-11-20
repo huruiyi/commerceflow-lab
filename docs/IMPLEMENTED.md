@@ -352,6 +352,33 @@ WMS 补检保留原回执，批准件数和先前申请分别保存。按原订�
 [功能说明](features/PAYMENTS-AFTER-SALES.md#售后异常工单) ·
 [验收记录](architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#34-售后异常工单验收)
 
+### 2.23 短信与邮件模拟平台
+
+共用一个模拟服务、独立 MySQL 和 Vue 管理后台。日常入口为 `http://127.0.0.1:18119`，
+使用 `MESSAGING_ADMIN_TOKEN` 登录。短信、邮件分别提供模拟投递、列表筛选、分页和详情，
+展示脱敏收件人、供应商单号、业务关联号、受理时间和最终结果。
+
+签名提交接口为 `POST /api/provider/v1/deliveries`，按调用方编号查询使用
+`GET /api/provider/v1/deliveries/{requestId}`。签名沿用项目的 HMAC SHA-256 格式，
+对方法、路径、时间戳、请求 nonce 和请求体 SHA-256 摘要按换行连接后签名。
+相同编号和内容重试返回原单，内容变更返回 409。发送端签名密钥与管理令牌独立。
+
+渠道结果由模拟器生成，收件人使用北美 555-01xx 测试号码或 `.test` 邮箱。账本保存脱敏收件人和请求摘要。
+隔离环境可对指定投递模拟首次限流、受理后 504 和送达失败。日常默认关闭故障注入。
+
+使用同一份 [PowerShell 7 验收脚本](../scripts/verify-messaging-simulator.ps1)。
+隔离验证签名和管理鉴权、幂等、限流前无单、超时后查回、失败和重启持久化，
+Chromium 核对两渠道后台操作、脱敏显示及窄屏布局。
+日常按隔离通过的镜像启动后台和服务，独立数据库迁移至 V1，复验短信和邮件各送达一条，故障注入接口返回 403。
+更新前后核对十个原数据库和五笔历史归档，原预占保持关闭，关联库存流水为零。
+
+```powershell
+pwsh -NoProfile -File scripts/verify-messaging-simulator.ps1
+```
+
+本地证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/messaging-20261120`，包括
+`isolated.json`、`browser.json`、`daily.json` 和 `daily-evidence.json`。
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

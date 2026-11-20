@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: messaging-simulator-service
+  datasource:
+    url: ${MESSAGING_DATABASE_URL}
+    username: ${MESSAGING_DATABASE_USERNAME}
+    password: ${MESSAGING_DATABASE_PASSWORD}
+  mvc:
+    problemdetails:
+      enabled: true
+
+mybatis-plus:
+  mapper-locations: classpath:/mapper/*.xml
+
+messaging:
+  admin-token: ${MESSAGING_ADMIN_TOKEN}
+  sender-secret: ${MESSAGING_SENDER_SECRET}
+  faults-enabled: ${MESSAGING_FAULTS_ENABLED:false}

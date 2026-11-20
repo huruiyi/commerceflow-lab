@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.messaging.MessagingMapper">
+  <sql id="receipt">
+    request_id,provider_id,channel,recipient_mask,reference,status,accepted_at,finished_at
+  </sql>
+  <sql id="stored">
+    <include refid="receipt"/>,fingerprint,outcome
+  </sql>
+  <select id="find" resultType="vip.fairy.commerceflow.messaging.DeliveryLedger$Stored">
+    SELECT <include refid="stored"/> FROM messaging_deliveries WHERE request_id=#{requestId}
+  </select>
+  <select id="lock" resultType="vip.fairy.commerceflow.messaging.DeliveryLedger$Stored">
+    SELECT <include refid="stored"/> FROM messaging_deliveries WHERE request_id=#{requestId} FOR UPDATE
+  </select>
+  <insert id="insert">
+    INSERT INTO messaging_deliveries (
+      request_id,provider_id,channel,recipient_mask,reference,fingerprint,outcome,ready_at
+    ) VALUES (
+      #{requestId},#{providerId},#{channel},#{recipientMask},#{reference},#{fingerprint},#{outcome},
+      TIMESTAMPADD(SECOND,2,CURRENT_TIMESTAMP(6))
+    ) ON DUPLICATE KEY UPDATE request_id=messaging_deliveries.request_id
+  </insert>
+  <select id="fault" resultType="string">
+    SELECT behavior FROM messaging_faults WHERE request_id=#{requestId}
+  </select>
+  <delete id="consumeThrottle">
+    DELETE FROM messaging_faults WHERE request_id=#{requestId} AND behavior='THROTTLE_ONCE'
+  </delete>
+  <insert id="setFault">
+    INSERT INTO messaging_faults(request_id,behavior) VALUES(#{requestId},#{behavior})
+  </insert>
+  <update id="finishDue">
+    UPDATE messaging_deliveries SET status=outcome,finished_at=CURRENT_TIMESTAMP(6)
+    WHERE status='ACCEPTED' AND ready_at&lt;=CURRENT_TIMESTAMP(6)
+    ORDER BY ready_at LIMIT 100
+  </update>
+  <sql id="filters">
+    WHERE channel=#{channel}
+    <if test="status != null">AND status=#{status}</if>
+    <if test="reference != null">AND reference=#{reference}</if>
+  </sql>
+  <select id="list" resultType="vip.fairy.commerceflow.messaging.DeliveryLedger$Receipt">
+    SELECT <include refid="receipt"/> FROM messaging_deliveries <include refid="filters"/>
+    ORDER BY accepted_at DESC,request_id LIMIT 20 OFFSET #{offset}
+  </select>
+  <select id="count" resultType="int">
+    SELECT COUNT(*) FROM messaging_deliveries <include refid="filters"/>
+  </select>
+</mapper>
