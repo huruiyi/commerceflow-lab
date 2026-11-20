@@ -1,11 +1,13 @@
 #requires -Version 7.0
 param(
-  [ValidateSet('Store','Settlement','Payout','Packages','Search','Warehouses','WmsOutbound','WmsReturn','ReturnWork')][string]$Chapter='Store',
+  [ValidateSet('Store','Settlement','Payout','Packages','Search','Warehouses','WmsOutbound','WmsReturn',
+    'ReturnWork','Offsite')][string]$Chapter='Store',
   [string]$BaseUrl='http://localhost:14200',
   [string]$PaymentBaseUrl='http://localhost:14201',
   [string]$LogisticsUrl='http://localhost:18083',
   [string]$ProjectName='fairy-commerceflow',
-  [string]$WarehouseBaseUrl='http://127.0.0.1:18118'
+  [string]$WarehouseBaseUrl='http://127.0.0.1:18118',
+  [string]$MessagingBaseUrl='http://127.0.0.1:18119'
 )
 
 $ErrorActionPreference='Stop'
@@ -17,9 +19,15 @@ if($isolated -and ($ProjectName-notmatch '^fairy-commerceflow-merchant-isolated-
     !([uri]$LogisticsUrl).IsLoopback -or ([uri]$LogisticsUrl).Port-eq18083)){
   throw 'Invalid isolated merchant benchmark project'
 }
-if($Chapter-in'WmsOutbound','WmsReturn','ReturnWork','Packages','Warehouses','Settlement' -and (!([uri]$WarehouseBaseUrl).IsLoopback -or
+$warehouseChapters=@('WmsOutbound','WmsReturn','ReturnWork','Offsite','Packages','Warehouses','Settlement')
+if($Chapter-in$warehouseChapters -and (!([uri]$WarehouseBaseUrl).IsLoopback -or
     ($isolated -and ([uri]$WarehouseBaseUrl).Port-eq18118))){
   throw 'Invalid warehouse acceptance endpoint'
+}
+
+if($Chapter-eq'Offsite' -and (!([uri]$MessagingBaseUrl).IsLoopback -or
+    ($isolated -and ([uri]$MessagingBaseUrl).Port-eq18119))){
+  throw 'Invalid messaging acceptance endpoint'
 }
 
 function Sql([string]$Service,[string]$Database,[string]$Query){
@@ -700,6 +708,86 @@ function Race-WorkApproval($shop,[string]$Path,$First,$Second){
   }
 }
 
+function Messaging-Admin([string]$Path,[string]$Method='Get',$Body){
+  $token=if($env:MESSAGING_ADMIN_TOKEN){$env:MESSAGING_ADMIN_TOKEN}else{'demo-messaging-admin-token'}
+  $options=@{Uri="$MessagingBaseUrl/api/admin/$Path";Method=$Method;TimeoutSec=15;
+    Headers=@{Authorization="Bearer $token"}}
+  if($null-ne$Body){$options.ContentType='application/json';$options.Body=$Body|ConvertTo-Json -Compress}
+  Invoke-RestMethod @options
+}
+
+function Message-RequestId([string]$EventId,[string]$Channel){
+  $bytes=[Security.Cryptography.MD5]::HashData([Text.Encoding]::UTF8.GetBytes("${EventId}:$Channel"))
+  $bytes[6]=($bytes[6] -band 0x0f) -bor 0x30
+  $bytes[8]=($bytes[8] -band 0x3f) -bor 0x80
+  [guid]::ParseExact([Convert]::ToHexString($bytes),'N').ToString()
+}
+
+function Assert-OffsiteReplay([string]$CaseId,[long]$OrderId){
+  $service='notification-service'
+  $container="$ProjectName-$service-1"
+  $format='{{index .Config.Labels "com.docker.compose.project"}}/{{index .Config.Labels "com.docker.compose.service"}}'
+  $label=docker inspect --format $format $container
+  if($LASTEXITCODE -or $label-ne"$ProjectName/$service"){throw 'Unexpected notification replay scope'}
+  $binding=docker port $container 8080/tcp
+  if($LASTEXITCODE -or $binding -notmatch '^127\.0\.0\.1:\d+$'){
+    throw 'Notification replay requires an isolated loopback port'
+  }
+  $eventId="offsite-work:$CaseId"
+  $body=Sql commerce-db commerceflow "SELECT payload FROM notification_delivery_outbox WHERE event_id='$eventId'"
+  $text=[Text.Encoding]::UTF8
+  $route='/internal/v1/offsite-notifications'
+  $secret=if($env:OFFSITE_COMMERCE_SECRET){$env:OFFSITE_COMMERCE_SECRET}else{'demo-offsite-commerce-secret'}
+  $nonce=[guid]::NewGuid().ToString()
+  $time=[datetimeoffset]::UtcNow.ToUnixTimeSeconds()
+  $hash=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($text.GetBytes($body))).ToLowerInvariant()
+  $canonical=@('POST',$route,$time,$nonce,$hash)-join [char]10
+  $signature=[Security.Cryptography.HMACSHA256]::HashData($text.GetBytes($secret),$text.GetBytes($canonical))
+  $headers=@{'X-CommerceFlow-Timestamp'="$time";'X-CommerceFlow-Request-Id'=$nonce;
+    'X-CommerceFlow-Content-SHA256'=$hash;
+    'X-CommerceFlow-Signature'=[Convert]::ToHexString($signature).ToLowerInvariant()}
+  $uri="http://$binding$route"
+  $call=@{Uri=$uri;Method='Post';Headers=$headers;ContentType='application/json';TimeoutSec=15}
+  $replayed=Invoke-WebRequest @call -Body $body
+  if($replayed.StatusCode-ne204){throw 'Valid notification replay did not acknowledge'}
+  $different=($body|ConvertFrom-Json)
+  $different.orderId=$OrderId+1
+  $rejected=Invoke-WebRequest @call -Body ($different|ConvertTo-Json -Compress) -SkipHttpErrorCheck
+  if($rejected.StatusCode-ne401){throw 'Notification intake accepted a tampered body'}
+  $query="SELECT COUNT(*) FROM offsite_notification_deliveries WHERE event_id='$eventId'"
+  $data=Sql notification-db notification $query
+  if($data-ne'2'){throw 'Signed duplicate event created additional channel deliveries'}
+}
+
+function Assert-Offsite([string]$Type,[string]$Reference,[long]$OrderId,[long]$RecipientId,[bool]$EmailFails=$false){
+  $prefix=if($Type-eq'REFUND_SUCCEEDED'){'offsite-refund'}else{'offsite-work'}
+  $eventId="${prefix}:$Reference"
+  $inbox="SELECT CONCAT(event_type,'/',order_id,'/',recipient_id) FROM offsite_notification_inbox " +
+    "WHERE event_id='$eventId'"
+  $received=Wait-Value { Sql notification-db notification $inbox } "Missing notification intake $eventId"
+  if($received-ne"$Type/$OrderId/$RecipientId"){throw "Unexpected notification owner or order for $eventId"}
+  $states=[ordered]@{SMS='DELIVERED';EMAIL=if($EmailFails){'FAILED'}else{'DELIVERED'}}
+  $seen=[ordered]@{}
+  foreach($channel in $states.Keys){
+    $requestId=Message-RequestId $eventId $channel
+    $sql="SELECT CONCAT(status,'/',provider_id,'/',attempts) FROM offsite_notification_deliveries " +
+      "WHERE request_id='$requestId'"
+    $row=Wait-Value {
+      $line=Sql notification-db notification $sql
+      if($line -like "$($states[$channel])/*"){$line}
+    } "Unexpected application delivery state for $channel on $eventId"
+    $status,$providerId,$attempts=$row.Split('/')
+    $receipt=Messaging-Admin "deliveries/$requestId"
+    if($receipt.providerId-ne$providerId -or $receipt.channel-ne$channel -or
+        $receipt.status-ne$status -or $receipt.reference-ne$eventId){throw "Provider ledger differs for $requestId"}
+    $query="SELECT COUNT(*) FROM messaging_deliveries WHERE request_id='$requestId'"
+    $count=Sql messaging-simulator-db messaging_platform $query
+    if($count-ne'1'){throw "Provider accepted $requestId more than once"}
+    $seen[$channel]=@{status=$status;attempts=[int]$attempts;requestId=$requestId;providerId=$providerId}
+  }
+  $seen
+}
+
 function Verify-ReturnWork($shop){
   Api $shop.actor '/api/merchant/shipping-template' Put @{defaultFee=12.01;regions=@()}|Out-Null
   $order=Warehouse-Order $shop -SingleWarehouse -SingleWarehouseId 2
@@ -716,6 +804,13 @@ function Verify-ReturnWork($shop){
   $request=@{orderLineId=$line;quantity=2;warehouseId=2;outboundId=$outbound;
     requestId=[guid]::NewGuid();reason='Return two items from the original package'}
   $sale=Api $buyer $caseUrl Post $request
+  if($Chapter-eq'Offsite' -and $isolated){
+    $eventId="offsite-work:$($sale.id)"
+    $sms=Message-RequestId $eventId SMS
+    $mail=Message-RequestId $eventId EMAIL
+    Messaging-Admin "faults/$sms" Put @{behavior='TIMEOUT_AFTER_ACCEPT'}|Out-Null
+    Messaging-Admin "faults/$mail" Put @{behavior='DELIVERY_FAILED'}|Out-Null
+  }
   Send-WmsReturn $shop $sale|Out-Null
   Put-WmsReceipt $sale 1|Out-Null
   Wait-ReturnCase $sale REVIEW_REQUIRED SHORT_RECEIVED|Out-Null
@@ -814,8 +909,26 @@ function Verify-ReturnWork($shop){
     } @(409)
     Assert-NoReturnEffect $failed
   }
-  @{partialOrder=$id;deniedOrder=$other.id;workOrder=$key;warehouse=2;approved=1;refund=92.49;
+  $result=@{partialOrder=$id;deniedOrder=$other.id;workOrder=$key;warehouse=2;approved=1;refund=92.49;
     remainingRefund=92.50;freight=12.01;restockRecoveryVerified=$isolated}
+  if($Chapter-eq'Offsite'){
+    $owner=Sql payment-db payments "SELECT customer_id FROM refund_records WHERE refund_number='$($done.refundNumber)'"
+    $result.refundNotice=Assert-Offsite REFUND_SUCCEEDED $done.refundNumber $id $owner
+    $result.workNotice=Assert-Offsite RETURN_WORK_OPENED $key $id $shop.id $isolated
+    if($isolated){
+      if($result.workNotice.SMS.attempts-lt2){throw 'Timeout did not recover by lookup'}
+      Assert-OffsiteReplay $key $id
+      $result.signedReplayVerified=$true
+    }
+    $otherId=[long]$other.id
+    $query="SELECT COUNT(*) FROM offsite_notification_inbox WHERE order_id=$otherId AND event_type='REFUND_SUCCEEDED'"
+    $unexpected=Sql notification-db notification $query
+    if($unexpected-ne'0'){throw 'Rejected return generated a refund notice'}
+    $query='SELECT COUNT(*) FROM offsite_notification_inbox WHERE order_id IN (465,479,480,497,498)'
+    $old=Sql notification-db notification $query
+    if($old-ne'0'){throw 'Archived orders generated notification events'}
+  }
+  $result
 }
 
 function Verify-WmsReturn($shop){
@@ -1129,10 +1242,11 @@ if($baselineShop.status-ne'ACTIVE' -or $baselineProduct.merchantId-ne$baselineSh
 $shop=Open-FixtureStore
 $otherShop=$null
 try{
-  if($Chapter-in'Warehouses','WmsOutbound','WmsReturn','ReturnWork'){
+  if($Chapter-in'Warehouses','WmsOutbound','WmsReturn','ReturnWork','Offsite'){
     $result=switch($Chapter){
       'WmsReturn' { Verify-WmsReturn $shop }
       'ReturnWork' { Verify-ReturnWork $shop }
+      'Offsite' { Verify-ReturnWork $shop }
       'WmsOutbound' { Verify-WmsOutbound $shop }
       default { Verify-Warehouses $shop }
     }

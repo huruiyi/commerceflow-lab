@@ -49,3 +49,14 @@ VXE Grid 使用 Vben 角色管理页的默认圆角边框，提供分页、刷�
 
 日常管理台位于 `http://127.0.0.1:18119`，用 `MESSAGING_ADMIN_TOKEN` 登录。
 在短信或邮件菜单按业务关联号、投递状态筛选，可查看脱敏收件地址、请求编号、供应商单号与时间。
+
+通知服务使用 `OFFSITE_CUSTOMER_SMS`、`OFFSITE_CUSTOMER_EMAIL`、
+`OFFSITE_MERCHANT_SMS` 和 `OFFSITE_MERCHANT_EMAIL` 配置角色测试地址。
+使用 555-01xx 测试手机号和 `.test` 邮箱。显式把某个配置设为空可跳过该角色对应渠道。
+退款成功和工单新建的消息使用业务事实生成模板，已有投递保留首次记录的模板和值。
+
+通知服务的渠道账本包含 `PENDING` 待发送、`ACCEPTED` 已受理、`RETRY` 待重试、
+`DELIVERED` 已送达、`FAILED` 明确失败和 `SKIPPED` 无渠道地址。
+渠道超时或触发限流后，任务先查原请求号，再按需要重试。同一业务事件同一渠道使用固定请求编号。
+模拟器确认送达失败时记录终态，其他渠道继续。限流、受理后超时和送达失败注入仅供隔离验收。
+[业务触发条件](PAYMENTS-AFTER-SALES.md#退款与工单站外通知)

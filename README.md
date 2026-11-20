@@ -430,7 +430,7 @@ docker compose down
 | [账号、商品与购物车](docs/features/ACCOUNT-CATALOG.md) | 邮箱登录与授权、商品查询和评价、收货地址、购物车、再次购买 |
 | [结算、运费与优惠券](docs/features/CHECKOUT-COUPONS.md) | 勾选结算、统一计价、商家运费模板、单商家满减、订单行分摊、并发锁券、付款核销、取消返还和恢复 |
 | [订单、取消与履约](docs/features/ORDERS-FULFILLMENT.md) | 订单历史、通知跳转、取消补偿、独立履约、正向与退货物流、收货和自动完成 |
-| [支付、退款与售后](docs/features/PAYMENTS-AFTER-SALES.md) | 三渠道模拟支付、原路全退、按行售后、退货验收与回补、商家应结账单及模拟打款 |
+| [支付、退款与售后](docs/features/PAYMENTS-AFTER-SALES.md) | 模拟支付、按行售后、退款与工单通知、退货验收、商家应结账单及模拟打款 |
 | [库存与商家库存中心](docs/features/INVENTORY.md) | 预占、扣减、释放、回补、库存管理和命令对账 |
 | [外部系统模拟器](docs/features/SIMULATORS.md) | 支付、物流、仓储、短信邮件模拟器及管理入口 |
 | [部署、监控与验收](docs/features/OPERATIONS.md) | Docker、Flyway、定时任务、分服务告警和隔离验收 |

@@ -379,6 +379,34 @@ pwsh -NoProfile -File scripts/messaging/verify-messaging-simulator.ps1
 本地证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/messaging-20261120`，包括
 `isolated.json`、`browser.json`、`daily.json` 和 `daily-evidence.json`。
 
+### 2.24 退款与工单站外通知
+
+退款确认后，支付编排在资金事务内写通知 Outbox。商城在新增售后异常工单的事务内写通知 Outbox。
+两类事件使用各自的签名凭证调用通知服务。通知库 V4 新增事件 Inbox 和渠道投递表，
+按退款单号或工单号去重，短信、邮件各有独立的固定请求号、租约、状态和重试次数。
+通知关联顾客或商家归属，渠道收件地址使用测试配置。
+
+隔离订单 739 审批部分退款 92.49 CNY，两渠道均送达。工单短信受理后返回 504，
+通知服务第二次处理时查回同一条已送达记录，工单邮件触发模拟送达失败并独立记录为 `FAILED`。
+重复提交已签名事件返回 204 且渠道仍各一条，带原签名的篡改请求返回 401。
+订单 740 拒绝结案后的退款通知计数为零。五笔历史归档及原购物车通过核对。
+
+日常 Docker 依次发布通知服务、支付编排和商城镜像 `offsite-20261120`，通知库 Flyway V4 成功。
+订单 733 的 92.49 CNY 退款通知和工单 `9ef40ae0-04a5-4575-bb2b-9e13d46bac30` 通知，
+在短信和邮件后台均为已送达。逐条对照通知库、模拟器账本和管理 API，每个请求号对应一条供应商记录。
+订单 734 拒绝结案，退款通知计数为零。发布前后比对十二项快照，
+覆盖原有订单金额、包裹、退款、库存、售后和数据库容器。五笔原预占均为 `CLOSED`，关联库存流水为零。
+
+```powershell
+pwsh -NoProfile -File scripts/commerce/verify-merchant-operations.ps1 -Chapter Offsite
+```
+
+本地证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/merchant-20261120`，
+包括 `offsite-isolated.json`、`offsite-daily.json` 和 `offsite-daily-evidence.json`。
+
+[业务说明](features/PAYMENTS-AFTER-SALES.md#退款与工单站外通知) ·
+[模拟后台与状态](features/SIMULATORS.md#短信与邮件)
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。
