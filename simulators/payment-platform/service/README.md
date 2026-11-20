@@ -25,4 +25,6 @@
 
 V6 将旧商户范围迁移为内置商户角色。`OPERATE` 提供关单，`REFUND` 提供重发退款通知，`ADMIN` 包含两种操作，`READ_ONLY` 和 `AUDIT` 仅提供商户账本查询。交易和退款的写操作根据记录归属的商户实时校验。
 
+商户可编辑显示名称和备注，启用和禁用沿用二次认证。禁用后商户的签名 API 请求会被拒绝，账本历史仍可查看。V7 为已知示例商户补齐中文显示名以及记录原英文名和用途的备注。
+
 推荐从根目录执行 `docker compose up -d --build --wait`，管理 UI 位于 `http://localhost:14201`，健康检查位于 `http://localhost:18082/actuator/health`。签名协议与验收方法见 [`docs/learning/CHAPTER-05A-3.md`](../../../docs/learning/CHAPTER-05A-3.md)。

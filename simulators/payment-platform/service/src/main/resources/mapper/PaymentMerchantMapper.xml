@@ -2,6 +2,11 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="vip.fairy.commerceflow.simulator.payment.mapper.PaymentMerchantMapper">
 
+  <select id="lockById" resultType="vip.fairy.commerceflow.simulator.payment.domain.PaymentMerchant"
+          useCache="false" flushCache="true">
+    SELECT * FROM payment_merchant WHERE id = #{id} FOR UPDATE
+  </select>
+
   <insert id="insertCallbackEndpoint">
     <![CDATA[
       INSERT INTO merchant_callback_endpoint(merchant_id, callback_url) VALUES(#{merchantId}, #{url})

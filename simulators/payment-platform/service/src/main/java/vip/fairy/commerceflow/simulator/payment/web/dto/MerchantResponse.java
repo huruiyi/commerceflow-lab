@@ -2,7 +2,7 @@ package vip.fairy.commerceflow.simulator.payment.web.dto;
 
 import java.time.LocalDateTime;
 
-public record MerchantResponse(Long id, String merchantNo, String displayName, String appId,
+public record MerchantResponse(Long id, String merchantNo, String displayName, String remark, String appId,
                                String secretMasked, int credentialVersion, String signingAlgorithm,
                                String merchantPublicKey, String notifyUrl,
                                boolean enabled, Long createdBy, LocalDateTime createdAt) {

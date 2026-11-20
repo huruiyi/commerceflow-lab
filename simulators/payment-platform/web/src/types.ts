@@ -13,6 +13,7 @@ export interface Merchant {
   id: number;
   merchantNo: string;
   displayName: string;
+  remark: string;
   appId: string;
   secretMasked: string;
   credentialVersion: number;

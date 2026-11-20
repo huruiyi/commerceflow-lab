@@ -6,5 +6,7 @@ import org.apache.ibatis.annotations.Param;
 
 public interface PaymentMerchantMapper extends BaseMapper<PaymentMerchant> {
 
+  PaymentMerchant lockById(long id);
+
   void insertCallbackEndpoint(@Param("merchantId") long merchantId, @Param("url") String url);
 }

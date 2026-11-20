@@ -6,11 +6,11 @@ import vip.fairy.commerceflow.simulator.payment.service.PlatformKeyService;
 import vip.fairy.commerceflow.simulator.payment.web.dto.CreateMerchantRequest;
 import vip.fairy.commerceflow.simulator.payment.web.dto.IssuedCredentialResponse;
 import vip.fairy.commerceflow.simulator.payment.web.dto.MerchantResponse;
+import vip.fairy.commerceflow.simulator.payment.web.dto.UpdateMerchantRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -19,6 +19,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -58,6 +59,12 @@ public class MerchantController {
                                          @AuthenticationPrincipal PaymentAdminPrincipal actor,
                                          HttpServletRequest request) {
     return merchants.rotate(id, stepUpToken, actor, request);
+  }
+
+  @PutMapping("/{id}")
+  public MerchantResponse update(@PathVariable long id, @Valid @RequestBody UpdateMerchantRequest body,
+                                  @AuthenticationPrincipal PaymentAdminPrincipal actor, HttpServletRequest request) {
+    return merchants.update(id, body, actor, request);
   }
 
   @PostMapping("/{id}/enabled/{enabled}")

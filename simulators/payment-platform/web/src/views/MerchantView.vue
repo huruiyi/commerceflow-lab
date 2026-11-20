@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { Modal } from 'ant-design-vue';
 import type { VxeGridProps } from 'vxe-table';
 import PaymentLedger from '../PaymentLedger.vue';
 import { api, takeStepUpToken } from '../api';
@@ -9,6 +10,16 @@ import { enumLabel, t } from '../i18n';
 const merchants = ref<Merchant[]>([]);
 const selectedId = ref<number>();
 const selected = computed(() => merchants.value.find(({ id }) => id === selectedId.value));
+const drawer = ref<'create' | 'edit' | 'detail'>();
+const drawerTitle = computed(() =>
+  t(
+    {
+      create: 'createMerchant',
+      edit: 'editMerchant',
+      detail: 'merchantDetails',
+    }[drawer.value ?? 'detail'],
+  ),
+);
 const rows = computed(() =>
   merchants.value.map((merchant) => ({
     ...merchant,
@@ -16,68 +27,146 @@ const rows = computed(() =>
   })),
 );
 const columns = computed<VxeGridProps<(typeof rows.value)[number]>['columns']>(() => [
-  { field: 'displayName', title: t('displayName'), minWidth: 170 },
-  { field: 'merchantNo', title: t('merchants'), minWidth: 155 },
-  { field: 'appId', title: 'App ID', minWidth: 220 },
+  { field: 'displayName', title: t('displayName'), minWidth: 175, align: 'left', showOverflow: 'title' },
+  { field: 'merchantNo', title: t('merchantNo'), minWidth: 130 },
+  { field: 'appId', title: 'App ID', minWidth: 185 },
   { field: 'signingAlgorithm', title: t('signingAlgorithm'), minWidth: 135 },
-  { field: 'merchantStatus', title: t('status'), width: 110, slots: { default: 'status' } },
-  { field: 'actions', title: t('action'), width: 120, fixed: 'right', slots: { default: 'operation' } },
+  { field: 'remark', title: t('merchantRemark'), minWidth: 220, align: 'left', showOverflow: 'title' },
+  { field: 'merchantStatus', title: t('status'), width: 112, slots: { default: 'status' } },
+  { field: 'actions', title: t('accountActions'), width: 132, fixed: 'right', slots: { default: 'operation' } },
 ]);
-const showCreate = ref(false);
 const issued = ref<IssuedCredential | null>(null);
+const loading = ref(false);
+const saving = ref(false);
+const statusChanging = ref<number>();
+const message = ref('');
 const error = ref('');
-const form = ref({
-  displayName: 'CommerceFlow Lab',
-  notifyUrl: 'http://commerce-service:8080/api/payment/notifications',
-  signingAlgorithm: 'HMAC_SHA256',
-  merchantPublicKey: '',
-});
-const load = async () => (merchants.value = await api('/api/admin/merchants'));
-onMounted(load);
+const drawerError = ref('');
 
-async function create() {
+function newMerchant() {
+  return {
+    displayName: '',
+    remark: '',
+    notifyUrl: 'http://commerce-service:8080/api/payment/notifications',
+    signingAlgorithm: 'HMAC_SHA256',
+    merchantPublicKey: '',
+  };
+}
+
+const form = ref(newMerchant());
+
+async function load() {
+  loading.value = true;
   error.value = '';
   try {
-    issued.value = await api('/api/admin/merchants', { method: 'POST', body: JSON.stringify(form.value) });
-    showCreate.value = false;
-    await load();
+    merchants.value = await api('/api/admin/merchants');
   } catch (e) {
-    error.value = e instanceof Error ? e.message : t('createFailed');
+    error.value = e instanceof Error ? e.message : t('operationFailed');
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(load);
+
+function openDrawer(mode: 'create' | 'edit' | 'detail', item?: Merchant) {
+  selectedId.value = item?.id;
+  drawerError.value = '';
+  if (mode !== 'detail') {
+    form.value = { ...newMerchant(), displayName: item?.displayName ?? '', remark: item?.remark ?? '' };
+  }
+  drawer.value = mode;
+}
+
+function replaceMerchant(updated: Merchant) {
+  merchants.value = merchants.value.map((merchant) => (merchant.id === updated.id ? updated : merchant));
+}
+
+async function save() {
+  if (saving.value) return;
+  const editing = drawer.value === 'edit';
+  const id = selectedId.value;
+  if (editing && id === undefined) return;
+  drawerError.value = '';
+  message.value = '';
+  saving.value = true;
+  try {
+    if (editing) {
+      const { displayName, remark } = form.value;
+      const updated = await api<Merchant>(`/api/admin/merchants/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ displayName, remark }),
+      });
+      replaceMerchant(updated);
+      message.value = t('merchantUpdated');
+    } else {
+      const created = await api<IssuedCredential>('/api/admin/merchants', {
+        method: 'POST',
+        body: JSON.stringify(form.value),
+      });
+      issued.value = created;
+      merchants.value = [created.merchant, ...merchants.value];
+    }
+    drawer.value = undefined;
+  } catch (e) {
+    drawerError.value = e instanceof Error ? e.message : t(editing ? 'operationFailed' : 'createFailed');
+  } finally {
+    saving.value = false;
   }
 }
 
 async function rotate(item: Merchant) {
   const token = takeStepUpToken();
   if (!token) {
-    error.value = t('stepUpFirst');
+    drawerError.value = t('stepUpFirst');
     return;
   }
+  saving.value = true;
+  drawerError.value = '';
   try {
-    issued.value = await api(`/api/admin/merchants/${item.id}/rotate-secret`, {
+    const rotated = await api<IssuedCredential>(`/api/admin/merchants/${item.id}/rotate-secret`, {
       method: 'POST',
       headers: { 'X-Step-Up-Token': token },
     });
-    await load();
+    issued.value = rotated;
+    replaceMerchant(rotated.merchant);
+    drawer.value = undefined;
   } catch (e) {
-    error.value = e instanceof Error ? e.message : t('rotateFailed');
+    drawerError.value = e instanceof Error ? e.message : t('rotateFailed');
+  } finally {
+    saving.value = false;
   }
 }
 
-async function toggle(item: Merchant) {
-  const token = takeStepUpToken();
-  if (!token) {
-    error.value = t('stepUpFirst');
-    return;
-  }
-  try {
-    await api(`/api/admin/merchants/${item.id}/enabled/${!item.enabled}`, {
-      method: 'POST',
-      headers: { 'X-Step-Up-Token': token },
-    });
-    await load();
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : t('operationFailed');
-  }
+function toggle(item: Merchant, enabled: boolean) {
+  const action = t(enabled ? 'enable' : 'disable');
+  Modal.confirm({
+    title: t('merchantStatusPrompt', { action, name: item.displayName }),
+    content: enabled ? undefined : t('merchantDisabledHint'),
+    okText: action,
+    okType: enabled ? 'primary' : 'danger',
+    cancelText: t('cancelAction'),
+    async onOk() {
+      const token = takeStepUpToken();
+      if (!token) {
+        error.value = t('stepUpFirst');
+        return;
+      }
+      error.value = '';
+      statusChanging.value = item.id;
+      try {
+        const updated = await api<Merchant>(`/api/admin/merchants/${item.id}/enabled/${enabled}`, {
+          method: 'POST',
+          headers: { 'X-Step-Up-Token': token },
+        });
+        replaceMerchant(updated);
+      } catch (e) {
+        error.value = e instanceof Error ? e.message : t('operationFailed');
+      } finally {
+        statusChanging.value = undefined;
+      }
+    },
+  });
 }
 
 async function downloadPublicKey() {
@@ -96,7 +185,8 @@ async function copySecret() {
 </script>
 
 <template>
-  <div v-if="error" class="notice error">{{ error }}</div>
+  <a-alert v-if="message" class="mb-3" type="success" show-icon closable :message="message" @close="message = ''" />
+  <a-alert v-if="error" class="mb-3" type="error" show-icon closable :message="error" @close="error = ''" />
   <div v-if="issued" class="secret-panel">
     <div>
       <span class="eyebrow">{{ t('oneTimeCredential') }}</span>
@@ -115,77 +205,130 @@ async function copySecret() {
     :rows="rows"
     :columns="columns"
     row-key="id"
-    :search-fields="['displayName', 'merchantNo', 'appId', 'notifyUrl']"
+    :search-fields="['displayName', 'merchantNo', 'appId', 'notifyUrl', 'remark']"
     status-field="merchantStatus"
     :empty-text="t('noMerchants')"
+    :loading="loading"
     @refresh="load"
   >
     <template #actions>
-      <button class="sim-button" @click="downloadPublicKey">{{ t('downloadPublicKey') }}</button>
-      <button class="sim-button primary" @click="showCreate = true">{{ t('createMerchant') }}</button>
+      <a-button @click="downloadPublicKey">{{ t('downloadPublicKey') }}</a-button>
+      <a-button type="primary" @click="openDrawer('create')">{{ t('createMerchant') }}</a-button>
     </template>
-    <template #status="{ row }">{{ enumLabel(row.merchantStatus) }}</template>
+    <template #status="{ row }">
+      <a-switch
+        :checked="row.enabled"
+        :loading="statusChanging === row.id"
+        :disabled="statusChanging !== undefined"
+        :checked-children="enumLabel('ENABLED')"
+        :un-checked-children="enumLabel('DISABLED')"
+        :aria-label="t('status') + ' · ' + row.displayName"
+        @change="toggle(row, Boolean($event))"
+      />
+    </template>
     <template #operation="{ row }">
-      <button class="sim-text-button" @click="selectedId = row.id">{{ t('details') }}</button>
+      <a-button type="link" size="small" @click="openDrawer('detail', row)">{{ t('details') }}</a-button>
+      <a-button type="link" size="small" @click="openDrawer('edit', row)">{{ t('editAccountAction') }}</a-button>
     </template>
   </PaymentLedger>
-  <article v-if="selected" class="card merchant-card">
-    <div class="card-head">
-      <div class="merchant-icon">{{ selected.displayName.slice(0, 1) }}</div>
-      <span :class="['badge', selected.enabled ? 'success' : 'closed']">{{
+
+  <a-drawer
+    :open="Boolean(drawer)"
+    :title="drawerTitle"
+    width="min(100%, 520px)"
+    :closable="!saving"
+    :mask-closable="!saving"
+    :keyboard="!saving"
+    @close="drawer = undefined"
+  >
+    <a-alert v-if="drawerError" class="mb-3" type="error" show-icon :message="drawerError" />
+    <a-form
+      v-if="drawer === 'create' || drawer === 'edit'"
+      id="payment-merchant-form"
+      :model="form"
+      layout="horizontal"
+      :label-col="{ flex: '9rem' }"
+      :wrapper-col="{ flex: '1' }"
+      @finish="save"
+    >
+      <a-form-item
+        name="displayName"
+        :label="t('displayName')"
+        :rules="[{ required: true, whitespace: true, max: 100 }]"
+      >
+        <a-input v-model:value="form.displayName" :maxlength="100" />
+      </a-form-item>
+      <a-form-item name="remark" :label="t('merchantRemark')">
+        <a-textarea v-model:value="form.remark" :maxlength="1000" :rows="5" :placeholder="t('merchantRemarkHint')" />
+      </a-form-item>
+      <template v-if="drawer === 'create'">
+        <a-form-item name="notifyUrl" :label="t('notifyUrl')">
+          <a-input v-model:value="form.notifyUrl" :maxlength="500" />
+        </a-form-item>
+        <a-form-item name="signingAlgorithm" :label="t('requestSigningAlgorithm')">
+          <a-select v-model:value="form.signingAlgorithm">
+            <a-select-option value="HMAC_SHA256">HMAC-SHA256</a-select-option>
+            <a-select-option value="RSA_SHA256">RSA-SHA256</a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item
+          v-if="form.signingAlgorithm === 'RSA_SHA256'"
+          name="merchantPublicKey"
+          :label="t('merchantRsaPublicKey')"
+          :rules="[{ required: true, whitespace: true }]"
+        >
+          <a-textarea
+            v-model:value="form.merchantPublicKey"
+            :rows="6"
+            :maxlength="8000"
+            placeholder="-----BEGIN PUBLIC KEY-----"
+          />
+        </a-form-item>
+        <a-alert type="info" :message="t('credentialNotice')" />
+      </template>
+    </a-form>
+
+    <a-descriptions
+      v-else-if="selected"
+      :column="1"
+      :label-style="{ width: '32%', textAlign: 'left' }"
+      size="small"
+      bordered
+    >
+      <a-descriptions-item :label="t('displayName')">{{ selected.displayName }}</a-descriptions-item>
+      <a-descriptions-item :label="t('merchantNo')">{{ selected.merchantNo }}</a-descriptions-item>
+      <a-descriptions-item label="App ID">{{ selected.appId }}</a-descriptions-item>
+      <a-descriptions-item :label="t('signingAlgorithm')">{{ selected.signingAlgorithm }}</a-descriptions-item>
+      <a-descriptions-item label="App Secret"
+        >{{ selected.secretMasked }} · v{{ selected.credentialVersion }}</a-descriptions-item
+      >
+      <a-descriptions-item :label="t('callbackAllowlist')">{{
+        selected.notifyUrl || t('notConfigured')
+      }}</a-descriptions-item>
+      <a-descriptions-item :label="t('merchantPublicKey')">
+        {{ selected.merchantPublicKey ? t('rsaRegistered') : t('hmacNotApplicable') }}
+      </a-descriptions-item>
+      <a-descriptions-item :label="t('status')">{{
         enumLabel(selected.enabled ? 'ENABLED' : 'DISABLED')
-      }}</span>
-      <button class="sim-button" @click="selectedId = undefined">{{ t('close') }}</button>
-    </div>
-    <h3>{{ selected.displayName }}</h3>
-    <p class="mono">{{ selected.merchantNo }}</p>
-    <dl>
-      <dt>App ID</dt>
-      <dd class="mono">{{ selected.appId }}</dd>
-      <dt>{{ t('signingAlgorithm') }}</dt>
-      <dd>
-        <span class="badge pending">{{ selected.signingAlgorithm }}</span>
-      </dd>
-      <dt>App Secret</dt>
-      <dd>{{ selected.secretMasked }} · v{{ selected.credentialVersion }}</dd>
-      <dt>{{ t('callbackAllowlist') }}</dt>
-      <dd>{{ selected.notifyUrl || t('notConfigured') }}</dd>
-      <dt>{{ t('merchantPublicKey') }}</dt>
-      <dd>{{ selected.merchantPublicKey ? t('rsaRegistered') : t('hmacNotApplicable') }}</dd>
-    </dl>
-    <div class="card-actions">
-      <button class="secondary" @click="rotate(selected)">{{ t('rotateSecret') }}</button>
-      <button class="danger-link" @click="toggle(selected)">{{ selected.enabled ? t('disable') : t('enable') }}</button>
-    </div>
-  </article>
-  <div v-if="showCreate" class="modal-backdrop">
-    <form class="modal" @submit.prevent="create">
-      <div class="card-head">
-        <div>
-          <span class="eyebrow">{{ t('newMerchant') }}</span>
-          <h2>{{ t('createSimulatedMerchant') }}</h2>
-        </div>
-        <button type="button" class="ghost" @click="showCreate = false">✕</button>
+      }}</a-descriptions-item>
+      <a-descriptions-item :label="t('merchantRemark')">
+        <span style="white-space: pre-wrap; overflow-wrap: anywhere">{{ selected.remark || '—' }}</span>
+      </a-descriptions-item>
+    </a-descriptions>
+
+    <template #footer>
+      <div class="flex justify-end">
+        <a-space v-if="drawer === 'detail' && selected">
+          <a-button :disabled="saving" @click="drawer = undefined">{{ t('close') }}</a-button>
+          <a-button type="primary" :loading="saving" @click="rotate(selected)">{{ t('rotateSecret') }}</a-button>
+        </a-space>
+        <a-space v-else>
+          <a-button :disabled="saving" @click="drawer = undefined">{{ t('cancelAction') }}</a-button>
+          <a-button type="primary" html-type="submit" form="payment-merchant-form" :loading="saving">
+            {{ t(drawer === 'create' ? 'issueCredential' : 'saveMerchant') }}
+          </a-button>
+        </a-space>
       </div>
-      <label>{{ t('displayName') }}<input v-model="form.displayName" required /></label
-      ><label>{{ t('notifyUrl') }}<input v-model="form.notifyUrl" /></label
-      ><label
-        >{{ t('requestSigningAlgorithm')
-        }}<select v-model="form.signingAlgorithm">
-          <option value="HMAC_SHA256">HMAC-SHA256</option>
-          <option value="RSA_SHA256">RSA-SHA256</option>
-        </select></label
-      ><label v-if="form.signingAlgorithm === 'RSA_SHA256'"
-        >{{ t('merchantRsaPublicKey')
-        }}<textarea
-          v-model="form.merchantPublicKey"
-          rows="6"
-          required
-          placeholder="-----BEGIN PUBLIC KEY-----"
-        ></textarea>
-      </label>
-      <div class="notice">{{ t('credentialNotice') }}</div>
-      <button class="primary full">{{ t('issueCredential') }}</button>
-    </form>
-  </div>
+    </template>
+  </a-drawer>
 </template>

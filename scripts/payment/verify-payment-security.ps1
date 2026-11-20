@@ -86,7 +86,13 @@ function Get-Totp([string]$Secret) {
 
 $admin = New-AuthenticatedSession
 $suffix = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-$merchantBody = @{ displayName = "05A-3 Security Merchant $suffix"; notifyUrl = 'http://commerce-service:8080/api/payment/notifications'; signingAlgorithm = 'HMAC_SHA256'; merchantPublicKey = '' } | ConvertTo-Json -Compress
+$merchantBody = @{
+  displayName = "05A-3 HMAC 签名安全测试商户 $suffix"
+  remark = "中文名称：05A-3 HMAC 签名安全测试商户 $suffix`n英文名称：05A-3 Security Merchant $suffix`n用途：验证 HMAC-SHA256 请求签名、篡改与重放拒绝，以及凭据轮换。"
+  notifyUrl = 'http://commerce-service:8080/api/payment/notifications'
+  signingAlgorithm = 'HMAC_SHA256'
+  merchantPublicKey = ''
+} | ConvertTo-Json -Compress
 $issued = Invoke-RestMethod "$BaseUrl/api/admin/merchants" -Method Post -WebSession $admin.Session `
   -Headers $admin.Headers -ContentType 'application/json' -Body $merchantBody
 Assert-Equal 'HMAC_SHA256' $issued.merchant.signingAlgorithm 'Merchant signing algorithm'
@@ -105,7 +111,13 @@ Assert-Equal 'GATEWAY' $created[2].actionType 'UnionPay action'
 
 $rsa = [Security.Cryptography.RSA]::Create(2048)
 try {
-  $rsaMerchantBody = @{ displayName = "05A-3 RSA Merchant $suffix"; notifyUrl = 'http://commerce-service:8080/api/payment/notifications'; signingAlgorithm = 'RSA_SHA256'; merchantPublicKey = $rsa.ExportSubjectPublicKeyInfoPem() } | ConvertTo-Json -Compress
+  $rsaMerchantBody = @{
+    displayName = "05A-3 RSA 签名测试商户 $suffix"
+    remark = "中文名称：05A-3 RSA 签名测试商户 $suffix`n英文名称：05A-3 RSA Merchant $suffix`n用途：验证登记商户公钥以及使用 RSA-SHA256 签名发起渠道交易。"
+    notifyUrl = 'http://commerce-service:8080/api/payment/notifications'
+    signingAlgorithm = 'RSA_SHA256'
+    merchantPublicKey = $rsa.ExportSubjectPublicKeyInfoPem()
+  } | ConvertTo-Json -Compress
   $rsaIssued = Invoke-RestMethod "$BaseUrl/api/admin/merchants" -Method Post -WebSession $admin.Session `
     -Headers $admin.Headers -ContentType 'application/json' -Body $rsaMerchantBody
   $rsaBody = @{ merchantRequestNo = "SECURE-RSA-$suffix"; channel = 'UNION_PAY'; subject = '05A-3 RSA verification'; amount = 23.45; currency = 'CNY'; faultScenario = 'NONE' } | ConvertTo-Json -Compress

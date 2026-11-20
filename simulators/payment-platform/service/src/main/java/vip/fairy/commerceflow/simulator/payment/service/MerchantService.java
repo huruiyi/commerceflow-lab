@@ -7,6 +7,7 @@ import vip.fairy.commerceflow.simulator.payment.security.PaymentAdminPrincipal;
 import vip.fairy.commerceflow.simulator.payment.web.dto.CreateMerchantRequest;
 import vip.fairy.commerceflow.simulator.payment.web.dto.IssuedCredentialResponse;
 import vip.fairy.commerceflow.simulator.payment.web.dto.MerchantResponse;
+import vip.fairy.commerceflow.simulator.payment.web.dto.UpdateMerchantRequest;
 import jakarta.servlet.http.HttpServletRequest;
 
 import java.security.SecureRandom;
@@ -54,6 +55,7 @@ public class MerchantService {
     PaymentMerchant merchant = new PaymentMerchant();
     merchant.setMerchantNo("EDU" + String.format("%012d", RANDOM.nextLong(1_000_000_000_000L)));
     merchant.setDisplayName(request.displayName().trim());
+    merchant.setRemark(request.remark() == null ? "" : request.remark().trim());
     merchant.setAppId("edu_" + randomSecret(12));
     merchant.setSecretCipher(cipher.encrypt(secret));
     merchant.setSecretLastFour(secret.substring(secret.length() - 4));
@@ -83,17 +85,27 @@ public class MerchantService {
   }
 
   @Transactional
+  public MerchantResponse update(long merchantId, UpdateMerchantRequest request, PaymentAdminPrincipal actor,
+                                  HttpServletRequest servletRequest) {
+    PaymentMerchant merchant = lockMerchant(merchantId);
+    merchant.setDisplayName(request.displayName().trim());
+    merchant.setRemark(request.remark() == null ? "" : request.remark().trim());
+    save(merchant, actor);
+    audit.record(actor, "UPDATE_MERCHANT", "MERCHANT", merchantId, "SUCCESS",
+      "更新商户显示名称与备注", servletRequest);
+    return response(merchant);
+  }
+
+  @Transactional
   public IssuedCredentialResponse rotate(long merchantId, String stepUpToken, PaymentAdminPrincipal actor,
                                          HttpServletRequest servletRequest) {
     mfa.consumeStepUp(actor, stepUpToken);
-    PaymentMerchant merchant = requireMerchant(merchantId);
+    PaymentMerchant merchant = lockMerchant(merchantId);
     String secret = randomSecret(32);
     merchant.setSecretCipher(cipher.encrypt(secret));
     merchant.setSecretLastFour(secret.substring(secret.length() - 4));
     merchant.setCredentialVersion(merchant.getCredentialVersion() + 1);
-    merchant.setUpdatedBy(actor.getUserId());
-    merchant.setUpdatedAt(LocalDateTime.now());
-    merchants.updateById(merchant);
+    save(merchant, actor);
     audit.record(actor, "ROTATE_MERCHANT_CREDENTIAL", "MERCHANT", merchantId, "SUCCESS",
       "轮换到凭据版本 " + merchant.getCredentialVersion(), servletRequest);
     return new IssuedCredentialResponse(response(merchant), secret, "旧 App Secret 已立即失效，新 Secret 仅显示本次。");
@@ -103,11 +115,9 @@ public class MerchantService {
   public MerchantResponse setEnabled(long merchantId, boolean enabled, String stepUpToken,
                                      PaymentAdminPrincipal actor, HttpServletRequest servletRequest) {
     mfa.consumeStepUp(actor, stepUpToken);
-    PaymentMerchant merchant = requireMerchant(merchantId);
+    PaymentMerchant merchant = lockMerchant(merchantId);
     merchant.setEnabled(enabled);
-    merchant.setUpdatedBy(actor.getUserId());
-    merchant.setUpdatedAt(LocalDateTime.now());
-    merchants.updateById(merchant);
+    save(merchant, actor);
     audit.record(actor, enabled ? "ENABLE_MERCHANT" : "DISABLE_MERCHANT", "MERCHANT", merchantId,
       "SUCCESS", enabled ? "启用商户" : "禁用商户", servletRequest);
     return response(merchant);
@@ -134,14 +144,20 @@ public class MerchantService {
     return cipher.decrypt(merchant.getSecretCipher());
   }
 
-  private PaymentMerchant requireMerchant(long id) {
-    PaymentMerchant merchant = merchants.selectById(id);
+  private PaymentMerchant lockMerchant(long id) {
+    PaymentMerchant merchant = merchants.lockById(id);
     if (merchant == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "商户不存在");
     return merchant;
   }
 
+  private void save(PaymentMerchant merchant, PaymentAdminPrincipal actor) {
+    merchant.setUpdatedBy(actor.getUserId());
+    merchant.setUpdatedAt(LocalDateTime.now());
+    merchants.updateById(merchant);
+  }
+
   private static MerchantResponse response(PaymentMerchant value) {
-    return new MerchantResponse(value.getId(), value.getMerchantNo(), value.getDisplayName(), value.getAppId(),
+    return new MerchantResponse(value.getId(), value.getMerchantNo(), value.getDisplayName(), value.getRemark(), value.getAppId(),
       "****" + value.getSecretLastFour(), value.getCredentialVersion(), value.getSigningAlgorithm(),
       value.getMerchantPublicKey(),
       value.getNotifyUrl(), value.isEnabled(), value.getCreatedBy(), value.getCreatedAt());

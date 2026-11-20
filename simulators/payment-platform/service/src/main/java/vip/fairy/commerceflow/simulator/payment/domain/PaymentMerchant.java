@@ -26,6 +26,10 @@ public class PaymentMerchant {
    */
   private String displayName;
   /**
+   * 后台备注，例如商户的中英文名称和用途。
+   */
+  private String remark;
+  /**
    * 商户调用支付 API 时提交的应用标识。
    */
   private String appId;
@@ -96,6 +100,14 @@ public class PaymentMerchant {
 
   public void setDisplayName(String displayName) {
     this.displayName = displayName;
+  }
+
+  public String getRemark() {
+    return remark;
+  }
+
+  public void setRemark(String remark) {
+    this.remark = remark;
   }
 
   public String getAppId() {
