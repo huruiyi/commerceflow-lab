@@ -6,8 +6,8 @@ export type Locale = 'zh-CN' | 'en';
 const messages: Record<Locale, Record<string, string>> = {
   'zh-CN': {
     language: 'English',
-    appName: 'CommerceFlow 支付',
-    appTitle: 'CommerceFlow 支付 · 模拟支付平台',
+    appName: '商流支付',
+    appTitle: '商流支付 · 模拟支付平台',
     dashboard: '控制台',
     paymentOverview: '支付概览',
     paymentStatistics: '支付统计',
