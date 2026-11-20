@@ -27,7 +27,7 @@ const rows = computed(() =>
   })),
 );
 const columns = computed<VxeGridProps<(typeof rows.value)[number]>['columns']>(() => [
-  { field: 'displayName', title: t('displayName'), minWidth: 175, align: 'left', showOverflow: 'title' },
+  { field: 'displayName', title: t('displayName'), minWidth: 175, showOverflow: 'title' },
   { field: 'merchantNo', title: t('merchantNo'), minWidth: 130 },
   { field: 'appId', title: 'App ID', minWidth: 185 },
   { field: 'signingAlgorithm', title: t('signingAlgorithm'), minWidth: 135 },

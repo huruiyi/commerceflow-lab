@@ -23,7 +23,6 @@ const columns = computed<VxeGridProps<AuditLog>['columns']>(() => [
     field: 'createdAt',
     title: t('time'),
     minWidth: 174,
-    align: 'left',
     showOverflow: 'title',
     formatter: ({ row }) => formatDate(row.createdAt),
   },

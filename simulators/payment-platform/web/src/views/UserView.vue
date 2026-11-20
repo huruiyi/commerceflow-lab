@@ -85,12 +85,17 @@ const bindingColumns = computed<VxeGridProps<(typeof bindingRows.value)[number]>
           field: 'merchantName',
           title: t('merchantColumn'),
           minWidth: 105,
-          align: 'left' as const,
           showOverflow: 'title' as const,
         },
       ]
     : []),
-  { field: 'roleName', title: t('role'), minWidth: 110, align: 'left', showOverflow: 'title' },
+  {
+    field: 'roleName',
+    title: t('role'),
+    minWidth: 110,
+    align: scope.value === 'PLATFORM' ? 'center' : 'left',
+    showOverflow: 'title',
+  },
   {
     field: 'enabled',
     title: t('status'),
@@ -279,7 +284,7 @@ function mfaLabel(user: AdminUser) {
 }
 
 const columns = computed<VxeGridProps<AdminUser>['columns']>(() => [
-  { field: 'username', title: t('username'), minWidth: 115, align: 'left', slots: { default: 'username' } },
+  { field: 'username', title: t('username'), minWidth: 115, slots: { default: 'username' } },
   { field: 'displayName', title: t('displayName'), minWidth: 110, align: 'left', showOverflow: 'title' },
   {
     field: 'roles',

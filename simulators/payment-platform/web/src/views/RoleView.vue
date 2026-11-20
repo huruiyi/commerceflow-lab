@@ -212,7 +212,7 @@ function changeRoleStatus(role: PaymentAdminRole) {
 }
 
 const columns = computed<VxeGridProps<RoleRow>['columns']>(() => [
-  { field: 'name', title: t('roleName'), minWidth: 145, align: 'left', showOverflow: 'title' },
+  { field: 'name', title: t('roleName'), minWidth: 145, showOverflow: 'title' },
   { field: 'code', title: t('roleCode'), minWidth: 150, align: 'left', showOverflow: 'title' },
   { field: 'scope', title: t('roleScope'), minWidth: 100, formatter: ({ row }) => scopeLabel(row.scope) },
   {

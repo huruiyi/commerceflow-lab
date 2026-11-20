@@ -67,6 +67,7 @@ const metrics = computed(() => [
           field="channelTransactionNo"
           :title="t('channelTransactionNo')"
           min-width="265"
+          align="center"
           show-overflow="tooltip"
         />
         <vxe-column field="channel" :title="t('channel')" min-width="100">
