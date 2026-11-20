@@ -86,7 +86,7 @@ Maven POM，并检查全部 410 个 Java 源文件的 class 字段空行。Windo
 审计、空库 V1→V35 和遗留 V16→V35 隔离 MySQL 生命周期均通过。
 
 ```powershell
-pwsh -File ./scripts/audit-order-service-admission.ps1
+pwsh -File ./scripts/audit/audit-order-service-admission.ps1
 ```
 
 脚本只启动并读取现有 `commerce-db`，不清空数据卷。CREATE 已授权；CUTOVER、源实现删除、后续服务拆分和
@@ -109,7 +109,7 @@ PostgreSQL 仍受各自门禁约束。
 这些影子验收脚本现在通过[隔离项目配置](M3-SINGLE-OWNERSHIP-REVIEW.md#7-旧迁移工具与权限验收)运行。
 
 ```powershell
-pwsh -File ./scripts/verify-order-shadow-runtime.ps1
+pwsh -File ./scripts/orders/verify-order-shadow-runtime.ps1
 ```
 
 ## 8. 第五批远程协议与预切换演练证据
@@ -126,8 +126,8 @@ pwsh -File ./scripts/verify-order-shadow-runtime.ps1
   金额 448155.00 与三张空协议表全部 MATCH。实际 commerce 账号未冻结，因此这不是 CUTOVER。
 
 ```powershell
-pwsh -File ./scripts/verify-order-remote-protocol.ps1
-pwsh -File ./scripts/verify-order-precutover-rehearsal.ps1
+pwsh -File ./scripts/orders/verify-order-remote-protocol.ps1
+pwsh -File ./scripts/orders/verify-order-precutover-rehearsal.ps1
 ```
 
 ## 9. 第六批 CUTOVER 证据
@@ -143,7 +143,7 @@ pwsh -File ./scripts/verify-order-precutover-rehearsal.ps1
   恢复后健康，不存在 LOCAL/COMPARE 或源库回退。
 
 ```powershell
-pwsh -File ./scripts/verify-order-runtime-cutover.ps1
+pwsh -File ./scripts/orders/verify-order-runtime-cutover.ps1
 ```
 
 ## 10. 订单监控与只读核对
@@ -165,8 +165,8 @@ Windows PowerShell 7、MySQL 8.4、Prometheus 3.7.3 的隔离验收使用本次�
 
 ```powershell
 mvn -f services/order-service/pom.xml clean package
-pwsh -NoProfile -File ./scripts/verify-order-monitoring.ps1
-pwsh -NoProfile -File ./scripts/verify-order-monitoring.ps1 -ReadOnly -OrderId 695
+pwsh -NoProfile -File ./scripts/orders/verify-order-monitoring.ps1
+pwsh -NoProfile -File ./scripts/orders/verify-order-monitoring.ps1 -ReadOnly -OrderId 695
 ```
 
 2026-11-19 日常环境只读基线确认订单服务指向 `order-db/orders`、接单开启、影子关闭。商城旧库 345 笔订单的 ID 与订单号在权威库全部匹配，缺失和不符均为 0。权威库共 696 笔，其中 351 笔只存在于权威库。商城运行账号对旧订单表的直接授权为 0，源水位为 236。发货意图、未完成取消协议、未确认订单命令、未解决影子隔离和商城取消效果积压均为 0。

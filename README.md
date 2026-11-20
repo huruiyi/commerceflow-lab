@@ -65,7 +65,7 @@
 5. 阅读支付 Outbox、Kafka 发布/消费和补偿任务，再进入独立的 `simulators/payment-platform/service/`。
 6. 最后使用 `scripts/` 中的验收脚本做成功、失败、幂等、越权和故障实验。
 
-文档统一从 [docs/README.md](docs/README.md) 进入：[当前项目进度](docs/PROJECT-STATUS.md) 给出快照和下一里程碑，[已实现现状](docs/IMPLEMENTED.md) 只记录可验证事实，[统一进度与代办](docs/TODO.md) 是勾选状态和未实现顺序的唯一清单，接口索引见 [docs/API.md](docs/API.md)。分章历史见 [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md)。
+文档统一从 [docs/README.md](docs/README.md) 进入：[当前项目进度](docs/PROJECT-STATUS.md) 给出快照和下一里程碑，[已实现现状](docs/IMPLEMENTED.md) 只记录可验证事实，[统一进度与代办](docs/TODO.md) 是勾选状态和未实现顺序的唯一清单，接口索引见 [docs/API.md](docs/API.md)。分章历史见 [分章节实施计划（历史归档）](docs/archive/IMPLEMENTATION-PLAN.md)。
 
 ## 一键启动
 
@@ -76,13 +76,17 @@ docker compose up --build -d --wait
 docker compose ps
 ```
 
+默认启动读取根目录的 `compose.yaml`。履约初始化、发布、回退、影子验证和 HA 的覆盖配置统一放在
+[`infrastructure/compose/`](infrastructure/compose/)，使用时将根配置放在第一个 `-f`。
+若本地 `.env` 已通过 `COMPOSE_FILE` 加载覆盖文件，也要在该变量中使用新路径。
+
 商城默认使用独立履约服务。首次使用全新卷时，通过空库配置显式建立履约所有权，后续启动使用上面的默认命令。
 
 ```powershell
-docker compose -f compose.yaml -f compose.fulfillment-fresh.yaml up --build -d --wait
+docker compose -f compose.yaml -f infrastructure/compose/compose.fulfillment-fresh.yaml up --build -d --wait
 ```
 
-已有商城本地履约数据的环境先完成所有权切换。使用独立签名密钥的环境可叠加 `compose.fulfillment-execution.yaml`，
+已有商城本地履约数据的环境先完成所有权切换。使用独立签名密钥的环境可叠加 `infrastructure/compose/compose.fulfillment-execution.yaml`，
 回退时使用已验收的版本化回退包。见[履约演进计划](docs/architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md)。
 
 已有目录库可直接启动。全新环境会先建表。体验加购、下单和支付时，启动后显式初始化演示商品、库存及支付渠道。
@@ -174,7 +178,7 @@ pwsh -File ./scripts/audit-script-contracts.ps1
 四个 Java 服务的只读代码质量与 Mapper 契约门禁：
 
 ```powershell
-pwsh -File ./scripts/audit-code-quality.ps1
+pwsh -File ./scripts/audit/audit-code-quality.ps1
 ```
 
 该入口不会格式化或改写文件；它检查后端 Java、Mapper XML 和 Maven POM 的客观格式规则，
@@ -184,7 +188,7 @@ order-service 的只读 CREATE 准入审计可单独复跑；它检查 7 张 ord
 外部 Mapper 消费者保持为 0，以及全局事务协调器缺席门禁，不创建服务、不迁移数据、不清空卷：
 
 ```powershell
-pwsh -File ./scripts/audit-order-service-admission.ps1
+pwsh -File ./scripts/audit/audit-order-service-admission.ps1
 ```
 
 当前结论和后续收口顺序见
@@ -194,15 +198,15 @@ order-service 已完成一次性 CUTOVER 并独占订单运行时读写。以下
 commerce 运行账号无源表权限，以及 order-service 停机时明确返回 503、恢复后重新健康：
 
 ```powershell
-pwsh -File ./scripts/verify-order-runtime-cutover.ps1
+pwsh -File ./scripts/orders/verify-order-runtime-cutover.ps1
 ```
 
 远程 Order V1 故障语义使用合成订单在独立库内演练；脚本临时打开协议门，验证 HMAC/摘要/防重放、Tempo
 Trace、重复/冲突/乱序、命令 Outbox/结果 Inbox、超时未知结果和人工恢复，随后清理合成数据并恢复 503：
 
 ```powershell
-pwsh -File ./scripts/verify-order-remote-protocol.ps1
-pwsh -File ./scripts/verify-order-precutover-rehearsal.ps1
+pwsh -File ./scripts/orders/verify-order-remote-protocol.ps1
+pwsh -File ./scripts/orders/verify-order-precutover-rehearsal.ps1
 ```
 
 影子与预切换脚本保留为历史取证入口；默认运行时关闭影子复制且不再配置源库，不应重新开放源端权限。
@@ -212,7 +216,7 @@ payment-orchestration 准入审计检查 14 张 payment/refund 所有权表、�
 但没有业务流量，也未 CUTOVER：
 
 ```powershell
-pwsh -File ./scripts/audit-payment-orchestration-admission.ps1
+pwsh -File ./scripts/audit/audit-payment-orchestration-admission.ps1
 ```
 
 当前结论和后续顺序见
@@ -233,29 +237,29 @@ pwsh -File ./scripts/audit-payment-orchestration-admission.ps1
 不表示允许切流：
 
 ```powershell
-pwsh -File ./scripts/audit-payment-cutover-readiness.ps1
+pwsh -File ./scripts/audit/audit-payment-cutover-readiness.ps1
 ```
 
 支付副作用演练只插入一条精确合成 Outbox，验证远程失败进入可恢复 RETRY 且不产生库存写入；结束时删除该事件并
 恢复流量关、副作用关、影子开：
 
 ```powershell
-pwsh -File ./scripts/verify-payment-effects-rehearsal.ps1
+pwsh -File ./scripts/payment/verify-payment-effects-rehearsal.ps1
 ```
 
 支付影子运行专项会执行可重复快照、增量水位、14 表指纹核对和可恢复孤儿演练。支付副作用、影子运行、远程协议
 及预切换演练脚本均使用显式隔离配置，启动方法见[旧迁移工具与权限验收](docs/architecture/M3-SINGLE-OWNERSHIP-REVIEW.md#7-旧迁移工具与权限验收)。
 
 ```powershell
-pwsh -File ./scripts/verify-payment-shadow-runtime.ps1
+pwsh -File ./scripts/payment/verify-payment-shadow-runtime.ps1
 ```
 
 远程协议专项会临时开启独立服务流量门，使用合成数据验证签名、防重放、支付/关闭竞态、退款、结果丢失、
 服务/数据库停机与整体回退；脚本结束后自动清理合成数据并恢复关闭流量：
 
 ```powershell
-pwsh -File ./scripts/verify-payment-remote-protocol.ps1
-pwsh -File ./scripts/verify-payment-precutover-rehearsal.ps1
+pwsh -File ./scripts/payment/verify-payment-remote-protocol.ps1
+pwsh -File ./scripts/payment/verify-payment-precutover-rehearsal.ps1
 ```
 
 Angular 商城门户和支付模拟器 Web 都使用模块本地 Prettier 只读门禁：
@@ -347,11 +351,11 @@ pwsh -File ./scripts/verify-all.ps1 -SkipBuild
 单项脚本通过 `-BaseUrl` 改地址：
 
 ```powershell
-pwsh -File ./scripts/verify-authorization.ps1 -BaseUrl http://localhost:14200
-pwsh -File ./scripts/verify-flyway-lifecycle.ps1
-pwsh -File ./scripts/verify-payment-attempt-deadline.ps1 -BaseUrl http://localhost:14200 -PaymentUrl http://localhost:14201
-pwsh -File ./scripts/verify-payment-cancellation-stress.ps1 -DurationSeconds 300 -MinimumIterations 30
-pwsh -File ./scripts/verify-payment.ps1 -BaseUrl http://localhost:14201
+pwsh -File ./scripts/commerce/verify-authorization.ps1 -BaseUrl http://localhost:14200
+pwsh -File ./scripts/operations/verify-flyway-lifecycle.ps1
+pwsh -File ./scripts/payment/verify-payment-attempt-deadline.ps1 -BaseUrl http://localhost:14200 -PaymentUrl http://localhost:14201
+pwsh -File ./scripts/payment/verify-payment-cancellation-stress.ps1 -DurationSeconds 300 -MinimumIterations 30
+pwsh -File ./scripts/payment/verify-payment.ps1 -BaseUrl http://localhost:14201
 ```
 
 RabbitMQ 调度专项验收需要显式启用可选适配器；默认 `docker compose up` 仍只使用 Database，不依赖 RabbitMQ：
@@ -360,7 +364,7 @@ RabbitMQ 调度专项验收需要显式启用可选适配器；默认 `docker co
 $env:SCHEDULING_RABBITMQ_ENABLED='true'
 $env:ORDER_PAYMENT_TIMEOUT='5s'
 docker compose --profile rabbitmq up -d --build --wait rabbitmq-broker commerce-service commerce-portal-angular
-pwsh -File ./scripts/verify-rabbitmq-scheduling.ps1 -MaxWaitSeconds 30
+pwsh -File ./scripts/scheduling/verify-rabbitmq-scheduling.ps1 -MaxWaitSeconds 30
 ```
 
 RocketMQ 调度使用 5.x gRPC 客户端和原生绝对投递时间；Profile 会启动 NameServer、Broker/Proxy，并创建 `message.type=DELAY` Topic：
@@ -369,8 +373,8 @@ RocketMQ 调度使用 5.x gRPC 客户端和原生绝对投递时间；Profile �
 $env:SCHEDULING_ROCKETMQ_ENABLED='true'
 $env:ORDER_PAYMENT_TIMEOUT='5s'
 docker compose --profile rocketmq up -d --build --wait rocketmq-topic-init commerce-service commerce-portal-angular
-pwsh -File ./scripts/verify-rocketmq-scheduling.ps1 -MaxWaitSeconds 30
-pwsh -File ./scripts/verify-rocketmq-reconciliation.ps1 -MaxWaitSeconds 45
+pwsh -File ./scripts/scheduling/verify-rocketmq-scheduling.ps1 -MaxWaitSeconds 30
+pwsh -File ./scripts/scheduling/verify-rocketmq-reconciliation.ps1 -MaxWaitSeconds 45
 ```
 
 故障脚本会短暂停止并恢复 RocketMQ Broker；建议同时把 `SCHEDULING_RECONCILIATION_INITIAL_DELAY`、`SCHEDULING_RECONCILIATION_FIXED_DELAY` 和 `SCHEDULING_ROCKETMQ_REQUEST_TIMEOUT` 调成秒级，避免等待默认生产型周期。
@@ -382,7 +386,7 @@ $env:SCHEDULING_RABBITMQ_ENABLED='true'
 $env:SCHEDULING_ROCKETMQ_ENABLED='true'
 $env:ORDER_PAYMENT_TIMEOUT='6s'
 docker compose --profile rabbitmq --profile rocketmq up -d --build --wait rabbitmq-broker rocketmq-topic-init commerce-service commerce-portal-angular
-pwsh -File ./scripts/verify-mq-scheduling-idempotency.ps1 -MaxWaitSeconds 60
+pwsh -File ./scripts/scheduling/verify-mq-scheduling-idempotency.ps1 -MaxWaitSeconds 60
 ```
 
 专项脚本要求 RabbitMQ Dead Queue 在开始前为空；验证后会取走本次 RabbitMQ 毒消息。RocketMQ 毒消息使用唯一 Key 查询对应 `%DLQ%ConsumerGroup`，不会清空或覆盖已有消息。
@@ -390,7 +394,7 @@ pwsh -File ./scripts/verify-mq-scheduling-idempotency.ps1 -MaxWaitSeconds 60
 未确认重新投递专项会自动启动两种 Broker、两次以零秒宽限停止 commerce-service，并在结束时恢复策略与环境变量：
 
 ```powershell
-pwsh -File ./scripts/verify-mq-scheduling-redelivery.ps1 -MaxWaitSeconds 120
+pwsh -File ./scripts/scheduling/verify-mq-scheduling-redelivery.ps1 -MaxWaitSeconds 120
 ```
 
 详细确认边界、实验证据和官方学习资料见 [MQ 未确认消息与重新投递](docs/learning/CHAPTER-06A-MQ-UNACKED-REDELIVERY.md)。
@@ -428,7 +432,7 @@ docker compose down
 | [订单、取消与履约](docs/features/ORDERS-FULFILLMENT.md) | 订单历史、通知跳转、取消补偿、独立履约、正向与退货物流、收货和自动完成 |
 | [支付、退款与售后](docs/features/PAYMENTS-AFTER-SALES.md) | 三渠道模拟支付、原路全退、按行售后、退货验收与回补、商家应结账单及模拟打款 |
 | [库存与商家库存中心](docs/features/INVENTORY.md) | 预占、扣减、释放、回补、库存管理和命令对账 |
-| [外部系统模拟器](docs/features/SIMULATORS.md) | 独立支付与物流模拟器、渠道回调和管理入口 |
+| [外部系统模拟器](docs/features/SIMULATORS.md) | 支付、物流、仓储、短信邮件模拟器及管理入口 |
 | [部署、监控与验收](docs/features/OPERATIONS.md) | Docker、Flyway、定时任务、分服务告警和隔离验收 |
 
 [文档中心](docs/README.md) 提供架构、API、验收记录和项目计划的入口。

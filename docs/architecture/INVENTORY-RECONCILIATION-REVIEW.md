@@ -240,7 +240,7 @@
 
 ```powershell
 mvn -f services/commerce-service/pom.xml clean package
-pwsh -NoProfile -File ./scripts/verify-inventory-command-monitoring.ps1
+pwsh -NoProfile -File ./scripts/inventory/verify-inventory-command-monitoring.ps1
 ```
 
 商城场景用合成行模拟超时和人工处理，以固定每次抓取时的账本状态。脚本按 `status` 分组读取物理行并从 `created_at` 核算整秒，再读取 Prometheus 查询值和规则状态。样本年龄允许相差 20 秒，覆盖 5 秒刷新与 10 秒抓取之间的间隔。计数和正常零值必须完全一致。指标、状态口径和阈值见[告警文档](../ALERTING.md#3-告警规则)。

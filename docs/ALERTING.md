@@ -114,7 +114,7 @@ Kafka 确认的死信发布。两分钟内无新发布时，死信告警解除�
 ## 4. 验收
 
 ```powershell
-pwsh -File ./scripts/verify-alerting.ps1
+pwsh -File ./scripts/operations/verify-alerting.ps1
 ```
 
 验收入口默认启动 `observability` Profile，但不停止业务服务、不删除容器或数据卷。它执行：

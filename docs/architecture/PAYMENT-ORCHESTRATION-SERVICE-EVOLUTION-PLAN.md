@@ -73,7 +73,7 @@ order、inventory、identity 与 fulfillment 只保留稳定 ID、版本化命�
 未发布 Outbox 和待恢复退款均为 0；OPEN 支付对账为 1。
 
 ```powershell
-pwsh -File ./scripts/audit-payment-orchestration-admission.ps1
+pwsh -File ./scripts/audit/audit-payment-orchestration-admission.ps1
 ```
 
 ## 7. 第二批证据
@@ -155,7 +155,7 @@ OPEN 孤儿和待恢复流程均为 0。payment-db Flyway V2 无失败；payment
 各平台共用的审计入口为：
 
 ```powershell
-pwsh -File ./scripts/audit-payment-cutover-readiness.ps1
+pwsh -File ./scripts/audit/audit-payment-cutover-readiness.ps1
 ```
 
 审计成功表示“阻塞识别与安全门禁没有漂移”，最终输出必须是 `REJECTED`，不表示已经具备切换资格。第七批只在

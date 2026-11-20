@@ -232,7 +232,7 @@ Angular 33 项测试、生产构建及格式检查通过。本批改动在隔离
 | 日常 Docker | 订单库 V6、商城库 V54。订单、商城和门户容器运行候选镜像 `checkout-candidate-20261120`，门户入口资源为 `main-J5X5FBQA.js`，Prometheus 9 个目标正常。原 705 张订单金额一致，九库容器 ID 前后一致。日常订单 706（ORD-B12A1255BF2522C7D68BD240694FD691）1299 元完成支付和整单退款，重复确认同一订单。订单 702 仍显示原金额 1388.90 元。 |
 | 五笔库存历史归档 | 465、479、480、497、498 仍为 `TEST_DATA_ARCHIVED`，原预占投递 `CLOSED`、各尝试 5 次，审计摘要一致，库存流水为 0，旧预占重放 0 笔。 |
 
-专用验收入口为 `scripts/verify-checkout-pricing.ps1`。需修改模板、价格及测试历史退款时，在隔离门户使用 `-ExercisePricing`。
+专用验收入口为 `scripts/commerce/verify-checkout-pricing.ps1`。需修改模板、价格及测试历史退款时，在隔离门户使用 `-ExercisePricing`。
 日常抽检使用现有模板和历史只读查询。九库迁移前快照、候选镜像摘要、SQL 对账与页面结果保存在
 `%LOCALAPPDATA%/CommerceFlow/releases/checkout-pricing-20261120`。
 
@@ -257,7 +257,7 @@ Angular 33 项测试、生产构建及格式检查通过。本批改动在隔离
 | 日常 Docker | 商城 V55、订单 V7、支付编排 V4、库存 V6。日常订单 707 两笔按行退款合计 2598.00 元，对应库存回补两件。九个数据库容器及发布前订单金额、退款记录均已核对。门户入口为 `main-HDA3OKAT.js`，Prometheus 9 个目标正常。 |
 | 五笔历史归档 | 465、479、480、497、498 仍为 `TEST_DATA_ARCHIVED`，对应旧预占为 `CLOSED`，各尝试 5 次，关联库存流水为 0，旧预占重放 0 笔。 |
 
-PowerShell 7 验收入口为 `scripts/verify-line-after-sales.ps1`。带优惠、发货竞争、进程重启与退货均使用隔离 Compose 项目。
+PowerShell 7 验收入口为 `scripts/commerce/verify-line-after-sales.ps1`。带优惠、发货竞争、进程重启与退货均使用隔离 Compose 项目。
 九库快照、镜像摘要和验收结果保存在 `%LOCALAPPDATA%/CommerceFlow/releases/line-after-sales-20261120`。
 
 ### 2.15 单商家订单满减券
@@ -277,7 +277,7 @@ PowerShell 7 验收入口为 `scripts/verify-line-after-sales.ps1`。带优惠�
 
 日常同批镜像发布顺序为订单服务、商城迁移和运行权限、商城服务、门户。商城 V56、订单 V8、支付编排 V4、库存 V6。订单 708 取消后原券返还，订单 709 实付 1358.90，两笔原路退款 87.96 和 1270.94，已使用的券保持核销。门户资源为 `main-SO7KTGXD.js`。九个 Prometheus 目标均为 UP。发布前后的九个数据库容器、存量订单金额及退款记录核对一致。五笔历史归档保持 `TEST_DATA_ARCHIVED`，旧预占命令保持 `CLOSED` 且未重放。
 
-[PowerShell 7 验收入口](../scripts/verify-coupons.ps1)。故障、竞态和到期注入在隔离 Compose 项目执行。日常回归仅创建新的验收订单和活动，完成后停止这些活动。
+[PowerShell 7 验收入口](../scripts/commerce/verify-coupons.ps1)。故障、竞态和到期注入在隔离 Compose 项目执行。日常回归仅创建新的验收订单和活动，完成后停止这些活动。
 
 ### 2.16 首版退货运单跟踪
 
@@ -295,7 +295,7 @@ PowerShell 7 验收入口为 `scripts/verify-line-after-sales.ps1`。带优惠�
 
 日常升级顺序为商城迁移、运行权限、商城服务和 Angular 门户。商城 V57、订单 V8、支付编排 V4、库存 V6，门户资源为 `main-FDS2XYOE.js`。日常新订单 711 的退货包裹送达后等待验收，通过后新增 1295.67 元退款和一件回补。商城、支付渠道与库存账本一致，九个 Prometheus 目标均为 UP。
 
-发布前后核对九个数据库容器、存量订单金额、退款及存量运单一致。五笔历史归档保持 `TEST_DATA_ARCHIVED`，原预占投递保持 `CLOSED`、尝试次数为 5，库存移动仍为零。隔离与日常均使用 [同一份 PowerShell 7 验收入口](../scripts/verify-line-after-sales.ps1)，故障注入仅在隔离项目执行。
+发布前后核对九个数据库容器、存量订单金额、退款及存量运单一致。五笔历史归档保持 `TEST_DATA_ARCHIVED`，原预占投递保持 `CLOSED`、尝试次数为 5，库存移动仍为零。隔离与日常均使用 [同一份 PowerShell 7 验收入口](../scripts/commerce/verify-line-after-sales.ps1)，故障注入仅在隔离项目执行。
 
 ### 2.17 商家入驻与店铺归属
 
@@ -303,7 +303,7 @@ PowerShell 7 验收入口为 `scripts/verify-line-after-sales.ps1`。带优惠�
 
 隔离环境验证了审核、驳回后重提、两个店铺的商品与库存归属、重复创建商品、跨店结算、停店的公开页和优惠券限制、已成交订单退款。订单 713 的原路退款为 70.00 元。Chromium 验证管理员审核页、商家资料与商品入口、公开店铺页。商城、目录、库存构建通过，商城空库及历史迁移验证到 V58。
 
-日常按库存、目录、商城迁移及授权、商城和门户发布同一批镜像。新店铺订单 712 停店后仍完成 70.00 元退款，原购物车条目核对一致。九个数据库和九个抓取目标均已核对，发布前后存量订单金额、退款、运单及五笔历史归档保持一致。旧预占命令未重放。复跑使用 [PowerShell 7 商家验收](../scripts/verify-merchant-operations.ps1) 的 `Store` 章节。
+日常按库存、目录、商城迁移及授权、商城和门户发布同一批镜像。新店铺订单 712 停店后仍完成 70.00 元退款，原购物车条目核对一致。九个数据库和九个抓取目标均已核对，发布前后存量订单金额、退款、运单及五笔历史归档保持一致。旧预占命令未重放。复跑使用 [PowerShell 7 商家验收](../scripts/commerce/verify-merchant-operations.ps1) 的 `Store` 章节。
 
 ### 2.18 商家应结账本与佣金
 
@@ -311,7 +311,7 @@ PowerShell 7 验收入口为 `scripts/verify-line-after-sales.ps1`。带优惠�
 
 隔离订单 714、715 走真实满减、发货收货、退货以及原路退款。验证活跃售后暂缓入账、佣金、原运费单列、负余额结转、账单越权、写入中断后重启及两个管理员会话并发冻结。同一请求只生成一份账单。首期 79.25 元，跨期退货后下一期 12.75 元。Chromium 验证管理员流水和商家账单页面。商城测试 57 项通过，空库和历史库迁移验证到 V59。
 
-日常同批镜像发布商城与门户。验收订单 713、714 的两期账单应结同为 79.25 元和 12.75 元，逐笔核对支付退款及佣金。九个抓取目标均为 UP。存量订单金额、退款、运单及五笔历史归档原样保留。隔离与日常均使用 [PowerShell 7 商家验收](../scripts/verify-merchant-operations.ps1) 的 `Settlement` 章节，完成时钟仅提前本轮测试订单的既有完成任务。
+日常同批镜像发布商城与门户。验收订单 713、714 的两期账单应结同为 79.25 元和 12.75 元，逐笔核对支付退款及佣金。九个抓取目标均为 UP。存量订单金额、退款、运单及五笔历史归档原样保留。隔离与日常均使用 [PowerShell 7 商家验收](../scripts/commerce/verify-merchant-operations.ps1) 的 `Settlement` 章节，完成时钟仅提前本轮测试订单的既有完成任务。
 
 ### 2.19 模拟商家打款
 
@@ -319,7 +319,7 @@ PowerShell 7 验收入口为 `scripts/verify-line-after-sales.ps1`。带优惠�
 
 隔离订单 717 支付 80.00 元，佣金 4.00 元，账单应结 76.00 元。首次模拟失败后重新发起，两名管理员会话并发只保留同一笔待处理尝试。在渠道已出款但商城本地无法确认时重启，商城以原尝试号恢复结果。重复回调保持同一渠道出款，收款应用的签名无法访问出款接口，非法回调签名被拒绝。Chromium 核对商城账单和模拟支付后台显示相同的渠道打款号。
 
-日常商城、门户、支付模拟服务及后台发布隔离验证通过的同一批镜像。订单 715 对应账单成功模拟打款 76.00 元，渠道账本只有一笔成功。原顾客支付 80.00 元保持一致。九个监控目标均为 UP，九个日常数据库容器、存量订单金额、退款、运单、已冻结账单及五笔历史归档核对一致，旧预占未重放。商城 57 项测试、支付模拟服务 9 项测试、66 项脚本契约通过。隔离与日常使用 [PowerShell 7 商家验收](../scripts/verify-merchant-operations.ps1) 的 `Payout` 章节。
+日常商城、门户、支付模拟服务及后台发布隔离验证通过的同一批镜像。订单 715 对应账单成功模拟打款 76.00 元，渠道账本只有一笔成功。原顾客支付 80.00 元保持一致。九个监控目标均为 UP，九个日常数据库容器、存量订单金额、退款、运单、已冻结账单及五笔历史归档核对一致，旧预占未重放。商城 57 项测试、支付模拟服务 9 项测试、66 项脚本契约通过。隔离与日常使用 [PowerShell 7 商家验收](../scripts/commerce/verify-merchant-operations.ps1) 的 `Payout` 章节。
 
 ### 2.20 WMS 出库实发与短发
 
@@ -366,14 +366,14 @@ WMS 补检保留原回执，批准件数和先前申请分别保存。按原订�
 渠道结果由模拟器生成，收件人使用北美 555-01xx 测试号码或 `.test` 邮箱。账本保存脱敏收件人和请求摘要。
 隔离环境可对指定投递模拟首次限流、受理后 504 和送达失败。日常默认关闭故障注入。
 
-使用同一份 [PowerShell 7 验收脚本](../scripts/verify-messaging-simulator.ps1)。
+使用同一份 [PowerShell 7 验收脚本](../scripts/messaging/verify-messaging-simulator.ps1)。
 隔离验证签名和管理鉴权、幂等、限流前无单、超时后查回、失败和重启持久化，
 Chromium 核对两渠道后台操作、脱敏显示及窄屏布局。
 日常按隔离通过的镜像启动后台和服务，独立数据库迁移至 V1，复验短信和邮件各送达一条，故障注入接口返回 403。
 更新前后核对十个原数据库和五笔历史归档，原预占保持关闭，关联库存流水为零。
 
 ```powershell
-pwsh -NoProfile -File scripts/verify-messaging-simulator.ps1
+pwsh -NoProfile -File scripts/messaging/verify-messaging-simulator.ps1
 ```
 
 本地证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/messaging-20261120`，包括
@@ -470,7 +470,7 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - Java/Maven 使用 `vip.fairy.commerceflow`；Compose 使用 `fairy-commerceflow` 项目名和“业务归属 + 角色”服务名；默认单副本环境使用固定 `container_name` 去除冗余的 `-1`，HA 多副本服务保留 Compose 副本序号。
 - 商城、通知、目录、库存、订单、支付编排、履约及两个模拟平台各持有独立 MySQL。商城和支付模拟器各自使用 Redis。
 - M2 批次为当时的 12 个 MyBatis-Plus 持久化实体增加类/字段业务 JavaDoc；简单 CRUD 优先使用 `BaseMapper`/Wrapper，复杂投影、联表、行锁和原子更新放入 Mapper XML。
-- 手写业务 SQL 统一放在 Mapper XML。`scripts/audit-code-quality.ps1` 对 9 个 Maven 项目的格式、内联 SQL 边界及 Mapper 契约执行只读审计。
+- 手写业务 SQL 统一放在 Mapper XML。`scripts/audit/audit-code-quality.ps1` 对 9 个 Maven 项目的格式、内联 SQL 边界及 Mapper 契约执行只读审计。
 - 物流模拟器根包只保留启动类，业务实现已按 `api/application/domain/infrastructure` 分层；
   基础设施继续按客户端、配置、指标、持久化和安全分目录，Mapper 投影独立放入持久化 `row` 子目录。
 - Angular 商城门户和支付模拟器 Web 均已纳入模块本地 Prettier 3.10.1 只读门禁，两个正式 Dockerfile

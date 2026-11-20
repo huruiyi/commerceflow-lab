@@ -6,7 +6,7 @@ $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 
 $ErrorActionPreference = 'Stop'
 
-& (Join-Path $PSScriptRoot 'audit-code-quality.ps1')
+& (Join-Path $PSScriptRoot 'audit/audit-code-quality.ps1')
 if (-not $?) { throw 'Code quality audit failed' }
 
 function Invoke-ChapterVerification([string]$Script, [object[]]$Arguments = @()) {
@@ -70,20 +70,20 @@ if ([int]$product.stockAvailable -lt 100) {
     -Headers $merchantHeaders -ContentType application/json -Body $inventoryBody | Out-Null
 }
 
-Invoke-ChapterVerification 'verify-i18n.ps1'
-Invoke-ChapterVerification 'verify-authorization.ps1'
-Invoke-ChapterVerification 'verify-scheduling.ps1'
-Invoke-ChapterVerification 'verify-order-cancellation.ps1'
-Invoke-ChapterVerification 'verify-payment-runtime-cutover.ps1'
-Invoke-ChapterVerification 'verify-logistics-automation.ps1'
-Invoke-ChapterVerification 'verify-logistics-reliability.ps1'
-Invoke-ChapterVerification 'verify-logistics-callback-governance.ps1'
-Invoke-ChapterVerification 'verify-auto-lifecycle.ps1'
-Invoke-ChapterVerification 'verify-receipt-reviews.ps1'
-Invoke-ChapterVerification 'verify-redis-business.ps1'
-Invoke-ChapterVerification 'verify-order-runtime-cutover.ps1'
+Invoke-ChapterVerification 'commerce/verify-i18n.ps1'
+Invoke-ChapterVerification 'commerce/verify-authorization.ps1'
+Invoke-ChapterVerification 'scheduling/verify-scheduling.ps1'
+Invoke-ChapterVerification 'orders/verify-order-cancellation.ps1'
+Invoke-ChapterVerification 'payment/verify-payment-runtime-cutover.ps1'
+Invoke-ChapterVerification 'fulfillment/verify-logistics-automation.ps1'
+Invoke-ChapterVerification 'fulfillment/verify-logistics-reliability.ps1'
+Invoke-ChapterVerification 'fulfillment/verify-logistics-callback-governance.ps1'
+Invoke-ChapterVerification 'orders/verify-auto-lifecycle.ps1'
+Invoke-ChapterVerification 'orders/verify-receipt-reviews.ps1'
+Invoke-ChapterVerification 'commerce/verify-redis-business.ps1'
+Invoke-ChapterVerification 'orders/verify-order-runtime-cutover.ps1'
 Write-Host "`n==> verify-alerting.ps1" -ForegroundColor Cyan
-& (Join-Path $PSScriptRoot 'verify-alerting.ps1')
+& (Join-Path $PSScriptRoot 'operations/verify-alerting.ps1')
 if (-not $?) { throw 'verify-alerting.ps1 failed' }
 
 $deadline = (Get-Date).AddSeconds(60)

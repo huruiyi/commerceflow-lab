@@ -58,7 +58,7 @@ PowerShell：
 $env:SCHEDULING_ROCKETMQ_ENABLED='true'
 $env:ORDER_PAYMENT_TIMEOUT='6s'
 docker compose --profile rocketmq up -d --build --wait rocketmq-topic-init commerce-service commerce-portal-angular
-pwsh -File ./scripts/verify-rocketmq-scheduling.ps1 -MaxWaitSeconds 40
+pwsh -File ./scripts/scheduling/verify-rocketmq-scheduling.ps1 -MaxWaitSeconds 40
 ```
 
 验收脚本会临时把 `PAYMENT_TIMEOUT` 策略改为 `ROCKETMQ`，创建待支付订单，然后验证：
@@ -80,7 +80,7 @@ $env:SCHEDULING_RECONCILIATION_INITIAL_DELAY='1s'
 $env:SCHEDULING_RECONCILIATION_FIXED_DELAY='1s'
 $env:ORDER_PAYMENT_TIMEOUT='6s'
 docker compose --profile rocketmq up -d --build --wait rocketmq-topic-init commerce-service commerce-portal-angular
-pwsh -File ./scripts/verify-rocketmq-reconciliation.ps1 -MaxWaitSeconds 45
+pwsh -File ./scripts/scheduling/verify-rocketmq-reconciliation.ps1 -MaxWaitSeconds 45
 ```
 
 脚本会停止并最终恢复 Broker。预期结果是：
@@ -106,7 +106,7 @@ $env:SCHEDULING_RABBITMQ_ENABLED='true'
 $env:SCHEDULING_ROCKETMQ_ENABLED='true'
 $env:ORDER_PAYMENT_TIMEOUT='6s'
 docker compose --profile rabbitmq --profile rocketmq up -d --build --wait rabbitmq-broker rocketmq-topic-init commerce-service commerce-portal-angular
-pwsh -File ./scripts/verify-mq-scheduling-idempotency.ps1 -MaxWaitSeconds 60
+pwsh -File ./scripts/scheduling/verify-mq-scheduling-idempotency.ps1 -MaxWaitSeconds 60
 ```
 
 RocketMQ Profile 初始化 Consumer Group 时使用 `retryMaxTimes=2` 和 `CUSTOMIZED [1000,2000]` 重试间隔，目的是让本地毒消息实验可在几十秒内完成；生产值必须结合业务恢复时间、消息堆积和告警流程重新设计。

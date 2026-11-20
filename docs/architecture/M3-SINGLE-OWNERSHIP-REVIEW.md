@@ -165,15 +165,15 @@ docker compose --profile notification-migration run --rm --no-deps notification-
 | 工具 | 常驻部署 | 手工入口 |
 | --- | --- | --- |
 | 库存旧快照 | 配置保持在 `inventory-migration`，库存运行容器只有自己库的连接配置。 | `docker compose --profile inventory-migration run --rm --no-deps inventory-data-migrator --check-target`。核准空目标后去掉 `--check-target` 执行。 |
-| 订单和支付影子复制 | 默认影子开关固定为关闭，订单和支付不携带商城源库凭据。支付启动只依赖自己的库和业务服务。 | 在隔离 Docker 环境显式加载 `compose.legacy-shadow.yaml`。读者分别有订单 9 张源表、支付 16 张源表的 `SELECT` 权限。 |
+| 订单和支付影子复制 | 默认影子开关固定为关闭，订单和支付不携带商城源库凭据。支付启动只依赖自己的库和业务服务。 | 在隔离 Docker 环境显式加载 `infrastructure/compose/compose.legacy-shadow.yaml`。读者分别有订单 9 张源表、支付 16 张源表的 `SELECT` 权限。 |
 | 履约影子复制 | 正式执行覆盖配置使用独立库及 HTTP 契约。旧授权容器只在 `fulfillment-shadow` 中。 | 在隔离环境使用旧商城持有履约写权的源库启动 `fulfillment-shadow`，只授予商城三项对象与订单库三列的 `SELECT`。 |
 
 先选择独立 Docker 环境或为该隔离项目覆盖固定容器名和端口，再执行手工演练。影子授权仅接受
 `fairy-commerceflow-shadow-*` 项目。以下命令均以未切流的隔离副本为目标：
 
 ```powershell
-docker compose -p fairy-commerceflow-shadow-qa -f compose.yaml -f compose.legacy-shadow.yaml up -d --build --wait order-service payment-orchestration-service
-docker compose -p fairy-commerceflow-shadow-qa -f compose.yaml -f compose.fulfillment-shadow.yaml --profile fulfillment-shadow up -d --build --wait fulfillment-service
+docker compose -p fairy-commerceflow-shadow-qa -f compose.yaml -f infrastructure/compose/compose.legacy-shadow.yaml up -d --build --wait order-service payment-orchestration-service
+docker compose -p fairy-commerceflow-shadow-qa -f compose.yaml -f infrastructure/compose/compose.fulfillment-shadow.yaml --profile fulfillment-shadow up -d --build --wait fulfillment-service
 ```
 
 运行仓库中的订单或支付影子验收脚本时，通过 `COMPOSE_PROJECT_NAME` 和 `COMPOSE_FILE` 显式指定上述项目和两个配置文件。
@@ -242,8 +242,8 @@ docker compose --profile verification-access run --rm --no-deps verification-db-
 mvn -f services/catalog-service/pom.xml clean package
 mvn -f services/notification-service/pom.xml clean package
 mvn -f services/commerce-service/pom.xml clean package
-pwsh -NoProfile -File ./scripts/verify-catalog-notification-monitoring.ps1
-pwsh -NoProfile -File ./scripts/verify-catalog-notification-monitoring.ps1 -ReadOnly
+pwsh -NoProfile -File ./scripts/commerce/verify-catalog-notification-monitoring.ps1
+pwsh -NoProfile -File ./scripts/commerce/verify-catalog-notification-monitoring.ps1 -ReadOnly
 ```
 
 隔离库为两个发送链路各准备两条有效合成事件。其中一条预设为只剩最后一次尝试。
@@ -283,7 +283,7 @@ Inbox 和版本一致，305 条商城已发布通知全部匹配 Inbox 和可见
 
 ```powershell
 mvn -f services/commerce-service/pom.xml clean package
-pwsh -NoProfile -File ./scripts/verify-order-cancellation-cutover-recovery.ps1
+pwsh -NoProfile -File ./scripts/orders/verify-order-cancellation-cutover-recovery.ps1
 ```
 
 | 时点 | 订单库 | 商城库 | 库存与通知库 |

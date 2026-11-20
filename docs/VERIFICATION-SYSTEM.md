@@ -96,7 +96,7 @@ pwsh -File ./scripts/verify-all.ps1
 ### 6.1 Flyway 隔离演练
 
 ```powershell
-pwsh -File ./scripts/verify-flyway-lifecycle.ps1
+pwsh -File ./scripts/operations/verify-flyway-lifecycle.ps1
 ```
 
 它使用随机容器/网络和 tmpfs，验证空库 V1→V34、V16→V34 升级、catalog/inventory 所有权分离、
@@ -125,7 +125,7 @@ commerce-service 健康，再恢复后端和默认 `Database + tracing off` 运�
 ### 6.2 全新卷全链路
 
 ```powershell
-pwsh -File ./scripts/verify-fresh-volume-lifecycle.ps1 -TemporaryProjectName commerceflow-fresh-<run-id>
+pwsh -File ./scripts/operations/verify-fresh-volume-lifecycle.ps1 -TemporaryProjectName commerceflow-fresh-<run-id>
 ```
 
 默认保留该临时项目卷用于失败排查。只有显式传入 `-RemoveTemporaryVolumes` 才会删除本次随机临时项目卷。
@@ -135,7 +135,7 @@ pwsh -File ./scripts/verify-fresh-volume-lifecycle.ps1 -TemporaryProjectName com
 ### 6.3 旧卷升级和重启恢复
 
 ```powershell
-pwsh -File ./scripts/verify-upgrade-restart-recovery.ps1
+pwsh -File ./scripts/operations/verify-upgrade-restart-recovery.ps1
 ```
 
 该入口会重启商城、订单、支付及两个模拟器的数据库，以及 Redis、Kafka、RabbitMQ、RocketMQ 和相关业务服务，并写入可识别的恢复夹具任务。订单、支付和商城各自计算历史摘要。数据卷保留，运行前应安排日常环境可中断时段。

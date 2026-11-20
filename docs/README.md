@@ -43,6 +43,7 @@
 
 ## 历史归档 `archive/`
 
+- [分章节实施计划](archive/IMPLEMENTATION-PLAN.md)
 - `TEMP-ORDER-LIFECYCLE-DRAFT.md`：本轮订单改造的原始问题草案，已合并到 `TODO.md`。
 - `ORDER-LIFECYCLE-IMPLEMENTATION-PLAN.md`：被 `TODO.md` 取代的旧实施计划。
 

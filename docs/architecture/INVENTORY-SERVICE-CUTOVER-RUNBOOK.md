@@ -97,10 +97,10 @@ payment-orchestration、fulfillment 以及 M3 清单中所有待拆服务全部�
 ## 8. 本批可复跑命令
 
 ```powershell
-pwsh -File ./scripts/audit-inventory-service-admission.ps1
-pwsh -File ./scripts/verify-inventory-remote-rehearsal.ps1
-pwsh -File ./scripts/verify-inventory-runtime-cutover.ps1
-pwsh -File ./scripts/verify-inventory-single-owner.ps1
+pwsh -File ./scripts/audit/audit-inventory-service-admission.ps1
+pwsh -File ./scripts/inventory/verify-inventory-remote-rehearsal.ps1
+pwsh -File ./scripts/inventory/verify-inventory-runtime-cutover.ps1
+pwsh -File ./scripts/inventory/verify-inventory-single-owner.ps1
 ```
 
 `audit-*` 只启动已有 `commerce-db`（如尚未运行）并执行只读查询。`verify-inventory-remote-rehearsal` 保留为历史

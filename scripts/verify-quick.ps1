@@ -10,7 +10,7 @@ function RunBase([string]$Script){
   if(-not$?){throw "$Script failed"}
 }
 
-& (Join-Path $PSScriptRoot 'audit-code-quality.ps1')
+& (Join-Path $PSScriptRoot 'audit/audit-code-quality.ps1')
 if(-not$?){throw 'Code quality audit failed'}
 & (Join-Path $PSScriptRoot 'audit-script-contracts.ps1')
 if(-not$?){throw 'Script contract audit failed'}
@@ -27,13 +27,13 @@ foreach($scope in '--readers','--task-fixture'){
   if($LASTEXITCODE-ne0){throw "Could not provision $scope verification access"}
 }
 
-RunBase 'verify-authorization.ps1'
-RunBase 'verify-i18n.ps1'
-RunBase 'verify-order-cancellation.ps1'
-RunBase 'verify-payment-runtime-cutover.ps1'
-RunBase 'verify-auto-lifecycle.ps1'
-RunBase 'verify-redis-business.ps1'
-RunBase 'verify-order-runtime-cutover.ps1'
+RunBase 'commerce/verify-authorization.ps1'
+RunBase 'commerce/verify-i18n.ps1'
+RunBase 'orders/verify-order-cancellation.ps1'
+RunBase 'payment/verify-payment-runtime-cutover.ps1'
+RunBase 'orders/verify-auto-lifecycle.ps1'
+RunBase 'commerce/verify-redis-business.ps1'
+RunBase 'orders/verify-order-runtime-cutover.ps1'
 
 $healthUrls=@(
   "$BaseUrl/healthz",

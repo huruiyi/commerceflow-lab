@@ -14,7 +14,7 @@
 ## 2. 脚本入口
 
 ```powershell
-pwsh -File ./scripts/verify-payment-cancellation-stress.ps1 `
+pwsh -File ./scripts/payment/verify-payment-cancellation-stress.ps1 `
   -DurationSeconds 300 -MinimumIterations 30 -Seed 20261113
 ```
 

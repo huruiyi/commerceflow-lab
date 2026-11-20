@@ -30,7 +30,7 @@
 ## 3. 运行方式
 
 ```powershell
-pwsh -File ./scripts/verify-flyway-lifecycle.ps1
+pwsh -File ./scripts/operations/verify-flyway-lifecycle.ps1
 ```
 
 领域层非法转换由 `CommerceFlowIntegrationTest.illegalOrderStateTransitionsAreRejectedWithoutChangingFacts` 覆盖，可通过构建后端执行：

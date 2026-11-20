@@ -125,7 +125,7 @@ appId + "\n" + epochSeconds + "\n" + nonce + "\n" + sha256Hex(rawBody)
 ## 8. 验收
 
 ```powershell
-pwsh -File ./scripts/verify-logistics.ps1
+pwsh -File ./scripts/fulfillment/verify-logistics.ps1
 ```
 
 Bash（需 `curl`、`jq`、`openssl`）：
@@ -137,7 +137,7 @@ Bash（需 `curl`、`jq`、`openssl`）：
 自动轨迹专项：
 
 ```powershell
-pwsh -File ./scripts/verify-logistics-automation.ps1
+pwsh -File ./scripts/fulfillment/verify-logistics-automation.ps1
 ```
 
 专项脚本会临时启用自动推进并将步长压缩为 1 秒，验证送达回调与 `AUTO_RECEIVE`，然后重建物流服务恢复默认关闭。
@@ -145,7 +145,7 @@ pwsh -File ./scripts/verify-logistics-automation.ps1
 可靠投递与主动对账专项：
 
 ```powershell
-pwsh -File ./scripts/verify-logistics-reliability.ps1
+pwsh -File ./scripts/fulfillment/verify-logistics-reliability.ps1
 ```
 
 脚本先停止商城，验证回调 `RETRY -> PUBLISHED`；随后关闭回调投递制造永久丢失，验证商城通过主动对账补齐并记录 `RECONCILED`。脚本结束会恢复原环境变量并重建服务。
@@ -153,7 +153,7 @@ pwsh -File ./scripts/verify-logistics-reliability.ps1
 `DEAD` 治理专项：
 
 ```powershell
-pwsh -File ./scripts/verify-logistics-callback-governance.ps1
+pwsh -File ./scripts/fulfillment/verify-logistics-callback-governance.ps1
 ```
 
 该脚本将最大尝试次数临时设为 1，真实制造 `DEAD`，验证客户 `403`、管理员查询、必填原因、`DEAD -> RETRY -> PUBLISHED`、操作人/原因审计、重复重放 `409`、商城事件幂等和 Prometheus 指标。
@@ -161,7 +161,7 @@ pwsh -File ./scripts/verify-logistics-callback-governance.ps1
 自动生命周期专项：
 
 ```powershell
-pwsh -File ./scripts/verify-auto-lifecycle.ps1
+pwsh -File ./scripts/orders/verify-auto-lifecycle.ps1
 ```
 
 该脚本额外验证手动收货取消 `AUTO_RECEIVE`，以及 `DELIVERED -> AUTO_RECEIVE -> RECEIVED -> AUTO_COMPLETE -> COMPLETED` 的真实 Docker 链路，并确认支付、物流和评价能力在订单完成后仍保留。脚本还会伪造“Handler 已提交但任务确认前崩溃”，重启 commerce-service 后验证 `LEASE_RECOVERY（租约恢复）` 与幂等重放。

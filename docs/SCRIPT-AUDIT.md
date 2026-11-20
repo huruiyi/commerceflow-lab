@@ -9,9 +9,25 @@ pwsh -File ./scripts/verify-quick.ps1 -SkipBuild
 
 ## 脚本覆盖
 
-[参数清单](../scripts/script-contracts.tsv) 按脚本名登记所有 `verify-*` 入口及有序参数。新增验证时在 `scripts/` 中添加一个 `.ps1` 并更新清单。审计会核对名称和参数，检查 PowerShell 语法，并报告重复的平台入口。两份履约审计 SQL 由对应脚本加载。教学视频生成器使用 Windows 图形与语音组件。
+[参数清单](../scripts/script-contracts.tsv) 登记所有 `verify-*` 入口相对 `scripts/` 的路径及有序参数。
+新增验证时在对应分类添加一份 PowerShell 7 脚本并更新清单。审计递归检查语法、路径和参数，以及是否存在同名入口。
 
-满减券使用 [verify-coupons.ps1](../scripts/verify-coupons.ps1)。日常环境走创建测试活动、领券、下单、取消、支付与退款。并发、超时与跨库中断注入由脚本识别专用隔离项目后执行。
+| 目录 | 内容 |
+| --- | --- |
+| `scripts/` | 快速回归、完整验收、脚本契约审计与参数清单 |
+| `scripts/audit/` | 代码质量、服务准入与所有权审计，履约审计 SQL 随入口存放 |
+| `scripts/commerce/` | 鉴权、国际化、目录、结算计价、优惠、售后、商家操作与 Redis |
+| `scripts/orders/` | 订单切换、取消、自动生命周期、收货和评价 |
+| `scripts/payment/` | 支付、退款、支付切换、回调及竞态 |
+| `scripts/fulfillment/` | 履约、物流、发货及回调 |
+| `scripts/inventory/` | 库存预占与独立库存服务 |
+| `scripts/messaging/` | 通知服务和短信邮件模拟器 |
+| `scripts/scheduling/` | 定时调度、RabbitMQ、RocketMQ 和消息追踪 |
+| `scripts/operations/` | 监控告警、分布式追踪、Flyway、空卷和升级恢复 |
+| `scripts/lib/` | 公用的验证函数 |
+| `scripts/tools/` | 教学工具，视频生成器使用 Windows 图形与语音组件 |
+
+满减券使用 [verify-coupons.ps1](../scripts/commerce/verify-coupons.ps1)。日常环境走创建测试活动、领券、下单、取消、支付与退款。并发、超时与跨库中断注入由脚本识别专用隔离项目后执行。
 
 ## 数据卷
 

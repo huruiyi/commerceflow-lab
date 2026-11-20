@@ -31,7 +31,7 @@ SCHEDULING_MQ_CRASH_LAB_PAUSE=5m
 
 ```powershell
 docker compose build commerce-service
-pwsh -File ./scripts/verify-mq-scheduling-redelivery.ps1 -MaxWaitSeconds 120
+pwsh -File ./scripts/scheduling/verify-mq-scheduling-redelivery.ps1 -MaxWaitSeconds 120
 ```
 
 脚本会依次执行 RabbitMQ 和 RocketMQ：

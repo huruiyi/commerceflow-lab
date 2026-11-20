@@ -13,9 +13,9 @@
 ```powershell
 docker compose up --build -d --wait
 docker compose ps
-pwsh -File ./scripts/verify-payment-notifications.ps1
-pwsh -File ./scripts/verify-kafka-payment.ps1
-pwsh -File ./scripts/verify-payment-outcomes.ps1
+pwsh -File ./scripts/payment/verify-payment-notifications.ps1
+pwsh -File ./scripts/payment/verify-kafka-payment.ps1
+pwsh -File ./scripts/payment/verify-payment-outcomes.ps1
 ```
 
 入口：商城 `http://localhost:14200`，支付平台 `http://localhost:14201`，Kafka UI `http://localhost:14202`。商城客户账号为 `demo@example.com` / `demo-password`。
@@ -34,7 +34,7 @@ Prometheus 为 `http://localhost:19090`，Grafana 为 `http://localhost:13000`�
 
 ```powershell
 docker compose down --volumes
-docker compose -f compose.yaml -f compose.ha.yaml --profile observability up --build -d --wait
+docker compose -f compose.yaml -f infrastructure/compose/compose.ha.yaml --profile observability up --build -d --wait
 ```
 
 停止 Kafka 单节点或一个后端容器，确认其余实例可服务；恢复后检查 Outbox 从 `RETRY` 变为 `PUBLISHED`，且 `kafka_consumed_event` 对同一 `(consumer_group,event_id)` 只有一行。

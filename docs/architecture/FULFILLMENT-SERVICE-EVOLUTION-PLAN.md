@@ -57,7 +57,7 @@
 4. 独立评审 CUTOVER，在获准窗口排空旧操作、最终核对并切到唯一远程写路径，撤销旧履约表权限。完成监控与稳定性
    观察后再评估 M4 PostgreSQL 专项。
 
-本阶段历史准入使用运行中的 commerce-db 与 order-db。当前 `scripts/audit-fulfillment-admission.ps1` 走独立执行拓扑，见第 26 节。
+本阶段历史准入使用运行中的 commerce-db 与 order-db。当前 `scripts/audit/audit-fulfillment-admission.ps1` 走独立执行拓扑，见第 26 节。
 末行 `PASSED` 表示结构和排空条件的只读检查通过，存在未决项时脚本返回非零退出码。
 
 ## 5. 第二批进展
@@ -285,7 +285,7 @@ V45 六表快照包含 59 个命令，其中发货任务 23 条、商家任务 3
 签名业务写入口固定返回 503。目标库没有订单、资金或物流投影表。
 
 ```sh
-docker compose -p fairy-commerceflow-shadow-qa -f compose.yaml -f compose.fulfillment-shadow.yaml --profile fulfillment-shadow up -d --build --wait fulfillment-service
+docker compose -p fairy-commerceflow-shadow-qa -f compose.yaml -f infrastructure/compose/compose.fulfillment-shadow.yaml --profile fulfillment-shadow up -d --build --wait fulfillment-service
 ```
 
 商城 V46 为六张履约表增加变更捕获。单行时钟与源写事务同提交，回滚不推进水位。快照和追平在商城 MySQL 的
@@ -299,7 +299,7 @@ docker compose -p fairy-commerceflow-shadow-qa -f compose.yaml -f compose.fulfil
 
 影子 HTTP 发布在本机 `127.0.0.1:18091`。内部签名绑定 HTTP 方法、请求路径、Unix 秒时间戳、请求 UUID 和
 正文 SHA-256，以上字段用换行连接后计算 HMAC-SHA256。签名和正文摘要使用十六进制。使用
-`scripts/verify-fulfillment-shadow-runtime.ps1`
+`scripts/fulfillment/verify-fulfillment-shadow-runtime.ps1`
 检查签名、关闭写入和同水位快照。包含源写入的验收环境应等待相同水位后再比较摘要。
 
 真实 MySQL 演练中，同水位两次快照六表摘要一致，第二次写入 0 行。回滚保持源水位 0。一笔已提交的事务将
@@ -444,7 +444,7 @@ V48 在商城冻结记录增加 `write_owner`，空库和升级默认均为 `COM
 无权访问六张履约表，仍可读取所有者记录并正常访问其余商城边界。权限部署与所有者切换共享 MySQL 命名锁，
 角色继承或存在同名其他 Host 的账号时执行配置拒绝发放授权。
 
-默认使用 `compose.yaml`。受控窗口使用 [独立执行覆盖配置](../../compose.fulfillment-execution.yaml) 为两个履约
+默认使用 `compose.yaml`。受控窗口使用 [独立执行覆盖配置](../../infrastructure/compose/compose.fulfillment-execution.yaml) 为两个履约
 入口、Order V1 身份和商城物流桥接线。配置要求分别提供业务、管理员、订单、物流的签名密钥。
 目标服务仅在数据库已绑定 `EXECUTION` 后就绪。单纯加载覆盖配置无法变更源或目标的所有者。
 
@@ -595,8 +595,8 @@ Windows 与 Bash 商家履约回归使用支付验证创建的订单号，兼容
 `FULFILLMENT_RELEASE_IMAGE`、`LOGISTICS_SIMULATOR_RELEASE_IMAGE`。发布覆盖配置只使用已装载的镜像。
 
 ```powershell
-docker compose -f compose.yaml -f compose.fulfillment-execution.yaml -f compose.fulfillment-release.yaml config --quiet
-docker compose -f compose.yaml -f compose.fulfillment-execution.yaml -f compose.fulfillment-release.yaml up -d --wait
+docker compose -f compose.yaml -f infrastructure/compose/compose.fulfillment-execution.yaml -f infrastructure/compose/compose.fulfillment-release.yaml config --quiet
+docker compose -f compose.yaml -f infrastructure/compose/compose.fulfillment-execution.yaml -f infrastructure/compose/compose.fulfillment-release.yaml up -d --wait
 ```
 
 ### 有新写入时回退
@@ -610,8 +610,8 @@ docker compose -f compose.yaml -f compose.fulfillment-execution.yaml -f compose.
    任一表失败则回滚，商城保持冻结。成功后读回新的商城水位，逐表比对行数和摘要。
 
    ```powershell
-   docker compose -f compose.yaml -f compose.fulfillment-execution.yaml -f compose.fulfillment-recovery.yaml --profile fulfillment-recovery run --rm --no-deps fulfillment-return-data --plan $sourceWatermark $generation $handoffWatermark
-   docker compose -f compose.yaml -f compose.fulfillment-execution.yaml -f compose.fulfillment-recovery.yaml --profile fulfillment-recovery run --rm --no-deps fulfillment-return-data --apply $sourceWatermark $generation $handoffWatermark $reviewedSha256
+   docker compose -f compose.yaml -f infrastructure/compose/compose.fulfillment-execution.yaml -f infrastructure/compose/compose.fulfillment-recovery.yaml --profile fulfillment-recovery run --rm --no-deps fulfillment-return-data --plan $sourceWatermark $generation $handoffWatermark
+   docker compose -f compose.yaml -f infrastructure/compose/compose.fulfillment-execution.yaml -f infrastructure/compose/compose.fulfillment-recovery.yaml --profile fulfillment-recovery run --rm --no-deps fulfillment-return-data --apply $sourceWatermark $generation $handoffWatermark $reviewedSha256
    ```
 
 3. 使用原 generation 和交接水位执行目标退役 SQL。再以回传后的商城水位执行所有者转换 SQL，依次要求
@@ -706,9 +706,9 @@ InnoDB 原生 AIO 上限，第二轮仅为隔离 MySQL 关闭原生 AIO，使用
 - 商城移除本地任务执行、人工恢复实现和专用 Mapper XML。商家和管理员入口统一通过签名 HTTP 调用独立履约。
   启动时用 `FulfillmentOwnershipMapper` 只读核对冻结源的所有者，保留履约路由指标、商城物流桥及订单展示聚合。
 - 基础 Compose 默认部署独立履约。已有独立执行库直接启动，原商城仍持有履约写权时须先完成交接。
-  全新卷首次启动使用 `compose.fulfillment-fresh.yaml`。仅当商城源没有旧任务、运单、捕获记录和水位时允许建立冻结标记，
+  全新卷首次启动使用 `infrastructure/compose/compose.fulfillment-fresh.yaml`。仅当商城源没有旧任务、运单、捕获记录和水位时允许建立冻结标记，
   独立库从无模式、零水位且无任务、隔离记录的状态建立 `EXECUTION/1/0`。随后可按基础配置重启。
-  带独立密钥的部署叠加 `compose.fulfillment-execution.yaml`，历史影子验收显式使用 `compose.fulfillment-shadow.yaml`。
+  带独立密钥的部署叠加 `infrastructure/compose/compose.fulfillment-execution.yaml`，历史影子验收显式使用 `infrastructure/compose/compose.fulfillment-shadow.yaml`。
 - 空卷隔离验收达到 `FULFILLMENT/1/0` 与 `EXECUTION/1/0`。去掉初始化覆盖后重启通过。订单
   `ORD-8761CA861CBE4385` 完成支付、接单、发货和两次运单版本更新，陈旧版本被拒绝。
   管理员对隔离构造的待核对任务以同一恢复 ID 重试两次，原任务完成且只保留一条恢复记录。
@@ -749,7 +749,7 @@ InnoDB 原生 AIO 上限，第二轮仅为隔离 MySQL 关闭原生 AIO，使用
 ## 28. 2026-11-19 履约归档后启动、审计与回退
 
 - 常规 `compose.yaml` 的授权服务只校验商城的冻结所有权标记并配置运行账号。空卷配置
-  `compose.fulfillment-fresh.yaml` 在 Flyway 后显式运行 `commerce-fulfillment-initializer`，初始化成功后才配置运行权限。
+  `infrastructure/compose/compose.fulfillment-fresh.yaml` 在 Flyway 后显式运行 `commerce-fulfillment-initializer`，初始化成功后才配置运行权限。
   已在全新隔离商城卷验证源状态 `FULFILLMENT/1/0`、重复初始化和后续授予运行权限。
 - 审计按八张表、18 个触发器和一个过程识别旧源状态。完整时核对历史六表，全部缺失时报告已归档，
   缺件时直接拒绝。两种完整状态均核对冻结所有权、旧源授权、商城物流、订单发货意图和独立执行库任务。
@@ -822,7 +822,7 @@ InnoDB 原生 AIO 上限，第二轮仅为隔离 MySQL 关闭原生 AIO，使用
 | 售后与运费 | 订单 719 收货后按原行退货 1 件。订单 720 首包发出后退款 1 件，再发剩余量。 | 订单 716 退货验收后入库 1 件，订单 717 未发部分退款回补 1 件。各退商品 80.00 元，保留原运费。 |
 | 页面和单包裹回归 | Chromium 使用顾客和商家实际会话核对两包裹轨迹。原单包裹流程订单 721 正常完成。 | 原单包裹流程订单 718 正常完成。五个候选容器健康，Prometheus 九个目标均为 UP。 |
 
-两个环境均使用 [PowerShell 7 验收脚本](../../scripts/verify-merchant-operations.ps1) 的 `Packages` 章节。
+两个环境均使用 [PowerShell 7 验收脚本](../../scripts/commerce/verify-merchant-operations.ps1) 的 `Packages` 章节。
 2026-11-20 日常使用隔离通过的同一批镜像，商城、订单、库存和履约库分别升级到 V61、V9、V7 和 V3。
 升级前、升级后及复验后对比了九个数据库容器、原有订单金额、退款及运单，五笔历史归档和关闭的预占命令一致。
 库存库中五笔归档均无新增流水。局部日志及结果写入 `%LOCALAPPDATA%/CommerceFlow/releases/merchant-20261120`
@@ -848,7 +848,7 @@ V11 让分仓发货和未发退款共享订单锁并各自核对仓余量。履�
   顾客收货后选原包裹退货，验收后退 92.50 元且只回补默认仓，两笔均保留整单运费。
 - 隔离订单 725 复测原单仓流程。Chromium 验证商家分仓与包裹信息、顾客售后选择原出库包裹。
 
-隔离与日常使用同一份 [PowerShell 7 验收脚本](../../scripts/verify-merchant-operations.ps1) 的 `Warehouses` 章节。
+隔离与日常使用同一份 [PowerShell 7 验收脚本](../../scripts/commerce/verify-merchant-operations.ps1) 的 `Warehouses` 章节。
 接入 WMS 后，隔离复测需传入隔离仓库后台的 `WarehouseBaseUrl`。
 
 日常 Docker 发布使用隔离验收通过的同一批镜像，商城、订单、库存、履约和门户容器全部健康，
@@ -873,9 +873,9 @@ WMS 使用独立 MySQL，Flyway V1 持久化计划、实发、仓号和结果时
 短发先完成实发包裹，随后按已发件数释放其余部分供原仓补发或退款。仓库拒绝时实发为零，
 释放发货锁，也允许用新包裹号重试。既有已发包裹保留原数量与运单记录。
 
-复用 [PowerShell 7 验收入口](../../scripts/verify-merchant-operations.ps1) 的 `WmsOutbound` 章节。
+复用 [PowerShell 7 验收入口](../../scripts/commerce/verify-merchant-operations.ps1) 的 `WmsOutbound` 章节。
 隔离时传入独立项目名、商城、支付、物流和 WMS 后台地址。日常默认地址为
-`pwsh -NoProfile -File scripts/verify-merchant-operations.ps1 -Chapter WmsOutbound`。
+`pwsh -NoProfile -File scripts/commerce/verify-merchant-operations.ps1 -Chapter WmsOutbound`。
 脚本核对付款快照、仓库回执、订单行、库存流水、运单、退款以及五笔历史归档。
 
 - 隔离订单 728 的同一行 A、B 仓各实发 1 件，生成两个独立运单。错仓及超量回执均被拒绝。
@@ -910,11 +910,11 @@ WMS 使用独立 MySQL，Flyway V1 持久化计划、实发、仓号和结果时
 仓库足量实收且质检合格才允许商家验收。商家确认后，支付结果成功才触发原仓库存回补。
 短收、拒收和质检不合格进入待复核。存量在途退货从原出库凭证补齐关联，来源无法唯一确定时进入待复核。
 
-隔离和日常均运行 [PowerShell 7 验收脚本](../../scripts/verify-merchant-operations.ps1) 的 `WmsReturn` 章节。
+隔离和日常均运行 [PowerShell 7 验收脚本](../../scripts/commerce/verify-merchant-operations.ps1) 的 `WmsReturn` 章节。
 隔离模式传入独立项目以及商城、支付、物流和 WMS 后台地址。日常使用以下命令。
 
 ```powershell
-pwsh -NoProfile -File scripts/verify-merchant-operations.ps1 -Chapter WmsReturn
+pwsh -NoProfile -File scripts/commerce/verify-merchant-operations.ps1 -Chapter WmsReturn
 ```
 
 - 隔离订单 732 由 A 仓出库 1 件，B 仓未发取消退 92.49 元。A 仓退货绑定原包裹。
@@ -946,10 +946,10 @@ WMS V3 在原退货单追加一次补检凭证，保留首次收货数量和质�
 补证、拒绝结案和批准处理分别留审计。批准件数单独保存，按原订单的商品净额、优惠分摊和累计退款限额重算。
 支付确认成功后只向原仓回补。顾客仍可按原包裹剩余可退数申请尚未获批的件数。
 
-隔离和日常均使用[现有 PowerShell 7 验收脚本](../../scripts/verify-merchant-operations.ps1)的 `ReturnWork` 章节。
+隔离和日常均使用[现有 PowerShell 7 验收脚本](../../scripts/commerce/verify-merchant-operations.ps1)的 `ReturnWork` 章节。
 
 ```powershell
-pwsh -NoProfile -File scripts/verify-merchant-operations.ps1 -Chapter ReturnWork
+pwsh -NoProfile -File scripts/commerce/verify-merchant-operations.ps1 -Chapter ReturnWork
 ```
 
 - 隔离订单 736 向 B 仓原包裹申请退 2 件，实收 1 件。补检只确认 1 件合格。两次并发提交仅一笔批准生效。
