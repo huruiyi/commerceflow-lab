@@ -31,6 +31,7 @@ export interface IssuedCredential {
 }
 
 export interface Transaction {
+  canClose?: boolean;
   channelTransactionNo: string;
   merchantRequestNo: string;
   channel: string;
@@ -49,6 +50,7 @@ export interface Transaction {
 }
 
 export interface Refund {
+  canRedeliver?: boolean;
   channelRefundNo: string;
   merchantRefundNo: string;
   channelTransactionNo: string;
@@ -77,6 +79,31 @@ export interface AdminUser {
   mfaEnabled: boolean;
   roles: string[];
   lastLoginAt?: string;
+}
+
+export type RoleScope = 'PLATFORM' | 'MERCHANT';
+
+export interface PaymentAdminRole {
+  id: number;
+  code: string;
+  name: string;
+  scope: RoleScope;
+  description: string;
+  enabled: boolean;
+  systemRole: boolean;
+  permissions: string[];
+  accountCount: number;
+}
+
+export interface PaymentRoleBinding {
+  roleId: number;
+  roleCode: string;
+  roleName: string;
+  roleScope: RoleScope;
+  merchantId?: number | null;
+  merchantName?: string | null;
+  enabled: boolean;
+  roleEnabled: boolean;
 }
 
 export interface AuditLog {

@@ -54,7 +54,7 @@ const metrics = computed(() => [
   </a-card>
   <a-alert v-else-if="transactionState === 'error'" class="mt-5" type="error" :message="t('paymentStatisticsError')" />
   <div class="content-grid mt-5">
-    <article class="card span-2">
+    <article class="card span-2 min-w-0">
       <div class="card-head">
         <div>
           <span class="eyebrow">{{ t('recentFlow') }}</span>
@@ -63,18 +63,19 @@ const metrics = computed(() => [
         <router-link to="/transactions">{{ t('viewAll') }}</router-link>
       </div>
       <vxe-table :data="transactions.slice(0, 5)" stripe show-overflow :empty-text="t('noVisibleTransactions')">
-        <vxe-column field="channelTransactionNo" :title="t('transactionNo')" min-width="210">
-          <template #default="{ row }"
-            ><span class="mono">{{ row.channelTransactionNo.slice(0, 16) }}…</span></template
-          >
-        </vxe-column>
-        <vxe-column field="channel" :title="t('channel')" width="150">
+        <vxe-column
+          field="channelTransactionNo"
+          :title="t('channelTransactionNo')"
+          min-width="265"
+          show-overflow="tooltip"
+        />
+        <vxe-column field="channel" :title="t('channel')" min-width="100">
           <template #default="{ row }">{{ enumLabel(row.channel) }}</template>
         </vxe-column>
-        <vxe-column field="amount" :title="t('amount')" width="120">
+        <vxe-column field="amount" :title="t('amount')" min-width="100">
           <template #default="{ row }">¥{{ row.amount }}</template>
         </vxe-column>
-        <vxe-column field="status" :title="t('status')" width="130">
+        <vxe-column field="status" :title="t('status')" min-width="110">
           <template #default="{ row }">
             <a-tag :color="row.status === 'SUCCESS' ? 'success' : row.status === 'FAILED' ? 'error' : 'processing'"
               >{{ enumLabel(row.status) }}

@@ -59,12 +59,7 @@ async function close(item: Transaction) {
 const showCreate = ref(false);
 
 const columns = computed<VxeGridProps<Transaction>['columns']>(() => [
-  {
-    field: 'channelTransactionNo',
-    title: t('channelTransactionNo'),
-    minWidth: 150,
-    slots: { default: 'channelTransactionNo' },
-  },
+  { field: 'channelTransactionNo', title: t('channelTransactionNo'), minWidth: 150 },
   { field: 'merchantRequestNo', title: t('merchantRequestNo'), minWidth: 145 },
   { field: 'channel', title: t('channel'), width: 88, slots: { default: 'channel' } },
   { field: 'subject', title: t('subject'), minWidth: 140 },
@@ -146,24 +141,15 @@ const columns = computed<VxeGridProps<Transaction>['columns']>(() => [
         {{ t('createSignedTransaction') }}
       </button></template
     >
-    <template #channelTransactionNo="{ row }">
-      <span class="sim-cell mono" :title="row.channelTransactionNo">{{ row.channelTransactionNo }}</span>
-    </template>
     <template #channel="{ row }">{{ enumLabel(row.channel) }}</template>
-    <template #amount="{ row }"
-      ><span class="sim-amount">¥{{ Number(row.amount).toFixed(2) }}</span></template
-    >
+    <template #amount="{ row }">¥{{ Number(row.amount).toFixed(2) }}</template>
     <template #createdAt="{ row }"
       ><span class="sim-cell" :title="formatDate(row.createdAt)">{{ formatDate(row.createdAt) }}</span></template
     >
     <template #faultScenario="{ row }">{{ enumLabel(row.faultScenario) }}</template>
-    <template #status="{ row }"
-      ><a-tag :color="row.status === 'SUCCESS' ? 'success' : row.status === 'FAILED' ? 'error' : 'processing'"
-        >{{ enumLabel(row.status) }}
-      </a-tag></template
-    >
+    <template #status="{ row }">{{ enumLabel(row.status) }}</template>
     <template #actionsCell="{ row }"
-      ><a-button v-if="row.status === 'PENDING'" danger type="link" @click="close(row)">{{
+      ><a-button v-if="row.status === 'PENDING' && row.canClose" danger type="link" @click="close(row)">{{
         t('close')
       }}</a-button></template
     >

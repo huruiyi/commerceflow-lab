@@ -5,7 +5,6 @@ import PaymentLedger from '../PaymentLedger.vue';
 import { api } from '../api';
 import { enumLabel, formatDate, t, locale } from '../i18n';
 import type { Refund } from '../types';
-import { authState } from '../main';
 
 const refunds = ref<Refund[]>([]);
 const error = ref('');
@@ -90,7 +89,7 @@ const columns = computed<VxeGridProps<Refund>['columns']>(() => [
       ><span class="sim-cell" :title="formatDate(row.createdAt)">{{ formatDate(row.createdAt) }}</span></template
     >
     <template #actionsCell="{ row }"
-      ><a-button v-if="authState.session?.authorities.includes('REFUND_OPERATE')" size="small" @click="redeliver(row)"
+      ><a-button v-if="row.canRedeliver" size="small" @click="redeliver(row)"
         >{{ t('redeliverNotification') }}
       </a-button></template
     >

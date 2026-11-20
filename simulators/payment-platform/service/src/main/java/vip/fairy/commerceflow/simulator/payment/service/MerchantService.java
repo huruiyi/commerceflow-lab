@@ -1,9 +1,7 @@
 package vip.fairy.commerceflow.simulator.payment.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import vip.fairy.commerceflow.simulator.payment.domain.PaymentAdminUser;
 import vip.fairy.commerceflow.simulator.payment.domain.PaymentMerchant;
-import vip.fairy.commerceflow.simulator.payment.mapper.PaymentAdminUserMapper;
 import vip.fairy.commerceflow.simulator.payment.mapper.PaymentMerchantMapper;
 import vip.fairy.commerceflow.simulator.payment.security.PaymentAdminPrincipal;
 import vip.fairy.commerceflow.simulator.payment.web.dto.CreateMerchantRequest;
@@ -26,15 +24,13 @@ public class MerchantService {
 
   private static final SecureRandom RANDOM = new SecureRandom();
   private final PaymentMerchantMapper merchants;
-  private final PaymentAdminUserMapper users;
   private final CredentialCipher cipher;
   private final MfaService mfa;
   private final AuditService audit;
 
-  public MerchantService(PaymentMerchantMapper merchants, PaymentAdminUserMapper users,
+  public MerchantService(PaymentMerchantMapper merchants,
                          CredentialCipher cipher, MfaService mfa, AuditService audit) {
     this.merchants = merchants;
-    this.users = users;
     this.cipher = cipher;
     this.mfa = mfa;
     this.audit = audit;
@@ -80,7 +76,6 @@ public class MerchantService {
     merchant.setUpdatedAt(LocalDateTime.now());
     merchants.insert(merchant);
     if (merchant.getNotifyUrl() != null) merchants.insertCallbackEndpoint(merchant.getId(), merchant.getNotifyUrl());
-    users.insertMerchantAccess(actor.getUserId(), merchant.getId(), "ADMIN", actor.getUserId());
     audit.record(actor, "CREATE_MERCHANT", "MERCHANT", merchant.getId(), "SUCCESS",
       "创建模拟支付商户并签发第 1 版凭据", servletRequest);
     return new IssuedCredentialResponse(response(merchant), secret,

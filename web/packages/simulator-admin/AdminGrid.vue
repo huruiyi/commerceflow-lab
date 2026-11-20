@@ -17,6 +17,7 @@ const props = withDefaults(
     fixedPageSize?: boolean;
     locale?: "zh-CN" | "en-US";
     emptyText?: string;
+    selectedRowKey?: string | number;
   }>(),
   { locale: "zh-CN", page: 1, pageSize: 20 },
 );
@@ -26,6 +27,7 @@ const emit = defineEmits<{
   reset: [];
   refresh: [];
   page: [page: number, size: number];
+  select: [row: Row];
 }>();
 
 const slots = useSlots();
@@ -97,6 +99,17 @@ const pagerChanged: VxeGridEvents.PageChange<Row> = ({
   pageSize,
 }) => {
   emit("page", currentPage, pageSize);
+};
+function rowClassName({ row }: { row: Row }) {
+  return props.selectedRowKey != null && row != null && typeof row === "object" &&
+    Reflect.get(row, props.rowKey) === props.selectedRowKey
+    ? "row--current"
+    : "";
+}
+const selectRow: VxeGridEvents.CellClick<Row> = ({ row, $event }) => {
+  if (!($event.target instanceof Element && $event.target.closest("button, a, input, select"))) {
+    emit("select", row);
+  }
 };
 const forwarded = computed(() =>
   Object.keys(slots).filter(
@@ -171,6 +184,7 @@ const forwarded = computed(() =>
           :loading="loading"
           :empty-text="emptyText"
           :row-config="{ keyField: rowKey }"
+          :row-class-name="rowClassName"
           :toolbar-config="toolbar"
           :pager-config="pager"
           :custom-config="{ storage: Boolean(id) }"
@@ -178,6 +192,7 @@ const forwarded = computed(() =>
           show-overflow="tooltip"
           show-header-overflow
           @page-change="pagerChanged"
+          @cell-click="selectRow"
           @toolbar-tool-click="
             ({ code }) => {
               if (code === 'search') expanded = !expanded;

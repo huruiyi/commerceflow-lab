@@ -42,7 +42,7 @@ async function complete(outcome: string) {
 <template>
   <div class="cashier-page">
     <header class="cashier-brand">
-      <span class="brand-mark">C</span><strong>CommerceFlow Pay</strong>
+      <span class="brand-mark">C</span><strong>{{ t('appName') }}</strong>
       <span>{{ t('localOnly') }}</span>
       <button class="language-toggle" type="button" @click="switchLanguage">{{ languageLabel }}</button>
     </header>

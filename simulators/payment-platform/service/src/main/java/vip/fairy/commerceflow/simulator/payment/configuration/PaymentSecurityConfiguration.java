@@ -1,7 +1,9 @@
 package vip.fairy.commerceflow.simulator.payment.configuration;
 
 import tools.jackson.databind.ObjectMapper;
+import vip.fairy.commerceflow.simulator.payment.mapper.PaymentAdminRoleMapper;
 import vip.fairy.commerceflow.simulator.payment.security.PaymentAdminPrincipal;
+import vip.fairy.commerceflow.simulator.payment.security.PaymentAdminRoleSessionFilter;
 import vip.fairy.commerceflow.simulator.payment.service.AuditService;
 
 import java.util.Map;
@@ -17,6 +19,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
@@ -49,7 +52,8 @@ public class PaymentSecurityConfiguration {
   }
 
   @Bean
-  SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper mapper, AuditService audit) throws Exception {
+  SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper mapper, AuditService audit,
+                                          PaymentAdminRoleMapper roles) throws Exception {
     CookieCsrfTokenRepository csrfRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
     csrfRepository.setCookiePath("/");
     csrfRepository.setCookieName("PAYMENT_XSRF_TOKEN");
@@ -58,6 +62,7 @@ public class PaymentSecurityConfiguration {
     requestHandler.setCsrfRequestAttributeName(null);
 
     http
+      .addFilterBefore(new PaymentAdminRoleSessionFilter(roles), AnonymousAuthenticationFilter.class)
       .csrf(csrf -> csrf
         .csrfTokenRepository(csrfRepository)
         .csrfTokenRequestHandler(requestHandler)

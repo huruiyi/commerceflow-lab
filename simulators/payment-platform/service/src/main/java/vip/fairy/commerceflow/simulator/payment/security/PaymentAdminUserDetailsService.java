@@ -3,11 +3,10 @@ package vip.fairy.commerceflow.simulator.payment.security;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import vip.fairy.commerceflow.simulator.payment.domain.PaymentAdminUser;
 import vip.fairy.commerceflow.simulator.payment.mapper.PaymentAdminUserMapper;
+import vip.fairy.commerceflow.simulator.payment.mapper.PaymentAdminRoleMapper;
 
 import java.time.LocalDateTime;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -19,9 +18,11 @@ import org.springframework.stereotype.Service;
 public class PaymentAdminUserDetailsService implements UserDetailsService {
 
   private final PaymentAdminUserMapper users;
+  private final PaymentAdminRoleMapper roles;
 
-  public PaymentAdminUserDetailsService(PaymentAdminUserMapper users) {
+  public PaymentAdminUserDetailsService(PaymentAdminUserMapper users, PaymentAdminRoleMapper roles) {
     this.users = users;
+    this.roles = roles;
   }
 
   @Override
@@ -31,27 +32,13 @@ public class PaymentAdminUserDetailsService implements UserDetailsService {
     if (user == null) {
       throw new UsernameNotFoundException("用户名或密码错误");
     }
-    List<String> roles = users.selectRoleCodes(user.getId());
-    Set<SimpleGrantedAuthority> authorities = new LinkedHashSet<>();
-    roles.forEach(role -> {
-      authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
-      authoritiesFor(role).forEach(value -> authorities.add(new SimpleGrantedAuthority(value)));
-    });
+    List<SimpleGrantedAuthority> authorities = roles.selectEffectivePermissions(user.getId()).stream()
+      .map(SimpleGrantedAuthority::new).toList();
     boolean lockExpired = user.getLockedUntil() != null && user.getLockedUntil().isBefore(LocalDateTime.now());
     return new PaymentAdminPrincipal(user.getId(), user.getUsername(), user.getPasswordHash(),
       user.getDisplayName(), user.getEmail(), "ACTIVE".equals(user.getStatus()),
       !user.isAccountLocked() || lockExpired, user.isPasswordChangeRequired(), user.isMfaRequired(),
       user.isMfaEnabled(), authorities);
-  }
-
-  private static List<String> authoritiesFor(String role) {
-    return switch (role) {
-      case "PAYMENT_ADMIN" -> List.of("ADMIN_USER_MANAGE", "MERCHANT_MANAGE", "TRANSACTION_READ",
-        "TRANSACTION_CLOSE", "REFUND_READ", "REFUND_OPERATE", "AUDIT_READ");
-      case "PAYMENT_OPERATOR" -> List.of("TRANSACTION_READ", "TRANSACTION_CLOSE", "REFUND_READ", "REFUND_OPERATE");
-      case "PAYMENT_AUDITOR" -> List.of("TRANSACTION_READ", "REFUND_READ", "AUDIT_READ");
-      default -> List.of();
-    };
   }
 
   public static String normalize(String username) {

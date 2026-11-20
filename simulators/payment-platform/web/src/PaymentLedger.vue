@@ -12,10 +12,13 @@ const props = defineProps<{
   rowKey: string;
   searchFields: (keyof Row)[];
   statusField?: keyof Row;
+  statusTitle?: string;
+  statusLabel?: (value: string) => string;
   emptyText?: string;
   loading?: boolean;
+  selectedRowKey?: string | number;
 }>();
-const emit = defineEmits<{ refresh: [] }>();
+const emit = defineEmits<{ refresh: []; select: [row: Row] }>();
 const slots = useSlots();
 const draft = ref('');
 const draftStatus = ref('');
@@ -64,7 +67,7 @@ function changePage(number: number, pageSize: number) {
 }
 
 function choice(value: string) {
-  return enumLabel(value);
+  return props.statusLabel?.(value) ?? enumLabel(value);
 }
 </script>
 
@@ -79,18 +82,20 @@ function choice(value: string) {
     :page="page"
     :page-size="size"
     :loading="loading"
+    :selected-row-key="selectedRowKey"
     :empty-text="emptyText"
     @search="search"
     @reset="reset"
     @page="changePage"
     @refresh="emit('refresh')"
+    @select="emit('select', $event)"
   >
     <template #filters>
       <label>{{ locale === 'en' ? 'Keyword' : '关键词' }}<input v-model="draft" /></label>
     </template>
     <template v-if="statusField" #advancedFilters>
       <label>
-        {{ t('status') }}
+        {{ statusTitle ?? t('status') }}
         <select v-model="draftStatus">
           <option value="">{{ locale === 'en' ? 'All' : '全部' }}</option>
           <option v-for="value in statusOptions" :key="value" :value="value">{{ choice(value) }}</option>

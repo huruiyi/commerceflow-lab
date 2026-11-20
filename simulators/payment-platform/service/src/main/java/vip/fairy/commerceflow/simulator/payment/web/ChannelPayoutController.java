@@ -55,7 +55,7 @@ public class ChannelPayoutController {
   }
 
   @GetMapping("/api/admin/payouts")
-  @PreAuthorize("hasAuthority('REFUND_READ')")
+  @PreAuthorize("hasAuthority('PAYOUT_READ')")
   List<ChannelPayout> recent() {
     return payouts.recent();
   }

@@ -12,13 +12,40 @@ async function load() {
 }
 onMounted(load);
 
+function resultLabel(value: string) {
+  const key = `auditResult.${value}`;
+  const label = t(key);
+  return label === key ? value : label;
+}
+
 const columns = computed<VxeGridProps<AuditLog>['columns']>(() => [
-  { field: 'createdAt', title: t('time'), width: 190, slots: { default: 'createdAt' } },
-  { field: 'actorUsername', title: t('actor'), width: 180, slots: { default: 'actorUsername' } },
-  { field: 'action', title: t('action'), width: 210, slots: { default: 'action' } },
-  { field: 'targetType', title: t('target'), width: 180, slots: { default: 'targetType' } },
-  { field: 'result', title: t('result'), width: 120, slots: { default: 'result' } },
-  { field: 'detail', title: t('description'), minWidth: 280 },
+  {
+    field: 'createdAt',
+    title: t('time'),
+    minWidth: 174,
+    align: 'left',
+    showOverflow: 'title',
+    formatter: ({ row }) => formatDate(row.createdAt),
+  },
+  { field: 'actorUsername', title: t('actor'), minWidth: 125, align: 'left', showOverflow: 'title' },
+  { field: 'sourceIp', title: t('sourceIp'), minWidth: 100, align: 'left', showOverflow: 'title' },
+  {
+    field: 'action',
+    title: t('auditAction'),
+    minWidth: 125,
+    align: 'left',
+    formatter: ({ row }) => enumLabel(row.action),
+  },
+  {
+    field: 'targetType',
+    title: t('target'),
+    minWidth: 215,
+    align: 'left',
+    showOverflow: 'title',
+    formatter: ({ row }) => [enumLabel(row.targetType), row.targetId].filter(Boolean).join(' · '),
+  },
+  { field: 'result', title: t('result'), minWidth: 86, align: 'left', formatter: ({ row }) => resultLabel(row.result) },
+  { field: 'detail', title: t('description'), minWidth: 235, align: 'left', showOverflow: 'title' },
 ]);
 </script>
 <template>
@@ -28,22 +55,11 @@ const columns = computed<VxeGridProps<AuditLog>['columns']>(() => [
     :rows="logs"
     :columns="columns"
     row-key="id"
-    :search-fields="['actorUsername', 'action', 'targetType', 'targetId', 'detail']"
+    :search-fields="['actorUsername', 'sourceIp', 'action', 'targetType', 'targetId', 'detail']"
     status-field="result"
+    :status-title="t('result')"
+    :status-label="resultLabel"
     :empty-text="t('noAuditLogs')"
     @refresh="load"
-  >
-    <template #createdAt="{ row }">{{ formatDate(row.createdAt) }}</template>
-    <template #actorUsername="{ row }"
-      ><b>{{ row.actorUsername }}</b
-      ><small>{{ row.sourceIp }}</small></template
-    >
-    <template #action="{ row }"
-      ><span class="mono">{{ enumLabel(row.action) }}</span></template
-    >
-    <template #targetType="{ row }">{{ enumLabel(row.targetType) }} {{ row.targetId || '' }}</template>
-    <template #result="{ row }"
-      ><a-tag :color="row.result === 'SUCCESS' ? 'success' : 'error'">{{ enumLabel(row.result) }}</a-tag></template
-    >
-  </PaymentLedger>
+  />
 </template>

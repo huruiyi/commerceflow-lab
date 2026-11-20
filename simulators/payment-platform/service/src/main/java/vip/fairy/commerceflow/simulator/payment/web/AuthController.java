@@ -91,14 +91,16 @@ public class AuthController {
       throw new BadCredentialsException("未登录");
     }
     PaymentAdminUser user = users.selectById(principal.getUserId());
-    List<String> authorities = principal.getAuthorities().stream().map(value -> value.getAuthority()).sorted().toList();
-    return new SessionResponse(principal.getUserId(), principal.getUsername(), principal.getDisplayName(),
-      principal.getEmail(), authorities, user.isPasswordChangeRequired(), user.isMfaRequired(),
+    List<String> authorities = principal.getAuthorities().stream().map(value -> value.getAuthority())
+      .filter(authority -> !authority.startsWith("AUTHZ_")).sorted().toList();
+    return new SessionResponse(principal.getUserId(), principal.getUsername(), user.getDisplayName(),
+      user.getEmail(), authorities, user.isPasswordChangeRequired(), user.isMfaRequired(),
       user.isMfaEnabled());
   }
 
   private static SessionResponse session(PaymentAdminPrincipal principal) {
-    List<String> authorities = principal.getAuthorities().stream().map(value -> value.getAuthority()).sorted().toList();
+    List<String> authorities = principal.getAuthorities().stream().map(value -> value.getAuthority())
+      .filter(authority -> !authority.startsWith("AUTHZ_")).sorted().toList();
     return new SessionResponse(principal.getUserId(), principal.getUsername(), principal.getDisplayName(),
       principal.getEmail(), authorities, principal.isPasswordChangeRequired(), principal.isMfaRequired(),
       principal.isMfaEnabled());

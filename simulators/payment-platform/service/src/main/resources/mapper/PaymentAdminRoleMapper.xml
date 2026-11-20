@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.simulator.payment.mapper.PaymentAdminRoleMapper">
+
+  <select id="lockRole" resultType="vip.fairy.commerceflow.simulator.payment.domain.PaymentAdminRole"
+          useCache="false" flushCache="true">
+    SELECT id, role_code, role_name, role_scope, description, enabled, system_role, revision
+    FROM payment_admin_role WHERE id = #{roleId} FOR UPDATE
+  </select>
+
+  <select id="selectPermissions" resultType="java.lang.String">
+    SELECT permission_code FROM payment_admin_role_permission
+    WHERE role_id = #{roleId} ORDER BY permission_code
+  </select>
+
+  <delete id="deletePermissions">
+    DELETE FROM payment_admin_role_permission WHERE role_id = #{roleId}
+  </delete>
+
+  <insert id="insertPermission">
+    INSERT INTO payment_admin_role_permission (role_id, permission_code) VALUES (#{roleId}, #{permission})
+  </insert>
+
+  <select id="selectAccounts" resultType="vip.fairy.commerceflow.simulator.payment.mapper.PaymentAdminRoleMapper$RoleAccount">
+    SELECT u.id AS user_id, u.username, NULL AS merchant_id, NULL AS merchant_name, b.enabled
+    FROM payment_admin_user_role b JOIN payment_admin_user u ON u.id = b.user_id
+    WHERE b.role_id = #{roleId}
+    UNION ALL
+    SELECT u.id, u.username, m.id, m.display_name, b.enabled
+    FROM payment_admin_user_merchant_role b
+    JOIN payment_admin_user u ON u.id = b.user_id
+    JOIN payment_merchant m ON m.id = b.merchant_id
+    WHERE b.role_id = #{roleId}
+    ORDER BY username, merchant_id
+  </select>
+
+  <select id="selectBindings" resultType="vip.fairy.commerceflow.simulator.payment.mapper.PaymentAdminRoleMapper$RoleBinding">
+    SELECT r.id AS role_id, r.role_code, r.role_name, r.role_scope,
+           NULL AS merchant_id, NULL AS merchant_name, b.enabled, r.enabled AS role_enabled
+    FROM payment_admin_user_role b JOIN payment_admin_role r ON r.id = b.role_id
+    WHERE b.user_id = #{userId}
+    UNION ALL
+    SELECT r.id, r.role_code, r.role_name, r.role_scope, m.id, m.display_name, b.enabled, r.enabled
+    FROM payment_admin_user_merchant_role b
+    JOIN payment_admin_role r ON r.id = b.role_id
+    JOIN payment_merchant m ON m.id = b.merchant_id
+    WHERE b.user_id = #{userId}
+    ORDER BY role_scope, merchant_name, role_name
+  </select>
+
+  <select id="selectEffectivePermissions" resultType="java.lang.String">
+    SELECT CONCAT('ROLE_', r.role_code)
+    FROM payment_admin_user_role b JOIN payment_admin_role r ON r.id = b.role_id
+    WHERE b.user_id = #{userId} AND b.enabled AND r.enabled
+    UNION
+    SELECT CONCAT('AUTHZ_PLATFORM_', r.id, '_', r.revision)
+    FROM payment_admin_user_role b JOIN payment_admin_role r ON r.id = b.role_id
+    WHERE b.user_id = #{userId} AND b.enabled AND r.enabled
+    UNION
+    SELECT CONCAT('AUTHZ_MERCHANT_', b.merchant_id, '_', r.id, '_', r.revision)
+    FROM payment_admin_user_merchant_role b JOIN payment_admin_role r ON r.id = b.role_id
+    WHERE b.user_id = #{userId} AND b.enabled AND r.enabled
+    UNION
+    SELECT p.permission_code
+    FROM payment_admin_user_role b JOIN payment_admin_role r ON r.id = b.role_id
+    JOIN payment_admin_role_permission p ON p.role_id = r.id
+    WHERE b.user_id = #{userId} AND b.enabled AND r.enabled
+    UNION
+    SELECT p.permission_code
+    FROM payment_admin_user_merchant_role b JOIN payment_admin_role r ON r.id = b.role_id
+    JOIN payment_admin_role_permission p ON p.role_id = r.id
+    WHERE b.user_id = #{userId} AND b.enabled AND r.enabled
+  </select>
+
+  <select id="selectAuthorizedMerchants" resultType="java.lang.Long">
+    SELECT DISTINCT b.merchant_id
+    FROM payment_admin_user_merchant_role b JOIN payment_admin_role r ON r.id = b.role_id
+    JOIN payment_admin_role_permission p ON p.role_id = r.id
+    WHERE b.user_id = #{userId} AND b.enabled AND r.enabled AND p.permission_code = #{permission}
+  </select>
+
+  <insert id="savePlatformBinding">
+    INSERT INTO payment_admin_user_role (user_id, role_id, enabled)
+    VALUES (#{userId}, #{roleId}, #{enabled})
+    ON DUPLICATE KEY UPDATE enabled = #{enabled}
+  </insert>
+
+  <delete id="deletePlatformBinding">
+    DELETE FROM payment_admin_user_role WHERE user_id = #{userId} AND role_id = #{roleId}
+  </delete>
+
+  <insert id="saveMerchantBinding">
+    INSERT INTO payment_admin_user_merchant_role (user_id, merchant_id, role_id, enabled)
+    VALUES (#{userId}, #{merchantId}, #{roleId}, #{enabled})
+    ON DUPLICATE KEY UPDATE enabled = #{enabled}
+  </insert>
+
+  <delete id="deleteMerchantBinding">
+    DELETE FROM payment_admin_user_merchant_role
+    WHERE user_id = #{userId} AND merchant_id = #{merchantId} AND role_id = #{roleId}
+  </delete>
+</mapper>

@@ -36,7 +36,7 @@ const menu = computed(() => {
     {
       label: locale.value === 'en' ? 'Settlement' : '结算',
       icon: 'wallet',
-      items: can('REFUND_READ') ? [item('/payouts', 'merchantPayouts', 'wallet')] : [],
+      items: can('PAYOUT_READ') ? [item('/payouts', 'merchantPayouts', 'wallet')] : [],
     },
     {
       label: locale.value === 'en' ? 'Administration' : '系统管理',
@@ -44,6 +44,7 @@ const menu = computed(() => {
       items: [
         ...(can('MERCHANT_MANAGE') ? [item('/merchants', 'merchants', 'merchant')] : []),
         ...(can('ADMIN_USER_MANAGE') ? [item('/users', 'users', 'users')] : []),
+        ...(can('ROLE_MANAGE') ? [item('/roles', 'roleManagement', 'users')] : []),
         ...(can('AUDIT_READ') ? [item('/audit', 'audit', 'audit')] : []),
         item('/security', 'security', 'security'),
       ],
@@ -65,7 +66,7 @@ async function logout(lock = false) {
   <router-view v-if="publicPage" />
   <AdminShell
     v-else
-    title="CommerceFlow Pay"
+    :title="t('appName')"
     :groups="menu"
     :active="route.path"
     :locale="locale === 'en' ? 'en-US' : 'zh-CN'"

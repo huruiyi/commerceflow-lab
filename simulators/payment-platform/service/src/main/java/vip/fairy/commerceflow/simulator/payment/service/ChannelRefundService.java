@@ -7,7 +7,6 @@ import vip.fairy.commerceflow.simulator.payment.domain.ChannelTransaction;
 import vip.fairy.commerceflow.simulator.payment.domain.PaymentMerchant;
 import vip.fairy.commerceflow.simulator.payment.mapper.ChannelRefundMapper;
 import vip.fairy.commerceflow.simulator.payment.mapper.ChannelTransactionMapper;
-import vip.fairy.commerceflow.simulator.payment.mapper.PaymentAdminUserMapper;
 import vip.fairy.commerceflow.simulator.payment.security.PaymentAdminPrincipal;
 import vip.fairy.commerceflow.simulator.payment.security.SignedRequestContext;
 import vip.fairy.commerceflow.simulator.payment.web.dto.ChannelRefundResponse;
@@ -16,6 +15,7 @@ import vip.fairy.commerceflow.simulator.payment.web.dto.CreateChannelRefundReque
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.dao.DuplicateKeyException;
@@ -29,16 +29,16 @@ public class ChannelRefundService {
 
   private final ChannelRefundMapper refunds;
   private final ChannelTransactionMapper transactions;
-  private final PaymentAdminUserMapper users;
+  private final PaymentAdminRoleService roles;
   private final RefundCallbackClient callbacks;
   private final AuditService audit;
 
   public ChannelRefundService(ChannelRefundMapper refunds, ChannelTransactionMapper transactions,
-                              PaymentAdminUserMapper users, RefundCallbackClient callbacks,
+                              PaymentAdminRoleService roles, RefundCallbackClient callbacks,
                               AuditService audit) {
     this.refunds = refunds;
     this.transactions = transactions;
-    this.users = users;
+    this.roles = roles;
     this.callbacks = callbacks;
     this.audit = audit;
   }
@@ -128,25 +128,24 @@ public class ChannelRefundService {
   public List<ChannelRefundResponse> listFor(PaymentAdminPrincipal actor) {
     LambdaQueryWrapper<ChannelRefund> query = new LambdaQueryWrapper<ChannelRefund>()
       .orderByDesc(ChannelRefund::getId);
-    boolean admin = actor.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_PAYMENT_ADMIN"));
+    boolean admin = roles.isPlatformAdmin(actor);
     if (!admin) {
-      List<Long> ids = users.selectMerchantIds(actor.getUserId());
+      List<Long> ids = roles.merchantIds(actor, "REFUND_READ");
       if (ids.isEmpty()) {
         return List.of();
       }
       query.in(ChannelRefund::getMerchantId, ids);
     }
-    return refunds.selectList(query).stream().map(value -> response(value, channel(value))).toList();
+    Set<Long> writable = admin ? Set.of() : Set.copyOf(roles.merchantIds(actor, "REFUND_OPERATE"));
+    return refunds.selectList(query).stream()
+      .map(value -> response(value, channel(value), admin || writable.contains(value.getMerchantId()))).toList();
   }
 
   public ChannelRefundResponse redeliver(String channelRefundNo, PaymentAdminPrincipal actor,
                                          HttpServletRequest request) {
     ChannelRefund value = require(refunds.selectOne(new LambdaQueryWrapper<ChannelRefund>()
       .eq(ChannelRefund::getChannelRefundNo, channelRefundNo)));
-    boolean admin = actor.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_PAYMENT_ADMIN"));
-    if (!admin && !users.selectMerchantIds(actor.getUserId()).contains(value.getMerchantId())) {
-      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "没有该商户的退款权限");
-    }
+    roles.requireMerchant(actor, value.getMerchantId(), "REFUND_OPERATE");
     String channel = channel(value);
     callbacks.send(value, channel);
     audit.record(actor, "REDELIVER_REFUND_NOTIFICATION", "CHANNEL_REFUND", channelRefundNo,
@@ -179,9 +178,13 @@ public class ChannelRefundService {
   }
 
   private ChannelRefundResponse response(ChannelRefund value, String channel) {
+    return response(value, channel, null);
+  }
+
+  private ChannelRefundResponse response(ChannelRefund value, String channel, Boolean canRedeliver) {
     return new ChannelRefundResponse(value.getChannelRefundNo(), value.getMerchantRefundNo(),
       value.getChannelTransactionNo(), channel, value.getAmount(), value.getCurrency(),
       value.getReasonCode(), value.getStatus(), value.getFaultScenario(), value.getFailureReason(),
-      value.getSucceededAt(), value.getFailedAt(), value.getCreatedAt());
+      value.getSucceededAt(), value.getFailedAt(), value.getCreatedAt(), canRedeliver);
   }
 }

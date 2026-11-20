@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import vip.fairy.commerceflow.simulator.payment.domain.ChannelTransaction;
 import vip.fairy.commerceflow.simulator.payment.domain.PaymentMerchant;
 import vip.fairy.commerceflow.simulator.payment.mapper.ChannelTransactionMapper;
-import vip.fairy.commerceflow.simulator.payment.mapper.PaymentAdminUserMapper;
 import vip.fairy.commerceflow.simulator.payment.security.PaymentAdminPrincipal;
 import vip.fairy.commerceflow.simulator.payment.security.SignedRequestContext;
 import vip.fairy.commerceflow.simulator.payment.web.dto.ChannelTransactionResponse;
@@ -15,6 +14,7 @@ import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.security.SecureRandom;
 import java.util.function.Function;
@@ -32,19 +32,19 @@ public class ChannelTransactionService {
 
   private static final SecureRandom RANDOM = new SecureRandom();
   private final ChannelTransactionMapper transactions;
-  private final PaymentAdminUserMapper users;
+  private final PaymentAdminRoleService roles;
   private final MerchantService merchants;
   private final AuditService audit;
   private final Map<String, ChannelAdapter> adapters;
   private final String checkoutBaseUrl;
   private final PaymentCallbackClient callbacks;
 
-  public ChannelTransactionService(ChannelTransactionMapper transactions, PaymentAdminUserMapper users,
+  public ChannelTransactionService(ChannelTransactionMapper transactions, PaymentAdminRoleService roles,
                                    MerchantService merchants, AuditService audit, List<ChannelAdapter> adapters,
                                    @Value("${payment-platform.checkout-base-url}") String checkoutBaseUrl,
                                    PaymentCallbackClient callbacks) {
     this.transactions = transactions;
-    this.users = users;
+    this.roles = roles;
     this.merchants = merchants;
     this.audit = audit;
     this.adapters = adapters.stream().collect(Collectors.toMap(ChannelAdapter::channel, Function.identity()));
@@ -112,13 +112,15 @@ public class ChannelTransactionService {
   public List<ChannelTransactionResponse> listFor(PaymentAdminPrincipal actor) {
     LambdaQueryWrapper<ChannelTransaction> query = new LambdaQueryWrapper<ChannelTransaction>()
       .orderByDesc(ChannelTransaction::getId);
-    boolean admin = actor.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_PAYMENT_ADMIN"));
+    boolean admin = roles.isPlatformAdmin(actor);
     if (!admin) {
-      List<Long> merchantIds = users.selectMerchantIds(actor.getUserId());
+      List<Long> merchantIds = roles.merchantIds(actor, "TRANSACTION_READ");
       if (merchantIds.isEmpty()) return List.of();
       query.in(ChannelTransaction::getMerchantId, merchantIds);
     }
-    return transactions.selectList(query).stream().map(this::response).toList();
+    Set<Long> writable = admin ? Set.of() : Set.copyOf(roles.merchantIds(actor, "TRANSACTION_CLOSE"));
+    return transactions.selectList(query).stream()
+      .map(value -> response(value, admin || writable.contains(value.getMerchantId()))).toList();
   }
 
   @Transactional
@@ -126,6 +128,7 @@ public class ChannelTransactionService {
                                                  HttpServletRequest request) {
     ChannelTransaction value = require(transactions.selectOne(new LambdaQueryWrapper<ChannelTransaction>()
       .eq(ChannelTransaction::getChannelTransactionNo, transactionNo)));
+    roles.requireMerchant(actor, value.getMerchantId(), "TRANSACTION_CLOSE");
     ChannelTransactionResponse response = close(value);
     audit.record(actor, "CLOSE_CHANNEL_TRANSACTION", "CHANNEL_TRANSACTION", transactionNo,
       "SUCCESS", "后台关闭待支付交易", request);
@@ -202,12 +205,16 @@ public class ChannelTransactionService {
   }
 
   private ChannelTransactionResponse response(ChannelTransaction value) {
+    return response(value, null);
+  }
+
+  private ChannelTransactionResponse response(ChannelTransaction value, Boolean canClose) {
     ChannelAdapter.CheckoutAction action = adapters.get(value.getChannel())
       .checkoutAction(value, checkoutBaseUrl);
     return new ChannelTransactionResponse(value.getChannelTransactionNo(), value.getMerchantRequestNo(),
       value.getChannel(), value.getSubject(), value.getAmount(), value.getCurrency(), value.getStatus(),
       value.getFaultScenario(), action.type(), action.checkoutUrl(), action.qrPayload(), value.getExpiresAt(),
-      value.getPaidAt(), value.getClosedAt(), value.getCreatedAt());
+      value.getPaidAt(), value.getClosedAt(), value.getCreatedAt(), canClose);
   }
 
   private static String randomToken() {

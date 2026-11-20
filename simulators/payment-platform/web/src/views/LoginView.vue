@@ -40,12 +40,7 @@ function useAccount(value: string) {
 </script>
 
 <template>
-  <AdminLogin
-    brand="CommerceFlow Pay"
-    :title="t('loginTitle')"
-    :description="t('loginHint')"
-    :english="locale === 'en'"
-  >
+  <AdminLogin :brand="t('appName')" :title="t('loginTitle')" :description="t('loginHint')" :english="locale === 'en'">
     <template #tools>
       <button class="sim-button" type="button" @click="switchLanguage">{{ languageLabel }}</button>
     </template>
