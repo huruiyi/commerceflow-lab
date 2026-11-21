@@ -32,10 +32,19 @@ class ComposeClient {
       "exitCode", "restarts", "oomKilled", "startedAt", "finishedAt", "ports");
 
   private final Path projectDirectory;
+  private final long commandTimeoutSeconds;
   private final ObjectMapper mapper;
 
-  ComposeClient(@Value("${commerceflow.navigation.project-directory}") String projectDirectory, ObjectMapper mapper) {
+  ComposeClient(
+      @Value("${commerceflow.navigation.project-directory}") String projectDirectory,
+      @Value("${commerceflow.navigation.docker-command-timeout-seconds:15}") long commandTimeoutSeconds,
+      ObjectMapper mapper
+  ) {
+    if (commandTimeoutSeconds <= 0) {
+      throw new IllegalArgumentException("Docker command timeout must be positive");
+    }
     this.projectDirectory = Path.of(projectDirectory).toAbsolutePath().normalize();
+    this.commandTimeoutSeconds = commandTimeoutSeconds;
     this.mapper = mapper;
   }
 
@@ -93,8 +102,11 @@ class ComposeClient {
     });
     Thread.ofVirtual().start(output);
     try {
-      if (!process.waitFor(4, TimeUnit.SECONDS) || process.exitValue() != 0) {
-        throw new IOException("Docker command failed or timed out");
+      if (!process.waitFor(commandTimeoutSeconds, TimeUnit.SECONDS)) {
+        throw new IOException("Docker command timed out after " + commandTimeoutSeconds + " seconds");
+      }
+      if (process.exitValue() != 0) {
+        throw new IOException("Docker command exited with code " + process.exitValue());
       }
       try {
         return new String(output.get(1, TimeUnit.SECONDS), StandardCharsets.UTF_8);

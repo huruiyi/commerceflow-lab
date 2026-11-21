@@ -87,7 +87,15 @@ h2 { font-size: 16px; font-weight: 740; }
 .quick-text small, .service-name small { display: block; color: var(--muted); margin-top: 4px; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .quick-arrow { margin-left: auto; color: #71819a; flex: none; }
 .navigation-section + .navigation-section { margin-top: 24px; }
+.navigation-section { container-type: inline-size; }
 .navigation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 275px), 1fr)); gap: 12px; }
+.navigation-column { display: grid; gap: inherit; min-width: 0; }
+@container (min-width: 562px) {
+  .paired-grid > .navigation-column {
+    grid-row: span 2;
+    grid-template-rows: subgrid;
+  }
+}
 .service-card { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 14px; border: 1px solid var(--border); border-radius: 11px; background: #fff; box-shadow: 0 2px 3px #132e5005; }
 .featured-portal { gap: 16px; margin-bottom: 18px; padding: clamp(14px, 2vw, 24px); }
 .featured-portal .service-icon { width: 42px; height: 42px; }

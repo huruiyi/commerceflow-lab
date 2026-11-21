@@ -35,6 +35,7 @@ class NavigationMonitorTest {
     monitor.refresh();
     var recovered = monitor.snapshot();
     assertThat(recovered.dockerConnected()).isTrue();
+    assertThat(recovered.collectedAt()).isAfter(initial.collectedAt());
     assertThat(recovered.services().getFirst().status()).isEqualTo("FAILED");
     assertThat(recovered.services().getFirst().instances().getFirst().exitCode()).isEqualTo(2);
   }
@@ -61,7 +62,7 @@ class NavigationMonitorTest {
     private String state = "running";
 
     FixtureCompose(ObjectMapper mapper) {
-      super(".", mapper);
+      super(".", 15, mapper);
       this.mapper = mapper;
     }
 

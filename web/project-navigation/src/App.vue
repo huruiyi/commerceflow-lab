@@ -95,13 +95,10 @@ const filtered = computed(() => {
   }).sort((a, b) => order.indexOf(statusOf(a, stale.value).bucket) - order.indexOf(statusOf(b, stale.value).bucket)
     || a.name.localeCompare(b.name, 'zh-CN'))
 })
-const pinnedPortal = computed(() => {
-  if (overview.value || cardsHome.value || group.value.id === 'business') {
-    return services.value.find((service) => service.id === commercePortalId)
-  }
-  return filtered.value.find((service) => service.id === commercePortalId)
-})
-const serviceEntries = computed(() => filtered.value.filter((service) => service.id !== commercePortalId))
+const pinnedPortal = computed(() => group.value.id === 'business'
+  ? services.value.find((service) => service.id === commercePortalId)
+  : undefined)
+const serviceEntries = computed(() => filtered.value.filter((service) => service.id !== pinnedPortal.value?.id))
 const listEntries = computed(() => serviceEntries.value.map((service) => ({
   service,
   browserLink: service.links.find((link) => link.browserLaunch),
@@ -311,7 +308,8 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <section v-if="overview && !query && quickLinks.some((item) => item.url)" class="quick-section">
+        <section v-if="overview && !query.trim() && filter === 'all' && quickLinks.some((item) => item.url)"
+          class="quick-section">
           <div class="section-heading">
             <h2>常用入口</h2>
             <RouterLink class="text-button" :to="{ name: 'cards' }">查看卡片导航 <ChevronRight :size="14" /></RouterLink>
