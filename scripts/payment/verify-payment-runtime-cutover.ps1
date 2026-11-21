@@ -1,6 +1,11 @@
 param([string]$BaseUrl='http://localhost:14200',[string]$PaymentUrl='http://localhost:14201')
 . (Join-Path $PSScriptRoot '../lib/checkout-verification.ps1')
 $ErrorActionPreference='Stop'
+if (-not $PSBoundParameters.ContainsKey('PaymentUrl')) {
+  $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+  . (Join-Path $PSScriptRoot '../lib/verification-compose.ps1')
+  $PaymentUrl = Get-VerificationServiceUrl (Get-VerificationComposeConfig) payment-simulator-web 80
+}
 $session=[Microsoft.PowerShell.Commands.WebRequestSession]::new()
 $csrf=Invoke-RestMethod "$BaseUrl/api/auth/csrf" -WebSession $session
 $headers=@{$csrf.headerName=$csrf.token}

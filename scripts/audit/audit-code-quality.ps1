@@ -231,9 +231,9 @@ foreach ($mapperFile in $mapperFiles) {
     $_.Name -in @('select', 'insert', 'update', 'delete')
   })
   $statementIds = @($statementNodes | ForEach-Object { [string]$_.id })
-  $duplicates = @($statementIds | Group-Object | Where-Object Count -gt 1)
+  $duplicates = @($statementNodes | Group-Object -Property id, databaseId -CaseSensitive | Where-Object Count -gt 1)
   if ($duplicates.Count -gt 0) {
-    Fail "$relativePath contains duplicate statement id $($duplicates[0].Name)"
+    Fail "$relativePath contains duplicate statement id and databaseId $($duplicates[0].Name)"
   }
 
   foreach ($statementId in $statementIds) {

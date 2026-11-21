@@ -1,12 +1,17 @@
 param(
   [int]$MaxWaitSeconds=180,
-  [switch]$SkipMigrationRehearsal
+  [switch]$SkipMigrationRehearsal,
+  [string]$ProjectName,
+  [ValidateRange(1, 40000)][int]$PortOffset = 20000
 )
 
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '../lib/_verification-db.ps1')
 $ProjectRoot=(Resolve-Path(Join-Path $PSScriptRoot '../..')).Path
+. (Join-Path $PSScriptRoot '../lib/verification-compose.ps1')
+. (Join-Path $PSScriptRoot '../lib/verification-migrations.ps1')
 
+if (-not $ProjectName) { throw 'Specify the isolated Compose project containing the completed AUTO_COMPLETE fixture with -ProjectName.' }
 
 $suffix=[guid]::NewGuid().ToString('N').Substring(0,12)
 $managedVariables=@('SCHEDULING_RABBITMQ_ENABLED','SCHEDULING_ROCKETMQ_ENABLED','SCHEDULING_LEASE_RECOVERY_INITIAL_DELAY','SCHEDULING_LEASE_RECOVERY_FIXED_DELAY','SCHEDULING_DATABASE_INITIAL_DELAY','SCHEDULING_DATABASE_FIXED_DELAY')
@@ -17,10 +22,13 @@ function Compose { & docker compose --project-directory $ProjectRoot --profile r
 function DbScalar([string]$Sql) {
   return ((Invoke-VerificationDb commerce $Sql) | Select-Object -Last 1).Trim()
 }
-function SchemaVersion([string]$Service, [string]$Database) {
+function SchemaVersion([string]$Service, [string]$Database, [string]$Module) {
   $query = "SELECT CONCAT(MAX(CAST(version AS UNSIGNED)),'|',SUM(success=0)) FROM flyway_schema_history WHERE version IS NOT NULL"
   $value = Compose exec -T $Service sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -NB "$1" -e "$2"' sh $Database $query
-  return ($value | Select-Object -Last 1)
+  $actual = $value | Select-Object -Last 1
+  $version = Get-VerificationMigrationVersion (Join-Path $ProjectRoot "$Module/src/main/resources/db/migration")
+  if ($actual -ne "$version|0") { throw "Unexpected $Service Flyway state: $actual (expected $version|0)" }
+  return $actual
 }
 function HistoricalFingerprint {
   $orders = Invoke-VerificationDb order @'
@@ -56,24 +64,29 @@ function RestoreEnvironment {
 }
 
 $rabbitTask=0L;$rocketTask=0L;$passed=$false
+$scope = $null
+$stopped = $false
 try{
+  $scope = New-VerificationComposeScope $ProjectName $PortOffset
+  $running = @(Invoke-VerificationCompose ps --status running --services)
+  if ('commerce-service' -notin $running) { throw 'Start and seed the isolated stack before running restart recovery' }
   if(-not$SkipMigrationRehearsal){& "$PSScriptRoot/verify-flyway-lifecycle.ps1";if(-not$?){throw 'Legacy migration rehearsal failed'}}
 
   Compose up -d --wait commerce-db payment-simulator-db logistics-simulator-db commerce-redis payment-simulator-redis kafka-broker payment-simulator-service logistics-simulator-service rabbitmq-broker rocketmq-nameserver rocketmq-broker commerce-service commerce-portal-angular payment-simulator-web kafka-console
   Compose --profile verification-access run --rm --no-deps verification-db-access --readers
   Compose --profile verification-access run --rm --no-deps verification-db-access --recovery-fixture
   $versions = @(
-    (SchemaVersion commerce-db commerceflow)
-    (SchemaVersion order-db orders)
-    (SchemaVersion payment-db payments)
-    (SchemaVersion payment-simulator-db payment_platform)
-    (SchemaVersion logistics-simulator-db logistics_platform)
+    (SchemaVersion commerce-db commerceflow services/commerce-service)
+    (SchemaVersion order-db orders services/order-service)
+    (SchemaVersion payment-db payments services/payment-orchestration-service)
+    (SchemaVersion payment-simulator-db payment_platform simulators/payment-platform/service)
+    (SchemaVersion logistics-simulator-db logistics_platform simulators/logistics-platform/service)
   ) -join ','
-  if ($versions -ne '53|0,5|0,3|0,4|0,6|0') { throw "Unexpected persisted-volume Flyway state: $versions" }
   $before=HistoricalFingerprint
   if(-not$before){throw 'Historical fingerprint is empty'}
   $sourceTask=DbScalar "SELECT id FROM scheduled_tasks WHERE task_type='AUTO_COMPLETE' AND status='SUCCEEDED' ORDER BY id DESC LIMIT 1"
   if(-not$sourceTask){throw 'A completed AUTO_COMPLETE task is required as the recovery fixture'}
+  $stopped = $true
   Compose stop commerce-service commerce-portal-angular payment-simulator-web kafka-console
   $rabbitTask=[long](Invoke-VerificationDb recovery "INSERT INTO scheduled_tasks(task_key,task_type,aggregate_type,aggregate_id,payload_json,status,due_at,primary_trigger_snapshot,reconciliation_enabled_snapshot,grace_period_seconds_snapshot,claim_lease_seconds_snapshot,max_attempts,retry_delay_seconds_snapshot,policy_version_snapshot,attempts,lease_until,claimed_by,version,created_at,updated_at) SELECT 'm1-restart-rabbit-$suffix',task_type,aggregate_type,aggregate_id,payload_json,'PROCESSING',DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 5 SECOND),'RABBITMQ',FALSE,0,2,5,1,policy_version_snapshot,0,DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND),'crashed-rabbit-worker',0,UTC_TIMESTAMP(6),UTC_TIMESTAMP(6) FROM scheduled_tasks WHERE id=$sourceTask; SELECT LAST_INSERT_ID();")
   $rocketTask=[long](Invoke-VerificationDb recovery "INSERT INTO scheduled_tasks(task_key,task_type,aggregate_type,aggregate_id,payload_json,status,due_at,primary_trigger_snapshot,reconciliation_enabled_snapshot,grace_period_seconds_snapshot,claim_lease_seconds_snapshot,max_attempts,retry_delay_seconds_snapshot,policy_version_snapshot,attempts,lease_until,claimed_by,version,created_at,updated_at) SELECT 'm1-restart-rocket-$suffix',task_type,aggregate_type,aggregate_id,payload_json,'PROCESSING',DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 5 SECOND),'ROCKETMQ',FALSE,0,2,5,1,policy_version_snapshot,0,DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND),'crashed-rocket-worker',0,UTC_TIMESTAMP(6),UTC_TIMESTAMP(6) FROM scheduled_tasks WHERE id=$sourceTask; SELECT LAST_INSERT_ID();")
@@ -96,15 +109,16 @@ try{
   if($sources-ne'RABBITMQ:RABBITMQ|ROCKETMQ:ROCKETMQ'){throw "Recovered tasks used unexpected sources: $sources"}
   $after=HistoricalFingerprint
   if($after-ne$before){throw "Historical data changed across restart: before=$before after=$after"}
-  foreach($port in @(18081,18082,18083,18089,18090)){
-    $url="http://localhost:$port/actuator/health"
-    if((Invoke-RestMethod $url).status-ne'UP'){throw "Health check failed: $url"}
-  }
+  Confirm-VerificationHealth (Resolve-VerificationPortalUrl $scope.Config) $scope.Config
   $passed=$true
   $migrationEvidence=if($SkipMigrationRehearsal){'migration rehearsal skipped'}else{'Flyway lifecycle rehearsal passed'}
   Write-Host "Upgrade/restart recovery passed: $migrationEvidence, Flyway=$versions, RabbitMQ task=$rabbitTask and RocketMQ task=$rocketTask recovered exactly once, history=$after." -ForegroundColor Green
-}finally{
+} finally {
   RestoreEnvironment
-  & docker compose --project-directory $ProjectRoot up -d --wait --force-recreate commerce-service commerce-portal-angular payment-simulator-web kafka-console 2>$null|Out-Null
-  if(-not$passed){& docker compose --project-directory $ProjectRoot --profile rabbitmq --profile rocketmq logs --no-color --tail 150 commerce-service rabbitmq-broker rocketmq-broker 2>$null}
+  try {
+    if ($stopped) { Compose up -d --wait --force-recreate commerce-service commerce-portal-angular payment-simulator-web kafka-console | Out-Null }
+    if ($scope -and -not $passed) { Compose logs --no-color --tail 150 commerce-service rabbitmq-broker rocketmq-broker }
+  } finally {
+    Remove-VerificationComposeScope $scope
+  }
 }

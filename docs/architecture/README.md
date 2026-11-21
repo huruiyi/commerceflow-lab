@@ -15,7 +15,7 @@
 
 | 事项 | 当前问题与证据 | 交付与验收 |
 | --- | --- | --- |
-| 01 恢复代码质量门禁 | 本轮实际运行 `audit-code-quality.ps1` 返回 1，`MessagingDeliveryMetrics.java` 类声明后缺空行，快速和完整入口均调用该门禁。79 项脚本契约已通过。[出错文件](../../simulators/messaging-platform/service/src/main/java/vip/fairy/commerceflow/messaging/MessagingDeliveryMetrics.java#L11) · [快速回归](../../scripts/verify-quick.ps1) · [完整验收](../../scripts/verify-all.ps1) | 按既有格式规则修复，保留告警语义。先跑质量审计、消息模拟器构建和相关指标规则，再用已核准的隔离入口跑候选版快速和完整回归。 |
+| 01 恢复代码质量门禁 | 已修复 `MessagingDeliveryMetrics.java` 类声明空行，以及同一 Mapper 语句在不同数据库方言下被误判为重复的问题。提交基线的 78 项脚本契约和质量审计已通过。[出错文件](../../simulators/messaging-platform/service/src/main/java/vip/fairy/commerceflow/messaging/MessagingDeliveryMetrics.java#L11) · [快速回归](../../scripts/verify-quick.ps1) · [完整验收](../../scripts/verify-all.ps1) | 按既有格式规则修复，保留告警语义。先跑质量审计、消息模拟器构建和相关指标规则，再用已核准的隔离入口跑候选版快速和完整回归。 |
 | 02 验收目标一致性与日常隔离 | 快速和完整入口有 `BaseUrl`，Compose 和末尾健康检查仍使用默认项目或固定端口，部分专项有自己的目标选择。全新卷脚本为复用端口会停日常栈，升级恢复脚本会重启目标业务及 Broker，部分恢复失败只告警或被忽略。[快速回归](../../scripts/verify-quick.ps1) · [完整验收](../../scripts/verify-all.ps1) · [空卷](../../scripts/operations/verify-fresh-volume-lifecycle.ps1) · [升级重启](../../scripts/operations/verify-upgrade-restart-recovery.ps1) | 统一传递项目、Compose 文件、Profile、服务地址和数据库模式，从一份目标配置校验所有读写及健康检查。隔离环境独立端口、网络、容器名、具名卷和账户。验证错端口、错项目、错库模式在业务写入或停止服务前被拒绝，失败演练不触碰日常容器和卷，恢复失败写入最终验收结果。需要日常操作的专项明确目标和窗口。 |
 | 03 Flyway 与空卷验收跟上现行拓扑 | Flyway 专项挂载完整迁移目录，最终仍断言商城 V60，源码迁移已到 V68。空卷及重启脚本也有较早的固定版本。将 PostgreSQL 纳入仓库默认环境时，空卷脚本需要处理通知库首次迁移和 Kafka 组首次建立偏移，存量环境需单独验证严格接管。[Flyway 脚本](../../scripts/operations/verify-flyway-lifecycle.ps1) · [空卷脚本](../../scripts/operations/verify-fresh-volume-lifecycle.ps1) · [Compose](../../compose.yaml) · [全新环境启动](../../README.md#一键启动) | 将历史检查固定在相应迁移节点，现行终点以明确维护的版本清单或服务迁移目录为准。隔离空卷仅在首次引导设置 PostgreSQL Flyway 及首次偏移，存量重启保持严格接管。覆盖空卷、历史基线升级、近期存量恢复及重启。核对迁移条目、校验和、关键约束、订单回归、首次已读、站外回执和独立消费组。历史迁移文件保持原有校验和。 |
 | 04 完整验收覆盖现役业务 | `verify-all` 的服务清单仍含 MySQL 通知实例，并遗漏独立履约、消息及仓库组件，也未串联部分新业务专项。已有独立脚本覆盖，各自证据来自不同批次。[完整入口](../../scripts/verify-all.ps1) · [验收矩阵](../VERIFICATION-SYSTEM.md#5-改动类型与必跑门禁) · [脚本契约](../../scripts/script-contracts.tsv) | 更新所选拓扑的必要服务与就绪条件，区分全量业务回归和可选故障专项。纳入多包裹与 WMS、按行售后与换货、优惠券、商家结算、发票、通知和模拟器的代表场景。默认构建同一批候选镜像，保留报告。文档里的版本及告警计数注明历史范围或对齐脚本。 |
@@ -23,6 +23,16 @@
 | 06 通知候选发布与 M4 评审 | 日常通知已切 PostgreSQL。仓库的默认部署、运行控制台和相关验收入口需与现役实例对齐，原 MySQL 及其应用有回退用途。[切换记录](DATABASE-EVOLUTION-PLAN.md#2026-11-22-日常通知库切换-postgresql-17) | 固定候选镜像及启动配置，验证现役应用及库健康、单实例接管三分区、原卷与别名、停机 503 和恢复、回退保留显示、错误实例拒绝、MySQL 学习覆盖独立。窗口内发布后核对进程版本、卷、权限及偏移。结合事项 05 及已有恢复证据评审 M4，回退路径继续受版本、备份和退出条件管理。 |
 
 已有隔离试点完成反向回退、偏移接续及积压恢复。触及迁移、偏移、数据访问或告警协议时复跑对应专项。M4 收尾时保留最新日常备份恢复、反向回退和隔离告警的可复核证据。[隔离试点](DATABASE-EVOLUTION-PLAN.md#m4-通知服务-postgresql-17-隔离试点) · [迁移后持续观测与回退](DATABASE-EVOLUTION-PLAN.md#2026-11-22-日常通知库切换-postgresql-17)
+
+### 2026-11-22 隔离回归记录
+
+从 `4150f10` 单独建立 `codex/regression-isolation` 工作树，按该提交的 MySQL 学习拓扑构建镜像。回归项目为 `commerceflow-verify-matrix`，门户监听 `127.0.0.1:34200`。Compose 隔离覆盖使用项目专属容器名与具名卷，MySQL 在隔离项目关闭 native AIO 后与日常栈并行启动。
+
+- 代码质量、78 项脚本契约、错误项目与错误端口预检均通过。
+- Flyway 空库 V1→V68 和旧库 V16→V68 均通过。演示种子在同一事务初始化汇总库存与默认仓库存，隔离运行核对汇总与分仓库存差异为零。
+- 默认构建模式的快速回归通过。租约恢复保持单次完成事件，Redis 停机时目录仍可访问，独立订单服务停机返回 503 后恢复。
+- 默认构建模式的完整回归通过。额外验证自动物流、回调重试、主动对账、死信重放、收货评价及调度配置。Prometheus 加载 41 条规则，Watchdog 投递一次，最终服务健康检查通过。
+- 结果覆盖提交基线的 MySQL 通知拓扑。独立旧卷重启专项和正在并行处理的 PostgreSQL 通知拓扑仍按专题另行验收。
 
 ## 3. 下一批工程与运维建设
 

@@ -63,14 +63,16 @@ docker compose ps
 ### 4.3 提交/基线门禁
 
 ```powershell
-pwsh -File ./scripts/verify-quick.ps1
-pwsh -File ./scripts/verify-all.ps1
+pwsh -File ./scripts/verify-quick.ps1 -ProjectName commerceflow-verify-review
+pwsh -File ./scripts/verify-all.ps1 -ProjectName commerceflow-verify-review
 ```
 
 `verify-quick` 和 `verify-all` 始终运行后端质量门禁。默认构建模式还会通过 Angular Dockerfile 执行
 `npm run format:check` 和生产构建。`-SkipBuild` 只能在已确认镜像来自当前源码时使用，
 并且不会重新执行 Maven/ArchUnit 测试或 Angular 格式检查。冻结基线或修改 Dockerfile/POM/前端依赖时
 必须使用默认构建模式。
+
+传入 `-ProjectName` 使用独立服务、网络和数据卷。`-PortOffset` 默认加 20000，所有发布端口仅监听回环地址，商城、支付、物流和告警地址从同一份 Compose 配置解析。`-BaseUrl` 可用于显式核对商城地址，端口不匹配会在构建、启动和业务写入前失败。两个入口可以复用同名隔离项目和镜像。验收会写入测试业务数据，结束时保留该项目的数据卷。
 
 ## 5. 改动类型与必跑门禁
 
@@ -99,7 +101,7 @@ pwsh -File ./scripts/verify-all.ps1
 pwsh -File ./scripts/operations/verify-flyway-lifecycle.ps1
 ```
 
-它使用随机容器/网络和 tmpfs，验证空库 V1→V34、V16→V34 升级、catalog/inventory 所有权分离、
+它使用随机容器/网络和 tmpfs，验证空库及 V16 升级至当前商城迁移目录的最终版本、catalog/inventory 所有权分离、
 catalog V1 版本/Outbox 元数据、inventory 命令投递/结果协议、命令/catalog-event Inbox、版本化商品快照及
 ordering 外键清理，
 不连接默认开发卷。
@@ -129,16 +131,16 @@ pwsh -File ./scripts/operations/verify-fresh-volume-lifecycle.ps1 -TemporaryProj
 ```
 
 默认保留该临时项目卷用于失败排查。只有显式传入 `-RemoveTemporaryVolumes` 才会删除本次随机临时项目卷。
-脚本使用独立 Compose 项目和容器名，执行期间会临时停用日常项目以释放端口。演示目录显式初始化，商品数从
+脚本使用独立 Compose 项目、容器名、项目卷和回环端口，默认偏移为 21000。存在同名容器或卷时拒绝执行。演示目录显式初始化，商品数从
 `catalog-db` 核对，订单和订单事件从 `order-db` 核对，商城库用于核对用户、调度、评价及物流投影。
 
 ### 6.3 旧卷升级和重启恢复
 
 ```powershell
-pwsh -File ./scripts/operations/verify-upgrade-restart-recovery.ps1
+pwsh -File ./scripts/operations/verify-upgrade-restart-recovery.ps1 -ProjectName commerceflow-verify-review
 ```
 
-该入口会重启商城、订单、支付及两个模拟器的数据库，以及 Redis、Kafka、RabbitMQ、RocketMQ 和相关业务服务，并写入可识别的恢复夹具任务。订单、支付和商城各自计算历史摘要。数据卷保留，运行前应安排日常环境可中断时段。
+该入口会重启商城、订单、支付及两个模拟器的数据库，以及 Redis、Kafka、RabbitMQ、RocketMQ 和相关业务服务，并写入可识别的恢复夹具任务。订单、支付和商城各自计算历史摘要。先用同一项目名和端口偏移跑回归，产生已完成的 `AUTO_COMPLETE` 任务。该脚本保留目标项目卷，验收或恢复失败时返回错误。
 
 ## 7. 可靠性和并发专项
 

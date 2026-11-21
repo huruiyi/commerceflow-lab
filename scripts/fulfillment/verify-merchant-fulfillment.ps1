@@ -5,6 +5,19 @@ param(
 )
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot '../lib/verification-compose.ps1')
+$targets = @{
+  'PaymentBaseUrl' = @('payment-simulator-web', 80)
+  'PaymentOrchestrationUrl' = @('payment-orchestration-service', 8080)
+}
+$config = $null
+foreach ($entry in $targets.GetEnumerator()) {
+  if (-not $PSBoundParameters.ContainsKey($entry.Key)) {
+    if (-not $config) { $config = Get-VerificationComposeConfig }
+    Set-Variable -Name $entry.Key -Value (Get-VerificationServiceUrl $config $entry.Value[0] $entry.Value[1])
+  }
+}
+
 $paymentResult=& "$PSScriptRoot/../payment/verify-payment-notifications.ps1" -BaseUrl $BaseUrl -PaymentBaseUrl $PaymentBaseUrl -PaymentOrchestrationUrl $PaymentOrchestrationUrl
 if(-not$?){throw 'Could not create a paid order'}
 $paymentResult|Write-Output

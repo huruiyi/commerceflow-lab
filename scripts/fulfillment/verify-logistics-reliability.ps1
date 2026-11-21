@@ -10,6 +10,8 @@ $AppId = 'commerceflow-storefront'
 $Secret = 'demo-logistics-request-secret'
 $names = @(
   'LOGISTICS_CALLBACK_DELIVERY_ENABLED',
+  'LOGISTICS_CALLBACK_DELIVERY_RETRY_DELAY',
+  'LOGISTICS_CALLBACK_DELIVERY_MAX_ATTEMPTS',
   'LOGISTICS_RECONCILIATION_ENABLED',
   'LOGISTICS_RECONCILIATION_INITIAL_DELAY',
   'LOGISTICS_RECONCILIATION_SCAN_INTERVAL',
@@ -70,6 +72,12 @@ function Storefront-Sql([string]$Query) {
 }
 
 try {
+  # The transient-outage case must survive a cold commerce startup. The separate DEAD case uses one attempt.
+  $env:LOGISTICS_CALLBACK_DELIVERY_ENABLED = 'true'
+  $env:LOGISTICS_CALLBACK_DELIVERY_RETRY_DELAY = '5s'
+  $env:LOGISTICS_CALLBACK_DELIVERY_MAX_ATTEMPTS = '60'
+  docker compose --project-directory $ProjectRoot up -d --wait logistics-simulator-service | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw 'Could not configure the callback retry fixture' }
   & "$PSScriptRoot/verify-merchant-fulfillment.ps1" -BaseUrl $BaseUrl
   if (-not $?) { throw 'Could not create shipment for reliability verification' }
   $script:Customer = New-CustomerSession
@@ -120,5 +128,5 @@ try {
 } finally {
   Restore-Environment
   docker compose --project-directory $ProjectRoot up -d --wait --force-recreate logistics-simulator-service commerce-service commerce-portal-angular | Out-Null
-  if ($LASTEXITCODE -ne 0) { Write-Warning 'Could not restore default logistics reliability configuration' }
+  if ($LASTEXITCODE -ne 0) { throw 'Could not restore default logistics reliability configuration' }
 }

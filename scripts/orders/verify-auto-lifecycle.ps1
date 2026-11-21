@@ -73,7 +73,8 @@ try{
   docker compose --project-directory $ProjectRoot up -d --wait commerce-service|Out-Null
   if($LASTEXITCODE-ne0){throw 'Backend did not restart after lease recovery setup'}
 }
-Wait-TaskStatus $completeTaskId 'SUCCEEDED' 90
+# The lease scan, persisted retry delay, and next dispatch can span multiple scheduler ticks.
+Wait-TaskStatus $completeTaskId 'SUCCEEDED' 180
 $leaseEvents=[int](Invoke-DbScalar "SELECT COUNT(*) FROM scheduled_task_events WHERE task_id=$completeTaskId AND event_type='TASK_LEASE_EXPIRED'")
 $completionEvents=[int](Invoke-OrderDbScalar "SELECT COUNT(*) FROM order_events WHERE order_id=$($automatic.id) AND event_type='ORDER_AUTO_COMPLETED'")
 if($leaseEvents-lt1-or$completionEvents-ne1){throw "Crash recovery was not idempotent (leaseEvents=$leaseEvents, completionEvents=$completionEvents)"}

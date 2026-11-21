@@ -1,11 +1,11 @@
 # entry relative to scripts/	PowerShell parameters in order
-operations/verify-alerting.ps1	PrometheusUrl,AlertmanagerUrl,WebhookUrl,MaxWaitSeconds,SkipStart
+operations/verify-alerting.ps1	PrometheusUrl,AlertmanagerUrl,WebhookUrl,MaxWaitSeconds,SkipStart,PaymentMetricsUrl
 operations/verify-project-navigation.ps1	BaseUrl,MaxWaitSeconds
 operations/verify-simulator-admin.ps1	MaxWaitSeconds
 operations/verify-simulator-monitoring.ps1	MaxWaitSeconds
 fulfillment/verify-logistics-simulator-web.ps1	BaseUrl,AdminToken
 commerce/verify-line-exchanges.ps1	BaseUrl,PaymentBaseUrl,LogisticsUrl,WarehouseBaseUrl,ProjectName
-verify-all.ps1	BaseUrl,SkipBuild
+verify-all.ps1	BaseUrl,SkipBuild,ProjectName,PortOffset
 commerce/verify-authorization.ps1	BaseUrl
 orders/verify-auto-lifecycle.ps1	BaseUrl
 orders/verify-auto-lifecycle-mq-failures.ps1	BaseUrl,MaxWaitSeconds
@@ -16,7 +16,7 @@ messaging/verify-notification-schema-split.ps1	MaxWaitSeconds
 messaging/verify-notification-runtime-cutover.ps1	BaseUrl,MaxWaitSeconds
 messaging/verify-notification-postgresql.ps1	MySqlDump,EvidenceDirectory,BaselineImage,CandidateImage,MySqlOnly,CutoverAndCapacity,LoadRecords,DiskBacked,OffsitePause,CommerceImage,PaymentImage
 messaging/verify-kafka-persistence.ps1	EvidenceDirectory,KafkaImage
-operations/verify-fresh-volume-lifecycle.ps1	BaseUrl,TemporaryProjectName,RemoveTemporaryVolumes,SkipBuild
+operations/verify-fresh-volume-lifecycle.ps1	BaseUrl,TemporaryProjectName,RemoveTemporaryVolumes,SkipBuild,PortOffset
 commerce/verify-i18n.ps1	BaseUrl
 payment/verify-kafka-payment.ps1	BaseUrl
 fulfillment/verify-logistics.ps1	BaseUrl,LogisticsUrl,PaymentBaseUrl,PaymentOrchestrationUrl
@@ -50,7 +50,7 @@ payment/verify-payment-shadow-runtime.ps1	BaseUrl
 payment/verify-payment-write-freeze.ps1	BaseUrl,PaymentBaseUrl
 payment/verify-payment-remote-protocol.ps1	BaseUrl,TempoUrl
 payment/verify-payment-precutover-rehearsal.ps1	BaseUrl
-verify-quick.ps1	BaseUrl,SkipBuild
+verify-quick.ps1	BaseUrl,SkipBuild,ProjectName,PortOffset
 scheduling/verify-rabbitmq-scheduling.ps1	BaseUrl,MaxWaitSeconds
 orders/verify-receipt-lifecycle-stress.ps1	BaseUrl,RabbitManagementUrl,DurationSeconds,MinimumRounds,Concurrency,RequestsPerWorker,MaxWaitSeconds
 operations/verify-distributed-tracing.ps1	BaseUrl,TempoUrl,MaxWaitSeconds,SkipBuild
@@ -68,7 +68,7 @@ payment/verify-payment-post-cutover-observation.ps1	BaseUrl
 scheduling/verify-rocketmq-reconciliation.ps1	BaseUrl,MaxWaitSeconds
 scheduling/verify-rocketmq-scheduling.ps1	BaseUrl,MaxWaitSeconds
 scheduling/verify-scheduling.ps1	BaseUrl
-operations/verify-upgrade-restart-recovery.ps1	MaxWaitSeconds,SkipMigrationRehearsal
+operations/verify-upgrade-restart-recovery.ps1	MaxWaitSeconds,SkipMigrationRehearsal,ProjectName,PortOffset
 fulfillment/verify-fulfillment-shadow-runtime.ps1	BaseUrl
 commerce/verify-checkout-pricing.ps1	BaseUrl,PaymentBaseUrl,HistoricalOrderId,ExercisePricing
 commerce/verify-line-after-sales.ps1	BaseUrl,PaymentBaseUrl,LogisticsUrl,ProjectName,WarehouseBaseUrl

@@ -6,6 +6,21 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+. (Join-Path $PSScriptRoot '../lib/verification-compose.ps1')
+$targets = @{
+  'LogisticsUrl' = @('logistics-simulator-service', 8080)
+  'PaymentBaseUrl' = @('payment-simulator-web', 80)
+  'PaymentOrchestrationUrl' = @('payment-orchestration-service', 8080)
+}
+$config = $null
+foreach ($entry in $targets.GetEnumerator()) {
+  if (-not $PSBoundParameters.ContainsKey($entry.Key)) {
+    if (-not $config) { $config = Get-VerificationComposeConfig }
+    Set-Variable -Name $entry.Key -Value (Get-VerificationServiceUrl $config $entry.Value[0] $entry.Value[1])
+  }
+}
+
 $AppId = 'commerceflow-storefront'
 $Secret = 'demo-logistics-request-secret'
 
