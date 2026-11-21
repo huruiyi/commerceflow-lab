@@ -74,6 +74,11 @@ function mysqlLogin(username: string, configPrefix: string): ServiceLogin {
 
 // These values are the repository defaults for local development.
 export const serviceLogins: Partial<Record<string, ServiceLogin>> = {
+  'logistics-simulator-web': {
+    method: '管理令牌',
+    defaults: [{ label: '管理令牌', value: 'demo-logistics-admin-token' }],
+    tokenSource: { service: 'logistics-simulator-service', variable: 'LOGISTICS_ADMIN_TOKEN' },
+  },
   'commerce-portal-angular': {
     method: '账号密码',
     defaults: [

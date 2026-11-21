@@ -46,6 +46,7 @@ mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
 logistics-platform:
+  admin-token: ${LOGISTICS_ADMIN_TOKEN:demo-logistics-admin-token}
   app-id: ${LOGISTICS_APP_ID:commerceflow-storefront}
   request-secret: ${LOGISTICS_REQUEST_SECRET:demo-logistics-request-secret}
   callback-secret: ${LOGISTICS_CALLBACK_SECRET:demo-logistics-callback-secret}

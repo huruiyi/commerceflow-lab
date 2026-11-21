@@ -105,6 +105,7 @@ docker compose --profile demo-data run --rm payment-demo-init
 - 运行控制台：`http://127.0.0.1:28080`，统一查看运行状态并打开后台、健康检查，或复制连接地址。
 - 前端：`http://localhost:14200`
 - 支付平台：`http://localhost:14201`
+- 物流模拟管理台：`http://127.0.0.1:18117`，使用 `LOGISTICS_ADMIN_TOKEN` 登录。
 - 前端健康检查：`http://localhost:14200/healthz`
 - 后端健康检查：`http://localhost:18081/actuator/health`
 - 支付服务健康检查：`http://localhost:18082/actuator/health`

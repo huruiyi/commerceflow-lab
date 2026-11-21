@@ -116,6 +116,21 @@ public class ShipmentService {
     return value;
   }
 
+  @Transactional(readOnly = true)
+  public ShipmentView.Page list(String reference, String status, int page, int size) {
+    String match = reference == null ? "" : reference.trim();
+    String state = status == null ? "" : status.trim();
+    int safePage = Math.max(1, page);
+    int limit = Math.max(1, Math.min(size, 200));
+    long total = dataMapper.countShipments(match, state);
+    long offset = ((long) safePage - 1) * limit;
+    List<ShipmentView.Summary> entries = dataMapper.listShipments(match, state, limit, offset).stream()
+      .map(row -> new ShipmentView.Summary(row.merchantShipmentNo(), row.orderNumber(), row.carrier(),
+        row.trackingNumber(), row.status(), row.updatedAt().toInstant()))
+      .toList();
+    return new ShipmentView.Page(entries, total, safePage);
+  }
+
   private ShipmentView advanceLocked(ShipmentView current) {
     int index = FLOW.indexOf(current.status());
     if (index < 0 || index == FLOW.size() - 1) {

@@ -717,6 +717,7 @@ services:
       LOGISTICS_DATABASE_URL: jdbc:mysql://logistics-simulator-db:3306/logistics_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       LOGISTICS_DATABASE_USERNAME: ${LOGISTICS_DATABASE_USERNAME:-logistics}
       LOGISTICS_DATABASE_PASSWORD: ${LOGISTICS_DATABASE_PASSWORD:-logistics-password}
+      LOGISTICS_ADMIN_TOKEN: ${LOGISTICS_ADMIN_TOKEN-demo-logistics-admin-token}
       LOGISTICS_APP_ID: ${LOGISTICS_APP_ID:-commerceflow-storefront}
       LOGISTICS_REQUEST_SECRET: ${LOGISTICS_REQUEST_SECRET:-demo-logistics-request-secret}
       LOGISTICS_CALLBACK_SECRET: ${LOGISTICS_CALLBACK_SECRET:-demo-logistics-callback-secret}
@@ -749,6 +750,25 @@ services:
       timeout: 3s
       retries: 30
       start_period: 25s
+    restart: unless-stopped
+
+  logistics-simulator-web:
+    container_name: fairy-commerceflow-logistics-simulator-web
+    build:
+      context: ./simulators/logistics-platform/web
+      additional_contexts:
+        simulator-admin: ./web/packages/simulator-admin
+    ports:
+      - "127.0.0.1:18117:80"
+    depends_on:
+      logistics-simulator-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
     restart: unless-stopped
 
   commerce-service:

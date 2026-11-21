@@ -25,11 +25,18 @@ public interface LogisticsDataMapper {
 
   ShipmentRow findShipmentByMerchantNo(String merchantShipmentNo);
 
+  long countShipments(@Param("reference") String reference, @Param("status") String status);
+
+  List<ShipmentRow> listShipments(@Param("reference") String reference, @Param("status") String status,
+                                  @Param("limit") int limit, @Param("offset") long offset);
+
   ShipmentRow lockShipmentByMerchantNo(String merchantShipmentNo);
 
   ShipmentRow lockShipmentById(Long id);
 
   ShipmentRow shipmentById(Long id);
+
+  int updateTestCallbackResult(@Param("id") Long id, @Param("result") String result);
 
   List<ShipmentEventRow> shipmentEvents(Long shipmentId);
 
@@ -64,7 +71,8 @@ public interface LogisticsDataMapper {
 
   Long outboxIdByEventId(String eventId);
 
-  List<CallbackOutboxRow> listOutbox(@Param("status") String status, @Param("limit") int limit);
+  List<CallbackOutboxRow> listOutbox(@Param("status") String status, @Param("shipmentId") Long shipmentId,
+                                    @Param("limit") int limit);
 
   List<CallbackOutboxEventRow> outboxEvents(Long outboxId);
 

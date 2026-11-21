@@ -30,6 +30,19 @@
       }
     }
   },
+  "logistics-simulator-web": {
+    "name": "物流模拟管理台",
+    "group": "simulators",
+    "ports": {
+      "80": {
+        "protocol": "HTTP",
+        "probe": "/healthz",
+        "links": [
+          { "label": "打开管理台", "path": "/", "browserLaunch": true }
+        ]
+      }
+    }
+  },
   "warehouse-simulator-web": {
     "name": "仓储模拟管理台",
     "group": "simulators",

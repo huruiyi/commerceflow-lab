@@ -698,6 +698,33 @@ $release = Join-Path $env:LOCALAPPDATA 'CommerceFlow/releases/exchange-ui-202611
 & $release -Previous up -d --no-deps --no-build --pull never --wait commerce-service
 ```
 
+### 2.32 物流模拟管理台日常发布
+
+2026-11-21 发布 `logistics-web-20261121`。从当前源码快照构建服务和管理台，在独立 MySQL 上通过 V1–V7
+迁移、运单查询、异常恢复、回调重试、补投和审计分页验收。日常 Docker 使用同一对镜像，仅更新
+`logistics-simulator-service` 和 `logistics-simulator-web`，两者健康。物流 MySQL 容器 ID、V7 和
+`fairy-commerceflow_logistics-simulator-db-data` 数据卷保持一致。
+
+- 新商城订单 739 从支付、发货走到签收。管理台按订单号、运单号 `CFL-ORDER-739` 和物流单号
+  `CFL-739-C` 均查到运单 218。模拟器、商城轨迹与投递记录的 8 个事件 ID 一致，
+  商城的 8 条签名有效通知均为 `PROCESSED`。
+- 测试运单 219 的回调 1363 连续 10 次失败后终止。将测试接收端切换为「正常接收」并手动补投，
+  同一事件成功送达，审计保留原 21 条并增加至 24 条。管理台只读验收脚本通过。
+- 发布前水位内的 217 条运单、1,354 条轨迹、1,354 条投递和 4,324 条投递审计的全字段摘要一致。
+  抽查订单 738 的原发货、退回和补发运单，三张均仍为已签收。
+
+本机 `%LOCALAPPDATA%/CommerceFlow/releases/logistics-web-20261121` 保留 `images.json`、`rollback.json`、
+源码快照、历史摘要和浏览器证据。回退时先恢复管理台，再恢复物流服务。两张旧镜像已保留，
+物流 MySQL 继续使用当前 V7 和原数据卷。
+
+```powershell
+$release = Join-Path $env:LOCALAPPDATA 'CommerceFlow/releases/logistics-web-20261121'
+$daily = @('-p', 'fairy-commerceflow', '-f', 'compose.yaml',
+  '-f', 'infrastructure/compose/compose.fulfillment-execution.yaml', '-f', "$release/rollback.json")
+docker compose @daily up -d --no-deps --no-build --pull never --wait logistics-simulator-web
+docker compose @daily up -d --no-deps --no-build --pull never --wait logistics-simulator-service
+```
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

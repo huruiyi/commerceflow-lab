@@ -16,8 +16,10 @@ import java.sql.Timestamp;
  * @param createdAt 运单创建时间
  * @param updatedAt 运单最后变更时间
  * @param shipmentVersion 运单详情版本
+ * @param testCallbackResult 测试回调接收结果覆盖值，空值沿用创建时的结果
  */
 public record ShipmentRow(Long id, String merchantShipmentNo, String platformShipmentNo,
                           String orderNumber, String carrier, String trackingNumber, String status,
-                          String callbackUrl, Timestamp createdAt, Timestamp updatedAt, long shipmentVersion) {
+                          String callbackUrl, Timestamp createdAt, Timestamp updatedAt, long shipmentVersion,
+                          String testCallbackResult) {
 }

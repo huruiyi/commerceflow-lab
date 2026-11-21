@@ -40,15 +40,19 @@ public class CallbackOutboxService {
   }
 
   public List<CallbackOutboxView> list(String status, int limit) {
+    return list(status, null, limit);
+  }
+
+  public List<CallbackOutboxView> list(String status, Long shipmentId, int limit) {
     int safeLimit = Math.max(1, Math.min(limit, 500));
+    String normalized = null;
     if (status != null && !status.isBlank()) {
-      String normalized = status.trim().toUpperCase();
+      normalized = status.trim().toUpperCase();
       if (!Set.of("NEW", "PROCESSING", "RETRY", "PUBLISHED", "DEAD").contains(normalized)) {
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "CALLBACK_OUTBOX_STATUS_INVALID");
       }
-      return dataMapper.listOutbox(normalized, safeLimit).stream().map(this::map).toList();
     }
-    return dataMapper.listOutbox(null, safeLimit).stream().map(this::map).toList();
+    return dataMapper.listOutbox(normalized, shipmentId, safeLimit).stream().map(this::map).toList();
   }
 
   public List<CallbackOutboxView.AuditEvent> events(Long id) {
@@ -100,7 +104,7 @@ public class CallbackOutboxService {
   public void published(Delivery delivery) {
     int updated = dataMapper.publishOutbox(delivery.id(), delivery.owner());
     if (updated == 1) audit(delivery.id(), "DELIVERY_PUBLISHED", "PROCESSING", "PUBLISHED",
-      delivery.owner(), "Callback accepted by storefront");
+      delivery.owner(), "Callback accepted by receiver");
   }
 
   @Transactional
@@ -115,7 +119,7 @@ public class CallbackOutboxService {
     return status;
   }
 
-  private CallbackOutboxView require(Long id) {
+  public CallbackOutboxView require(Long id) {
     CallbackOutboxRow row = dataMapper.outboxById(id);
     if (row == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND,
       "CALLBACK_OUTBOX_NOT_FOUND");
