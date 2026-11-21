@@ -1,0 +1,67 @@
+services:
+  logistics-simulator-db:
+    container_name: !reset null
+    ports: !reset []
+    volumes: !reset []
+    tmpfs: [/var/lib/mysql]
+    environment:
+      MYSQL_USER: logistics
+      MYSQL_PASSWORD: isolated-logistics-db-password
+      MYSQL_ROOT_PASSWORD: isolated-logistics-root-password
+  logistics-simulator-service:
+    container_name: !reset null
+    ports: !reset []
+    environment:
+      LOGISTICS_DATABASE_USERNAME: logistics
+      LOGISTICS_DATABASE_PASSWORD: isolated-logistics-db-password
+      LOGISTICS_ADMIN_TOKEN: demo-logistics-admin-token
+      LOGISTICS_CALLBACK_DELIVERY_ENABLED: "true"
+      LOGISTICS_CALLBACK_DELIVERY_INITIAL_DELAY: 1s
+      LOGISTICS_CALLBACK_DELIVERY_SCAN_INTERVAL: 300ms
+      LOGISTICS_CALLBACK_DELIVERY_RETRY_DELAY: 2s
+      LOGISTICS_CALLBACK_DELIVERY_MAX_ATTEMPTS: "10"
+      LOGISTICS_AUTO_PROGRESS_ENABLED: "false"
+      TRACING_EXPORT_ENABLED: "false"
+  logistics-simulator-web:
+    container_name: !reset null
+    ports: !override ["127.0.0.1::80"]
+
+  warehouse-simulator-db:
+    container_name: !reset null
+    volumes: !reset []
+    tmpfs: [/var/lib/mysql]
+    environment:
+      MYSQL_USER: warehouse
+      MYSQL_PASSWORD: isolated-warehouse-db-password
+      MYSQL_ROOT_PASSWORD: isolated-warehouse-root-password
+  warehouse-simulator-service:
+    container_name: !reset null
+    ports: ["127.0.0.1::8080"]
+    environment:
+      WAREHOUSE_DATABASE_USERNAME: warehouse
+      WAREHOUSE_DATABASE_PASSWORD: isolated-warehouse-db-password
+      WAREHOUSE_ADMIN_TOKEN: demo-warehouse-admin-token
+      FULFILLMENT_WAREHOUSE_SECRET: isolated-warehouse-fulfillment-secret
+      WAREHOUSE_RETURN_SECRET: isolated-warehouse-return-secret
+  warehouse-simulator-web:
+    container_name: !reset null
+    ports: !override ["127.0.0.1::80"]
+
+  messaging-simulator-db:
+    container_name: !reset null
+    volumes: !reset []
+    tmpfs: [/var/lib/mysql]
+    environment:
+      MYSQL_USER: messaging
+      MYSQL_PASSWORD: isolated-messaging-db-password
+      MYSQL_ROOT_PASSWORD: isolated-messaging-root-password
+  messaging-simulator-service:
+    container_name: !reset null
+    environment:
+      MESSAGING_DATABASE_USERNAME: messaging
+      MESSAGING_DATABASE_PASSWORD: isolated-messaging-db-password
+      MESSAGING_ADMIN_TOKEN: demo-messaging-admin-token
+      MESSAGING_FAULTS_ENABLED: "false"
+  messaging-simulator-web:
+    container_name: !reset null
+    ports: !override ["127.0.0.1::80"]

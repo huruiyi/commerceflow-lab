@@ -8,8 +8,11 @@
     "./shell": "./AdminShell.vue",
     "./grid": "./AdminGrid.vue",
     "./login": "./AdminLogin.vue",
+    "./token-login": "./AdminTokenLoginForm.vue",
+    "./token-session": "./token-session.ts",
     "./vxe": "./vxe.ts",
     "./preferences": "./preferences.ts",
+    "./pagination": "./pagination.ts",
     "./style.css": "./style.css"
   },
   "dependencies": {

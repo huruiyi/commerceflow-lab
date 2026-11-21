@@ -1,27 +1,27 @@
 <script setup lang="ts">
 import { formatAdminDate } from '@commerceflow/simulator-admin/preferences';
+import { useAdminPageSize } from '@commerceflow/simulator-admin/pagination';
 import { computed, ref } from 'vue';
 import type { VxeGridProps } from 'vxe-table';
 import AdminGrid from '@commerceflow/simulator-admin/grid';
 import AdminShell from '@commerceflow/simulator-admin/shell';
 import AdminLogin from '@commerceflow/simulator-admin/login';
-import {
-  admin,
-  RequestError,
-  type Channel,
-  type Command,
-  type Delivery,
-  type DeliveryPage,
-  type Fault,
-} from './app-api';
+import AdminTokenLoginForm from '@commerceflow/simulator-admin/token-login';
+import { AdminRequestError, useAdminTokenSession } from '@commerceflow/simulator-admin/token-session';
+import { admin, type Channel, type Command, type Delivery, type DeliveryPage, type Fault } from './app-api';
 
 const channels: { id: Channel; label: string; symbol: string }[] = [
   { id: 'SMS', label: '短信', symbol: 'sms' },
   { id: 'EMAIL', label: '邮件', symbol: 'email' },
 ];
 const states = { ACCEPTED: '已受理', DELIVERED: '已送达', FAILED: '送达失败' };
-const tokenInput = ref('');
-const token = ref('');
+const {
+  token,
+  restoring,
+  remember,
+  clear: clearSession,
+  discardIfUnauthorized,
+} = useAdminTokenSession('messaging', signIn);
 const faultsEnabled = ref(false);
 const channel = ref<Channel>('SMS');
 const status = ref('');
@@ -30,6 +30,7 @@ const records = ref<Delivery[]>([]);
 const selected = ref<Delivery | null>(null);
 const total = ref(0);
 const page = ref(1);
+const size = useAdminPageSize(() => 'messaging-' + channel.value);
 const loading = ref(false);
 const sending = ref(false);
 const error = ref('');
@@ -79,24 +80,24 @@ function navigate(key: string) {
 }
 
 function readable(failure: unknown) {
-  return failure instanceof RequestError ? failure.message : '连接失败，请检查本地服务后重试。';
+  return failure instanceof AdminRequestError ? failure.message : '连接失败，请检查本地服务后重试。';
 }
 
 function time(value: string | null) {
   return value ? formatAdminDate(value) : '—';
 }
 
-async function signIn() {
-  if (!tokenInput.value.trim() || loading.value) return;
+async function signIn(entered: string) {
+  if (loading.value) return;
   loading.value = true;
   error.value = '';
   try {
-    const value = await admin<{ faultsEnabled: boolean }>(tokenInput.value.trim(), 'session');
-    token.value = tokenInput.value.trim();
+    const value = await admin<{ faultsEnabled: boolean }>(entered, 'session');
+    remember(entered);
     faultsEnabled.value = value.faultsEnabled;
-    tokenInput.value = '';
     await load(1);
   } catch (failure) {
+    discardIfUnauthorized(failure);
     error.value = readable(failure);
   } finally {
     loading.value = false;
@@ -106,7 +107,7 @@ async function signIn() {
 function logout() {
   readSequence++;
   detailSequence++;
-  token.value = '';
+  clearSession();
   records.value = [];
   selected.value = null;
   total.value = 0;
@@ -127,6 +128,7 @@ async function load(number = page.value) {
   const params = new URLSearchParams({
     channel: channel.value,
     page: String(number),
+    size: String(size.value),
   });
   if (applied.value.status) params.set('status', applied.value.status);
   if (applied.value.reference) params.set('reference', applied.value.reference);
@@ -141,6 +143,12 @@ async function load(number = page.value) {
   } finally {
     if (id === readSequence) loading.value = false;
   }
+}
+
+function changePage(number: number, pageSize: number) {
+  const nextPage = pageSize === size.value ? number : 1;
+  size.value = pageSize;
+  void load(nextPage);
 }
 
 function choose(value: Channel) {
@@ -194,7 +202,7 @@ async function submit() {
       selected.value = await admin<Delivery>(token.value, 'deliveries', 'POST', command);
       notice.value = '模拟投递已受理，可刷新查看最终结果。';
     } catch (failure) {
-      if (!(failure instanceof RequestError) || failure.status !== 504) throw failure;
+      if (!(failure instanceof AdminRequestError) || failure.status !== 504) throw failure;
       selected.value = await admin<Delivery>(token.value, 'deliveries/' + command.requestId);
       notice.value = '提交响应超时，已通过原投递编号查到记录。';
     }
@@ -226,14 +234,16 @@ async function detail(id: string) {
   <AdminLogin
     v-if="!token"
     brand="CommerceFlow 消息"
-    title="登录消息模拟平台"
+    :title="restoring ? '正在恢复登录' : '登录消息模拟平台'"
     description="输入管理令牌，查看短信和邮件投递记录。"
   >
-    <form class="sim-auth-form" @submit.prevent="signIn">
-      <label>管理令牌<input v-model="tokenInput" type="password" autocomplete="off" required /></label>
-      <p v-if="error" class="sim-auth-error" role="alert">{{ error }}</p>
-      <button class="sim-button primary" :disabled="loading">{{ loading ? '正在连接…' : '进入后台' }}</button>
-    </form>
+    <AdminTokenLoginForm
+      v-if="!restoring"
+      demo-token="demo-messaging-admin-token"
+      :loading="loading"
+      :error="error"
+      @sign-in="signIn"
+    />
   </AdminLogin>
   <AdminShell
     v-else
@@ -283,12 +293,12 @@ async function detail(id: string) {
       row-key="requestId"
       :total="total"
       :page="page"
+      :page-size="size"
       :loading="loading"
-      fixed-page-size
       @search="search"
       @reset="reset"
       @refresh="load()"
-      @page="load($event)"
+      @page="changePage"
     >
       <template #filters>
         <label>业务关联号<input v-model="reference" maxlength="120" placeholder="输入完整关联号" /></label>

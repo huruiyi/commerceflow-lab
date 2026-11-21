@@ -1,3 +1,5 @@
+import { AdminRequestError } from '@commerceflow/simulator-admin/token-session';
+
 export type Channel = 'SMS' | 'EMAIL';
 export type Status = 'ACCEPTED' | 'DELIVERED' | 'FAILED';
 export type Fault = 'THROTTLE_ONCE' | 'TIMEOUT_AFTER_ACCEPT' | 'DELIVERY_FAILED';
@@ -28,15 +30,6 @@ export interface Command {
   subject?: string;
 }
 
-export class RequestError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
-
 export async function admin<T>(token: string, path: string, method = 'GET', body?: object): Promise<T> {
   const response = await fetch('/api/admin/' + path, {
     method,
@@ -57,7 +50,7 @@ export async function admin<T>(token: string, path: string, method = 'GET', body
       429: '模拟供应商限流，请稍后用原编号重试。',
       504: '模拟供应商响应超时，请查询原投递。',
     };
-    throw new RequestError(response.status, messages[response.status] ?? '服务暂时不可用，请稍后重试。');
+    throw new AdminRequestError(response.status, messages[response.status] ?? '服务暂时不可用，请稍后重试。');
   }
   return (response.status === 204 ? undefined : await response.json()) as T;
 }

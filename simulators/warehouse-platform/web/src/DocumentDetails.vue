@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { formatAdminDate } from '@commerceflow/simulator-admin/preferences';
 import type { WarehouseDocument } from './documents';
-import { documentId } from './documents';
+import { documentId, outboundLabels, returnLabels } from './documents';
 
 const props = defineProps<{ document: WarehouseDocument; saving: boolean }>();
-const emit = defineEmits<{ close: []; save: [path: string, body: object] }>();
+const emit = defineEmits<{ save: [path: string, body: object] }>();
 const outbound = computed(() => ('planned' in props.document ? props.document : null));
 const returned = computed(() => ('returnId' in props.document ? props.document : null));
 const amounts = ref(Object.fromEntries(outbound.value?.planned.map((line) => [line.orderLineId, line.quantity]) ?? []));
@@ -65,24 +66,58 @@ function supplement() {
 </script>
 
 <template>
-  <section class="warehouse-panel" aria-label="单据详情">
-    <header class="warehouse-actions">
-      <h2>单据详情</h2>
-      <button class="sim-button" :disabled="saving" @click="emit('close')">关闭详情</button>
-    </header>
-    <p>
-      单据编号 {{ documentId(document) }} · 订单 {{ document.orderId }} · 仓库
-      {{ document.warehouseId }}
-    </p>
+  <section class="warehouse-detail-card" aria-labelledby="warehouse-document-summary">
+    <div class="warehouse-section-heading">
+      <h3 id="warehouse-document-summary">单据信息</h3>
+      <span class="warehouse-status" :data-status="document.status">
+        {{ outbound ? outboundLabels[outbound.status] : returned && returnLabels[returned.status] }}
+      </span>
+    </div>
+    <dl class="warehouse-detail-fields">
+      <div class="warehouse-detail-wide">
+        <dt>{{ outbound ? '出库单号' : '退货单号' }}</dt>
+        <dd class="warehouse-reference">{{ documentId(document) }}</dd>
+      </div>
+      <div>
+        <dt>订单编号</dt>
+        <dd>{{ document.orderId }}</dd>
+      </div>
+      <div>
+        <dt>仓库编号</dt>
+        <dd>{{ document.warehouseId }}</dd>
+      </div>
+      <div v-if="outbound" class="warehouse-detail-wide">
+        <dt>创建时间</dt>
+        <dd>
+          <time :datetime="outbound.createdAt">{{ formatAdminDate(outbound.createdAt) }}</time>
+        </dd>
+      </div>
+      <template v-if="returned">
+        <div class="warehouse-detail-wide">
+          <dt>原包裹</dt>
+          <dd class="warehouse-reference">{{ returned.outboundId }}</dd>
+        </div>
+        <div class="warehouse-detail-wide">
+          <dt>退货运单</dt>
+          <dd class="warehouse-reference">{{ returned.trackingNumber }}</dd>
+        </div>
+      </template>
+    </dl>
+  </section>
+  <form v-if="outbound" class="warehouse-detail-card" aria-label="商品明细" @submit.prevent="confirmOutbound()">
+    <div class="warehouse-section-heading">
+      <h3>商品明细</h3>
+      <span class="warehouse-muted">{{ outbound.planned.length }} 个订单行</span>
+    </div>
     <p v-if="error" role="alert" class="warehouse-error">{{ error }}</p>
-    <form v-if="outbound" @submit.prevent="confirmOutbound()">
+    <div class="warehouse-table-wrap">
       <table class="warehouse-lines">
         <thead>
           <tr>
-            <th>订单行</th>
-            <th>商品</th>
-            <th>计划</th>
-            <th>实发</th>
+            <th scope="col">订单行</th>
+            <th scope="col">商品编号</th>
+            <th scope="col">计划件数</th>
+            <th scope="col">实发件数</th>
           </tr>
         </thead>
         <tbody>
@@ -107,24 +142,48 @@ function supplement() {
           </tr>
         </tbody>
       </table>
-      <div v-if="outbound.status === 'PENDING'" class="warehouse-actions">
-        <button class="sim-button primary" :disabled="saving">确认实发</button>
-        <button type="button" class="sim-button" :disabled="saving" @click="confirmOutbound(true)">
-          拒绝整张出库单
-        </button>
-      </div>
-    </form>
-    <template v-if="returned">
-      <p>
-        原包裹 {{ returned.outboundId }} · 退货运单
-        {{ returned.trackingNumber }}
-      </p>
-      <p>预期 {{ returned.expectedQuantity }} 件 · 实收 {{ returned.receivedQuantity ?? '—' }} 件</p>
-      <form
-        v-if="returned.status === 'WAITING_RECEIPT' || returned.status === 'RECEIVED'"
-        @submit.prevent="saveReturn(true)"
-      >
-        <label v-if="returned.status === 'WAITING_RECEIPT'">
+    </div>
+    <div v-if="outbound.status === 'PENDING'" class="warehouse-actions">
+      <button class="sim-button primary" :disabled="saving">确认实发</button>
+      <button type="button" class="sim-button" :disabled="saving" @click="confirmOutbound(true)">拒绝整张出库单</button>
+    </div>
+  </form>
+  <template v-if="returned">
+    <section class="warehouse-detail-card" aria-labelledby="warehouse-receipt-summary">
+      <h3 id="warehouse-receipt-summary">收货与质检</h3>
+      <dl class="warehouse-quantities">
+        <div>
+          <dt>预期件数</dt>
+          <dd>{{ returned.expectedQuantity }}</dd>
+        </div>
+        <div>
+          <dt>实收件数</dt>
+          <dd>{{ returned.receivedQuantity ?? '—' }}</dd>
+        </div>
+        <div v-if="returned.supplementId">
+          <dt>复检合格件数</dt>
+          <dd>{{ returned.qualifiedQuantity ?? '—' }}</dd>
+        </div>
+      </dl>
+      <dl v-if="returned.supplementId" class="warehouse-detail-fields">
+        <div class="warehouse-detail-wide">
+          <dt>补检凭证编号</dt>
+          <dd class="warehouse-reference">{{ returned.supplementId }}</dd>
+        </div>
+        <div v-if="returned.supplementNote" class="warehouse-detail-wide">
+          <dt>复检说明</dt>
+          <dd>{{ returned.supplementNote }}</dd>
+        </div>
+      </dl>
+    </section>
+    <form
+      v-if="returned.status === 'WAITING_RECEIPT' || returned.status === 'RECEIVED'"
+      class="warehouse-detail-card"
+      @submit.prevent="saveReturn(true)"
+    >
+      <h3>{{ returned.status === 'RECEIVED' ? '登记质检结果' : '登记实收结果' }}</h3>
+      <div v-if="returned.status === 'WAITING_RECEIPT'" class="warehouse-form-fields">
+        <label>
           仓库实收件数<input
             v-model.number="quantity"
             type="number"
@@ -133,20 +192,19 @@ function supplement() {
             required
           />
         </label>
-        <div class="warehouse-actions">
-          <button class="sim-button primary" :disabled="saving">
-            {{ returned.status === 'RECEIVED' ? '质检合格' : '登记实收' }}
-          </button>
-          <button type="button" class="sim-button" :disabled="saving" @click="saveReturn(false)">
-            {{ returned.status === 'RECEIVED' ? '质检不通过' : '拒收' }}
-          </button>
-        </div>
-      </form>
-      <p v-if="returned.supplementId">
-        复检合格 {{ returned.qualifiedQuantity }} 件 ·
-        {{ returned.supplementNote }}
-      </p>
-      <form v-else-if="canSupplement" class="warehouse-actions" @submit.prevent="supplement">
+      </div>
+      <div class="warehouse-actions">
+        <button class="sim-button primary" :disabled="saving">
+          {{ returned.status === 'RECEIVED' ? '质检合格' : '登记实收' }}
+        </button>
+        <button type="button" class="sim-button" :disabled="saving" @click="saveReturn(false)">
+          {{ returned.status === 'RECEIVED' ? '质检不通过' : '拒收' }}
+        </button>
+      </div>
+    </form>
+    <form v-if="canSupplement" class="warehouse-detail-card" @submit.prevent="supplement">
+      <h3>登记补检</h3>
+      <div class="warehouse-form-fields">
         <label
           >复检合格件数<input
             v-model.number="quantity"
@@ -156,8 +214,10 @@ function supplement() {
             required
         /></label>
         <label>复检说明<input v-model="note" maxlength="300" required /></label>
+      </div>
+      <div class="warehouse-actions">
         <button class="sim-button primary" :disabled="saving">登记补检凭证</button>
-      </form>
-    </template>
-  </section>
+      </div>
+    </form>
+  </template>
 </template>

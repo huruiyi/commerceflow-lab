@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { formatAdminDate } from '@commerceflow/simulator-admin/preferences';
-import { computed, ref } from 'vue';
+import { useAdminPageSize } from '@commerceflow/simulator-admin/pagination';
+import { computed, ref, watch } from 'vue';
 import type { VxeGridProps } from 'vxe-table';
 import AdminShell from '@commerceflow/simulator-admin/shell';
 import AdminLogin from '@commerceflow/simulator-admin/login';
+import AdminTokenLoginForm from '@commerceflow/simulator-admin/token-login';
+import { useAdminTokenSession } from '@commerceflow/simulator-admin/token-session';
 import AdminGrid from '@commerceflow/simulator-admin/grid';
 import DocumentDetails from './DocumentDetails.vue';
 import {
@@ -25,18 +28,24 @@ const menu = [
     ],
   },
 ];
-const tokenInput = ref('');
-const token = ref('');
+const {
+  token,
+  restoring,
+  remember,
+  clear: clearSession,
+  discardIfUnauthorized,
+} = useAdminTokenSession('warehouse', signIn);
 const resource = ref<Resource>('outbounds');
 const data = ref<WarehouseDocument[]>([]);
 const selected = ref<WarehouseDocument | null>(null);
+const detailsDialog = ref<HTMLDialogElement>();
 const selectionVersion = ref(0);
 const order = ref('');
 const status = ref('');
 const appliedOrder = ref('');
 const appliedStatus = ref('');
 const page = ref(1);
-const size = ref(20);
+const size = useAdminPageSize(() => 'warehouse-' + resource.value);
 const loading = ref(false);
 const saving = ref(false);
 const error = ref('');
@@ -82,16 +91,15 @@ function report(failure: unknown) {
   error.value = failure instanceof Error ? failure.message : '连接仓库服务失败';
 }
 
-async function signIn() {
+async function signIn(credential: string) {
   if (loading.value) return;
   loading.value = true;
   error.value = '';
   try {
-    const credential = tokenInput.value.trim();
     data.value = await warehouseApi<WarehouseDocument[]>(credential, resource.value);
-    token.value = credential;
-    tokenInput.value = '';
+    remember(credential);
   } catch (failure) {
+    discardIfUnauthorized(failure);
     report(failure);
   } finally {
     loading.value = false;
@@ -141,13 +149,30 @@ function navigate(key: string) {
 }
 
 function changePage(number: number, pageSize: number) {
-  page.value = number;
+  page.value = pageSize === size.value ? number : 1;
   size.value = pageSize;
 }
 
+function openDetails(row: WarehouseDocument) {
+  const dialog = detailsDialog.value;
+  if (!dialog || saving.value) return;
+  error.value = notice.value = '';
+  selected.value = row;
+  dialog.showModal();
+  dialog.querySelector('.warehouse-drawer-body')?.scrollTo(0, 0);
+}
+
+function closeDetails() {
+  if (!saving.value) selected.value = null;
+}
+
+watch(selected, (document) => {
+  if (!document) detailsDialog.value?.close();
+});
+
 function logout() {
   querySequence++;
-  token.value = '';
+  clearSession();
   data.value = [];
   resource.value = 'outbounds';
   selected.value = null;
@@ -177,14 +202,16 @@ async function save(path: string, body: object) {
   <AdminLogin
     v-if="!token"
     brand="CommerceFlow 仓库"
-    title="登录仓库作业台"
+    :title="restoring ? '正在恢复登录' : '登录仓库作业台'"
     description="输入管理令牌，处理出库单和退货单。"
   >
-    <form class="sim-auth-form" @submit.prevent="signIn">
-      <label>管理令牌<input v-model="tokenInput" type="password" autocomplete="off" required /></label>
-      <p v-if="error" class="sim-auth-error" role="alert">{{ error }}</p>
-      <button class="sim-button primary" :disabled="loading">{{ loading ? '正在连接…' : '进入后台' }}</button>
-    </form>
+    <AdminTokenLoginForm
+      v-if="!restoring"
+      demo-token="demo-warehouse-admin-token"
+      :loading="loading"
+      :error="error"
+      @sign-in="signIn"
+    />
   </AdminLogin>
   <AdminShell
     v-else
@@ -197,8 +224,8 @@ async function save(path: string, body: object) {
     @refresh="load"
     @logout="logout"
   >
-    <p v-if="error" class="warehouse-error" role="alert">{{ error }}</p>
-    <p v-if="notice" class="warehouse-notice" role="status">{{ notice }}</p>
+    <p v-if="error && !selected" class="warehouse-error" role="alert">{{ error }}</p>
+    <p v-if="notice && !selected" class="warehouse-notice" role="status">{{ notice }}</p>
     <AdminGrid
       :key="resource"
       :id="'warehouse-' + resource"
@@ -235,16 +262,30 @@ async function save(path: string, body: object) {
       >
       <template #createdAt="{ row }">{{ formatAdminDate(row.createdAt) }}</template>
       <template #actionsCell="{ row }">
-        <button class="sim-text-button" :disabled="saving" @click="selected = row">详情</button>
+        <button type="button" class="sim-text-button" :disabled="saving" @click="openDetails(row)">详情</button>
       </template>
     </AdminGrid>
-    <DocumentDetails
-      v-if="selected"
-      :key="documentId(selected) + selectionVersion"
-      :document="selected"
-      :saving="saving"
-      @save="save"
-      @close="selected = null"
-    />
+    <dialog
+      ref="detailsDialog"
+      class="warehouse-drawer"
+      aria-labelledby="warehouse-detail-title"
+      @cancel.prevent="closeDetails"
+    >
+      <header class="warehouse-drawer-header">
+        <h2 id="warehouse-detail-title">{{ isReturn ? '退货单详情' : '出库单详情' }}</h2>
+        <button type="button" class="sim-button" :disabled="saving" @click="closeDetails">关闭详情</button>
+      </header>
+      <div class="warehouse-drawer-body">
+        <p v-if="error" class="warehouse-error" role="alert">{{ error }}</p>
+        <p v-if="notice" class="warehouse-notice" role="status">{{ notice }}</p>
+        <DocumentDetails
+          v-if="selected"
+          :key="documentId(selected) + selectionVersion"
+          :document="selected"
+          :saving="saving"
+          @save="save"
+        />
+      </div>
+    </dialog>
   </AdminShell>
 </template>

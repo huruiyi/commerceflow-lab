@@ -1,3 +1,5 @@
+import { AdminRequestError } from '@commerceflow/simulator-admin/token-session';
+
 export const outboundLabels = {
   PENDING: '待实发',
   DISPATCHED: '已确认实发',
@@ -57,7 +59,8 @@ export async function warehouseApi<Result>(token: string, path: string, body?: o
     const error = (await result.json().catch(() => null)) as {
       detail?: string;
     } | null;
-    throw new Error(error?.detail || '请求失败（' + result.status + '）');
+    const message = result.status === 401 ? '管理令牌无效，请检查当前配置。' : error?.detail;
+    throw new AdminRequestError(result.status, message || '请求失败（' + result.status + '）');
   }
   return (await result.json()) as Result;
 }

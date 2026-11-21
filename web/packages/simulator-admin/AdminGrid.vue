@@ -1,7 +1,8 @@
 <script setup lang="ts" generic="Row">
 /* Search tool, toolbar and pagination defaults adapted from vue-vben-admin (MIT). See LICENSE.vben. */
-import { computed, onMounted, onUnmounted, ref, useSlots } from "vue";
+import { computed, ref, useSlots } from "vue";
 import { VxeGrid, type VxeGridEvents, type VxeGridProps } from "vxe-table";
+import { adminPagerOptions, defaultAdminPageSize } from "./pagination";
 
 const props = withDefaults(
   defineProps<{
@@ -14,12 +15,11 @@ const props = withDefaults(
     total?: number;
     page?: number;
     pageSize?: number;
-    fixedPageSize?: boolean;
     locale?: "zh-CN" | "en-US";
     emptyText?: string;
     selectedRowKey?: string | number;
   }>(),
-  { locale: "zh-CN", page: 1, pageSize: 20 },
+  { locale: "zh-CN", page: 1, pageSize: defaultAdminPageSize },
 );
 
 const emit = defineEmits<{
@@ -32,15 +32,6 @@ const emit = defineEmits<{
 
 const slots = useSlots();
 const expanded = ref(true);
-const mobileBreakpoint = window.matchMedia("(width < 768px)");
-const smallViewport = ref(mobileBreakpoint.matches);
-function updateViewport(event: MediaQueryListEvent) {
-  smallViewport.value = event.matches;
-}
-onMounted(() => mobileBreakpoint.addEventListener("change", updateViewport));
-onUnmounted(() =>
-  mobileBreakpoint.removeEventListener("change", updateViewport),
-);
 const chinese = computed(() => props.locale === "zh-CN");
 const toolbar = computed<VxeGridProps<Row>["toolbarConfig"]>(() => ({
   custom: true,
@@ -60,30 +51,12 @@ const toolbar = computed<VxeGridProps<Row>["toolbarConfig"]>(() => ({
   slots: { buttons: "heading", toolPrefix: "toolbarActions" },
 }));
 
-const mobileLayouts = [
-  "PrevJump",
-  "PrevPage",
-  "Number",
-  "NextPage",
-  "NextJump",
-] as const;
 const pager = computed<VxeGridProps<Row>["pagerConfig"]>(() => ({
-  background: true,
+  ...adminPagerOptions,
   total: props.total ?? props.rows.length,
   currentPage: props.page,
   pageSize: props.pageSize,
-  size: "mini",
-  className: "mt-2 w-full",
-  pageSizes: [10, 20, 30, 50, 100, 200],
-  layouts: smallViewport.value
-    ? [...mobileLayouts]
-    : [
-        "Total",
-        ...(props.fixedPageSize ? [] : (["Sizes"] as const)),
-        "Home",
-        ...mobileLayouts,
-        "End",
-      ],
+  className: "sim-pagination mt-2 w-full",
 }));
 
 const rows = computed(() =>

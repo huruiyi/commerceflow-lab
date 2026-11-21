@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import AdminGrid from '@commerceflow/simulator-admin/grid';
 import AdminLogin from '@commerceflow/simulator-admin/login';
+import AdminTokenLoginForm from '@commerceflow/simulator-admin/token-login';
+import { useAdminTokenSession } from '@commerceflow/simulator-admin/token-session';
+import { adminPagerOptions, useAdminPageSize } from '@commerceflow/simulator-admin/pagination';
 import { formatAdminDate } from '@commerceflow/simulator-admin/preferences';
 import AdminShell from '@commerceflow/simulator-admin/shell';
 import { computed, nextTick, ref, watch } from 'vue';
+import { VxePager } from 'vxe-pc-ui';
 import type { VxeGridProps } from 'vxe-table';
 import { admin, callbackStates, shipmentStates } from './api';
 import type { AuditEvent, Callback, Shipment, ShipmentPage, ShipmentSummary, TestCallbackResult } from './api';
@@ -77,9 +81,15 @@ const operationLabels: Record<Operation, string> = {
   recover: '恢复运输',
   replay: '重新投递',
 };
-const tokenInput = ref('');
-const token = ref('');
+const {
+  token,
+  restoring,
+  remember,
+  clear: clearSession,
+  discardIfUnauthorized,
+} = useAdminTokenSession('logistics', signIn);
 const active = ref<Page>('shipments');
+const listPageSize = useAdminPageSize(() => 'logistics-' + active.value);
 const reference = ref('');
 const state = ref('');
 const applied = ref({ reference: '', state: '' });
@@ -91,7 +101,7 @@ const auditEvents = ref<AuditEvent[]>([]);
 const auditFilter = ref<CallbackAuditType | ''>('');
 const newAuditCount = ref(0);
 const auditPage = ref(1);
-const auditPageSize = 10;
+const auditPageSize = useAdminPageSize('logistics-callback-audit');
 const auditPageHeadId = ref<number>();
 const auditTimeline = computed(() =>
   auditEvents.value
@@ -104,10 +114,10 @@ const auditPagePool = computed(() => {
   const headIndex = auditTimeline.value.findIndex((event) => event.id === auditPageHeadId.value);
   return headIndex > 0 ? auditTimeline.value.slice(headIndex) : auditTimeline.value;
 });
-const auditPageCount = computed(() => Math.max(1, Math.ceil(auditPagePool.value.length / auditPageSize)));
-const auditPageStart = computed(() => (auditPage.value - 1) * auditPageSize);
+const auditPageCount = computed(() => Math.max(1, Math.ceil(auditPagePool.value.length / auditPageSize.value)));
+const auditPageStart = computed(() => (auditPage.value - 1) * auditPageSize.value);
 const auditPageRows = computed(() =>
-  auditPagePool.value.slice(auditPageStart.value, auditPageStart.value + auditPageSize),
+  auditPagePool.value.slice(auditPageStart.value, auditPageStart.value + auditPageSize.value),
 );
 const page = ref(1);
 const total = ref(0);
@@ -158,17 +168,16 @@ function readable(failure: unknown) {
     : '无法确认服务响应，请刷新后查看当前状态。';
 }
 
-async function signIn() {
-  const entered = tokenInput.value.trim();
-  if (!entered || loading.value) return;
+async function signIn(entered: string) {
+  if (loading.value) return;
   loading.value = true;
   error.value = '';
   try {
     await admin<void>(entered, 'session');
-    token.value = entered;
-    tokenInput.value = '';
+    remember(entered);
     await load();
   } catch (failure) {
+    discardIfUnauthorized(failure);
     error.value = readable(failure);
   } finally {
     loading.value = false;
@@ -176,6 +185,7 @@ async function signIn() {
 }
 
 function closeDetail() {
+  detailDialog.value?.scrollTo(0, 0);
   detailDialog.value?.close();
   detailRequest++;
   shipment.value = callback.value = undefined;
@@ -235,7 +245,7 @@ function keepDialogOpenWhileBusy(event: Event) {
 function logout() {
   listRequest++;
   closeDetail();
-  token.value = '';
+  clearSession();
   shipmentRows.value = [];
   callbackRows.value = [];
   total.value = 0;
@@ -255,6 +265,7 @@ async function load(nextPage = page.value, background = false) {
     if (active.value === 'shipments') {
       params.set('reference', applied.value.reference);
       params.set('page', String(nextPage));
+      params.set('size', String(listPageSize.value));
       const result = await admin<ShipmentPage>(token.value, 'shipments?' + params);
       if (request !== listRequest) return true;
       shipmentRows.value = result.entries;
@@ -272,7 +283,10 @@ async function load(nextPage = page.value, background = false) {
       ) {
         callbackRows.value = result;
       }
-      page.value = Math.max(1, Math.min(background ? page.value : nextPage, Math.ceil(result.length / 20)));
+      page.value = Math.max(
+        1,
+        Math.min(background ? page.value : nextPage, Math.ceil(result.length / listPageSize.value)),
+      );
     }
     return true;
   } catch (failure) {
@@ -281,6 +295,16 @@ async function load(nextPage = page.value, background = false) {
     return false;
   } finally {
     if (!background && request === listRequest) loading.value = false;
+  }
+}
+
+function changeListPage(number: number, size: number) {
+  const nextPage = size === listPageSize.value ? number : 1;
+  listPageSize.value = size;
+  if (active.value === 'callbacks') {
+    page.value = nextPage;
+  } else {
+    void load(nextPage);
   }
 }
 
@@ -369,14 +393,15 @@ function goToLatestAudit() {
   auditHeading.value?.focus({ preventScroll: true });
 }
 
-function changeAuditPage(nextPage: number) {
-  if (nextPage === 1) {
+function changeAuditPage({ currentPage, pageSize }: { currentPage: number; pageSize: number }) {
+  if (pageSize !== auditPageSize.value || currentPage === 1) {
+    auditPageSize.value = pageSize;
     resetAuditPage();
     return;
   }
-  if (nextPage < 1 || nextPage > auditPageCount.value) return;
+  if (currentPage < 1 || currentPage > auditPageCount.value) return;
   auditPageHeadId.value ??= auditTimeline.value[0]?.id;
-  auditPage.value = nextPage;
+  auditPage.value = currentPage;
   if (auditScroller.value) auditScroller.value.scrollTop = 0;
 }
 
@@ -560,19 +585,16 @@ async function submit() {
   <AdminLogin
     v-if="!token"
     brand="商流物流"
-    title="登录物流模拟管理台"
+    :title="restoring ? '正在恢复登录' : '登录物流模拟管理台'"
     description="输入管理令牌，查看运单轨迹和回调投递。"
   >
-    <form class="sim-auth-form" @submit.prevent="signIn">
-      <label>
-        管理令牌
-        <input v-model="tokenInput" type="password" autocomplete="off" required />
-      </label>
-      <p v-if="error" class="sim-auth-error" role="alert">{{ error }}</p>
-      <button class="sim-button primary" :disabled="loading">
-        {{ loading ? '正在连接…' : '进入后台' }}
-      </button>
-    </form>
+    <AdminTokenLoginForm
+      v-if="!restoring"
+      demo-token="demo-logistics-admin-token"
+      :loading="loading"
+      :error="error"
+      @sign-in="signIn"
+    />
   </AdminLogin>
   <AdminShell
     v-else
@@ -598,12 +620,12 @@ async function submit() {
       row-key="merchantShipmentNo"
       :total="total"
       :page="page"
+      :page-size="listPageSize"
       :loading="loading"
-      fixed-page-size
       @search="search"
       @reset="reset"
       @refresh="load()"
-      @page="load($event)"
+      @page="changeListPage"
     >
       <template #filters>
         <label>单号<input v-model="reference" maxlength="128" placeholder="订单号、运单号或物流单号" /></label>
@@ -640,12 +662,12 @@ async function submit() {
       :columns="callbackColumns"
       row-key="id"
       :page="page"
+      :page-size="listPageSize"
       :loading="loading"
-      fixed-page-size
       @search="search"
       @reset="reset"
       @refresh="load()"
-      @page="page = $event"
+      @page="changeListPage"
     >
       <template #filters>
         <label>
@@ -734,60 +756,73 @@ async function submit() {
         class="logistics-operation logistics-test-result"
         @submit.prevent="saveTestCallbackResult"
       >
-        <label>
-          回调模拟结果
-          <select v-model="draftTestResult" :disabled="busy">
-            <option value="ACCEPT">正常接收</option>
-            <option value="REJECT">持续失败</option>
-          </select>
-        </label>
-        <div class="logistics-actions">
-          <button class="sim-button" :disabled="busy || !testResultChanged">保存模拟结果</button>
-        </div>
+        <label for="logistics-test-result">回调模拟结果</label>
+        <select id="logistics-test-result" v-model="draftTestResult" :disabled="busy">
+          <option value="ACCEPT">正常接收</option>
+          <option value="REJECT">持续失败</option>
+        </select>
+        <button class="sim-button primary" :disabled="busy || !testResultChanged">保存模拟结果</button>
         <small>设置用于此运单的后续投递。已终止的回调可在保存后手动重新投递。</small>
       </form>
       <template v-if="shipment">
-        <dl>
-          <dt>运单号</dt>
-          <dd>{{ shipment.merchantShipmentNo }}</dd>
-          <dt>运单 ID</dt>
-          <dd>{{ shipment.id }}</dd>
-          <dt>平台运单号</dt>
-          <dd>{{ shipment.platformShipmentNo }}</dd>
-          <dt>订单号</dt>
-          <dd>{{ shipment.orderNumber }}</dd>
-          <dt>承运商 / 物流单号</dt>
-          <dd>{{ shipment.carrier }} / {{ shipment.trackingNumber }}</dd>
-          <dt>当前状态</dt>
-          <dd>{{ shipmentStates[shipment.status] ?? shipment.status }}</dd>
-        </dl>
-        <div class="logistics-actions">
-          <button type="button" class="sim-button" :disabled="busy" @click="navigate('callbacks', String(shipment.id))">
-            查看此运单回调
-          </button>
-          <button v-if="isActiveShipment" class="sim-button" :disabled="busy" @click="prepare('advance')">
-            推进一站
-          </button>
-          <button v-if="isActiveShipment" class="sim-button" :disabled="busy" @click="prepare('exception')">
-            报告异常
-          </button>
-          <button
-            v-if="shipment.status === 'EXCEPTION'"
-            class="sim-button"
-            :disabled="busy"
-            @click="prepare('recover')"
-          >
-            恢复运输
-          </button>
-        </div>
-        <h3>物流轨迹</h3>
-        <ol class="logistics-events">
-          <li v-for="event in shipment.events" :key="event.eventId">
-            <strong>{{ shipmentStates[event.status] ?? event.status }}</strong>
-            <time>{{ time(event.occurredAt) }}</time>
-            <p>{{ event.location }} · {{ event.description }}</p>
-          </li>
-        </ol>
+        <section class="logistics-detail-card" aria-labelledby="shipment-summary">
+          <div class="logistics-section-heading">
+            <h3 id="shipment-summary">运单信息</h3>
+            <span class="logistics-shipment-status" :data-status="shipment.status">
+              {{ shipmentStates[shipment.status] ?? shipment.status }}
+            </span>
+          </div>
+          <dl class="logistics-shipment-fields">
+            <div>
+              <dt>商城运单号</dt>
+              <dd>{{ shipment.merchantShipmentNo }}</dd>
+            </div>
+            <div>
+              <dt>订单号</dt>
+              <dd>{{ shipment.orderNumber }}</dd>
+            </div>
+            <div>
+              <dt>平台运单号</dt>
+              <dd>{{ shipment.platformShipmentNo }}</dd>
+            </div>
+            <div>
+              <dt>运单 ID</dt>
+              <dd>{{ shipment.id }}</dd>
+            </div>
+            <div>
+              <dt>承运商</dt>
+              <dd>{{ shipment.carrier }}</dd>
+            </div>
+            <div>
+              <dt>物流单号</dt>
+              <dd>{{ shipment.trackingNumber }}</dd>
+            </div>
+          </dl>
+          <div class="logistics-actions">
+            <button
+              type="button"
+              class="sim-button"
+              :disabled="busy"
+              @click="navigate('callbacks', String(shipment.id))"
+            >
+              查看此运单回调
+            </button>
+            <button v-if="isActiveShipment" class="sim-button" :disabled="busy" @click="prepare('advance')">
+              推进一站
+            </button>
+            <button v-if="isActiveShipment" class="sim-button" :disabled="busy" @click="prepare('exception')">
+              报告异常
+            </button>
+            <button
+              v-if="shipment.status === 'EXCEPTION'"
+              class="sim-button"
+              :disabled="busy"
+              @click="prepare('recover')"
+            >
+              恢复运输
+            </button>
+          </div>
+        </section>
       </template>
       <template v-else-if="callback">
         <p v-if="callbackRefreshFailed" class="logistics-countdown" role="status">自动刷新暂时失败，正在重试</p>
@@ -838,6 +873,22 @@ async function submit() {
           <button type="button" class="sim-button" :disabled="busy" @click="operation = undefined">取消</button>
         </div>
       </form>
+      <section v-if="shipment" class="logistics-detail-card" aria-labelledby="shipment-events">
+        <div class="logistics-section-heading">
+          <h3 id="shipment-events">物流轨迹</h3>
+          <span class="logistics-detail-muted">{{ shipment.events.length }} 条记录</span>
+        </div>
+        <ol v-if="shipment.events.length" class="logistics-events">
+          <li v-for="event in shipment.events" :key="event.eventId">
+            <div class="logistics-event-heading">
+              <strong>{{ shipmentStates[event.status] ?? event.status }}</strong>
+              <time :datetime="event.occurredAt">{{ time(event.occurredAt) }}</time>
+            </div>
+            <p>{{ event.location }} · {{ event.description }}</p>
+          </li>
+        </ol>
+        <p v-else class="logistics-detail-muted">暂无物流轨迹</p>
+      </section>
       <section v-if="callback" class="logistics-audit-panel" aria-labelledby="logistics-audit-title">
         <div class="logistics-audit-toolbar">
           <h3 id="logistics-audit-title" ref="auditHeading" tabindex="-1">审计记录</h3>
@@ -864,7 +915,7 @@ async function submit() {
                   <time :datetime="event.createdAt">{{ time(event.createdAt) }}</time>
                 </td>
                 <td>
-                  <strong>{{ event.title }}</strong>
+                  <strong class="logistics-audit-event" :data-type="event.type">{{ event.title }}</strong>
                   <small v-if="event.result" class="logistics-audit-result">{{ event.result }}</small>
                 </td>
                 <td>{{ event.detail || '—' }}</td>
@@ -878,25 +929,15 @@ async function submit() {
           </table>
         </div>
         <nav class="logistics-audit-pager" aria-label="审计记录分页">
-          <small>共 {{ auditPagePool.length }} 条 · 第 {{ auditPage }} / {{ auditPageCount }} 页</small>
-          <div class="logistics-actions">
-            <button
-              type="button"
-              class="sim-button"
-              :disabled="auditPage === 1"
-              @click="changeAuditPage(auditPage - 1)"
-            >
-              上一页
-            </button>
-            <button
-              type="button"
-              class="sim-button"
-              :disabled="auditPage >= auditPageCount"
-              @click="changeAuditPage(auditPage + 1)"
-            >
-              下一页
-            </button>
-          </div>
+          <VxePager
+            v-bind="adminPagerOptions"
+            class="sim-pagination"
+            :current-page="auditPage"
+            :page-size="auditPageSize"
+            :total="auditPagePool.length"
+            :transfer="false"
+            @page-change="changeAuditPage"
+          />
         </nav>
       </section>
     </dialog>

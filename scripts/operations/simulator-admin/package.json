@@ -1,0 +1,8 @@
+{
+  "name": "commerceflow-simulator-admin-verification",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@playwright/test": "1.65.1"
+  }
+}

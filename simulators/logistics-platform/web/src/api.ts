@@ -1,3 +1,5 @@
+import { AdminRequestError } from '@commerceflow/simulator-admin/token-session';
+
 export const shipmentStates: Record<string, string> = {
   CREATED: '已建单',
   PICKED_UP: '已揽收',
@@ -88,5 +90,8 @@ export async function admin<T>(
     404: '没有找到该记录，请刷新列表。',
     409: path === 'shipments' ? '物流单号已被使用，或本次请求已创建运单。' : '当前状态不允许此操作，请刷新详情。',
   };
-  throw new Error(messages[response.status] ?? '物流模拟服务暂时没有返回成功结果，请刷新确认。');
+  throw new AdminRequestError(
+    response.status,
+    messages[response.status] ?? '物流模拟服务暂时没有返回成功结果，请刷新确认。',
+  );
 }

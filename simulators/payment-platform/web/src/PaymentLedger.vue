@@ -2,6 +2,7 @@
 import { computed, ref, useSlots, watch } from 'vue';
 import type { VxeGridProps } from 'vxe-table';
 import AdminGrid from '@commerceflow/simulator-admin/grid';
+import { useAdminPageSize } from '@commerceflow/simulator-admin/pagination';
 import { enumLabel, locale, t } from './i18n';
 
 const props = defineProps<{
@@ -25,7 +26,7 @@ const draftStatus = ref('');
 const applied = ref('');
 const status = ref('');
 const page = ref(1);
-const size = ref(20);
+const size = useAdminPageSize(() => props.id);
 const statusOptions = computed(() => {
   const field = props.statusField;
   return field === undefined ? [] : [...new Set(props.rows.map((row) => String(row[field])))].sort();
@@ -62,7 +63,7 @@ function reset() {
 }
 
 function changePage(number: number, pageSize: number) {
-  page.value = number;
+  page.value = pageSize === size.value ? number : 1;
   size.value = pageSize;
 }
 

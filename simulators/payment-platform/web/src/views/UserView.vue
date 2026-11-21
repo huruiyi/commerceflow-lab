@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { Modal } from 'ant-design-vue';
 import AdminGrid from '@commerceflow/simulator-admin/grid';
+import { useAdminPageSize } from '@commerceflow/simulator-admin/pagination';
 import type { VxeGridProps } from 'vxe-table';
 import PaymentLedger from '../PaymentLedger.vue';
 import { api, takeStepUpToken } from '../api';
@@ -25,7 +26,10 @@ const drawerError = ref('');
 const bindingError = ref('');
 const scope = ref<RoleScope>('PLATFORM');
 const rolePage = ref(1);
-const rolePageSize = ref(20);
+const roleTableId = computed(() =>
+  scope.value === 'PLATFORM' ? 'payment-user-platform-bindings' : 'payment-user-merchant-bindings',
+);
+const rolePageSize = useAdminPageSize(roleTableId);
 
 function newAccount() {
   return {
@@ -161,7 +165,7 @@ function selectAccount(account: AdminUser) {
 }
 
 function changeRolePage(page: number, size: number) {
-  rolePage.value = page;
+  rolePage.value = size === rolePageSize.value ? page : 1;
   rolePageSize.value = size;
 }
 
@@ -345,7 +349,7 @@ const columns = computed<VxeGridProps<AdminUser>['columns']>(() => [
       />
       <AdminGrid
         :key="scope"
-        :id="scope === 'PLATFORM' ? 'payment-user-platform-bindings' : 'payment-user-merchant-bindings'"
+        :id="roleTableId"
         :title="selected ? selected.displayName : t('chooseAccountFirst')"
         :rows="bindingRows"
         :columns="bindingColumns"
