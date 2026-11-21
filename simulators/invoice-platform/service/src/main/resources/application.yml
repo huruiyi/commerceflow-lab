@@ -1,0 +1,33 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: invoice-simulator-service
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  flyway:
+    clean-disabled: true
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+
+mybatis-plus:
+  mapper-locations: classpath:/mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    arg-name-based-constructor-auto-mapping: true
+
+commerceflow:
+  invoice:
+    request-secret: ${INVOICE_REQUEST_SECRET}
+    callback-secret: ${INVOICE_CALLBACK_SECRET}
+    callback-url: ${INVOICE_CALLBACK_URL}
+    processing-delay-ms: 1000
+    timeout-delay-ms: 6000
+    callback-retry-ms: 2000

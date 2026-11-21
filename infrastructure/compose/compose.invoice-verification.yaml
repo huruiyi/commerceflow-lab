@@ -1,0 +1,45 @@
+services:
+  invoice-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: invoice_platform
+      MYSQL_USER: invoice
+      MYSQL_PASSWORD: invoice-verification-password
+      MYSQL_ROOT_PASSWORD: invoice-verification-root
+    volumes:
+      - invoice-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysql --protocol=TCP -uinvoice -p$$MYSQL_PASSWORD invoice_platform -e 'SELECT 1'"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+
+  invoice-simulator-service:
+    build: ../../simulators/invoice-platform/service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://invoice-db:3306/invoice_platform
+      SPRING_DATASOURCE_USERNAME: invoice
+      SPRING_DATASOURCE_PASSWORD: invoice-verification-password
+      INVOICE_REQUEST_SECRET: invoice-isolated-request-secret-2026
+      INVOICE_CALLBACK_SECRET: invoice-isolated-callback-secret-2026
+      INVOICE_CALLBACK_URL: http://receipt-fixture:8080/receipts
+      COMMERCEFLOW_INVOICE_PROCESSING_DELAY_MS: 6000
+      COMMERCEFLOW_INVOICE_CALLBACK_RETRY_MS: 800
+    ports:
+      - "127.0.0.1::8080"
+    depends_on:
+      invoice-db:
+        condition: service_healthy
+
+  receipt-fixture:
+    image: python:3.13-alpine
+    command: ["python", "-u", "/fixture.py"]
+    environment:
+      INVOICE_CALLBACK_SECRET: invoice-isolated-callback-secret-2026
+    volumes:
+      - ../../scripts/invoice/invoice-receipt-fixture.py:/fixture.py:ro
+    ports:
+      - "127.0.0.1::8080"
+
+volumes:
+  invoice-mysql-data:

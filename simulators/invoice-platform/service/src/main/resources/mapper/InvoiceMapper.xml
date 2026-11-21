@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.simulator.invoice.InvoiceMapper">
+  <sql id="requestColumns">
+    request_id, kind, reference_no, payment_no, original_invoice_no, amount, currency, simulation,
+    status, invoice_no, failure_code, accepted_at, completed_at
+  </sql>
+  <sql id="ticketColumns">
+    invoice_no, request_id, kind, original_invoice_no, amount, currency, issued_at
+  </sql>
+  <insert id="insertRequest">
+    INSERT INTO invoice_requests
+      (request_id, kind, reference_no, payment_no, original_invoice_no, amount, currency, simulation, status)
+    VALUES
+      (#{requestId}, #{kind}, #{referenceNo}, #{paymentNo}, #{originalInvoiceNo}, #{amount}, #{currency},
+       #{simulation}, 'RECEIVED')
+    ON DUPLICATE KEY UPDATE request_id = request_id
+  </insert>
+  <select id="findRequest" resultType="vip.fairy.commerceflow.simulator.invoice.InvoiceLedger$Request">
+    SELECT <include refid="requestColumns"/> FROM invoice_requests WHERE request_id = #{requestId}
+  </select>
+  <select id="lockRequest" resultType="vip.fairy.commerceflow.simulator.invoice.InvoiceLedger$Request">
+    SELECT <include refid="requestColumns"/> FROM invoice_requests WHERE request_id = #{requestId} FOR UPDATE
+  </select>
+  <update id="accept">
+    UPDATE invoice_requests
+    SET status = 'ACCEPTED', accepted_at = UTC_TIMESTAMP(6),
+        process_after = TIMESTAMPADD(MICROSECOND, #{delayMs} * 1000, UTC_TIMESTAMP(6))
+    WHERE request_id = #{requestId}
+  </update>
+  <select id="findTicket" resultType="vip.fairy.commerceflow.simulator.invoice.InvoiceLedger$Ticket">
+    SELECT <include refid="ticketColumns"/> FROM invoice_tickets WHERE invoice_no = #{invoiceNo}
+  </select>
+  <select id="lockTicket" resultType="vip.fairy.commerceflow.simulator.invoice.InvoiceLedger$Ticket">
+    SELECT <include refid="ticketColumns"/> FROM invoice_tickets WHERE invoice_no = #{invoiceNo} FOR UPDATE
+  </select>
+  <select id="sumReservedRedAmounts" resultType="java.math.BigDecimal">
+    SELECT COALESCE(SUM(amount), 0) FROM invoice_requests
+    WHERE original_invoice_no = #{originalInvoiceNo} AND status IN ('ACCEPTED', 'SUCCEEDED')
+  </select>
+  <select id="findDueRequests" resultType="vip.fairy.commerceflow.simulator.invoice.InvoiceLedger$Request">
+    SELECT <include refid="requestColumns"/> FROM invoice_requests
+    WHERE status = 'ACCEPTED' AND process_after &lt;= UTC_TIMESTAMP(6)
+    ORDER BY process_after, request_id LIMIT 50
+  </select>
+  <insert id="insertTicket">
+    INSERT INTO invoice_tickets (invoice_no, request_id, kind, original_invoice_no, amount, currency)
+    VALUES (#{invoiceNo}, #{request.requestId}, #{request.kind}, #{request.originalInvoiceNo},
+            #{request.amount}, #{request.currency})
+  </insert>
+  <update id="complete">
+    UPDATE invoice_requests
+    SET status = IF(#{failureCode} IS NULL, 'SUCCEEDED', 'FAILED'),
+        invoice_no = #{invoiceNo}, failure_code = #{failureCode}, completed_at = UTC_TIMESTAMP(6)
+    WHERE request_id = #{requestId}
+  </update>
+  <insert id="insertReceipt">
+    INSERT INTO invoice_receipts (event_id, request_id) VALUES (#{eventId}, #{requestId})
+  </insert>
+  <select id="findDueReceipts" resultType="vip.fairy.commerceflow.simulator.invoice.InvoiceLedger$Receipt">
+    SELECT event_id, request_id FROM invoice_receipts
+    WHERE delivered_at IS NULL AND next_attempt_at &lt;= UTC_TIMESTAMP(6)
+    ORDER BY next_attempt_at, event_id LIMIT 10
+  </select>
+  <update id="acknowledgeReceipt">
+    UPDATE invoice_receipts SET attempts = attempts + 1, delivered_at = UTC_TIMESTAMP(6)
+    WHERE event_id = #{eventId} AND delivered_at IS NULL
+  </update>
+  <update id="deferReceipt">
+    UPDATE invoice_receipts
+    SET attempts = attempts + 1, next_attempt_at = TIMESTAMPADD(MICROSECOND, #{delayMs} * 1000, UTC_TIMESTAMP(6))
+    WHERE event_id = #{eventId} AND delivered_at IS NULL
+  </update>
+</mapper>
