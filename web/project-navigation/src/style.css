@@ -77,7 +77,6 @@ main { max-width: 1580px; margin: 0 auto; padding: 30px 31px 42px; }
 h2 { font-size: 16px; font-weight: 740; }
 .quick-section { margin-bottom: 23px; }
 .section-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 11px; }
-.quick-section .section-heading { justify-content: space-between; }
 .quick-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .quick-card { display: flex; align-items: center; gap: 11px; min-width: 0; padding: 12px; background: white; border: 1px solid var(--border); border-radius: 10px; transition: border-color .15s, box-shadow .15s; }
 .quick-card:hover { border-color: #b6c6ef; box-shadow: 0 3px 12px #132e500c; }
@@ -90,11 +89,15 @@ h2 { font-size: 16px; font-weight: 740; }
 .navigation-section { container-type: inline-size; }
 .navigation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 275px), 1fr)); gap: 12px; }
 .navigation-column { display: grid; gap: inherit; min-width: 0; }
+.middleware-section .service-card-footer { flex-wrap: wrap; }
 @container (min-width: 562px) {
   .paired-grid > .navigation-column {
     grid-row: span 2;
     grid-template-rows: subgrid;
   }
+}
+@container (min-width: 970px) {
+  .middleware-section .navigation-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 .service-card { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 14px; border: 1px solid var(--border); border-radius: 11px; background: #fff; box-shadow: 0 2px 3px #132e5005; }
 .featured-portal { gap: 16px; margin-bottom: 18px; padding: clamp(14px, 2vw, 24px); }

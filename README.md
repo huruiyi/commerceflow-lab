@@ -129,10 +129,13 @@ pwsh -File ./scripts/operations/verify-project-navigation.ps1
 ~~~
 
 `start-project-navigation.ps1` 在前台运行。若 Java 未配置到 PATH，可传入 `-JavaHome <JDK目录>`。已有构建可使用 `-SkipBuild`。
-首页「卡片导航」按类别提供 CommerceFlow 后台和服务的直达入口与可复制的连接地址。左侧「运行总览」提供实时状态统计和服务列表。
-首页默认显示卡片。分类页和「运行总览」共用并记住在当前浏览器选择的「卡片 / 列表」布局，切换布局时保留当前筛选。
+首页「运行总览」提供实时状态统计和常用入口。各分类提供 CommerceFlow 后台和服务的直达入口与可复制的连接地址。
+分类页和「运行总览」共用并记住在当前浏览器选择的「卡片 / 列表」布局，切换布局时保留当前筛选。
 商城和各管理台的网页入口可通过 Chrome、Edge、Firefox 图标在指定浏览器打开。浏览器需安装在运行控制台的电脑上，使用该浏览器已有的登录会话。
-控制台从根 `compose.yaml` 和 Docker 读取配置与容器状态，分别显示健康检查、宿主机端点探测和任务退出结果。
+控制台与验收脚本在仓库根目录读取 Compose 生效配置（默认 `compose.yaml`，也支持 `COMPOSE_FILE` 指定覆盖文件），
+再按 `fairy-commerceflow` 项目标签补充所有已创建的服务容器，包括停止的容器和发票发布覆盖中的服务。
+一次性 `docker compose run` 容器不列入清单。控制台分别显示容器健康、宿主机端点探测和任务退出结果，
+验收会指出快照中缺少的服务或容器。
 新增后台入口或探测路径时，更新 `services/project-navigation/src/main/resources/navigation-catalog.json`。独立验收栈保留各自的运行入口。
 
 `notification-db` 与 `notification-service` 属于默认拓扑。浏览器继续访问原 `/api/notifications`，commerce

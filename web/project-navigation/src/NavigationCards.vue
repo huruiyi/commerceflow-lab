@@ -18,15 +18,21 @@ defineEmits<{
 
 const browserFeedback = ref<{ serviceId: string; message: string; error: boolean }>()
 
-const consoleServicePairs: Partial<Record<string, string>> = {
+const consoleServicePairs: Partial<Record<string, string | null>> = {
   'logistics-simulator-web': 'logistics-simulator-service',
   'warehouse-simulator-web': 'warehouse-simulator-service',
   'messaging-simulator-web': 'messaging-simulator-service',
   'payment-simulator-web': 'payment-simulator-service',
+  'kafka-console': 'kafka-broker',
+  'rabbitmq-broker': null,
+  grafana: 'tempo',
+  alertmanager: 'alert-webhook',
+  prometheus: null,
 }
 function consoleColumns<T extends Service>(entries: T[]): T[][] {
   const consoles = entries.filter((service) => Object.hasOwn(consoleServicePairs, service.id))
-    .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))
+    .sort((a, b) => Number(Boolean(consoleServicePairs[b.id])) - Number(Boolean(consoleServicePairs[a.id]))
+      || a.name.localeCompare(b.name, 'zh-CN'))
   const remaining = new Map(entries.map((service) => [service.id, service]))
   const columns = consoles.map((entry) => {
     remaining.delete(entry.id)
@@ -39,6 +45,7 @@ function consoleColumns<T extends Service>(entries: T[]): T[][] {
   return [...columns, ...Array.from(remaining.values(), (service) => [service])]
 }
 
+const pairedGroups = ['simulators', 'middleware', 'monitoring']
 const sections = computed(() => groups.slice(1).flatMap((group) => {
   const entries = props.services.filter((service) => service.group === group.id).map((service) => ({
     ...service,
@@ -46,13 +53,14 @@ const sections = computed(() => groups.slice(1).flatMap((group) => {
     address: service.addresses.find((address) => address.scope === 'HOST') ?? service.addresses[0],
   }))
   if (!entries.length) return []
-  const columns = group.id === 'simulators' ? consoleColumns(entries) : entries.map((service) => [service])
+  const columns = pairedGroups.includes(group.id) ? consoleColumns(entries) : entries.map((service) => [service])
   return [{ ...group, count: entries.length, columns, hasPairs: columns.some((column) => column.length > 1) }]
 }))
 </script>
 
 <template>
-  <section v-for="section in sections" :key="section.id" class="navigation-section">
+  <section v-for="section in sections" :key="section.id" class="navigation-section"
+    :class="{ 'middleware-section': section.id === 'middleware' }">
     <div v-if="showGroupHeadings" class="section-heading">
       <h2>{{ section.name }}</h2>
       <span class="list-count">{{ section.count }}</span>

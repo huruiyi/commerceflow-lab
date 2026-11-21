@@ -38,10 +38,11 @@ class NavigationMonitor {
 
   @Scheduled(fixedDelay = 5000)
   void refresh() {
-    List<NavigationCatalog.Entry> entries = List.of();
+    JsonNode configuration = null;
     try {
-      entries = catalog.entries(compose.configuration());
+      configuration = compose.configuration();
       List<JsonNode> containers = compose.containers();
+      List<NavigationCatalog.Entry> entries = catalog.entries(configuration, containers);
       List<Service> services;
       try (var workers = Executors.newVirtualThreadPerTaskExecutor()) {
         var work = entries.stream()
@@ -55,8 +56,9 @@ class NavigationMonitor {
       Thread.currentThread().interrupt();
     } catch (IOException | RuntimeException exception) {
       List<Service> previous = snapshot.services();
-      if (previous.isEmpty()) {
-        previous = entries.stream().map(entry -> service(entry, List.of(), false)).toList();
+      if (previous.isEmpty() && configuration != null) {
+        previous = catalog.entries(configuration, List.of()).stream()
+            .map(entry -> service(entry, List.of(), false)).toList();
       }
       snapshot = new NavigationSnapshot(ComposeClient.PROJECT, false, snapshot.collectedAt(), Instant.now(),
           "无法读取 Compose 当前状态，请检查 Docker 和项目配置。", previous);

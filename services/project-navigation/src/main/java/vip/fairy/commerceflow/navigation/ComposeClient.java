@@ -24,11 +24,12 @@ class ComposeClient {
   private static final String INSPECT_FORMAT = """
       {{json .Name}}|{{json (index .Config.Labels `com.docker.compose.service`)}}|\
       {{json (index .Config.Labels `com.docker.compose.project`)}}|\
+      {{json (index .Config.Labels `com.docker.compose.oneoff`)}}|\
       {{json .State.Status}}|{{if .State.Health}}{{json .State.Health.Status}}{{else}}null{{end}}|\
       {{.State.ExitCode}}|{{.RestartCount}}|{{.State.OOMKilled}}|\
       {{json .State.StartedAt}}|{{json .State.FinishedAt}}|{{json .NetworkSettings.Ports}}\
       """;
-  private static final List<String> INSPECT_FIELDS = List.of("name", "service", "project", "state", "health",
+  private static final List<String> INSPECT_FIELDS = List.of("name", "service", "project", "oneoff", "state", "health",
       "exitCode", "restarts", "oomKilled", "startedAt", "finishedAt", "ports");
 
   private final Path projectDirectory;
@@ -53,9 +54,10 @@ class ComposeClient {
   }
 
   List<JsonNode> containers() throws IOException, InterruptedException {
-    List<String> ids = compose("ps", "-a", "-q", "--orphans=false").lines()
-        .filter(id -> id.matches("[0-9a-f]{12,64}"))
-        .toList();
+    // Project labels include services launched with release overrides, even when those files are no longer present.
+    List<String> ids = run(List.of("docker", "ps", "--all", "--quiet",
+        "--filter", "label=com.docker.compose.project=" + PROJECT,
+        "--filter", "label=com.docker.compose.service")).lines().toList();
     if (ids.isEmpty()) {
       return List.of();
     }
@@ -74,7 +76,9 @@ class ComposeClient {
       for (int index = 0; index < values.length; index++) {
         container.set(INSPECT_FIELDS.get(index), mapper.readTree(values[index]));
       }
-      if (PROJECT.equals(container.path("project").asString())) {
+      if (PROJECT.equals(container.path("project").asString())
+          && !"true".equalsIgnoreCase(container.path("oneoff").asString())
+          && !container.path("service").asString("").isBlank()) {
         containers.add(container);
       }
     }
@@ -84,7 +88,7 @@ class ComposeClient {
   private String compose(String... command) throws IOException, InterruptedException {
     List<String> args = new ArrayList<>(List.of(
         "docker", "compose", "--project-name", PROJECT, "--project-directory", projectDirectory.toString(),
-        "-f", projectDirectory.resolve("compose.yaml").toString(), "--profile", "*"
+        "--profile", "*"
     ));
     args.addAll(List.of(command));
     return run(args);

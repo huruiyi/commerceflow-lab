@@ -55,10 +55,31 @@ class NavigationMonitorTest {
     ));
   }
 
+  @Test
+  void includesServicesFromReleaseContainersWithoutDuplicatingConfiguredServices() throws IOException {
+    var compose = new FixtureCompose(mapper);
+    compose.withRelease = true;
+    var monitor = new NavigationMonitor(compose, new NavigationCatalog(mapper), new EndpointProbe(mapper));
+    monitor.refresh();
+
+    var services = monitor.snapshot().services();
+    assertThat(services).extracting(NavigationSnapshot.Service::id)
+        .containsExactly("order-db", "invoice-db", "invoice-simulator-service");
+    assertThat(services).allMatch(service -> "READY".equals(service.status()));
+    assertThat(services.get(1).schema()).isEqualTo("invoice_platform");
+    assertThat(services.get(1).addresses()).containsExactly(new NavigationSnapshot.Address(
+        "MySQL", "INTERNAL", "invoice-db:3306"
+    ));
+    assertThat(services.get(2).addresses()).containsExactly(new NavigationSnapshot.Address(
+        "HTTP", "INTERNAL", "invoice-simulator-service:8080"
+    ));
+  }
+
   private static class FixtureCompose extends ComposeClient {
 
     private final ObjectMapper mapper;
     private boolean connected = true;
+    private boolean withRelease;
     private String state = "running";
 
     FixtureCompose(ObjectMapper mapper) {
@@ -78,12 +99,18 @@ class NavigationMonitorTest {
       if (!connected) {
         throw new IOException("Test Docker connection unavailable");
       }
-      return List.of(mapper.createObjectNode()
-          .put("service", "order-db")
-          .put("name", "/fairy-commerceflow-order-db")
+      var orderDb = container("order-db");
+      return withRelease ? List.of(orderDb, container("invoice-db"), container("invoice-simulator-service"))
+          : List.of(orderDb);
+    }
+
+    private JsonNode container(String service) {
+      return mapper.createObjectNode()
+          .put("service", service)
+          .put("name", "/fairy-commerceflow-" + service)
           .put("state", state)
           .put("health", "healthy")
-          .put("exitCode", state.equals("running") ? 0 : 2));
+          .put("exitCode", state.equals("running") ? 0 : 2);
     }
   }
 }

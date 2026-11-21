@@ -15,12 +15,8 @@ import {
 
 const route = useRoute()
 const router = useRouter()
-const cardsNavigation = { id: 'cards', name: '卡片导航', icon: LayoutGrid }
-const navigationItems = [cardsNavigation, ...groups]
 const commercePortalId = 'commerce-portal-angular'
-const cardsHome = computed(() => route.name === 'cards')
-const group = computed(() => cardsHome.value ? cardsNavigation
-  : groups.find((item) => item.id === route.params.group) ?? groups[0])
+const group = computed(() => groups.find((item) => item.id === route.params.group) ?? groups[0])
 const overview = computed(() => group.value.id === 'overview')
 const layouts = [
   { id: 'cards', name: '卡片', icon: LayoutGrid },
@@ -44,7 +40,7 @@ function readLayoutPreference(): Layout | undefined {
 const preferredLayout = ref(readLayoutPreference())
 const requestedLayout = computed(() => parseLayout(route.query.view))
 const layout = computed<Layout>(() => requestedLayout.value
-  ?? (cardsHome.value ? 'cards' : preferredLayout.value ?? (overview.value ? 'list' : 'cards')))
+  ?? preferredLayout.value ?? (overview.value ? 'list' : 'cards'))
 const browserFeedback = ref<{ message: string; error: boolean }>()
 const snapshot = ref<Snapshot>()
 const loadError = ref(false)
@@ -76,7 +72,7 @@ const stats = computed(() => summaries.map((item) => ({
     && statusOf(service, stale.value).bucket === item.id).length,
 })))
 const scoped = computed(() => {
-  if (overview.value || cardsHome.value || query.value.trim()) return services.value
+  if (overview.value || query.value.trim()) return services.value
   return services.value.filter((service) => service.group === group.value.id)
 })
 const filtered = computed(() => {
@@ -123,8 +119,8 @@ watch(() => route.path, () => {
 
 watch([() => route.path, layout], () => { browserFeedback.value = undefined })
 
-watch([cardsHome, requestedLayout], ([home, requested]) => {
-  if (home || !requested) return
+watch(requestedLayout, (requested) => {
+  if (!requested) return
   preferredLayout.value = requested
   try {
     localStorage.setItem(layoutStorageKey, requested)
@@ -135,8 +131,7 @@ watch([cardsHome, requestedLayout], ([home, requested]) => {
 
 function switchLayout(nextLayout: Layout) {
   if (nextLayout === layout.value) return
-  const view = cardsHome.value && nextLayout === 'cards' ? undefined : nextLayout
-  void router.push({ query: { ...route.query, view } })
+  void router.push({ query: { ...route.query, view: nextLayout } })
 }
 
 async function refresh() {
@@ -255,10 +250,9 @@ onBeforeUnmount(() => {
         <span><strong>CommerceFlow</strong><small>运行控制台</small></span>
       </RouterLink>
       <nav aria-label="服务分类">
-        <RouterLink v-for="item in navigationItems" :key="item.id" class="nav-link"
+        <RouterLink v-for="item in groups" :key="item.id" class="nav-link"
           :class="{ current: group.id === item.id }"
-          :to="item.id === 'cards' || item.id === 'overview'
-            ? { name: item.id } : { name: 'group', params: { group: item.id } }">
+          :to="item.id === 'overview' ? { name: 'overview' } : { name: 'group', params: { group: item.id } }">
           <component :is="item.icon" :size="18" />
           <span>{{ item.name }}</span>
           <span v-if="issueCount(item.id)" class="nav-count">{{ issueCount(item.id) }}</span>
@@ -312,7 +306,6 @@ onBeforeUnmount(() => {
           class="quick-section">
           <div class="section-heading">
             <h2>常用入口</h2>
-            <RouterLink class="text-button" :to="{ name: 'cards' }">查看卡片导航 <ChevronRight :size="14" /></RouterLink>
           </div>
           <div class="quick-grid">
             <a v-for="entry in quickLinks.filter((item) => item.url)" :key="entry.id" class="quick-card"
@@ -360,7 +353,7 @@ onBeforeUnmount(() => {
             <button v-if="query || filter !== 'all'" class="text-button" @click="query = ''; filter = 'all'">清除筛选</button>
           </div>
           <NavigationCards v-else-if="layout === 'cards'" :services="serviceEntries" :stale="stale"
-            :show-group-headings="overview || cardsHome || Boolean(query.trim())"
+            :show-group-headings="overview || Boolean(query.trim())"
             @details="openDetails" @login="openDetails($event, 'login')" @copy="copy" />
           <div v-else class="table-scroll">
             <table>

@@ -212,6 +212,29 @@
       }
     }
   },
+  "invoice-simulator-service": {
+    "name": "发票模拟服务",
+    "group": "simulators",
+    "ports": {
+      "8080": {
+        "protocol": "HTTP",
+        "probe": "/actuator/health",
+        "links": [
+          { "label": "健康检查", "path": "/actuator/health" }
+        ]
+      }
+    }
+  },
+  "invoice-db": {
+    "name": "发票数据库",
+    "group": "databases",
+    "schema": "invoice_platform",
+    "ports": {
+      "3306": {
+        "protocol": "MySQL"
+      }
+    }
+  },
   "commerce-db": {
     "name": "商城数据库",
     "group": "databases",

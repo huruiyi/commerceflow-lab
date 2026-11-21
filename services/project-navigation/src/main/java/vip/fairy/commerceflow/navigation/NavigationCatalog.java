@@ -7,6 +7,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -21,9 +22,16 @@ class NavigationCatalog {
     }
   }
 
-  List<Entry> entries(JsonNode configuration) {
+  List<Entry> entries(JsonNode configuration, List<JsonNode> containers) {
+    JsonNode configured = configuration.path("services");
+    Map<String, JsonNode> services = new LinkedHashMap<>();
+    configured.properties().forEach(item -> services.put(item.getKey(), item.getValue()));
+    containers.forEach(container -> {
+      String id = container.path("service").asString();
+      services.putIfAbsent(id, configured.path(id));
+    });
     List<Entry> entries = new ArrayList<>();
-    for (Map.Entry<String, JsonNode> item : configuration.path("services").properties()) {
+    for (Map.Entry<String, JsonNode> item : services.entrySet()) {
       String id = item.getKey();
       JsonNode service = item.getValue();
       JsonNode metadata = catalog.path(id);
@@ -36,7 +44,8 @@ class NavigationCatalog {
           && !"NONE".equals(configHealth.path("test").path(0).asString(""));
       boolean task = "task".equals(metadata.path("kind").asString(""));
       entries.add(new Entry(id, metadata.path("name").asString(id), metadata.path("group").asString("services"),
-          task, healthcheck, List.copyOf(profiles), service.path("environment").path("MYSQL_DATABASE").asString(""),
+          task, healthcheck, List.copyOf(profiles), service.path("environment").path("MYSQL_DATABASE")
+              .asString(metadata.path("schema").asString("")),
           service.path("ports"), metadata));
     }
     return entries;
