@@ -8,8 +8,6 @@ public interface MerchantFulfillmentRoute {
 
   CommandResult submit(FulfillmentCommandV1 command);
 
-  CommandResult legacy(FulfillmentCommandV1 command);
-
   CommandResult commandStatus(Long merchantId, String commandId);
 
   ShipmentJob shipment(Long merchantId, Long orderId);

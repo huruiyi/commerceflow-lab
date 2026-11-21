@@ -5,6 +5,13 @@ $ErrorActionPreference='Stop';$s=[Microsoft.PowerShell.Commands.WebRequestSessio
 $selected=Invoke-RestMethod "$BaseUrl/api/addresses/selected" -WebSession $s;if(-not$selected.addressId){$address=Invoke-RestMethod "$BaseUrl/api/addresses" -Method Post -WebSession $s -Headers $h -ContentType application/json -Body '{"recipientName":"Demo Student","phone":"13800000000","countryCode":"CN","stateProvince":"Shanghai","city":"Shanghai","district":"Pudong","addressLine1":"100 Learning Road","addressLine2":"","postalCode":"200120","label":"Lab","isDefault":true}';Invoke-RestMethod "$BaseUrl/api/addresses/$($address.id)/select" -Method Put -WebSession $s -Headers $h -ContentType application/json -Body '{}'|Out-Null}
 Invoke-RestMethod "$BaseUrl/api/cart/items" -Method Post -WebSession $s -Headers $h -ContentType application/json -Body '{"productId":1,"quantity":1,"note":"05A-4"}'|Out-Null
 $order=(Submit-VerifiedCheckout $BaseUrl $s $h)
+$deadline = (Get-Date).AddSeconds(30)
+do {
+  $order = Invoke-RestMethod "$BaseUrl/api/purchase-orders/$($order.id)" -WebSession $s
+  if ($order.inventoryStatus -eq 'RESERVED') { break }
+  Start-Sleep -Milliseconds 500
+} while ((Get-Date) -lt $deadline)
+if ($order.inventoryStatus -ne 'RESERVED') { throw "Inventory reservation did not complete for order $($order.id)" }
 $key=[guid]::NewGuid().ToString();$payment=Invoke-RestMethod "$BaseUrl/api/purchase-orders/$($order.id)/payments" -Method Post -WebSession $s -Headers $h -ContentType application/json -Body (@{idempotencyKey=$key;simulateFailure=$false;channel='ALIPAY'}|ConvertTo-Json -Compress)
 if($payment.status-ne'PENDING_PAYMENT'-or$payment.payment.status-ne'PENDING'-or-not$payment.payment.checkoutUrl){throw 'Payment was not left pending for callback'}
 $token=$payment.payment.checkoutUrl.Split('/')[-1].Split('?')[0];Invoke-RestMethod "$PaymentBaseUrl/api/checkout/$token/complete?success=true" -Method Post|Out-Null

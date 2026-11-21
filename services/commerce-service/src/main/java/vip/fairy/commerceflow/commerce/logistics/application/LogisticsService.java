@@ -1,6 +1,7 @@
 package vip.fairy.commerceflow.commerce.logistics.application;
 
 import java.util.List;
+import vip.fairy.commerceflow.commerce.logistics.application.contract.LogisticsPackageQueryV1;
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
 import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
 import vip.fairy.commerceflow.commerce.logistics.domain.ShipmentRecordView;
@@ -10,7 +11,7 @@ import vip.fairy.commerceflow.commerce.logistics.api.LogisticsResponse;
 import org.springframework.stereotype.Service;
 
 @Service
-public class LogisticsService {
+public class LogisticsService implements LogisticsPackageQueryV1 {
 
   private final OrderLogisticsPort orders;
   private final ShipmentMapper shipments;
@@ -38,5 +39,14 @@ public class LogisticsService {
   public List<LogisticsResponse> packages(Long orderId) {
     return shipments.packages(orderId).stream()
       .map(value -> LogisticsResponse.from(value, shipments.events(value.getId()))).toList();
+  }
+
+  @Override
+  public List<PackageTracking> packageTracking(Long orderId) {
+    return packages(orderId).stream().map(value -> new PackageTracking(
+      value.merchantShipmentNo(), value.platformShipmentNo(), value.carrier(), value.trackingNumber(),
+      value.status(), value.shippedAt(), value.deliveredAt(), value.events().stream()
+        .map(event -> new Event(event.eventId(), event.eventType(), event.status(), event.location(),
+          event.description(), event.occurredAt())).toList())).toList();
   }
 }

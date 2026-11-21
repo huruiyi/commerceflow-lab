@@ -140,25 +140,6 @@
     ORDER BY created_at DESC,command_id DESC LIMIT 1
   </select>
 
-  <select id="legacySlot" resultType="string">
-    SELECT command_id FROM
-    <choose>
-      <when test="command.operation.name() == 'SHIP'">
-        fulfillment_shipment_jobs WHERE order_id=#{command.orderId} AND package_lines IS NULL
-          AND NOT (<include refid="reservationRejected"/>)
-        ORDER BY created_at DESC,command_id DESC
-      </when>
-      <otherwise>
-        fulfillment_merchant_jobs WHERE order_id=#{command.orderId} AND operation=#{command.operation}
-          AND expected_version=COALESCE(#{command.expectedShipmentVersion},0)
-          AND NOT (operation='CONFIRM' AND step='ORDER' AND status='REJECTED'
-            AND COALESCE(last_error,'')='ORDER_MUTATION_REJECTED')
-        ORDER BY updated_at DESC,command_id DESC
-      </otherwise>
-    </choose>
-    LIMIT 1
-  </select>
-
   <select id="due" resultType="string">
     SELECT command_id FROM (
       SELECT command_id,next_attempt_at FROM fulfillment_shipment_jobs WHERE status='PENDING'

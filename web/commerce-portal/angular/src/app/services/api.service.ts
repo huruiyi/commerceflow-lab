@@ -1,4 +1,4 @@
-import { HttpClient, HttpResponse } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { exhaustMap, filter, forkJoin, map, Observable, of, switchMap, take, timeout, timer } from 'rxjs';
 import { CreateOrderRequest } from 'src/model/IOrder';
@@ -540,15 +540,15 @@ export class ApiService {
     });
   }
 
+  private readonly fulfillmentCommands = new Map<number, { fingerprint: string; commandId: string }>();
+
   confirmMerchantOrder(id: number): Observable<PurchaseOrder> {
-    return this.http
-      .post<PurchaseOrder>(`/api/merchant/orders/${id}/confirm`, {}, { observe: 'response' })
-      .pipe(switchMap((response) => this.awaitMerchantOperation(id, response)));
+    return this.submitMerchantFulfillment(id, 'CONFIRM');
   }
 
   merchantShipmentStatus(id: number): Observable<{ status: string; step: string; lastError?: string }> {
     return this.http.get<{ status: string; step: string; lastError?: string }>(
-      `/api/merchant/orders/${id}/shipment-operation`,
+      `/api/merchant/orders/${id}/fulfillment-v1/shipment`,
     );
   }
 
@@ -570,49 +570,56 @@ export class ApiService {
   }
 
   shipMerchantOrder(id: number, carrier: string, trackingNumber: string): Observable<PurchaseOrder> {
-    return this.http
-      .post<PurchaseOrder>(`/api/merchant/orders/${id}/ship`, { carrier, trackingNumber }, { observe: 'response' })
-      .pipe(switchMap((response) => this.awaitMerchantOperation(id, response)));
+    return this.submitMerchantFulfillment(id, 'SHIP', { carrier, trackingNumber });
   }
 
   updateMerchantShipment(
     id: number,
     carrier: string,
     trackingNumber: string,
-    expectedVersion: number,
+    expectedShipmentVersion: number,
   ): Observable<PurchaseOrder> {
-    return this.http
-      .put<PurchaseOrder>(
-        `/api/merchant/orders/${id}/shipment`,
-        { carrier, trackingNumber, expectedVersion },
-        { observe: 'response' },
-      )
-      .pipe(switchMap((response) => this.awaitMerchantOperation(id, response)));
+    return this.submitMerchantFulfillment(id, 'UPDATE_SHIPMENT', { carrier, trackingNumber, expectedShipmentVersion });
   }
 
-  private awaitMerchantOperation(id: number, response: HttpResponse<PurchaseOrder>): Observable<PurchaseOrder> {
-    if (!response.body) throw new Error('Fulfillment response is missing the order');
-    if (response.status !== 202) return of(response.body);
-
-    const location = response.headers.get('Location');
-    const base = `/api/merchant/orders/${id}`;
-    const command =
-      location?.startsWith(`${base}/fulfillment-operations/`) &&
-      /^[a-f0-9-]{36}$/i.test(location.slice(`${base}/fulfillment-operations/`.length));
-    if (!location || (location !== `${base}/shipment-operation` && !command)) {
-      throw new Error('Fulfillment response is missing a valid status location');
-    }
-
-    return timer(0, 1000).pipe(
-      exhaustMap(() => this.http.get<{ status: string }>(location)),
-      filter((operation) => operation.status !== 'PENDING'),
-      take(1),
-      timeout({ first: 60000 }),
-      switchMap((operation) => {
-        if (operation.status !== 'COMPLETED') throw new Error('Fulfillment operation did not complete');
-        return this.http.get<PurchaseOrder>(base);
-      }),
-    );
+  private submitMerchantFulfillment(
+    orderId: number,
+    operation: 'CONFIRM' | 'SHIP' | 'UPDATE_SHIPMENT',
+    fields: { carrier?: string; trackingNumber?: string; expectedShipmentVersion?: number } = {},
+  ): Observable<PurchaseOrder> {
+    const fingerprint = JSON.stringify({ operation, ...fields });
+    const previous = this.fulfillmentCommands.get(orderId);
+    const commandId = previous?.fingerprint === fingerprint ? previous.commandId : crypto.randomUUID();
+    this.fulfillmentCommands.set(orderId, { fingerprint, commandId });
+    const commands = '/api/merchant/orders/fulfillment-v1/commands';
+    return this.http
+      .post<{ status: string }>(commands, {
+        version: 1,
+        commandId,
+        orderId,
+        operation,
+        occurredAt: new Date().toISOString(),
+        ...fields,
+      })
+      .pipe(
+        switchMap((receipt) =>
+          receipt.status === 'PENDING'
+            ? timer(0, 1000).pipe(
+                exhaustMap(() => this.http.get<{ status: string }>(`${commands}/${commandId}`)),
+                filter((current) => current.status !== 'PENDING'),
+                take(1),
+                timeout({ first: 60000 }),
+              )
+            : of(receipt),
+        ),
+        switchMap((receipt) => {
+          if (this.fulfillmentCommands.get(orderId)?.commandId === commandId) {
+            this.fulfillmentCommands.delete(orderId);
+          }
+          if (receipt.status !== 'COMPLETED') throw new Error('Fulfillment operation did not complete');
+          return this.http.get<PurchaseOrder>(`/api/merchant/orders/${orderId}`);
+        }),
+      );
   }
 
   receiveOrder(id: number): Observable<PurchaseOrder> {

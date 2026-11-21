@@ -28,13 +28,18 @@ WHERE ((owner_token IS NULL) <> (lease_until IS NULL))
 
 SELECT 'LOGISTICS_RECEIPT_MISMATCHES', COUNT(*)
 FROM logistics_fulfillment_commands AS command_row
-LEFT JOIN shipment_records AS projection ON projection.order_id = command_row.order_id
 WHERE command_row.shipment_version IS NOT NULL
-  AND (projection.order_id IS NULL OR NOT (projection.platform_shipment_no <=> command_row.platform_shipment_no)
-    OR projection.shipment_version < command_row.shipment_version
-    OR (projection.shipment_version = command_row.shipment_version
-      AND (NOT (projection.carrier <=> command_row.carrier)
-        OR NOT (projection.tracking_number <=> command_row.tracking_number))));
+  AND NOT EXISTS (
+    SELECT 1
+    FROM shipment_records AS projection
+    WHERE projection.order_id = command_row.order_id
+      AND projection.platform_shipment_no = command_row.platform_shipment_no
+      AND (command_row.package_id IS NULL OR projection.package_id = command_row.package_id)
+      AND (projection.shipment_version > command_row.shipment_version
+        OR (projection.shipment_version = command_row.shipment_version
+          AND projection.carrier <=> command_row.carrier
+          AND projection.tracking_number <=> command_row.tracking_number))
+  );
 
 SELECT 'LOGISTICS_CROSS_BOUNDARY_FKS', COUNT(*)
 FROM information_schema.key_column_usage
@@ -49,7 +54,12 @@ WHERE referenced_table_name IS NOT NULL
         ('shipment_records', 'shipment_events', 'shipment_notifications', 'logistics_fulfillment_commands')
       AND (table_schema <> DATABASE()
         OR table_name NOT IN
-          ('shipment_records', 'shipment_events', 'shipment_notifications', 'logistics_fulfillment_commands'))));
+        ('shipment_records', 'shipment_events', 'shipment_notifications', 'logistics_fulfillment_commands'))))
+  -- The storefront return shipment keeps a reference to its case in the same Commerce schema.
+  AND NOT (table_schema = DATABASE() AND referenced_table_schema = DATABASE()
+    AND constraint_name = 'fk_storefront_return_case'
+    AND table_name = 'shipment_records' AND column_name = 'after_sale_id'
+    AND referenced_table_name = 'line_after_sales' AND referenced_column_name = 'id');
 
 SELECT 'SHIPMENT_RECORDS', COUNT(*) FROM shipment_records;
 

@@ -59,7 +59,6 @@ import vip.fairy.commerceflow.commerce.fulfillment.application.MerchantFulfillme
 import vip.fairy.commerceflow.commerce.fulfillment.application.MerchantFulfillmentService.CommandResult;
 import vip.fairy.commerceflow.commerce.fulfillment.application.contract.FulfillmentCommandV1;
 import vip.fairy.commerceflow.commerce.fulfillment.infrastructure.RemoteFulfillmentRoute;
-import vip.fairy.commerceflow.commerce.fulfillment.api.FulfillmentRequest;
 import vip.fairy.commerceflow.commerce.fulfillment.domain.ShipmentJob.Status;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandResultOutcomeV1;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandResultV1;
@@ -454,24 +453,13 @@ class CommerceFlowIntegrationTest {
 
   @Test
   @Transactional
-  void fulfillmentIsBlockedUntilInventoryCommitIsConfirmed() {
-    Long customerId = jdbc.queryForObject(
-      "SELECT id FROM app_users WHERE email='demo@example.com'", Long.class);
+  void fulfillmentSurfacesAnIndependentInventoryAdmissionRejection() {
     Long merchantId = jdbc.queryForObject(
       "SELECT id FROM app_users WHERE email='merchant@example.com'", Long.class);
-    String orderNumber = "INVENTORY-GATE-" + UUID.randomUUID();
-    jdbc.update("INSERT INTO shop_orders(order_number,customer_id,status,inventory_status,total_amount,"
-        + "currency,payment_due_at,created_at,updated_at) VALUES(?,?,'CONFIRMED','WAITING_COMMIT',1.00,"
-        + "'CNY',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", orderNumber, customerId);
-    Long orderId = jdbc.queryForObject(
-      "SELECT id FROM shop_orders WHERE order_number=?", Long.class, orderNumber);
-    jdbc.update("INSERT INTO order_items(order_id,product_id,merchant_id,product_name,thumbnail_url,"
-        + "unit_price,quantity,subtotal) VALUES(?,?,?,?,?,1.00,1,1.00)",
-      orderId, 1L, merchantId, "Inventory gate", "");
-
-    org.junit.jupiter.api.Assertions.assertThrows(BusinessRuleException.class,
-      () -> merchantFulfillment.ship(merchantId, orderId,
-        new FulfillmentRequest("SF", "BLOCKED")));
+    FulfillmentCommandV1 command = new FulfillmentCommandV1(1, UUID.randomUUID(),
+      FulfillmentCommandV1.Operation.SHIP, merchantId, 90_002L, Instant.now(), "SF", "BLOCKED", null, null, null);
+    when(fulfillmentRoute.submit(command)).thenThrow(new BusinessRuleException("Inventory is not committed"));
+    assertThrows(BusinessRuleException.class, () -> merchantFulfillment.submitCommand(merchantId, command));
   }
 
   @Test
@@ -638,7 +626,7 @@ class CommerceFlowIntegrationTest {
     when(fulfillmentRoute.commandStatus(merchantId, command)).thenReturn(pending);
     String path = "/api/merchant/orders/fulfillment-v1/commands";
     String body = json.writeValueAsString(Map.of("version", 1, "commandId", command, "operation", "UPDATE_SHIPMENT",
-      "merchantId", merchantId, "orderId", orderId, "occurredAt", Instant.now().toString(), "carrier", " Priority ",
+      "orderId", orderId, "occurredAt", Instant.now().toString(), "carrier", " Priority ",
       "trackingNumber", " V1-TRACK ", "expectedShipmentVersion", 2));
     CsrfContext merchant = login("merchant@example.com", false);
     mvc.perform(post(path).session(merchant.session()).cookie(merchant.cookie())
@@ -648,6 +636,7 @@ class CommerceFlowIntegrationTest {
       .andExpect(jsonPath("$.status").value("PENDING"));
     var commandCaptor = org.mockito.ArgumentCaptor.forClass(FulfillmentCommandV1.class);
     org.mockito.Mockito.verify(fulfillmentRoute).submit(commandCaptor.capture());
+    assertEquals(merchantId, commandCaptor.getValue().merchantId());
     assertEquals("Priority", commandCaptor.getValue().carrier());
     assertEquals("V1-TRACK", commandCaptor.getValue().trackingNumber());
     mvc.perform(post(path).session(merchant.session()).cookie(merchant.cookie())

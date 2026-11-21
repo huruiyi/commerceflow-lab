@@ -77,18 +77,28 @@ try {
     Start-Sleep -Milliseconds 500
   } while ((Get-Date) -lt $deadline)
   if (-not $paid) { throw 'No paid order is available for the trace drill' }
-  $confirmed = Invoke-RestMethod "$BaseUrl/api/merchant/orders/$($paid.id)/confirm" -Method Post `
-    -WebSession $merchant -Headers $headers -ContentType application/json -Body '{}'
-  if ($confirmed.status -ne 'CONFIRMED') { throw 'Merchant confirmation failed' }
+  . "$PSScriptRoot/../fulfillment/merchant-command.ps1"
+  function Trace-Fulfillment($command, $requestHeaders) {
+    $path = '/api/merchant/orders/fulfillment-v1/commands'
+    $parameters = @{
+      Method = 'Post'; WebSession = $merchant; Headers = $requestHeaders
+      ContentType = 'application/json'; Body = ($command | ConvertTo-Json -Compress)
+    }
+    $receipt = Invoke-RestMethod "$BaseUrl$path" @parameters
+    $until = (Get-Date).AddSeconds($MaxWaitSeconds)
+    while ($receipt.status -eq 'PENDING' -and (Get-Date) -lt $until) {
+      Start-Sleep -Milliseconds 500
+      $receipt = Invoke-RestMethod "$BaseUrl$path/$($command.commandId)" -WebSession $merchant
+    }
+    if ($receipt.status -ne 'COMPLETED') { throw "Fulfillment trace command ended as $($receipt.status)" }
+  }
+  Trace-Fulfillment (New-MerchantFulfillmentCommand $paid.id CONFIRM) $headers
 
   $traceId = [guid]::NewGuid().ToString('N')
   $parentId = [guid]::NewGuid().ToString('N').Substring(0, 16)
   $traceHeaders = @{ $csrf.headerName = $csrf.token; traceparent = "00-$traceId-$parentId-01" }
-  $body = @{ carrier = 'Trace Express'; trackingNumber = "TRACE-$($paid.id)" } |
-    ConvertTo-Json -Compress
-  $shipped = Invoke-RestMethod "$BaseUrl/api/merchant/orders/$($paid.id)/ship" -Method Post `
-    -WebSession $merchant -Headers $traceHeaders -ContentType application/json -Body $body
-  if ($shipped.status -ne 'SHIPPED') { throw 'Merchant shipment failed' }
+  $ship = New-MerchantFulfillmentCommand $paid.id SHIP @{carrier = 'Trace Express'; trackingNumber = "TRACE-$($paid.id)"}
+  Trace-Fulfillment $ship $traceHeaders
 
   $deadline = (Get-Date).AddSeconds($MaxWaitSeconds)
   $services = @()

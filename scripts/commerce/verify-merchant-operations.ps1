@@ -30,6 +30,8 @@ if($Chapter-eq'Offsite' -and (!([uri]$MessagingBaseUrl).IsLoopback -or
   throw 'Invalid messaging acceptance endpoint'
 }
 
+. "$PSScriptRoot/../fulfillment/merchant-command.ps1"
+
 function Sql([string]$Service,[string]$Database,[string]$Query){
   $name=if($isolated){"$ProjectName-$Service-1"}else{"$ProjectName-$Service"}
   $labels=docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}/{{index .Config.Labels "com.docker.compose.service"}}' $name
@@ -259,9 +261,9 @@ function Complete-Order($shop,$product,[int]$Quantity,[string]$Coupon=''){
   if($Coupon){$selection.couponId=$Coupon}
   $order=Pay (Submit-VerifiedCheckout $BaseUrl $buyer.Session $buyer.Headers $selection)
   $id=[long]$order.id
-  Api $shop.actor "/api/merchant/orders/$id/confirm" Post @{}|Out-Null
+  Submit-MerchantFulfillment $shop.actor $id CONFIRM|Out-Null
   $null=Wait-Value {if((Api $buyer "/api/purchase-orders/$id").status-eq'CONFIRMED'){$true}} 'Missing order confirmation'
-  Api $shop.actor "/api/merchant/orders/$id/ship" Post @{carrier='CommerceFlow Express';trackingNumber="SETTLE-OUT-$id"}|Out-Null
+  Submit-MerchantFulfillment $shop.actor $id SHIP @{carrier='CommerceFlow Express';trackingNumber="SETTLE-OUT-$id"}|Out-Null
   $shipped=Wait-Value {
     $value=Api $buyer "/api/purchase-orders/$id"
     if($value.status-eq'SHIPPED' -and $value.logistics.merchantShipmentNo){$value}
@@ -286,7 +288,7 @@ function Apply-Return($order,[string]$OutboundId){
 function Start-PackageOrder($shop,$product){
   $cart=Api $buyer '/api/cart/items' Post @{productId=$product.productId;quantity=3}
   $order=Pay (Submit-VerifiedCheckout $BaseUrl $buyer.Session $buyer.Headers @{itemIds=@($cart.id)})
-  Api $shop.actor "/api/merchant/orders/$($order.id)/confirm" Post @{}|Out-Null
+  Submit-MerchantFulfillment $shop.actor $($order.id) CONFIRM|Out-Null
   Wait-Value {
     $value=Api $buyer "/api/purchase-orders/$($order.id)"
     if($value.status-eq'CONFIRMED'){$value}
@@ -453,7 +455,7 @@ function Warehouse-Order($shop,[switch]$SingleWarehouse,[long]$SingleWarehouseId
       $amounts[0].quantity-ne2 -or $amounts[0].discountAmount-ne15.01 -or $amounts[0].freightAmount-ne12.01)){
     throw 'Single-warehouse amount snapshot is inconsistent'
   }
-  Api $shop.actor "/api/merchant/orders/$id/confirm" Post @{}|Out-Null
+  Submit-MerchantFulfillment $shop.actor $id CONFIRM|Out-Null
   Wait-Value {
     $result=Api $buyer "/api/purchase-orders/$id"
     if($result.status-eq'CONFIRMED'){$result}
@@ -1321,8 +1323,8 @@ try{
   Reject $buyer '/api/purchase-orders/checkout/quote' Post @{itemIds=@($pending.id)} @(409)
   Reject $buyer "/api/coupons/campaigns/$($campaign.id)/claim" Post @{} @(409)
   Api $buyer "/api/cart/items/$($pending.id)" Delete|Out-Null
-  Reject $original "/api/merchant/orders/$($order.id)/confirm" Post @{} @(404)
-  Api $merchant "/api/merchant/orders/$($order.id)/confirm" Post @{}|Out-Null
+  Reject $original '/api/merchant/orders/fulfillment-v1/commands' Post (New-MerchantFulfillmentCommand $order.id CONFIRM) @(404)
+  Submit-MerchantFulfillment $merchant $($order.id) CONFIRM|Out-Null
   $null=Wait-Value {if((Api $buyer "/api/purchase-orders/$($order.id)").status-eq'CONFIRMED'){$true}} 'Stopped store could not fulfill'
   $case=Api $buyer "/api/purchase-orders/$($order.id)/after-sales" Post @{
     requestId=[guid]::NewGuid();orderLineId=$order.items[0].id;quantity=1;reason='Stopped store refund verification'

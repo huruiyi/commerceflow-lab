@@ -69,15 +69,6 @@ public class RemoteFulfillmentRoute implements MerchantFulfillmentRoute, Fulfill
   }
 
   @Override
-  public CommandResult legacy(FulfillmentCommandV1 command) {
-    CommandResult result = request(ROOT + "/legacy-commands", command, businessKey, CommandResult.class);
-    if (result.status() == ShipmentJob.Status.REJECTED || result.status() == ShipmentJob.Status.REVIEW_REQUIRED) {
-      throw new BusinessRuleException("Fulfillment operation was rejected or requires manual reconciliation");
-    }
-    return result;
-  }
-
-  @Override
   public CommandResult commandStatus(Long merchantId, String commandId) {
     return request(ROOT + "/queries", new Query(id(commandId), merchantId, true), businessKey, CommandResult.class);
   }

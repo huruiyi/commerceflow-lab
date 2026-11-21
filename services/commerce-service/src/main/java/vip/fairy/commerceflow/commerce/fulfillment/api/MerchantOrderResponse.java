@@ -1,7 +1,7 @@
 package vip.fairy.commerceflow.commerce.fulfillment.api;
 
 import vip.fairy.commerceflow.commerce.ordering.api.ShopOrderResponse;
-import vip.fairy.commerceflow.commerce.logistics.api.LogisticsResponse;
+import vip.fairy.commerceflow.commerce.logistics.application.contract.LogisticsPackageQueryV1.PackageTracking;
 import vip.fairy.commerceflow.commerce.ordering.domain.OrderEventView;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.RefundSnapshotV1;
 
@@ -25,7 +25,7 @@ public record MerchantOrderResponse(
   List<ShopOrderResponse.Item> items,
   ShopOrderResponse.Address address,
   List<Event> events,
-  List<LogisticsResponse> packages,
+  List<PackageTracking> packages,
   RefundSnapshotV1 refund) {
   public record Event(
     Long id,

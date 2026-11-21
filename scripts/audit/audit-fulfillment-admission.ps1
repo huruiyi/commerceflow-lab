@@ -20,8 +20,8 @@ if ($infrastructureImports | Where-Object { $_.Line -notmatch 'import vip\.fairy
 }
 $logisticsImports = Get-ChildItem $source -Recurse -Filter '*.java' |
   Select-String 'import .*\.commerce\.logistics\.'
-if ($logisticsImports | Where-Object { $_.Line -notmatch '\.logistics\.application\.contract\.LogisticsFulfillmentV1[.;]' }) {
-  throw 'Fulfillment must only call logistics through LogisticsFulfillmentV1'
+if ($logisticsImports | Where-Object { $_.Line -notmatch '\.logistics\.application\.contract\.(LogisticsFulfillmentV1|LogisticsPackageQueryV1)[.;]' }) {
+  throw 'Fulfillment must access logistics through its application contracts'
 }
 
 function Invoke-CommerceAudit([string]$Query) {

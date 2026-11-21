@@ -11,65 +11,91 @@ $paymentResult|Write-Output
 $sampleNumber=[regex]::Match(($paymentResult -join ' '),'order=(ORD-[A-Z0-9]+)').Groups[1].Value
 if(!$sampleNumber){throw 'Paid order number missing from payment verification'}
 $merchant=[Microsoft.PowerShell.Commands.WebRequestSession]::new();$csrf=Invoke-RestMethod "$BaseUrl/api/auth/csrf" -WebSession $merchant;$headers=@{$csrf.headerName=$csrf.token};Invoke-RestMethod "$BaseUrl/api/auth/login" -Method Post -WebSession $merchant -Headers $headers -ContentType application/json -Body '{"email":"merchant@example.com","password":"demo-password","rememberMe":false}'|Out-Null
-$orders=Invoke-RestMethod "$BaseUrl/api/merchant/orders" -WebSession $merchant
-$paid=$orders|Where-Object { $_.orderNumber -eq $sampleNumber -and $_.status -eq 'PAID' }|Select-Object -First 1
-if(-not $paid){throw 'Merchant cannot see the paid sample order'}
-function Invoke-FulfillmentMutation([string]$Path,[string]$Method,[string]$Body){
-  $response=Invoke-WebRequest "$BaseUrl$Path" -Method $Method -WebSession $merchant -Headers $headers -ContentType application/json -Body $Body
-  if($response.StatusCode -notin @(200,202)){throw "Unexpected fulfillment status: $($response.StatusCode)"}
-  $asynchronous=$response.StatusCode -eq 202
-  if($asynchronous){
-    $statusPath=[string]($response.Headers.Location|Select-Object -First 1)
-    if($statusPath -notlike '/api/merchant/orders/*'){throw 'Missing fulfillment status location'}
-    $limit=(Get-Date).AddSeconds(60)
-    do{
-      $operation=Invoke-RestMethod "$BaseUrl$statusPath" -WebSession $merchant
-      if($operation.status -eq 'COMPLETED'){break}
-      if($operation.status -ne 'PENDING'){throw "Fulfillment operation ended as $($operation.status)"}
-      Start-Sleep -Seconds 1
-    }while((Get-Date)-lt$limit)
-    if($operation.status -ne 'COMPLETED'){throw 'Fulfillment operation did not complete'}
+$deadline = (Get-Date).AddSeconds(30)
+$query = [uri]::EscapeDataString($sampleNumber)
+do {
+  $search = Invoke-RestMethod "$BaseUrl/api/merchant/orders/search?q=$query&size=5" -WebSession $merchant
+  $paid = $search.orders | Where-Object {
+    $_.orderNumber -eq $sampleNumber -and $_.status -eq 'PAID' -and $_.inventoryStatus -eq 'COMMITTED'
+  } | Select-Object -First 1
+  if ($paid) { break }
+  Start-Sleep -Milliseconds 500
+} while ((Get-Date) -lt $deadline)
+if (!$paid) { throw 'Merchant cannot see the paid sample order with committed inventory' }
+. "$PSScriptRoot/merchant-command.ps1"
+$commands = '/api/merchant/orders/fulfillment-v1/commands'
+
+function Submit-Command($Command, [int]$Expected = 202) {
+  $arguments = @{
+    Method = 'Post'; WebSession = $merchant; Headers = $headers; ContentType = 'application/json'
+    Body = ($Command | ConvertTo-Json -Compress); SkipHttpErrorCheck = $true
   }
-  @{Order=($response.Content|ConvertFrom-Json);Asynchronous=$asynchronous}
+  $response = Invoke-WebRequest "$BaseUrl$commands" @arguments
+  if ($response.StatusCode -ne $Expected) {
+    throw "Expected $Expected for command $($Command.commandId), got $($response.StatusCode): $($response.Content)"
+  }
+  if ($Expected -notin @(200, 202)) { return }
+  $receipt = $response.Content | ConvertFrom-Json
+  $statusPath = "$commands/$($Command.commandId)"
+  if ($Expected -eq 202 -and [string]($response.Headers.Location | Select-Object -First 1) -ne $statusPath) {
+    throw 'Invalid fulfillment status location'
+  }
+  $deadline = (Get-Date).AddSeconds(60)
+  while ($receipt.status -eq 'PENDING' -and (Get-Date) -lt $deadline) {
+    Start-Sleep -Seconds 1
+    $receipt = Invoke-RestMethod "$BaseUrl$statusPath" -WebSession $merchant
+  }
+  if ($receipt.status -ne 'COMPLETED') { throw "Fulfillment ended as $($receipt.status): $($receipt.errorCode)" }
+  Invoke-RestMethod "$BaseUrl/api/merchant/orders/$($Command.orderId)" -WebSession $merchant
 }
-$confirm=Invoke-FulfillmentMutation "/api/merchant/orders/$($paid.id)/confirm" Post '{}'
-if(!$confirm.Asynchronous -and $confirm.Order.status -ne 'CONFIRMED'){throw 'Confirm transition failed'}
-$initialTracking="CFL-$($paid.id)-A";$updatedTracking="CFL-$($paid.id)-B"
-$shipPath="/api/merchant/orders/$($paid.id)/ship"
-$shipBody=@{carrier='CommerceFlow Express';trackingNumber=$initialTracking}|ConvertTo-Json -Compress
-$ship=Invoke-FulfillmentMutation $shipPath Post $shipBody
-$shipped=if($ship.Asynchronous){(Invoke-FulfillmentMutation $shipPath Post $shipBody).Order}else{$ship.Order}
-if($shipped.status -ne 'SHIPPED'){throw 'Ship transition failed'}
-$shipmentPath="/api/merchant/orders/$($paid.id)/shipment"
-$shipmentUrl="$BaseUrl/api/merchant/orders/$($paid.id)/shipment"
-function Update-VerifiedShipment([string]$Body,[long]$Expected){
-  $result=Invoke-FulfillmentMutation $shipmentPath Put $Body
-  if(!$result.Asynchronous){return $result.Order}
-  $current=$Body|ConvertFrom-Json
-  $current.expectedVersion=$Expected
-  (Invoke-FulfillmentMutation $shipmentPath Put ($current|ConvertTo-Json -Compress)).Order
+
+foreach ($oldPath in @(
+  "POST /api/merchant/orders/$($paid.id)/confirm",
+  "POST /api/merchant/orders/$($paid.id)/ship",
+  "PUT /api/merchant/orders/$($paid.id)/shipment"
+)) {
+  $method, $path = $oldPath -split ' ', 2
+  $arguments = @{
+    Method = $method; WebSession = $merchant; Headers = $headers
+    ContentType = 'application/json'; Body = '{}'; SkipHttpErrorCheck = $true
+  }
+  $status = (Invoke-WebRequest "$BaseUrl$path" @arguments).StatusCode
+  if ($status -ne 404) { throw "Retired route $oldPath returned $status" }
 }
-$version=$shipped.shipmentVersion
-$firstBody=@{carrier='CommerceFlow Priority';trackingNumber=$updatedTracking;expectedVersion=$version}|ConvertTo-Json -Compress
-$first=Update-VerifiedShipment $firstBody ($version+1)
-if($first.trackingNumber-ne$updatedTracking-or$first.shipmentVersion-ne($version+1)){throw 'Shipment version did not advance'}
-$updatedTracking="CFL-$($paid.id)-C"
-$latestBody=@{carrier='CommerceFlow Priority';trackingNumber=$updatedTracking;expectedVersion=$first.shipmentVersion}|ConvertTo-Json -Compress
-$updated=Update-VerifiedShipment $latestBody ($version+2)
-if($updated.trackingNumber-ne$updatedTracking-or$updated.shipmentVersion-ne($version+2)){throw 'Second shipment version did not advance'}
-Invoke-RestMethod $shipmentUrl -Method Put -WebSession $merchant -Headers $headers -ContentType application/json -Body $firstBody -SkipHttpErrorCheck -StatusCodeVariable staleStatus|Out-Null
-if($staleStatus-ne409){throw "Stale shipment request returned $staleStatus"}
-$eventTypes=@($updated.events|ForEach-Object eventType);if($eventTypes-notcontains'MERCHANT_CONFIRMED'-or$eventTypes-notcontains'ORDER_SHIPPED'-or$eventTypes-notcontains'SHIPMENT_UPDATED'){throw 'Fulfillment event timeline is incomplete'}
-foreach ($eventType in @('MERCHANT_CONFIRMED','ORDER_SHIPPED')) {
-  if (@($eventTypes | Where-Object { $_ -eq $eventType }).Count -ne 1) {
-    throw "Expected exactly one $eventType event"
+$confirm = New-MerchantFulfillmentCommand $paid.id CONFIRM
+if ((Submit-Command $confirm).status -ne 'CONFIRMED') { throw 'Confirm transition failed' }
+if ((Submit-Command $confirm 200).status -ne 'CONFIRMED') { throw 'Confirm replay failed' }
+$ship = New-MerchantFulfillmentCommand $paid.id SHIP @{
+  carrier = 'CommerceFlow Express'; trackingNumber = "CFL-$($paid.id)-A"
+}
+$shipped = Submit-Command $ship
+if ($shipped.status -ne 'SHIPPED') { throw 'Ship transition failed' }
+$null = Submit-Command $ship 200
+$version = $shipped.shipmentVersion
+$firstCommand = New-MerchantFulfillmentCommand $paid.id UPDATE_SHIPMENT @{
+  carrier = 'CommerceFlow Priority'; trackingNumber = "CFL-$($paid.id)-B"; expectedShipmentVersion = $version
+}
+$first = Submit-Command $firstCommand
+if ($first.shipmentVersion -ne ($version + 1)) { throw 'Shipment version did not advance' }
+$latest = New-MerchantFulfillmentCommand $paid.id UPDATE_SHIPMENT @{
+  carrier = 'CommerceFlow Priority'; trackingNumber = "CFL-$($paid.id)-C"; expectedShipmentVersion = $first.shipmentVersion
+}
+$updated = Submit-Command $latest
+if ($updated.trackingNumber -ne $latest.trackingNumber -or $updated.shipmentVersion -ne ($version + 2)) {
+  throw 'Second shipment update did not advance'
+}
+$null = Submit-Command $latest 200
+$stale = $firstCommand + @{}
+$stale.commandId = [guid]::NewGuid().ToString()
+Submit-Command $stale 409
+$changed = $latest + @{}
+$changed.trackingNumber = 'MUTATED-PAYLOAD'
+Submit-Command $changed 409
+foreach ($event in @{MERCHANT_CONFIRMED = 1; ORDER_SHIPPED = 1; SHIPMENT_UPDATED = 2}.GetEnumerator()) {
+  if (@($updated.events | Where-Object eventType -eq $event.Key).Count -ne $event.Value) {
+    throw "Unexpected number of events for $($event.Key)"
   }
 }
-$updatedEventCount=@($updated.events|Where-Object eventType -eq 'SHIPMENT_UPDATED').Count
-if($updatedEventCount-ne2){throw 'Expected two shipment update events'}
-$unchanged=Invoke-RestMethod $shipmentUrl -Method Put -WebSession $merchant -Headers $headers -ContentType application/json -Body (@{carrier=' CommerceFlow Priority ';trackingNumber=" $updatedTracking ";expectedVersion=$updated.shipmentVersion}|ConvertTo-Json -Compress)
-if($unchanged.trackingNumber-ne$updatedTracking-or$unchanged.shipmentVersion-ne$updated.shipmentVersion){throw 'Stale write changed shipment details'}
-if(@($unchanged.events|Where-Object eventType -eq 'SHIPMENT_UPDATED').Count-ne$updatedEventCount){throw 'Unchanged shipment created a duplicate timeline event'}
 $customer=[Microsoft.PowerShell.Commands.WebRequestSession]::new();$customerCsrf=Invoke-RestMethod "$BaseUrl/api/auth/csrf" -WebSession $customer;$customerHeaders=@{$customerCsrf.headerName=$customerCsrf.token};Invoke-RestMethod "$BaseUrl/api/auth/login" -Method Post -WebSession $customer -Headers $customerHeaders -ContentType application/json -Body '{"email":"demo@example.com","password":"demo-password","rememberMe":false}'|Out-Null
 try{Invoke-RestMethod "$BaseUrl/api/merchant/orders" -WebSession $customer -ErrorAction Stop|Out-Null;throw 'Customer accessed merchant orders'}catch{if([int]$_.Exception.Response.StatusCode-ne403){throw}}
 Write-Host "Chapter 06 verification passed: PAID -> CONFIRMED -> SHIPPED, shipment updated, timeline audited, customer forbidden=403 (order=$sampleNumber)" -ForegroundColor Green

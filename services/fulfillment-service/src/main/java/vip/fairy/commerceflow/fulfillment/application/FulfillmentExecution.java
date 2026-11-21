@@ -35,7 +35,7 @@ public class FulfillmentExecution {
     this.mapper = mapper;
   }
 
-  public CommandStatus accept(FulfillmentCommand command, boolean legacy) {
+  public CommandStatus accept(FulfillmentCommand command) {
     if (!mode.execution()) throw error(HttpStatus.SERVICE_UNAVAILABLE, "Fulfillment business writes are closed");
     command.validate();
     String id = command.commandId().toString();
@@ -58,10 +58,6 @@ public class FulfillmentExecution {
       store.lockOrder(command.orderId());
       prior = store.find(id);
       if (prior != null) return replay(command, prior);
-      if (legacy) {
-        String slot = store.legacySlot(command);
-        if (slot != null) return replay(command, store.find(slot));
-      }
       ExecutionTask task = prepare(command, facts);
       if (store.hasOpenTask(task.orderId()) || store.businessSlotOccupied(task)) {
         throw error(HttpStatus.CONFLICT, "Fulfillment business slot is occupied");

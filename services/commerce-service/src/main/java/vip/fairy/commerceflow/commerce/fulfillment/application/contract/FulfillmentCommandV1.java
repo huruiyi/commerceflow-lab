@@ -15,7 +15,7 @@ import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 public record FulfillmentCommandV1(@NotNull @Min(1) @Max(1) Integer version, @NotNull UUID commandId,
-                                   @NotNull Operation operation, @NotNull @Positive Long merchantId,
+                                   @NotNull Operation operation, @Positive Long merchantId,
                                    @NotNull @Positive Long orderId, @NotNull Instant occurredAt,
                                    @Size(max = 100) String carrier, @Size(max = 120) String trackingNumber,
                                    @PositiveOrZero @Max(Long.MAX_VALUE - 1) Long expectedShipmentVersion,
@@ -25,6 +25,11 @@ public record FulfillmentCommandV1(@NotNull @Min(1) @Max(1) Integer version, @No
   public FulfillmentCommandV1 {
     carrier = carrier == null ? null : carrier.strip();
     trackingNumber = trackingNumber == null ? null : trackingNumber.strip();
+  }
+
+  public FulfillmentCommandV1 forMerchant(Long authenticatedMerchantId) {
+    return new FulfillmentCommandV1(version, commandId, operation, authenticatedMerchantId, orderId, occurredAt,
+      carrier, trackingNumber, expectedShipmentVersion, lines, warehouseId);
   }
 
   @AssertTrue(message = "Fields do not match the fulfillment operation")

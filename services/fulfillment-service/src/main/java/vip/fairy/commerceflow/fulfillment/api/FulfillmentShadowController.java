@@ -43,15 +43,6 @@ public class FulfillmentShadowController {
 
   @PostMapping("/commands")
   ResponseEntity<CommandStatus> command(@RequestBody String body, HttpServletRequest request) {
-    return submit(body, request, false);
-  }
-
-  @PostMapping("/legacy-commands")
-  ResponseEntity<CommandStatus> legacyCommand(@RequestBody String body, HttpServletRequest request) {
-    return submit(body, request, true);
-  }
-
-  private ResponseEntity<CommandStatus> submit(String body, HttpServletRequest request, boolean legacy) {
     signature.require(request, body);
     if (!mode.execution()) {
       throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Fulfillment traffic is closed in shadow mode");
@@ -59,7 +50,7 @@ public class FulfillmentShadowController {
     try {
       FulfillmentCommand command = mapper.readValue(body, FulfillmentCommand.class);
       if (command == null) throw new IllegalArgumentException("Command is required");
-      CommandStatus result = execution.accept(command, legacy);
+      CommandStatus result = execution.accept(command);
       return "PENDING".equals(result.status()) ? ResponseEntity.accepted().body(result) : ResponseEntity.ok(result);
     } catch (JacksonException | IllegalArgumentException failure) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid fulfillment command", failure);

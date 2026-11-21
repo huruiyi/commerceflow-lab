@@ -18,6 +18,8 @@ foreach ($url in $BaseUrl, $PaymentBaseUrl, $LogisticsUrl, $WarehouseBaseUrl) {
   }
 }
 
+. "$PSScriptRoot/../fulfillment/merchant-command.ps1"
+
 function Assert-Equal($Actual, $Expected, [string]$Context) {
   if ($Actual -cne $Expected) { throw "$Context expected $Expected, got $Actual" }
 }
@@ -101,10 +103,9 @@ function New-ReceivedOrder([int]$Quantity) {
     $current = Api $buyer $path
     $current.status -eq 'PAID' -and $current.inventoryStatus -eq 'COMMITTED'
   } 'payment and stock commit' | Out-Null
-  $merchantPath = "/api/merchant/orders/$($order.id)"
-  Api $merchant "$merchantPath/confirm" Post @{} | Out-Null
+  Submit-MerchantFulfillment $merchant $order.id CONFIRM | Out-Null
   Wait-Value { (Api $buyer $path).status -eq 'CONFIRMED' } 'merchant confirmation' | Out-Null
-  Api $merchant "$merchantPath/ship" Post @{ carrier = 'CommerceFlow Express'; trackingNumber = "EX-ORIG-$($order.id)" } |
+  Submit-MerchantFulfillment $merchant $order.id SHIP @{ carrier = 'CommerceFlow Express'; trackingNumber = "EX-ORIG-$($order.id)" } |
     Out-Null
   Wait-Value { (Api $buyer $path).status -eq 'SHIPPED' } 'original shipment' | Out-Null
   $outboundReference = (Api $buyer $path).logistics.merchantShipmentNo

@@ -17,6 +17,8 @@ if($isolated -and ($ProjectName -notmatch '^fairy-commerceflow-(aftersale|return
     !([uri]$WarehouseBaseUrl).IsLoopback -or ([uri]$WarehouseBaseUrl).Port-eq18118)){
   throw 'Destructive fixture writes require a dedicated after-sales isolation project'
 }
+. "$PSScriptRoot/../fulfillment/merchant-command.ps1"
+
 function DbContainer([string]$Service){
   $id=if($isolated){"$ProjectName-$Service-1"}else{"$ProjectName-$Service"}
   if((docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}/{{index .Config.Labels "com.docker.compose.service"}}' $id)-ne"$ProjectName/$Service"){throw 'Database project scope mismatch'}
@@ -119,9 +121,9 @@ function PaymentAndCredits($order,[int]$Count,[decimal]$Amount,[int]$Credits){
 }
 function Ship($order){
   $id=$order.id
-  Api $merchant "/api/merchant/orders/$id/confirm" Post @{}|Out-Null
+  Submit-MerchantFulfillment $merchant $id CONFIRM|Out-Null
   $null=Wait-Value { $o=Api $buyer "/api/purchase-orders/$id"; if($o.status-eq'CONFIRMED'){$o} } "Order $id not confirmed"
-  Api $merchant "/api/merchant/orders/$id/ship" Post @{carrier='CommerceFlow Express';trackingNumber="AFTER-SALE-$id"}|Out-Null
+  Submit-MerchantFulfillment $merchant $id SHIP @{carrier='CommerceFlow Express';trackingNumber="AFTER-SALE-$id"}|Out-Null
   Wait-Value { $o=Api $buyer "/api/purchase-orders/$id"; if($o.status-eq'SHIPPED'){$o} } "Order $id was not shipped"
 }
 function Sign([string]$Secret,[string]$Value){
@@ -302,7 +304,7 @@ function Verify-BindingConflict($case,$registered){
 
 function Race-And-Restart($order,$case){
   $id=[long]$order.id
-  Api $merchant "/api/merchant/orders/$id/confirm" Post @{}|Out-Null
+  Submit-MerchantFulfillment $merchant $id CONFIRM|Out-Null
   $null=Wait-Value { $o=Api $buyer "/api/purchase-orders/$id"; if($o.status-eq'CONFIRMED'){$o} } 'Could not confirm concurrency fixture'
   $paymentService=DbContainer 'payment-simulator-service'
   $commerceService=DbContainer 'commerce-service'
@@ -311,7 +313,7 @@ function Race-And-Restart($order,$case){
   try {
     Approve $case
     $null=Wait-Value { if((Sql order-db orders "SELECT status FROM order_line_refund_admissions WHERE case_id='$($case.id)'")-eq'HELD'){$true} } 'Refund did not acquire the order-line hold'
-    Api $merchant "/api/merchant/orders/$id/ship" Post @{carrier='CommerceFlow Express';trackingNumber="HELD-$id"}|Out-Null
+    Submit-MerchantFulfillment $merchant $id SHIP @{carrier='CommerceFlow Express';trackingNumber="HELD-$id"}|Out-Null
     $null=Wait-Value { if((Sql fulfillment-db fulfillment "SELECT status FROM fulfillment_shipment_jobs WHERE order_id=$id")-eq'REJECTED'){$true} } 'Shipment did not lose to held refund'
     if((Sql inventory-db inventory "SELECT COUNT(*) FROM inventory_outbound_documents WHERE order_id=$id")-ne'0'){throw 'Shipment wrote inventory during refund hold'}
     if((Sql inventory-db inventory "SELECT COUNT(*) FROM inventory_line_credits WHERE case_id='$($case.id)'")-ne'0'){throw 'Pending channel refund already restored inventory'}

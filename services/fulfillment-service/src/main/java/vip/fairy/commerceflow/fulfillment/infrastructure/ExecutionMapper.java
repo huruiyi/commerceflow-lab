@@ -35,8 +35,6 @@ public interface ExecutionMapper {
 
   ExecutionTask shipment(@Param("orderId") long orderId);
 
-  String legacySlot(@Param("command") FulfillmentCommand command);
-
   List<String> due();
 
   int claim(@Param("task") ExecutionTask task, @Param("owner") String owner);
