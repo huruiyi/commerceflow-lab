@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.invoice.infrastructure.InvoiceJournalMapper">
+  <sql id="applicationColumns">
+    order_id, application_no, customer_id, status, review_reason, review_detail
+  </sql>
+  <insert id="create">
+    INSERT INTO invoice_applications (order_id, application_no, customer_id, status, next_check_at)
+    VALUES (#{orderId}, #{applicationNo}, #{customerId}, 'PENDING', UTC_TIMESTAMP(6))
+    ON DUPLICATE KEY UPDATE order_id = order_id
+  </insert>
+  <select id="find" resultType="vip.fairy.commerceflow.commerce.invoice.domain.InvoiceJournal$Application">
+    SELECT <include refid="applicationColumns"/> FROM invoice_applications WHERE order_id = #{orderId}
+  </select>
+  <select id="lock" resultType="vip.fairy.commerceflow.commerce.invoice.domain.InvoiceJournal$Application">
+    SELECT <include refid="applicationColumns"/> FROM invoice_applications WHERE order_id = #{orderId} FOR UPDATE
+  </select>
+  <select id="lockDue" resultType="vip.fairy.commerceflow.commerce.invoice.domain.InvoiceJournal$Application">
+    SELECT <include refid="applicationColumns"/> FROM invoice_applications
+    WHERE order_id = #{orderId} AND next_check_at &lt;= UTC_TIMESTAMP(6) FOR UPDATE
+  </select>
+  <select id="due" resultType="java.lang.Long">
+    SELECT order_id FROM invoice_applications WHERE next_check_at &lt;= UTC_TIMESTAMP(6)
+    ORDER BY next_check_at, order_id LIMIT 30
+  </select>
+  <select id="attempts" resultType="vip.fairy.commerceflow.commerce.invoice.domain.InvoiceJournal$Attempt">
+    SELECT order_id, request_id, kind, reference_no, payment_no, original_invoice_no, amount, currency,
+           merchant_id, gross_amount, discount_amount, freight_amount, paid_amount, status, invoice_no, failure_code
+    FROM invoice_attempts WHERE order_id = #{orderId} ORDER BY id
+  </select>
+  <insert id="insertAttempt">
+    INSERT INTO invoice_attempts (order_id, request_id, kind, reference_no, payment_no, original_invoice_no,
+      amount, currency, merchant_id, gross_amount, discount_amount, freight_amount, paid_amount, status)
+    VALUES (#{orderId}, #{requestId}, #{kind}, #{referenceNo}, #{paymentNo}, #{originalInvoiceNo}, #{amount},
+      #{currency}, #{merchantId}, #{grossAmount}, #{discountAmount}, #{freightAmount}, #{paidAmount}, #{status})
+  </insert>
+  <update id="finish">
+    UPDATE invoice_attempts SET status = #{status}, invoice_no = #{invoiceNo}, failure_code = #{failureCode}
+    WHERE request_id = #{requestId} AND status = 'PENDING'
+  </update>
+  <update id="advance">
+    UPDATE invoice_applications SET status = #{status},
+      next_check_at = TIMESTAMPADD(MICROSECOND, #{delayMs,jdbcType=INTEGER} * 1000, UTC_TIMESTAMP(6))
+    WHERE order_id = #{orderId}
+  </update>
+  <update id="review">
+    UPDATE invoice_applications SET status = 'REVIEW_REQUIRED', review_reason = #{reason},
+      review_detail = LEFT(#{detail}, 1024), next_check_at = NULL
+    WHERE order_id = #{orderId}
+  </update>
+  <update id="nudge">
+    UPDATE invoice_applications a SET a.next_check_at = UTC_TIMESTAMP(6)
+    WHERE a.next_check_at IS NOT NULL AND EXISTS (
+      SELECT 1 FROM invoice_attempts t WHERE t.order_id = a.order_id AND t.request_id = #{requestId}
+        AND t.status = 'PENDING'
+    )
+  </update>
+  <select id="refunds" resultType="vip.fairy.commerceflow.commerce.invoice.domain.InvoiceJournal$RefundFact">
+    SELECT order_id, refund_no, payment_no, amount, currency, succeeded_at
+    FROM invoice_refund_facts WHERE order_id = #{orderId} ORDER BY succeeded_at, refund_no
+  </select>
+  <insert id="observe">
+    INSERT INTO invoice_refund_facts (order_id, refund_no, payment_no, amount, currency, succeeded_at)
+    VALUES (#{orderId}, #{refundNo}, #{paymentNo}, #{amount}, #{currency}, #{succeededAt})
+  </insert>
+  <insert id="includeRefund">
+    INSERT INTO invoice_frozen_refunds (request_id, order_id, refund_no) VALUES (#{requestId}, #{orderId}, #{refundNo})
+  </insert>
+  <select id="includedRefunds" resultType="java.lang.String">
+    SELECT refund_no FROM invoice_frozen_refunds WHERE request_id = #{requestId} ORDER BY refund_no
+  </select>
+</mapper>

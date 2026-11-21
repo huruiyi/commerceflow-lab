@@ -1,0 +1,107 @@
+services:
+  commerce-db:
+    image: mysql:8.4
+    command: ["--skip-log-bin"]
+    environment:
+      MYSQL_DATABASE: commerceflow
+      MYSQL_ROOT_HOST: "%"
+      MYSQL_ROOT_PASSWORD: invoice-commerce-verification-root
+    volumes:
+      - invoice-commerce-data:/var/lib/mysql
+      - ../commerce/freeze-source-access.sh:/verification/grant-runtime.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_ROOT_PASSWORD mysql -h127.0.0.1 -uroot -e 'SELECT 1'"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+
+  redis:
+    image: redis:7.4-alpine
+
+  kafka:
+    image: apache/kafka:4.1.1
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+  commerce:
+    image: commerceflow-invoice-qa-commerce:batch2
+    build: ../../services/commerce-service
+    environment:
+      DATABASE_URL: jdbc:mysql://commerce-db:3306/commerceflow?allowPublicKeyRetrieval=true&sslMode=DISABLED&serverTimezone=UTC
+      DATABASE_USERNAME: commerce_runtime
+      DATABASE_PASSWORD: invoice-commerce-verification-db
+      SPRING_FLYWAY_ENABLED: "false"
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      ORDER_SERVICE_BASE_URL: http://order:8080
+      FULFILLMENT_INTERNAL_SECRET: invoice-verification-fulfillment-business
+      FULFILLMENT_ADMIN_SECRET: invoice-verification-fulfillment-admin
+      COMMERCEFLOW_PAYMENT_REMOTE_BASE_URL: http://payment:8080
+      INVOICE_ENABLED: "true"
+      INVOICE_BASE_URL: http://invoice-proxy:8080
+      INVOICE_REQUEST_SECRET: invoice-commerce-verification-request
+      INVOICE_CALLBACK_SECRET: invoice-commerce-verification-callback
+    ports:
+      - "127.0.0.1::8080"
+
+  order:
+    image: commerceflow-invoice-qa-order:batch2
+    build: ../../services/order-service
+    environment:
+      DATABASE_URL: jdbc:mysql://commerce-db:3306/orders?allowPublicKeyRetrieval=true&sslMode=DISABLED&serverTimezone=UTC
+      DATABASE_USERNAME: orders
+      DATABASE_PASSWORD: invoice-commerce-verification-db
+      ORDER_ACCEPTING_TRAFFIC: "true"
+    ports:
+      - "127.0.0.1::8080"
+
+  payment:
+    image: commerceflow-invoice-qa-payment:batch2
+    build: ../../services/payment-orchestration-service
+    environment:
+      DATABASE_URL: jdbc:mysql://commerce-db:3306/payments?allowPublicKeyRetrieval=true&sslMode=DISABLED&serverTimezone=UTC
+      DATABASE_USERNAME: payments
+      DATABASE_PASSWORD: invoice-commerce-verification-db
+      PAYMENT_ACCEPTING_TRAFFIC: "true"
+      PAYMENT_EFFECTS_ENABLED: "false"
+      ORDER_SERVICE_BASE_URL: http://order:8080
+      PAYMENT_CALLBACK_SECRET: invoice-commerce-verification-payment-callback
+    ports:
+      - "127.0.0.1::8080"
+
+  invoice:
+    image: commerceflow-invoice-qa-channel:batch2
+    build: ../../simulators/invoice-platform/service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://commerce-db:3306/invoice_platform?allowPublicKeyRetrieval=true&sslMode=DISABLED&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: invoice_platform
+      SPRING_DATASOURCE_PASSWORD: invoice-commerce-verification-db
+      INVOICE_CALLBACK_URL: http://commerce:8080/internal/v1/invoice-receipts
+      INVOICE_REQUEST_SECRET: invoice-commerce-verification-request
+      INVOICE_CALLBACK_SECRET: invoice-commerce-verification-callback
+      COMMERCEFLOW_INVOICE_PROCESSING_DELAY_MS: 12000
+      COMMERCEFLOW_INVOICE_CALLBACK_RETRY_MS: 600
+    ports:
+      - "127.0.0.1::8080"
+
+  invoice-proxy:
+    image: python:3.13-alpine
+    command: ["python", "-u", "/fixture.py"]
+    environment:
+      INVOICE_REQUEST_SECRET: invoice-commerce-verification-request
+    volumes:
+      - ../../scripts/invoice/invoice-commerce-proxy.py:/fixture.py:ro
+    ports:
+      - "127.0.0.1::8080"
+
+volumes:
+  invoice-commerce-data:

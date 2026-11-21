@@ -12,6 +12,8 @@ public interface PaymentOrchestrationV1 {
 
   Optional<PaymentSnapshotV1> latest(PaymentQueryV1 query);
 
+  InvoiceFundsV1 invoiceFunds(PaymentQueryV1 query);
+
   Optional<RefundSnapshotV1> refund(PaymentQueryV1 query);
 
   Optional<RefundSnapshotV1> refund(RefundQueryV1 query);

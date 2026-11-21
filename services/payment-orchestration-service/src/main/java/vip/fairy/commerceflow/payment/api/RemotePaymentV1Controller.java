@@ -21,7 +21,9 @@ import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.ObjectMapper;
+import vip.fairy.commerceflow.payment.application.InvoiceFundsQuery;
 import vip.fairy.commerceflow.payment.application.PaymentLedgerReportService;
+import vip.fairy.commerceflow.payment.application.contract.v1.InvoiceFundsV1;
 import vip.fairy.commerceflow.payment.application.PaymentReportOwnership;
 import vip.fairy.commerceflow.payment.application.RemotePaymentProtocolService;
 import vip.fairy.commerceflow.payment.application.RemotePaymentProtocolService.ContractReceipt;
@@ -45,17 +47,20 @@ public class RemotePaymentV1Controller {
   private final RemotePaymentProtocolService protocol;
   private final PaymentLedgerReportService reports;
   private final PaymentReportOwnership ownership;
+  private final InvoiceFundsQuery invoiceFunds;
   private final ObjectMapper mapper;
 
   public RemotePaymentV1Controller(PaymentShadowProperties properties,
                                    RemotePaymentProtocolService protocol,
                                    PaymentLedgerReportService reports,
                                    PaymentReportOwnership ownership,
+                                   InvoiceFundsQuery invoiceFunds,
                                    ObjectMapper mapper) {
     this.properties = properties;
     this.protocol = protocol;
     this.reports = reports;
     this.ownership = ownership;
+    this.invoiceFunds = invoiceFunds;
     this.mapper = mapper;
   }
 
@@ -74,6 +79,14 @@ public class RemotePaymentV1Controller {
     response.put("payment", protocol.latest(query).orElse(null));
     response.put("refund", protocol.refund(query).orElse(null));
     return response;
+  }
+
+  @PostMapping("/invoice-funds")
+  InvoiceFundsV1 invoiceFunds(@RequestBody String payload, HttpServletRequest request) {
+    requireTrafficAndHash(payload, request);
+    PaymentQueryV1 query = mapper.readValue(payload, PaymentQueryV1.class);
+    query.validate();
+    return invoiceFunds.find(query.orderId());
   }
 
   @PostMapping("/ledger-reports")

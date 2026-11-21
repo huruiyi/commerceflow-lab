@@ -515,6 +515,36 @@ pwsh -NoProfile -File scripts/invoice/verify-invoice-simulator.ps1
 
 验收容器已关闭，保留隔离卷 `fairy-commerceflow-invoice-qa-96d1ad6cb9_invoice-mysql-data` 供复核。镜像构建和 70 项 PowerShell 脚本契约检查通过。
 
+### 2.29 商城开票与退款红冲第二批隔离验收
+
+商城客户接口 `POST/GET /api/purchase-orders/{orderId}/invoices` 仅允许顾客操作自己的订单，
+同一订单共用申请号。商城冻结订单行原价、优惠、运费、原支付单和已扣减的成功退款，每次提交先保存请求号。
+支付服务在同一查询中返回成功支付和对应的成功退款。发票平台回执验签后唤醒查询，票据结果以渠道按请求号查回为准。
+商城发票功能由 `INVOICE_ENABLED` 开启，配套设置 `INVOICE_BASE_URL`、`INVOICE_REQUEST_SECRET` 和 `INVOICE_CALLBACK_SECRET`。
+
+2026-11-21 在空卷隔离 Compose 项目 `fairy-commerceflow-invoice-commerce-qa-0901278cba` 使用 MySQL 8.4。
+订单和售后金额快照由验收脚本在隔离库准备，实付与退款状态通过支付服务的签名回调确认。
+订单 `INVOICE-O9101`、支付 `INVOICE-P9101`、申请 `APP-16c3187c-213a-42c3-8f6d-6ac98dc32b29` 对账如下。
+原价 320.00 − 优惠 40.00 + 运费 20.00 = 实付 300.00 CNY。正票号为 `INV-2a001f7c-13a3-4b3b-97c9-8f31e053ac7b`，金额 250.00 CNY。
+
+| 成功退款单 | 商品退款 | 退运费 | 发票处理 | 有效票面 |
+| --- | ---: | ---: | --- | ---: |
+| `INVOICE-R-PRE` | 50.00 | 0.00 | 冻结前扣减 50.00 | 250.00 |
+| `INVOICE-R-DURING` | 80.00 | 0.00 | 正票受理中成功，出票后补红 80.00 | 170.00 |
+| `INVOICE-R-AFTER` | 100.00 | 0.00 | 正票确认后红冲 100.00 | 70.00 |
+| `INVOICE-R-FINAL` | 50.00 | 20.00 | 红冲 70.00 并退清 | 0.00 |
+
+- 并发申请共用申请号。首次提交在模拟平台受理后丢失响应。商城在正票和首笔红票各自受理后被强制终止，重启均按原请求号查回，每个请求仅提交一次。
+- 模拟平台四条真实签名回执获商城确认。支付回调重放、重复及迟到的发票回执保持票据和余额。失败和处理中的退款没有进入发票账本。
+- 开票前已全额退款的订单未申请零额票据。实付不符进入待核对，账本保留订单 50.00 CNY 与实付 51.00 CNY 的差异。模拟渠道确认出票失败的另一笔订单，在新一笔 25.00 CNY 退款成功后按原申请发起新请求，票面从原尝试 100.00 重算为 75.00 CNY。
+
+验收使用商城 V66、订单服务、支付服务和发票模拟平台，逐笔关联售后金额、支付退款记录、商城开票快照与票据。
+验收容器已关闭，保留数据库卷 `fairy-commerceflow-invoice-commerce-qa-0901278cba_invoice-commerce-data`。商城 58 项和支付编排 9 项 Maven 测试及 PowerShell 脚本契约通过。
+
+```powershell
+pwsh -NoProfile -File scripts/invoice/verify-commerce-invoices.ps1
+```
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

@@ -14,6 +14,7 @@ import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import vip.fairy.commerceflow.commerce.payment.application.contract.v1.InvoiceFundsV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCloseCommandV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCloseResultV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCreateCommandV1;
@@ -61,6 +62,12 @@ public class RemotePaymentOrchestrationAdapter implements PaymentOrchestrationV1
   @Override
   public Optional<PaymentSnapshotV1> latest(PaymentQueryV1 query) {
     return Optional.ofNullable(query(query).payment());
+  }
+
+  @Override
+  public InvoiceFundsV1 invoiceFunds(PaymentQueryV1 query) {
+    query.validate();
+    return post(ROOT + "/invoice-funds", query, InvoiceFundsV1.class);
   }
 
   @Override

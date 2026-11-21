@@ -112,6 +112,11 @@ security:
     validity-seconds: ${REMEMBER_ME_VALIDITY_SECONDS:1209600}
 
 commerceflow:
+  invoice:
+    enabled: ${INVOICE_ENABLED:false}
+    base-url: ${INVOICE_BASE_URL:http://invoice-simulator-service:8080}
+    request-secret: ${INVOICE_REQUEST_SECRET:}
+    callback-secret: ${INVOICE_CALLBACK_SECRET:}
   fulfillment:
     logistics-bridge-enabled: ${FULFILLMENT_LOGISTICS_BRIDGE_ENABLED:false}
     logistics-secret: ${FULFILLMENT_LOGISTICS_SECRET:}

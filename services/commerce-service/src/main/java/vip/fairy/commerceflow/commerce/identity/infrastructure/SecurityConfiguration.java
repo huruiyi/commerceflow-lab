@@ -111,7 +111,8 @@ public class SecurityConfiguration {
           "/api/payout-notifications",
           "/internal/v1/inventory/catalog-events",
           "/internal/v1/logistics/fulfillment/commands",
-          "/internal/v1/logistics/fulfillment/shipment-checks"))
+          "/internal/v1/logistics/fulfillment/shipment-checks",
+          "/internal/v1/invoice-receipts"))
       .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
       .rememberMe(remember -> remember.rememberMeServices(rememberMeServices))
       .authorizeHttpRequests(authorize -> authorize
@@ -125,6 +126,7 @@ public class SecurityConfiguration {
           "/internal/v1/inventory/catalog-events",
           "/internal/v1/logistics/fulfillment/commands",
           "/internal/v1/logistics/fulfillment/shipment-checks",
+          "/internal/v1/invoice-receipts",
           "/actuator/health",
           "/actuator/info",
           "/actuator/prometheus")
