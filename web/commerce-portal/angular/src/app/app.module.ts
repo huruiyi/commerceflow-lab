@@ -27,6 +27,8 @@ import { UseritemComponent } from './inc/useritem/useritem.component';
 import { AddressesComponent } from './addresses/addresses.component';
 import { PurchaseOrdersComponent } from './purchase-orders/purchase-orders.component';
 import { LineAfterSalesComponent } from './line-after-sales/line-after-sales.component';
+import { AfterSaleTrackingComponent } from './line-after-sales/after-sale-tracking.component';
+import { PlatformExchangesComponent } from './line-after-sales/platform-exchanges.component';
 import { MerchantOrdersComponent } from './merchant-orders/merchant-orders.component';
 import { MerchantReturnWorkOrdersComponent } from './merchant-return-work-orders/merchant-return-work-orders.component';
 import { OrderListFilterComponent } from './order-list-filter/order-list-filter.component';
@@ -59,6 +61,8 @@ import { InventoryReconciliationAdminComponent } from './inventory-reconciliatio
     MerchantOrdersComponent,
     MerchantReturnWorkOrdersComponent,
     LineAfterSalesComponent,
+    AfterSaleTrackingComponent,
+    PlatformExchangesComponent,
     OrderListFilterComponent,
     MerchantCatalogComponent,
     ProfileComponent,

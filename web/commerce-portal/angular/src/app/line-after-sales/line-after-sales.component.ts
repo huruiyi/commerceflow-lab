@@ -22,6 +22,7 @@ export class LineAfterSalesComponent {
   outboundId?: string;
   plan?: WarehousePlan;
   quantity = 1;
+  exchange = false;
   reason = '';
   busy = false;
   error = '';
@@ -29,6 +30,9 @@ export class LineAfterSalesComponent {
   tracking: Record<string, string> = {};
   carriers: Record<string, string> = {};
   parcels: Record<string, OrderLogistics | null | undefined> = {};
+  replacements: Record<string, OrderLogistics | null | undefined> = {};
+  replacementCarrier: Record<string, string> = {};
+  replacementNumber: Record<string, string> = {};
   returnCost: Record<string, number | null> = {};
   private requestId?: string;
 
@@ -86,7 +90,14 @@ export class LineAfterSalesComponent {
   quote(): void {
     if (!this.lineId || this.quantity < 1) return;
     this.run(
-      this.api.quoteAfterSale(this.order.id, this.lineId, this.quantity, this.warehouseId, this.outboundId),
+      this.api.quoteAfterSale(
+        this.order.id,
+        this.lineId,
+        this.quantity,
+        this.warehouseId,
+        this.outboundId,
+        this.exchange && this.returning,
+      ),
       (offer) => {
         this.offer = offer;
         this.requestId = crypto.randomUUID();
@@ -104,6 +115,7 @@ export class LineAfterSalesComponent {
         requestId: this.requestId,
         warehouseId: this.warehouseId,
         outboundId: this.outboundId,
+        exchange: this.offer.kind === 'EXCHANGE',
       }),
       (value) => {
         this.update(value);
@@ -127,6 +139,19 @@ export class LineAfterSalesComponent {
     this.run(this.api.afterSaleReturnTracking(value.id, this.merchant), (parcel) => {
       this.parcels[value.id] = parcel;
     });
+  }
+
+  loadReplacementTracking(value: AfterSale): void {
+    this.run(this.api.afterSaleReplacementTracking(value.id, this.merchant), (parcel) => {
+      this.replacements[value.id] = parcel;
+    });
+  }
+
+  shipReplacement(value: AfterSale): void {
+    const carrier = this.replacementCarrier[value.id]?.trim();
+    const trackingNumber = this.replacementNumber[value.id]?.trim();
+    if (!carrier || !trackingNumber) return;
+    this.run(this.api.shipExchangeReplacement(value.id, carrier, trackingNumber), (updated) => this.update(updated));
   }
 
   decide(value: AfterSale, accepted: boolean, inspection: boolean): void {

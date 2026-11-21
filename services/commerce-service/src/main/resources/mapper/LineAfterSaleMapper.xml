@@ -24,6 +24,11 @@
     SELECT <include refid="columns"/> FROM line_after_sales
     WHERE merchant_id=#{merchantId} AND order_id=#{orderId} ORDER BY created_at DESC,id DESC
   </select>
+  <select id="platformExchanges" resultType="vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale">
+    SELECT <include refid="columns"/> FROM line_after_sales WHERE kind='EXCHANGE'
+    <if test="orderId != null">AND order_id=#{orderId}</if>
+    ORDER BY created_at DESC,id DESC LIMIT 50
+  </select>
   <select id="forOrder" resultType="vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale">
     SELECT <include refid="columns"/> FROM line_after_sales WHERE order_id=#{orderId}
   </select>

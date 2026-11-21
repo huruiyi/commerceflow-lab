@@ -32,12 +32,18 @@ import {
 } from 'src/model/IInventoryReconciliation';
 
 export interface AfterSaleOffer {
+  kind: 'BEFORE_SHIPMENT' | 'RETURN' | 'EXCHANGE';
   availableQuantity: number;
   merchandiseAmount: number;
   shippingAmount: number;
 }
 
 export interface AfterSale extends Pick<AfterSaleOffer, 'merchandiseAmount' | 'shippingAmount'> {
+  kind: AfterSaleOffer['kind'];
+  orderId: number;
+  orderLineId: number;
+  productId: number;
+  merchantId: number;
   warehouseId?: number;
   outboundId?: string;
   warehouseReturnStatus?: string;
@@ -56,6 +62,7 @@ export interface AfterSale extends Pick<AfterSaleOffer, 'merchandiseAmount' | 's
 }
 
 export interface ReturnWorkTicket {
+  kind: AfterSaleOffer['kind'];
   caseId: string;
   orderId: number;
   orderLineId: number;
@@ -70,6 +77,12 @@ export interface ReturnWorkTicket {
   approvedQuantity?: number;
   approvedAmount?: number;
   refundNumber?: string;
+}
+
+export interface ExchangeDetail {
+  exchange: AfterSale;
+  returnTracking: OrderLogistics | null;
+  replacementTracking: OrderLogistics | null;
 }
 
 export interface ReturnWorkDetail {
@@ -303,12 +316,14 @@ export class ApiService {
     quantity: number,
     warehouseId?: number,
     outboundId?: string,
+    exchange?: boolean,
   ): Observable<AfterSaleOffer> {
     return this.http.post<AfterSaleOffer>('/api/purchase-orders/' + orderId + '/after-sales/quote', {
       orderLineId,
       quantity,
       warehouseId,
       outboundId,
+      exchange,
     });
   }
 
@@ -321,6 +336,7 @@ export class ApiService {
       requestId: string;
       warehouseId?: number;
       outboundId?: string;
+      exchange?: boolean;
     },
   ): Observable<AfterSale> {
     return this.http.post<AfterSale>('/api/purchase-orders/' + orderId + '/after-sales', body);
@@ -342,6 +358,26 @@ export class ApiService {
   afterSaleReturnTracking(id: string, merchant: boolean): Observable<OrderLogistics | null> {
     const path = merchant ? '/api/merchant/after-sales/' : '/api/purchase-orders/after-sales/';
     return this.http.get<OrderLogistics | null>(path + id + '/return-tracking');
+  }
+
+  afterSaleReplacementTracking(id: string, merchant: boolean): Observable<OrderLogistics | null> {
+    const path = merchant ? '/api/merchant/after-sales/' : '/api/purchase-orders/after-sales/';
+    return this.http.get<OrderLogistics | null>(path + id + '/replacement-tracking');
+  }
+
+  shipExchangeReplacement(id: string, carrier: string, trackingNumber: string): Observable<AfterSale> {
+    return this.http.post<AfterSale>('/api/merchant/after-sales/' + id + '/replacement', {
+      carrier,
+      trackingNumber,
+    });
+  }
+
+  platformExchanges(orderId?: number): Observable<AfterSale[]> {
+    return this.http.get<AfterSale[]>('/api/admin/exchanges', { params: orderId ? { orderId } : {} });
+  }
+
+  platformExchange(id: string): Observable<ExchangeDetail> {
+    return this.http.get<ExchangeDetail>('/api/admin/exchanges/' + id);
   }
 
   decideAfterSale(id: string, inspection: boolean, body: { accepted: boolean; note: string }): Observable<AfterSale> {

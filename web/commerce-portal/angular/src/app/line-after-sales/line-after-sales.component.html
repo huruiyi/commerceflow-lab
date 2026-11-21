@@ -15,8 +15,14 @@
         {{ 'packageQuantity' | t }} {{ parcel.quantity }}
       </li>
     </ul>
-    <div *ngFor="let value of cases" class="border-bottom py-3">
-      <strong>{{ 'afterSaleState_' + value.status | t }}</strong>
+    <article *ngFor="let value of cases" class="border-bottom py-3" [attr.data-case-id]="value.id">
+      <strong *ngIf="value.kind === 'EXCHANGE'" class="me-2">{{ 'exchangeKind' | t }}</strong>
+      <span>{{
+        (value.kind === 'EXCHANGE' && value.status === 'PREPARING'
+          ? 'exchangePreparing'
+          : 'afterSaleState_' + value.status
+        ) | t
+      }}</span>
       <span class="ms-2">{{ 'afterSaleQuantity' | t }} {{ value.quantity }}</span>
       <span *ngIf="value.warehouseId" class="ms-2">{{ 'fulfillmentWarehouse' | t }} {{ value.warehouseId }}</span>
       <small *ngIf="value.outboundId" class="d-block">{{ 'returnOriginalPackage' | t }} {{ value.outboundId }}</small>
@@ -34,16 +40,21 @@
         </small>
       </p>
       <p class="mb-1">{{ value.reason }}</p>
-      <small class="d-block">
-        {{ 'productRefundAmount' | t }}
-        {{
-          (value.workOrderPhase === 'REJECTED' ? 0 : (value.approvedMerchandiseAmount ?? value.merchandiseAmount))
-            | trcurrency
-        }}
-        ·
-        {{ 'shippingRefundAmount' | t }}
-        {{ value.shippingAmount | trcurrency }}
-      </small>
+      <small *ngIf="value.kind === 'EXCHANGE'; else refundAmounts" class="d-block">{{
+        'exchangeNoDifference' | t
+      }}</small>
+      <ng-template #refundAmounts>
+        <small class="d-block">
+          {{ 'productRefundAmount' | t }}
+          {{
+            (value.workOrderPhase === 'REJECTED' ? 0 : (value.approvedMerchandiseAmount ?? value.merchandiseAmount))
+              | trcurrency
+          }}
+          ·
+          {{ 'shippingRefundAmount' | t }}
+          {{ value.shippingAmount | trcurrency }}
+        </small>
+      </ng-template>
       <small *ngIf="value.trackingNumber" class="d-block">{{ 'returnTracking' | t }} {{ value.trackingNumber }}</small>
       <small *ngIf="value.returnShippingCost !== null && value.returnShippingCost !== undefined" class="d-block">
         {{ 'returnShippingCost' | t }} {{ value.returnShippingCost | trcurrency }}
@@ -53,31 +64,42 @@
       >
       <small *ngIf="value.decision" class="d-block">{{ value.decision }}</small>
 
-      <div *ngIf="value.trackingNumber" class="mt-2">
-        <button
-          type="button"
-          class="btn btn-sm btn-outline-primary"
-          [disabled]="busy"
-          (click)="loadReturnTracking(value)"
-        >
-          {{ (parcels[value.id] === undefined ? 'viewReturnTracking' : 'refreshReturnTracking') | t }}
-        </button>
-        <ng-container *ngIf="parcels[value.id] as parcel">
-          <p class="mb-1 mt-2" aria-live="polite">{{ parcel.carrier }} · {{ parcel.status | t }}</p>
+      <div class="row g-2 my-2" *ngIf="value.trackingNumber">
+        <app-after-sale-tracking class="col-md" title="exchangeReturnParcel" [parcel]="parcels[value.id]">
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-primary"
+            [disabled]="busy"
+            (click)="loadReturnTracking(value)"
+          >
+            {{ (parcels[value.id] === undefined ? 'viewReturnTracking' : 'refreshReturnTracking') | t }}
+          </button>
           <p
-            *ngIf="parcel.status === 'DELIVERED' && value.status === 'RETURN_SENT' && !value.warehouseReturnStatus"
-            class="mb-1"
+            *ngIf="
+              parcels[value.id]?.status === 'DELIVERED' &&
+              value.status === 'RETURN_SENT' &&
+              !value.warehouseReturnStatus
+            "
+            class="mb-1 mt-2"
           >
             {{ 'returnAwaitingInspection' | t }}
           </p>
-          <ul *ngIf="parcel.events.length" class="list-unstyled mb-1">
-            <li *ngFor="let event of parcel.events">
-              <strong>{{ event.status | t }}</strong> · {{ event.occurredAt | trdate }} · {{ event.location }}
-              <small class="d-block">{{ event.description }}</small>
-            </li>
-          </ul>
-        </ng-container>
-        <p *ngIf="parcels[value.id] === null" class="mb-1 mt-2">{{ 'returnTrackingUnavailable' | t }}</p>
+        </app-after-sale-tracking>
+        <app-after-sale-tracking
+          *ngIf="value.kind === 'EXCHANGE' && (value.status === 'EXCHANGE_SHIPPING' || value.status === 'COMPLETED')"
+          class="col-md"
+          title="exchangeReplacementParcel"
+          [parcel]="replacements[value.id]"
+        >
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-primary"
+            [disabled]="busy"
+            (click)="loadReplacementTracking(value)"
+          >
+            {{ (replacements[value.id] === undefined ? 'exchangeViewReplacement' : 'exchangeRefreshReplacement') | t }}
+          </button>
+        </app-after-sale-tracking>
       </div>
 
       <div *ngIf="!merchant && value.status === 'WAITING_RETURN'" class="d-flex flex-wrap gap-2 mt-2">
@@ -117,9 +139,17 @@
           [disabled]="busy || !notes[value.id]"
           (click)="decide(value, true, value.status !== 'APPLIED')"
         >
-          {{ (value.status === 'APPLIED' ? 'approveAfterSale' : 'acceptReturn') | t }}
+          {{
+            (value.status === 'APPLIED'
+              ? 'approveAfterSale'
+              : value.kind === 'EXCHANGE'
+                ? 'exchangeAcceptReturn'
+                : 'acceptReturn'
+            ) | t
+          }}
         </button>
         <button
+          *ngIf="value.kind !== 'EXCHANGE' || value.status === 'APPLIED'"
           type="button"
           class="btn btn-outline-danger align-self-end"
           [disabled]="busy || !notes[value.id]"
@@ -128,9 +158,37 @@
           {{ (value.status === 'APPLIED' ? 'rejectAfterSale' : 'flagReturn') | t }}
         </button>
       </div>
-    </div>
+      <div
+        *ngIf="merchant && value.kind === 'EXCHANGE' && value.status === 'EXCHANGE_READY'"
+        class="d-flex flex-wrap gap-2 mt-2"
+      >
+        <label>
+          {{ 'exchangeReplacementCarrier' | t }}
+          <input class="form-control" maxlength="100" [(ngModel)]="replacementCarrier[value.id]" [disabled]="busy" />
+        </label>
+        <label>
+          {{ 'exchangeReplacementNumber' | t }}
+          <input class="form-control" maxlength="120" [(ngModel)]="replacementNumber[value.id]" [disabled]="busy" />
+        </label>
+        <button
+          type="button"
+          class="btn btn-primary align-self-end"
+          [disabled]="busy || !replacementCarrier[value.id]?.trim() || !replacementNumber[value.id]?.trim()"
+          (click)="shipReplacement(value)"
+        >
+          {{ 'exchangeShipReplacement' | t }}
+        </button>
+      </div>
+    </article>
 
     <div *ngIf="canApply" class="row g-2 align-items-end mt-2">
+      <label *ngIf="returning" class="col-md-4">
+        {{ 'afterSaleType' | t }}
+        <select class="form-select" [(ngModel)]="exchange" (ngModelChange)="invalidate()" [disabled]="busy">
+          <option [ngValue]="false">{{ 'afterSaleRefundKind' | t }}</option>
+          <option [ngValue]="true">{{ 'exchangeKind' | t }}</option>
+        </select>
+      </label>
       <label class="col-md-4"
         >{{ 'afterSaleOrderLine' | t }}
         <select
@@ -188,17 +246,20 @@
             (returning && originalPackages.length > 0 && !outboundId)
           "
         >
-          {{ 'previewAfterSale' | t }}
+          {{ (exchange && returning ? 'exchangePreview' : 'previewAfterSale') | t }}
         </button>
       </div>
       <div *ngIf="offer as current" class="col-12" aria-live="polite">
         <p class="mb-1">{{ 'afterSaleAvailableQuantity' | t }} {{ current.availableQuantity }}</p>
-        <p>
-          {{ 'productRefundAmount' | t }} {{ current.merchandiseAmount | trcurrency }} ·
-          {{ 'shippingRefundAmount' | t }} {{ current.shippingAmount | trcurrency }}
-        </p>
+        <p *ngIf="current.kind === 'EXCHANGE'; else refundQuote">{{ 'exchangeNoDifference' | t }}</p>
+        <ng-template #refundQuote>
+          <p>
+            {{ 'productRefundAmount' | t }} {{ current.merchandiseAmount | trcurrency }} ·
+            {{ 'shippingRefundAmount' | t }} {{ current.shippingAmount | trcurrency }}
+          </p>
+        </ng-template>
         <button type="button" class="btn btn-primary" (click)="submit()" [disabled]="busy || !reason.trim()">
-          {{ 'submitAfterSale' | t }}
+          {{ (current.kind === 'EXCHANGE' ? 'exchangeSubmit' : 'submitAfterSale') | t }}
         </button>
       </div>
     </div>

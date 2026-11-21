@@ -5,7 +5,7 @@
     SELECT w.case_id,s.order_id,s.order_line_id,s.warehouse_id,s.outbound_id,s.tracking_number,
       w.warehouse_status,w.phase,s.status AS case_status,s.quantity AS requested_quantity,
       s.received_quantity,s.approved_quantity,s.approved_merchandise_amount AS approved_amount,
-      s.currency,s.refund_number
+      s.currency,s.refund_number,s.kind
     FROM return_exception_work_orders w JOIN line_after_sales s ON s.id=w.case_id
   </sql>
   <sql id="actionColumns">

@@ -633,7 +633,7 @@ $release = Join-Path $env:LOCALAPPDATA 'CommerceFlow/releases/invoice-20261121/c
 | 5 | 原退款请求和换货请求并发。退款申请返回 202，换货申请返回 409，商城只持久化一张申请，尚无资金动作。 |
 
 换货验收单的退款记录、已退金额和发票退款事实均为零。商城 58 项测试、库存 10 项测试、全仓代码质量与
-73 项 PowerShell 脚本契约审计通过。换货页面待实施。
+73 项 PowerShell 脚本契约审计通过。
 [复测脚本](../scripts/commerce/verify-line-exchanges.ps1)
 
 #### 2.31.1 换货后端日常发布
@@ -653,6 +653,49 @@ $release = Join-Path $env:LOCALAPPDATA 'CommerceFlow/releases/invoice-20261121/c
 $release = Join-Path $env:LOCALAPPDATA 'CommerceFlow/releases/exchange-20261121/compose-release.ps1'
 & $release -Previous up -d --no-deps --no-build --pull never --wait commerce-service
 & $release -Previous up -d --no-deps --no-build --pull never --wait inventory-service
+```
+
+#### 2.31.2 换货页面双店隔离验收
+
+2026-11-21 在隔离 Docker、MySQL 和 Edge 中使用两家新开通的店铺。顾客从「我的订单」进入订单售后，
+选择换货并登记退回件。商家从「商家履约」审核、验收并登记补发。平台从「换货管理」只读查阅两家店铺的
+换货状态和两条物流。平台页面支持按订单 ID 筛选。
+
+| 隔离订单 | 商家 | 退回运单 | 补发运单 |
+| --- | --- | --- | --- |
+| 9 | 12 | `UI-RETURN-9` | `UI-REPLACEMENT-9` |
+| 10 | 13 | `UI-RETURN-10` | `UI-REPLACEMENT-10` |
+
+两笔各换 1 件，退回和补发均已签收，顾客、商家、平台显示的运单与 MySQL 一致。库存对每笔各记一次
+替换件预占、原件入库和补发扣减，已退金额均为 0.00。商家搜索不到外店订单，外店售后详情、审核、补发和
+两类物流接口均返回 404。顾客不能读取他人的换货或两类物流，商家和顾客访问平台接口返回 403，直达平台
+页面会返回工作台。顾客和平台账号调用商家补发接口也返回 403。
+
+浏览器验收包含 234 项断言，Angular 33 项测试、生产构建、格式检查、商城 58 项测试及全仓代码质量审计通过。
+[浏览器复测脚本](../scripts/commerce/exchange-portal-browser.cjs) 使用隔离演示顾客
+`demo@example.com` 和 `exchange-buyer-b@example.test`，并通过业务接口创建两家商户和原订单。
+
+#### 2.31.3 换货页面日常发布
+
+2026-11-21 发布 `exchange-ui-20261121`。商城镜像内的 JAR 和门户镜像内的 9 个静态文件均与隔离验收
+产物逐一核对 SHA-256，门户实际提供 `main-HWTYEZYG.js`。日常 Docker 只更新商城和 Angular 门户，
+两个服务均通过健康检查。其余 39 个容器的 ID 与发布前一致，所有命名数据卷和商城 V68、库存 V10 保留。
+
+- Edge 日常浏览器验收通过 96 项断言。新订单 738 的订单行 742 完成支付、收货、顾客申请换货、登记退回、
+  商家审核和验收、登记补发。平台按订单 ID 查到这一笔换货并查看两个独立运单。
+- `UI-RETURN-738` 和 `UI-REPLACEMENT-738` 均已签收。MySQL 核对原仓 1 的 1 件替换件预占、
+  1 件原件入库和 1 件补发扣减各记一笔，退款记录和发票退款事实均为零。
+- 截止订单 737 的 6 张表共 1,920 条历史记录，发布前、发布后和新订单验收后三次摘要一致。订单 737 的两张
+  换货运单仍为已签收；另通过平台接口核对了订单 736 的原票和红票，有效金额仍为 0.00 元。
+
+本机 `%LOCALAPPDATA%/CommerceFlow/releases/exchange-ui-20261121` 保存镜像和产物清单、发布前两库备份、
+三次历史摘要、验收记录和浏览器截图。若需回退，先恢复旧门户，再恢复上一版商城。回退配置中的两个镜像 ID
+均已与发布前核对，换货后端和库存服务继续使用前一批的正式基线，数据库和数据卷沿用现有版本。
+
+```powershell
+$release = Join-Path $env:LOCALAPPDATA 'CommerceFlow/releases/exchange-ui-20261121/compose-release.ps1'
+& $release -Previous up -d --no-deps --no-build --pull never --wait commerce-portal-angular
+& $release -Previous up -d --no-deps --no-build --pull never --wait commerce-service
 ```
 
 ## 3. 支付

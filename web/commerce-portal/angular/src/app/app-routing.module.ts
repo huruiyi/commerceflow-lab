@@ -2,6 +2,7 @@ import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { AuthGuard } from './auth.guard';
 import { InvoiceCenterComponent } from './invoices/invoice-center.component';
+import { PlatformExchangesComponent } from './line-after-sales/platform-exchanges.component';
 import { DashboardComponent } from './dashboard/dashboard.component';
 import { ErrorpageComponent } from './errorpage/errorpage.component';
 import { LoginComponent } from './login/login.component';
@@ -87,6 +88,12 @@ const routes: Routes = [
   },
   { path: 'profile', component: ProfileComponent, canActivate: [AuthGuard] },
   { path: 'users', component: UsersComponent, canActivate: [AuthGuard], data: { roles: ['ADMIN'] } },
+  {
+    path: 'admin/exchanges',
+    component: PlatformExchangesComponent,
+    canActivate: [AuthGuard],
+    data: { roles: ['ADMIN'] },
+  },
   {
     path: 'admin/scheduling',
     component: SchedulingAdminComponent,

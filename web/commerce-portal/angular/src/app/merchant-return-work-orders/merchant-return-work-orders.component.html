@@ -59,7 +59,7 @@
             {{ 'afterSaleDecision' | t }}
             <textarea class="form-control" maxlength="300" [(ngModel)]="note"></textarea>
           </label>
-          <label *ngIf="evidence as proof" class="d-block mt-2">
+          <label *ngIf="selected.ticket.kind !== 'EXCHANGE' && evidence as proof" class="d-block mt-2">
             {{ 'returnWorkApprovedQuantity' | t }}
             <input type="number" class="form-control" min="1" [max]="proof.qualifiedQuantity" [(ngModel)]="quantity" />
           </label>
@@ -75,7 +75,7 @@
               {{ 'returnWorkReject' | t }}
             </button>
             <button
-              *ngIf="evidence as proof"
+              *ngIf="selected.ticket.kind !== 'EXCHANGE' && evidence as proof"
               class="btn btn-primary"
               [disabled]="busy || !note.trim() || !quantity || quantity < 1 || quantity > proof.qualifiedQuantity"
               (click)="decide('APPROVE')"

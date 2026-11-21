@@ -10,6 +10,7 @@ import { TrdatePipe } from '../pipes/trdate.pipe';
 import { TrcurrencyPipe } from '../pipes/trcurrency.pipe';
 import { OrderListFilterComponent } from '../order-list-filter/order-list-filter.component';
 import { LineAfterSalesComponent } from '../line-after-sales/line-after-sales.component';
+import { AfterSaleTrackingComponent } from '../line-after-sales/after-sale-tracking.component';
 
 describe('PurchaseOrdersComponent', () => {
   let fixture: ComponentFixture<PurchaseOrdersComponent>;
@@ -107,6 +108,7 @@ describe('PurchaseOrdersComponent', () => {
         PurchaseOrdersComponent,
         OrderListFilterComponent,
         LineAfterSalesComponent,
+        AfterSaleTrackingComponent,
         TranslatePipe,
         TrdatePipe,
         TrcurrencyPipe,

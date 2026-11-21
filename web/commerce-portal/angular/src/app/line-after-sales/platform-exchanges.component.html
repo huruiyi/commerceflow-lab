@@ -1,0 +1,76 @@
+<section class="container py-4" [attr.aria-busy]="busy">
+  <h1 class="h3 mb-3">{{ 'platformExchanges' | t }}</h1>
+  <form class="d-flex flex-wrap align-items-end gap-2 mb-3" (ngSubmit)="load()" #filters="ngForm">
+    <label>
+      {{ 'exchangeOrderId' | t }}
+      <input
+        class="form-control"
+        type="number"
+        name="orderId"
+        [(ngModel)]="orderId"
+        min="1"
+        step="1"
+        [disabled]="busy"
+      />
+    </label>
+    <button type="submit" class="btn btn-primary" [disabled]="busy || filters.invalid">{{ 'search' | t }}</button>
+  </form>
+  <p *ngIf="failed" class="alert alert-danger" role="alert">{{ 'requestFailed' | t }}</p>
+  <p *ngIf="!busy && !failed && !exchanges.length">{{ 'exchangeNoCases' | t }}</p>
+  <div class="table-responsive" *ngIf="exchanges.length">
+    <table class="table align-middle">
+      <caption class="visually-hidden">
+        {{
+          'platformExchanges' | t
+        }}
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col">{{ 'exchangeOrderId' | t }}</th>
+          <th scope="col">{{ 'exchangeMerchantId' | t }}</th>
+          <th scope="col">{{ 'afterSaleQuantity' | t }}</th>
+          <th scope="col">{{ 'status' | t }}</th>
+          <th scope="col">
+            <span class="visually-hidden">{{ 'viewDetails' | t }}</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let item of exchanges" [attr.data-case-id]="item.id">
+          <td>{{ item.orderId }}</td>
+          <td>{{ item.merchantId }}</td>
+          <td>{{ item.quantity }}</td>
+          <td>{{ (item.status === 'PREPARING' ? 'exchangePreparing' : 'afterSaleState_' + item.status) | t }}</td>
+          <td>
+            <button type="button" class="btn btn-sm btn-outline-primary" [disabled]="busy" (click)="show(item.id)">
+              {{ 'viewDetails' | t }}
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <article
+    *ngIf="detail as selected"
+    class="border rounded p-3 mt-3"
+    [attr.data-exchange-detail]="selected.exchange.id"
+  >
+    <h2 class="h5">{{ 'exchangeOrderId' | t }} {{ selected.exchange.orderId }}</h2>
+    <p class="mb-1">
+      {{ 'afterSaleOrderLine' | t }} {{ selected.exchange.orderLineId }} · SKU {{ selected.exchange.productId }}
+    </p>
+    <p class="mb-1">{{ 'afterSaleReason' | t }} {{ selected.exchange.reason }}</p>
+    <p *ngIf="selected.exchange.warehouseReturnStatus" class="mb-1">
+      {{ 'warehouseReturn_' + selected.exchange.warehouseReturnStatus | t }}
+    </p>
+    <p>{{ 'exchangeNoDifference' | t }}</p>
+    <div class="row g-2">
+      <app-after-sale-tracking class="col-md" title="exchangeReturnParcel" [parcel]="selected.returnTracking" />
+      <app-after-sale-tracking
+        class="col-md"
+        title="exchangeReplacementParcel"
+        [parcel]="selected.replacementTracking"
+      />
+    </div>
+  </article>
+</section>

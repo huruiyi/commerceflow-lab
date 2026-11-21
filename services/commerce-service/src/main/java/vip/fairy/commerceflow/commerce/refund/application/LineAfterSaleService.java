@@ -252,6 +252,16 @@ public class LineAfterSaleService {
     return returns.replacementTracking(id);
   }
 
+  public List<LineAfterSale> platformExchanges(Long orderId) {
+    return cases.platformExchanges(orderId);
+  }
+
+  public ExchangeDetail platformExchange(String id) {
+    var value = require(id);
+    if (!exchange(value)) throw new ResourceNotFoundException("Exchange not found");
+    return new ExchangeDetail(value, returns.tracking(id), returns.replacementTracking(id));
+  }
+
   private InventoryLineCreditV1.Source requireOrigin(long orderId, long lineId, long merchantId, long productId,
                                                       Long warehouseId, String outboundId) {
     var sources = stock.sources(new InventoryLineCreditV1.Origin(orderId, lineId, merchantId, productId,
@@ -440,6 +450,10 @@ public class LineAfterSaleService {
 
   private void requireTransition(int updated) {
     if (updated != 1) throw new BusinessRuleException("After-sales case changed or does not allow this action");
+  }
+
+  public record ExchangeDetail(LineAfterSale exchange, LogisticsResponse returnTracking,
+                               LogisticsResponse replacementTracking) {
   }
 
   public record Offer(Long productId, Long merchantId, int availableQuantity, String kind,
