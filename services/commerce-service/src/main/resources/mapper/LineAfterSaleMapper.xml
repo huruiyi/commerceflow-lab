@@ -24,12 +24,20 @@
     SELECT <include refid="columns"/> FROM line_after_sales
     WHERE merchant_id=#{merchantId} AND order_id=#{orderId} ORDER BY created_at DESC,id DESC
   </select>
+  <select id="forOrder" resultType="vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale">
+    SELECT <include refid="columns"/> FROM line_after_sales WHERE order_id=#{orderId}
+  </select>
   <select id="lockForOrder" resultType="vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale">
     SELECT <include refid="columns"/> FROM line_after_sales WHERE order_id=#{orderId} FOR UPDATE
   </select>
+  <insert id="serializeApplication">
+    INSERT INTO line_after_sale_order_locks(order_id) VALUES (#{orderId})
+    ON DUPLICATE KEY UPDATE order_id=order_id
+  </insert>
   <select id="due" resultType="vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale">
     SELECT <include refid="columns"/> FROM line_after_sales
-    WHERE status IN ('RETURN_SENT','PREPARING','REFUNDING','RESTOCKING','RELEASING')
+    WHERE status IN ('RETURN_SENT','PREPARING','REFUNDING','RESTOCKING','RELEASING',
+                     'EXCHANGE_OUT_OF_STOCK','EXCHANGE_SHIPPING')
       AND next_attempt_at &lt;= CURRENT_TIMESTAMP(6)
     ORDER BY next_attempt_at,id LIMIT 30
   </select>

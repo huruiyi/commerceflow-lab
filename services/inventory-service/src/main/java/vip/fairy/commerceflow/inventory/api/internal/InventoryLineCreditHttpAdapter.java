@@ -40,6 +40,19 @@ public class InventoryLineCreditHttpAdapter {
     return credits.sources(mapper.readValue(payload, Origin.class));
   }
 
+  @PostMapping("/internal/v1/inventory/line-credits/exchange")
+  boolean exchange(@RequestBody String payload, @RequestHeader("X-CommerceFlow-Content-SHA256") String hash) {
+    verify(payload, hash);
+    var request = mapper.readValue(payload, ExchangeRequest.class);
+    return switch (request.action()) {
+      case RESERVE -> credits.reserveReplacement(request.credit());
+      case SHIP -> {
+        credits.shipReplacement(request.credit());
+        yield true;
+      }
+    };
+  }
+
   private void verify(String payload, String hash) {
     traffic.requireOpen();
     if (!DeliveredInventoryReconciliationService.hash(payload).equals(hash)) {
@@ -48,5 +61,12 @@ public class InventoryLineCreditHttpAdapter {
   }
 
   record Request(Credit credit, boolean apply) {
+  }
+
+  record ExchangeRequest(Credit credit, ExchangeAction action) {
+  }
+
+  enum ExchangeAction {
+    RESERVE, SHIP
   }
 }

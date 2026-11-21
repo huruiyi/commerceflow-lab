@@ -16,7 +16,11 @@ public interface LineAfterSaleMapper {
 
   List<LineAfterSale> forMerchant(Long merchantId, Long orderId);
 
+  List<LineAfterSale> forOrder(Long orderId);
+
   List<LineAfterSale> lockForOrder(Long orderId);
+
+  void serializeApplication(Long orderId);
 
   List<LineAfterSale> due();
 

@@ -118,7 +118,7 @@ public class RefundController {
   @PreAuthorize("hasRole('CUSTOMER')")
   Offer quote(@PathVariable Long orderId, @Valid @RequestBody Quote request, Authentication authentication) {
     return afterSales.quote(users.require(authentication).getId(), orderId, request.orderLineId(), request.quantity(),
-      request.warehouseId(), request.outboundId());
+      request.warehouseId(), request.outboundId(), Boolean.TRUE.equals(request.exchange()));
   }
 
   @PostMapping("/api/purchase-orders/{orderId}/after-sales")
@@ -127,7 +127,8 @@ public class RefundController {
   LineAfterSale apply(@PathVariable Long orderId, @Valid @RequestBody Application request,
                      Authentication authentication) {
     return afterSales.submit(users.require(authentication).getId(), orderId, request.orderLineId(), request.quantity(),
-      request.requestId(), request.reason(), request.warehouseId(), request.outboundId());
+      request.requestId(), request.reason(), request.warehouseId(), request.outboundId(),
+      Boolean.TRUE.equals(request.exchange()));
   }
 
   @PostMapping("/api/purchase-orders/after-sales/{id}/return")
@@ -162,12 +163,37 @@ public class RefundController {
     return afterSales.inspect(users.require(authentication).getId(), id.toString(), request.accepted(), request.note());
   }
 
+  @PostMapping("/api/merchant/after-sales/{id}/replacement")
+  @PreAuthorize("hasRole('MERCHANT')")
+  LineAfterSale shipReplacement(@PathVariable UUID id, @Valid @RequestBody ReplacementParcel request,
+                                Authentication authentication) {
+    return afterSales.shipReplacement(users.require(authentication).getId(), id.toString(),
+      request.carrier(), request.trackingNumber());
+  }
+
+  @GetMapping("/api/purchase-orders/after-sales/{id}/replacement-tracking")
+  @PreAuthorize("hasRole('CUSTOMER')")
+  LogisticsResponse customerReplacementTracking(@PathVariable UUID id, Authentication authentication) {
+    return afterSales.customerReplacementTracking(users.require(authentication).getId(), id.toString());
+  }
+
+  @GetMapping("/api/merchant/after-sales/{id}/replacement-tracking")
+  @PreAuthorize("hasRole('MERCHANT')")
+  LogisticsResponse merchantReplacementTracking(@PathVariable UUID id, Authentication authentication) {
+    return afterSales.merchantReplacementTracking(users.require(authentication).getId(), id.toString());
+  }
+
   record Quote(@NotNull @Positive Long orderLineId, @Positive int quantity, @Positive Long warehouseId,
-               String outboundId) {
+               String outboundId, Boolean exchange) {
   }
 
   record Application(@NotNull @Positive Long orderLineId, @Positive int quantity, @NotNull UUID requestId,
-                     @NotBlank @Size(max = 300) String reason, @Positive Long warehouseId, String outboundId) {
+                     @NotBlank @Size(max = 300) String reason, @Positive Long warehouseId, String outboundId,
+                     Boolean exchange) {
+  }
+
+  record ReplacementParcel(@NotBlank @Size(max = 100) String carrier,
+                           @NotBlank @Size(max = 120) String trackingNumber) {
   }
 
   record ReturnParcel(@NotBlank @Size(max = 100) String carrier, @NotBlank @Size(max = 120) String trackingNumber,

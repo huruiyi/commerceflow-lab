@@ -70,6 +70,20 @@ public class DeliveredInventoryRemoteClient implements InventoryLineCreditV1 {
   private record LineCreditRequest(InventoryLineCreditV1.Credit credit, boolean apply) {
   }
 
+  @Override
+  public boolean exchange(Credit credit, ExchangeAction action) {
+    String target = "/internal/v1/inventory/line-credits/exchange";
+    String payload = mapper.writeValueAsString(new ExchangeRequest(credit, action));
+    Boolean result = client.post().uri(target).contentType(MediaType.APPLICATION_JSON)
+      .headers(headers -> signer.sign(headers, "POST", target, signer.contentHash(payload)))
+      .body(payload).retrieve().body(Boolean.class);
+    if (result == null) throw new IllegalStateException("Missing replacement inventory response");
+    return result;
+  }
+
+  private record ExchangeRequest(Credit credit, ExchangeAction action) {
+  }
+
   public Receipt reconcile(DeliveredInventoryEvidenceV1 evidence) {
     String payload = mapper.writeValueAsString(evidence);
     try {

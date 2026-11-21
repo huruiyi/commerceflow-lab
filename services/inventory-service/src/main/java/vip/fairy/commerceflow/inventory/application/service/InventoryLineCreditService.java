@@ -79,6 +79,72 @@ public class InventoryLineCreditService {
     return true;
   }
 
+  @Transactional
+  public boolean reserveReplacement(Credit value) {
+    lockExchange(value);
+    if (credits.replacementStatus(value.caseId()) != null) {
+      requireSameExchange(value);
+      return true;
+    }
+    if (credits.find(value.caseId()) != null || !credit(value, false)) {
+      throw new IllegalArgumentException("Original return is not eligible for exchange");
+    }
+    var stock = warehouses.lockAvailable(List.of(value.productId()));
+    if (stock.stream().noneMatch(row -> row.warehouseId() == value.warehouse()
+        && row.available() >= value.quantity())) {
+      return false;
+    }
+    if (inventory.reserve(value.productId(), value.quantity()) != 1
+        || warehouses.adjust(value.productId(), value.warehouse(), -value.quantity(), value.quantity(), 0) != 1) {
+      throw new IllegalStateException("Replacement stock counters are inconsistent");
+    }
+    exchangeMovement(value, "EXCHANGE_RESERVED", "reserve");
+    if (!credit(value, true)) {
+      throw new IllegalStateException("Exchange return credit changed during reservation");
+    }
+    credits.insertReplacement(value.caseId());
+    return true;
+  }
+
+  @Transactional
+  public void shipReplacement(Credit value) {
+    lockExchange(value);
+    requireSameExchange(value);
+    String status = credits.replacementStatus(value.caseId());
+    if ("SHIPPED".equals(status)) return;
+    if (!"RESERVED".equals(status)) {
+      throw new IllegalArgumentException("Replacement inventory has not been reserved");
+    }
+    if (inventory.commitReserved(value.productId(), value.quantity()) != 1
+        || warehouses.adjust(value.productId(), value.warehouse(), 0, -value.quantity(), value.quantity()) != 1) {
+      throw new IllegalStateException("Replacement reservation counters are inconsistent");
+    }
+    exchangeMovement(value, "EXCHANGE_SHIPPED", "ship");
+    credits.shipReplacement(value.caseId());
+  }
+
+  private void lockExchange(Credit value) {
+    if (value == null || !"RETURN".equals(value.kind()) || value.orderId() == null || value.warehouseId() == null
+        || value.outboundId() == null || value.caseId() == null || !value.caseId().matches("[0-9a-f-]{36}")) {
+      throw new IllegalArgumentException("Exchange requires a specific original outbound package");
+    }
+    if (inventory.lockByOrder(value.orderId()).isEmpty()) {
+      throw new IllegalArgumentException("Exchange has no original reservation");
+    }
+  }
+
+  private void requireSameExchange(Credit value) {
+    if (!value.equals(credits.find(value.caseId()))) {
+      throw new IllegalArgumentException("Exchange identifier has conflicting inventory details");
+    }
+  }
+
+  private void exchangeMovement(Credit value, String movement, String operation) {
+    inventory.insertWarehouseMovement("exchange:" + value.caseId() + ":" + operation,
+      value.orderId(), value.productId(), movement, value.quantity(), inventory.lockInventory(value.productId()),
+      "Replacement inventory for after-sales case " + value.caseId(), value.warehouse());
+  }
+
   public record Origin(long orderId, long orderLineId, long merchantId, long productId,
                        Long warehouseId, String outboundId) {
   }

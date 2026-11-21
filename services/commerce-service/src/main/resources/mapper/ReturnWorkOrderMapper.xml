@@ -12,7 +12,7 @@
     request_id,case_id,actor_id,action,note,quantity,evidence_id,created_at
   </sql>
   <sql id="reviewRequired">
-    s.kind='RETURN' AND s.status='REVIEW_REQUIRED' AND s.refund_number IS NULL
+    s.kind IN ('RETURN','EXCHANGE') AND s.status='REVIEW_REQUIRED' AND s.refund_number IS NULL
       AND s.warehouse_return_status IN ('SHORT_RECEIVED','REJECTED','FAILED')
   </sql>
   <select id="unopened"

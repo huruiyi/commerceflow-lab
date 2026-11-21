@@ -49,6 +49,18 @@
     <if test="outboundId != null">AND d.outbound_id=#{outboundId}</if>
     ORDER BY d.outbound_id
   </select>
+  <select id="replacementStatus" resultType="string">
+    SELECT status FROM exchange_replacement_reservations WHERE case_id=#{caseId}
+  </select>
+
+  <insert id="insertReplacement">
+    INSERT INTO exchange_replacement_reservations(case_id,status) VALUES (#{caseId},'RESERVED')
+  </insert>
+
+  <update id="shipReplacement">
+    UPDATE exchange_replacement_reservations SET status='SHIPPED' WHERE case_id=#{caseId}
+  </update>
+
   <insert id="insert">
     INSERT INTO inventory_line_credits(
       case_id,order_id,order_line_id,merchant_id,product_id,quantity,kind,warehouse_id,outbound_id

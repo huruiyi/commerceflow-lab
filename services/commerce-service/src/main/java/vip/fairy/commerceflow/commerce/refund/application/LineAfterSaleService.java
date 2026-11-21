@@ -5,10 +5,12 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryLineCreditV1;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryLineCreditV1.ExchangeAction;
 import vip.fairy.commerceflow.commerce.logistics.api.LogisticsResponse;
 import vip.fairy.commerceflow.commerce.logistics.application.ReturnShipmentService;
 import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderLineRefundV1;
@@ -29,6 +31,8 @@ public class LineAfterSaleService {
   private static final Set<String> TERMINAL = Set.of("FAILED", "REJECTED", "COMPLETED");
   private static final Set<String> UNSHIPPED = Set.of("PAID", "CONFIRMED");
   private static final Set<String> DELIVERED = Set.of("RECEIVED", "COMPLETED");
+  private static final Set<String> EXCHANGE_ACCEPTED = Set.of("PREPARING", "EXCHANGE_OUT_OF_STOCK",
+    "EXCHANGE_READY", "EXCHANGE_SHIPPING", "COMPLETED");
   private final LineAfterSaleMapper cases;
   private final OrderRefundPort orders;
   private final OrderLineRefundV1 admission;
@@ -53,35 +57,42 @@ public class LineAfterSaleService {
   }
 
   @Transactional
-  public Offer quote(Long customerId, Long orderId, Long lineId, int quantity, Long warehouseId, String outboundId) {
-    return offer(customerId, orderId, lineId, quantity, cases.lockForOrder(orderId), warehouseId, outboundId);
+  public Offer quote(Long customerId, Long orderId, Long lineId, int quantity, Long warehouseId, String outboundId,
+                     boolean exchange) {
+    return offer(customerId, orderId, lineId, quantity, cases.forOrder(orderId), warehouseId, outboundId, exchange);
   }
 
   @Transactional
   public LineAfterSale submit(Long customerId, Long orderId, Long lineId, int quantity, UUID requestId, String reason,
-                              Long warehouseId, String outboundId) {
-    List<LineAfterSale> existing = cases.lockForOrder(orderId);
+                              Long warehouseId, String outboundId, boolean exchange) {
+    cases.serializeApplication(orderId);
+    List<LineAfterSale> existing = cases.forOrder(orderId);
     LineAfterSale prior = cases.find(requestId.toString());
     if (prior != null) {
       if (customerId.equals(prior.customerId()) && orderId.equals(prior.orderId())
           && lineId.equals(prior.orderLineId()) && prior.quantity() == quantity && prior.reason().equals(reason)
+          && exchange == exchange(prior)
           && (Objects.equals(warehouseId, prior.warehouseId()) || (warehouseId == null && !beforeShipment(prior)))
           && (Objects.equals(outboundId, prior.outboundId()) || (outboundId == null && !beforeShipment(prior)))) {
         return prior;
       }
       throw new BusinessRuleException("After-sales request identifier is already in use");
     }
-    Offer offer = offer(customerId, orderId, lineId, quantity, existing, warehouseId, outboundId);
+    Offer offer = offer(customerId, orderId, lineId, quantity, existing, warehouseId, outboundId, exchange);
     LineAfterSale value = new LineAfterSale(requestId.toString(), orderId, lineId, offer.productId(), customerId,
       offer.merchantId(), quantity, offer.merchandiseAmount(), offer.shippingAmount(), offer.currency(),
       offer.kind(), "APPLIED", reason, null, null, null, null, null, null,
       offer.warehouseId(), offer.outboundId(), null, null, null, null);
-    cases.insert(value);
+    try {
+      cases.insert(value);
+    } catch (DuplicateKeyException conflict) {
+      throw new BusinessRuleException("An after-sales request already exists");
+    }
     return value;
   }
 
   private Offer offer(Long customerId, Long orderId, Long lineId, int quantity, List<LineAfterSale> existing,
-                      Long warehouseId, String outboundId) {
+                      Long warehouseId, String outboundId, boolean exchange) {
     var order = orders.find(customerId, orderId)
       .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
     var lines = orders.items(orderId);
@@ -90,6 +101,9 @@ public class LineAfterSaleService {
     boolean unshipped = UNSHIPPED.contains(order.getStatus());
     if ((!unshipped && !DELIVERED.contains(order.getStatus())) || !"COMMITTED".equals(order.getInventoryStatus())) {
       throw new BusinessRuleException("Order is not eligible for line after-sales");
+    }
+    if (exchange && unshipped) {
+      throw new BusinessRuleException("Exchange requires a received order");
     }
     if (existing.stream().anyMatch(value -> !TERMINAL.contains(value.status()))) {
       throw new BusinessRuleException("Finish the active after-sales case before applying again");
@@ -128,7 +142,11 @@ public class LineAfterSaleService {
       remaining = Math.min(remaining, source.quantity() - returned);
     }
     if (quantity < 1 || quantity > remaining) {
-      throw new BusinessRuleException("Requested quantity exceeds the refundable order line");
+      throw new BusinessRuleException("Requested quantity exceeds the remaining eligible order line quantity");
+    }
+    if (exchange) {
+      return new Offer(line.getProductId(), line.getMerchantId(), remaining, "EXCHANGE", BigDecimal.ZERO.setScale(2),
+        BigDecimal.ZERO.setScale(2), order.getCurrency(), resolvedWarehouse, source.outboundId());
     }
     BigDecimal amount = LineRefundAmount.calculate(net, assigned, previous, quantity);
     int purchased = lines.stream().mapToInt(item -> item.getQuantity()).sum();
@@ -144,7 +162,7 @@ public class LineAfterSaleService {
   BigDecimal repriceException(LineAfterSale value, int quantity, List<LineAfterSale> existing) {
     var related = existing.stream().filter(item -> !item.id().equals(value.id())).toList();
     return offer(value.customerId(), value.orderId(), value.orderLineId(), quantity, related,
-      value.warehouseId(), value.outboundId()).merchandiseAmount();
+      value.warehouseId(), value.outboundId(), false).merchandiseAmount();
   }
 
   public List<LineAfterSale> customerCases(Long customerId, Long orderId) {
@@ -187,23 +205,51 @@ public class LineAfterSaleService {
     return returns.tracking(id);
   }
 
+  @Transactional
   public LineAfterSale review(Long merchantId, String id, boolean approved, String note) {
-    LineAfterSale value = owned(merchantId, id);
+    LineAfterSale value = merchantCase(merchantId, cases.lock(id));
     String target = !approved ? "REJECTED" : beforeShipment(value) ? "PREPARING" : "WAITING_RETURN";
     if (target.equals(value.status()) && note.equals(value.decision())) return value;
+    if (approved && exchange(value) && value.trackingNumber() != null && !"REJECTED".equals(value.status())) {
+      return value;
+    }
     requireTransition(cases.merchantDecision(id, merchantId, "APPLIED", target, note, null));
     return require(id);
   }
 
+  @Transactional
   public LineAfterSale inspect(Long merchantId, String id, boolean accepted, String note) {
-    LineAfterSale value = owned(merchantId, id);
+    LineAfterSale value = merchantCase(merchantId, cases.lock(id));
     String target = accepted ? "PREPARING" : "REVIEW_REQUIRED";
-    boolean alreadyAccepted = accepted && Set.of("PREPARING", "REFUNDING", "RESTOCKING", "COMPLETED")
-      .contains(value.status());
+    boolean alreadyAccepted = accepted && (exchange(value) ? EXCHANGE_ACCEPTED.contains(value.status())
+      : Set.of("PREPARING", "REFUNDING", "RESTOCKING", "COMPLETED").contains(value.status()));
     if ("PASSED".equals(value.warehouseReturnStatus()) && note.equals(value.decision())
         && (alreadyAccepted || target.equals(value.status()))) return value;
     requireTransition(cases.acceptWarehouse(id, merchantId, target, note));
     return require(id);
+  }
+
+  @Transactional
+  public LineAfterSale shipReplacement(Long merchantId, String id, String carrier, String tracking) {
+    LineAfterSale value = merchantCase(merchantId, cases.lock(id));
+    if (!exchange(value)) throw new BusinessRuleException("Only an exchange can ship a replacement");
+    String trackingNumber = tracking.strip();
+    if (returns.matchesReplacement(id, carrier, trackingNumber)) return value;
+    requireTransition(cases.advance(id, "EXCHANGE_READY", "EXCHANGE_SHIPPING", null));
+    var order = orders.find(value.customerId(), value.orderId())
+      .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+    returns.bindReplacement(id, value.orderId(), order.getOrderNumber(), carrier, trackingNumber);
+    return require(id);
+  }
+
+  public LogisticsResponse customerReplacementTracking(Long customerId, String id) {
+    if (!customerId.equals(require(id).customerId())) throw new ResourceNotFoundException("After-sales case not found");
+    return returns.replacementTracking(id);
+  }
+
+  public LogisticsResponse merchantReplacementTracking(Long merchantId, String id) {
+    owned(merchantId, id);
+    return returns.replacementTracking(id);
   }
 
   private InventoryLineCreditV1.Source requireOrigin(long orderId, long lineId, long merchantId, long productId,
@@ -258,6 +304,8 @@ public class LineAfterSaleService {
           case "REFUNDING" -> pollRefund(value);
           case "RESTOCKING" -> restock(value);
           case "RELEASING" -> release(value);
+          case "EXCHANGE_OUT_OF_STOCK" -> reserveReplacement(value);
+          case "EXCHANGE_SHIPPING" -> confirmReplacement(value);
           default -> throw new IllegalStateException("Unexpected runnable after-sales state");
         }
       } catch (RuntimeException exception) {
@@ -270,6 +318,10 @@ public class LineAfterSaleService {
   private void prepare(LineAfterSale value) {
     if (!beforeShipment(value) && !qualifiedReturn(value)) {
       cases.advance(value.id(), value.status(), "REVIEW_REQUIRED", null);
+      return;
+    }
+    if (exchange(value)) {
+      reserveReplacement(value);
       return;
     }
     if (beforeShipment(value) && !admission.apply(orderCommand(value, "HOLD"))) {
@@ -291,6 +343,28 @@ public class LineAfterSaleService {
       id, "CUSTOMER_CANCELLED", value.reason(), id, id, "00-" + trace + "-" + trace.substring(0, 16) + "-01",
       id, value.total()));
     cases.advance(id, value.status(), "REFUNDING", receipt.refundNumber());
+  }
+
+  private void reserveReplacement(LineAfterSale value) {
+    if (stock.exchange(credit(value), ExchangeAction.RESERVE)) {
+      cases.advance(value.id(), value.status(), "EXCHANGE_READY", null);
+    } else {
+      if ("PREPARING".equals(value.status())) {
+        cases.advance(value.id(), value.status(), "EXCHANGE_OUT_OF_STOCK", null);
+      }
+      cases.defer(value.id(), "EXCHANGE_OUT_OF_STOCK", "Replacement unavailable in the original warehouse");
+    }
+  }
+
+  private void confirmReplacement(LineAfterSale value) {
+    if (!returns.replacementRegistered(value.id())) {
+      cases.defer(value.id(), value.status(), "Awaiting replacement shipment registration");
+      return;
+    }
+    if (!stock.exchange(credit(value), ExchangeAction.SHIP)) {
+      throw new IllegalStateException("Replacement shipment inventory needs reconciliation");
+    }
+    cases.advance(value.id(), value.status(), "COMPLETED", null);
   }
 
   private boolean qualifiedReturn(LineAfterSale value) {
@@ -335,8 +409,12 @@ public class LineAfterSaleService {
 
   private InventoryLineCreditV1.Credit credit(LineAfterSale value) {
     return new InventoryLineCreditV1.Credit(value.id(), value.orderId(), value.orderLineId(),
-      value.merchantId(), value.productId(), value.executableQuantity(), value.kind(),
+      value.merchantId(), value.productId(), value.executableQuantity(), exchange(value) ? "RETURN" : value.kind(),
       value.warehouseId(), value.outboundId());
+  }
+
+  private boolean exchange(LineAfterSale value) {
+    return "EXCHANGE".equals(value.kind());
   }
 
   private boolean beforeShipment(LineAfterSale value) {
@@ -350,8 +428,13 @@ public class LineAfterSaleService {
   }
 
   private LineAfterSale owned(Long merchantId, String id) {
-    LineAfterSale value = require(id);
-    if (!merchantId.equals(value.merchantId())) throw new ResourceNotFoundException("After-sales case not found");
+    return merchantCase(merchantId, require(id));
+  }
+
+  private LineAfterSale merchantCase(Long merchantId, LineAfterSale value) {
+    if (value == null || !merchantId.equals(value.merchantId())) {
+      throw new ResourceNotFoundException("After-sales case not found");
+    }
     return value;
   }
 

@@ -7,6 +7,12 @@ public interface InventoryLineCreditV1 {
   boolean credit(Credit credit, boolean apply);
   List<Source> sources(Origin request);
 
+  boolean exchange(Credit credit, ExchangeAction action);
+
+  enum ExchangeAction {
+    RESERVE, SHIP
+  }
+
   record Origin(long orderId, long orderLineId, long merchantId, long productId,
                 Long warehouseId, String outboundId) {
   }

@@ -40,8 +40,8 @@
     WHERE order_id=#{orderId} AND package_id IS NOT NULL
   </update>
 
-  <select id="byReturn" resultType="vip.fairy.commerceflow.commerce.logistics.domain.ShipmentRecordView">
-    SELECT * FROM shipment_records WHERE after_sale_id = #{afterSaleId}
+  <select id="byAfterSale" resultType="vip.fairy.commerceflow.commerce.logistics.domain.ShipmentRecordView">
+    SELECT * FROM shipment_records WHERE after_sale_id=#{afterSaleId} AND replacement=#{replacement}
   </select>
 
   <select id="parcelExists" resultType="int">
@@ -50,10 +50,11 @@
     )
   </select>
 
-  <insert id="prepareReturn">
+  <insert id="prepareAfterSale">
     INSERT INTO shipment_records(order_id, after_sale_id, order_number, merchant_shipment_no,
-                                 carrier, tracking_number, status)
-    VALUES (#{orderId}, #{afterSaleId}, #{orderNumber}, #{merchantNo}, #{carrier}, #{tracking}, 'REQUESTED')
+                                 carrier, tracking_number, status, replacement)
+    VALUES (#{orderId}, #{afterSaleId}, #{orderNumber}, #{merchantNo}, #{carrier}, #{tracking}, 'REQUESTED',
+      #{replacement})
   </insert>
 
   <select id="pendingReturns" resultType="vip.fairy.commerceflow.commerce.logistics.domain.ShipmentRecordView">

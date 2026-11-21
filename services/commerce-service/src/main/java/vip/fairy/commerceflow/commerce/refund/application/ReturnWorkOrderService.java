@@ -78,11 +78,14 @@ public class ReturnWorkOrderService {
     String evidenceId = null;
     String phase;
     if ("APPROVE".equals(action)) {
+      if ("EXCHANGE".equals(value.kind())) {
+        throw new BusinessRuleException("Exchange requires all requested items to pass warehouse inspection");
+      }
       var confirmed = evidence(value);
       if (quantity == null || quantity < 1 || confirmed == null || quantity > confirmed.qualifiedQuantity()) {
         throw new BusinessRuleException("Approval must use the qualified quantity in the warehouse supplement");
       }
-      var amount = sale.repriceException(value, quantity, cases.lockForOrder(value.orderId()));
+      var amount = sale.repriceException(value, quantity, cases.forOrder(value.orderId()));
       if (cases.approveException(id, quantity, amount, note) != 1) throw conflict();
       evidenceId = confirmed.id();
       phase = "APPROVED";

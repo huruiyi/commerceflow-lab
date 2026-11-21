@@ -7,6 +7,12 @@ import vip.fairy.commerceflow.inventory.application.service.InventoryLineCreditS
 
 public interface InventoryLineCreditMapper {
 
+  String replacementStatus(String caseId);
+
+  void insertReplacement(String caseId);
+
+  void shipReplacement(String caseId);
+
   Credit find(String caseId);
 
   int creditedProduct(Long orderId, Long productId, String kind, long warehouseId);

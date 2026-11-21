@@ -28,28 +28,60 @@ public class ReturnShipmentService {
   }
 
   public void bind(String caseId, Long orderId, String orderNumber, String carrier, String tracking) {
+    bind(caseId, orderId, orderNumber, carrier, tracking, false);
+  }
+
+  public void bindReplacement(String caseId, Long orderId, String orderNumber, String carrier, String tracking) {
+    bind(caseId, orderId, orderNumber, carrier, tracking, true);
+  }
+
+  private void bind(String caseId, Long orderId, String orderNumber, String carrier, String tracking,
+                     boolean replacement) {
     String normalized = normalizeCarrier(carrier);
     if (shipments.parcelExists(normalized, tracking) != 0) throw alreadyBound();
+    String reference = (replacement ? "CFL-EXCHANGE-" : "CFL-RETURN-") + caseId;
     try {
-      shipments.prepareReturn(orderId, caseId, orderNumber, "CFL-RETURN-" + caseId, normalized, tracking);
+      shipments.prepareAfterSale(orderId, caseId, orderNumber, reference, normalized, tracking, replacement);
     } catch (DuplicateKeyException exception) {
       throw alreadyBound();
     }
   }
 
   public boolean matches(String caseId, String carrier, String tracking) {
-    return shipments.byReturn(caseId).filter(shipment ->
+    return matches(caseId, carrier, tracking, false);
+  }
+
+  public boolean matchesReplacement(String caseId, String carrier, String tracking) {
+    return matches(caseId, carrier, tracking, true);
+  }
+
+  private boolean matches(String caseId, String carrier, String tracking, boolean replacement) {
+    return shipments.byAfterSale(caseId, replacement).filter(shipment ->
       shipment.getCarrier().equals(normalizeCarrier(carrier)) && shipment.getTrackingNumber().equals(tracking)
     ).isPresent();
   }
 
   public LogisticsResponse tracking(String caseId) {
-    return shipments.byReturn(caseId)
+    return tracking(caseId, false);
+  }
+
+  public LogisticsResponse replacementTracking(String caseId) {
+    return tracking(caseId, true);
+  }
+
+  private LogisticsResponse tracking(String caseId, boolean replacement) {
+    return shipments.byAfterSale(caseId, replacement)
       .map(shipment -> LogisticsResponse.from(shipment, shipments.events(shipment.getId()))).orElse(null);
   }
 
   public boolean delivered(String caseId) {
-    return shipments.byReturn(caseId).filter(shipment -> "DELIVERED".equals(shipment.getStatus())).isPresent();
+    return shipments.byAfterSale(caseId, false)
+      .filter(shipment -> "DELIVERED".equals(shipment.getStatus())).isPresent();
+  }
+
+  public boolean replacementRegistered(String caseId) {
+    return shipments.byAfterSale(caseId, true)
+      .filter(shipment -> shipment.getPlatformShipmentNo() != null).isPresent();
   }
 
   @Scheduled(fixedDelayString = "${commerceflow.logistics-platform.return-dispatch-delay:2s}")
@@ -60,8 +92,9 @@ public class ReturnShipmentService {
         register(shipment);
         shipments.markReconciled(shipment.getId());
       } catch (RuntimeException exception) {
-        shipments.markReconciliationFailed(shipment.getId(), "Return shipment registration pending retry");
-        log.warn("Could not register return shipment {}: {}", shipment.getMerchantShipmentNo(), exception.getMessage());
+        shipments.markReconciliationFailed(shipment.getId(), "After-sales shipment registration pending retry");
+        log.warn("Could not register after-sales shipment {}: {}", shipment.getMerchantShipmentNo(),
+          exception.getMessage());
       }
     }
   }

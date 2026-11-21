@@ -23,17 +23,19 @@ public interface ShipmentMapper {
   List<PackageDelivery> pendingPackageDeliveries();
   void checkPackageDelivery(@Param("orderId") Long orderId, @Param("reported") boolean reported);
 
-  Optional<ShipmentRecordView> byReturn(String afterSaleId);
+  Optional<ShipmentRecordView> byAfterSale(@Param("afterSaleId") String afterSaleId,
+                                           @Param("replacement") boolean replacement);
 
   int parcelExists(@Param("carrier") String carrier, @Param("tracking") String tracking);
 
-  void prepareReturn(
+  void prepareAfterSale(
     @Param("orderId") Long orderId,
     @Param("afterSaleId") String afterSaleId,
     @Param("orderNumber") String orderNumber,
     @Param("merchantNo") String merchantNo,
     @Param("carrier") String carrier,
-    @Param("tracking") String tracking
+    @Param("tracking") String tracking,
+    @Param("replacement") boolean replacement
   );
 
   List<ShipmentRecordView> pendingReturns();
