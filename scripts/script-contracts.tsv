@@ -1,5 +1,6 @@
 # entry relative to scripts/	PowerShell parameters in order
 operations/verify-alerting.ps1	PrometheusUrl,AlertmanagerUrl,WebhookUrl,MaxWaitSeconds,SkipStart
+operations/verify-project-navigation.ps1	BaseUrl,MaxWaitSeconds
 verify-all.ps1	BaseUrl,SkipBuild
 commerce/verify-authorization.ps1	BaseUrl
 orders/verify-auto-lifecycle.ps1	BaseUrl

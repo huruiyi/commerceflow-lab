@@ -102,6 +102,7 @@ docker compose --profile demo-data run --rm payment-demo-init
 
 访问地址：
 
+- 运行控制台：`http://127.0.0.1:28080`，统一查看运行状态并打开后台、健康检查，或复制连接地址。
 - 前端：`http://localhost:14200`
 - 支付平台：`http://localhost:14201`
 - 前端健康检查：`http://localhost:14200/healthz`
@@ -115,6 +116,23 @@ docker compose --profile demo-data run --rm payment-demo-init
 - 支付编排影子服务健康检查：`http://localhost:18090/actuator/health`
 - 物流 MySQL：`localhost:13308`
 - Kafka UI：`http://localhost:14202`
+
+### 运行控制台
+
+控制台在宿主机独立运行。需要 JDK 25、Maven、Node.js（20.19+ 或 22.12+）、PowerShell 7 和连接到本机 Compose 环境的 Docker CLI。
+使用下面的命令启动，并在另一个终端执行验收。控制台只绑定 `127.0.0.1`，也可以先于业务容器启动。
+
+~~~powershell
+pwsh -File ./scripts/operations/start-project-navigation.ps1
+pwsh -File ./scripts/operations/verify-project-navigation.ps1
+~~~
+
+`start-project-navigation.ps1` 在前台运行。若 Java 未配置到 PATH，可传入 `-JavaHome <JDK目录>`。已有构建可使用 `-SkipBuild`。
+首页「卡片导航」按类别提供 CommerceFlow 后台和服务的直达入口与可复制的连接地址。左侧「运行总览」提供实时状态统计和服务列表。
+首页默认显示卡片。分类页和「运行总览」共用并记住在当前浏览器选择的「卡片 / 列表」布局，切换布局时保留当前筛选。
+商城和各管理台的网页入口可通过 Chrome、Edge、Firefox 图标在指定浏览器打开。浏览器需安装在运行控制台的电脑上，使用该浏览器已有的登录会话。
+控制台从根 `compose.yaml` 和 Docker 读取配置与容器状态，分别显示健康检查、宿主机端点探测和任务退出结果。
+新增后台入口或探测路径时，更新 `services/project-navigation/src/main/resources/navigation-catalog.json`。独立验收栈保留各自的运行入口。
 
 `notification-db` 与 `notification-service` 属于默认拓扑。浏览器继续访问原 `/api/notifications`，commerce
 从 Session 提取 customerId 并签名转发；它不访问通知表，也不在独立服务故障时回退到本地数据。
