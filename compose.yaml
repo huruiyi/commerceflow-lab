@@ -384,8 +384,9 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
     volumes:
-      - kafka-broker-data:/var/lib/kafka/data
+      - kafka-broker-persistent-data:/var/lib/kafka/data
     healthcheck:
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
       interval: 10s
@@ -1213,6 +1214,7 @@ volumes:
   warehouse-simulator-db-data:
   messaging-simulator-db-data:
   kafka-broker-data:
+  kafka-broker-persistent-data:
   rabbitmq-broker-data:
   rocketmq-nameserver-logs:
   rocketmq-broker-store:
