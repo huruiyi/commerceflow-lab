@@ -12,6 +12,9 @@
     SELECT id,event_id,topic,payload,status,attempts
     FROM notification_delivery_outbox
     WHERE status IN ('NEW','RETRY') AND next_attempt_at&lt;=CURRENT_TIMESTAMP
+    <if test="offsitePaused">
+      AND topic &lt;&gt; 'offsite-notifications'
+    </if>
     ORDER BY id
     LIMIT #{limit}
   </select>

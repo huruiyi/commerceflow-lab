@@ -16,7 +16,11 @@
   <select id="readyEffectIds" resultType="java.lang.Long">
     SELECT id FROM payment_outbox WHERE ((status IN ('NEW', 'RETRY') AND
       next_attempt_at&lt;=CURRENT_TIMESTAMP(6)) OR (status='PROCESSING' AND
-      next_attempt_at&lt;CURRENT_TIMESTAMP(6))) ORDER BY id LIMIT #{batchSize}
+      next_attempt_at&lt;CURRENT_TIMESTAMP(6)))
+    <if test="offsitePaused">
+      AND event_type &lt;&gt; 'OFFSITE_REFUND_SUCCEEDED'
+    </if>
+    ORDER BY id LIMIT #{batchSize}
   </select>
 
   <select id="readyRefundCommandIds" resultType="java.lang.String">

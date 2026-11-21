@@ -119,6 +119,7 @@ class PaymentEffectDispatcherTest {
                                              RemoteInventoryEffectClient inventory) {
     return new PaymentEffectDispatcher(store, new ObjectMapper(), properties, orders, inventory,
       mock(RefundApplicationService.class), mock(ChannelGatewayClient.class),
-      mock(vip.fairy.commerceflow.payment.infrastructure.OffsiteNotificationClient.class));
+      mock(vip.fairy.commerceflow.payment.infrastructure.OffsiteNotificationClient.class), "",
+      new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
   }
 }

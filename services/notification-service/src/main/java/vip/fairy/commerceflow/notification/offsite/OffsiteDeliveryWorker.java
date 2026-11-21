@@ -1,5 +1,6 @@
 package vip.fairy.commerceflow.notification.offsite;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -8,11 +9,13 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
+import vip.fairy.commerceflow.notification.infrastructure.security.NotificationWritePause;
 
 @Component
 class OffsiteDeliveryWorker {
@@ -23,18 +26,26 @@ class OffsiteDeliveryWorker {
   private final ObjectMapper json;
   private final String endpoint;
   private final String secret;
+  private final NotificationWritePause pause;
+  private final AtomicInteger paused = new AtomicInteger(-1);
 
   OffsiteDeliveryWorker(OffsiteMapper store, ObjectMapper json,
       @Value("${commerceflow.offsite.provider-url:http://messaging-simulator-service:8080}") String endpoint,
-      @Value("${commerceflow.offsite.provider-secret:demo-messaging-sender-secret}") String secret) {
+      @Value("${commerceflow.offsite.provider-secret:demo-messaging-sender-secret}") String secret,
+      NotificationWritePause pause, MeterRegistry registry) {
     this.store = store;
     this.json = json;
     this.endpoint = endpoint;
     this.secret = secret;
+    this.pause = pause;
+    registry.gauge("commerceflow.notification.offsite.worker.paused", paused);
   }
 
   @Scheduled(fixedDelayString = "${commerceflow.offsite.dispatch-delay:2s}")
   void dispatch() {
+    boolean hold = pause.paused();
+    paused.set(hold ? 1 : 0);
+    if (hold) return;
     for (var delivery : store.due()) {
       if (Thread.currentThread().isInterrupted()) return;
       String lease = UUID.randomUUID().toString();

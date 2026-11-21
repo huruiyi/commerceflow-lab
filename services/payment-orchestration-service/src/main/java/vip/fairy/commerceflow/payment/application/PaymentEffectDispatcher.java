@@ -1,9 +1,14 @@
 package vip.fairy.commerceflow.payment.application;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.springframework.beans.factory.annotation.Value;
 
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -30,6 +35,8 @@ public class PaymentEffectDispatcher {
   private final RefundApplicationService refunds;
   private final ChannelGatewayClient gateway;
   private final OffsiteNotificationClient offsite;
+  private final Path pauseFile;
+  private final AtomicInteger paused = new AtomicInteger(-1);
 
   public PaymentEffectDispatcher(PaymentEffectMapper store, ObjectMapper mapper,
                                  PaymentShadowProperties properties,
@@ -37,7 +44,9 @@ public class PaymentEffectDispatcher {
                                  RemoteInventoryEffectClient inventory,
                                  RefundApplicationService refunds,
                                  ChannelGatewayClient gateway,
-                                 OffsiteNotificationClient offsite) {
+                                 OffsiteNotificationClient offsite,
+                                 @Value("${commerceflow.offsite.dispatch-pause-file:}") String pauseFile,
+                                 MeterRegistry registry) {
     this.store = store;
     this.mapper = mapper;
     this.properties = properties;
@@ -46,12 +55,18 @@ public class PaymentEffectDispatcher {
     this.refunds = refunds;
     this.gateway = gateway;
     this.offsite = offsite;
+    this.pauseFile = pauseFile.isBlank() ? null : Path.of(pauseFile).toAbsolutePath();
+    registry.gauge("commerceflow.notification.offsite.dispatch.paused", paused);
   }
 
   @Scheduled(fixedDelayString = "${commerceflow.payment.effects.dispatch-delay:1s}")
   public void dispatchEffects() {
     if (!enabled()) return;
-    List<Long> ids = store.readyEffectIds(properties.effects().batchSize());
+    boolean hold = pauseFile != null &&
+      (!Files.isDirectory(pauseFile.getParent()) || !Files.notExists(pauseFile));
+    // A fixed-delay tick acknowledges the pause only after the previous batch returned.
+    paused.set(hold ? 1 : 0);
+    List<Long> ids = store.readyEffectIds(properties.effects().batchSize(), hold);
     for (Long id : ids) dispatchEffect(id);
   }
 

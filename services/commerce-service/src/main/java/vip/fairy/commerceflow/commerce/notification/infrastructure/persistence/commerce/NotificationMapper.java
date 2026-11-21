@@ -17,7 +17,8 @@ public interface NotificationMapper {
                    @Param("payload") String payload);
 
 
-  List<NotificationOutboxEntry> pendingOutbox(@Param("limit") int limit);
+  List<NotificationOutboxEntry> pendingOutbox(@Param("limit") int limit,
+                                              @Param("offsitePaused") boolean offsitePaused);
 
 
   int markOutboxPublished(Long id);

@@ -65,3 +65,18 @@ commerceflow:
   notification:
     topic: ${NOTIFICATION_DELIVERY_TOPIC:customer-notification-commands}
     consumer-group: ${NOTIFICATION_CONSUMER_GROUP:commerceflow-independent-notification-v1}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: postgresql
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      connection-init-sql: SET TIME ZONE 'UTC'
+  flyway:
+    locations: classpath:db/postgresql
+    baseline-on-migrate: false

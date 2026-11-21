@@ -14,6 +14,7 @@ commerce/verify-catalog-notification-monitoring.ps1	ReadOnly,MaxWaitSeconds,Imag
 operations/verify-flyway-lifecycle.ps1	MaxWaitSeconds
 messaging/verify-notification-schema-split.ps1	MaxWaitSeconds
 messaging/verify-notification-runtime-cutover.ps1	BaseUrl,MaxWaitSeconds
+messaging/verify-notification-postgresql.ps1	MySqlDump,EvidenceDirectory,BaselineImage,CandidateImage,MySqlOnly,CutoverAndCapacity,LoadRecords,DiskBacked,OffsitePause,CommerceImage,PaymentImage
 messaging/verify-kafka-persistence.ps1	EvidenceDirectory,KafkaImage
 operations/verify-fresh-volume-lifecycle.ps1	BaseUrl,TemporaryProjectName,RemoveTemporaryVolumes,SkipBuild
 commerce/verify-i18n.ps1	BaseUrl

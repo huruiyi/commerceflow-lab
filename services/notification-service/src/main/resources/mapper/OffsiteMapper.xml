@@ -7,6 +7,12 @@
     VALUES (#{event.eventId}, #{event.type}, #{event.recipientId}, #{event.orderId}, #{event.reference}, #{fingerprint})
   </insert>
 
+  <insert id="insertEvent" databaseId="postgresql">
+    INSERT INTO offsite_notification_inbox(event_id, event_type, recipient_id, order_id, reference, fingerprint)
+    VALUES (#{event.eventId}, #{event.type}, #{event.recipientId}, #{event.orderId}, #{event.reference}, #{fingerprint})
+    ON CONFLICT (event_id) DO NOTHING
+  </insert>
+
   <select id="fingerprint" resultType="string">
     SELECT fingerprint FROM offsite_notification_inbox WHERE event_id=#{eventId} FOR UPDATE
   </select>
@@ -34,6 +40,19 @@
   <update id="finish">
     UPDATE offsite_notification_deliveries SET status=#{status}, provider_id=COALESCE(#{providerId}, provider_id),
       last_error=#{error}, lease=NULL, next_attempt_at=TIMESTAMPADD(SECOND, #{delaySeconds}, CURRENT_TIMESTAMP(6))
+    WHERE request_id=#{requestId} AND lease=#{lease}
+  </update>
+
+  <update id="claim" databaseId="postgresql">
+    UPDATE offsite_notification_deliveries SET attempts=attempts+1, lease=#{lease},
+      next_attempt_at=statement_timestamp() + INTERVAL '30 seconds'
+    WHERE request_id=#{requestId} AND attempts=#{attempts} AND status IN ('PENDING','RETRY','ACCEPTED')
+      AND next_attempt_at &lt;= statement_timestamp()
+  </update>
+
+  <update id="finish" databaseId="postgresql">
+    UPDATE offsite_notification_deliveries SET status=#{status}, provider_id=COALESCE(#{providerId}, provider_id),
+      last_error=#{error}, lease=NULL, next_attempt_at=statement_timestamp() + #{delaySeconds} * INTERVAL '1 second'
     WHERE request_id=#{requestId} AND lease=#{lease}
   </update>
 </mapper>

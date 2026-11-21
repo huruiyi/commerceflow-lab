@@ -13,7 +13,8 @@ public interface PaymentEffectMapper {
   int recordRefundPriorOrderStatus(@Param("refundNumber") String refundNumber,
                                  @Param("previousStatus") String previousStatus);
 
-  List<Long> readyEffectIds(@Param("batchSize") int batchSize);
+  List<Long> readyEffectIds(@Param("batchSize") int batchSize,
+                             @Param("offsitePaused") boolean offsitePaused);
 
   List<String> readyRefundCommandIds(@Param("batchSize") int batchSize);
 

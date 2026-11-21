@@ -41,6 +41,21 @@
     VALUES(#{eventId},#{customerId},#{orderId},#{type},#{title},#{message})
   </insert>
 
+  <insert id="insertInbox" databaseId="postgresql">
+    INSERT INTO notification_inbox(
+      consumer_name,event_id,event_type,schema_version,correlation_id,causation_id,traceparent)
+    VALUES(#{consumerName},#{eventId},#{eventType},#{schemaVersion},#{correlationId},
+      #{causationId},#{traceparent})
+    ON CONFLICT (consumer_name,event_id) DO NOTHING
+  </insert>
+
+  <insert id="insertNotification" databaseId="postgresql">
+    INSERT INTO customer_notifications(
+      event_id,customer_id,order_id,notification_type,title,message)
+    VALUES(#{eventId},#{customerId},#{orderId},#{type},#{title},#{message})
+    ON CONFLICT (event_id) DO NOTHING
+  </insert>
+
   <select id="notificationCount" resultType="java.lang.Integer">
     SELECT COUNT(*) FROM customer_notifications
   </select>
