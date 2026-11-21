@@ -25,4 +25,15 @@
     JOIN roles merchant_role ON merchant_role.id = membership.role_id AND merchant_role.code = 'MERCHANT'
     WHERE u.id = #{accountId} AND u.enabled = TRUE
   </select>
+  <select id="merchantOptions"
+      resultType="vip.fairy.commerceflow.commerce.identity.application.contract.v1.PaymentReportAccessV1$MerchantOption">
+    SELECT merchant_id, name FROM merchant_stores
+    <if test="merchantIds != null">
+      WHERE merchant_id IN
+      <foreach collection="merchantIds" item="id" open="(" separator="," close=")">
+        #{id}
+      </foreach>
+    </if>
+    ORDER BY name, merchant_id
+  </select>
 </mapper>

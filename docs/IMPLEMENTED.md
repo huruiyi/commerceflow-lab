@@ -463,6 +463,35 @@ pwsh -NoProfile -File scripts/payment/verify-payment-ledger-reports.ps1
 pwsh -NoProfile -File scripts/payment/verify-payment-ledger-report-access.ps1
 ```
 
+### 2.27 正式支付运营统计页面隔离验收
+
+商城门户新增 `/admin/payment-ledger-reports` 和 `/merchant/payment-ledger-reports` 两个入口。
+页面筛选起止日期、时区、渠道、币种和商家，绘制创建与成功支付笔数趋势，展示实收、退款、净收、
+当前支付状态、渠道对比及每日账本。多币种通过币种切换分别查看，金额保留账本原精度。
+商家下拉使用同一报表授权提供的 `/merchants` 接口，全量平台、限定平台和商家本人各自看到授权范围内的选项。
+
+复用第二批的独立 MySQL 和 Docker 网络，从 Nginx 门户实际登录两家同用支付宝渠道账户的商户。
+上海时区 2025-03-09，商家 A 实收 100 元、退款 10 元，商家 B 实收 200 元、退款 25 元。
+商家 A 的另一笔 15 元退款在上海归入次日，净收为 −15 元，切换 UTC 后同一日期无记录。
+商家 B 的银联 USD 12.34 与 CNY 汇总可分别查看。通过浏览器核对趋势、状态、日表、所有筛选、
+空结果、403 和加载失败后的重试，并检查 390px 宽度下的页面布局。
+
+准备 Node.js、Playwright 模块和该版本的 Chromium 后，可复跑：
+
+```powershell
+pwsh -NoProfile -File scripts/payment/verify-payment-ledger-report-access.ps1 -PlaywrightModule '<Playwright 模块目录>'
+```
+
+Angular 格式检查、33 项 ChromeHeadless 测试及本机和 Docker 生产构建通过。
+商城 58 项 Maven 测试和 69 项脚本契约检查通过。
+
+**2026-11-21 日常发布与验收**
+
+- 复用隔离验收镜像。支付编排、商城服务和 Angular 门户镜像分别为 aa18fb71eab3、57b1fb87bfc6、68a82868a5b9，均通过容器健康检查。商城迁移至 V65，支付编排迁移至 V5。其余 31 个运行容器及数据库卷保持原有标识。
+- 历史归属回填核验 592 个订单，缺失和冲突均为零。部署前的 592 条支付记录与 133 条退款记录通过逐行哈希比对。
+- 用现有演示商品新建订单 735，支付宝成功实收 349.50 CNY，库存已转正，商城商家归属为 5。通过日常门户以商家身份查询上海时区 11 月 20 日至 21 日的支付宝 CNY 账本，MySQL、接口和页面核对实收 14688.40、退款 10445.23、净收 4243.17，接口记录 8 笔成功支付和 9 笔成功退款。跨店查询与未授权平台账号均返回 403。日常发布保留现有授权。
+- 发布镜像以 `payment-report-20261121` 标记，上一版以 `before-payment-report-20261121` 标记。应用回退时，从门户、商城到支付编排逐个把对应旧镜像重标为 `latest`，以 `docker compose up -d --no-build --no-deps --wait` 更新单个服务并确认健康。保留数据库卷和追加的迁移。
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

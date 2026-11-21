@@ -71,6 +71,17 @@
         <li class="nav-item" *ngIf="bilgiler.role === 'MERCHANT'">
           <a class="nav-link" routerLink="/merchant/store" routerLinkActive="active">{{ 'ownStore' | t }}</a>
         </li>
+        <li class="nav-item" *ngIf="bilgiler.role === 'ADMIN' || bilgiler.role === 'MERCHANT'">
+          <a
+            class="nav-link"
+            [routerLink]="
+              bilgiler.role === 'ADMIN' ? '/admin/payment-ledger-reports' : '/merchant/payment-ledger-reports'
+            "
+            routerLinkActive="active"
+          >
+            {{ 'ledgerHeading' | t }}
+          </a>
+        </li>
         <li class="nav-item" *ngIf="bilgiler.role === 'MERCHANT'">
           <a class="nav-link" routerLink="/merchant/settlements" routerLinkActive="active">
             {{ 'merchantSettlement' | t }}

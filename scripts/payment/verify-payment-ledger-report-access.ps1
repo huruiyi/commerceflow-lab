@@ -1,5 +1,5 @@
 #Requires -Version 7.2
-param([switch]$SkipBuild)
+param([switch]$SkipBuild, [string]$PlaywrightModule = '')
 
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
@@ -133,6 +133,12 @@ try {
       docker build -t "commerceflow-report-$($key):batch2" (Join-Path $root $images[$key])
     }
   }
+  if ($PlaywrightModule) {
+    $PlaywrightModule = (Resolve-Path -LiteralPath $PlaywrightModule).Path
+    if (-not $SkipBuild) {
+      docker build -t commerceflow-report-portal:batch3 (Join-Path $root 'web/commerce-portal/angular')
+    }
+  }
   docker network create $network | Out-Null
   $networkCreated = $true
   $grantScript = Join-Path $root 'infrastructure/commerce/freeze-source-access.sh'
@@ -174,7 +180,8 @@ WHERE grantee='''commerce_runtime''@''%''' AND table_schema='commerceflow'
   $paymentUrl = Start-App payment payments payments @('-e','PAYMENT_ACCEPTING_TRAFFIC=true','-e','PAYMENT_EFFECTS_ENABLED=false',
     '-e',"PAYMENT_INTERNAL_SECRET=$secret",'-e','ORDER_SERVICE_BASE_URL=http://order:8080',
     '-e',"PAYMENT_ORDER_INTERNAL_SECRET=$secret",'-e','PAYMENT_PLATFORM_BASE_URL=http://simulator:8080')
-  $commerceUrl = Start-App commerce commerceflow commerce_runtime @('-e','SPRING_FLYWAY_ENABLED=false',
+  $commerceUrl = Start-App commerce commerceflow commerce_runtime @('--network-alias','commerce-service',
+    '-e','SPRING_FLYWAY_ENABLED=false',
     '-e','REDIS_HOST=report-redis','-e','ORDER_SERVICE_BASE_URL=http://order:8080',
     '-e',"COMMERCEFLOW_PAYMENT_REMOTE_SECRET=$secret",'-e','COMMERCEFLOW_PAYMENT_REMOTE_BASE_URL=http://payment:8080',
     '-e',"FULFILLMENT_INTERNAL_SECRET=$secret-business",'-e',"FULFILLMENT_ADMIN_SECRET=$secret-admin",
@@ -310,6 +317,39 @@ WHERE p.order_id IN (505,506);
   Read-Report $adminRoute $limited $window 403
   Sql commerceflow 'INSERT INTO payment_report_merchant_grants VALUES (10003,10002);' | Out-Null
   Assert-Historical (Read-Report $adminRoute $limited $window) 1 200.00 25.00
+  if ($PlaywrightModule) {
+    Sql payments @'
+INSERT INTO refund_records(refund_number,order_id,payment_id,customer_id,idempotency_key,request_fingerprint,amount,
+  currency,reason_code,reason_detail,status,inventory_status,order_status_before_refund,failure_reason,requested_at,
+  succeeded_at,created_at,updated_at,version)
+SELECT 'REPORT-R501-LATER',order_id,payment_id,customer_id,'report-r501-later','report-r501-later',15.00,
+  currency,reason_code,reason_detail,status,inventory_status,order_status_before_refund,failure_reason,
+  '2025-03-09 16:59:00','2025-03-09 17:00:00','2025-03-09 16:59:00','2025-03-09 17:00:00',0
+FROM refund_records WHERE refund_number='REPORT-R501';
+UPDATE payment_records SET refunded_amount = refunded_amount + 15.00 WHERE payment_number='REPORT-P501';
+'@ | Out-Null
+    Sql orders @'
+INSERT INTO shop_orders(id,order_number,customer_id,status,inventory_status,total_amount,currency,created_at,updated_at,payment_due_at)
+VALUES (507,'REPORT-O507',1,'PAID','RESERVED',12.34,'USD',NOW(6),NOW(6),NOW(6));
+INSERT INTO order_items(order_id,product_id,merchant_id,product_name,thumbnail_url,unit_price,quantity,subtotal)
+VALUES (507,2,10002,'B USD','',12.34,1,12.34);
+'@ | Out-Null
+    Sql payments @'
+INSERT INTO payment_merchant_accounts(id,channel,merchant_no,app_id,display_name,signing_algorithm,api_secret,enabled,created_at,updated_at)
+VALUES (2,'UNION_PAY','CFL-UNION-PAY','commerceflow-union-pay','Test UnionPay channel','HMAC_SHA256','unused',TRUE,NOW(6),NOW(6));
+INSERT INTO payment_records(order_id,payment_number,idempotency_key,amount,status,failure_reason,created_at,merchant_account_id,
+  channel,currency,request_fingerprint,channel_transaction_no,paid_at,updated_at,version,refunded_amount)
+VALUES (507,'REPORT-P507','p507',12.34,'SUCCESS','','2025-03-09 02:00:00',2,'UNION_PAY','USD','p507','C507',
+  '2025-03-09 02:01:00',NOW(6),0,0);
+'@ | Out-Null
+    $browserBackfill = Invoke-Payment $backfill @{afterOrderId=506; limit=2}
+    Assert-Equal 1 $browserBackfill.singleMerchant 'USD browser fixture ownership'
+    $web = "$network-portal"
+    Start-Container $web 'report-portal' @('-p','127.0.0.1::80','commerceflow-report-portal:batch3')
+    $webUrl = 'http://' + (docker port $web '80/tcp')
+    Wait-Ready 'Angular portal' { (Invoke-WebRequest "$webUrl/healthz" -TimeoutSec 3).StatusCode -eq 200 } $web
+    node (Join-Path $PSScriptRoot 'payment-ledger-browser.cjs') $webUrl $PlaywrightModule
+  }
   Sql commerceflow "DELETE ur FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE ur.user_id=10001 AND r.code='MERCHANT';" | Out-Null
   Read-Report $merchantRoute $merchantA $window 403
   Sql commerceflow "DELETE ur FROM user_roles ur JOIN roles r ON r.id=ur.role_id JOIN app_users u ON u.id=ur.user_id WHERE u.email='admin@example.com' AND r.code='PAYMENT_REPORT_ALL';" | Out-Null
@@ -317,7 +357,7 @@ WHERE p.order_id IN (505,506);
   Write-Host 'Verified two merchants on ALIPAY account 1, four historical ledger pairs, two new payments, and stable ownership backfill.'
   Write-Host 'Verified daily/channel/currency totals, missing and conflicting ownership, filter tampering, and revocation in an existing session.'
 } catch {
-  foreach ($name in $containers | Where-Object { $_ -match '-(commerce|payment|order|simulator)$' }) {
+  foreach ($name in $containers | Where-Object { $_ -match '-(commerce|payment|order|simulator|portal)$' }) {
     Write-Host "$name startup and request diagnostics"
     docker logs --tail 80 $name
   }

@@ -10,4 +10,9 @@ public interface PaymentReportAccessV1 {
   List<Long> platform(long accountId, Long requestedMerchant);
 
   List<Long> merchant(long accountId, Long requestedMerchant);
+
+  List<MerchantOption> merchantOptions(long accountId, boolean platform);
+
+  record MerchantOption(long merchantId, String name) {
+  }
 }

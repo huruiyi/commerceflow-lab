@@ -18,6 +18,7 @@ import { SchedulingAdminComponent } from './scheduling-admin/scheduling-admin.co
 import { LogisticsCallbackAdminComponent } from './logistics-callback-admin/logistics-callback-admin.component';
 import { MerchantInventoryComponent } from './merchant-inventory/merchant-inventory.component';
 import { MerchantCatalogComponent } from './merchant-catalog/merchant-catalog.component';
+import { PaymentLedgerReportsComponent } from './payment-ledger-reports/payment-ledger-reports.component';
 import { InventoryReconciliationAdminComponent } from './inventory-reconciliation/inventory-reconciliation.component';
 
 const routes: Routes = [
@@ -102,6 +103,18 @@ const routes: Routes = [
     component: InventoryReconciliationAdminComponent,
     canActivate: [AuthGuard],
     data: { roles: ['ADMIN'] },
+  },
+  {
+    path: 'admin/payment-ledger-reports',
+    component: PaymentLedgerReportsComponent,
+    canActivate: [AuthGuard],
+    data: { admin: true, roles: ['ADMIN'] },
+  },
+  {
+    path: 'merchant/payment-ledger-reports',
+    component: PaymentLedgerReportsComponent,
+    canActivate: [AuthGuard],
+    data: { roles: ['MERCHANT'] },
   },
   { path: '**', component: ErrorpageComponent },
 ];

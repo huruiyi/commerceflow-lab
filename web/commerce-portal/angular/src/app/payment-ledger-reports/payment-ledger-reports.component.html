@@ -1,0 +1,269 @@
+<section class="ledger-page">
+  <header class="page-heading">
+    <h1>{{ 'ledgerHeading' | t }}</h1>
+  </header>
+
+  <form class="panel filters" (ngSubmit)="search()" [attr.aria-label]="'ledgerFilters' | t">
+    <label>
+      <span>{{ 'ledgerStart' | t }}</span>
+      <input
+        class="form-control"
+        type="date"
+        name="startDate"
+        [(ngModel)]="filters.startDate"
+        [max]="filters.endDate"
+        required
+      />
+    </label>
+    <label>
+      <span>{{ 'ledgerEnd' | t }}</span>
+      <input
+        class="form-control"
+        type="date"
+        name="endDate"
+        [(ngModel)]="filters.endDate"
+        [min]="filters.startDate"
+        required
+      />
+    </label>
+    <label>
+      <span>{{ 'ledgerTimeZone' | t }}</span>
+      <select class="form-select" name="timeZone" [(ngModel)]="filters.timeZone">
+        @for (zone of timeZones; track zone) {
+          <option [value]="zone">{{ zone }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      <span>{{ 'ledgerChannel' | t }}</span>
+      <select class="form-select" name="channel" [(ngModel)]="filters.channel">
+        <option value="">{{ 'ledgerAllChannels' | t }}</option>
+        @for (channel of channels; track channel) {
+          <option [value]="channel">{{ 'ledgerChannel_' + channel | t }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      <span>{{ 'ledgerCurrency' | t }}</span>
+      <select class="form-select" name="currency" [(ngModel)]="filters.currency">
+        <option value="">{{ 'ledgerAllCurrencies' | t }}</option>
+        @for (currency of currencies; track currency) {
+          <option [value]="currency">{{ currency }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      <span>{{ 'ledgerMerchant' | t }}</span>
+      <select class="form-select" name="merchantId" [(ngModel)]="filters.merchantId">
+        <option value="">{{ 'ledgerAuthorizedMerchants' | t }}</option>
+        @for (merchant of merchants(); track merchant.merchantId) {
+          <option [value]="merchant.merchantId">{{ merchant.name }}</option>
+        }
+      </select>
+    </label>
+    <div class="filter-actions">
+      <button hlmBtn variant="outline" type="button" [disabled]="loading()" (click)="reset()">
+        {{ 'ledgerReset' | t }}
+      </button>
+      <button hlmBtn type="submit" [disabled]="loading()">{{ 'ledgerQuery' | t }}</button>
+    </div>
+  </form>
+
+  <div class="results" [attr.aria-busy]="loading()">
+    @if (loading()) {
+      <p class="panel feedback" role="status">{{ 'ledgerLoading' | t }}</p>
+    } @else if (error()) {
+      <div class="panel feedback error" role="alert">
+        <p>{{ error() | t }}</p>
+        <button hlmBtn variant="outline" size="sm" type="button" (click)="search()">{{ 'retry' | t }}</button>
+      </div>
+    } @else if (report(); as data) {
+      <div class="result-heading">
+        <p class="result-period" data-testid="ledger-period">
+          {{ data.startDate }} – {{ data.endDate }} · {{ data.timeZone }}
+        </p>
+        @if (data.totals.length > 1) {
+          <div class="currency-tabs" role="group" [attr.aria-label]="'ledgerCurrency' | t">
+            @for (row of data.totals; track row.currency) {
+              <button
+                type="button"
+                [attr.aria-pressed]="viewCurrency() === row.currency"
+                (click)="viewCurrency.set(row.currency)"
+              >
+                {{ row.currency }}
+              </button>
+            }
+          </div>
+        }
+      </div>
+      @if (selected(); as total) {
+        <dl class="metrics" [attr.aria-label]="'ledgerTotals' | t">
+          <div class="panel">
+            <dt>{{ 'ledgerCreated' | t }}</dt>
+            <dd data-testid="ledger-created">{{ total.summary.createdCount | number }}</dd>
+          </div>
+          <div class="panel">
+            <dt>{{ 'ledgerPaid' | t }}</dt>
+            <dd data-testid="ledger-paid">{{ total.summary.paidCount | number }}</dd>
+          </div>
+          <div class="panel">
+            <dt>{{ 'ledgerReceived' | t }}</dt>
+            <dd data-testid="ledger-received">{{ amount(total.summary.receivedAmount, total.currency) }}</dd>
+          </div>
+          <div class="panel">
+            <dt>{{ 'ledgerRefunded' | t }}</dt>
+            <dd data-testid="ledger-refunded">{{ amount(total.summary.refundedAmount, total.currency) }}</dd>
+          </div>
+          <div class="panel net-metric">
+            <dt>{{ 'ledgerNet' | t }}</dt>
+            <dd data-testid="ledger-net" [class.negative]="total.summary.netAmount.startsWith('-')">
+              {{ amount(total.summary.netAmount, total.currency) }}
+            </dd>
+          </div>
+        </dl>
+        @if (total.summary.missingPaidAtCount || total.summary.missingRefundSucceededAtCount) {
+          <p class="panel feedback" role="status">
+            {{ 'ledgerMissingTime' | t }}
+            {{ total.summary.missingPaidAtCount + total.summary.missingRefundSucceededAtCount }}
+          </p>
+        }
+        @if (unattributed(); as unknown) {
+          <div class="panel unattributed" data-testid="ledger-unattributed">
+            <h2>{{ 'ledgerUnattributed' | t }}</h2>
+            <p>
+              {{ 'ledgerReceived' | t }} {{ amount(unknown.summary.receivedAmount, unknown.currency) }} ·
+              {{ 'ledgerRefunded' | t }} {{ amount(unknown.summary.refundedAmount, unknown.currency) }} ·
+              {{ 'ledgerNet' | t }} {{ amount(unknown.summary.netAmount, unknown.currency) }}
+            </p>
+          </div>
+        }
+        @if (daily().length) {
+          <div class="visuals">
+            <section class="panel chart">
+              <div class="chart-heading">
+                <h2>{{ 'ledgerTrend' | t }}</h2>
+                <div class="legend">
+                  <span><i class="created-color"></i>{{ 'ledgerCreated' | t }}</span>
+                  <span><i class="paid-color"></i>{{ 'ledgerPaid' | t }}</span>
+                </div>
+              </div>
+              <div class="trend-scroll" tabindex="0" [attr.aria-label]="'ledgerTrend' | t">
+                <div class="trend" data-testid="ledger-trend">
+                  @for (day of trend(); track day.date) {
+                    <div class="day">
+                      <div
+                        class="bars"
+                        role="img"
+                        [attr.aria-label]="
+                          day.date +
+                          ' · ' +
+                          ('ledgerCreated' | t) +
+                          ' ' +
+                          day.created +
+                          ' · ' +
+                          ('ledgerPaid' | t) +
+                          ' ' +
+                          day.paid
+                        "
+                      >
+                        <span class="created-color" [style.height.%]="(day.created / trendPeak()) * 100"></span>
+                        <span class="paid-color" [style.height.%]="(day.paid / trendPeak()) * 100"></span>
+                      </div>
+                      <span class="day-label">{{ day.date.slice(5) }}</span>
+                    </div>
+                  }
+                </div>
+              </div>
+            </section>
+
+            <section class="panel status-panel">
+              <h2>{{ 'ledgerCurrentStatus' | t }}</h2>
+              @if (statuses().length) {
+                <ul class="status-list" data-testid="ledger-status">
+                  @for (row of statuses(); track row[0]) {
+                    <li>
+                      <div>
+                        <span>{{ statusLabel(row[0]) }}</span><strong>{{ row[1] | number }}</strong>
+                      </div>
+                      <div class="status-track" aria-hidden="true">
+                        <span [style.width.%]="(row[1] / total.summary.createdCount) * 100"></span>
+                      </div>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <p class="muted">{{ 'ledgerNoStatus' | t }}</p>
+              }
+            </section>
+          </div>
+
+          <section class="panel ledger-table">
+            <h2>{{ 'ledgerChannelComparison' | t }}</h2>
+            <div class="table-responsive">
+              <table class="table mb-0" data-testid="ledger-channels">
+                <thead>
+                  <tr>
+                    <th scope="col">{{ 'ledgerChannel' | t }}</th>
+                    <ng-container *ngTemplateOutlet="summaryHeaders"></ng-container>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of byChannel(); track row.channel) {
+                    <tr>
+                      <th scope="row">{{ 'ledgerChannel_' + row.channel | t }}</th>
+                      <ng-container *ngTemplateOutlet="summaryCells; context: { row: row }"></ng-container>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel ledger-table">
+            <h2>{{ 'ledgerByDay' | t }}</h2>
+            <div class="table-responsive daily-scroll" tabindex="0" [attr.aria-label]="'ledgerByDay' | t">
+              <table class="table mb-0" data-testid="ledger-daily">
+                <thead>
+                  <tr>
+                    <th scope="col">{{ 'ledgerDate' | t }}</th>
+                    <th scope="col">{{ 'ledgerChannel' | t }}</th>
+                    <ng-container *ngTemplateOutlet="summaryHeaders"></ng-container>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of daily(); track row.date + '/' + row.channel) {
+                    <tr>
+                      <th scope="row">{{ row.date }}</th>
+                      <td>{{ 'ledgerChannel_' + row.channel | t }}</td>
+                      <ng-container *ngTemplateOutlet="summaryCells; context: { row: row }"></ng-container>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+        } @else {
+          <p class="panel feedback" role="status">{{ 'ledgerEmpty' | t }}</p>
+        }
+      } @else {
+        <p class="panel feedback" role="status">{{ 'ledgerEmpty' | t }}</p>
+      }
+    }
+  </div>
+</section>
+
+<ng-template #summaryHeaders>
+  <th scope="col">{{ 'ledgerCreated' | t }}</th>
+  <th scope="col">{{ 'ledgerPaid' | t }}</th>
+  <th scope="col">{{ 'ledgerReceived' | t }}</th>
+  <th scope="col">{{ 'ledgerRefunded' | t }}</th>
+  <th scope="col">{{ 'ledgerNet' | t }}</th>
+</ng-template>
+
+<ng-template #summaryCells let-row="row">
+  <td>{{ row.summary.createdCount | number }}</td>
+  <td>{{ row.summary.paidCount | number }}</td>
+  <td>{{ amount(row.summary.receivedAmount, row.currency) }}</td>
+  <td>{{ amount(row.summary.refundedAmount, row.currency) }}</td>
+  <td [class.negative]="row.summary.netAmount.startsWith('-')">{{ amount(row.summary.netAmount, row.currency) }}</td>
+</ng-template>

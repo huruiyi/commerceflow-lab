@@ -32,6 +32,12 @@ public class PaymentReportAccessService implements PaymentReportAccessV1 {
     return restrict(ownedMerchant == null ? List.of() : List.of(ownedMerchant), requestedMerchant);
   }
 
+  @Override
+  public List<MerchantOption> merchantOptions(long accountId, boolean platform) {
+    List<Long> allowed = platform ? platform(accountId, null) : merchant(accountId, null);
+    return grants.merchantOptions(allowed);
+  }
+
   private List<Long> restrict(List<Long> allowed, Long requestedMerchant) {
     if (allowed != null && (allowed.isEmpty() || requestedMerchant != null && !allowed.contains(requestedMerchant))) {
       throw new AccessDeniedException("Payment report access is outside the authorized merchant scope");
