@@ -65,7 +65,7 @@
 5. 阅读支付 Outbox、Kafka 发布/消费和补偿任务，再进入独立的 `simulators/payment-platform/service/`。
 6. 最后使用 `scripts/` 中的验收脚本做成功、失败、幂等、越权和故障实验。
 
-文档统一从 [docs/README.md](docs/README.md) 进入：[当前项目进度](docs/PROJECT-STATUS.md) 给出快照和下一里程碑，[已实现现状](docs/IMPLEMENTED.md) 只记录可验证事实，[统一进度与代办](docs/TODO.md) 是勾选状态和未实现顺序的唯一清单，接口索引见 [docs/API.md](docs/API.md)。分章历史见 [分章节实施计划（历史归档）](docs/archive/IMPLEMENTATION-PLAN.md)。
+从 [文档中心](docs/README.md) 查找功能与学习资料。项目阶段和业务下一步见 [项目进度与业务待办](docs/TODO.md)，工程与架构排期见 [架构进度与待办](docs/architecture/README.md)。已交付版本和验收结果见 [验收证据](docs/IMPLEMENTED.md)，历次计划与里程碑见 [项目历史](docs/archive/PROJECT-HISTORY.md)。
 
 ## 一键启动
 

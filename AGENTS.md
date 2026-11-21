@@ -81,7 +81,7 @@ fairy-commerceflow-rabbitmq-broker
 3. 默认不清空数据卷。只有用户明确允许丢弃学习数据时，才可在列出精确 Compose 项目和卷后执行带 `--volumes`的破坏性重建；不得使用全局 volume prune。
 4. 普通改动至少运行相关测试；跨模块或命名改动运行脚本契约审计和快速回归。Windows、Linux、WSL 统一用 PowerShell 7 执行同一份验收脚本。专项脚本放在 `scripts/` 的对应分类下，新增验收入口在 `scripts/script-contracts.tsv` 登记相对于 `scripts/` 的路径及参数顺序。
 5. 命名迁移必须同时更新源码目录、package/import、Maven、Spring 扫描、Docker/Compose、脚本、文档和测试，不能提交半迁移状态。
-6. M1 后“整个开发生命周期的可复测验证体系”文档、UI 收尾和生产级告警仍按项目状态文档中的顺序推进，不因命名治理提前新增业务功能。
+6. 项目快照和业务实施顺序统一维护在 [项目进度与业务待办](docs/TODO.md)。M1 后验证体系、UI 收尾和告警的实施记录见 [项目历史](docs/archive/PROJECT-HISTORY.md#12-m1-和验证体系文档之后再做的视觉与运维代办)。命名治理仍按当前业务实施顺序推进，不借此提前新增业务功能。
 7. 本仓库 Git 提交信息统一使用中文，简明说明本次提交的实际目的和范围；必要的协议名、类型名或命令可保留英文。
 8. 新增、删除、重命名或移动 `docs/` 及其子目录中的 Markdown 文档时，必须在同一次修改中更新 [中文文档导航](docs/文档导航.md)。导航按主题分组，使用中文链接标题和相对路径。提交前递归核对，确保除导航页自身外的每篇 Markdown 文档都有且仅有一个有效入口。
 
@@ -97,7 +97,7 @@ fairy-commerceflow-rabbitmq-broker
 - Mapper XML 的 `namespace`、方法名和参数必须与 Java Mapper 契约一致；简单 CRUD 不得在 XML 中重复实现。
 - 禁止为了清除 SQL 而改变锁顺序、幂等约束或事务边界；数据访问重构必须通过原有并发和恢复验收。
 
-详细规则见 `docs/CODE-STYLE.md`。架构层待办只记录在 `docs/architecture/`，不与业务 `docs/TODO.md` 混用。
+详细规则见 `docs/CODE-STYLE.md`。架构与工程待办统一维护在 [架构进度与待办](docs/architecture/README.md)，各专题保存实施和验收证据。
 
 详细理由、现状差异和未来迁移步骤见 `docs/NAMING-CONVENTIONS.md`。
 

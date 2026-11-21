@@ -57,7 +57,7 @@ docker compose build commerce-service
 - MySQL 与 Java 两层都会拒绝已覆盖的非法状态。
 - Windows 和容器化 Bash 实机结果一致。
 
-它尚不证明：全部服务在空数据卷上的端到端业务链路，或者携带 RabbitMQ/RocketMQ/Kafka 运行状态的旧卷升级与重启恢复。这两项仍保留在 `TODO.md`。
+本章覆盖数据库迁移层。全部服务的空数据卷端到端链路、携带 RabbitMQ/RocketMQ/Kafka 运行状态的旧卷升级与重启恢复，在后续 [M1 冻结验收](../archive/PROJECT-HISTORY.md#11-m1可复测基线冻结与验证体系启动门禁) 记录。当前脚本入口见 [验证体系](../VERIFICATION-SYSTEM.md#6-数据库与环境生命周期)。
 
 ## 6. 推荐学习资料
 

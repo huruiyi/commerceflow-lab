@@ -22,6 +22,8 @@ InnoDB 上实测。
 
 ## PostgreSQL 专项的启动条件
 
+以下保留 M4 通知库试点的准入口径。后续各单库迁移按 [架构待办](README.md#5-按需启动的架构事项) 评估收益、范围与验收。
+
 - M3 清单中的 notification、catalog、inventory、order、payment-orchestration、fulfillment 已全部独立，
   且不存在过渡期双写、单体回退或待完成的数据所有权交接；后续新增待拆服务也已完成。
 - 明确的学习目标包含 JSONB、部分/表达式索引、Advisory Lock、`SKIP LOCKED` 或 PostgreSQL 锁模型。

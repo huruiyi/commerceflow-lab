@@ -1,50 +1,14 @@
 # CommerceFlow Lab 文档中心
 
-完整目录见 [中文文档导航](文档导航.md)。
+从 [中文文档导航](文档导航.md) 可按主题查找全部文档。
 
-先从 [按功能模块浏览](features/README.md) 了解顾客、商家和管理员可用的功能、操作路径与关键规则。验收、计划和接口各有维护入口。
+| 想查什么 | 维护入口 |
+| --- | --- |
+| 项目做到哪、业务先做什么 | [项目进度与业务待办](TODO.md)。在同一处更新当前阶段、业务问题、实施顺序和候选功能。 |
+| 工程与架构接下来做什么 | [架构进度与待办](architecture/README.md)。在这里维护发布门禁、M4 收尾、数据和服务演进。 |
+| 已交付功能、版本、复测和回退证据 | [已实现能力与验收证据](IMPLEMENTED.md)。记录隔离验收、日常发布和已验证边界，架构细节随专题保存。 |
+| 顾客、商家和管理员怎样使用 | [业务功能总览](features/README.md) · [订单生命周期](ORDER-LIFECYCLE.md) · [接口索引](API.md) |
+| 开发、部署和测试怎样执行 | [代码规范](CODE-STYLE.md) · [命名规范](NAMING-CONVENTIONS.md) · [验证体系](VERIFICATION-SYSTEM.md) · [脚本契约](SCRIPT-AUDIT.md) · [告警手册](ALERTING.md) |
+| 过去怎样实施和决策 | [项目历史](archive/PROJECT-HISTORY.md) · [分章节实施计划](archive/IMPLEMENTATION-PLAN.md)。专题参考、学习章节及其他旧稿从中文导航进入。 |
 
-## 主入口
-
-| 文档 | 职责 | 更新规则 |
-| --- | --- | --- |
-| [features/](features/README.md) | 账号与商品、结算与优惠券、履约、支付售后、库存、模拟器、运维 | 功能交付后更新页面入口、状态和业务规则 |
-| [PROJECT-STATUS.md](PROJECT-STATUS.md) | 当前完成度、未完成分组和下一里程碑快照 | 只做高层导航，不复制详细验收证据 |
-| [IMPLEMENTED.md](IMPLEMENTED.md) | 已实现能力、验证边界和已知限制 | 只写有代码和验证证据的事实 |
-| [TODO.md](TODO.md) | 唯一进度勾选表、未实现代办和实施顺序 | 已完成保留证据，未完成项只在这里排序 |
-| [API.md](API.md) | 已有 API 学习索引 | 接口落地后再加入 |
-| [SCRIPT-AUDIT.md](SCRIPT-AUDIT.md) | 验收脚本参数清单与临时卷清理检查 | 参数或清理语义变更时同步审计 |
-| [NAMING-CONVENTIONS.md](NAMING-CONVENTIONS.md) | 项目、Java/Maven、Compose、持久资源和迁移命名规范 | 命名目标或兼容标识变更时同步更新 |
-| [CODE-STYLE.md](CODE-STYLE.md) | IDEA 格式、实体注释、MyBatis-Plus 与 Mapper XML 边界 | 数据访问或格式规则变更时同步更新 |
-| [CODE-QUALITY-PLAN.md](CODE-QUALITY-PLAN.md) | M2 代码质量审计、分批治理顺序和验证门禁 | 每批治理完成后更新证据和剩余项 |
-| [VERIFICATION-SYSTEM.md](VERIFICATION-SYSTEM.md) | 全开发生命周期的分层门禁、改动矩阵、证据和破坏性边界 | 验证入口、基线政策或安全语义变更时更新 |
-| [ALERTING.md](ALERTING.md) | Prometheus 规则、Alertmanager 路由、本地 Webhook、阈值和生产边界 | 指标、规则、通知路由或验收入口变更时更新 |
-| [architecture/](architecture/README.md) | 微服务和数据库演进等架构层待办 | 不与当前业务 `TODO.md` 混用 |
-
-独立服务的切流与数据所有权见 [架构导航](architecture/README.md)。库存命令与商家库存管理的复跑入口见 [库存切换运行手册](architecture/INVENTORY-SERVICE-CUTOVER-RUNBOOK.md)。
-
-## 专题参考 `reference/`
-
-- [高级模拟支付](reference/ADVANCED-PAYMENT.md)：已实现的支付架构、安全与验收记录。
-- [退款实现说明](reference/REFUND.md)：已实现首版退款的状态机、协议和限制。
-- [通用定时任务策略](reference/SCHEDULED-TASK-STRATEGIES.md)：六种触发/补偿组合、任务类型策略、快照和完整配置参考；执行清单以 `TODO.md` 为准。
-- [独立模拟物流](MOCK-LOGISTICS.md)：服务边界、签名协议、运单状态机、投影一致性和验收说明。
-- [Redis 业务边界](reference/REDIS-BUSINESS.md)：Key、降级和数据一致性边界。
-
-## 学习材料 `learning/`
-
-- [05A-2：独立多渠道模拟支付](learning/CHAPTER-05A-2.md)
-- [05A-3：签名、验签与防重放](learning/CHAPTER-05A-3.md)
-- [05A-5～05A-8：可靠事件、收银台、高可用与验收](learning/CHAPTER-05A-5-TO-8.md)
-- [06：RocketMQ 5.x 延时任务与数据库补偿](learning/CHAPTER-06-ROCKETMQ-SCHEDULING.md)：官方资料阅读顺序、源码映射、正常链路与 Broker 停机实验。
-- [06A：MQ 未确认消息与重新投递](learning/CHAPTER-06A-MQ-UNACKED-REDELIVERY.md)：RabbitMQ/RocketMQ 在消费者已取消息、未确认时退出的故障注入、重投和业务幂等。
-- [06B：Flyway 空库与旧库升级](learning/CHAPTER-06B-FLYWAY-LIFECYCLE.md)：隔离 MySQL 中的全量迁移、目标版本升级、历史数据回填和非法状态防护。
-- [06C：支付/取消随机化竞态压测](learning/CHAPTER-06C-PAYMENT-CANCELLATION-STRESS.md)：真实模拟支付平台、限流边界、可重放随机时序与 MySQL 一致性审计。
-
-## 历史归档 `archive/`
-
-- [分章节实施计划](archive/IMPLEMENTATION-PLAN.md)
-- `TEMP-ORDER-LIFECYCLE-DRAFT.md`：本轮订单改造的原始问题草案，已合并到 `TODO.md`。
-- `ORDER-LIFECYCLE-IMPLEMENTATION-PLAN.md`：被 `TODO.md` 取代的旧实施计划。
-
-归档文档用于回顾决策过程，不代表当前实现状态，也不再维护。
+完成一项工作时在所属待办页更新状态，并链接验收证据。功能行为或接口有变化时，再同步对应的功能说明或接口索引。

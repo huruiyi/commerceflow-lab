@@ -2,7 +2,7 @@
 
 ## 1. 文档规则
 
-本文档是当前源码树的已实现摘要。“已实现”表示已有代码和数据契约；实机或跨平台尚未验收的内容必须单独标注。未实现内容一律放入 [TODO.md](TODO.md)。
+本文档记录已交付的能力、验证边界和具体发布证据。隔离验收与日常发布分别记录。当前阶段和业务待办见 [项目进度与业务待办](TODO.md)，架构待办见 [架构进度与待办](architecture/README.md)。
 
 ## 2. 基础商城
 
@@ -887,7 +887,7 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 
 ## 7. 架构命名与代码治理
 
-下文保留 M2、M3 各批次验证时的规模、准入结论与脚本形式。当前部署和待办分别见第 6、9、10 节及[项目快照](PROJECT-STATUS.md)。
+下文保留 M2、M3 各批次验证时的规模、准入结论与脚本形式。当前项目状态及在途事项见 [项目进度与业务待办](TODO.md)。
 
 - 核心商城保持模块化单体，按 `identity/catalog/cart/ordering/inventory/payment/refund/fulfillment/logistics/receipt/review/notification/scheduling/shared` 业务包分界。
 - 目录已分为 `services/`、`web/`、`simulators/`和 `infrastructure/`；Angular 商城门户与未来 Vue 3 门户使用明确的并列边界。
@@ -1176,8 +1176,4 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - 完成商城旧履约源归档评审。隔离验证了精确备份、无旧源启动及发货、归档恢复。原启动脚本仍依赖旧水位，运行验证使用临时覆盖。[归档评审](architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#27-2026-11-19-商城旧履约源归档评审)
 - 履约空库初始化已与常规授权拆分，审计区分旧源保留、完整归档和缺件。隔离验证了正式配置无旧源发货、旧源恢复及旧镜像接管。[入口改造验收](architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#28-2026-11-19-履约归档后启动审计与回退)
 
-其他边界如下。
-
-- 真实邮箱、短信、电话或企业值班平台接入，以及 Prometheus/Alertmanager 多副本和通知到人升级流程；当前只验证本地可替换 Webhook 管道。
-
-详细顺序和验收门禁只见 [TODO.md](TODO.md)。
+功能扩展见 [业务待办](TODO.md)，真实渠道和值班、监控多副本及运行门禁见 [架构待办](architecture/README.md)。

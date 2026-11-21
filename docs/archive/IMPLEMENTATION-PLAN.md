@@ -300,7 +300,7 @@ review, persistent_login
 - [ ] 实现自动收货、`RECEIVED -> COMPLETED` 和完成后评价。
 - [ ] 客户订单页继续展开显示物流、支付、退款、时间线和允许动作，视觉重构后置。
 - [ ] 提供三种主要 Docker Profile、Windows/Bash 脚本和故障实验。
-- 唯一执行清单：[统一未实现代办](../TODO.md)。
+- 后续实施记录见 [旧版待办归档](PROJECT-HISTORY.md#旧版待办与实施记录)，现行安排见 [项目进度与业务待办](../TODO.md)。
 - 策略配置参考：[通用定时任务触发策略与数据库补偿](../reference/SCHEDULED-TASK-STRATEGIES.md)。
 - 计划提交：按 `11-0` 至 `11-10` 独立提交，禁止合并成不可审查的大提交。
 
