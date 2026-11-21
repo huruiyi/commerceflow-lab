@@ -219,7 +219,8 @@ public class PaymentAdminRoleService {
   private RoleSummary summary(PaymentAdminRole role, List<RoleAccount> accounts) {
     long accountCount = accounts.stream().map(RoleAccount::userId).distinct().count();
     return new RoleSummary(role.getId(), role.getRoleCode(), role.getRoleName(), role.getRoleScope(),
-      role.getDescription(), role.isEnabled(), role.isSystemRole(), roles.selectPermissions(role.getId()), accountCount);
+      role.getDescription(), role.isEnabled(), role.isSystemRole(),
+      roles.selectPermissions(role.getId()), accountCount);
   }
 
   public record RoleRequest(@NotBlank @Pattern(regexp = "[A-Z][A-Z0-9_]{2,63}") String code,

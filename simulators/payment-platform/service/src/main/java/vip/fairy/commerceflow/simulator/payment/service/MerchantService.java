@@ -157,7 +157,8 @@ public class MerchantService {
   }
 
   private static MerchantResponse response(PaymentMerchant value) {
-    return new MerchantResponse(value.getId(), value.getMerchantNo(), value.getDisplayName(), value.getRemark(), value.getAppId(),
+    return new MerchantResponse(value.getId(), value.getMerchantNo(), value.getDisplayName(),
+      value.getRemark(), value.getAppId(),
       "****" + value.getSecretLastFour(), value.getCredentialVersion(), value.getSigningAlgorithm(),
       value.getMerchantPublicKey(),
       value.getNotifyUrl(), value.isEnabled(), value.getCreatedBy(), value.getCreatedAt());

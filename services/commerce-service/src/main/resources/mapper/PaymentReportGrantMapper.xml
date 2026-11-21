@@ -26,7 +26,7 @@
     WHERE u.id = #{accountId} AND u.enabled = TRUE
   </select>
   <select id="merchantOptions"
-      resultType="vip.fairy.commerceflow.commerce.identity.application.contract.v1.PaymentReportAccessV1$MerchantOption">
+    resultType="vip.fairy.commerceflow.commerce.identity.application.contract.v1.PaymentReportAccessV1$MerchantOption">
     SELECT merchant_id, name FROM merchant_stores
     <if test="merchantIds != null">
       WHERE merchant_id IN

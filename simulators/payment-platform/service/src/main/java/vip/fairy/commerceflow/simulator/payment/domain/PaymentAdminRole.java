@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 
 @TableName("payment_admin_role")
 public class PaymentAdminRole {
+
   /** 数据库主键。 */
   @TableId(type = IdType.AUTO)
   private Long id;

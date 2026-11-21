@@ -21,7 +21,8 @@
     INSERT INTO payment_admin_role_permission (role_id, permission_code) VALUES (#{roleId}, #{permission})
   </insert>
 
-  <select id="selectAccounts" resultType="vip.fairy.commerceflow.simulator.payment.mapper.PaymentAdminRoleMapper$RoleAccount">
+  <select id="selectAccounts"
+      resultType="vip.fairy.commerceflow.simulator.payment.mapper.PaymentAdminRoleMapper$RoleAccount">
     SELECT u.id AS user_id, u.username, NULL AS merchant_id, NULL AS merchant_name, b.enabled
     FROM payment_admin_user_role b JOIN payment_admin_user u ON u.id = b.user_id
     WHERE b.role_id = #{roleId}
@@ -34,7 +35,8 @@
     ORDER BY username, merchant_id
   </select>
 
-  <select id="selectBindings" resultType="vip.fairy.commerceflow.simulator.payment.mapper.PaymentAdminRoleMapper$RoleBinding">
+  <select id="selectBindings"
+      resultType="vip.fairy.commerceflow.simulator.payment.mapper.PaymentAdminRoleMapper$RoleBinding">
     SELECT r.id AS role_id, r.role_code, r.role_name, r.role_scope,
            NULL AS merchant_id, NULL AS merchant_name, b.enabled, r.enabled AS role_enabled
     FROM payment_admin_user_role b JOIN payment_admin_role r ON r.id = b.role_id

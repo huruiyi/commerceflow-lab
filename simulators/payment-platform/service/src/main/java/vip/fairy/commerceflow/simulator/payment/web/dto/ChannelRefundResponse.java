@@ -8,6 +8,7 @@ public record ChannelRefundResponse(String channelRefundNo, String merchantRefun
                                     BigDecimal amount, String currency, String reasonCode, String status,
                                     String faultScenario, String failureReason,
                                     LocalDateTime succeededAt, LocalDateTime failedAt, LocalDateTime createdAt,
-                                    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+                                    @com.fasterxml.jackson.annotation.JsonInclude(
+                                      com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
                                     Boolean canRedeliver) {
 }

@@ -9,6 +9,7 @@ public record ChannelTransactionResponse(String channelTransactionNo, String mer
                                          String faultScenario, String actionType, String checkoutUrl, String qrPayload,
                                          LocalDateTime expiresAt, LocalDateTime paidAt, LocalDateTime closedAt,
                                          LocalDateTime createdAt,
-                                         @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+                                         @com.fasterxml.jackson.annotation.JsonInclude(
+                                           com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
                                          Boolean canClose) {
 }

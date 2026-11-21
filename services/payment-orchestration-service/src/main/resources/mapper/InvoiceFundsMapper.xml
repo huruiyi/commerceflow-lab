@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="vip.fairy.commerceflow.payment.infrastructure.persistence.InvoiceFundsMapper">
-  <select id="findByOrderId" resultType="vip.fairy.commerceflow.payment.infrastructure.persistence.InvoiceFundsMapper$Row">
+  <select id="findByOrderId"
+      resultType="vip.fairy.commerceflow.payment.infrastructure.persistence.InvoiceFundsMapper$Row">
     SELECT p.payment_number, p.amount AS paid_amount, p.refunded_amount, p.currency, p.paid_at,
            r.refund_number, r.order_id AS refund_order_id, r.amount AS refund_amount,
            r.currency AS refund_currency, r.succeeded_at

@@ -117,6 +117,7 @@ public class PaymentLedgerReportService {
   }
 
   private static final class Accumulator {
+
     private long createdCount;
     private long paidCount;
     private long refundCount;
