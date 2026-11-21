@@ -1,6 +1,7 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { AuthGuard } from './auth.guard';
+import { InvoiceCenterComponent } from './invoices/invoice-center.component';
 import { DashboardComponent } from './dashboard/dashboard.component';
 import { ErrorpageComponent } from './errorpage/errorpage.component';
 import { LoginComponent } from './login/login.component';
@@ -115,6 +116,42 @@ const routes: Routes = [
     component: PaymentLedgerReportsComponent,
     canActivate: [AuthGuard],
     data: { roles: ['MERCHANT'] },
+  },
+  {
+    path: 'invoices',
+    component: InvoiceCenterComponent,
+    canActivate: [AuthGuard],
+    data: { roles: ['CUSTOMER'], invoiceMode: 'customer' },
+  },
+  {
+    path: 'orders/:id/invoices',
+    component: InvoiceCenterComponent,
+    canActivate: [AuthGuard],
+    data: { roles: ['CUSTOMER'], invoiceMode: 'customer' },
+  },
+  {
+    path: 'merchant/invoices',
+    component: InvoiceCenterComponent,
+    canActivate: [AuthGuard],
+    data: { roles: ['MERCHANT'], invoiceMode: 'merchant' },
+  },
+  {
+    path: 'merchant/invoices/:id',
+    component: InvoiceCenterComponent,
+    canActivate: [AuthGuard],
+    data: { roles: ['MERCHANT'], invoiceMode: 'merchant' },
+  },
+  {
+    path: 'admin/invoices',
+    component: InvoiceCenterComponent,
+    canActivate: [AuthGuard],
+    data: { roles: ['ADMIN'], invoiceMode: 'platform' },
+  },
+  {
+    path: 'admin/invoices/:id',
+    component: InvoiceCenterComponent,
+    canActivate: [AuthGuard],
+    data: { roles: ['ADMIN'], invoiceMode: 'platform' },
   },
   { path: '**', component: ErrorpageComponent },
 ];

@@ -2,6 +2,7 @@ package vip.fairy.commerceflow.commerce.identity.api;
 
 import vip.fairy.commerceflow.commerce.identity.application.CurrentUserService;
 import vip.fairy.commerceflow.commerce.identity.application.LoginRateLimitService;
+import vip.fairy.commerceflow.commerce.identity.application.contract.v1.InvoiceAccessV1;
 import vip.fairy.commerceflow.commerce.identity.api.LoginRequest;
 import vip.fairy.commerceflow.commerce.identity.api.LoginResponse;
 import vip.fairy.commerceflow.commerce.identity.api.UserProfileResponse;
@@ -36,19 +37,21 @@ public class AuthController {
   private final CurrentUserService currentUsers;
   private final RememberMeServices rememberMeServices;
   private final LoginRateLimitService loginRateLimit;
+  private final InvoiceAccessV1 invoiceAccess;
 
   public AuthController(AuthenticationManager authenticationManager,
                         SecurityContextRepository securityContextRepository,
                         SessionAuthenticationStrategy sessionAuthenticationStrategy,
                         CurrentUserService currentUsers,
                         RememberMeServices rememberMeServices,
-                        LoginRateLimitService loginRateLimit) {
+                        LoginRateLimitService loginRateLimit, InvoiceAccessV1 invoiceAccess) {
     this.authenticationManager = authenticationManager;
     this.securityContextRepository = securityContextRepository;
     this.sessionAuthenticationStrategy = sessionAuthenticationStrategy;
     this.currentUsers = currentUsers;
     this.rememberMeServices = rememberMeServices;
     this.loginRateLimit = loginRateLimit;
+    this.invoiceAccess = invoiceAccess;
   }
 
   @GetMapping("/csrf")
@@ -78,11 +81,17 @@ public class AuthController {
     if (request.isRemember()) {
       rememberMeServices.loginSuccess(servletRequest, servletResponse, authentication);
     }
-    return new LoginResponse(UserProfileResponse.from(currentUsers.require(authentication)));
+    return new LoginResponse(profile(authentication));
   }
 
   @GetMapping("/me")
   UserProfileResponse me(Authentication authentication) {
-    return UserProfileResponse.from(currentUsers.require(authentication));
+    return profile(authentication);
+  }
+
+  private UserProfileResponse profile(Authentication authentication) {
+    var user = currentUsers.require(authentication);
+    return UserProfileResponse.from(user, invoiceAccess.enabled(),
+      "ADMIN".equals(user.getRole()) && invoiceAccess.canOperate(user.getId()));
   }
 }

@@ -9,4 +9,6 @@ export interface UserProfile {
   email: string;
   phone: string;
   role: string;
+  invoiceEnabled?: boolean;
+  invoiceOperations?: boolean;
 }

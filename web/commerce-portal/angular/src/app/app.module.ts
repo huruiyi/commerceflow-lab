@@ -11,6 +11,7 @@ import { HlmSpinner } from '@spartan-ng/helm/spinner';
 
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
+import { InvoiceCenterComponent } from './invoices/invoice-center.component';
 import { LoginComponent } from './login/login.component';
 import { DashboardComponent } from './dashboard/dashboard.component';
 import { NavbarComponent } from './inc/navbar/navbar.component';
@@ -54,6 +55,7 @@ import { InventoryReconciliationAdminComponent } from './inventory-reconciliatio
     UseritemComponent,
     AddressesComponent,
     PurchaseOrdersComponent,
+    InvoiceCenterComponent,
     MerchantOrdersComponent,
     MerchantReturnWorkOrdersComponent,
     LineAfterSalesComponent,

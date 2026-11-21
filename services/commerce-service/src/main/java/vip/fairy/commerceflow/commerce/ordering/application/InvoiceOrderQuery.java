@@ -21,8 +21,8 @@ public class InvoiceOrderQuery implements InvoiceOrderReadV1 {
       var lines = orders.items(orderId).stream()
         .map(line -> new Line(line.getMerchantId(), line.getSubtotal(), line.getDiscountAmount()))
         .toList();
-      return new Order(order.getTotalAmount(), order.getProductSubtotal(), order.getDiscountAmount(),
-        order.getShippingFee(), order.getCurrency(), lines);
+      return new Order(order.getOrderNumber(), order.getTotalAmount(), order.getProductSubtotal(),
+        order.getDiscountAmount(), order.getShippingFee(), order.getCurrency(), lines);
     });
   }
 }

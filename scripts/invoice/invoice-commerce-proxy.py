@@ -8,7 +8,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 SECRET = os.environ["INVOICE_REQUEST_SECRET"].encode()
 issue_attempts = 0
-fail_next_issue = False
+failures_remaining = 0
 state = {}
 
 
@@ -20,15 +20,15 @@ class Proxy(BaseHTTPRequestHandler):
         self.forward("GET")
 
     def do_POST(self):
-        global fail_next_issue
-        if self.path == "/fixture/fail-next-issue":
-            fail_next_issue = True
+        global failures_remaining
+        if self.path in ("/fixture/fail-next-issue", "/fixture/fail-three-issues"):
+            failures_remaining = 3 if self.path.endswith("three-issues") else 1
             self.reply(204)
             return
         self.forward("POST")
 
     def forward(self, method):
-        global issue_attempts, fail_next_issue
+        global issue_attempts, failures_remaining
         request_id = self.path.rsplit("/", 1)[-1]
         observed = state.setdefault(request_id, {"get": 0, "post": 0, "dropped": False})
         observed[method.lower()] += 1
@@ -37,8 +37,8 @@ class Proxy(BaseHTTPRequestHandler):
         is_issue = method == "POST" and self.path.startswith("/api/invoice-requests/")
         if is_issue:
             issue_attempts += 1
-            if fail_next_issue:
-                fail_next_issue = False
+            if failures_remaining:
+                failures_remaining -= 1
                 value = json.loads(body)
                 value["simulation"] = "FAIL"
                 body = json.dumps(value).encode()

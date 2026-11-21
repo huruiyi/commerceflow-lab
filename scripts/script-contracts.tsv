@@ -69,4 +69,4 @@ commerce/verify-coupons.ps1	BaseUrl,PaymentBaseUrl,ProjectName
 commerce/verify-merchant-operations.ps1	Chapter,BaseUrl,PaymentBaseUrl,LogisticsUrl,ProjectName,WarehouseBaseUrl,MessagingBaseUrl
 messaging/verify-messaging-simulator.ps1	BaseUrl,ProjectName
 invoice/verify-invoice-simulator.ps1	MaxWaitSeconds
-invoice/verify-commerce-invoices.ps1	SkipBuild,MaxWaitSeconds
+invoice/verify-commerce-invoices.ps1	SkipBuild,MaxWaitSeconds,PlaywrightModule,ScreenshotDirectory

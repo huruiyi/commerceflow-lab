@@ -545,6 +545,79 @@ pwsh -NoProfile -File scripts/invoice/verify-invoice-simulator.ps1
 pwsh -NoProfile -File scripts/invoice/verify-commerce-invoices.ps1
 ```
 
+### 2.30 电子发票第三批页面隔离验收
+
+顾客可从订单详情申请开票，并在「我的发票」查询自己的申请、正票、红冲记录和有效票面。
+商家在「本店票据」查看所属商家已出票据及成功红冲。发票归属取正票冻结的商家，查询按登录账号限定范围。
+平台账号需同时具备 `ADMIN` 和 `INVOICE_OPERATIONS`，可按订单号、申请号或状态查询，并为待核对记录填写说明、发起复核。
+复核沿用权威账本和原渠道查询，记录操作人、原原因和金额差异。明确失败且自动重试用尽时，复核允许重新发起，保留旧尝试。
+V67 增加订单展示号、复核日志和独立平台权限，存量申请可继续按内部订单号访问。
+
+2026-11-21 在隔离 Docker 项目 `fairy-commerceflow-invoice-commerce-qa-25ccd6248b` 使用真实 Angular/Nginx、商城 V67、MySQL 8.4 和发票模拟平台，
+通过 Chromium 登录两位顾客、两家商户和两个平台账号，并验证未登录会话。
+
+| 验收角色 | 页面与接口证据 |
+| --- | --- |
+| 顾客 | 通过订单详情和导航进入，分别为商家 A、B 的订单申请正票 120.00 与 180.00 CNY。列表仅显示本人申请，输入其他顾客的订单地址没有申请入口，查询返回 404。 |
+| 商家 A、B | 两家各自只看本店。按他店订单号查询为空，直接访问他店详情返回 404，改写请求的商家参数也无法扩大范围。商家 B 收到 30.00 CNY 红冲，有效票面 150.00 CNY，390 像素视口无横向溢出。 |
+| 授权平台 | 同时查到两店。订单金额与实付不符时，复核记录操作人和说明，原差异仍显示待核对。另一笔开票三次失败后，经复核重新开出 90.00 CNY 正票，三笔失败记录均保留。已确认正票的复核请求返回 409。 |
+| 未授权平台、访客 | 普通平台账号隐藏入口，直接访问页面回到首页，查询和复核返回 403。未登录访问回到登录页，发票接口返回 401。 |
+
+浏览器脚本 74 项断言通过，MySQL 复核了两家商户的三张成功正票归属及两条平台复核记录。
+第二批开票、红冲、回执重放和两次强制重启在同一隔离环境复跑通过。商城 58 项、Angular 33 项测试和生产镜像构建通过。日常 34 个容器 ID 验收前后一致。
+隔离容器已关闭，保留数据卷 `fairy-commerceflow-invoice-commerce-qa-25ccd6248b_invoice-commerce-data`。
+
+准备 Node.js、Playwright 及其匹配的 Chromium 后可复跑。
+
+```powershell
+pwsh -NoProfile -File scripts/invoice/verify-commerce-invoices.ps1 -PlaywrightModule '<Playwright 模块目录>'
+```
+
+#### 2.30.1 电子发票日常发布与验收
+
+2026-11-21，日常 Compose 项目 `fairy-commerceflow` 采用隔离验收通过的原镜像，发布标签为 `invoice-20261121`。
+依次启动发票数据库和模拟平台，使用 Flyway 将商城 V65 升至 V67，再刷新商城运行账号表级授权并替换三个应用。
+发票模拟库通过 V1 初始化，支付库仍为 V5。现有 34 个容器均已复核，31 个容器 ID 一致，全部原有数据卷的挂载一致。
+发票模拟器和数据库在内部网络运行，新增卷为 `fairy-commerceflow_invoice-db-data`。
+
+| 服务 | 发布镜像摘要前缀 | 回退镜像摘要前缀 |
+| --- | --- | --- |
+| 支付编排 | `77b99afc4b9d` | `aa18fb71eab3` |
+| 商城 | `5c5c80865c3d` | `57b1fb87bfc6` |
+| Angular 门户 | `b7207722cae7` | `68a82868a5b9` |
+| 发票模拟平台 | `cc2985c478e5` | 首次发布 |
+
+用现有商品创建订单 736（`ORD-0405C3A0DB2268FE224DD459AF17EEEE`）。支付宝模拟收银台通过签名通知确认实付 1,299.00 CNY。
+商城确认正票 `INV-5bedb0d5-7b5e-47d1-befa-f43e7a7e96ef` 后提交整单退款，订单及退款库存状态均为 `REFUNDED`。
+正式支付、退款、模拟支付渠道和发票账本核对如下。
+
+| 核对对象 | 结果 |
+| --- | --- |
+| 支付 `PAY-RMT-256007D48E7F4BC58A5A` | 实付 1,299.00 CNY |
+| 退款 `REF-RMT-12BAAC613E084FF0` | 成功退款 1,299.00 CNY |
+| 红票 `RED-d6020075-daaf-4864-bc1f-7af6f311ce37` | 关联原正票和原退款，金额 1,299.00 CNY |
+| 有效票面 | 0.00 CNY，两条签名回执均获确认。开票和退款请求重放沿用原结果。 |
+
+日常 Chromium 分别用顾客、商家和授权平台账号查询这笔订单，均显示正票、红票和零余额。
+日常学习环境现有的 `admin@example.com` 获得独立 `INVOICE_OPERATIONS` 权限，可从平台页面查看。
+发布前后的 MySQL 逐行 SHA-256 对比覆盖八张表，共 3,524 条历史记录，差异为零。
+其中有 735 个历史订单、739 条订单行、593 笔正式支付、133 笔正式退款、593 条支付归属、598 笔渠道支付、132 笔渠道退款和 1 笔模拟打款。
+
+**回退方式**
+
+完整镜像清单、商城 V65 备份、账本对比和运行配置保存在本机 `%LOCALAPPDATA%/CommerceFlow/releases/invoice-20261121`。
+[日常发票 Compose 覆盖文件](../infrastructure/compose/compose.invoice-release.yaml) 指定发布标签、独立数据卷和内部回执地址。
+旧应用镜像已保留为 `before-invoice-20261121`。回退时先恢复旧门户，再恢复商城和支付编排，最后停用发票模拟服务。
+V66/V67 和原有数据卷保留。重新启用发票时，按支付账本复核停用期间的成功退款及补红结果。
+
+```powershell
+$release = Join-Path $env:LOCALAPPDATA 'CommerceFlow/releases/invoice-20261121/compose-release.ps1'
+& $release -Previous up -d --no-deps --no-build --pull never --wait commerce-portal-angular
+& $release -Previous up -d --no-deps --no-build --pull never --wait commerce-service
+& $release -Previous up -d --no-deps --no-build --pull never --wait payment-orchestration-service
+& $release stop invoice-simulator-service
+```
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import vip.fairy.commerceflow.commerce.identity.application.CurrentUserService;
 import vip.fairy.commerceflow.commerce.invoice.application.CommerceInvoiceService;
 import vip.fairy.commerceflow.commerce.invoice.domain.InvoiceJournal.View;
+import vip.fairy.commerceflow.commerce.invoice.domain.InvoicePortal.Eligibility;
 
 @RestController
 @RequestMapping("/api/purchase-orders/{orderId}/invoices")
@@ -32,6 +33,12 @@ public class CustomerInvoiceController {
   ResponseEntity<View> request(@PathVariable long orderId, Authentication authentication) {
     View view = invoices.request(orderId, users.require(authentication).getId());
     return ResponseEntity.accepted().cacheControl(CacheControl.noStore()).body(view);
+  }
+
+  @GetMapping("/eligibility")
+  ResponseEntity<Eligibility> eligibility(@PathVariable long orderId, Authentication authentication) {
+    return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+      .body(invoices.eligibility(orderId, users.requireId(authentication)));
   }
 
   @GetMapping

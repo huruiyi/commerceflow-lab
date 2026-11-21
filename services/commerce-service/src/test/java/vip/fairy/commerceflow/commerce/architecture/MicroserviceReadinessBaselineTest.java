@@ -144,6 +144,7 @@ class MicroserviceReadinessBaselineTest {
       Map.entry("invoice_attempts", "invoice"),
       Map.entry("invoice_refund_facts", "invoice"),
       Map.entry("invoice_frozen_refunds", "invoice"),
+      Map.entry("invoice_review_actions", "invoice"),
       Map.entry("return_exception_work_orders", "refund"),
       Map.entry("return_exception_actions", "refund"),
       Map.entry("refund_events", "refund"),

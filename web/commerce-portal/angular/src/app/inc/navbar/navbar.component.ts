@@ -6,6 +6,7 @@ import { Router } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 import { CustomerNotification } from 'src/model/INotification';
 import { notificationOrderSection } from 'src/model/IPurchaseOrder';
+import { invoiceRoutes } from '../../invoices/invoice-api.service';
 
 @Component({
   standalone: false,
@@ -42,6 +43,14 @@ export class NavbarComponent implements OnInit {
     if (userInfo) {
       this.bilgiler = userInfo;
     }
+  }
+
+  get invoiceRoute(): string | null {
+    const profile = this.accountService.userProfile();
+    if (!profile?.invoiceEnabled) return null;
+    if (profile.role === 'CUSTOMER') return invoiceRoutes.customer;
+    if (profile.role === 'MERCHANT') return invoiceRoutes.merchant;
+    return profile.role === 'ADMIN' && profile.invoiceOperations ? invoiceRoutes.platform : null;
   }
 
   ngOnInit(): void {

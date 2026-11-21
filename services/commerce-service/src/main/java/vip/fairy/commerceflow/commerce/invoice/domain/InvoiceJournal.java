@@ -28,7 +28,9 @@ public final class InvoiceJournal {
     long customerId,
     State status,
     String reviewReason,
-    String reviewDetail
+    String reviewDetail,
+    String orderNumber,
+    long retryAfterId
   ) {
   }
 
@@ -74,7 +76,8 @@ public final class InvoiceJournal {
     Attempt issue,
     List<String> frozenRefundNumbers,
     List<Attempt> redAttempts,
-    BigDecimal effectiveAmount
+    BigDecimal effectiveAmount,
+    String orderNumber
   ) {
   }
 }

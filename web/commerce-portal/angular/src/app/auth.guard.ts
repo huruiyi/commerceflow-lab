@@ -15,7 +15,11 @@ export class AuthGuard implements CanActivate {
       map((profile) => {
         if (!profile) return this.router.createUrlTree(['/'], { queryParams: { returnUrl: state.url } });
         const roles = route.data['roles'] as string[] | undefined;
-        return !roles?.length || roles.includes(profile.role) ? true : this.router.createUrlTree(['/dashboard']);
+        const invoiceMode = route.data['invoiceMode'];
+        const authorizedRole = !roles?.length || roles.includes(profile.role);
+        const authorizedInvoice =
+          !invoiceMode || (profile.invoiceEnabled && (invoiceMode !== 'platform' || profile.invoiceOperations));
+        return authorizedRole && authorizedInvoice ? true : this.router.createUrlTree(['/dashboard']);
       }),
     );
   }

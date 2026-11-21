@@ -1,7 +1,9 @@
 #requires -Version 7.2
 param(
   [switch]$SkipBuild,
-  [int]$MaxWaitSeconds = 120
+  [int]$MaxWaitSeconds = 120,
+  [string]$PlaywrightModule = '',
+  [string]$ScreenshotDirectory = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -36,8 +38,8 @@ function Wait-For([scriptblock]$Condition, [string]$Label) {
   throw "Timed out waiting for $Label"
 }
 
-function Get-ServiceUrl([string]$Service) {
-  $binding = Compose port $Service 8080
+function Get-ServiceUrl([string]$Service, [int]$Port = 8080) {
+  $binding = Compose port $Service $Port
   if ($binding -notmatch '^127\.0\.0\.1:\d+$') { throw "Unexpected endpoint for ${Service}: $binding" }
   return "http://$binding"
 }
@@ -139,7 +141,11 @@ function Send-Receipt([string]$Request, [string]$Status) {
 
 try {
   Write-Host "Isolated project $project"
-  if (!$SkipBuild) { Compose build commerce order payment invoice | Out-Host }
+  if (!$SkipBuild) {
+    $targets = @('commerce', 'order', 'payment', 'invoice')
+    if ($PlaywrightModule) { $targets += 'portal' }
+    Compose build @targets | Out-Host
+  }
   Compose up -d --wait commerce-db | Out-Host
   foreach ($schema in @('orders', 'payments', 'invoice_platform')) {
     Sql "CREATE DATABASE $schema; CREATE USER '$schema'@'%' IDENTIFIED BY 'invoice-commerce-verification-db';
@@ -313,8 +319,8 @@ ORDER BY r.succeeded_at, r.id;
     FROM invoice_platform.invoice_tickets t JOIN invoice_platform.invoice_tickets r ON r.original_invoice_no=t.invoice_no
     WHERE t.request_id='$request' GROUP BY t.invoice_no,t.amount;"
   Assert-Equal $balance '250.00|0.00|3' 'Channel ticket net balance'
-  $version = Sql 'SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1'
-  Assert-Equal $version '66' 'Commerce Flyway version'
+  $version = Sql "SELECT COUNT(*) FROM flyway_schema_history WHERE success=1 AND version='66'"
+  Assert-Equal $version '1' 'Commerce invoice journal migrated'
 
   Write-Host "Order INVOICE-O9101, payment INVOICE-P9101, application $($app.applicationNo)"
   Write-Host "Issue $request -> $($final.issue.invoiceNo), order 320.00 - 40.00 + 20.00 = paid 300.00 CNY"
@@ -322,6 +328,31 @@ ORDER BY r.succeeded_at, r.id;
   $ledger | Out-Host
   foreach ($red in $final.redAttempts) { Write-Host "$($red.referenceNo) -> $($red.requestId) -> $($red.invoiceNo)" }
   Write-Host 'PASS: issue 250.00 CNY, red total 250.00 CNY, effective 0.00 CNY. Lost response, replay and two process restarts verified.'
+  if ($PlaywrightModule) {
+    Sql (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'invoice-portal-fixtures.sql') -Raw)
+    foreach ($payment in @(@(9201, 120), @(9202, 180), @(9203, 71), @(9204, 90))) {
+      $notice = @{notificationId=[guid]::NewGuid().ToString(); channelTransactionNo="CH-P$($payment[0])"
+        channel='ALIPAY'; status='SUCCESS'; amount=$payment[1]; currency='CNY'; failureReason=''}
+      Payment-Callback 'payment' $notice 'APPLIED_PAYMENT_SUCCEEDED'
+    }
+    Compose up -d portal | Out-Host
+    $portalUrl = Get-ServiceUrl portal 80
+    Wait-For {
+      try { (Invoke-WebRequest "$portalUrl/healthz" -TimeoutSec 3).StatusCode -eq 200 } catch { $false }
+    } 'Angular portal health' | Out-Null
+    $browserArgs = @((Join-Path $PSScriptRoot 'invoice-portal-browser.cjs'), $portalUrl, $PlaywrightModule,
+      $paymentUrl, $proxyUrl, $ScreenshotDirectory)
+    node @browserArgs
+    $audit = Sql "SELECT GROUP_CONCAT(CONCAT_WS(':',order_id,actor_id,prior_reason) ORDER BY order_id)
+      FROM invoice_review_actions WHERE order_id IN (9203,9204);"
+    Assert-Equal $audit '9203:92003:ORDER_PAYMENT_AMOUNT_MISMATCH,9204:92003:ISSUE_RETRIES_EXHAUSTED' 'Audited review actions'
+    $tickets = Sql "SELECT GROUP_CONCAT(CONCAT_WS(':',a.order_id,t.merchant_id,t.amount) ORDER BY a.order_id)
+      FROM invoice_applications a JOIN invoice_attempts t ON a.order_id=t.order_id
+      WHERE a.order_id IN (9201,9202,9204) AND t.kind='ISSUE' AND t.status='SUCCEEDED';"
+    Assert-Equal $tickets '9201:92001:120.00,9202:92002:180.00,9204:92002:90.00' 'Tickets and frozen merchant scope'
+    Write-Host "Browser ticket ownership $tickets"
+    Write-Host "Browser operator audit $audit"
+  }
 } catch {
   Compose logs --tail 35 commerce payment invoice invoice-proxy | Out-Host
   throw

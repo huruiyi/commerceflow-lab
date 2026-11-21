@@ -13,6 +13,12 @@ import vip.fairy.commerceflow.commerce.invoice.domain.InvoiceJournal.Outcome;
 import vip.fairy.commerceflow.commerce.invoice.domain.InvoiceJournal.RefundFact;
 import vip.fairy.commerceflow.commerce.invoice.domain.InvoiceJournal.State;
 import vip.fairy.commerceflow.commerce.invoice.domain.InvoiceJournal.View;
+import vip.fairy.commerceflow.commerce.invoice.domain.InvoicePortal.Eligibility;
+import vip.fairy.commerceflow.commerce.invoice.domain.InvoicePortal.MerchantInvoice;
+import vip.fairy.commerceflow.commerce.invoice.domain.InvoicePortal.OperatorInvoice;
+import vip.fairy.commerceflow.commerce.invoice.domain.InvoicePortal.Page;
+import vip.fairy.commerceflow.commerce.invoice.domain.InvoicePortal.Query;
+import vip.fairy.commerceflow.commerce.invoice.domain.InvoicePortal.Ticket;
 import vip.fairy.commerceflow.commerce.invoice.infrastructure.InvoiceJournalMapper;
 import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.InvoiceOrderReadV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.InvoiceFundsV1;
@@ -54,11 +60,11 @@ public class CommerceInvoiceService {
 
   public View request(long orderId, long customerId) {
     if (journal.find(orderId) == null) {
-      orders.find(customerId, orderId).orElseThrow(CommerceInvoiceService::missing);
+      var order = orders.find(customerId, orderId).orElseThrow(CommerceInvoiceService::missing);
       if (funds(orderId).paymentCount() == 0) {
         throw new BusinessRuleException("A successful payment is required to request an invoice");
       }
-      journal.create(orderId, customerId, "APP-" + UUID.randomUUID());
+      journal.create(orderId, customerId, "APP-" + UUID.randomUUID(), order.orderNumber());
     }
     return get(orderId, customerId);
   }
@@ -69,18 +75,97 @@ public class CommerceInvoiceService {
       if (app == null || app.customerId() != customerId) {
         throw missing();
       }
+      return view(app, journal.attempts(orderId));
+    });
+  }
+
+  public Eligibility eligibility(long orderId, long customerId) {
+    var order = orders.find(customerId, orderId).orElseThrow(CommerceInvoiceService::missing);
+    return new Eligibility(order.orderNumber(), funds(orderId).paymentCount() > 0);
+  }
+
+  public Page search(Long customerId, Long merchantId, State status, String term, int page) {
+    if (page < 0 || term != null && term.length() > 64) {
+      throw new IllegalArgumentException("Invalid invoice search");
+    }
+    String filter = term == null || term.isBlank() ? null : term.strip();
+    int size = 20;
+    var rows = journal.search(new Query(customerId, merchantId, status, filter, size + 1, (long) page * size));
+    return new Page(rows.stream().limit(size).toList(), page, rows.size() > size);
+  }
+
+  public MerchantInvoice merchantInvoice(long orderId, long merchantId) {
+    return transactions.execute(ignored -> {
+      Application app = requireApp(orderId);
       var attempts = journal.attempts(orderId);
       Attempt issue = latestIssue(attempts);
-      List<Attempt> reds = attempts.stream().filter(attempt -> attempt.kind() == Kind.RED).toList();
-      BigDecimal effective = null;
-      if (issue != null && issue.status() == Outcome.SUCCEEDED) {
-        BigDecimal refunded = reds.stream().filter(attempt -> attempt.status() == Outcome.SUCCEEDED)
-          .map(Attempt::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        effective = issue.amount().subtract(refunded);
+      if (!issued(issue) || !Objects.equals(issue.merchantId(), merchantId)) {
+        throw missing();
       }
-      return new View(orderId, app.applicationNo(), app.status(), app.reviewReason(), app.reviewDetail(), issue,
-        issue == null ? List.of() : journal.includedRefunds(issue.requestId()), reds, effective);
+      var reds = attempts.stream().filter(attempt -> attempt.kind() == Kind.RED && issued(attempt)).toList();
+      return new MerchantInvoice(orderId, app.orderNumber(), app.applicationNo(), app.status(),
+        effectiveAmount(issue, reds), ticket(issue), reds.stream().map(CommerceInvoiceService::ticket).toList());
     });
+  }
+
+  public OperatorInvoice operatorInvoice(long orderId) {
+    return transactions.execute(ignored -> operatorView(requireApp(orderId)));
+  }
+
+  public OperatorInvoice recheck(long orderId, long actorId, String note) {
+    return transactions.execute(ignored -> {
+      Application app = journal.lock(orderId);
+      if (app == null) {
+        throw missing();
+      }
+      if (app.status() != State.REVIEW_REQUIRED) {
+        throw new BusinessRuleException("Invoice is no longer awaiting review");
+      }
+      journal.insertReviewAction(orderId, actorId, app.reviewReason(), app.reviewDetail(), note.strip());
+      boolean restart = List.of("ISSUE_RETRIES_EXHAUSTED", "RED_RETRIES_EXHAUSTED").contains(app.reviewReason());
+      State state = issued(latestIssue(journal.attempts(orderId))) ? State.ISSUED : State.PENDING;
+      journal.reopen(orderId, state, restart);
+      return operatorView(requireApp(orderId));
+    });
+  }
+
+  private Application requireApp(long orderId) {
+    Application app = journal.find(orderId);
+    if (app == null) {
+      throw missing();
+    }
+    return app;
+  }
+
+  private OperatorInvoice operatorView(Application app) {
+    var attempts = journal.attempts(app.orderId());
+    return new OperatorInvoice(app.orderNumber(), view(app, attempts),
+      attempts.stream().filter(a -> a.kind() == Kind.ISSUE).toList(), journal.reviewActions(app.orderId()));
+  }
+
+  private View view(Application app, List<Attempt> attempts) {
+    Attempt issue = latestIssue(attempts);
+    var reds = attempts.stream().filter(attempt -> attempt.kind() == Kind.RED).toList();
+    return new View(app.orderId(), app.applicationNo(), app.status(), app.reviewReason(), app.reviewDetail(), issue,
+      issue == null ? List.of() : journal.includedRefunds(issue.requestId()), reds, effectiveAmount(issue, reds),
+      app.orderNumber());
+  }
+
+  private static BigDecimal effectiveAmount(Attempt issue, List<Attempt> reds) {
+    if (!issued(issue)) {
+      return null;
+    }
+    var refunded = reds.stream().filter(CommerceInvoiceService::issued).map(Attempt::amount)
+      .reduce(BigDecimal.ZERO, BigDecimal::add);
+    return issue.amount().subtract(refunded);
+  }
+
+  private static boolean issued(Attempt attempt) {
+    return attempt != null && attempt.status() == Outcome.SUCCEEDED;
+  }
+
+  private static Ticket ticket(Attempt attempt) {
+    return new Ticket(attempt.invoiceNo(), attempt.referenceNo(), attempt.amount(), attempt.currency());
   }
 
   public void nudge(String requestId) {
@@ -132,7 +217,7 @@ public class CommerceInvoiceService {
         return awaitChannel(app, pending.get());
       }
       if (issue == null || issue.status() == Outcome.FAILED) {
-        return planIssue(app, funds, observed, attempts);
+        return planIssue(app, funds, observed);
       }
       return planRed(app, issue, observed, attempts);
     } catch (InvoiceFacts.Discrepancy ex) {
@@ -141,7 +226,7 @@ public class CommerceInvoiceService {
     }
   }
 
-  private Attempt planIssue(Application app, InvoiceFundsV1 funds, List<RefundFact> refunds, List<Attempt> attempts) {
+  private Attempt planIssue(Application app, InvoiceFundsV1 funds, List<RefundFact> refunds) {
     var order = orders.find(app.customerId(), app.orderId())
       .orElseThrow(() -> new InvoiceFacts.Discrepancy("ORDER_OWNERSHIP_CHANGED"));
     var amounts = InvoiceFacts.orderAmounts(order, funds);
@@ -150,7 +235,7 @@ public class CommerceInvoiceService {
       journal.advance(app.orderId(), State.EXHAUSTED, null);
       return null;
     }
-    if (attempts.size() >= MAX_ATTEMPTS) {
+    if (journal.attemptCount(app.orderId(), Kind.ISSUE, app.applicationNo(), app.retryAfterId()) >= MAX_ATTEMPTS) {
       throw new InvoiceFacts.Discrepancy("ISSUE_RETRIES_EXHAUSTED");
     }
     var issue = new Attempt(app.orderId(), requestId(), Kind.ISSUE, app.applicationNo(), funds.paymentNumber(),
@@ -178,7 +263,7 @@ public class CommerceInvoiceService {
       if (history.stream().anyMatch(attempt -> attempt.status() == Outcome.SUCCEEDED)) {
         continue;
       }
-      if (history.size() >= MAX_ATTEMPTS) {
+      if (journal.attemptCount(app.orderId(), Kind.RED, refund.refundNo(), app.retryAfterId()) >= MAX_ATTEMPTS) {
         throw new InvoiceFacts.Discrepancy("RED_RETRIES_EXHAUSTED");
       }
       var red = new Attempt(app.orderId(), requestId(), Kind.RED, refund.refundNo(), issue.paymentNo(),

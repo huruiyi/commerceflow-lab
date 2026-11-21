@@ -8,8 +8,8 @@ public interface InvoiceOrderReadV1 {
 
   Optional<Order> find(long customerId, long orderId);
 
-  record Order(BigDecimal total, BigDecimal gross, BigDecimal discount, BigDecimal freight, String currency,
-               List<Line> lines) {
+  record Order(String orderNumber, BigDecimal total, BigDecimal gross, BigDecimal discount, BigDecimal freight,
+               String currency, List<Line> lines) {
   }
 
   record Line(Long merchantId, BigDecimal gross, BigDecimal discount) {

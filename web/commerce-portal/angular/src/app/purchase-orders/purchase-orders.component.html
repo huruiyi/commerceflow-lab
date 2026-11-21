@@ -72,6 +72,9 @@
       <strong>{{ order.totalAmount | trcurrency }}</strong>
     </div>
     <div class="summary-actions">
+      @if (detailId !== null && account.userProfile()?.invoiceEnabled) {
+        <a hlmBtn variant="outline" [routerLink]="['/orders', order.id, 'invoices']">{{ 'invoiceNav' | t }}</a>
+      }
       <div class="primary-action-slot">
         <button hlmBtn *ngIf="hasAction(order, 'PAY')" type="button" (click)="showPayment(order)">
           {{ 'payNow' | t }}

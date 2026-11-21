@@ -40,6 +40,9 @@
         <li class="nav-item" *ngIf="bilgiler.role === 'CUSTOMER'">
           <a class="nav-link" role="button" [routerLink]="['/orders']" routerLinkActive="active">{{ 'orders' | t }}</a>
         </li>
+        <li class="nav-item" *ngIf="invoiceRoute as invoiceLink">
+          <a class="nav-link" [routerLink]="invoiceLink" routerLinkActive="active">{{ 'invoiceNav' | t }}</a>
+        </li>
         <li class="nav-item" *ngIf="bilgiler.role === 'ADMIN'">
           <a class="nav-link" aria-current="page" role="button" [routerLink]="['/users']" routerLinkActive="active">{{
             'users' | t

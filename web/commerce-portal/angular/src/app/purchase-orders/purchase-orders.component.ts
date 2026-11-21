@@ -29,6 +29,7 @@ import {
   PurchaseOrder,
   RepurchaseResult,
 } from 'src/model/IPurchaseOrder';
+import { AccountService } from '../services/account.service';
 import { ApiService } from '../services/api.service';
 import { I18nService } from '../services/i18n.service';
 
@@ -125,6 +126,7 @@ export class PurchaseOrdersComponent implements OnInit {
   private expansionInitialized = false;
 
   constructor(
+    protected account: AccountService,
     private api: ApiService,
     private changeDetector: ChangeDetectorRef,
     public i18n: I18nService,

@@ -1,0 +1,221 @@
+<section class="invoice-center" [attr.aria-busy]="busy">
+  <header class="invoice-heading">
+    <div>
+      @if (orderId !== null) {
+        <a class="invoice-back" [routerLink]="root">{{ 'invoiceBack' | t }}</a>
+      }
+      <h1>{{ (orderId === null ? heading : 'invoiceDetail') | t }}</h1>
+      @if (detail) {
+        <p>{{ 'order' | t }} {{ detail.orderNumber || '#' + detail.orderId }}</p>
+      }
+    </div>
+    @if (orderId === null && mode === 'customer') {
+      <a hlmBtn variant="outline" routerLink="/orders">{{ 'invoiceFindOrder' | t }}</a>
+    }
+    @if (orderId !== null && detail) {
+      <button hlmBtn variant="outline" type="button" (click)="reload()" [disabled]="busy || acting">
+        {{ 'invoiceRefresh' | t }}
+      </button>
+    }
+  </header>
+
+  @if (orderId === null) {
+    <form class="invoice-filters" (ngSubmit)="filter()">
+      <label>
+        {{ 'invoiceSearchKey' | t }}
+        <input class="form-control" name="invoiceQuery" type="search" maxlength="64" [(ngModel)]="term" />
+      </label>
+      <label>
+        {{ 'invoiceStatus' | t }}
+        <select class="form-select" name="invoiceStatus" [(ngModel)]="status">
+          <option value="">{{ 'invoiceAnyStatus' | t }}</option>
+          @for (option of statusOptions; track option) {
+            <option [value]="option">{{ 'invoiceState_' + option | t }}</option>
+          }
+        </select>
+      </label>
+      <button hlmBtn type="submit" [disabled]="busy">{{ 'invoiceSearch' | t }}</button>
+    </form>
+  }
+
+  @if (busy) {
+    <p class="invoice-message" role="status">{{ 'invoiceLoading' | t }}</p>
+  }
+  @if (error) {
+    <div class="invoice-message invoice-error" role="alert">
+      <p>{{ error | t }}</p>
+      @if (error === 'invoiceLoadFailed') {
+        <button hlmBtn variant="outline" type="button" (click)="reload()">{{ 'retry' | t }}</button>
+      }
+    </div>
+  }
+
+  @if (page && !busy) {
+    @if (!page.rows.length) {
+      <p class="invoice-message" role="status">{{ 'invoiceEmpty' | t }}</p>
+    } @else {
+      <div class="invoice-list">
+        @for (row of page.rows; track row.orderId) {
+          <article class="invoice-row" [attr.data-testid]="'invoice-row-' + row.orderId">
+            <div class="invoice-row-id">
+              <a [routerLink]="detailLink(row.orderId)">{{ row.orderNumber || '#' + row.orderId }}</a>
+              <small>{{ row.invoiceNo || row.applicationNo }}</small>
+            </div>
+            <span class="invoice-status" [attr.data-state]="row.status">{{ 'invoiceState_' + row.status | t }}</span>
+            @if (mode === 'platform' && row.merchantId) {
+              <span class="invoice-secondary">{{ 'invoiceMerchantId' | t }} #{{ row.merchantId }}</span>
+            }
+            <div class="invoice-value">
+              <small>{{ 'invoiceNet' | t }}</small>
+              @if (row.effectiveAmount !== null) {
+                <strong>{{ row.effectiveAmount | number: '1.2-2' }} {{ row.currency }}</strong>
+              } @else {
+                <span aria-hidden="true">—</span>
+              }
+            </div>
+          </article>
+        }
+      </div>
+    }
+    @if (page.page > 0 || page.hasNext) {
+      <nav class="invoice-pagination" [attr.aria-label]="'invoicePages' | t">
+        <button hlmBtn variant="outline" type="button" [disabled]="page.page === 0" (click)="changePage(page.page - 1)">
+          {{ 'invoicePrevious' | t }}
+        </button>
+        <button hlmBtn variant="outline" type="button" [disabled]="!page.hasNext" (click)="changePage(page.page + 1)">
+          {{ 'invoiceNext' | t }}
+        </button>
+      </nav>
+    }
+  }
+
+  @if (detail; as current) {
+    @if (actionError) {
+      <p class="invoice-message invoice-error" role="alert">{{ actionError | t }}</p>
+    }
+    @if (!current.applicationNo) {
+      <section class="invoice-panel">
+        <p>{{ (current.eligible ? 'invoiceReady' : 'invoiceUnpaid') | t }}</p>
+        @if (current.eligible) {
+          <button hlmBtn type="button" (click)="request()" [disabled]="acting">
+            {{ (acting ? 'invoiceSending' : 'invoiceApply') | t }}
+          </button>
+        }
+      </section>
+    } @else {
+      <section class="invoice-panel" data-testid="invoice-detail">
+        <header class="invoice-panel-heading">
+          <div>
+            <h2>{{ 'invoiceApplication' | t }}</h2>
+            <p class="invoice-code" data-testid="invoice-application">{{ current.applicationNo }}</p>
+          </div>
+          <span class="invoice-status" [attr.data-state]="current.status">
+            {{ 'invoiceState_' + current.status | t }}
+          </span>
+        </header>
+        @if (current.issue; as issue) {
+          <dl class="invoice-amounts">
+            <div>
+              <dt>{{ 'invoiceIssueNumber' | t }}</dt>
+              <dd class="invoice-code">{{ issue.invoiceNo || '—' }}</dd>
+            </div>
+            <div>
+              <dt>{{ 'invoiceIssueAmount' | t }}</dt>
+              <dd data-testid="invoice-issue-amount">{{ issue.amount | number: '1.2-2' }} {{ issue.currency }}</dd>
+            </div>
+            <div>
+              <dt>{{ 'invoiceNet' | t }}</dt>
+              <dd data-testid="invoice-effective">
+                @if (current.effectiveAmount !== null) {
+                  {{ current.effectiveAmount | number: '1.2-2' }} {{ issue.currency }}
+                } @else {
+                  —
+                }
+              </dd>
+            </div>
+          </dl>
+        }
+        @if (current.status === 'EXHAUSTED') {
+          <p>{{ 'invoiceNoBalance' | t }}</p>
+        }
+      </section>
+      @if (current.redAttempts.length) {
+        <section class="invoice-panel">
+          <h2>{{ 'invoiceRedTickets' | t }}</h2>
+          <ul class="invoice-records">
+            @for (red of current.redAttempts; track red.requestId || red.invoiceNo || $index) {
+              <li>
+                <div>
+                  <strong>{{ red.referenceNo }}</strong><small>{{ red.invoiceNo || '—' }}</small>
+                </div>
+                <span>{{ 'invoiceAttempt_' + (red.status || 'SUCCEEDED') | t }}</span>
+                <strong>{{ red.amount | number: '1.2-2' }} {{ red.currency }}</strong>
+              </li>
+            }
+          </ul>
+        </section>
+      }
+      @if (mode === 'platform') {
+        @if (current.status === 'REVIEW_REQUIRED') {
+          <section class="invoice-panel invoice-review">
+            <h2>{{ 'invoiceReview' | t }}</h2>
+            <p>
+              <code>{{ current.reviewReason }}</code>
+            </p>
+            @if (current.reviewDetail) {
+              <p class="invoice-code">{{ current.reviewDetail }}</p>
+            }
+            <form (ngSubmit)="recheck()">
+              <label for="invoice-note">{{ 'invoiceReviewNote' | t }}</label>
+              <textarea
+                id="invoice-note"
+                class="form-control"
+                name="reviewNote"
+                maxlength="300"
+                rows="3"
+                [(ngModel)]="reviewNote"
+                required
+              ></textarea>
+              <button hlmBtn type="submit" [disabled]="acting || !reviewNote.trim()">
+                {{ (acting ? 'invoiceSending' : 'invoiceRecheck') | t }}
+              </button>
+            </form>
+          </section>
+        }
+        @if (current.issueAttempts?.length) {
+          <section class="invoice-panel">
+            <h2>{{ 'invoiceIssueAttempts' | t }}</h2>
+            <ul class="invoice-records">
+              @for (attempt of current.issueAttempts; track attempt.requestId) {
+                <li>
+                  <div>
+                    <strong>{{ attempt.requestId }}</strong><small>{{
+                      attempt.failureCode || attempt.invoiceNo
+                    }}</small>
+                  </div>
+                  <span>{{ 'invoiceAttempt_' + attempt.status | t }}</span>
+                  <strong>{{ attempt.amount | number: '1.2-2' }} {{ attempt.currency }}</strong>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+        @if (current.actions?.length) {
+          <section class="invoice-panel">
+            <h2>{{ 'invoiceReviewHistory' | t }}</h2>
+            <ul class="invoice-records invoice-history">
+              @for (action of current.actions; track $index) {
+                <li>
+                  <div>
+                    <strong>{{ action.note }}</strong><small>{{ action.priorReason }} {{ action.priorDetail }}</small>
+                  </div>
+                  <span>#{{ action.actorId }} · {{ action.createdAt | trdate }}</span>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+      }
+    }
+  }
+</section>

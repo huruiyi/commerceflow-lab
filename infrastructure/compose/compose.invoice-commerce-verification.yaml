@@ -33,7 +33,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
 
   commerce:
-    image: commerceflow-invoice-qa-commerce:batch2
+    image: commerceflow-invoice-qa-commerce:batch3
     build: ../../services/commerce-service
     environment:
       DATABASE_URL: jdbc:mysql://commerce-db:3306/commerceflow?allowPublicKeyRetrieval=true&sslMode=DISABLED&serverTimezone=UTC
@@ -52,6 +52,15 @@ services:
       INVOICE_CALLBACK_SECRET: invoice-commerce-verification-callback
     ports:
       - "127.0.0.1::8080"
+    networks:
+      default:
+        aliases: [commerce-service]
+
+  portal:
+    image: commerceflow-invoice-qa-portal:batch3
+    build: ../../web/commerce-portal/angular
+    ports:
+      - "127.0.0.1::80"
 
   order:
     image: commerceflow-invoice-qa-order:batch2
