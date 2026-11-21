@@ -2,6 +2,7 @@ package vip.fairy.commerceflow.messaging;
 
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 @Mapper
 interface MessagingMapper {
@@ -13,6 +14,7 @@ interface MessagingMapper {
   int consumeThrottle(String requestId);
   void setFault(String requestId, String behavior);
   int finishDue();
-  List<DeliveryLedger.Receipt> list(String channel, String status, String reference, int offset);
+  List<DeliveryLedger.Receipt> list(String channel, String status, String reference, int limit, int offset);
   int count(String channel, String status, String reference);
+  long countRecentFailures(@Param("channel") String channel, @Param("windowSeconds") long windowSeconds);
 }

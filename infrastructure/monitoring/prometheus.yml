@@ -27,6 +27,14 @@ scrape_configs:
     metrics_path: /actuator/prometheus
     static_configs:
       - targets: [logistics-simulator-service:8080]
+  - job_name: invoice-simulator-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [invoice-simulator-service:8080]
+  - job_name: messaging-simulator-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [messaging-simulator-service:8080]
   - job_name: fulfillment-service
     metrics_path: /actuator/prometheus
     static_configs:

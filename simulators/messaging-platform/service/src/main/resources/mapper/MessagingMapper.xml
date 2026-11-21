@@ -42,9 +42,14 @@
   </sql>
   <select id="list" resultType="vip.fairy.commerceflow.messaging.DeliveryLedger$Receipt">
     SELECT <include refid="receipt"/> FROM messaging_deliveries <include refid="filters"/>
-    ORDER BY accepted_at DESC,request_id LIMIT 20 OFFSET #{offset}
+    ORDER BY accepted_at DESC,request_id LIMIT #{limit} OFFSET #{offset}
   </select>
   <select id="count" resultType="int">
     SELECT COUNT(*) FROM messaging_deliveries <include refid="filters"/>
+  </select>
+  <select id="countRecentFailures" resultType="long">
+    SELECT COUNT(*) FROM messaging_deliveries
+    WHERE channel = #{channel} AND status = 'FAILED'
+      AND finished_at >= TIMESTAMPADD(SECOND, -#{windowSeconds}, CURRENT_TIMESTAMP(6))
   </select>
 </mapper>

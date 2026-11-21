@@ -398,8 +398,6 @@ tests:
     input_series:
       - series: 'commerceflow_payment_refund_processing{job="payment-orchestration-service"}'
         values: '1x12'
-      - series: 'commerceflow_logistics_callback_outbox{job="logistics-simulator-service",status="dead"}'
-        values: '1x7'
     alert_rule_test:
       - eval_time: 11m
         alertname: CommerceFlowRefundBacklog
@@ -411,17 +409,6 @@ tests:
             exp_annotations:
               summary: Refund reconciliation backlog detected
               description: At least one refund has remained in processing for ten minutes.
-      - eval_time: 6m
-        alertname: CommerceFlowLogisticsCallbackDeadLetter
-        exp_alerts:
-          - exp_labels:
-              alertname: CommerceFlowLogisticsCallbackDeadLetter
-              job: logistics-simulator-service
-              status: dead
-              severity: critical
-            exp_annotations:
-              summary: Logistics callback dead letter requires intervention
-              description: The logistics simulator has callback outbox rows in DEAD state for five minutes.
   - interval: 1m
     input_series:
       - series: 'commerceflow_inventory_command_delivery_pending{job="commerce-service"}'

@@ -33,7 +33,7 @@ Grafana 教学账号为 `admin` / `commerceflow-grafana`。这些端口和演示
 
 ## 3. 告警规则
 
-规则位于 [commerceflow-alerts.yml](../infrastructure/monitoring/rules/commerceflow-alerts.yml)。
+规则位于 [核心服务告警](../infrastructure/monitoring/rules/commerceflow-alerts.yml)和[模拟服务告警](../infrastructure/monitoring/rules/simulator-alerts.yml)。
 
 | 告警 | 条件 | 等待 | 级别 |
 | --- | --- | --- | --- |
@@ -62,6 +62,8 @@ Grafana 教学账号为 `admin` / `commerceflow-grafana`。这些端口和演示
 | `CommerceFlowInventoryOutboundBacklog` | 出库事件仍待发布，最老一条已等待 120 秒，且读数新鲜 | 1 分钟 | `warning` |
 | `CommerceFlowLogisticsReconciliationFailure` | 5 分钟内物流对账失败 | 立即 | `warning` |
 | `CommerceFlowLogisticsCallbackDeadLetter` | 物流回调 Outbox 存在 `DEAD` | 5 分钟 | `critical` |
+| `CommerceFlowInvoicePendingTooLong` | 正票或红冲最老待处理请求、最老待确认回执已等待至少 300 秒 | 1 分钟 | `warning` |
+| `CommerceFlowMessagingDeliveryFailures` | 单个渠道在最近 10 分钟内至少有 3 条终态投递失败 | 2 分钟 | `warning` |
 
 `CommerceFlowWatchdog` 是故意保持 firing 的“死信号开关”，用于发现 Prometheus、Alertmanager 或接收端本身断链，不代表业务故障。Alertmanager 对同一告警的 `critical` 抑制 `warning`，普通重复间隔为 4 小时，严重告警为 15 分钟。
 
@@ -122,12 +124,61 @@ pwsh -File ./scripts/operations/verify-alerting.ps1
 1. `promtool check config` 与核心规则加载检查；
 2. `promtool test rules`，离线验证服务宕机和业务故障规则，包括库存命令的年龄门槛、刷新故障和恢复；
 3. `amtool check-config`；
-4. 检查商城、目录、通知、订单、库存、支付编排、支付模拟器和物流模拟器的采集目标，远程履约启用时同时检查履约目标；
+4. 检查商城、目录、通知、订单、库存、支付编排及支付、物流、短信邮件模拟器的采集目标，远程履约启用时同时检查履约目标。发票是发布覆盖服务，启用后目标才可抓取；
 5. Watchdog 经 Alertmanager 真实到达 Webhook。
 
 已有监控容器时可传 `-SkipStart`。脚本只验证告警链，不通过停止业务服务制造故障。
 
 库存命令和出库事件的隔离 MySQL 专项见[验收记录](architecture/INVENTORY-RECONCILIATION-REVIEW.md#2026-11-19-库存命令监控验收)。
+
+### 用业务编号定位模拟服务告警
+
+告警只带稳定标签，比如发票的 `kind`、`phase` 和消息的 `channel`。用有查询权限的账号在对应数据库识别积压记录；
+单笔状态以账本及回执为准。以下查询中的示例编号替换为实际业务编号。只知道告警而没有编号时，可去掉等值条件，
+按时间查看最老的发票任务或最近失败的记录。
+
+**发票开具与红冲。** 在发票库 `invoice_platform` 按 `reference_no` 查开票申请号或退款单号。正票对应 `ISSUE`，
+红冲对应 `RED`。处理告警只涉及 `ACCEPTED`。回执告警则从请求完成时间开始，直到收件端确认该回执；
+签名接口 `GET /api/invoice-requests/{requestId}` 可核对模拟平台记录的单笔结果。
+
+```sql
+SELECT request.request_id, request.reference_no, request.kind, request.status,
+       request.accepted_at, request.completed_at, receipt.event_id, receipt.attempts, receipt.delivered_at
+FROM invoice_requests request
+LEFT JOIN invoice_receipts receipt ON receipt.request_id = request.request_id
+WHERE request.reference_no = '实际开票申请号或退款单号'
+  AND (request.status = 'ACCEPTED' OR (receipt.event_id IS NOT NULL AND receipt.delivered_at IS NULL))
+ORDER BY request.accepted_at
+LIMIT 50;
+```
+
+**物流回调终止。** 在运单管理按商城运单号、订单号或物流单号查到运单，点「查看此运单回调」，筛选「已终止」，
+按事件编号核对最新失败与重试审计。列表只保留最近 500 条投递，需查看更久的记录时在 `logistics_platform` 只读查询：
+
+```sql
+SELECT shipment.merchant_shipment_no, shipment.tracking_number, callback.id, callback.event_id,
+       callback.status, callback.attempts, callback.updated_at
+FROM callback_outbox callback
+JOIN shipment_records shipment ON shipment.id = callback.shipment_id
+WHERE callback.status = 'DEAD' AND shipment.merchant_shipment_no = '实际商城运单号'
+ORDER BY callback.updated_at DESC
+LIMIT 50;
+```
+
+**短信邮件持续失败。** 在消息模拟平台选择告警渠道，按业务关联号和「送达失败」筛选。直接排查滚动窗口时，
+在 `messaging_platform` 查看失败请求号和业务关联号。失败数量随窗口滑动下降，历史失败记录继续保留。
+
+```sql
+SELECT channel, reference, request_id, status, finished_at
+FROM messaging_deliveries
+WHERE channel = 'SMS' AND status = 'FAILED'
+  AND finished_at >= TIMESTAMPADD(MINUTE, -10, CURRENT_TIMESTAMP(6))
+ORDER BY finished_at DESC
+LIMIT 50;
+```
+
+发票、物流和消息告警可用 `pwsh -File ./scripts/operations/verify-simulator-monitoring.ps1` 做隔离验收。
+脚本先用 promtool 验证正式规则的等待时间，再缩短隔离阈值，实测 Prometheus、Alertmanager 和 Webhook 的触发及恢复。
 
 ## 5. 生产部署前仍需完成
 

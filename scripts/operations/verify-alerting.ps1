@@ -38,7 +38,8 @@ Wait-Json "$WebhookUrl/healthz" { param($value) $value.status -eq 'UP' } | Out-N
 & docker compose --project-directory $ProjectRoot exec -T prometheus promtool check config /etc/prometheus/prometheus.yml
 if ($LASTEXITCODE -ne 0) { throw 'Prometheus configuration validation failed.' }
 & docker compose --project-directory $ProjectRoot exec -T prometheus promtool test rules `
-  /etc/prometheus/tests/commerceflow-alerts.test.yml /etc/prometheus/tests/fulfillment-alerts.test.yml
+  /etc/prometheus/tests/commerceflow-alerts.test.yml /etc/prometheus/tests/fulfillment-alerts.test.yml `
+  /etc/prometheus/tests/simulator-alerts.test.yml
 if ($LASTEXITCODE -ne 0) { throw 'Prometheus alert rule tests failed.' }
 & docker compose --project-directory $ProjectRoot exec -T alertmanager amtool check-config /etc/alertmanager/alertmanager.yml
 if ($LASTEXITCODE -ne 0) { throw 'Alertmanager configuration validation failed.' }
@@ -48,8 +49,8 @@ $route = Wait-Json "$PrometheusUrl/api/v1/query?query=commerceflow_fulfillment_r
   @($value.data.result).Count -eq 1
 }
 $requiredJobs = @('commerce-service','inventory-service','order-service','catalog-service','notification-service',
-  'logistics-simulator-service','payment-orchestration-service','payment-simulator-service')
-$expectedJobs = @($requiredJobs + 'fulfillment-service' | Sort-Object)
+  'logistics-simulator-service','messaging-simulator-service','payment-orchestration-service','payment-simulator-service')
+$expectedJobs = @($requiredJobs + 'fulfillment-service' + 'invoice-simulator-service' | Sort-Object)
 $remoteFulfillment = $route.data.result[0].value[1] -eq '1'
 if ($remoteFulfillment) { $requiredJobs += 'fulfillment-service' }
 $targets = Wait-Json "$PrometheusUrl/api/v1/targets" {

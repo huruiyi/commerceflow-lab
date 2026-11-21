@@ -71,11 +71,12 @@ public class DeliveryLedger {
     return stored.receipt();
   }
 
-  public Page list(String channel, String status, String reference, int page) {
+  public Page list(String channel, String status, String reference, int page, int size) {
     requireChannel(channel);
     if ((status != null && !STATES.contains(status)) || page < 1 || page > 10000
+        || size < 1 || size > 200
         || (reference != null && reference.length() > 120)) throw invalid();
-    return new Page(store.list(channel, status, reference, (page - 1) * 20),
+    return new Page(store.list(channel, status, reference, size, (page - 1) * size),
       store.count(channel, status, reference), page);
   }
 

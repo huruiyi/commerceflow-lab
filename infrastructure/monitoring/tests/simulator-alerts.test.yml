@@ -1,0 +1,78 @@
+rule_files:
+  - ../rules/simulator-alerts.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'commerceflow_invoice_pending_oldest_seconds{job="invoice-simulator-service",kind="ISSUE",phase="processing"}'
+        values: '0 299 300 360 0'
+      - series: 'commerceflow_invoice_pending_oldest_seconds{job="invoice-simulator-service",kind="RED",phase="receipt"}'
+        values: '0 0 300 360 0'
+      - series: 'commerceflow_messaging_delivery_failures_recent{job="messaging-simulator-service",channel="SMS"}'
+        values: '0 2 3 4 4 2'
+      - series: 'commerceflow_messaging_delivery_failures_recent{job="messaging-simulator-service",channel="EMAIL"}'
+        values: '0 1 2 2 2 0'
+      - series: 'commerceflow_logistics_callback_outbox{job="logistics-simulator-service",status="dead"}'
+        values: '0 1 1 1 1 1 1 0'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: CommerceFlowInvoicePendingTooLong
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: CommerceFlowInvoicePendingTooLong
+        exp_alerts:
+          - exp_labels:
+              job: invoice-simulator-service
+              kind: ISSUE
+              phase: processing
+              severity: warning
+            exp_annotations:
+              summary: Invoice ISSUE processing is overdue
+              description: The oldest pending invoice request or receipt has exceeded five minutes.
+              lookup: Use kind and phase to find the application or refund number in docs/ALERTING.md.
+          - exp_labels:
+              job: invoice-simulator-service
+              kind: RED
+              phase: receipt
+              severity: warning
+            exp_annotations:
+              summary: Invoice RED receipt is overdue
+              description: The oldest pending invoice request or receipt has exceeded five minutes.
+              lookup: Use kind and phase to find the application or refund number in docs/ALERTING.md.
+      - eval_time: 4m
+        alertname: CommerceFlowInvoicePendingTooLong
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: CommerceFlowMessagingDeliveryFailures
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: CommerceFlowMessagingDeliveryFailures
+        exp_alerts:
+          - exp_labels:
+              job: messaging-simulator-service
+              channel: SMS
+              severity: warning
+            exp_annotations:
+              summary: Repeated SMS delivery failures
+              description: The simulator reported at least three failed deliveries in the rolling failure window for two minutes.
+              lookup: Use the channel and business reference to find the delivery in docs/ALERTING.md.
+      - eval_time: 5m
+        alertname: CommerceFlowMessagingDeliveryFailures
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: CommerceFlowLogisticsCallbackDeadLetter
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: CommerceFlowLogisticsCallbackDeadLetter
+        exp_alerts:
+          - exp_labels:
+              job: logistics-simulator-service
+              status: dead
+              severity: critical
+            exp_annotations:
+              summary: Logistics callback dead letter requires intervention
+              description: The logistics simulator has callback outbox rows in DEAD state for five minutes.
+              lookup: Use the shipment number or event ID to locate the callback in docs/ALERTING.md.
+      - eval_time: 7m
+        alertname: CommerceFlowLogisticsCallbackDeadLetter
+        exp_alerts: []

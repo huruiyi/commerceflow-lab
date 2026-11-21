@@ -372,11 +372,3 @@ groups:
         annotations:
           summary: Logistics reconciliation failed
           description: The commerce service recorded a logistics reconciliation failure.
-      - alert: CommerceFlowLogisticsCallbackDeadLetter
-        expr: commerceflow_logistics_callback_outbox{status="dead"} > 0
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: Logistics callback dead letter requires intervention
-          description: The logistics simulator has callback outbox rows in DEAD state for five minutes.

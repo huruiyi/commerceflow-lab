@@ -17,6 +17,12 @@ spring:
     deserialization:
       fail-on-unknown-properties: true
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
 mybatis-plus:
   mapper-locations: classpath:/mapper/*.xml
   configuration:

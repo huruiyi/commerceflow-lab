@@ -9,10 +9,18 @@ spring:
     problemdetails:
       enabled: true
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
 mybatis-plus:
   mapper-locations: classpath:/mapper/*.xml
 
 messaging:
+  monitoring:
+    failure-window: 10m
   admin-token: ${MESSAGING_ADMIN_TOKEN}
   sender-secret: ${MESSAGING_SENDER_SECRET}
   faults-enabled: ${MESSAGING_FAULTS_ENABLED:false}

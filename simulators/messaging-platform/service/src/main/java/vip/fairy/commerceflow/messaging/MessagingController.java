@@ -60,9 +60,10 @@ class MessagingController {
   DeliveryLedger.Page list(HttpServletRequest request, @RequestParam String channel,
                           @RequestParam(required = false) String status,
                           @RequestParam(required = false) String reference,
-                          @RequestParam(defaultValue = "1") int page) {
+                          @RequestParam(defaultValue = "1") int page,
+                          @RequestParam(defaultValue = "20") int size) {
     access.admin(request);
-    return ledger.list(channel, status, reference, page);
+    return ledger.list(channel, status, reference, page, size);
   }
 
   @GetMapping("/api/admin/deliveries/{id}")

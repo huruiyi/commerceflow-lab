@@ -43,6 +43,16 @@
     WHERE status = 'ACCEPTED' AND process_after &lt;= UTC_TIMESTAMP(6)
     ORDER BY process_after, request_id LIMIT 50
   </select>
+  <select id="oldestAcceptedSeconds" resultType="long">
+    SELECT COALESCE(GREATEST(0, TIMESTAMPDIFF(SECOND, MIN(accepted_at), UTC_TIMESTAMP(6))), 0)
+    FROM invoice_requests WHERE kind = #{kind} AND status = 'ACCEPTED'
+  </select>
+  <select id="oldestUndeliveredReceiptSeconds" resultType="long">
+    SELECT COALESCE(GREATEST(0, TIMESTAMPDIFF(SECOND, MIN(request.completed_at), UTC_TIMESTAMP(6))), 0)
+    FROM invoice_receipts receipt
+    JOIN invoice_requests request ON request.request_id = receipt.request_id
+    WHERE receipt.delivered_at IS NULL AND request.kind = #{kind}
+  </select>
   <insert id="insertTicket">
     INSERT INTO invoice_tickets (invoice_no, request_id, kind, original_invoice_no, amount, currency)
     VALUES (#{invoiceNo}, #{request.requestId}, #{request.kind}, #{request.originalInvoiceNo},

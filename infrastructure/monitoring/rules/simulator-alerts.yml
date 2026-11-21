@@ -1,0 +1,30 @@
+groups:
+  - name: commerceflow-simulator-operations
+    rules:
+      - alert: CommerceFlowLogisticsCallbackDeadLetter
+        expr: commerceflow_logistics_callback_outbox{job="logistics-simulator-service",status="dead"} > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Logistics callback dead letter requires intervention
+          description: The logistics simulator has callback outbox rows in DEAD state for five minutes.
+          lookup: Use the shipment number or event ID to locate the callback in docs/ALERTING.md.
+      - alert: CommerceFlowInvoicePendingTooLong
+        expr: commerceflow_invoice_pending_oldest_seconds{job="invoice-simulator-service"} >= 300
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Invoice {{ $labels.kind }} {{ $labels.phase }} is overdue
+          description: The oldest pending invoice request or receipt has exceeded five minutes.
+          lookup: Use kind and phase to find the application or refund number in docs/ALERTING.md.
+      - alert: CommerceFlowMessagingDeliveryFailures
+        expr: commerceflow_messaging_delivery_failures_recent{job="messaging-simulator-service"} >= 3
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Repeated {{ $labels.channel }} delivery failures
+          description: The simulator reported at least three failed deliveries in the rolling failure window for two minutes.
+          lookup: Use the channel and business reference to find the delivery in docs/ALERTING.md.

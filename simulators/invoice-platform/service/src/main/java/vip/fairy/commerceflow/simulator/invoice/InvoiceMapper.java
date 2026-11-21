@@ -5,6 +5,7 @@ import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import vip.fairy.commerceflow.simulator.invoice.InvoiceLedger.Command;
+import vip.fairy.commerceflow.simulator.invoice.InvoiceLedger.Kind;
 import vip.fairy.commerceflow.simulator.invoice.InvoiceLedger.Receipt;
 import vip.fairy.commerceflow.simulator.invoice.InvoiceLedger.Request;
 import vip.fairy.commerceflow.simulator.invoice.InvoiceLedger.Ticket;
@@ -26,6 +27,10 @@ interface InvoiceMapper {
   BigDecimal sumReservedRedAmounts(String originalInvoiceNo);
 
   List<Request> findDueRequests();
+
+  long oldestAcceptedSeconds(Kind kind);
+
+  long oldestUndeliveredReceiptSeconds(Kind kind);
 
   void insertTicket(@Param("request") Request request, @Param("invoiceNo") String invoiceNo);
 

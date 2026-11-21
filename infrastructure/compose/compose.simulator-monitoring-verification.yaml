@@ -1,0 +1,50 @@
+services:
+  invoice-db:
+    volumes: !reset []
+    tmpfs: [/var/lib/mysql]
+    command: ["--innodb-use-native-aio=OFF"]
+  logistics-simulator-db:
+    command: ["--innodb-use-native-aio=OFF"]
+  messaging-simulator-db:
+    command: ["--innodb-use-native-aio=OFF"]
+  invoice-simulator-service:
+    build:
+      context: ./simulators/invoice-platform/service
+    environment:
+      COMMERCEFLOW_INVOICE_PROCESSING_DELAY_MS: "14000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  receipt-fixture:
+    volumes: !override
+      - ./scripts/invoice/invoice-receipt-fixture.py:/fixture.py:ro
+  logistics-simulator-service:
+    environment:
+      LOGISTICS_CALLBACK_DELIVERY_MAX_ATTEMPTS: "3"
+  messaging-simulator-service:
+    environment:
+      MESSAGING_FAULTS_ENABLED: "true"
+      MESSAGING_MONITORING_FAILURE_WINDOW: 35s
+  prometheus:
+    container_name: !reset null
+    ports: !override ["127.0.0.1::9090"]
+    volumes: !override
+      - ${SIMULATOR_MONITORING_FIXTURE:?Set test configuration directory}:/isolated:ro
+      - ./infrastructure/monitoring:/etc/prometheus:ro
+    command: ["--config.file=/isolated/prometheus.yml", "--storage.tsdb.path=/prometheus"]
+    tmpfs: ["/prometheus:uid=65534,gid=65534,mode=0770"]
+    depends_on: !override
+      invoice-simulator-service: {condition: service_healthy}
+      logistics-simulator-service: {condition: service_healthy}
+      messaging-simulator-service: {condition: service_healthy}
+      alertmanager: {condition: service_healthy}
+  alertmanager:
+    container_name: !reset null
+    ports: !reset []
+    volumes: !override
+      - ${SIMULATOR_MONITORING_FIXTURE:?Set test configuration directory}/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+  alert-webhook:
+    container_name: !reset null
+    ports: !override ["127.0.0.1::8080"]
