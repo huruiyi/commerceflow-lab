@@ -146,7 +146,7 @@ function Get-LifecycleNotificationHistory([string]$QueuedPrefix) {
     'notification_storage_audits','notification_storage_quarantine','offsite_notification_inbox','offsite_notification_deliveries')
   foreach ($table in $tables) {
     $filter = if ($table -in @('customer_notifications','notification_inbox')) {
-      "WHERE event_id NOT LIKE '$QueuedPrefix-%'"
+      "WHERE left(event_id, length('$QueuedPrefix-')) COLLATE `"C`" <> '$QueuedPrefix-'"
     } else { '' }
     $fingerprint = Invoke-LifecyclePostgreSql "SELECT COUNT(*), md5(COALESCE(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text)::text, '[]')) FROM $table t $filter"
     "$table|$fingerprint"

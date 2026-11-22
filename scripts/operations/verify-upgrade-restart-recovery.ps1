@@ -149,7 +149,8 @@ FROM app_users WHERE email='demo@example.com';
   & "$PSScriptRoot/../payment/verify-payment-runtime-cutover.ps1" -BaseUrl $portal.BaseUrl -PaymentUrl $portal.PaymentBaseUrl
 
   $customer = New-LifecycleCustomer $portal.BaseUrl
-  $row = @(Invoke-RestMethod "$($portal.BaseUrl)/api/notifications" @customer -TimeoutSec 15) |
+  $notifications = Invoke-RestMethod "$($portal.BaseUrl)/api/notifications" @customer -TimeoutSec 15
+  $row = $notifications |
     Where-Object notificationType -eq 'ORDER_CANCELLED' | Select-Object -First 1
   if (!$row.eventId) { throw 'No cancellation notification to mark read' }
   $route = "$($portal.BaseUrl)/api/notifications/$([uri]::EscapeDataString($row.eventId))/read"
@@ -214,7 +215,10 @@ FROM app_users WHERE email='demo@example.com';
         @($rows.member | Select-Object -Unique).Count -eq 1
     } -Seconds $MaxWaitSeconds)
     if (($after.offset -join '/') -cne ($backlog.end -join '/')) { throw 'Notification consumer did not resume from the committed offsets' }
-    $queued = Invoke-LifecyclePostgreSql "SELECT (SELECT COUNT(*) FROM notification_inbox WHERE event_id LIKE '$queuedPrefix-%'),(SELECT COUNT(*) FROM customer_notifications WHERE event_id LIKE '$queuedPrefix-%')"
+    $queued = Invoke-LifecyclePostgreSql @"
+SELECT (SELECT COUNT(*) FROM notification_inbox WHERE left(event_id, length('$queuedPrefix-')) COLLATE "C" = '$queuedPrefix-'),
+       (SELECT COUNT(*) FROM customer_notifications WHERE left(event_id, length('$queuedPrefix-')) COLLATE "C" = '$queuedPrefix-')
+"@
     if ($queued -cne '12|12') { throw "Queued notification rows differed: $queued" }
     $dead = @(Invoke-AcceptanceCompose exec -T kafka-broker /opt/kafka/bin/kafka-get-offsets.sh --bootstrap-server localhost:9092 --topic customer-notification-commands-dlt)
     if ($dead.Count -ne 3 -or @($dead -notmatch ':0$').Count) { throw 'Unexpected notification dead letter messages' }
