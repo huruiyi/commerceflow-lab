@@ -876,9 +876,83 @@ Prometheus 用 SIGHUP 热加载配置，容器和存储保持原状。物流服�
 
 Flyway 独立演练通过。空库与含历史夹具的 V16 命名卷均到达 V68，经 V60 的历史约束检查，归档、支付期限和 Flyway 校验和通过。整栈在 `fairy-commerceflow-upgrade-ee529bcc0c03` 验证同一商城命名卷从 V16 升至 V68，保留旧行与前 16 条迁移校验和，并复跑取消、履约、支付和退款。
 
-重启恢复等待复验。业务复测后，Docker Desktop 管理接口返回 500，其日志显示到 Linux 引擎的连接无路由。严格启动参数下的 Kafka 积压恢复、PostgreSQL 八表和首次已读、站外回执及 RabbitMQ 和 RocketMQ 恢复尚未取得完整结果。只读探测中日常门户与商城返回 200，日常通知健康接口超时。本次未发布，未执行删除卷或重启日常环境的操作。Docker 管理接口恢复后需核对隔离项目停止状态及最终卷清单。
+第一次整栈升级完成业务复测后，Docker Desktop 管理接口返回 500，其日志显示到 Linux 引擎的连接无路由。管理接口恢复后，按原隔离项目的网络、端口和卷映射重建临时 Compose 覆盖，复用升级恢复脚本的重启检查，在同一批旧卷上继续验收。复测前修正了通知列表的数组筛选，以及 PostgreSQL 非确定性排序规则下的事件前缀比较。
 
 原始证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/lifecycle-20261122-062510/`。其中 `fresh-02.log`、`fresh-flyway.json` 和 `fresh-lifecycle.json` 记录空卷结果，`upgrade-01.log` 记录独立 Flyway 演练，`upgrade-02.log` 和 `legacy-v16.json` 记录整栈升级的阶段结果。
+
+同卷重启恢复补验通过。通知以 `SPRING_FLYWAY_ENABLED=false` 和 `SPRING_KAFKA_CONSUMER_AUTO_OFFSET_RESET=none` 启动。11 个库的 123 条 Flyway 记录、18 个数据卷挂载及创建时间、V16 历史夹具和历史业务数据指纹在重启前后一致。
+
+| 检查 | 实测结果 |
+| --- | --- |
+| Kafka 偏移接续 | 集群 ID 保持一致。停机期间三个分区的已提交偏移为 `5/5/4`，各积压 4 条。重启后单实例接管三个分区，提交偏移到 `9/9/8`，积压归零。12 条消息各生成一条 Inbox 和一条通知记录，三个死信分区均为空。 |
+| PostgreSQL 八表与首次已读 | 单独排除本次新增的 12 条验收消息后，八表行数和内容指纹与重启前一致。取消通知首次已读为 `2026-11-22 22:24:26.178139 +08:00`，重启后从门户重复标记已读仍保留该时间。 |
+| 站外回执 | EMAIL 和 SMS 各一条 `DELIVERED` 回执，通知库与模拟供应方的请求号、回执号、渠道、业务引用和状态一致，重启前后保持一致。 |
+| 两种 MQ 恢复 | 任务 10 经 RabbitMQ、任务 11 经 RocketMQ 恢复。两条任务各记录一次租约过期、一次认领和一次成功。 |
+
+最终隔离健康检查通过后停止隔离项目，保留 19 个隔离命名卷。补验日志和明细位于 `%LOCALAPPDATA%/CommerceFlow/releases/restart-recovery-20261122-221808/` 的 `resume-04.log`、`upgrade-recovery.json` 和 `resource-verification.json`。
+
+该轮补验对日常环境仅做只读检查。当时 Docker 管理接口、门户及通知 PostgreSQL 数据库可用，通知应用和 Kafka 容器处于退出状态。日常 44 个容器的 ID、镜像和挂载一致，商城服务仍在自动重启。前后清单中的 518 个 CommerceFlow 卷名称一致。后续处理见[日常通知恢复](#2026-11-22-日常通知恢复)。
+
+### 2026-11-22 日常通知恢复
+
+恢复前，宿主机 18086 没有监听进程。Kafka 容器的启动网络引用已失效，旧静态地址 `172.18.0.33` 已由商城库占用。通知应用旧静态地址 `172.18.0.4` 已由商城服务占用，对应上次启动时 Docker 记录的地址冲突。
+
+保留两个原容器，清除其旧静态 IP 绑定，以动态地址重新接入 `fairy-commerceflow_default`。重新建立同名内部桥接网络 `fairy-commerceflow-kafka-maintenance-225639`，供原 Kafka 容器启动时解析网络引用。该桥接网络没有容器接入，业务流量和别名继续走默认网络。后续维护须等 Kafka 容器改为直接引用默认网络后再清理该桥接网络。
+
+| 检查 | 实测结果 |
+| --- | --- |
+| Kafka 原偏移接续 | 集群 ID `5L6g3nShT-eMCtK--X86sw` 与原卷及上次验收一致。应用启动前确认消费组无活动成员，分区 0、1、2 的提交偏移为 `45/41/38`，积压已为 0。应用启动后由 PostgreSQL 通知实例单成员接管三个分区，偏移保持 `45/41/38`，积压均为 0，死信偏移保持不变。 |
+| 通知应用与门户 | 原 PostgreSQL 通知应用在 18086 恢复健康，Flyway 保持关闭，Kafka 偏移策略为 `none`。通知的两个原别名均解析到现役容器，写入和站外投递门控均已放行。经日常门户登录后，通知列表和未读查询均返回 200，列表读取 20 条，未读总数为 302。商城服务恢复健康，原 MySQL 通知应用继续停止保留。 |
+| 数据与资源核对 | PostgreSQL 前后均为 310 条通知、8 条已读，EMAIL 和 SMS 各 17 条已投递记录。44 个日常容器的 ID、镜像和挂载一致，18 个项目卷及全局基线数据卷均保留。Kafka、通知数据库和维护卷的创建时间一致。 |
+
+本次复用现有镜像和数据卷，未发布。偏移及门户验证明细保存在 `%LOCALAPPDATA%/CommerceFlow/releases/daily-notification-recovery-20261122-233952/` 的 `kafka-before-notification.json`、`kafka-after-notification.json`、`kafka-assignments.log` 和 `portal-and-preservation.json`。
+
+### 2026-11-22 Kafka 默认网络与同卷重启验收
+
+在隔离项目 `fairy-commerceflow-upgrade-ee529bcc0c03` 复用原 Kafka 持久卷及通知 PostgreSQL 卷。先令 Kafka 以临时桥接网络为启动网络，再把通信端点切回隔离默认网络。删除隔离临时桥接网络后，旧容器启动报网络不存在，复现了日常故障。
+
+| 检查 | 实测结果 |
+| --- | --- |
+| 默认网络切换与冷启动 | 从原 Compose 只重建 Kafka，复用镜像和原具名卷。启动网络和唯一端点均为隔离默认网络，保留 `kafka-broker` 别名。临时网络已移除。再次停止并启动同一容器，集群 ID、卷名和创建时间均保持一致。 |
+| 原偏移与积压 | 通知应用停止期间，三个分区各积压 4 条。Kafka 重建及冷启动后，提交偏移仍为 `9/9/8`，12 条积压完整保留。通知以 `none` 启动，日志确认三个分区均从原偏移接续，最终提交到 `13/13/12`，积压归零。 |
+| 通知接口与数据 | PostgreSQL 新增 12 条 Inbox 和 12 条通知，历史八表摘要一致，死信分区均为空。通知健康检查为 `UP`，门户登录后通知列表和未读接口前后均为 200。 |
+
+验收后停止隔离项目并保留 19 个命名卷。该轮日常 44 个容器的启动时间、网络模式、镜像和挂载一致，日常启动桥接网络及全局基线数据卷均保留。后续切换见[日常 Kafka 启动网络验收](#2026-11-23-日常-kafka-启动网络验收)。
+
+证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/isolated-kafka-default-network-20261122-234818/`，含 `expected-stale-network-failure.txt`、`kafka-network-recovery.json`、`kafka-assignments.log` 和 `preservation.json`。
+
+### 2026-11-23 日常 Kafka 启动网络验收
+
+日常 Kafka 以原镜像和原 `fairy-commerceflow_kafka-broker-persistent-data` 卷切回 `fairy-commerceflow_default`。
+维护时停止原 PostgreSQL 通知应用，并用原内部桥短时隔离 Kafka 客户端。三个消费组退出后记录提交位置，干净停机后备份
+`/var/lib/kafka/data`。备份含 537 个文件、54,361,127 字节，逐文件复核 SHA-256，集群、节点和目录身份均与停机前一致。
+
+| 检查 | 实测结果 |
+| --- | --- |
+| 单服务重建与冷启动 | 只重建 Kafka，保留原镜像、原卷和 `kafka-broker` 别名。新容器仅接入默认网络，随后停止并启动同一容器。12 个主题的身份、业务分区的起止位置和消息摘要，以及三个消费组的 12 个已提交分区位置前后一致。 |
+| 通知恢复 | 启动保留的原 PostgreSQL 通知应用。日志显示同一消费组从 `45/41/38` 接管三个分区，前后积压均为 0，死信偏移为 `0/0/0`。门户通知列表和未读查询均返回 200，列表读到 20 条，未读总数为 302。PostgreSQL 仍为 310 条通知、8 条已读，EMAIL 和 SMS 各 17 条已投递。 |
+| 清理与保全 | 确认所有容器均无对原内部桥的启动引用且桥上无端点后，删除 `fairy-commerceflow-kafka-maintenance-225639`。44 个日常容器中仅 Kafka 换 ID，原通知应用仅停启，其余容器的 ID、启动时间、镜像和挂载一致。18 个项目具名卷和全局数据卷清单一致。 |
+
+本次复用现有镜像，未发布。备份和验收证据位于
+`%LOCALAPPDATA%/CommerceFlow/releases/daily-kafka-default-network-20261123-000113/`，含 `archive/manifest.json`、
+`frozen-before.tsv`、`after-cold-start.tsv`、`notification-assignments.log`、`acceptance.json` 和 `preservation.json`。
+[维护步骤](architecture/DATABASE-EVOLUTION-PLAN.md#kafka-切回默认启动网络)
+
+### 2026-11-23 通知候选发布前验收
+
+候选 `commerceflow-notification-candidate:20261123-001941` 已锁定镜像与启动覆盖并通过隔离验收。PostgreSQL 原卷保留，
+Kafka 单实例从 `13/13/12` 接续到 `17/17/16` 并消化 12 条积压。门户停机返回 503，恢复后返回 200。
+控制台验证现役就绪、停机异常和 MySQL 回退保留标识。[候选锁定与实测](architecture/DATABASE-EVOLUTION-PLAN.md#2026-11-23-通知候选发布前验收)
+
+### 2026-11-23 通知候选日常发布验收
+
+锁定的候选镜像和启动配置已用于日常 PostgreSQL 通知应用。候选单实例从 `45/41/38` 接续三个分区，发布前后积压均为 0。
+门户通知列表和未读查询均返回 200，控制台显示 PostgreSQL 就绪及 MySQL 回退保留。其余 43 个日常容器和所有既有数据卷保留。
+[发布过程与实测](architecture/DATABASE-EVOLUTION-PLAN.md#2026-11-23-通知候选日常发布验收)
+
+日常 Prometheus 已使用原容器和原卷恢复。发布后受控退款订单 749 的同窗采样中，门户列表 83 次全部返回 200，
+P95 为 11.833 ms。Kafka 积压为 0，存储重试和死信无新增，模拟短信与邮件回执均核对一致。
+[发布后同窗观测](architecture/DATABASE-EVOLUTION-PLAN.md#日常学习退款同窗验证)
 
 ## 7. 通用定时任务底座（阶段 1）
 

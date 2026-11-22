@@ -472,6 +472,34 @@ MySQL 配置指向 MySQL 通知应用，日常 PostgreSQL 应用在这个组合�
 日常反向切换使用 [M4 停写和回退工具](#m4-两路站外停写与通知库切换工具)的 `Rollback` 和 `Resume`，
 通过最新 PostgreSQL 快照、供应方回执和原 Kafka 提交位置核对后再放行。
 
+#### Kafka 切回默认启动网络
+
+日常恢复期间，Kafka 曾引用内部桥接网络 `fairy-commerceflow-kafka-maintenance-225639` 作为启动网络，实际通信通过
+`fairy-commerceflow_default`。接入默认网络后再断开临时桥接网络，Docker 仍会保留容器创建时的
+`HostConfig.NetworkMode`。11 月 23 日已按以下步骤使用原镜像和原卷完成单服务重建、同卷冷启动和通知复测，
+随后清理原内部桥。[日常验收记录](../IMPLEMENTED.md#2026-11-23-日常-kafka-启动网络验收)
+
+1. 核对当前镜像 ID、`kafka-broker` 监听和别名、集群 ID、节点配置及
+   `fairy-commerceflow_kafka-broker-persistent-data:/var/lib/kafka/data` 的卷名和创建时间。
+   从根目录解析正式 Compose，确认 `kafka-broker` 使用现有 `fairy-commerceflow_default`，没有维护网络覆盖。
+   等待业务流量进入安静窗口，停止现役 PostgreSQL 通知应用。若原启动桥仍存在且已核对无其他端点，可让原 broker
+   短时仅连接原内部桥，阻止新写入。等待在途请求结束和消费组退出，记录各消费组提交位置、主题分区末尾、积压和死信偏移。
+   按[持久化修复步骤](#2026-11-21-kafka-持久化修复演练)在 broker 干净停机后备份原日志目录。
+2. 核对本地 `apache/kafka:4.1.1` 的镜像 ID 与原运行实例一致，再从根 Compose 只重建 broker。保留已有具名卷，
+   保持原节点配置和 `KAFKA_LOG_DIRS=/var/lib/kafka/data`。
+
+   ```powershell
+   docker compose -p fairy-commerceflow -f compose.yaml up -d --no-deps --force-recreate --no-build --pull never --wait --wait-timeout 150 kafka-broker
+   ```
+
+3. 确认新 broker 的 `HostConfig.NetworkMode` 和唯一网络端点均为 `fairy-commerceflow_default`，DNS 别名仍是
+   `kafka-broker`。比对原镜像、卷、集群 ID、主题和提交偏移。在通知应用仍停止时，对同一 broker 做一次停止和启动，
+   等待健康后再次核对提交偏移及分区末尾。
+4. 启动保留的 PostgreSQL 通知应用。保持 Flyway 关闭，消费策略使用 `none`。核对应用日志从保存的提交偏移接管各分区，
+   等待积压归零，检查死信偏移和门户的通知列表、未读查询，再恢复写入。集群身份、卷或偏移有差异时暂停放行，
+   保留现有数据并按核实过的配置与最新检查点恢复。
+5. 验收通过且 Docker 中的容器均不再引用该启动网络后，才清理日常内部桥接网络。其余日常容器及所有数据卷保留。
+
 运行验收应使用已初始化商品、仓库库存和独立 Kafka 的隔离项目。传入对应 `-ProjectName` 和商城直连
 `-BaseUrl` 执行 [通知运行验收](../../scripts/messaging/verify-notification-runtime-cutover.ps1)。
 
@@ -496,6 +524,84 @@ pwsh -NoProfile -File scripts/messaging/verify-notification-runtime-cutover.ps1 
 78 项脚本契约、控制台前端构建和 4 项后端测试通过。隔离快速回归复跑了权限、国际化、取消订单、远程支付退款和
 Redis 降级。完整快速回归入口仍受现有的 `MessagingDeliveryMetrics.java` 类声明空行审计阻挡。
 本批保留 44 个日常容器及既有 CommerceFlow 数据卷，仓库变更尚未发布到日常环境。
+
+### 2026-11-23 通知候选发布前验收
+
+从 Git `86c2c25` 的通知服务源码构建 PostgreSQL 候选 `commerceflow-notification-candidate:20261123-001941`，
+固定镜像 ID `sha256:f676e851bccb1728f9911aab97584c1f5bcee875a493406c9cfa9043739f4779`。启动覆盖按镜像 ID 引用应用和
+PostgreSQL 17.11，禁止拉取，关闭 Flyway，Kafka 偏移策略为 `none`。锁定记录包含 PostgreSQL、Kafka 和回退镜像 ID、
+控制台 JAR 摘要、启动覆盖和已解析隔离 Compose 的 SHA-256。验收在 `fairy-commerceflow-upgrade-ee529bcc0c03` 进行。
+
+| 验收项 | 结果 |
+| --- | --- |
+| PostgreSQL 原卷 | 重建数据库和候选应用后，PostgreSQL 仍挂载原 `notification-postgresql-data`，卷创建时间、历史八表摘要和 Flyway 校验和一致。候选继续使用原维护卷及 `notification-service` 别名。 |
+| Kafka 单实例接续 | 停止通知时三个分区各积压 4 条，已提交偏移保持 `13/13/12`。同一 Kafka 集群及原卷由候选单实例接续三个分区，提交到 `17/17/16`，积压与死信均为 0。PostgreSQL 写入 12 条 Inbox 和 12 条通知。 |
+| 停机与恢复 | 门户通知列表和未读查询停机时均为 503，商城健康保持 `UP`。候选启动后两接口均返回 200，历史列表和未读计数一致。候选镜像另通过真实取消订单 6、重复标记已读保留首次时间、通知再次停机 503 与恢复。 |
+| 运行控制台 | 交付的 Vue 页面通过验证。现役 PostgreSQL 应用和库显示 `READY`，现役应用停机显示 `FAILED`。隔离 MySQL 应用保持停机，连同 MySQL 库均显示 `ROLLBACK_RETAINED`。验收覆盖 55 个配置服务和 41 个容器。 |
+
+控制台前端构建、4 项后端测试、79 项脚本契约和代码质量审计通过。隔离项目已停止，新增的 MySQL 回退标识夹具卷一并保留。
+该轮保留日常 44 个容器和所有既有数据卷。后续结果见[日常发布验收](#2026-11-23-通知候选日常发布验收)。
+
+证据目录为 `%LOCALAPPDATA%/CommerceFlow/releases/notification-candidate-20261123-001941/`。
+`candidate-lock.json` 固定候选及配置摘要，`compose.notification-candidate.yaml` 为启动覆盖，
+`candidate-recovery.json`、`outage-http.json`、`console-outage.json`、`console-after.json` 和 `verify-02.log` 记录实测。
+
+### 2026-11-23 通知候选日常发布验收
+
+日常现役 PostgreSQL 通知应用已切换到锁定候选 `commerceflow-notification-candidate:20261123-001941`，镜像 ID 为
+`sha256:f676e851bccb1728f9911aab97584c1f5bcee875a493406c9cfa9043739f4779`。从候选启动覆盖解析单服务配置，
+21 项日常运行设置沿用原应用。只读连接验证了应用账号和既有通知表。日常 PostgreSQL 继续使用原 17.11 实例与现有连接地址，
+保留日常库镜像、原数据卷、维护卷、Kafka 卷、端口 18086 及两个通知别名。
+
+首次替换因原手工容器占用固定名称失败，恢复原实例及写入后重试。重试通过维护卷暂停两路站外投递和通知 worker，
+确认无在途站外租约后停机并记录提交偏移。暂存已停止的原容器，使用 `--no-deps --no-build --pull never`
+只重建 PostgreSQL 通知应用，候选健康并完成偏移复核后移除原应用容器及本轮门控文件。原 PostgreSQL 应用镜像保留供应用回退，
+旧 MySQL 应用及数据库容器继续作为数据库回退资产。
+
+| 验收项 | 实测结果 |
+| --- | --- |
+| Kafka 单实例 | 旧实例退出后消费组无活动成员。候选日志从 `45/41/38` 接管三个分区，提交位置与日志尾部一致，发布前后积压均为 0，三个死信分区均为 0。集群和 Kafka 容器未变化。 |
+| 门户与存储 | 门户通知列表和未读查询均返回 200，读取 20 条，未读总数为 302。Flyway 保持关闭，偏移策略为 `none`。八张通知表的行数和内容摘要在窗口前后一致。两路站外投递及通知 worker 的门控指标恢复为 0。 |
+| 控制台 | 用锁定 JAR 临时只读核对日常项目，Vue 交付及 56 个服务、44 个容器完成验收。PostgreSQL 应用和库为 `READY`，MySQL 应用和库均为 `ROLLBACK_RETAINED`。 |
+| 资源保全 | 44 个日常容器中仅通知应用换 ID，其余 43 个容器的 ID、镜像、启动时间、状态及挂载一致。所有基线数据卷保留。全局清单新增一个属于并行 Redis 恢复演练的匿名卷。 |
+
+日常 Prometheus 发布前已处于退出状态，本轮门控用应用指标端点复核。后续采集恢复及同窗实测见[发布后日常观测](#2026-11-23-通知发布后日常观测)。
+证据目录为 `%LOCALAPPDATA%/CommerceFlow/releases/notification-daily-candidate-20261123-012329/`，含 `preflight.json`、
+`compose.daily-runtime.yaml`、`kafka-assignments.log`、`console-verified.json`、`acceptance.json` 和 `preservation-verified.json`。
+
+### 2026-11-23 通知发布后日常观测
+
+启动原日常 Prometheus 容器，复用原时间序列卷。就绪检查通过，11 个采集目标均为 `UP`，41 条告警规则已加载。
+`notification-service` 作业通过原网络别名采集现役应用。通知采集 `up` 和消费者指标刷新成功均为 1，
+恢复后的基线读数中 Kafka 积压、存储重试与死信均为 0。
+
+首次只读观察以五分钟滚动窗口对齐门户访问日志、商城 HTTP 计时器、
+Kafka 与存储重试序列，以及通知库和模拟供应方回执。当前商城路由没有延迟直方图，只有计时器增量可以逐笔对应门户日志时
+才计算 P95。零请求窗口不计算 P95 和错误率。
+
+01:34:18–01:45:27 的只读观察未发现门户通知列表请求或供应方新接单。同期抽取的连续十分钟内，
+通知采集有 60 个样本且始终为 1，消费者指标刷新成功，最大 Kafka 积压为 0，存储重试与死信新增均为 0。
+这些读数记录空闲基线。恢复采集时，其余 43 个日常容器和所有既有数据卷保留。
+
+采集恢复证据与观察明细保存到
+`%LOCALAPPDATA%/CommerceFlow/releases/notification-postrelease-observation-20261123-013146/`，
+包括 `prometheus-restored.json`、`idle-window-evidence.json`、`observation-progress.json` 和 `preservation-final.json`。
+
+#### 日常学习退款同窗验证
+
+01:50:48–01:51:19，使用现有学习顾客和商家账号购买一件学习商品（SKU 6），完成模拟支付、商家接单和未发货退款。
+订单 749、退款 `REF-RMT-E1619712B76841D8` 共 12.50 元，退款账本状态为 `SUCCEEDED`。SKU 6 可售库存恢复至 100。
+门户查询沿日常 Nginx → 商城 → PostgreSQL 通知应用路径执行。
+
+| 同窗检查 | 实测结果 |
+| --- | --- |
+| `GET /api/notifications` | 83 次均返回 200，错误率 0%。按客户端对完整响应的计时计算，最近秩 P95 为 11.833 ms，最大 16.840 ms。供应方接单至送达期间有 5 次查询。 |
+| Kafka 与存储 | 三分区偏移前后均为 `45/41/38`，同窗最大和最后积压均为 0。存储重试及死信均无新增。应用端采到 28 个指标样本，Prometheus 同窗 4 个时点均显示采集和消费者指标刷新正常。 |
+| 模拟供应方回执 | 事件 `offsite-refund:REF-RMT-E1619712B76841D8` 的短信和邮件各有一条 `DELIVERED` 回执。通知库和模拟供应方的请求号、供应方回执号、渠道、业务引用与状态一致。短信请求号 `269ebf4f-9808-3cbd-b38d-0dc499a9b69c`，邮件请求号 `ac64d169-7d96-3d7c-b30e-ecc591f8b899`。 |
+
+受控发布后同窗验收完成。44 个日常容器及全部数据卷前后清单一致，保留本笔学习订单、退款和回执记录。
+证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/daily-notification-refund-20261123-015025/`，
+包括 `summary.json`、`portal-requests.json`、`provider-receipts.json` 和 `preservation.json`。
 
 ### 2026-11-22 最新备份恢复与反向回退验收
 
