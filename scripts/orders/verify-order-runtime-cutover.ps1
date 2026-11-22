@@ -5,11 +5,10 @@ param(
 . (Join-Path $PSScriptRoot '../lib/checkout-verification.ps1')
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-Set-Location $ProjectRoot
 
 function DbScalar([string]$Service, [string]$User, [string]$Password,
                   [string]$Database, [string]$Query) {
-  $value = docker compose exec -T $Service mysql -N "--user=$User" `
+  $value = docker compose --project-directory $ProjectRoot exec -T $Service mysql -N "--user=$User" `
     "--password=$Password" $Database -e $Query 2>$null
   if ($LASTEXITCODE -ne 0) { throw "$Service query failed" }
   return ($value | Select-Object -Last 1).Trim()
@@ -33,8 +32,11 @@ WHERE table_schema='commerceflow' AND table_name='shop_orders';
   return DbScalar commerce-db root local-root-password commerceflow 'SELECT COUNT(*) FROM shop_orders;'
 }
 
-docker compose up -d --wait order-service commerce-service | Out-Null
-$orderEnvironment = docker inspect fairy-commerceflow-order-service `
+docker compose --project-directory $ProjectRoot up -d --wait order-service commerce-service | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Order verification services did not become healthy' }
+$orderContainer = docker compose --project-directory $ProjectRoot ps -q order-service
+if ($LASTEXITCODE -ne 0 -or !$orderContainer) { throw 'Order service container is missing' }
+$orderEnvironment = docker inspect $orderContainer `
   --format '{{range .Config.Env}}{{println .}}{{end}}'
 if ($orderEnvironment -notcontains 'ORDER_ACCEPTING_TRAFFIC=true' -or
     $orderEnvironment -notcontains 'ORDER_SHADOW_ENABLED=false') {
@@ -43,7 +45,7 @@ if ($orderEnvironment -notcontains 'ORDER_ACCEPTING_TRAFFIC=true' -or
 
 $sourceBefore = Get-SourceOrderState
 if ($sourceBefore -ne 'retired') {
-  docker compose exec -T commerce-db mysql --user=commerce_runtime `
+  docker compose --project-directory $ProjectRoot exec -T commerce-db mysql --user=commerce_runtime `
     --password=commerce-runtime-password commerceflow -e 'SELECT COUNT(*) FROM shop_orders;' 2>$null | Out-Null
   if ($LASTEXITCODE -eq 0) { throw 'Commerce runtime user can still read the order source table' }
 }
@@ -70,15 +72,17 @@ if ($sourceAfter -ne $sourceBefore -or $targetAfter -ne ($targetBefore + 1) -or 
   throw "Order ownership audit failed: source=$sourceBefore->$sourceAfter target=$targetBefore->$targetAfter row=$targetRow"
 }
 
-docker compose stop order-service | Out-Null
+docker compose --project-directory $ProjectRoot stop order-service | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Could not stop order service for the outage check' }
 try {
   Invoke-WebRequest "$BaseUrl/api/purchase-orders" -WebSession $session -UseBasicParsing | Out-Null
   throw 'Commerce unexpectedly served orders while order-service was stopped'
 } catch {
   if (-not $_.Exception.Response -or [int]$_.Exception.Response.StatusCode -ne 503) { throw }
 } finally {
-  docker compose start order-service | Out-Null
-  WaitHealthy fairy-commerceflow-order-service
+  docker compose --project-directory $ProjectRoot start order-service | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw 'Order service did not restart after the outage check' }
+  WaitHealthy $orderContainer
 }
 
 Write-Host "Order runtime cutover passed: order=$($order.id), source=$sourceAfter unchanged, target=$targetAfter, outage=503." -ForegroundColor Green

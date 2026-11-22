@@ -24,6 +24,7 @@ class NavigationCatalog {
 
   List<Entry> entries(JsonNode configuration, List<JsonNode> containers) {
     JsonNode configured = configuration.path("services");
+    boolean mysqlNotification = configured.path("commerce-service").path("depends_on").has("notification-service");
     Map<String, JsonNode> services = new LinkedHashMap<>();
     configured.properties().forEach(item -> services.put(item.getKey(), item.getValue()));
     containers.forEach(container -> {
@@ -43,15 +44,27 @@ class NavigationCatalog {
           && configHealth.hasNonNull("test")
           && !"NONE".equals(configHealth.path("test").path(0).asString(""));
       boolean task = "task".equals(metadata.path("kind").asString(""));
+      NotificationRole role = switch (id) {
+        case "notification-service-postgresql" -> mysqlNotification ? NotificationRole.DISABLED_APP : NotificationRole.ACTIVE;
+        case "notification-db-postgresql" -> mysqlNotification ? NotificationRole.NONE : NotificationRole.ACTIVE;
+        case "notification-service" -> mysqlNotification ? NotificationRole.ACTIVE : NotificationRole.ROLLBACK_APP;
+        case "notification-db" -> mysqlNotification ? NotificationRole.ACTIVE : NotificationRole.ROLLBACK_DB;
+        default -> NotificationRole.NONE;
+      };
       entries.add(new Entry(id, metadata.path("name").asString(id), metadata.path("group").asString("services"),
           task, healthcheck, List.copyOf(profiles), service.path("environment").path("MYSQL_DATABASE")
               .asString(metadata.path("schema").asString("")),
-          service.path("ports"), metadata));
+          service.path("ports"), metadata, role));
     }
     return entries;
   }
 
   record Entry(String id, String name, String group, boolean task, boolean healthcheck,
-               List<String> profiles, String schema, JsonNode ports, JsonNode metadata) {
+               List<String> profiles, String schema, JsonNode ports, JsonNode metadata,
+               NotificationRole notificationRole) {
+  }
+
+  enum NotificationRole {
+    NONE, ACTIVE, DISABLED_APP, ROLLBACK_APP, ROLLBACK_DB
   }
 }

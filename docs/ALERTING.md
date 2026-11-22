@@ -12,7 +12,9 @@
     -> Grafana 查询 Prometheus 与 Alertmanager
 ```
 
-`alert-webhook` 是学习环境中的外部通知接收端模拟器，保存最近 100 次通知于内存，容器重建后清空。它证明 Webhook 协议和路由链真实可用，但不等同于已经接入企业邮箱、短信、电话、Slack、Teams 或值班平台。生产部署应把 [alertmanager.yml](../infrastructure/monitoring/alertmanager.yml) 中的接收地址替换为受 TLS、鉴权和密钥管理保护的真实接收端。
+默认 `alert-webhook` 保存最近 100 次通知于内存，容器重建后清空。通知值班专项通过隔离覆盖配置启用
+持久化接收端，使用主值班与备值班两个受保护的收件箱。真实通知供应商和值班平台接入属于发布准备。
+[Alertmanager 配置](../infrastructure/monitoring/alertmanager.yml) · [通知值班流程](#通知告警的隔离值班流程)
 
 ## 2. 启动与入口
 
@@ -180,13 +182,43 @@ LIMIT 50;
 发票、物流和消息告警可用 `pwsh -File ./scripts/operations/verify-simulator-monitoring.ps1` 做隔离验收。
 脚本先用 promtool 验证正式规则的等待时间，再缩短隔离阈值，实测 Prometheus、Alertmanager 和 Webhook 的触发及恢复。
 
+### 通知告警的隔离值班流程
+
+用 PowerShell 7 运行专项。脚本建独立 Compose 项目，启动通知 PostgreSQL、Kafka、Prometheus、
+Alertmanager 和接收端，通过两个带可识别事件 ID 的不支持版本命令触发实际 Kafka 死信。
+
+```powershell
+pwsh -NoProfile -File scripts/operations/verify-notification-alert-workflow.ps1
+```
+
+脚本可以通过 `-NotificationImage` 复用已构建的通知镜像。隔离配置将现有死信规则的时间窗口从两分钟缩短
+到 32 秒，主值班确认期限设为 12 秒。日常规则和路由使用原有配置。
+
+| 动作 | 隔离接口与行为 |
+| --- | --- |
+| 送达 | Alertmanager 通过专属 Bearer 凭据调用 `POST /api/alerts`。接收端按告警指纹和开始时间生成事件编号，提交 SQLite 后为主值班保留一次 `firing`。 |
+| 查收和确认 | 值班账号用各自的 Bearer 凭据读取 `GET /api/on-call/inbox`，再调用 `POST /api/on-call/incidents/{incidentId}/ack`。回执记录确认人和时间，重复确认返回首次结果。 |
+| 升级和恢复 | 达到期限且当前告警仍未确认、未恢复时，备值班收到一次 `escalated`。恢复后已收到触发或升级通知的账号获得一条 `resolved`。 |
+
+收到死信告警后，从收件箱的 `alert.annotations.lookup` 确认主题和查找线索。用告警开始时间及规则窗口确定
+需要读取的分区偏移范围，从 `customer-notification-commands-dlt` 读取候选记录。记录 `eventId`、
+死信分区和偏移，同一窗口有多条死信时保留每个候选事件。读取使用明确的分区、偏移和数量，并关闭自动提交。
+
+```powershell
+docker exec $isolatedBroker /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic customer-notification-commands-dlt --partition $partition --offset $offset --max-messages $count --consumer-property enable.auto.commit=false --property print.partition=true --property print.offset=true
+```
+
+验收脚本在每次故障前保存三个死信分区的末尾偏移，从新增记录读回事件 ID。随后以相同事件 ID 发送符合协议的命令，
+核对 PostgreSQL Inbox 恰有一行，并等待死信规则窗口结束后收到恢复通知。`workflow-result.json` 保存
+事件编号、通知确认和恢复时间、死信位置。收件箱持久化、轮次凭据和核验日志随隔离项目保留。
+
 ## 5. 生产部署前仍需完成
 
 - Prometheus、Alertmanager、Grafana 和 Actuator 不应直接暴露到公网；应放入受控网络并启用 TLS、身份认证和访问审计。
 - 接入真实通知供应商，使用环境注入或 Secret 管理保存令牌，禁止提交凭据。
 - 根据真实流量、SLO、值班轮次和容量基线调整阈值、分组、静默和升级策略。
 - 为 Prometheus/Alertmanager 配置持久存储、高可用副本和异地保留；当前单机 Compose 不代表生产高可用。
-- 通过真实故障演练验证通知到人、确认、升级和复盘流程；本项目当前只证明本地 Webhook 端到端投递。
+- 在实际值班渠道验证人员送达、确认、升级与复盘，沿用隔离环境已验证的事件与回执关联。
 
 ### 用订单定位投递与监控
 

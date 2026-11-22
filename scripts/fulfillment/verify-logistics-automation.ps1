@@ -1,4 +1,8 @@
-param([string]$BaseUrl='http://localhost:14200')
+param(
+  [string]$BaseUrl = 'http://localhost:14200',
+  [string]$PaymentBaseUrl = 'http://localhost:14201',
+  [string]$PaymentOrchestrationUrl = 'http://localhost:18090'
+)
 
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '../lib/_verification-db.ps1')
@@ -26,7 +30,8 @@ $env:LOGISTICS_AUTO_PROGRESS_BATCH_SIZE='100'
 try{
   docker compose --project-directory $ProjectRoot up -d --force-recreate --wait logistics-simulator-service|Out-Null
   if($LASTEXITCODE-ne0){throw 'Could not enable automatic logistics progression'}
-  & "$PSScriptRoot/verify-merchant-fulfillment.ps1" -BaseUrl $BaseUrl
+  & "$PSScriptRoot/verify-merchant-fulfillment.ps1" -BaseUrl $BaseUrl `
+    -PaymentBaseUrl $PaymentBaseUrl -PaymentOrchestrationUrl $PaymentOrchestrationUrl
   if(-not$?){throw 'Could not create shipment for automatic progression'}
 
   $customer=[Microsoft.PowerShell.Commands.WebRequestSession]::new()
@@ -44,5 +49,5 @@ try{
 }finally{
   Restore-AutomationEnvironment
   docker compose --project-directory $ProjectRoot up -d --force-recreate --wait logistics-simulator-service|Out-Null
-  if($LASTEXITCODE-ne0){Write-Warning 'Could not restore mock logistics service with default automation configuration'}
+  if($LASTEXITCODE-ne0){throw 'Could not restore mock logistics service with default automation configuration'}
 }

@@ -853,11 +853,32 @@ Prometheus 用 SIGHUP 热加载配置，容器和存储保持原状。物流服�
 - MySQL + Flyway、Redis/Spring Session、Kafka/Outbox、RabbitMQ 分桶延迟任务、RocketMQ 5.x 原生延时任务 Profile、ShedLock。
 - Angular 商城门户、Vue 支付收银台，以及 9 个 Spring Boot 应用（商城、6 个内部业务服务、2 个模拟平台）。日常 Compose 使用 9 个独立 MySQL 库。
 - 验收脚本统一位于 `scripts/`，使用 PowerShell 7。
-- `verify-flyway-lifecycle` 使用与后端一致的 Flyway `12.4.0` 和隔离 MySQL 8.4，检查空库 V1–V51、
-  V16→V51 升级、V17 历史订单截止时间回填、V24 核心注释、V28 catalog/inventory 所有权分离、V29 catalog
-  版本/Outbox 元数据、V30 inventory 命令 Inbox/跨边界外键清理、V31 catalog-event Inbox/版本化快照、
-  V32 命令投递/结果协议表、V33 业务恢复状态、V34 人工恢复审计、V35 order Process Manager/跨边界外键清理
-  及后续变更，包括 V50 退役轻量订单表、V51 独立审批的库存实盘复核表。脚本只删除自己的随机容器/网络，不使用或清空开发数据卷。
+- `verify-flyway-lifecycle` 使用 Flyway `12.4.0` 和隔离 MySQL 8.4。在 V60 核对历史结构和约束，再以源码迁移目录的
+  当前终点校验空库、V16 卷、历史订单归档和支付期限。演练结束仅停止隔离数据库，保留命名卷。
+
+### 2026-11-22 隔离完整验收
+
+06:18（北京时间），`verify-all.ps1` 以默认构建模式在 `fairy-commerceflow-acceptance-0c64fbed3707` 从新卷完成，退出码为 0。代码质量和 79 项脚本契约通过。
+
+| 验收项 | 实测结果 |
+| --- | --- |
+| 交易与权限 | 中英文门户、角色与 CSRF、调度策略覆盖与审计、订单取消与通知消费、支付及退款幂等通过。 |
+| 履约与故障恢复 | 自动物流、签名回调、丢失回调对账、`DEAD` 回调人工重放、收货与评价、商城重启后租约恢复、Redis 降级和订单服务停机 503 及恢复通过。 |
+| 告警链 | Prometheus 和 Alertmanager 配置校验及三组规则测试通过。配置了 11 个采集任务，10 个本次纳入的服务均为 UP，发票模拟器按独立专项部署。本轮加载 41 条告警规则，Watchdog 经 Alertmanager 投递到本地 Webhook，收据 1 条。 |
+
+首轮的物流回调在商城冷启动完成前用尽默认 10 次重试并进入 `DEAD`。复跑为恢复专项单独配置重试预算和重启超时，同一场景的回调在第 12 次尝试变为 `PUBLISHED`。后续人工重放专项仍单独验证达到重试上限后的 `DEAD` 和管理员恢复流程。
+
+原始日志和核对记录位于 `%LOCALAPPDATA%/CommerceFlow/releases/full-acceptance-20261122-055032/`。其中 `full-02.log` 记录整套通过，`callback-outbox-01.txt` 和 `callback-outbox-02.txt` 保存两轮回调状态，`alert-final-window.json` 保存告警链读数。日常 44 个容器及 460 个既有 CommerceFlow 卷已核实保留，两轮隔离环境均已停止并保留卷，本次未发布。
+
+### 2026-11-22 空卷与旧卷升级恢复验收
+
+空卷验收在 `fairy-commerceflow-fresh-3097ee8b8f7c` 以退出码 0 完成。11 个数据库共 123 条 Flyway 记录与源码文件名和版本一致，包含商城 V68 和通知 PostgreSQL V1。初始订单和通知均为 0，独立 Kafka 消费组由一个实例接管三个空分区。真实取消订单后分区 0 提交位置到 2，PostgreSQL Inbox 和可见通知各 2 条。另验证两条送达物流、一笔订单自动完成和一条评价。
+
+Flyway 独立演练通过。空库与含历史夹具的 V16 命名卷均到达 V68，经 V60 的历史约束检查，归档、支付期限和 Flyway 校验和通过。整栈在 `fairy-commerceflow-upgrade-ee529bcc0c03` 验证同一商城命名卷从 V16 升至 V68，保留旧行与前 16 条迁移校验和，并复跑取消、履约、支付和退款。
+
+重启恢复等待复验。业务复测后，Docker Desktop 管理接口返回 500，其日志显示到 Linux 引擎的连接无路由。严格启动参数下的 Kafka 积压恢复、PostgreSQL 八表和首次已读、站外回执及 RabbitMQ 和 RocketMQ 恢复尚未取得完整结果。只读探测中日常门户与商城返回 200，日常通知健康接口超时。本次未发布，未执行删除卷或重启日常环境的操作。Docker 管理接口恢复后需核对隔离项目停止状态及最终卷清单。
+
+原始证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/lifecycle-20261122-062510/`。其中 `fresh-02.log`、`fresh-flyway.json` 和 `fresh-lifecycle.json` 记录空卷结果，`upgrade-01.log` 记录独立 Flyway 演练，`upgrade-02.log` 和 `legacy-v16.json` 记录整栈升级的阶段结果。
 
 ## 7. 通用定时任务底座（阶段 1）
 
@@ -1166,7 +1187,7 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - 商城创建支付前向库存服务核对订单全部商品与数量。缺货使整单预占回滚。库存拒绝没有预占的提交及其重试，履约根据真实扣减和出库结果发货。历史五笔缺证测试记录单独归档。日常环境已用新订单验证缺货拒付拒发、空扣减拒绝、正常扣减与运单唯一性。[验收证据](architecture/INVENTORY-RECONCILIATION-REVIEW.md#2026-11-19-日常环境库存门禁验收)
 - 商城的库存命令投递账本已接入 Prometheus，分别监控待人工对账、在途积压和最老等待时长。已确认和已关闭记录排除在外。隔离 MySQL 已验证商城命令告警与库存服务出库事件告警独立触发和恢复。[验收证据](architecture/INVENTORY-RECONCILIATION-REVIEW.md#2026-11-19-库存命令监控验收)
 
-## 10. 尚未实现的总边界
+## 10. 履约退役与通知数据库验收
 
 - 履约候选版本完成隔离九库恢复、新发货、重复发货和带新写入的六表回退。商城接管后仍能查询新运单，独立执行器重启被退役门禁拒绝。[履约新版本验收](architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#23-2026-11-19-履约新版本恢复与回退验收)
 
@@ -1175,5 +1196,11 @@ Angular 管理后台已增加“定时任务”入口，可新增/覆盖/恢复�
 - 商城已移除本地履约执行及对应 Mapper，保留所有权只读校验、签名远程入口和物流桥。隔离验证了空卷初始化、存量升级和业务入口。[退役记录](architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#26-2026-11-19-商城本地履约代码退役)
 - 完成商城旧履约源归档评审。隔离验证了精确备份、无旧源启动及发货、归档恢复。原启动脚本仍依赖旧水位，运行验证使用临时覆盖。[归档评审](architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#27-2026-11-19-商城旧履约源归档评审)
 - 履约空库初始化已与常规授权拆分，审计区分旧源保留、完整归档和缺件。隔离验证了正式配置无旧源发货、旧源恢复及旧镜像接管。[入口改造验收](architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#28-2026-11-19-履约归档后启动审计与回退)
+
+- 通知服务日常已切换 PostgreSQL 17.11。八表 670 行、首次已读和 32 条历史站外回执核对通过。消费组从原三分区偏移接续，放行后新通知获得两条渠道回执。旧 MySQL 应用停机保留。[日常切换记录](architecture/DATABASE-EVOLUTION-PLAN.md#2026-11-22-日常通知库切换-postgresql-17)
+- 最新日常备份在隔离 PostgreSQL 原生恢复，补入隔离新写入后完成反向 MySQL 回退。两次八表核对一致，隔离回退保留首次已读时间、36 条站外回执和三分区提交位置。[最新备份恢复验收](architecture/DATABASE-EVOLUTION-PLAN.md#2026-11-22-最新备份恢复与反向回退验收)
+- 通知死信告警通过实际 Kafka、Prometheus 和 Alertmanager 触发，在独立主备值班收件箱验证送达、确认、超时升级、恢复和事件 ID 定位。[隔离告警验收](architecture/DATABASE-EVOLUTION-PLAN.md#2026-11-22-通知告警送达确认与升级验收)
+
+## 11. 后续工作的维护入口
 
 功能扩展见 [业务待办](TODO.md)，真实渠道和值班、监控多副本及运行门禁见 [架构待办](architecture/README.md)。

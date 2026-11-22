@@ -83,7 +83,7 @@
     }
   },
   "notification-service": {
-    "name": "通知服务",
+    "name": "通知服务 · MySQL",
     "group": "services",
     "ports": {
       "8080": {
@@ -91,6 +91,21 @@
         "probe": "/actuator/health",
         "links": [
           { "label": "健康检查", "path": "/actuator/health" }
+        ]
+      }
+    }
+  },
+  "notification-service-postgresql": {
+    "name": "通知服务 · PostgreSQL",
+    "group": "services",
+    "ports": {
+      "8080": {
+        "protocol": "HTTP",
+        "alias": "notification-service",
+        "probe": "/actuator/health",
+        "links": [
+          { "label": "健康检查", "path": "/actuator/health" },
+          { "label": "Prometheus 指标", "path": "/actuator/prometheus" }
         ]
       }
     }
@@ -290,11 +305,22 @@
     }
   },
   "notification-db": {
-    "name": "通知数据库",
+    "name": "通知数据库 · MySQL",
     "group": "databases",
+    "schema": "notification",
     "ports": {
       "3306": {
         "protocol": "MySQL"
+      }
+    }
+  },
+  "notification-db-postgresql": {
+    "name": "通知数据库 · PostgreSQL",
+    "group": "databases",
+    "schema": "notification",
+    "ports": {
+      "5432": {
+        "protocol": "PostgreSQL"
       }
     }
   },

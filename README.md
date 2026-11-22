@@ -40,7 +40,7 @@
 
 - `web/commerce-portal/angular/`：Angular 22.2.6、SimUI 1.8.0 / Spartan UI 1.8.0、Tailwind CSS 4.3.5、Bootstrap 5.3.9、Nginx 配置和前端 Dockerfile。
 - `services/commerce-service/`：Java 25 LTS、Spring Boot 4.1.2、Spring Security 7、MyBatis-Plus、Flyway 和后端 Dockerfile。
-- `services/notification-service/`：独立 MySQL/Kafka 通知服务，是通知查询、未读统计和已读状态的唯一实现；
+- `services/notification-service/`：独立 PostgreSQL/Kafka 通知服务，是通知查询、未读统计和已读状态的唯一实现；
   commerce 只保留 Session/RBAC/HMAC 薄代理与订单事务侧通知 Outbox。
 - `services/catalog-service/`：独立 MySQL 商品资料服务，commerce 只保留鉴权、签名代理与评价组合。
 - `services/inventory-service/`：分层库存服务，独立 MySQL 保存五张所有权表；默认接收 RESERVE、COMMIT、
@@ -80,11 +80,22 @@ docker compose ps
 [`infrastructure/compose/`](infrastructure/compose/)，使用时将根配置放在第一个 `-f`。
 若本地 `.env` 已通过 `COMPOSE_FILE` 加载覆盖文件，也要在该变量中使用新路径。
 
+日常通知使用 PostgreSQL 17.11。重建前核对 `fairy-commerceflow_notification-postgresql-data`、
+`fairy-commerceflow_notification-maintenance` 和 Kafka 持久化卷均存在，并在 `.env` 使用现役库凭据。
+默认配置复用既有通知表和消费组提交位置，通知应用占用宿主机 `18086`，容器内通过
+`notification-service:8080` 访问。原 MySQL 应用保持停机，保留容器与数据卷。日常重建、MySQL 学习基线和
+带新写入的回退流程见[通知部署与验收](docs/architecture/DATABASE-EVOLUTION-PLAN.md#日常通知部署与验收)。
+
 商城默认使用独立履约服务。首次使用全新卷时，通过空库配置显式建立履约所有权，后续启动使用上面的默认命令。
+首次使用全新的 PostgreSQL 和 Kafka 卷时，设置以下变量完成初始化。此步骤适用于新建的学习环境。
 
 ```powershell
+$env:NOTIFICATION_POSTGRESQL_FLYWAY_ENABLED = 'true'
+$env:NOTIFICATION_POSTGRESQL_OFFSET_RESET = 'earliest'
 docker compose -f compose.yaml -f infrastructure/compose/compose.fulfillment-fresh.yaml up --build -d --wait
 ```
+
+新消费组的每个分区都有有效提交位置后，重建时把偏移策略切回 `none`，并关闭初始化 Flyway。
 
 已有商城本地履约数据的环境先完成所有权切换。使用独立签名密钥的环境可叠加 `infrastructure/compose/compose.fulfillment-execution.yaml`，
 回退时使用已验收的版本化回退包。见[履约演进计划](docs/architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md)。
@@ -309,7 +320,7 @@ npm test
 pwsh -File ./scripts/verify-quick.ps1
 ```
 
-已有当前镜像时可使用 `-SkipBuild`。快速入口始终执行后端代码质量与脚本契约门禁，
+已有当前源码的验收镜像时可使用 `-SkipBuild`。快速入口始终执行后端代码质量与脚本契约门禁，
 默认构建还会通过两个前端 Dockerfile 执行格式检查。回归覆盖权限/i18n、取消、支付竞态、退款、物流、
 收货/完成/评价、commerce-service 租约恢复、Redis 降级和健康检查。跳过构建时不会重新执行镜像内
 Maven/ArchUnit 测试或前端格式检查。它不代替两分钟浸泡、MQ 停机、空卷或旧卷重启专项。
@@ -326,20 +337,23 @@ pwsh -File ./scripts/verify-all.ps1
 pwsh -File ./scripts/verify-all.ps1 -SkipBuild
 ```
 
-可用 `-BaseUrl http://host:port` 指定商城地址。
+快速和完整入口每次启动独立 Compose 项目，使用新卷、独立网络和自动分配的本机端口。可用
+`-BaseUrl http://127.0.0.1:34200` 为本次隔离门户指定空闲端口（20000–65535）。
+结束时停止隔离项目，保留数据卷。镜像使用本地 `fairy-commerceflow-acceptance-*` 标签，
+因此 `-SkipBuild` 适合复用同一源码已经构建的验收镜像。
 
 ### 单项脚本及作用
 
 | 验收脚本 | 作用 | 默认地址 |
 | --- | --- | --- |
 | `verify-alerting` | 校验 Prometheus/Alertmanager 配置和规则单测，确认三个服务 Target 与 Watchdog 实时 Webhook 投递 | Prometheus `19090`、Alertmanager `19093`、Webhook `18085` |
-| `verify-all` | 先执行后端代码质量门禁，再构建、启动并串联主要验收，包含告警链和最终健康检查 | 商城 `14200`、监控 `19090/19093/18085` |
-| `verify-quick` | 始终执行后端代码质量和脚本契约门禁；默认构建并覆盖核心业务、重启恢复、Redis 降级与健康 | 商城 `14200`、支付 `14201/18082`、物流 `18083` |
+| `verify-all` | 先执行后端代码质量与脚本契约门禁，再构建、启动并串联主要验收，包含告警链和最终健康检查 | 隔离项目的本机端口 |
+| `verify-quick` | 始终执行后端代码质量和脚本契约门禁，默认构建并覆盖核心业务、重启恢复、Redis 降级与健康 | 隔离项目的本机端口 |
 | `verify-authorization` | 匿名访问、登录、禁用账号、CSRF 和三种角色权限矩阵 | 商城 `14200` |
 | `verify-i18n` | 中英文商品、按语言隔离的 Redis 缓存、稳定错误码和前端入口 | 商城 `14200` |
-| `verify-flyway-lifecycle` | 在隔离的临时 MySQL 中验证空库 V1–V24、V16 旧库升级、核心业务注释与历史订单截止时间回填，并确认非法任务状态被约束拒绝 | Docker Engine |
-| `verify-fresh-volume-lifecycle` | 使用独立 Compose 项目和全新卷验证三库 Flyway、空订单种子与登录到评价全链路；默认保留临时卷，仅显式 `-RemoveTemporaryVolumes` 删除临时项目卷 | Docker Compose；不触碰默认 `fairy-commerceflow_*` 卷 |
-| `verify-upgrade-restart-recovery` | 先做隔离 V16→V24 升级演练，再对当前持久卷重启三库/Redis/Kafka/业务服务/RabbitMQ/RocketMQ，验证两种 MQ 未完成任务恢复一次且历史指纹不变 | Docker Compose 全栈；只重启容器，不删卷 |
+| `verify-flyway-lifecycle` | 在隔离 MySQL 命名卷验证空库、V16 旧库到当前迁移终点、历史订单归档、期限回填和关键约束 | Docker Engine |
+| `verify-fresh-volume-lifecycle` | 用新卷核对现行 Flyway 账本、PostgreSQL 和 Kafka 首次启动、订单取消通知及收货评价。默认保留隔离卷，显式 `-RemoveTemporaryVolumes` 才删除本次隔离卷 | 隔离 Compose 项目 |
+| `verify-upgrade-restart-recovery` | 在隔离旧卷执行 V16 到当前版本升级，重启后核对 Flyway、历史摘要、通知回执、Kafka 偏移和两种 MQ 任务恢复 | 隔离 Compose 项目 |
 | `verify-payment-notifications` | 创建订单、发起待支付交易、模拟签名回调并拒绝伪造回调 | 商城 `14200` |
 | `verify-payment-attempt-deadline` | 验证单次渠道支付过期不关闭整单、到期前可换渠道重试，以及整单截止时先关闭待支付交易再取消订单 | 商城 `14200`、支付平台 `14201` |
 | `verify-payment-cancellation-race` | 交替偏置并加入随机抖动，并发支付完成与客户取消，校验订单/支付/退款一致性 | 商城 `14200`、支付平台 `14201` |
@@ -347,7 +361,7 @@ pwsh -File ./scripts/verify-all.ps1 -SkipBuild
 | `verify-payment-cancellation-lock-timeout` | 真实持有订单/支付行锁，验证锁等待超时可识别、事务完整回滚且释放锁后可重试 | commerce-service `18081`、Docker MySQL；只重建 commerce-service 容器，不删卷 |
 | `verify-payment-cancellation-crash-recovery` | 定点 SIGKILL 验证取消中间态、渠道已关窗口、回调事务回滚与迟到回调 | commerce-service `18081`、商城/支付 MySQL；钩子默认关闭，不删卷 |
 | `verify-kafka-payment` | 支付回调、Kafka Topic、Outbox 发布和消费记录 | 商城 `14200` |
-| `verify-notification-runtime-cutover` | notification 单一所有权、签名代理、eventId 已读、停机 503 与核心商城隔离 | 商城 `18081`、通知服务 `18086`、通知 MySQL |
+| `verify-notification-runtime-cutover` | 校验项目与实例绑定后，验证 Kafka、签名代理、eventId 已读、停机 503 和恢复 | 显式 `-ProjectName`，`-BaseUrl` 指向该项目直连商城端口。默认 PostgreSQL，MySQL 学习基线传 `-Database MySQL` |
 | `verify-inventory-single-owner` | 商家库存签名代理、调账恢复、五张源表权限拒绝、未签名 401、停机 503 与恢复 | 商城 `18081`、库存服务 `18088`、商城/库存 MySQL |
 | `verify-payment-outcomes` | 失败、余额不足、取消和超时四类支付结果 | 商城 `14200` |
 | `verify-refunds` | 全额退款、资金账一致性、请求/通知幂等、重复申请和伪造通知拒绝 | 商城 `14200` |

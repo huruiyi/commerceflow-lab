@@ -19,7 +19,7 @@
 | 支付 | `POST /api/purchase-orders/{id}/payments` | CUSTOMER |
 | 退款 | `POST/GET /api/purchase-orders/{id}/refunds`、`GET /api/refunds/{refundNumber}` | CUSTOMER，仅本人订单 |
 | 收货评价 | `POST /api/purchase-orders/{id}/receive`、`POST /api/order-items/{id}/reviews` | CUSTOMER |
-| 商家履约 | `GET /api/merchant/orders`、`POST /api/merchant/orders/{id}/confirm|ship` | MERCHANT |
+| 商家履约 | `GET /api/merchant/orders`、`POST /api/merchant/orders/fulfillment-v1/commands`、`GET /api/merchant/orders/fulfillment-v1/commands/{commandId}`、`POST /api/merchant/orders/{id}/packages` | MERCHANT，仅本人订单 |
 | 用户管理 | `GET /api/users` | ADMIN |
 | 商家账号 | `POST /api/users/merchants` | ADMIN |
 | 店铺 | `GET /api/stores/{id}`、`GET/PUT /api/merchant/store`、`GET /api/admin/stores`、`PUT /api/admin/stores/{id}/status` | 公开店铺 / 商家本人 / 管理员 |
@@ -27,6 +27,11 @@
 | 商家应结 | `PUT /api/admin/stores/{merchantId}/settlement`、`GET/POST /api/admin/stores/{merchantId}/statements`、`GET /api/merchant/settlement/statements` | 管理员开通和冻结，商家读本店 |
 | 商家打款 | `GET/POST /api/admin/stores/{merchantId}/statements/{id}/payouts`、`GET /api/merchant/settlement/statements/{id}/payouts` | 管理员发起，商家读本店 |
 | 定时任务治理 | `GET/PUT/DELETE /api/admin/scheduling/policies...`、`GET/POST /api/admin/scheduling/tasks...` | ADMIN |
+
+## 商家履约 API
+
+- 统一提交接口用 `operation` 区分接单 `CONFIRM`、发货 `SHIP` 和改运单 `UPDATE_SHIPMENT`。重试保留原 `commandId`。提交返回 `202 Accepted` 时，按 `Location` 或 `commandId` 查询结果。
+- 独立包裹创建使用 `POST /api/merchant/orders/{id}/packages`，提交 `packageId`、承运商、运单号、包裹明细及可选仓库。返回命令可按 `commandId` 查询。
 
 ## 结算与优惠券 API
 

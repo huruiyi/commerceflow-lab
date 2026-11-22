@@ -1,56 +1,30 @@
+#requires -Version 7.0
 param(
-  [string]$BaseUrl='http://localhost:14200',
+  [string]$BaseUrl,
   [switch]$SkipBuild
 )
-$ErrorActionPreference='Stop'
-$ProjectRoot=(Resolve-Path(Join-Path $PSScriptRoot '..')).Path
 
-function RunBase([string]$Script){
-  & (Join-Path $PSScriptRoot $Script) -BaseUrl $BaseUrl
-  if(-not$?){throw "$Script failed"}
+$ErrorActionPreference = 'Stop'
+. "$PSScriptRoot/lib/release-acceptance.ps1"
+
+& "$PSScriptRoot/audit/audit-code-quality.ps1"
+& "$PSScriptRoot/audit-script-contracts.ps1"
+
+Invoke-IsolatedAcceptance -BaseUrl $BaseUrl -SkipBuild:$SkipBuild -Verify {
+  param($Target)
+  $portal = $Target.Endpoints['commerce-portal-angular'].Url
+  $payment = $Target.Endpoints['payment-simulator-web'].Url
+  $logistics = $Target.Endpoints['logistics-simulator-service'].Url
+  $paymentApi = $Target.Endpoints['payment-orchestration-service'].Url
+
+  & "$PSScriptRoot/commerce/verify-authorization.ps1" -BaseUrl $portal
+  & "$PSScriptRoot/commerce/verify-i18n.ps1" -BaseUrl $portal
+  & "$PSScriptRoot/orders/verify-order-cancellation.ps1" -BaseUrl $portal
+  & "$PSScriptRoot/payment/verify-payment-runtime-cutover.ps1" -BaseUrl $portal -PaymentUrl $payment
+  & "$PSScriptRoot/orders/verify-auto-lifecycle.ps1" -BaseUrl $portal -LogisticsUrl $logistics `
+    -PaymentBaseUrl $payment -PaymentOrchestrationUrl $paymentApi
+  & "$PSScriptRoot/commerce/verify-redis-business.ps1" -BaseUrl $portal -PaymentUrl $payment
+  & "$PSScriptRoot/orders/verify-order-runtime-cutover.ps1" -BaseUrl $portal
 }
 
-& (Join-Path $PSScriptRoot 'audit/audit-code-quality.ps1')
-if(-not$?){throw 'Code quality audit failed'}
-& (Join-Path $PSScriptRoot 'audit-script-contracts.ps1')
-if(-not$?){throw 'Script contract audit failed'}
-& docker compose --project-directory $ProjectRoot config --quiet
-if($LASTEXITCODE-ne0){throw 'Compose configuration is invalid'}
-if(-not$SkipBuild){
-  & docker compose --project-directory $ProjectRoot build
-  if($LASTEXITCODE-ne0){throw 'Image build failed'}
-}
-& docker compose --project-directory $ProjectRoot up -d --wait
-if($LASTEXITCODE-ne0){throw 'Default stack did not become healthy'}
-foreach($scope in '--readers','--task-fixture'){
-  & docker compose --project-directory $ProjectRoot --profile verification-access run --rm --no-deps verification-db-access $scope
-  if($LASTEXITCODE-ne0){throw "Could not provision $scope verification access"}
-}
-
-RunBase 'commerce/verify-authorization.ps1'
-RunBase 'commerce/verify-i18n.ps1'
-RunBase 'orders/verify-order-cancellation.ps1'
-RunBase 'payment/verify-payment-runtime-cutover.ps1'
-RunBase 'orders/verify-auto-lifecycle.ps1'
-RunBase 'commerce/verify-redis-business.ps1'
-RunBase 'orders/verify-order-runtime-cutover.ps1'
-
-$healthUrls=@(
-  "$BaseUrl/healthz",
-  'http://localhost:18081/actuator/health',
-  'http://localhost:18082/actuator/health',
-  'http://localhost:18083/actuator/health'
-  'http://localhost:18086/actuator/health'
-  'http://localhost:18087/actuator/health'
-  'http://localhost:18088/actuator/health'
-  'http://localhost:18089/actuator/health'
-  'http://localhost:18090/actuator/health'
-)
-foreach($url in $healthUrls){
-  $health=Invoke-RestMethod $url
-  if($url.EndsWith('/healthz')){if(-not$health){throw "Health check failed: $url"}}
-  elseif($health.status-ne'UP'){throw "Health check failed: $url"}
-}
-$summary='Quick regression passed: code quality, contracts, build/start, auth/i18n, cancellation, remote payment/refund, '
-$summary+='logistics, receipt/completion/review, lease recovery, Redis fallback and health.'
-Write-Host $summary -ForegroundColor Green
+Write-Host 'Quick regression passed: quality, contracts, auth/i18n, cancellation, payment/refund, logistics, lifecycle recovery, Redis fallback and health.' -ForegroundColor Green

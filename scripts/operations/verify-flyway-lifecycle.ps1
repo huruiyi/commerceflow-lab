@@ -1,11 +1,15 @@
 param([int]$MaxWaitSeconds = 90)
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+. "$PSScriptRoot/../lib/lifecycle-verification.ps1"
 $MigrationDir = Join-Path $ProjectRoot 'services\commerce-service\src\main\resources\db\migration'
+$migrations = @(Get-VersionedMigrations $MigrationDir)
+$currentVersion = $migrations[-1].version
+$historicalCheckpoint = 60
 $suffix = [guid]::NewGuid().ToString('N').Substring(0, 10)
-$network = "commerceflow-flyway-$suffix"
-$emptyDb = "commerceflow-flyway-empty-$suffix"
-$upgradeDb = "commerceflow-flyway-upgrade-$suffix"
+$network = "fairy-commerceflow-flyway-$suffix"
+$emptyDb = "$network-empty"
+$upgradeDb = "$network-upgrade"
 $password = 'commerceflow-flyway-test'
 $flywayImage = 'redgate/flyway:12.4.0'
 
@@ -26,19 +30,19 @@ function Wait-MySql([string]$Container) {
 
 function Start-MySql([string]$Container) {
   Invoke-Docker run -d --name $Container --network $network `
-    --tmpfs /var/lib/mysql `
+    --mount "type=volume,src=$Container-data,dst=/var/lib/mysql" `
     -e "MYSQL_ROOT_PASSWORD=$password" -e MYSQL_DATABASE=commerceflow `
     --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -p$password --silent" `
     --health-interval 1s --health-timeout 3s --health-retries 60 mysql:8.4 --innodb-use-native-aio=OFF | Out-Null
   Wait-MySql $Container
 }
 
-function Migrate([string]$Container, [string]$Target = '') {
-  $arguments = @('run','--rm','--network',$network,'-v',"${MigrationDir}:/migration:ro",
+function Migrate([string]$Container, [string]$Target = '', [string]$Operation = 'migrate') {
+  $arguments = @('run','--network',$network,'-v',"${MigrationDir}:/migration:ro",
     $flywayImage,"-url=jdbc:mysql://${Container}:3306/commerceflow?allowPublicKeyRetrieval=true&useSSL=false",
     '-user=root',"-password=$password",'-connectRetries=60','-locations=filesystem:/migration')
   if ($Target) { $arguments += "-target=$Target" }
-  $arguments += 'migrate'
+  $arguments += $Operation
   Invoke-Docker @arguments
 }
 
@@ -48,12 +52,26 @@ function Sql([string]$Container, [string]$Query) {
   return ($value | Out-String).Trim()
 }
 
+function Confirm-CurrentHistory([string]$Container) {
+  $history = (Sql $Container 'SELECT CONCAT(version,CHAR(124),script) FROM flyway_schema_history WHERE version IS NOT NULL AND success=1 AND checksum IS NOT NULL ORDER BY installed_rank') -split '\r?\n'
+  $expected = @($migrations | ForEach-Object { "$($_.version)|$($_.script)" })
+  if (($history -join ',') -cne ($expected -join ',') -or
+      (Sql $Container 'SELECT COUNT(*) FROM flyway_schema_history WHERE success=0') -cne '0') {
+    throw "Unexpected Flyway history on $Container, expected V$currentVersion"
+  }
+  Migrate $Container -Operation validate
+}
+
+$started = [Collections.Generic.List[string]]::new()
 try {
-  Invoke-Docker network create $network | Out-Null
+  $subnet = '10.{0}.{1}.0/24' -f (Get-Random -Minimum 240 -Maximum 248), (Get-Random -Maximum 256)
+  Invoke-Docker network create --internal --subnet $subnet $network | Out-Null
+  $started.Add($emptyDb)
   Start-MySql $emptyDb
+  $started.Add($upgradeDb)
   Start-MySql $upgradeDb
 
-  Migrate $emptyDb
+  Migrate $emptyDb $historicalCheckpoint
   if ((Sql $emptyDb 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;') -ne '60' -or
       (Sql $emptyDb 'SELECT COUNT(*) FROM order_cancellation_completion;') -ne '0' -or
       (Sql $emptyDb 'SELECT (SELECT COUNT(*) FROM cart_repurchase_requests) + (SELECT COUNT(*) FROM checkout_receipts) + (SELECT COUNT(*) FROM merchant_shipping_rates) + (SELECT COUNT(*) FROM line_after_sales) + (SELECT COUNT(*) FROM coupon_campaigns) + (SELECT COUNT(*) FROM checkout_intents);') -ne '0') {
@@ -119,7 +137,7 @@ try {
   Migrate $upgradeDb '16'
   Sql $upgradeDb "INSERT INTO customer_orders(user_id,product_id,created_at,note,quantity) SELECT id,1,'2026-01-01 00:00:00','legacy-order-archive',2 FROM app_users WHERE email='demo@example.com';" | Out-Null
   Sql $upgradeDb "INSERT INTO shop_orders(order_number,customer_id,status,total_amount,currency,created_at,updated_at) SELECT 'LEGACY-UPGRADE-$suffix',id,'PENDING_PAYMENT',42.00,'CNY','2026-01-01 00:00:00','2026-01-01 00:00:00' FROM app_users WHERE email='demo@example.com';" | Out-Null
-  Migrate $upgradeDb
+  Migrate $upgradeDb $historicalCheckpoint
   if ((Sql $upgradeDb 'SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history WHERE success=1;') -ne '60' -or
       (Sql $upgradeDb 'SELECT COUNT(*) FROM order_cancellation_completion;') -ne '0' -or
       (Sql $upgradeDb 'SELECT (SELECT COUNT(*) FROM cart_repurchase_requests) + (SELECT COUNT(*) FROM checkout_receipts) + (SELECT COUNT(*) FROM merchant_shipping_rates) + (SELECT COUNT(*) FROM line_after_sales) + (SELECT COUNT(*) FROM coupon_campaigns) + (SELECT COUNT(*) FROM checkout_intents);') -ne '0') {
@@ -182,8 +200,19 @@ try {
   & docker exec $upgradeDb mysql -N -uroot "-p$password" commerceflow -e "INSERT INTO scheduled_tasks(task_key,task_type,aggregate_type,aggregate_id,payload_json,status,due_at,primary_trigger_snapshot,reconciliation_enabled_snapshot,grace_period_seconds_snapshot,claim_lease_seconds_snapshot,max_attempts,retry_delay_seconds_snapshot,policy_version_snapshot) VALUES('invalid-status','PAYMENT_TIMEOUT','ORDER','1','{}','CORRUPTED',CURRENT_TIMESTAMP,'DATABASE',FALSE,0,30,3,1,1);" 2>$null
   if ($LASTEXITCODE -eq 0) { throw 'Database accepted an illegal scheduled-task status' }
 
-  Write-Host "Flyway lifecycle verification passed: empty V1-V60, legacy V1-V16 -> V60 with archival, ownership, recovery protocols and illegal status rejection." -ForegroundColor Green
+  foreach ($container in $started) {
+    Migrate $container
+    Confirm-CurrentHistory $container
+  }
+  if ((Sql $upgradeDb "SELECT CONCAT(product_id,':',quantity) FROM retired_customer_orders WHERE note='legacy-order-archive';") -cne '1:2' -or
+      (Sql $upgradeDb "SELECT TIMESTAMPDIFF(SECOND,created_at,payment_due_at) FROM shop_orders WHERE order_number='LEGACY-UPGRADE-$suffix';") -cne '1800') {
+    throw "Legacy facts changed after upgrading the named volume to V$currentVersion"
+  }
+  Write-Host "Flyway lifecycle verification passed: empty and legacy V16 named volumes reach V$currentVersion, historical assertions at V$historicalCheckpoint, checksums and archival verified. Volumes: $emptyDb-data, $upgradeDb-data." -ForegroundColor Green
 } finally {
-  & docker rm -f $emptyDb $upgradeDb 2>$null | Out-Null
-  & docker network rm $network 2>$null | Out-Null
+  foreach ($container in $started) {
+    if ((& docker inspect --format '{{.State.Running}}' $container 2>$null) -eq 'true') {
+      Invoke-Docker stop $container | Out-Null
+    }
+  }
 }

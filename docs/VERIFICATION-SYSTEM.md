@@ -67,10 +67,14 @@ pwsh -File ./scripts/verify-quick.ps1
 pwsh -File ./scripts/verify-all.ps1
 ```
 
-`verify-quick` 和 `verify-all` 始终运行后端质量门禁。默认构建模式还会通过 Angular Dockerfile 执行
+`verify-quick` 和 `verify-all` 始终运行后端质量与脚本契约门禁。两者均创建独立 Compose 项目，
+按仓库默认配置在新卷初始化 MySQL、通知 PostgreSQL 和 Kafka。业务请求、数据库核对、故障恢复及健康检查
+均使用该项目，完整入口还启用隔离观测 Profile。结束时停止隔离容器并保留卷。默认构建模式还会通过 Angular Dockerfile 执行
 `npm run format:check` 和生产构建。`-SkipBuild` 只能在已确认镜像来自当前源码时使用，
 并且不会重新执行 Maven/ArchUnit 测试或 Angular 格式检查。冻结基线或修改 Dockerfile/POM/前端依赖时
 必须使用默认构建模式。
+
+新卷初始化使用履约空库覆盖文件。演示库存同时写入商品总账和默认仓，保证报价与实际仓库预占使用一致的库存。
 
 ## 5. 改动类型与必跑门禁
 
@@ -99,17 +103,17 @@ pwsh -File ./scripts/verify-all.ps1
 pwsh -File ./scripts/operations/verify-flyway-lifecycle.ps1
 ```
 
-它使用随机容器/网络和 tmpfs，验证空库 V1→V34、V16→V34 升级、catalog/inventory 所有权分离、
-catalog V1 版本/Outbox 元数据、inventory 命令投递/结果协议、命令/catalog-event Inbox、版本化商品快照及
-ordering 外键清理，
-不连接默认开发卷。
+演练使用独立 MySQL 容器、网络和命名卷。历史结构与业务约束在 V60 核对，再将空库和含 V16 历史夹具的卷
+迁移至源码目录中的当前版本，校验迁移历史、校验和、归档记录及支付期限。结束时停止数据库并保留卷。
 
 notification 独立 Schema 使用 `verify-notification-schema-split`，在随机网络和 tmpfs MySQL 中验证
 V1→V3 的三张业务表、回填/核对/隔离表、零外键、快照字段和 Inbox 幂等。
 
-`verify-notification-runtime-cutover` 在保留现有卷的前提下验证默认 notification-service 的 Kafka 投递、
-commerce HMAC 身份薄代理、eventId 幂等已读、独立服务停机时稳定 503、核心商城健康和服务恢复。脚本不切换
-本地实现、不访问 commerce 通知表，也不删除数据卷。
+`verify-notification-runtime-cutover` 对已启动的项目执行真实取消订单、Kafka 投递、签名代理和已读持久化，
+随后停止选中的通知实例，核对商城通知 API 的 HTTP 503、商城自身健康和恢复后的历史通知。必须显式指定
+`-ProjectName` 和与该项目一致的商城直连端口。默认 PostgreSQL，MySQL 学习基线显式传 `-Database MySQL`。
+脚本在任何业务写入和停机前，校验实例数、项目、应用数据库方言和网络绑定、商城代理以及 Kafka 归属。
+复跑使用已初始化演示数据的隔离项目。见[通知部署与验收](architecture/DATABASE-EVOLUTION-PLAN.md#日常通知部署与验收)。
 
 `verify-distributed-tracing` 临时开启 OTLP 导出并启动 Tempo，通过真实商家发货链路查询
 commerce-service 与 logistics-simulator-service 的同一 Trace；随后停止 Tempo，确认追踪后端故障不会
@@ -125,12 +129,12 @@ commerce-service 健康，再恢复后端和默认 `Database + tracing off` 运�
 ### 6.2 全新卷全链路
 
 ```powershell
-pwsh -File ./scripts/operations/verify-fresh-volume-lifecycle.ps1 -TemporaryProjectName commerceflow-fresh-<run-id>
+pwsh -File ./scripts/operations/verify-fresh-volume-lifecycle.ps1
 ```
 
-默认保留该临时项目卷用于失败排查。只有显式传入 `-RemoveTemporaryVolumes` 才会删除本次随机临时项目卷。
-脚本使用独立 Compose 项目和容器名，执行期间会临时停用日常项目以释放端口。演示目录显式初始化，商品数从
-`catalog-db` 核对，订单和订单事件从 `order-db` 核对，商城库用于核对用户、调度、评价及物流投影。
+脚本使用独立 Compose 项目、网络、卷和本机端口。启动时初始化通知 PostgreSQL Flyway 和新 Kafka 消费组。
+按各服务迁移目录核对 Flyway 账本，验证初始空订单、取消订单的通知消费以及收货到评价。商品、订单、通知和
+评价分别从权威库核对。默认停止隔离容器并保留卷供排查。只有显式传入 `-RemoveTemporaryVolumes` 才删除本次隔离项目的卷。
 
 ### 6.3 旧卷升级和重启恢复
 
@@ -138,7 +142,10 @@ pwsh -File ./scripts/operations/verify-fresh-volume-lifecycle.ps1 -TemporaryProj
 pwsh -File ./scripts/operations/verify-upgrade-restart-recovery.ps1
 ```
 
-该入口会重启商城、订单、支付及两个模拟器的数据库，以及 Redis、Kafka、RabbitMQ、RocketMQ 和相关业务服务，并写入可识别的恢复夹具任务。订单、支付和商城各自计算历史摘要。数据卷保留，运行前应安排日常环境可中断时段。
+该入口在独立命名卷安装商城 V16 并写入历史夹具，再以现行拓扑升级同一个卷。随后在隔离项目重启数据库、Redis、
+Kafka、RabbitMQ、RocketMQ 和相关业务服务。通知重启采用关闭 Flyway 和 Kafka `auto.offset.reset=none` 的存量参数。
+核对 Flyway 历史和卷标识、Kafka 集群及提交位置、通知八表摘要、首次已读、站外回执，以及两种 MQ 的任务恢复。
+隔离容器停止后保留数据卷。两项可用 `-SkipBuild` 复用从当前源码构建的本地验收镜像。
 
 ## 7. 可靠性和并发专项
 
@@ -154,6 +161,7 @@ pwsh -File ./scripts/operations/verify-upgrade-restart-recovery.ps1
 | 自动收货/完成 MQ 故障 | `verify-auto-lifecycle-mq-failures` | 发布失败可观测、恢复后沿原快照执行、终态一次 |
 | 收货/完成长竞态 | `verify-receipt-lifecycle-stress` | 手动/自动两种赢家、收货转换/任务/完成事件各一次 |
 | 告警链断路或规则误判 | `verify-alerting` | 三个 Target、10 条规则、PromQL 单测、Alertmanager 配置和 Watchdog Webhook |
+| 通知死信告警无人确认或无法定位事件 | `verify-notification-alert-workflow` | 真实 Kafka 死信触发告警，主值班确认、超时升级、备值班确认和恢复通知，按死信偏移读回原始事件 ID |
 
 浸泡输出必须记录随机种子、时长、并发数、节流参数、实际操作数和最终数据库审计值。没有这些值的“压测通过”不具备可复测性。
 

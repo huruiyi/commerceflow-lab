@@ -1,6 +1,8 @@
 param(
   [string]$BaseUrl = 'http://localhost:14200',
-  [string]$LogisticsUrl = 'http://localhost:18083'
+  [string]$LogisticsUrl = 'http://localhost:18083',
+  [string]$PaymentBaseUrl = 'http://localhost:14201',
+  [string]$PaymentOrchestrationUrl = 'http://localhost:18090'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -10,6 +12,7 @@ $AppId = 'commerceflow-storefront'
 $Secret = 'demo-logistics-request-secret'
 $names = @(
   'LOGISTICS_CALLBACK_DELIVERY_ENABLED',
+  'LOGISTICS_CALLBACK_DELIVERY_MAX_ATTEMPTS',
   'LOGISTICS_RECONCILIATION_ENABLED',
   'LOGISTICS_RECONCILIATION_INITIAL_DELAY',
   'LOGISTICS_RECONCILIATION_SCAN_INTERVAL',
@@ -70,7 +73,13 @@ function Storefront-Sql([string]$Query) {
 }
 
 try {
-  & "$PSScriptRoot/verify-merchant-fulfillment.ps1" -BaseUrl $BaseUrl
+  # Keep the callback retryable throughout the bounded cold restart of commerce-service.
+  $env:LOGISTICS_CALLBACK_DELIVERY_MAX_ATTEMPTS = '100'
+  docker compose --project-directory $ProjectRoot up -d --no-deps --wait --wait-timeout 120 logistics-simulator-service | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw 'Could not prepare the callback retry budget' }
+
+  & "$PSScriptRoot/verify-merchant-fulfillment.ps1" -BaseUrl $BaseUrl `
+    -PaymentBaseUrl $PaymentBaseUrl -PaymentOrchestrationUrl $PaymentOrchestrationUrl
   if (-not $?) { throw 'Could not create shipment for reliability verification' }
   $script:Customer = New-CustomerSession
   $orders = Invoke-RestMethod "$BaseUrl/api/purchase-orders" -WebSession $script:Customer
@@ -90,7 +99,7 @@ try {
   } while ($retryState -notmatch '^RETRY:' -and (Get-Date) -lt $retryDeadline)
   if ($retryState -notmatch '^RETRY:[1-9][0-9]*$') { throw "Callback did not enter RETRY: $retryState" }
 
-  docker compose --project-directory $ProjectRoot up -d --wait commerce-service commerce-portal-angular | Out-Null
+  docker compose --project-directory $ProjectRoot up -d --no-deps --wait --wait-timeout 150 commerce-service | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'Could not restart commerce-service' }
   $script:Customer = New-CustomerSession
   $null = Wait-Projection $order.id 'PICKED_UP'
@@ -120,5 +129,5 @@ try {
 } finally {
   Restore-Environment
   docker compose --project-directory $ProjectRoot up -d --wait --force-recreate logistics-simulator-service commerce-service commerce-portal-angular | Out-Null
-  if ($LASTEXITCODE -ne 0) { Write-Warning 'Could not restore default logistics reliability configuration' }
+  if ($LASTEXITCODE -ne 0) { throw 'Could not restore default logistics reliability configuration' }
 }

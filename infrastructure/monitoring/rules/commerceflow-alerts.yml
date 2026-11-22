@@ -197,6 +197,7 @@ groups:
         annotations:
           summary: Notification consumer published a dead letter
           description: A notification command was confirmed on the dead-letter topic in the last two minutes.
+          lookup: Read customer-notification-commands-dlt around the firing time. Record the eventId from the payload and the DLT partition and offset.
       - alert: CommerceFlowNotificationConsumerMetricsRefreshFailed
         expr: commerceflow_notification_consumer_metrics_refresh_success{job="notification-service"} == 0
         for: 1m

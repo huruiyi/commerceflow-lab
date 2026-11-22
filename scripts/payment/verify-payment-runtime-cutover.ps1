@@ -7,6 +7,15 @@ $headers=@{$csrf.headerName=$csrf.token}
 Invoke-RestMethod "$BaseUrl/api/auth/login" -Method Post -WebSession $session -Headers $headers -ContentType application/json -Body '{"email":"demo@example.com","password":"demo-password","rememberMe":false}'|Out-Null
 Invoke-RestMethod "$BaseUrl/api/cart/items" -Method Post -WebSession $session -Headers $headers -ContentType application/json -Body '{"productId":1,"quantity":1,"note":"payment-cutover-verification"}'|Out-Null
 $order=(Submit-VerifiedCheckout $BaseUrl $session $headers)
+$reservationDeadline = (Get-Date).AddSeconds(30)
+do {
+  $current = Invoke-RestMethod "$BaseUrl/api/purchase-orders/$($order.id)" -WebSession $session -TimeoutSec 5
+  if ($current.inventoryStatus -eq 'RESERVED') { break }
+  Start-Sleep -Milliseconds 500
+} while ((Get-Date) -lt $reservationDeadline)
+if ($current.inventoryStatus -ne 'RESERVED') {
+  throw "Inventory reservation did not complete for order $($order.id): $($current.inventoryStatus)"
+}
 $paymentKey=[guid]::NewGuid().ToString()
 $paymentBody=@{idempotencyKey=$paymentKey;simulateFailure=$false;channel='ALIPAY'}|ConvertTo-Json -Compress
 $payment=Invoke-RestMethod "$BaseUrl/api/purchase-orders/$($order.id)/payments" -Method Post -WebSession $session -Headers $headers -ContentType application/json -Body $paymentBody

@@ -502,12 +502,12 @@ onBeforeUnmount(() => {
             </div>
           </section>
           <section v-if="!loginOnly">
-            <h3>入口探测</h3>
-            <p v-if="!selected.probes.length" class="detail-note">暂无宿主机探测结果。{{ selected.profiles.length ? '所需 Profile 已在上方标注。' : '' }}</p>
+            <h3>探测结果</h3>
+            <p v-if="!selected.probes.length" class="detail-note">暂无探测结果。{{ selected.profiles.length ? '所需 Profile 已在上方标注。' : '' }}</p>
             <div v-else class="detail-list">
               <div v-for="result in selected.probes" :key="result.address" class="detail-row">
                 <div><code>{{ result.address }}</code><small>{{ reachability[result.status] }} · {{ result.detail }}</small></div>
-                <small class="latency">{{ result.durationMs }} ms</small>
+                <small v-if="result.durationMs != null" class="latency">{{ result.durationMs }} ms</small>
               </div>
             </div>
           </section>

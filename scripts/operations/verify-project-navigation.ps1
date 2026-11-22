@@ -2,14 +2,16 @@
 param(
   [string]$BaseUrl = 'http://127.0.0.1:28080',
   [ValidateRange(10, 180)]
-  [int]$MaxWaitSeconds = 35
+  [int]$MaxWaitSeconds = 35,
+  [string]$ProjectName = 'fairy-commerceflow',
+  [string]$ComposeFile
 )
 
 $ErrorActionPreference = 'Stop'
 $workspace = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $api = "$($BaseUrl.TrimEnd('/'))/api/navigation/snapshot"
-$project = 'fairy-commerceflow'
-$compose = @('compose', '--project-name', $project, '--project-directory', $workspace, '--profile', '*')
+$compose = @('compose', '--project-name', $ProjectName, '--project-directory', $workspace, '--profile', '*')
+if ($ComposeFile) { $compose += @('--file', $ComposeFile) }
 
 function Assert-Navigation([bool]$Condition, [string]$Message) {
   if (!$Condition) { throw $Message }
@@ -30,7 +32,7 @@ function Wait-NavigationSnapshot([scriptblock]$Ready) {
 }
 
 $snapshot = Wait-NavigationSnapshot { param($data) $data.dockerConnected -and $data.collectedAt }
-Assert-Navigation ($snapshot.project -ceq $project) 'Unexpected Compose project.'
+Assert-Navigation ($snapshot.project -ceq $ProjectName) 'Unexpected Compose project.'
 $page = Invoke-WebRequest -Uri $BaseUrl -TimeoutSec 3
 Assert-Navigation ($page.Content -match '<title>商流 · 运行控制台</title>') 'Vue page title is missing.'
 $asset = [regex]::Match($page.Content, 'src="(/assets/[^"]+\.js)"')
@@ -47,7 +49,7 @@ try {
 }
 
 # Inspect the complete project independently of Compose's configured-service filter.
-$ids = @(& docker ps --all --quiet --filter "label=com.docker.compose.project=$project" --filter 'label=com.docker.compose.service')
+$ids = @(& docker ps --all --quiet --filter "label=com.docker.compose.project=$ProjectName" --filter 'label=com.docker.compose.service')
 Assert-Navigation ($LASTEXITCODE -eq 0) 'Could not list containers by Compose project label.'
 $containers = @()
 if ($ids.Count -gt 0) {
@@ -70,7 +72,9 @@ Assert-Navigation (@($byId['commerce-portal-angular'].links.url -match '/merchan
 Assert-Navigation (@($byId['commerce-portal-angular'].links.url -match '/admin/scheduling$').Count -eq 1) 'Scheduling shortcut missing.'
 Assert-Navigation ($byId['order-db'].schema -ceq 'orders') 'Order database schema is incorrect.'
 Assert-Navigation (@($byId['order-db'].addresses | Where-Object scope -EQ 'HOST').Count -eq 0) 'The order database unexpectedly has a host address.'
-Assert-Navigation ($byId['rabbitmq-broker'].profiles -contains 'rabbitmq') 'RabbitMQ profile information is missing.'
+if ($expected -ccontains 'rabbitmq-broker') {
+  Assert-Navigation ($byId['rabbitmq-broker'].profiles -contains 'rabbitmq') 'RabbitMQ profile information is missing.'
+}
 if ($expected -ccontains 'invoice-db') {
   Assert-Navigation ($byId['invoice-db'].group -ceq 'databases' -and $byId['invoice-db'].schema -ceq 'invoice_platform') 'Invoice database metadata is incorrect.'
   Assert-Navigation ($byId['invoice-db'].addresses.value -ccontains 'invoice-db:3306') 'Invoice database internal address is missing.'
@@ -106,6 +110,26 @@ foreach ($container in $containers) {
 
 $previous = $snapshot.collectedAt
 $updated = Wait-NavigationSnapshot { param($data) $data.dockerConnected -and $data.collectedAt -gt $previous }
+$live = @{}
+foreach ($service in $updated.services) { $live.Add($service.id, $service) }
+$application = $live['notification-service-postgresql']
+$database = $live['notification-db-postgresql']
+Assert-Navigation ($application.status -ceq 'READY' -and @($application.instances).Count -eq 1) 'Expected one ready PostgreSQL notification application.'
+Assert-Navigation ($application.addresses.value -ccontains 'notification-service:8080') 'The notification proxy alias is missing.'
+Assert-Navigation (@($application.probes | Where-Object {
+  $_.status -ceq 'REACHABLE' -and $_.address -match '/actuator/health$'
+}).Count -ge 1) 'The active notification HTTP health probe is missing or failed.'
+Assert-Navigation (@($application.links.url -match '/actuator/prometheus$').Count -ge 1) 'The notification metrics shortcut is missing.'
+Assert-Navigation ($database.status -ceq 'READY' -and @($database.instances).Count -eq 1) 'Expected one ready PostgreSQL notification database.'
+Assert-Navigation ($database.schema -ceq 'notification' -and
+  $database.addresses.value -ccontains 'notification-db-postgresql:5432') 'The PostgreSQL connection information is missing.'
+Assert-Navigation (@($database.addresses | Where-Object scope -CEQ 'HOST').Count -eq 0) 'The PostgreSQL database unexpectedly has a host address.'
+Assert-Navigation (@($database.probes | Where-Object status -CEQ 'REACHABLE').Count -eq 1) 'The PostgreSQL container health result is missing or failed.'
+foreach ($legacy in @('notification-service', 'notification-db')) {
+  if ($legacy -cin @($containers.service)) {
+    Assert-Navigation ($live[$legacy].status -ceq 'ROLLBACK_RETAINED') "$legacy must be marked as rollback retention."
+  }
+}
 $outcomes = $updated.services | Group-Object status | Sort-Object Name
 $outcomes | ForEach-Object { Write-Host "$($_.Name): $($_.Count)" }
 Write-Host "Verified Vue delivery, $($expected.Count) services ($($configured.Count) configured), $($containers.Count) project containers, navigation links and a fresh status update."

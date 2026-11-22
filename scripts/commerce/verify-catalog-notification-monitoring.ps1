@@ -42,17 +42,24 @@ function Get-CommittedLag([string]$Broker) {
 }
 
 if ($ReadOnly) {
+  function Read-NotificationLedger([string]$Statement) {
+    Invoke-Docker exec $notification sh -ec 'PGPASSWORD="$POSTGRES_PASSWORD" exec psql -h 127.0.0.1 -U postgres -d notification -XAtq -v ON_ERROR_STOP=1 -c "$1"' sh "BEGIN READ ONLY; $Statement COMMIT;"
+  }
+
   $catalog = 'fairy-commerceflow-catalog-db'
   $commerce = 'fairy-commerceflow-commerce-db'
   $inventory = 'fairy-commerceflow-inventory-db'
-  $notification = 'fairy-commerceflow-notification-db'
+  $notification = 'fairy-commerceflow-notification-db-postgresql'
   $broker = 'fairy-commerceflow-kafka-broker'
-  foreach ($service in @('catalog','notification')) {
-    $connection = Invoke-Docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "fairy-commerceflow-$service-service" |
-      Where-Object { $_ -match '^DATABASE_URL=' }
-    if ($connection -notmatch "^DATABASE_URL=jdbc:mysql://$service-db:3306/$service(?:\?|$)") {
-      throw "$service does not point at its owner database."
-    }
+  $catalogBinding = Invoke-Docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' fairy-commerceflow-catalog-service |
+    Where-Object { $_ -match '^DATABASE_URL=' }
+  if ($catalogBinding -notmatch '^DATABASE_URL=jdbc:mysql://catalog-db:3306/catalog(?:\?|$)') {
+    throw 'Catalog does not point at its owner database.'
+  }
+  $notificationBinding = Invoke-Docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' fairy-commerceflow-notification-service-postgresql |
+    Where-Object { $_ -match '^DATABASE_URL=' }
+  if ($notificationBinding -notmatch '^DATABASE_URL=jdbc:postgresql://(?:fairy-commerceflow-)?notification-db-postgresql:5432/notification(?:\?|$)') {
+    throw 'Notification does not point at its PostgreSQL owner database.'
   }
   $grants = Sql $commerce commerceflow @'
 START TRANSACTION READ ONLY;
@@ -82,9 +89,9 @@ WHERE i.status IN ('APPLIED','STALE');
 COMMIT;
 '@)
   $sent = @(Sql $commerce commerceflow "START TRANSACTION READ ONLY; SELECT event_id FROM notification_delivery_outbox WHERE topic='$topic' AND status='PUBLISHED'; COMMIT;")
-  $inbox = @(Sql $notification notification "START TRANSACTION READ ONLY; SELECT event_id FROM notification_inbox WHERE consumer_name='$group'; COMMIT;")
-  $visible = @(Sql $notification notification "START TRANSACTION READ ONLY; SELECT event_id FROM customer_notifications; COMMIT;")
-  $quarantined = @(Sql $notification notification "START TRANSACTION READ ONLY; SELECT event_id FROM notification_storage_quarantine; COMMIT;")
+  $inbox = @(Read-NotificationLedger "SELECT event_id FROM notification_inbox WHERE consumer_name='$group';")
+  $visible = @(Read-NotificationLedger 'SELECT event_id FROM customer_notifications;')
+  $quarantined = @(Read-NotificationLedger 'SELECT event_id FROM notification_storage_quarantine;')
   $catalogMissing = @($catalogPublished | Where-Object { $_ -cnotin $inventoryEvents }).Count
   $notificationMissing = @($sent | Where-Object { $_ -cnotin $inbox -or ($_ -cnotin $visible -and $_ -cnotin $quarantined) }).Count
   Write-Host "Catalog published=$($catalogPublished.Count) matchedInbox=$($catalogPublished.Count - $catalogMissing) missing=$catalogMissing"

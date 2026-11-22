@@ -1,0 +1,48 @@
+# Isolated overlay. Use the verification script to allocate a unique project and credentials.
+services:
+  kafka-broker:
+    container_name: !reset null
+  notification-db-postgresql:
+    container_name: !reset null
+    environment:
+      NOTIFICATION_POSTGRESQL_FLYWAY_ENABLED: "true"
+  notification-service-postgresql:
+    container_name: !reset null
+    image: ${NOTIFICATION_ALERT_IMAGE:?set an isolated notification image}
+    ports: !reset []
+    environment:
+      SPRING_FLYWAY_ENABLED: "true"
+      SPRING_KAFKA_CONSUMER_AUTO_OFFSET_RESET: earliest
+  prometheus:
+    container_name: !reset null
+    ports: !override ["127.0.0.1::9090"]
+    command: ["--config.file=/workflow/prometheus.yml", "--storage.tsdb.path=/prometheus"]
+    volumes: !override
+      - ${NOTIFICATION_ALERT_FIXTURE:?set the fixture path}/prometheus.yml:/workflow/prometheus.yml:ro
+      - ${NOTIFICATION_ALERT_FIXTURE}/notification-rules.yml:/workflow/notification-rules.yml:ro
+      - ./infrastructure/monitoring/tests/commerceflow-alerts.test.yml:/workflow-test/commerceflow-alerts.test.yml:ro
+      - ./infrastructure/monitoring/rules/commerceflow-alerts.yml:/etc/prometheus/rules/commerceflow-alerts.yml:ro
+    depends_on: !override
+      notification-service-postgresql: {condition: service_healthy}
+      alertmanager: {condition: service_healthy}
+  alertmanager:
+    container_name: !reset null
+    ports: !override ["127.0.0.1::9093"]
+    volumes: !override
+      - ${NOTIFICATION_ALERT_FIXTURE}/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ${NOTIFICATION_ALERT_FIXTURE}/ingest.token:/workflow/ingest.token:ro
+  alert-webhook:
+    container_name: !reset null
+    ports: !override ["127.0.0.1::8080"]
+    environment:
+      ALERT_WORKFLOW_DB: /workflow-data/alerts.sqlite3
+      ALERT_ESCALATION_SECONDS: "12"
+      ALERT_INGEST_TOKEN: ${NOTIFICATION_ALERT_INGEST_TOKEN:?set the Alertmanager token}
+      ALERT_PRIMARY_TOKEN: ${NOTIFICATION_ALERT_PRIMARY_TOKEN:?set the primary on-call token}
+      ALERT_ESCALATION_TOKEN: ${NOTIFICATION_ALERT_ESCALATION_TOKEN:?set the escalation on-call token}
+    volumes:
+      - ./infrastructure/monitoring/alert-webhook/on_call.py:/app/on_call.py:ro
+      - notification-alert-workflow:/workflow-data
+
+volumes:
+  notification-alert-workflow:

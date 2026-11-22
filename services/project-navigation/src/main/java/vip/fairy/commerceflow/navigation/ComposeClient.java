@@ -27,17 +27,22 @@ class ComposeClient {
       {{json (index .Config.Labels `com.docker.compose.oneoff`)}}|\
       {{json .State.Status}}|{{if .State.Health}}{{json .State.Health.Status}}{{else}}null{{end}}|\
       {{.State.ExitCode}}|{{.RestartCount}}|{{.State.OOMKilled}}|\
-      {{json .State.StartedAt}}|{{json .State.FinishedAt}}|{{json .NetworkSettings.Ports}}\
+      {{json .State.StartedAt}}|{{json .State.FinishedAt}}|{{json .NetworkSettings.Ports}}|\
+      {{json .NetworkSettings.Networks}}\
       """;
   private static final List<String> INSPECT_FIELDS = List.of("name", "service", "project", "oneoff", "state", "health",
-      "exitCode", "restarts", "oomKilled", "startedAt", "finishedAt", "ports");
+      "exitCode", "restarts", "oomKilled", "startedAt", "finishedAt", "ports", "networks");
 
   private final Path projectDirectory;
+  private final String project;
+  private final String composeFile;
   private final long commandTimeoutSeconds;
   private final ObjectMapper mapper;
 
   ComposeClient(
       @Value("${commerceflow.navigation.project-directory}") String projectDirectory,
+      @Value("${commerceflow.navigation.project:fairy-commerceflow}") String project,
+      @Value("${commerceflow.navigation.compose-file:}") String composeFile,
       @Value("${commerceflow.navigation.docker-command-timeout-seconds:15}") long commandTimeoutSeconds,
       ObjectMapper mapper
   ) {
@@ -45,8 +50,14 @@ class ComposeClient {
       throw new IllegalArgumentException("Docker command timeout must be positive");
     }
     this.projectDirectory = Path.of(projectDirectory).toAbsolutePath().normalize();
+    this.project = project;
+    this.composeFile = composeFile;
     this.commandTimeoutSeconds = commandTimeoutSeconds;
     this.mapper = mapper;
+  }
+
+  String project() {
+    return project;
   }
 
   JsonNode configuration() throws IOException, InterruptedException {
@@ -56,7 +67,7 @@ class ComposeClient {
   List<JsonNode> containers() throws IOException, InterruptedException {
     // Project labels include services launched with release overrides, even when those files are no longer present.
     List<String> ids = run(List.of("docker", "ps", "--all", "--quiet",
-        "--filter", "label=com.docker.compose.project=" + PROJECT,
+        "--filter", "label=com.docker.compose.project=" + project,
         "--filter", "label=com.docker.compose.service")).lines().toList();
     if (ids.isEmpty()) {
       return List.of();
@@ -76,7 +87,7 @@ class ComposeClient {
       for (int index = 0; index < values.length; index++) {
         container.set(INSPECT_FIELDS.get(index), mapper.readTree(values[index]));
       }
-      if (PROJECT.equals(container.path("project").asString())
+      if (project.equals(container.path("project").asString())
           && !"true".equalsIgnoreCase(container.path("oneoff").asString())
           && !container.path("service").asString("").isBlank()) {
         containers.add(container);
@@ -87,9 +98,12 @@ class ComposeClient {
 
   private String compose(String... command) throws IOException, InterruptedException {
     List<String> args = new ArrayList<>(List.of(
-        "docker", "compose", "--project-name", PROJECT, "--project-directory", projectDirectory.toString(),
+        "docker", "compose", "--project-name", project, "--project-directory", projectDirectory.toString(),
         "--profile", "*"
     ));
+    if (!composeFile.isBlank()) {
+      args.addAll(List.of("--file", composeFile));
+    }
     args.addAll(List.of(command));
     return run(args);
   }

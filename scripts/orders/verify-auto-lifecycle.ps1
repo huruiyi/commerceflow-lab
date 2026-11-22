@@ -1,4 +1,9 @@
-param([string]$BaseUrl='http://localhost:14200')
+param(
+  [string]$BaseUrl='http://localhost:14200',
+  [string]$LogisticsUrl='http://localhost:18083',
+  [string]$PaymentBaseUrl='http://localhost:14201',
+  [string]$PaymentOrchestrationUrl='http://localhost:18090'
+)
 
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '../lib/_verification-db.ps1')
@@ -24,7 +29,13 @@ function Wait-TaskStatus([long]$Id,[string]$Expected,[int]$Seconds=90){
   throw "Scheduled task $Id did not reach $Expected within $Seconds seconds (last=$status)"
 }
 
-& "$PSScriptRoot/../fulfillment/verify-logistics.ps1" -BaseUrl $BaseUrl
+$logisticsArguments = @{
+  BaseUrl = $BaseUrl
+  LogisticsUrl = $LogisticsUrl
+  PaymentBaseUrl = $PaymentBaseUrl
+  PaymentOrchestrationUrl = $PaymentOrchestrationUrl
+}
+& "$PSScriptRoot/../fulfillment/verify-logistics.ps1" @logisticsArguments
 if(-not$?){throw 'Could not prepare delivered shipment for manual receipt test'}
 
 $script:customer=[Microsoft.PowerShell.Commands.WebRequestSession]::new()
@@ -39,7 +50,7 @@ if($received.status-ne'RECEIVED'-or-not$received.receivedAt){throw 'Manual SHIPP
 if((Invoke-DbScalar "SELECT status FROM scheduled_tasks WHERE task_type='AUTO_RECEIVE' AND task_key='order:$($manual.id)'")-ne'CANCELLED'){throw 'Manual receipt did not cancel AUTO_RECEIVE'}
 if((Invoke-DbScalar "SELECT status FROM scheduled_tasks WHERE task_type='AUTO_COMPLETE' AND task_key='order:$($manual.id)'")-ne'SCHEDULED'){throw 'Manual receipt did not schedule AUTO_COMPLETE'}
 
-& "$PSScriptRoot/../fulfillment/verify-logistics.ps1" -BaseUrl $BaseUrl
+& "$PSScriptRoot/../fulfillment/verify-logistics.ps1" @logisticsArguments
 if(-not$?){throw 'Could not prepare delivered shipment for automatic lifecycle test'}
 $orders=Invoke-RestMethod "$BaseUrl/api/purchase-orders" -WebSession $customer
 $automatic=@($orders|Where-Object{$_.status-eq'SHIPPED'-and$_.logistics.status-eq'DELIVERED'})[0]

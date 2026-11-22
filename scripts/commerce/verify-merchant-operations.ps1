@@ -7,7 +7,8 @@ param(
   [string]$LogisticsUrl='http://localhost:18083',
   [string]$ProjectName='fairy-commerceflow',
   [string]$WarehouseBaseUrl='http://127.0.0.1:18118',
-  [string]$MessagingBaseUrl='http://127.0.0.1:18119'
+  [string]$MessagingBaseUrl='http://127.0.0.1:18119',
+  [ValidateSet('PostgreSQL','MySQL')][string]$NotificationDatabase='PostgreSQL'
 )
 
 $ErrorActionPreference='Stop'
@@ -36,10 +37,18 @@ function Sql([string]$Service,[string]$Database,[string]$Query){
   $name=if($isolated){"$ProjectName-$Service-1"}else{"$ProjectName-$Service"}
   $labels=docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}/{{index .Config.Labels "com.docker.compose.service"}}' $name
   if($LASTEXITCODE -or $labels-ne"$ProjectName/$Service"){throw "Unexpected SQL scope for $Service"}
-  docker exec $name sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -NB "$1" -e "$2"' sh $Database $Query
+  if($Service-eq'notification-db-postgresql'){
+    docker exec $name sh -ec 'PGPASSWORD="$POSTGRES_PASSWORD" exec psql -h 127.0.0.1 -U postgres -d "$1" -XAtq -v ON_ERROR_STOP=1 -c "$2"' sh $Database $Query
+  }else{
+    docker exec $name sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -NB "$1" -e "$2"' sh $Database $Query
+  }
   if($LASTEXITCODE){throw "SQL failed for $Service"}
 }
 
+function Notification-Sql([string]$Query){
+  $service=if($NotificationDatabase-eq'PostgreSQL'){'notification-db-postgresql'}else{'notification-db'}
+  Sql $service notification $Query
+}
 function Session([string]$Email,[string]$Password='demo-password'){
   $csrf=Invoke-RestMethod "$BaseUrl/api/auth/csrf" -SessionVariable session -TimeoutSec 15
   $headers=@{$csrf.headerName=$csrf.token}
@@ -726,7 +735,7 @@ function Message-RequestId([string]$EventId,[string]$Channel){
 }
 
 function Assert-OffsiteReplay([string]$CaseId,[long]$OrderId){
-  $service='notification-service'
+  $service=if($NotificationDatabase-eq'PostgreSQL'){'notification-service-postgresql'}else{'notification-service'}
   $container="$ProjectName-$service-1"
   $format='{{index .Config.Labels "com.docker.compose.project"}}/{{index .Config.Labels "com.docker.compose.service"}}'
   $label=docker inspect --format $format $container
@@ -757,7 +766,7 @@ function Assert-OffsiteReplay([string]$CaseId,[long]$OrderId){
   $rejected=Invoke-WebRequest @call -Body ($different|ConvertTo-Json -Compress) -SkipHttpErrorCheck
   if($rejected.StatusCode-ne401){throw 'Notification intake accepted a tampered body'}
   $query="SELECT COUNT(*) FROM offsite_notification_deliveries WHERE event_id='$eventId'"
-  $data=Sql notification-db notification $query
+  $data=Notification-Sql $query
   if($data-ne'2'){throw 'Signed duplicate event created additional channel deliveries'}
 }
 
@@ -766,7 +775,7 @@ function Assert-Offsite([string]$Type,[string]$Reference,[long]$OrderId,[long]$R
   $eventId="${prefix}:$Reference"
   $inbox="SELECT CONCAT(event_type,'/',order_id,'/',recipient_id) FROM offsite_notification_inbox " +
     "WHERE event_id='$eventId'"
-  $received=Wait-Value { Sql notification-db notification $inbox } "Missing notification intake $eventId"
+  $received=Wait-Value { Notification-Sql $inbox } "Missing notification intake $eventId"
   if($received-ne"$Type/$OrderId/$RecipientId"){throw "Unexpected notification owner or order for $eventId"}
   $states=[ordered]@{SMS='DELIVERED';EMAIL=if($EmailFails){'FAILED'}else{'DELIVERED'}}
   $seen=[ordered]@{}
@@ -775,7 +784,7 @@ function Assert-Offsite([string]$Type,[string]$Reference,[long]$OrderId,[long]$R
     $sql="SELECT CONCAT(status,'/',provider_id,'/',attempts) FROM offsite_notification_deliveries " +
       "WHERE request_id='$requestId'"
     $row=Wait-Value {
-      $line=Sql notification-db notification $sql
+      $line=Notification-Sql $sql
       if($line -like "$($states[$channel])/*"){$line}
     } "Unexpected application delivery state for $channel on $eventId"
     $status,$providerId,$attempts=$row.Split('/')
@@ -924,10 +933,10 @@ function Verify-ReturnWork($shop){
     }
     $otherId=[long]$other.id
     $query="SELECT COUNT(*) FROM offsite_notification_inbox WHERE order_id=$otherId AND event_type='REFUND_SUCCEEDED'"
-    $unexpected=Sql notification-db notification $query
+    $unexpected=Notification-Sql $query
     if($unexpected-ne'0'){throw 'Rejected return generated a refund notice'}
     $query='SELECT COUNT(*) FROM offsite_notification_inbox WHERE order_id IN (465,479,480,497,498)'
-    $old=Sql notification-db notification $query
+    $old=Notification-Sql $query
     if($old-ne'0'){throw 'Archived orders generated notification events'}
   }
   $result

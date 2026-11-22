@@ -31,7 +31,7 @@ export interface Probe {
   address: string
   status: string
   detail: string
-  durationMs: number
+  durationMs: number | null
 }
 
 export interface Service {
@@ -115,6 +115,9 @@ export const serviceLogins: Partial<Record<string, ServiceLogin>> = {
   'commerce-db': passwordLogin('root', 'local-root-password', ['MYSQL_ROOT_PASSWORD'],
     '此处为本地 MySQL 管理账号。已有数据卷请使用当前数据库中的密码。'),
   'notification-db': mysqlLogin('notification', 'NOTIFICATION'),
+  'notification-db-postgresql': passwordLogin('notification', 'notification-password', [
+    'NOTIFICATION_DATABASE_USERNAME', 'NOTIFICATION_DATABASE_PASSWORD',
+  ], '此账号用于容器网络内访问 notification 数据库。'),
   'catalog-db': mysqlLogin('catalog', 'CATALOG'),
   'inventory-db': mysqlLogin('inventory', 'INVENTORY'),
   'order-db': mysqlLogin('orders', 'ORDER'),
@@ -159,6 +162,9 @@ const statuses: Record<string, { label: string; bucket: string }> = {
   RESTARTING: { label: '重启中', bucket: 'issue' },
   FAILED: { label: '异常退出', bucket: 'issue' },
   DEGRADED: { label: '部分副本异常', bucket: 'issue' },
+  MISSING: { label: '现役容器缺失', bucket: 'issue' },
+  UNEXPECTED_ACTIVE: { label: '非现役应用意外启动', bucket: 'issue' },
+  ROLLBACK_RETAINED: { label: '回退保留', bucket: 'inactive' },
   UNHEALTHY: { label: '不健康', bucket: 'issue' },
   UNREACHABLE: { label: '入口异常', bucket: 'issue' },
   STOPPED: { label: '已停止', bucket: 'inactive' },

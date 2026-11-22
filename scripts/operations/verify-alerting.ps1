@@ -3,7 +3,8 @@ param(
   [string]$AlertmanagerUrl = 'http://localhost:19093',
   [string]$WebhookUrl = 'http://localhost:18085',
   [int]$MaxWaitSeconds = 90,
-  [switch]$SkipStart
+  [switch]$SkipStart,
+  [string]$PaymentOrchestrationUrl = 'http://localhost:18090'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -116,7 +117,7 @@ foreach ($job in $deliveryMetrics.Keys) {
   }
 }
 
-$paymentMetrics = (Invoke-WebRequest 'http://localhost:18090/actuator/prometheus' -UseBasicParsing).Content
+$paymentMetrics = (Invoke-WebRequest "$PaymentOrchestrationUrl/actuator/prometheus" -UseBasicParsing).Content
 $expectedMetrics = @(
   'commerceflow_payment_outbox_pending 0.0',
   'commerceflow_payment_command_outbox_pending 0.0',

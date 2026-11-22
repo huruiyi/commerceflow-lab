@@ -26,6 +26,10 @@ SELECT id,@demo_merchant_id,name,CONCAT('https://picsum.photos/seed/',image_seed
   price,'ACTIVE',1,100,0,0
 FROM demo_products WHERE NOT @seeded;
 
+INSERT INTO inventory_warehouse_stock (product_id,warehouse_id,stock_available,stock_reserved,stock_sold)
+SELECT product_id,1,stock_available,stock_reserved,stock_sold
+FROM product_inventory WHERE NOT @seeded;
+
 INSERT INTO inventory_migration_state(migration_key,status,source_version,generation,source_fingerprint,completed_at)
 SELECT 'inventory-demo-v1','READY',0,1,'catalog-demo-v1',CURRENT_TIMESTAMP(6) WHERE NOT @seeded;
 COMMIT;

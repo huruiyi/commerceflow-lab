@@ -3,6 +3,7 @@ package vip.fairy.commerceflow.navigation;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
 import java.util.List;
@@ -75,20 +76,46 @@ class NavigationMonitorTest {
     ));
   }
 
+  @Test
+  void distinguishesMissingActiveNotificationFromRetainedMysql() throws IOException {
+    var compose = new FixtureCompose(mapper);
+    compose.withNotification = true;
+    var monitor = new NavigationMonitor(compose, new NavigationCatalog(mapper), new EndpointProbe(mapper));
+    monitor.refresh();
+
+    var services = monitor.snapshot().services();
+    assertThat(services).extracting(NavigationSnapshot.Service::status)
+        .containsExactly("MISSING", "READY", "ROLLBACK_RETAINED", "ROLLBACK_RETAINED");
+    assertThat(services.get(1).probes()).containsExactly(new NavigationSnapshot.Probe(
+        "fairy-commerceflow-notification-db-postgresql", "REACHABLE", "PostgreSQL 容器健康检查", null));
+    assertThat(services.get(2).instances().getFirst().exitCode()).isEqualTo(143);
+
+    compose.legacyRunning = true;
+    monitor.refresh();
+    assertThat(monitor.snapshot().services().get(2).status()).isEqualTo("UNEXPECTED_ACTIVE");
+  }
+
   private static class FixtureCompose extends ComposeClient {
 
     private final ObjectMapper mapper;
     private boolean connected = true;
     private boolean withRelease;
+    private boolean withNotification;
+    private boolean legacyRunning;
     private String state = "running";
 
     FixtureCompose(ObjectMapper mapper) {
-      super(".", 15, mapper);
+      super(".", ComposeClient.PROJECT, "", 15, mapper);
       this.mapper = mapper;
     }
 
     @Override
     JsonNode configuration() {
+      if (withNotification) {
+        return mapper.readTree("""
+            {"services":{"notification-service-postgresql":{}, "notification-db-postgresql":{}}}
+            """);
+      }
       return mapper.readTree("""
           {"services":{"order-db":{"environment":{"MYSQL_DATABASE":"orders"}}}}
           """);
@@ -99,12 +126,19 @@ class NavigationMonitorTest {
       if (!connected) {
         throw new IOException("Test Docker connection unavailable");
       }
+      if (withNotification) {
+        var legacy = container("notification-service");
+        if (!legacyRunning) {
+          legacy.put("state", "exited").put("exitCode", 143);
+        }
+        return List.of(container("notification-db-postgresql"), legacy, container("notification-db"));
+      }
       var orderDb = container("order-db");
       return withRelease ? List.of(orderDb, container("invoice-db"), container("invoice-simulator-service"))
           : List.of(orderDb);
     }
 
-    private JsonNode container(String service) {
+    private ObjectNode container(String service) {
       return mapper.createObjectNode()
           .put("service", service)
           .put("name", "/fairy-commerceflow-" + service)

@@ -28,6 +28,6 @@ record NavigationSnapshot(
                   boolean oomKilled, String startedAt, String finishedAt) {
   }
 
-  record Probe(String address, String status, String detail, long durationMs) {
+  record Probe(String address, String status, String detail, Long durationMs) {
   }
 }

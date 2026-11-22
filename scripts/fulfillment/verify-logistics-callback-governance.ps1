@@ -1,6 +1,8 @@
 param(
   [string]$BaseUrl = 'http://localhost:14200',
-  [string]$LogisticsUrl = 'http://localhost:18083'
+  [string]$LogisticsUrl = 'http://localhost:18083',
+  [string]$PaymentBaseUrl = 'http://localhost:14201',
+  [string]$PaymentOrchestrationUrl = 'http://localhost:18090'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -92,7 +94,8 @@ try {
   docker compose --project-directory $ProjectRoot up -d --wait --force-recreate logistics-simulator-service commerce-service commerce-portal-angular | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'Could not start callback governance experiment' }
 
-  & "$PSScriptRoot/verify-merchant-fulfillment.ps1" -BaseUrl $BaseUrl
+  & "$PSScriptRoot/verify-merchant-fulfillment.ps1" -BaseUrl $BaseUrl `
+    -PaymentBaseUrl $PaymentBaseUrl -PaymentOrchestrationUrl $PaymentOrchestrationUrl
   if (-not $?) { throw 'Could not create shipment for callback governance verification' }
   $customer = New-AuthenticatedSession 'demo@example.com'
   $orders = Invoke-RestMethod "$BaseUrl/api/purchase-orders" -WebSession $customer.Session
@@ -158,5 +161,5 @@ try {
 } finally {
   Restore-Environment
   docker compose --project-directory $ProjectRoot up -d --wait --force-recreate logistics-simulator-service commerce-service commerce-portal-angular | Out-Null
-  if ($LASTEXITCODE -ne 0) { Write-Warning 'Could not restore default callback delivery configuration' }
+  if ($LASTEXITCODE -ne 0) { throw 'Could not restore default callback delivery configuration' }
 }

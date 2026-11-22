@@ -48,4 +48,9 @@ class AlertWebhookHandler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    ThreadingHTTPServer(("0.0.0.0", 8080), AlertWebhookHandler).serve_forever()
+    handler = AlertWebhookHandler
+    if os.getenv("ALERT_WORKFLOW_DB"):
+        from on_call import start_workflow
+
+        handler = start_workflow(AlertWebhookHandler)
+    ThreadingHTTPServer(("0.0.0.0", 8080), handler).serve_forever()

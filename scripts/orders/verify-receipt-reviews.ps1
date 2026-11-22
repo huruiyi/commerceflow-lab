@@ -1,6 +1,11 @@
-param([string]$BaseUrl='http://localhost:14200')
-$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-$ErrorActionPreference='Stop';& "$PSScriptRoot/../fulfillment/verify-merchant-fulfillment.ps1" -BaseUrl $BaseUrl;if(-not$?){throw 'Could not create shipped order'}
+param(
+  [string]$BaseUrl = 'http://localhost:14200',
+  [string]$PaymentBaseUrl = 'http://localhost:14201',
+  [string]$PaymentOrchestrationUrl = 'http://localhost:18090'
+)
+$ErrorActionPreference = 'Stop'
+& "$PSScriptRoot/../fulfillment/verify-merchant-fulfillment.ps1" -BaseUrl $BaseUrl `
+  -PaymentBaseUrl $PaymentBaseUrl -PaymentOrchestrationUrl $PaymentOrchestrationUrl
 $session=[Microsoft.PowerShell.Commands.WebRequestSession]::new();$csrf=Invoke-RestMethod "$BaseUrl/api/auth/csrf" -WebSession $session;$headers=@{$csrf.headerName=$csrf.token};Invoke-RestMethod "$BaseUrl/api/auth/login" -Method Post -WebSession $session -Headers $headers -ContentType application/json -Body '{"email":"demo@example.com","password":"demo-password","rememberMe":false}'|Out-Null
 $orders=Invoke-RestMethod "$BaseUrl/api/purchase-orders" -WebSession $session;$shipped=$orders|Where-Object status -eq 'SHIPPED'|Select-Object -First 1;if(-not$shipped){throw 'Customer cannot see shipped order'}
 $received=Invoke-RestMethod "$BaseUrl/api/purchase-orders/$($shipped.id)/receive" -Method Post -WebSession $session -Headers $headers -ContentType application/json -Body '{}';if($received.status-ne'RECEIVED'){throw 'Receive transition failed'};$item=$received.items[0]

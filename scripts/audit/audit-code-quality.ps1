@@ -230,13 +230,17 @@ foreach ($mapperFile in $mapperFiles) {
     $_.NodeType -eq [System.Xml.XmlNodeType]::Element -and
     $_.Name -in @('select', 'insert', 'update', 'delete')
   })
-  $statementIds = @($statementNodes | ForEach-Object { [string]$_.id })
-  $duplicates = @($statementIds | Group-Object | Where-Object Count -gt 1)
+  $duplicates = @($statementNodes | Group-Object -CaseSensitive -Property @(
+    { $_.GetAttribute('id') }
+    { $_.GetAttribute('databaseId') }
+  ) | Where-Object Count -gt 1)
   if ($duplicates.Count -gt 0) {
-    Fail "$relativePath contains duplicate statement id $($duplicates[0].Name)"
+    $duplicate = $duplicates[0].Group[0]
+    Fail "$relativePath contains duplicate statement id '$($duplicate.id)' for databaseId '$($duplicate.databaseId)'"
   }
 
-  foreach ($statementId in $statementIds) {
+  foreach ($statement in $statementNodes) {
+    $statementId = $statement.GetAttribute('id')
     if ([string]::IsNullOrWhiteSpace($statementId)) {
       Fail "$relativePath contains a statement without id"
     }

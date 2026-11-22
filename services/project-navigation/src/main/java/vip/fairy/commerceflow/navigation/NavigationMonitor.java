@@ -16,6 +16,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 
 import static vip.fairy.commerceflow.navigation.NavigationSnapshot.*;
+import static vip.fairy.commerceflow.navigation.NavigationCatalog.NotificationRole.*;
 
 @Component
 class NavigationMonitor {
@@ -23,13 +24,13 @@ class NavigationMonitor {
   private final ComposeClient compose;
   private final NavigationCatalog catalog;
   private final EndpointProbe probe;
-  private volatile NavigationSnapshot snapshot =
-      new NavigationSnapshot(ComposeClient.PROJECT, false, null, null, "正在等待首次采集", List.of());
+  private volatile NavigationSnapshot snapshot;
 
   NavigationMonitor(ComposeClient compose, NavigationCatalog catalog, EndpointProbe probe) {
     this.compose = compose;
     this.catalog = catalog;
     this.probe = probe;
+    this.snapshot = new NavigationSnapshot(compose.project(), false, null, null, "正在等待首次采集", List.of());
   }
 
   NavigationSnapshot snapshot() {
@@ -51,7 +52,7 @@ class NavigationMonitor {
         services = work.stream().map(CompletableFuture::join).toList();
       }
       Instant now = Instant.now();
-      snapshot = new NavigationSnapshot(ComposeClient.PROJECT, true, now, now, "", services);
+      snapshot = new NavigationSnapshot(compose.project(), true, now, now, "", services);
     } catch (InterruptedException exception) {
       Thread.currentThread().interrupt();
     } catch (IOException | RuntimeException exception) {
@@ -60,7 +61,7 @@ class NavigationMonitor {
         previous = catalog.entries(configuration, List.of()).stream()
             .map(entry -> service(entry, List.of(), false)).toList();
       }
-      snapshot = new NavigationSnapshot(ComposeClient.PROJECT, false, snapshot.collectedAt(), Instant.now(),
+      snapshot = new NavigationSnapshot(compose.project(), false, snapshot.collectedAt(), Instant.now(),
           "无法读取 Compose 当前状态，请检查 Docker 和项目配置。", previous);
     }
   }
@@ -89,6 +90,11 @@ class NavigationMonitor {
       JsonNode metadata = metadataPorts.path(Integer.toString(target));
       String protocol = metadata.path("protocol").asString("TCP");
       addresses.add(new Address(protocol, "INTERNAL", entry.id() + ":" + target));
+      String alias = metadata.path("alias").asString("");
+      if (!alias.isBlank() && containers.stream().anyMatch(container ->
+          "running".equals(container.path("state").asString()) && hasAlias(container, alias))) {
+        addresses.add(new Address(protocol, "INTERNAL", alias + ":" + target));
+      }
       var bindings = new LinkedHashSet<Binding>();
       for (JsonNode container : containers) {
         if ("running".equals(container.path("state").asString())) {
@@ -119,6 +125,14 @@ class NavigationMonitor {
       }
     });
 
+    if ("notification-db-postgresql".equals(entry.id())) {
+      for (Instance instance : instances) {
+        if (instance.health().equals("healthy") || instance.health().equals("unhealthy")) {
+          probes.add(new Probe(instance.name(), instance.health().equals("healthy") ? "REACHABLE" : "FAILED",
+              "PostgreSQL 容器健康检查", null));
+        }
+      }
+    }
     String status = collected ? status(entry, instances, probes) : "UNKNOWN";
     return new Service(entry.id(), entry.name(), entry.group(), entry.task() ? "TASK" : "SERVICE", status,
         entry.profiles(), entry.schema(), List.copyOf(addresses), List.copyOf(links), instances, List.copyOf(probes));
@@ -129,6 +143,17 @@ class NavigationMonitor {
       case "", "0.0.0.0", "::" -> "127.0.0.1";
       default -> ip;
     };
+  }
+
+  private static boolean hasAlias(JsonNode container, String alias) {
+    for (JsonNode network : container.path("networks")) {
+      for (JsonNode name : network.path("Aliases")) {
+        if (alias.equals(name.asString())) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   private static Instance instance(JsonNode node, boolean healthcheck) {
@@ -146,7 +171,21 @@ class NavigationMonitor {
   }
 
   private static String status(NavigationCatalog.Entry entry, List<Instance> instances, List<Probe> probes) {
+    if (entry.notificationRole() == ROLLBACK_DB && !instances.isEmpty()) {
+      return "ROLLBACK_RETAINED";
+    }
+    if (entry.notificationRole() == ROLLBACK_APP && !instances.isEmpty()) {
+      return instances.stream().allMatch(item -> List.of("created", "exited").contains(item.state()))
+          ? "ROLLBACK_RETAINED" : "UNEXPECTED_ACTIVE";
+    }
+    if (entry.notificationRole() == DISABLED_APP
+        && instances.stream().anyMatch(item -> List.of("running", "restarting", "paused").contains(item.state()))) {
+      return "UNEXPECTED_ACTIVE";
+    }
     if (instances.isEmpty()) {
+      if (entry.notificationRole() == ACTIVE) {
+        return "MISSING";
+      }
       return entry.task() ? "TASK_PENDING" : entry.profiles().isEmpty() ? "NOT_CREATED" : "PROFILE_INACTIVE";
     }
     if (entry.task()) {

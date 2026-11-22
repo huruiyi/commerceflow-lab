@@ -1,25 +1,3 @@
 services:
-  commerce-service:
-    environment:
-      COMMERCEFLOW_OFFSITE_DISPATCH_PAUSE_FILE: /gate/offsite.paused
-    volumes:
-      - notification-maintenance:/gate:ro
-  payment-orchestration-service:
-    environment:
-      COMMERCEFLOW_OFFSITE_DISPATCH_PAUSE_FILE: /gate/offsite.paused
-    volumes:
-      - notification-maintenance:/gate:ro
-  notification-service:
-    environment:
-      COMMERCEFLOW_NOTIFICATION_WRITE_PAUSE_FILE: /gate/writes.paused
-      SPRING_KAFKA_CONSUMER_AUTO_OFFSET_RESET: none
-    volumes:
-      - notification-maintenance:/gate:ro
   notification-maintenance:
-    image: redis:7.4-alpine
-    network_mode: none
-    entrypoint: ["/bin/sh", "-c", "exec sleep infinity"]
-    volumes:
-      - notification-maintenance:/gate
-volumes:
-  notification-maintenance:
+    profiles: !reset []
