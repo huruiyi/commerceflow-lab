@@ -98,7 +98,9 @@ public class OrderStoreService {
     if ((request.customerId() == null) == (request.merchantId() == null)
         || criteria == null || criteria.page() < 0 || criteria.size() < 1 || criteria.size() > 20
         || criteria.keyword() == null || criteria.keyword().length() > 120
-        || criteria.productIds() == null) {
+        || criteria.productIds() == null
+        || (criteria.orderNumber() != null && (criteria.orderNumber().isBlank()
+          || criteria.orderNumber().length() > 40 || !criteria.keyword().isEmpty()))) {
       throw new IllegalArgumentException("Invalid order list filters or scope");
     }
     long total = store.countSearch(request);

@@ -2,6 +2,11 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="vip.fairy.commerceflow.commerce.cart.infrastructure.CartMapper">
 
+  <sql id="cartItemViewColumns">
+    i.id, i.product_id, i.updated_at AS created_at, '' AS note, i.quantity,
+    i.product_name, i.unit_price AS price, i.thumbnail_url
+  </sql>
+
   <insert id="ensureCart">
     <![CDATA[
       INSERT INTO carts (user_id, created_at, updated_at)
@@ -39,24 +44,24 @@
   </insert>
 
   <select id="list" resultType="vip.fairy.commerceflow.commerce.cart.domain.OrderView">
-    <![CDATA[
-      SELECT i.id, i.product_id, i.updated_at AS created_at, '' AS note, i.quantity,
-             i.product_name, i.unit_price AS price, i.thumbnail_url
-      FROM cart_items i
-      JOIN carts c ON c.id = i.cart_id
-      WHERE c.user_id = #{userId}
-      ORDER BY i.created_at, i.id
-    ]]>
+    SELECT <include refid="cartItemViewColumns"/>
+    FROM cart_items i
+    JOIN carts c ON c.id = i.cart_id
+    WHERE c.user_id = #{userId}
+    ORDER BY i.created_at, i.id
+  </select>
+
+  <select id="viewByProductId" resultType="vip.fairy.commerceflow.commerce.cart.domain.OrderView">
+    SELECT <include refid="cartItemViewColumns"/>
+    FROM cart_items i
+    WHERE i.cart_id = #{cartId} AND i.product_id = #{productId}
   </select>
 
   <select id="view" resultType="vip.fairy.commerceflow.commerce.cart.domain.OrderView">
-    <![CDATA[
-      SELECT i.id, i.product_id, i.updated_at AS created_at, '' AS note, i.quantity,
-             i.product_name, i.unit_price AS price, i.thumbnail_url
-      FROM cart_items i
-      JOIN carts c ON c.id = i.cart_id
-      WHERE c.user_id = #{userId} AND i.id = #{itemId}
-    ]]>
+    SELECT <include refid="cartItemViewColumns"/>
+    FROM cart_items i
+    JOIN carts c ON c.id = i.cart_id
+    WHERE c.user_id = #{userId} AND i.id = #{itemId}
   </select>
 
   <update id="quantity">

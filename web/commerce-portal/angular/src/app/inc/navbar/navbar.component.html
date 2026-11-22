@@ -151,13 +151,25 @@
               unreadNotifications > 99 ? '99+' : unreadNotifications
             }}</span>
           </button>
+          <div
+            class="notification-panel notification-empty"
+            *ngIf="!notificationOpen && notificationReadFailed"
+            role="status"
+          >
+            {{ 'notificationReadFailed' | t }}
+          </div>
           <div id="notification-panel" class="notification-panel" *ngIf="notificationOpen">
             <div class="notification-heading">
               <div>
                 <strong>{{ 'notifications' | t }}</strong><small>{{ notifications.length }}</small>
               </div>
               <div class="notification-heading-actions">
-                <button type="button" *ngIf="unreadNotifications" (click)="markAllNotificationsRead()">
+                <button
+                  type="button"
+                  *ngIf="unreadNotifications"
+                  [disabled]="notificationReadPending"
+                  (click)="markAllNotificationsRead()"
+                >
                   {{ 'markAllRead' | t }}
                 </button>
                 <button
@@ -170,14 +182,18 @@
                 </button>
               </div>
             </div>
-            <div class="notification-list">
-              <div class="notification-empty" *ngIf="notificationReadFailed" role="status">
-                {{ 'notificationReadFailed' | t }}
-              </div>
-              <div class="notification-empty" *ngIf="notificationUnavailable">
+            <div class="notification-empty" *ngIf="notificationReadFailed" role="status">
+              {{ 'notificationReadFailed' | t }}
+            </div>
+            <div class="notification-empty" *ngIf="notificationUnavailable">
+              <span role="status">
                 {{ 'notificationUnavailable' | t }}
-                <button type="button" (click)="loadNotifications()">{{ 'retry' | t }}</button>
-              </div>
+              </span>
+              <button type="button" [disabled]="notificationReadPending" (click)="loadNotifications()">
+                {{ 'retry' | t }}
+              </button>
+            </div>
+            <div class="notification-list">
               <div class="notification-empty" *ngIf="!notificationUnavailable && !notifications.length">
                 {{ 'noNotifications' | t }}
               </div>
@@ -186,6 +202,7 @@
                 class="notification-item"
                 *ngFor="let notification of notifications"
                 [class.unread]="notification.status === 'UNREAD'"
+                [disabled]="notificationReadPending && notification.status === 'UNREAD'"
                 (click)="openNotification(notification)"
               >
                 <span class="notification-dot" aria-hidden="true"></span>

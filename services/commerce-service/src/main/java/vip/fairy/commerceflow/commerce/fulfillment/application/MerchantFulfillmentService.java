@@ -52,13 +52,6 @@ public class MerchantFulfillmentService {
                               ShipmentJob.Status status, Long shipmentVersion, String errorCode) {
   }
 
-  public List<MerchantOrderResponse> list(Long merchantId) {
-    return orderStore.listMerchant(merchantId)
-      .stream()
-      .map(this::response)
-      .toList();
-  }
-
   public MerchantOrderResponse get(Long merchantId, Long id) {
     return listResponse(require(merchantId, id), merchantId);
   }
@@ -89,14 +82,9 @@ public class MerchantFulfillmentService {
       .orElseThrow(() -> new ResourceNotFoundException("Merchant order not found"));
   }
 
-  private MerchantOrderResponse response(ShopOrderView order) {
-    return listResponse(order, null);
-  }
-
   public MerchantOrderResponse listResponse(ShopOrderView order, Long merchantId) {
     var orderItems = orders.items(order.getId());
-    var merchantItems = merchantId == null ? orderItems
-      : orderItems.stream().filter(item -> merchantId.equals(item.getMerchantId())).toList();
+    var merchantItems = orderItems.stream().filter(item -> merchantId.equals(item.getMerchantId())).toList();
     boolean sharedOrder = merchantItems.size() < orderItems.size();
     RefundSnapshotV1 refund = sharedOrder ? null : payments.refund(
       new PaymentQueryV1(PaymentQueryV1.VERSION, order.getId())).orElse(null);

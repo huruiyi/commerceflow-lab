@@ -75,13 +75,13 @@ $matrix = @(
     Email = 'demo@example.com'; Role = 'CUSTOMER'
     Paths = @{
       '/api/products' = 200; '/api/cart' = 200; '/api/addresses' = 200; '/api/purchase-orders' = 200
-      '/api/merchant/orders' = 403; '/api/users' = 403
+      '/api/merchant/orders/search?size=1' = 403; '/api/users' = 403
     }
   },
   @{
     Email = 'merchant@example.com'; Role = 'MERCHANT'
     Paths = @{
-      '/api/products' = 200; '/api/merchant/orders' = 200
+      '/api/products' = 200; '/api/merchant/orders/search?size=1' = 200
       '/api/cart' = 403; '/api/addresses' = 403; '/api/purchase-orders' = 403; '/api/users' = 403
     }
   },
@@ -89,7 +89,7 @@ $matrix = @(
     Email = 'admin@example.com'; Role = 'ADMIN'
     Paths = @{
       '/api/products' = 200; '/api/users' = 200
-      '/api/cart' = 403; '/api/addresses' = 403; '/api/purchase-orders' = 403; '/api/merchant/orders' = 403
+      '/api/cart' = 403; '/api/addresses' = 403; '/api/purchase-orders' = 403; '/api/merchant/orders/search?size=1' = 403
     }
   }
 )

@@ -579,6 +579,13 @@
       <p *ngIf="payment.failureReason" class="failure-reason">
         {{ payment.failureReason === 'Simulated decline' ? ('simulatedDecline' | t) : payment.failureReason }}
       </p>
+      <p
+        *ngIf="detailId !== null && paymentAwaitingOrder(order) && !notices[order.id]"
+        class="alert alert-info"
+        role="status"
+      >
+        {{ 'paymentAwaitingOrder' | t }}
+      </p>
       <div class="cashier-actions" *ngIf="payment.status === 'PENDING' || paymentAwaitingOrder(order)">
         <div *ngIf="payment.status === 'PENDING' && payment.qrPayload" class="qr-payload">
           <strong>{{ 'qrPayload' | t }}</strong><code>{{ payment.qrPayload }}</code>

@@ -554,13 +554,20 @@ class CommerceFlowIntegrationTest {
         .header("X-XSRF-TOKEN", csrf.token()).contentType("application/json")
         .content("{\"quantity\":0}"))
       .andExpect(status().isBadRequest());
-    mvc.perform(get("/api/merchant/orders").session(csrf.session())).andExpect(status().isForbidden());
+    mvc.perform(get("/api/merchant/orders/search").session(csrf.session())).andExpect(status().isForbidden());
     mvc.perform(get("/api/users").session(csrf.session())).andExpect(status().isForbidden());
     mvc.perform(delete("/api/cart/items/{id}", itemId).session(csrf.session()).cookie(csrf.cookie())
         .header("X-XSRF-TOKEN", csrf.token()))
       .andExpect(status().isNoContent());
     mvc.perform(get("/api/cart").session(csrf.session())).andExpect(status().isOk())
       .andExpect(jsonPath("$").isEmpty());
+  }
+
+  @Test
+  void legacyMerchantOrderListIsRetired() throws Exception {
+    CsrfContext merchant = login("merchant@example.com", false);
+
+    mvc.perform(get("/api/merchant/orders").session(merchant.session())).andExpect(status().isNotFound());
   }
 
   @Test

@@ -53,9 +53,12 @@ try {
   Wait-Healthy "${serviceOrigin}:18083/actuator/health"
 
   $paymentUrl = if ($env:PAYMENT_UI_BASE_URL) { $env:PAYMENT_UI_BASE_URL } else { "${serviceOrigin}:14201" }
-  & "$PSScriptRoot/../payment/verify-payment-notifications.ps1" -BaseUrl $BaseUrl `
+  $paymentResult = & "$PSScriptRoot/../payment/verify-payment-notifications.ps1" -BaseUrl $BaseUrl `
     -PaymentBaseUrl $paymentUrl -PaymentOrchestrationUrl "${serviceOrigin}:18090"
   if (-not $?) { throw 'Could not prepare a paid order for the trace drill' }
+  $paymentResult | Write-Output
+  $sampleNumber = [regex]::Match(($paymentResult -join ' '), 'order=(ORD-[A-Z0-9]+)').Groups[1].Value
+  if (!$sampleNumber) { throw 'Paid order number missing from payment verification' }
 
   $merchant = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
   $csrf = Invoke-RestMethod "$BaseUrl/api/auth/csrf" -WebSession $merchant
@@ -64,19 +67,15 @@ try {
     -ContentType application/json `
     -Body '{"email":"merchant@example.com","password":"demo-password","rememberMe":false}' | Out-Null
   $deadline = (Get-Date).AddSeconds($MaxWaitSeconds)
+  $query = [uri]::EscapeDataString($sampleNumber)
   do {
-    $orders = Invoke-RestMethod "$BaseUrl/api/merchant/orders" -WebSession $merchant
-    $paid = $null
-    foreach ($order in $orders) {
-      if ($order.status -eq 'PAID') {
-        $paid = $order
-        break
-      }
-    }
+    $result = Invoke-RestMethod "$BaseUrl/api/merchant/orders/search?orderNumber=$query&status=PAID&size=1" `
+      -WebSession $merchant -TimeoutSec 10
+    $paid = $result.orders | Where-Object { $_.orderNumber -eq $sampleNumber -and $_.inventoryStatus -eq 'COMMITTED' }
     if ($paid) { break }
     Start-Sleep -Milliseconds 500
   } while ((Get-Date) -lt $deadline)
-  if (-not $paid) { throw 'No paid order is available for the trace drill' }
+  if (-not $paid) { throw "Paid sample $sampleNumber is unavailable for the trace drill" }
   . "$PSScriptRoot/../fulfillment/merchant-command.ps1"
   function Trace-Fulfillment($command, $requestHeaders) {
     $path = '/api/merchant/orders/fulfillment-v1/commands'

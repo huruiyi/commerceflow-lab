@@ -28,17 +28,16 @@ public class CartService {
   public OrderResponse add(AppUser user, OrderRequest request) {
     CatalogProductLookup.ProductSnapshot product = products.require(request.getProductId());
     carts.ensureCart(user.getId());
+    Long cartId = carts.cartId(user.getId());
     carts.add(
-      carts.cartId(user.getId()),
+      cartId,
       product.id(),
       product.merchantId(),
       product.name(),
       product.thumbnailUrl(),
       product.price(),
       request.getQuantity() == null ? 1 : request.getQuantity());
-    return carts.list(user.getId()).stream()
-      .filter(item -> item.getProductName().equals(product.name()))
-      .findFirst()
+    return carts.viewByProductId(cartId, product.id())
       .map(OrderResponse::from)
       .orElseThrow(() -> new ResourceNotFoundException("Cart item not found"));
   }

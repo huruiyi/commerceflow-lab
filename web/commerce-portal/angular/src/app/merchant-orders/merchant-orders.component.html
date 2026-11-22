@@ -75,6 +75,10 @@
 
   <div *ngIf="expandedOrders.has(order.id)" class="order-details">
     <app-line-after-sales [order]="order" [merchant]="true"></app-line-after-sales>
+    <p *ngIf="warehousePlanFailed.has(order.id)" role="status">
+      {{ 'warehousePlanUnavailable' | t }}
+      <button class="action-button" type="button" (click)="loadWarehousePlan(order.id)">{{ 'retry' | t }}</button>
+    </p>
     <ul *ngIf="isMultiWarehouse(order.id)">
       <li *ngFor="let allocation of plans[order.id]?.amounts">
         {{ 'fulfillmentWarehouse' | t }} {{ allocation.warehouseId }} · {{ 'packageQuantity' | t }}
@@ -129,6 +133,9 @@
         required
       />
       <ng-container *ngIf="order.status === 'CONFIRMED'">
+        <p *ngIf="!plans[order.id] && !warehousePlanFailed.has(order.id)" role="status">
+          {{ 'warehousePlanLoading' | t }}
+        </p>
         <label *ngIf="isMultiWarehouse(order.id)">
           {{ 'fulfillmentWarehouse' | t }}
           <select class="form-select" name="warehouse{{ order.id }}" [(ngModel)]="warehouses[order.id]" required>
@@ -156,7 +163,7 @@
           shipmentProgress[order.id]?.status === 'PENDING' ||
           shipmentInvalid(order) ||
           shipmentUnchanged(order) ||
-          (order.status === 'CONFIRMED' && isMultiWarehouse(order.id) && !warehouses[order.id])
+          (order.status === 'CONFIRMED' && packageWarehouseUnavailable(order.id))
         "
       >
         <i class="bi bi-truck me-1" aria-hidden="true"></i

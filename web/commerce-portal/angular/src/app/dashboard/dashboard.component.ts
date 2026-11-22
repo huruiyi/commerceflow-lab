@@ -1,13 +1,15 @@
 import { ChangeDetectorRef, Component, DestroyRef, OnInit } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Product } from 'src/model/IProduct';
 import { ApiService, CatalogStore, StockAvailability } from '../services/api.service';
-import { forkJoin, Subscription } from 'rxjs';
+import { catchError, EMPTY, map, of, Subscription, switchMap, timeout } from 'rxjs';
 import { SeoService } from '../services/seo.service';
 import { I18nService } from '../services/i18n.service';
 
 type CatalogSort = 'default' | 'price-asc' | 'price-desc' | 'rating';
+const PRODUCT_QUERY_TIMEOUT_MS = 8000;
 
 @Component({
   standalone: false,
@@ -29,17 +31,28 @@ export class DashboardComponent implements OnInit {
   searchQuery = '';
   sort: CatalogSort = 'default';
   selectedProduct?: Product;
+  detailStatus: 'loading' | 'ready' | 'missing' | 'unavailable' = 'loading';
   bigImage = '';
   showLoader = false;
   selectedQuantity = 1;
   stock?: StockAvailability;
   stockLoading = false;
   basketError = '';
-  private stockRequest = 0;
+  private detailRequest?: Subscription;
   private searchRequest?: Subscription;
 
   get totalPages(): number {
     return Math.ceil(this.total / this.size);
+  }
+
+  get canAddToBasket(): boolean {
+    return (
+      this.detailStatus === 'ready' &&
+      !this.showLoader &&
+      !this.stockLoading &&
+      this.stock !== undefined &&
+      this.stock.available >= this.selectedQuantity
+    );
   }
 
   constructor(
@@ -137,35 +150,47 @@ export class DashboardComponent implements OnInit {
 
   fncSelectDetail(index: number) {
     this.selectedProduct = this.products[index];
-    this.bigImage = this.selectedProduct.imageUrl;
+    this.detailStatus = 'loading';
     this.selectedQuantity = 1;
+    this.loadProductDetail();
+  }
+
+  loadProductDetail(): void {
+    if (!this.selectedProduct) return;
+    const productId = this.selectedProduct.id;
+    this.detailRequest?.unsubscribe();
+    if (this.detailStatus !== 'ready') this.detailStatus = 'loading';
     this.stock = undefined;
     this.basketError = '';
     this.stockLoading = true;
-    const productId = this.selectedProduct.id;
-    const request = ++this.stockRequest;
-    forkJoin({ product: this.api.productDetail(productId), stocks: this.api.productAvailability([productId]) })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ product, stocks }) => {
-          if (request !== this.stockRequest) return;
+    this.detailRequest = this.api
+      .productDetail(productId)
+      .pipe(
+        timeout(PRODUCT_QUERY_TIMEOUT_MS),
+        catchError((error: unknown) => {
+          this.detailStatus = error instanceof HttpErrorResponse && error.status === 404 ? 'missing' : 'unavailable';
+          this.stockLoading = false;
+          this.changeDetector.markForCheck();
+          return EMPTY;
+        }),
+        switchMap((product) => {
           this.selectedProduct = product;
           this.bigImage = product.imageUrl;
-          this.applyStock(request, stocks[productId]);
-        },
-        error: () => {
-          if (request !== this.stockRequest) return;
-          this.basketError = 'catalogInactive';
-          this.applyStock(request, { productId, listed: false, available: 0 });
-        },
+          this.detailStatus = 'ready';
+          this.changeDetector.markForCheck();
+          return this.api.productAvailability([productId]).pipe(
+            timeout(PRODUCT_QUERY_TIMEOUT_MS),
+            map((stocks) => stocks[productId]),
+            catchError(() => of(undefined)),
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((stock) => {
+        this.stock = stock?.listed ? stock : undefined;
+        this.stockLoading = false;
+        this.changeDetector.markForCheck();
       });
-  }
-
-  private applyStock(request: number, stock?: StockAvailability): void {
-    if (request !== this.stockRequest) return;
-    this.stock = stock;
-    this.stockLoading = false;
-    this.changeDetector.markForCheck();
   }
 
   fncSelectBigImage(path: string) {
@@ -181,12 +206,7 @@ export class DashboardComponent implements OnInit {
   }
 
   fncAddBasket(productId: number) {
-    if (
-      this.showLoader ||
-      this.stockLoading ||
-      (this.stock && (!this.stock.listed || this.stock.available < this.selectedQuantity))
-    )
-      return;
+    if (!this.canAddToBasket || this.selectedProduct?.id !== productId) return;
     this.basketError = '';
     this.showLoader = true;
     this.api.addOrder(productId, this.selectedQuantity).subscribe({
@@ -197,7 +217,7 @@ export class DashboardComponent implements OnInit {
         window.location.href = '/cart';
       },
       error: (err) => {
-        this.basketError = err.status === 404 ? 'catalogInactive' : 'addBasketFailed';
+        this.basketError = err.status === 404 ? 'productMissingOrUnlisted' : 'addBasketFailed';
         this.showLoader = false;
         this.changeDetector.markForCheck();
       },

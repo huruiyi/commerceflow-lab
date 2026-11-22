@@ -1,4 +1,6 @@
-import { ChangeDetectorRef, Component, ElementRef, HostListener, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, ElementRef, HostListener, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { catchError, forkJoin, Observable, of, Subscription } from 'rxjs';
 import { AccountService } from 'src/app/services/account.service';
 import { UserProfile } from 'src/model/IUserLogin';
 import { I18nService } from '../../services/i18n.service';
@@ -21,6 +23,8 @@ export class NavbarComponent implements OnInit {
   notificationOpen = false;
   notificationUnavailable = false;
   notificationReadFailed = false;
+  notificationReadPending = false;
+  private notificationLoad?: Subscription;
   bilgiler: UserProfile = {
     id: 0,
     firstName: '',
@@ -37,6 +41,7 @@ export class NavbarComponent implements OnInit {
     private api: ApiService,
     private elementRef: ElementRef<HTMLElement>,
     private changeDetector: ChangeDetectorRef,
+    private destroyRef: DestroyRef,
   ) {
     const userInfo = this.accountService.loginControl();
 
@@ -58,18 +63,25 @@ export class NavbarComponent implements OnInit {
   }
 
   loadNotifications(): void {
-    this.api.notifications().subscribe({
-      next: (notifications) => {
-        this.notificationUnavailable = false;
-        this.notifications = notifications;
-        this.unreadNotifications = notifications.filter((item) => item.status === 'UNREAD').length;
-        this.changeDetector.markForCheck();
-      },
-      error: () => {
-        this.notificationUnavailable = true;
-        this.changeDetector.markForCheck();
-      },
-    });
+    if (this.notificationReadPending) return;
+    this.notificationLoad?.unsubscribe();
+    this.notificationLoad = forkJoin({
+      notifications: this.api.notifications(),
+      unread: this.api.unreadNotificationCount(),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ notifications, unread }) => {
+          this.notificationUnavailable = false;
+          this.notifications = notifications;
+          this.unreadNotifications = unread.count;
+          this.changeDetector.markForCheck();
+        },
+        error: () => {
+          this.notificationUnavailable = true;
+          this.changeDetector.markForCheck();
+        },
+      });
   }
 
   toggleNotifications(): void {
@@ -94,7 +106,9 @@ export class NavbarComponent implements OnInit {
   }
 
   openNotification(notification: CustomerNotification): void {
-    this.markNotificationRead(notification);
+    if (notification.status === 'UNREAD') {
+      this.updateNotificationRead(this.api.markNotificationRead(notification.eventId));
+    }
     const id = notification.orderId;
     if (id && Number.isSafeInteger(id) && id > 0) {
       this.closeNotifications();
@@ -102,31 +116,28 @@ export class NavbarComponent implements OnInit {
     }
   }
 
-  private markNotificationRead(notification: CustomerNotification): void {
-    this.notificationReadFailed = false;
-    if (notification.status === 'READ') return;
-    this.api.markNotificationRead(notification.eventId).subscribe({
-      next: () => {
-        notification.status = 'READ';
-        const current = this.notifications.find((item) => item.eventId === notification.eventId);
-        if (current) current.status = 'READ';
-        this.unreadNotifications = this.notifications.filter((item) => item.status === 'UNREAD').length;
-        this.changeDetector.markForCheck();
-      },
-      error: () => {
-        this.notificationReadFailed = true;
-        this.changeDetector.markForCheck();
-      },
-    });
+  markAllNotificationsRead(): void {
+    this.updateNotificationRead(this.api.markAllNotificationsRead());
   }
 
-  markAllNotificationsRead(): void {
-    this.api.markAllNotificationsRead().subscribe({
-      next: () => {
-        this.notifications.forEach((item) => (item.status = 'READ'));
-        this.unreadNotifications = 0;
-      },
-    });
+  private updateNotificationRead(request: Observable<void>): void {
+    if (this.notificationReadPending) return;
+    this.notificationLoad?.unsubscribe();
+    this.notificationReadPending = true;
+    this.notificationReadFailed = false;
+    request
+      .pipe(
+        catchError(() => {
+          this.notificationReadFailed = true;
+          return of(void 0);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        this.notificationReadPending = false;
+        this.loadNotifications();
+        this.changeDetector.markForCheck();
+      });
   }
 
   logout(): void {

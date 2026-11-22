@@ -12,7 +12,7 @@ public final class OrderSearchV1 {
   }
 
   public record Criteria(String keyword, String status, Instant from, Instant until, int page, int size,
-                         List<Long> productIds) {
+                         List<Long> productIds, String orderNumber) {
   }
 
   public record Result(List<OrderStoreV1.OrderView> orders, long total, int page, int size,

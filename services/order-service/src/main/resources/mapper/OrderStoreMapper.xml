@@ -45,6 +45,7 @@
       </if>
       <if test="request.criteria.from != null">AND o.created_at &gt;= #{request.criteria.from}</if>
       <if test="request.criteria.until != null">AND o.created_at &lt; #{request.criteria.until}</if>
+      <if test="request.criteria.orderNumber != null">AND o.order_number = #{request.criteria.orderNumber}</if>
       <if test="request.criteria.keyword != ''">
         AND (
           LOCATE(LOWER(#{request.criteria.keyword}), LOWER(o.order_number)) &gt; 0

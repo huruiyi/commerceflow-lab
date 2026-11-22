@@ -49,14 +49,10 @@ public class MerchantFulfillmentController {
     this.search = search;
   }
 
-  @GetMapping
-  List<MerchantOrderResponse> list(Authentication authentication) {
-    return service.list(users.require(authentication).getId());
-  }
-
   @GetMapping("/search")
   OrderListPage<MerchantOrderResponse> search(Authentication authentication,
                                              @RequestParam(defaultValue = "") String q,
+                                             @RequestParam(required = false) String orderNumber,
                                              @RequestParam(defaultValue = "") String status,
                                              @RequestParam(required = false) LocalDate from,
                                              @RequestParam(required = false) LocalDate to,
@@ -65,7 +61,7 @@ public class MerchantFulfillmentController {
                                              @RequestParam(defaultValue = "en") String lang,
                                              @RequestParam(defaultValue = "UTC") String zone) {
     Long merchantId = users.require(authentication).getId();
-    var query = OrderListQuery.from(q, status, from, to, page, size, zone);
+    var query = OrderListQuery.from(q, status, from, to, page, size, zone).withOrderNumber(orderNumber);
     return search.search(null, merchantId, query, lang).map(order -> service.listResponse(order, merchantId));
   }
 

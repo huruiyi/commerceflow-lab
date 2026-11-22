@@ -1,6 +1,6 @@
 import { ChangeDetectorRef, Component, DestroyRef, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { catchError, finalize, forkJoin, Observable, of, TimeoutError } from 'rxjs';
+import { catchError, finalize, forkJoin, Observable, of, Subscription, TimeoutError } from 'rxjs';
 import { initialOrderSearch, OrderSearchCriteria, OrderSearchPage, PurchaseOrder } from 'src/model/IPurchaseOrder';
 import { WarehousePlan } from 'src/model/IPurchaseOrder';
 import { ApiService } from '../services/api.service';
@@ -23,7 +23,9 @@ export class MerchantOrdersComponent implements OnInit {
   tracking: Record<number, string> = {};
   packageQuantities: Record<number, number | null> = {};
   warehouses: Record<number, number | undefined> = {};
-  plans: Record<number, WarehousePlan> = {};
+  plans: Record<number, WarehousePlan | undefined> = {};
+  warehousePlanFailed = new Set<number>();
+  private warehouseRequests = new Map<number, Subscription>();
   shipmentProgress: Record<number, { status: string; lastError?: string } | undefined> = {};
   private packageRequests = new Map<number, { key: string; id: string }>();
   expandedOrders = new Set<number>();
@@ -108,7 +110,13 @@ export class MerchantOrdersComponent implements OnInit {
   }
 
   savePackage(order: PurchaseOrder): void {
-    if (this.shipmentInvalid(order) || this.pending.has(order.id)) return;
+    if (
+      this.shipmentInvalid(order) ||
+      this.pending.has(order.id) ||
+      this.shipmentProgress[order.id]?.status === 'PENDING' ||
+      this.packageWarehouseUnavailable(order.id)
+    )
+      return;
     const lines = order.items
       .map((item) => ({ orderLineId: item.id, quantity: this.packageQuantities[item.id] ?? 0 }))
       .filter((line) => line.quantity > 0);
@@ -116,7 +124,6 @@ export class MerchantOrdersComponent implements OnInit {
     const carrier = this.carrier[order.id].trim();
     const trackingNumber = this.tracking[order.id].trim();
     const warehouseId = this.warehouses[order.id];
-    if (this.warehouseOptions(order.id).some((value) => value !== 1) && !warehouseId) return;
     const key = JSON.stringify({ carrier, trackingNumber, lines, warehouseId });
     const previous = this.packageRequests.get(order.id);
     const id = previous?.key === key ? previous.id : crypto.randomUUID();
@@ -187,39 +194,59 @@ export class MerchantOrdersComponent implements OnInit {
     return this.warehouseOptions(orderId).some((warehouse) => warehouse !== 1);
   }
 
+  packageWarehouseUnavailable(orderId: number): boolean {
+    if (!this.plans[orderId]) return true;
+    const options = this.warehouseOptions(orderId);
+    const selected = this.warehouses[orderId];
+    return options.some((warehouse) => warehouse !== 1) && (selected === undefined || !options.includes(selected));
+  }
+
   refreshShipment(orderId: number): void {
     this.load();
     this.loadWarehousePlan(orderId);
   }
 
-  private loadWarehousePlan(orderId: number): void {
-    this.api
-      .merchantShipmentStatus(orderId)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (progress) => {
-          this.shipmentProgress[orderId] = progress;
-          if (progress.status === 'REJECTED') this.packageRequests.delete(orderId);
-          this.changeDetector.markForCheck();
-        },
-        error: (error) => {
-          if (error.status === 404) delete this.shipmentProgress[orderId];
-          this.changeDetector.markForCheck();
-        },
-      });
-    this.api
-      .warehousePlan(orderId, true)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (plan) => {
-          this.plans[orderId] = plan;
-          this.changeDetector.markForCheck();
-        },
-        error: () => {
-          this.notice = { type: 'danger', text: this.i18n.t('requestFailed') };
-          this.changeDetector.markForCheck();
-        },
-      });
+  loadWarehousePlan(orderId: number): void {
+    this.warehouseRequests.get(orderId)?.unsubscribe();
+    const requests = new Subscription();
+    this.warehouseRequests.set(orderId, requests);
+    delete this.plans[orderId];
+    this.warehousePlanFailed.delete(orderId);
+    requests.add(
+      this.api
+        .merchantShipmentStatus(orderId)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (progress) => {
+            this.shipmentProgress[orderId] = progress;
+            if (progress.status === 'REJECTED') this.packageRequests.delete(orderId);
+            this.changeDetector.markForCheck();
+          },
+          error: (error) => {
+            if (error.status === 404) delete this.shipmentProgress[orderId];
+            this.changeDetector.markForCheck();
+          },
+        }),
+    );
+    requests.add(
+      this.api
+        .warehousePlan(orderId, true)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (plan) => {
+            this.plans[orderId] = plan;
+            const selected = this.warehouses[orderId];
+            if (selected !== undefined && !this.warehouseOptions(orderId).includes(selected)) {
+              delete this.warehouses[orderId];
+            }
+            this.changeDetector.markForCheck();
+          },
+          error: () => {
+            this.warehousePlanFailed.add(orderId);
+            this.changeDetector.markForCheck();
+          },
+        }),
+    );
   }
 
   async copyOrderNumber(order: PurchaseOrder): Promise<void> {

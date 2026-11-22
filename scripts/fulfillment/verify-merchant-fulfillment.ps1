@@ -14,7 +14,8 @@ $merchant=[Microsoft.PowerShell.Commands.WebRequestSession]::new();$csrf=Invoke-
 $deadline = (Get-Date).AddSeconds(30)
 $query = [uri]::EscapeDataString($sampleNumber)
 do {
-  $search = Invoke-RestMethod "$BaseUrl/api/merchant/orders/search?q=$query&size=5" -WebSession $merchant
+  $search = Invoke-RestMethod "$BaseUrl/api/merchant/orders/search?orderNumber=$query&status=PAID&size=1" `
+    -WebSession $merchant -TimeoutSec 10
   $paid = $search.orders | Where-Object {
     $_.orderNumber -eq $sampleNumber -and $_.status -eq 'PAID' -and $_.inventoryStatus -eq 'COMMITTED'
   } | Select-Object -First 1
@@ -97,5 +98,5 @@ foreach ($event in @{MERCHANT_CONFIRMED = 1; ORDER_SHIPPED = 1; SHIPMENT_UPDATED
   }
 }
 $customer=[Microsoft.PowerShell.Commands.WebRequestSession]::new();$customerCsrf=Invoke-RestMethod "$BaseUrl/api/auth/csrf" -WebSession $customer;$customerHeaders=@{$customerCsrf.headerName=$customerCsrf.token};Invoke-RestMethod "$BaseUrl/api/auth/login" -Method Post -WebSession $customer -Headers $customerHeaders -ContentType application/json -Body '{"email":"demo@example.com","password":"demo-password","rememberMe":false}'|Out-Null
-try{Invoke-RestMethod "$BaseUrl/api/merchant/orders" -WebSession $customer -ErrorAction Stop|Out-Null;throw 'Customer accessed merchant orders'}catch{if([int]$_.Exception.Response.StatusCode-ne403){throw}}
+try{Invoke-RestMethod "$BaseUrl/api/merchant/orders/search?size=1" -WebSession $customer -ErrorAction Stop|Out-Null;throw 'Customer accessed merchant orders'}catch{if([int]$_.Exception.Response.StatusCode-ne403){throw}}
 Write-Host "Chapter 06 verification passed: PAID -> CONFIRMED -> SHIPPED, shipment updated, timeline audited, customer forbidden=403 (order=$sampleNumber)" -ForegroundColor Green

@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Set;
 
 public record OrderListQuery(String keyword, String status, Instant from, Instant until, int page, int size,
-                             List<Long> productIds) {
+                             List<Long> productIds, String orderNumber) {
   private static final Set<String> STATUSES = Set.of("PENDING_PAYMENT", "PAID", "CONFIRMED", "SHIPPED",
     "RECEIVED", "COMPLETED", "CANCELLING", "CANCELLED", "REFUNDING", "REFUNDED");
 
@@ -23,7 +23,7 @@ public record OrderListQuery(String keyword, String status, Instant from, Instan
     try {
       ZoneId timeZone = ZoneId.of(zone);
       return new OrderListQuery(query, state, startOfDay(from, timeZone),
-        to == null ? null : startOfDay(to.plusDays(1), timeZone), page, size, List.of());
+        to == null ? null : startOfDay(to.plusDays(1), timeZone), page, size, List.of(), null);
     } catch (DateTimeException exception) {
       throw new IllegalArgumentException("Invalid order date or time zone", exception);
     }
@@ -34,6 +34,15 @@ public record OrderListQuery(String keyword, String status, Instant from, Instan
   }
 
   public OrderListQuery withProductIds(List<Long> ids) {
-    return new OrderListQuery(keyword, status, from, until, page, size, ids);
+    return new OrderListQuery(keyword, status, from, until, page, size, ids, orderNumber);
+  }
+
+  public OrderListQuery withOrderNumber(String value) {
+    if (value == null) return this;
+    String number = value.strip();
+    if (number.isEmpty() || number.length() > 40 || !keyword.isEmpty()) {
+      throw new IllegalArgumentException("Invalid exact order number filter");
+    }
+    return new OrderListQuery(keyword, status, from, until, page, size, productIds, number);
   }
 }

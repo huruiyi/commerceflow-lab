@@ -114,7 +114,13 @@
         </button>
       </div>
       <div class="modal-body" *ngIf="selectedProduct">
-        <div class="container">
+        <p role="status" *ngIf="detailStatus === 'loading'">{{ 'loading' | t }}</p>
+        <p role="status" *ngIf="detailStatus === 'missing'">{{ 'productMissingOrUnlisted' | t }}</p>
+        <div *ngIf="detailStatus === 'unavailable'">
+          <p role="status">{{ 'productDetailUnavailable' | t }}</p>
+          <button hlmBtn variant="outline" type="button" (click)="loadProductDetail()">{{ 'retry' | t }}</button>
+        </div>
+        <div class="container" *ngIf="detailStatus === 'ready'">
           <div class="row">
             <div class="col-sm-6">
               <img src="{{ bigImage }}" class="img-fluid" />
@@ -184,15 +190,20 @@
               </div>
               <div class="mt-2">{{ 'subtotal' | t }}: {{ selectedProduct.price * selectedQuantity | trcurrency }}</div>
               <p class="mt-2" role="status" *ngIf="stockLoading">{{ 'loading' | t }}</p>
-              <p class="mt-2" role="status" *ngIf="!stockLoading">
+              <div class="mt-2" *ngIf="!stockLoading && !stock">
+                <p role="status">{{ 'stockUnknown' | t }}</p>
+                <button hlmBtn variant="outline" type="button" (click)="loadProductDetail()">{{ 'retry' | t }}</button>
+              </div>
+              <p class="mt-2" role="status" *ngIf="stock">
                 {{
-                  !stock
-                    ? ('stockUnknown' | t)
-                    : !stock.listed
-                      ? ('catalogInactive' | t)
-                      : stock.available === 0
-                        ? ('stockSoldOut' | t)
-                        : i18n.t('stockAvailableUnits', { count: stock.available })
+                  stock.available === 0
+                    ? ('stockSoldOut' | t)
+                    : selectedQuantity > stock.available
+                      ? i18n.t('stockQuantityAdjustment', {
+                          available: stock.available,
+                          reduceBy: selectedQuantity - stock.available,
+                        })
+                      : i18n.t('stockAvailableUnits', { count: stock.available })
                 }}
               </p>
               <p *ngIf="basketError" role="alert">{{ basketError | t }}</p>
@@ -210,7 +221,7 @@
           *ngIf="selectedProduct"
           type="button"
           (click)="fncAddBasket(selectedProduct.id)"
-          [disabled]="showLoader || stockLoading || (!!stock && (!stock.listed || selectedQuantity > stock.available))"
+          [disabled]="!canAddToBasket"
         >
           <i class="bi bi-cart-plus-fill"></i> {{ 'addBasket' | t }} ({{ selectedQuantity }})
         </button>

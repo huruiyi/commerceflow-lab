@@ -7,7 +7,7 @@
 | 领域 | 主要接口 | 权限 |
 | --- | --- | --- |
 | 认证 | `GET /api/auth/csrf`、`POST /api/auth/login`、`GET /api/auth/me`、`POST /api/auth/logout` | 公开/已登录 |
-| 商品 | `GET /api/products?lang=en|zh-CN` | 公开 |
+| 商品 | `GET /api/products`、`GET /api/products/{productId}`、`POST /api/products/availability` | 公开，可售量 POST 需 CSRF |
 | 购物车 | `GET /api/cart`、`POST /api/cart/items`、`PUT/DELETE /api/cart/items/{id}`、`DELETE /api/cart` | CUSTOMER |
 | 地址 | `GET/POST /api/addresses`、`PUT/DELETE /api/addresses/{id}`、`PUT /api/addresses/{id}/default|select` | CUSTOMER |
 | 订单 | `POST /api/purchase-orders/checkout/quote`、`POST /api/purchase-orders/checkout`、`GET /api/purchase-orders`、`GET /api/purchase-orders/{id}`、`POST /api/purchase-orders/{id}/cancel` | CUSTOMER |
@@ -19,7 +19,7 @@
 | 支付 | `POST /api/purchase-orders/{id}/payments` | CUSTOMER |
 | 退款 | `POST/GET /api/purchase-orders/{id}/refunds`、`GET /api/refunds/{refundNumber}` | CUSTOMER，仅本人订单 |
 | 收货评价 | `POST /api/purchase-orders/{id}/receive`、`POST /api/order-items/{id}/reviews` | CUSTOMER |
-| 商家履约 | `GET /api/merchant/orders`、`POST /api/merchant/orders/fulfillment-v1/commands`、`GET /api/merchant/orders/fulfillment-v1/commands/{commandId}`、`POST /api/merchant/orders/{id}/packages` | MERCHANT，仅本人订单 |
+| 商家履约 | `GET /api/merchant/orders/search`、`GET /api/merchant/orders/{id}`、`POST /api/merchant/orders/fulfillment-v1/commands`、`GET /api/merchant/orders/fulfillment-v1/commands/{commandId}`、`POST /api/merchant/orders/{id}/packages` | MERCHANT，仅本店订单 |
 | 用户管理 | `GET /api/users` | ADMIN |
 | 商家账号 | `POST /api/users/merchants` | ADMIN |
 | 店铺 | `GET /api/stores/{id}`、`GET/PUT /api/merchant/store`、`GET /api/admin/stores`、`PUT /api/admin/stores/{id}/status` | 公开店铺 / 商家本人 / 管理员 |
@@ -30,8 +30,9 @@
 
 ## 商家履约 API
 
+- 商家订单搜索默认每页 10 笔，`page` 从 0 开始，`size` 可设为 1–20。按创建时间和订单 ID 倒序返回，`pendingConfirm` 和 `pendingShip` 是本店待办总数。`orderNumber` 用完整订单号精确匹配，可配合 `status` 使用。关键词、商品和运单等模糊查询用 `q`，两个参数互斥。查不到或订单归属其他店铺时返回空页，按内部 ID 查其他店铺订单返回 404。原 `GET /api/merchant/orders` 全量入口已移除。
 - 统一提交接口用 `operation` 区分接单 `CONFIRM`、发货 `SHIP` 和改运单 `UPDATE_SHIPMENT`。重试保留原 `commandId`。提交返回 `202 Accepted` 时，按 `Location` 或 `commandId` 查询结果。
-- 独立包裹创建使用 `POST /api/merchant/orders/{id}/packages`，提交 `packageId`、承运商、运单号、包裹明细及可选仓库。返回命令可按 `commandId` 查询。
+- 独立包裹创建使用 `POST /api/merchant/orders/{id}/packages`，提交 `packageId`、承运商、运单号和包裹明细。两仓发货须提交选定的 `warehouseId`，仅使用默认仓时可省略。返回命令可按 `commandId` 查询。
 
 ## 结算与优惠券 API
 
@@ -95,9 +96,11 @@ Angular 管理员可从导航栏“定时任务”进入 `/admin/scheduling` 操
 | 能力 | 方法与路径 | 说明 |
 |---|---|---|
 | 最近通知 | `GET /api/notifications` | 返回当前客户最近 20 条通知 |
-| 未读数量 | `GET /api/notifications/unread-count` | 返回当前客户未读数 |
-| 单条已读 | `PATCH /api/notifications/{id}/read` | 只能更新当前客户自己的通知 |
+| 未读数量 | `GET /api/notifications/unread-count` | 返回 `count`，包含最近 20 条之外的全部未读通知。门户用它显示角标 |
+| 单条已读 | `PATCH /api/notifications/{eventId}/read` | 只能更新当前客户自己的通知，重复标记保留首次已读时间 |
 | 全部已读 | `PATCH /api/notifications/read-all` | 将当前客户的未读通知批量标记为已读 |
+
+两种已读操作成功时返回 204，门户随后刷新列表和总数。通知服务不可用时返回 503，门户保留上次成功加载的内容并提示重试。
 
 当前通知由 `ORDER_CANCELLED` Kafka 消费者创建。消费记录、库存流水事件 ID 和通知事件 ID 均有唯一约束，重复消息不会重复释放库存或重复通知。
 

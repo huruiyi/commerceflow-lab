@@ -6,7 +6,7 @@ import { NavbarComponent } from './navbar.component';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 import { TrdatePipe } from '../../pipes/trdate.pipe';
 import { ApiService } from '../../services/api.service';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 
 describe('NavbarComponent', () => {
   let component: NavbarComponent;
@@ -21,6 +21,7 @@ describe('NavbarComponent', () => {
           provide: ApiService,
           useValue: {
             notifications: () => of([]),
+            unreadNotificationCount: () => of({ count: 0 }),
             markNotificationRead: () => of(void 0),
             markAllNotificationsRead: () => of(void 0),
           },
@@ -81,5 +82,46 @@ describe('NavbarComponent', () => {
     component.openNotification({ ...notification, orderId: 43 });
     expect(component.notificationReadFailed).toBeTrue();
     expect(navigate).toHaveBeenCalledOnceWith(['/orders', 43], { fragment: 'payment' });
+  });
+
+  it('ignores an older count and refreshes after marking all read', () => {
+    const api = TestBed.inject(ApiService);
+    const oldCount = new Subject<{ count: number }>();
+    const markAll = new Subject<void>();
+    const count = spyOn(api, 'unreadNotificationCount').and.returnValues(of({ count: 26 }), oldCount, of({ count: 1 }));
+    spyOn(api, 'markAllNotificationsRead').and.returnValue(markAll);
+
+    component.loadNotifications();
+    expect(component.unreadNotifications).toBe(26);
+    component.loadNotifications();
+    component.markAllNotificationsRead();
+    component.loadNotifications();
+    expect(count).toHaveBeenCalledTimes(2);
+
+    markAll.next();
+    markAll.complete();
+    oldCount.next({ count: 26 });
+    oldCount.complete();
+
+    expect(count).toHaveBeenCalledTimes(3);
+    expect(component.unreadNotifications).toBe(1);
+  });
+
+  it('reports a failed mark-all, keeps the count and reconciles on retry', () => {
+    const api = TestBed.inject(ApiService);
+    spyOn(api, 'unreadNotificationCount').and.returnValues(of({ count: 26 }), of({ count: 26 }), of({ count: 0 }));
+    spyOn(api, 'markAllNotificationsRead').and.returnValues(
+      throwError(() => new Error('offline')),
+      of(void 0),
+    );
+
+    component.loadNotifications();
+    component.markAllNotificationsRead();
+    expect(component.notificationReadFailed).toBeTrue();
+    expect(component.unreadNotifications).toBe(26);
+
+    component.markAllNotificationsRead();
+    expect(component.notificationReadFailed).toBeFalse();
+    expect(component.unreadNotifications).toBe(0);
   });
 });

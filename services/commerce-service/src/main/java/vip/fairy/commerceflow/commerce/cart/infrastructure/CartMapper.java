@@ -23,6 +23,8 @@ public interface CartMapper {
 
   List<OrderView> list(Long userId);
 
+  Optional<OrderView> viewByProductId(@Param("cartId") Long cartId, @Param("productId") Long productId);
+
   Optional<OrderView> view(@Param("userId") Long userId, @Param("itemId") Long itemId);
 
   int quantity(@Param("userId") Long userId, @Param("itemId") Long itemId, @Param("quantity") int quantity);

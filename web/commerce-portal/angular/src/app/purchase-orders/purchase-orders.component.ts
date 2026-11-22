@@ -439,7 +439,7 @@ export class PurchaseOrdersComponent implements OnInit {
           this.updatePaymentOrder(updated, 'waitingCallback');
           this.changeDetector.markForCheck();
           return this.paymentAwaitingOrder(updated)
-            ? this.awaitOrder(order.id, (current) => current.status !== 'PENDING_PAYMENT')
+            ? this.awaitOrder(order.id, (current) => !this.paymentAwaitingOrder(current))
             : of(updated);
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -462,7 +462,10 @@ export class PurchaseOrdersComponent implements OnInit {
   }
 
   paymentAwaitingOrder(order: PurchaseOrder): boolean {
-    return order.status === 'PENDING_PAYMENT' && order.payment?.status === 'SUCCESS';
+    return (
+      order.payment?.status === 'SUCCESS' &&
+      (order.status === 'PENDING_PAYMENT' || order.inventoryStatus === 'WAITING_COMMIT')
+    );
   }
 
   openCheckout(order: PurchaseOrder): void {

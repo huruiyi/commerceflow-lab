@@ -172,6 +172,44 @@ describe('PurchaseOrdersComponent', () => {
       }),
     ).toBeTrue();
   });
+  it('shows payment waiting on direct detail and clears it when the same order advances', () => {
+    const component = fixture.componentInstance;
+    const awaiting: PurchaseOrder = {
+      ...order,
+      status: 'PAID',
+      inventoryStatus: 'WAITING_COMMIT',
+      availableActions: [],
+      payment: {
+        paymentNumber: 'PAY-42',
+        merchantNo: 'merchant-1',
+        channel: 'ALIPAY',
+        channelTransactionNo: 'channel-42',
+        status: 'SUCCESS',
+        failureReason: '',
+        amount: 99,
+        refundedAmount: 0,
+        currency: 'CNY',
+        createdAt: '2026-11-10T00:00:00Z',
+      },
+    };
+    api.purchaseOrder.and.returnValues(
+      of(awaiting),
+      of({ ...awaiting, status: 'PAID', inventoryStatus: 'COMMITTED', availableActions: [] }),
+    );
+    component.detailId = '42';
+    component.reload();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('#payment [role="status"]')?.textContent).toContain(
+      'Payment succeeded. The order is still updating.',
+    );
+
+    component.refresh(awaiting);
+    fixture.detectChanges();
+    expect(api.purchaseOrder.calls.allArgs()).toEqual([[42], [42]]);
+    expect(component.orders[0].payment?.paymentNumber).toBe('PAY-42');
+    expect(fixture.nativeElement.querySelector('#payment [role="status"]')).toBeNull();
+  });
   it('does not render empty history and replaces unavailable product images', () => {
     const component = fixture.componentInstance;
     expect(fixture.nativeElement.querySelector('.order-history')).toBeNull();
