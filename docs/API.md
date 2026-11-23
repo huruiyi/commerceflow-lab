@@ -7,10 +7,10 @@
 | 领域 | 主要接口 | 权限 |
 | --- | --- | --- |
 | 认证 | `GET /api/auth/csrf`、`POST /api/auth/login`、`GET /api/auth/me`、`POST /api/auth/logout` | 公开/已登录 |
-| 商品 | `GET /api/products`、`GET /api/products/{productId}`、`POST /api/products/availability` | 公开，可售量 POST 需 CSRF |
+| 商品 | `GET /api/products`、`GET /api/products/search`、`GET /api/products/{productId}`、`POST /api/products/availability` | 公开，可售量 POST 需 CSRF |
 | 购物车 | `GET /api/cart`、`POST /api/cart/items`、`PUT/DELETE /api/cart/items/{id}`、`DELETE /api/cart` | CUSTOMER |
 | 地址 | `GET/POST /api/addresses`、`PUT/DELETE /api/addresses/{id}`、`PUT /api/addresses/{id}/default|select` | CUSTOMER |
-| 订单 | `POST /api/purchase-orders/checkout/quote`、`POST /api/purchase-orders/checkout`、`GET /api/purchase-orders`、`GET /api/purchase-orders/{id}`、`POST /api/purchase-orders/{id}/cancel` | CUSTOMER |
+| 订单 | `POST /api/purchase-orders/checkout/quote`、`POST /api/purchase-orders/checkout`、`GET /api/purchase-orders/search`、`GET /api/purchase-orders`、`GET /api/purchase-orders/{id}`、`POST /api/purchase-orders/{id}/cancel` | CUSTOMER |
 | 顾客优惠券 | `GET /api/coupons/campaigns`、`POST /api/coupons/campaigns/{id}/claim`、`GET /api/coupons` | CUSTOMER |
 | 商家优惠活动 | `GET/POST /api/merchant/coupon-campaigns`、`POST /api/merchant/coupon-campaigns/{id}/disable` | MERCHANT，仅本人活动 |
 | 物流 | `GET /api/purchase-orders/{id}/logistics` | CUSTOMER，仅本人订单 |
@@ -28,11 +28,29 @@
 | 商家打款 | `GET/POST /api/admin/stores/{merchantId}/statements/{id}/payouts`、`GET /api/merchant/settlement/statements/{id}/payouts` | 管理员发起，商家读本店 |
 | 定时任务治理 | `GET/PUT/DELETE /api/admin/scheduling/policies...`、`GET/POST /api/admin/scheduling/tasks...` | ADMIN |
 
+商品目录和公开店铺通过 `GET /api/products/search` 分页，返回 `products`、`total`、`page` 和 `size`。
+页码从 0 开始，默认每页 12 件。商品只来自当前对外开放的店铺。公开店铺页以当前店铺的 `merchantId`
+查询。目录可再传入 `q`、`lang`、`minPrice`、`maxPrice` 和 `sort`。
+
+商家的 `GET /api/merchant/return-work-orders` 与平台的 `GET /api/admin/exchanges` 返回
+`rows`、`total`、`page`、`size`，页码从 0 起算，默认每页 20 条，最大 50 条。
+支持按 `caseId`、`orderId`、`status`、`createdFrom` 和 `createdBefore` 查询。
+商家按工单阶段过滤且只查本店，平台按换货状态过滤。创建时间包含起点，排除终点。
+
+商家使用 `GET /api/merchant/settlement/statements/{id}/reconciliation` 核对本店一个冻结账期。
+平台使用 `GET /api/admin/stores/{merchantId}/statements/{id}/reconciliation`。响应包含账期总额、
+打款尝试、汇总差异及逐单凭证与差异。订单页从 0 开始，默认每页 10 条，最大 20 条。
+
 ## 商家履约 API
 
 - 商家订单搜索默认每页 10 笔，`page` 从 0 开始，`size` 可设为 1–20。按创建时间和订单 ID 倒序返回，`pendingConfirm` 和 `pendingShip` 是本店待办总数。`orderNumber` 用完整订单号精确匹配，可配合 `status` 使用。关键词、商品和运单等模糊查询用 `q`，两个参数互斥。查不到或订单归属其他店铺时返回空页，按内部 ID 查其他店铺订单返回 404。原 `GET /api/merchant/orders` 全量入口已移除。
 - 统一提交接口用 `operation` 区分接单 `CONFIRM`、发货 `SHIP` 和改运单 `UPDATE_SHIPMENT`。重试保留原 `commandId`。提交返回 `202 Accepted` 时，按 `Location` 或 `commandId` 查询结果。
 - 独立包裹创建使用 `POST /api/merchant/orders/{id}/packages`，提交 `packageId`、承运商、运单号和包裹明细。两仓发货须提交选定的 `warehouseId`，仅使用默认仓时可省略。返回命令可按 `commandId` 查询。
+
+仓库模拟器管理员使用 `GET /api/admin/outbounds` 和 `GET /api/admin/returns` 分页查询。
+响应包含 `rows`、`total`、`page`、`size`，页码从 1 开始，默认每页 20 条，可选 1–200。
+可按 `orderId`、`jobId`、`status`、`createdFrom` 和 `createdBefore` 查询。时间采用 ISO 8601，
+起点包含、终点排除。列表中的单据编号可以继续用于仓库原有的实发、实收和质检操作。
 
 ## 结算与优惠券 API
 

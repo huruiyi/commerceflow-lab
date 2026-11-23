@@ -1,0 +1,96 @@
+name: Repository checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    name: Contracts (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: PowerShell contracts and source quality
+        shell: pwsh
+        run: |
+          ./scripts/audit-script-contracts.ps1
+          ./scripts/audit/audit-code-quality.ps1
+      - name: Compose definitions
+        if: runner.os == 'Linux'
+        env:
+          COMPOSE_DISABLE_ENV_FILE: '1'
+        run: |
+          docker compose --profile '*' -f compose.yaml config --quiet
+          docker compose -f compose.yaml -f infrastructure/compose/compose.fulfillment-fresh.yaml config --quiet
+          docker compose -f compose.yaml -f infrastructure/compose/compose.catalog-elasticsearch.yaml config --quiet
+
+  java:
+    name: Java 25 tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+          cache-dependency-path: |
+            services/**/pom.xml
+            simulators/**/pom.xml
+      - name: Test all Maven modules
+        shell: bash
+        run: |
+          git ls-files -- 'services/**/pom.xml' 'simulators/**/pom.xml' > "$RUNNER_TEMP/commerceflow-poms.txt"
+          test -s "$RUNNER_TEMP/commerceflow-poms.txt"
+          while IFS= read -r pom; do
+            echo "Testing $pom"
+            mvn --batch-mode --no-transfer-progress -f "$pom" test
+          done < "$RUNNER_TEMP/commerceflow-poms.txt"
+
+  frontend:
+    name: Frontend (${{ matrix.path }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        path:
+          - web/commerce-portal/angular
+          - web/project-navigation
+          - simulators/payment-platform/web
+          - simulators/logistics-platform/web
+          - simulators/warehouse-platform/web
+          - simulators/messaging-platform/web
+    defaults:
+      run:
+        working-directory: ${{ matrix.path }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '26.13.0'
+          cache: npm
+          cache-dependency-path: ${{ matrix.path }}/package-lock.json
+      - run: npm ci
+      - run: npm run format:check --if-present
+      - run: npm run build
+      - name: Portal browser tests
+        if: matrix.path == 'web/commerce-portal/angular'
+        env:
+          CHROME_BIN: /usr/bin/google-chrome
+        run: npm test -- --watch=false --browsers=ChromeHeadless

@@ -98,3 +98,28 @@ Chromium 在日常门户复核搜索、筛选和商品详情，Prometheus 九个
 本机验收记录位于 `%LOCALAPPDATA%/CommerceFlow/releases/merchant-20261120`，其中
 `search-isolated.json`、`search-browser.json`、`search-daily.json` 和 `search-daily-browser.json`
 保存脚本及浏览器结果。
+
+## 7. Elasticsearch 商品搜索
+
+目录 MySQL 继续持有商品、译文和价格。V5 为 Elasticsearch 单独记录 Outbox 消费时间和索引代次，
+库存投递和 MySQL 搜索投影的确认字段各自独立。处理事件时按商品编号读取当前版本。
+索引代次重建并刷新后再启用。中文和英文分别索引，缺少译文时用商品原文，搜索词按字面匹配。
+店铺范围由商城交给目录，按价格、评分或相关性排序时，同分按商品编号稳定排列。
+
+学习环境通过 [搜索 Compose 覆盖](../../infrastructure/compose/compose.catalog-elasticsearch.yaml) 启用
+Elasticsearch 9.5.6 单节点，节点仅在 Compose 网络提供服务，索引用独立数据卷。
+目录参数为 `COMMERCEFLOW_CATALOG_SEARCH_ELASTICSEARCH_ENABLED` 和
+`COMMERCEFLOW_CATALOG_SEARCH_ELASTICSEARCH_URL`。索引缺失、同步落后、查询失败、结果版本不符
+或请求超出 Elasticsearch 的 10,000 条结果窗口时，查询回退到 MySQL 搜索投影。
+[Elasticsearch 分页说明](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/paginate-search-results)
+
+管理员沿用 `POST /api/admin/catalog-search/rebuild`，先重建 MySQL 投影，随后同步新一代 Elasticsearch
+索引。 `GET /api/admin/catalog-search` 展示 MySQL 投影状态。目录 Prometheus 指标
+`commerceflow_catalog_search_elasticsearch_reads_total` 和
+`commerceflow_catalog_search_elasticsearch_fallbacks_total` 用于核对查询命中和回退。
+
+2026-11-23 隔离空卷验证了首轮建索引、改价、语言切换、下架、评分排序、节点停机回退和重启追赶。
+节点恢复后管理员触发了新代次重建。日常仍使用 MySQL 搜索投影。
+[门户分页与商品搜索隔离验收](../IMPLEMENTED.md#240-2026-11-23-门户分页与商品搜索隔离验收)
+旧卷从 V4 升级至 V5 后，停节点、关闭开关和换回原目录镜像均返回相同的两件商品。
+[目录旧卷升级与搜索回退](../IMPLEMENTED.md#241-2026-11-23-目录旧卷升级与搜索回退)
