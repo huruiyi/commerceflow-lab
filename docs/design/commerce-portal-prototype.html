@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CommerceFlow Lab · 商城原型</title>
+    <title>商流实验室 · 门户交互原型</title>
     <style>
       :root {
         color-scheme: light;
@@ -12,17 +12,25 @@
         --ink: #172723;
         --muted: #52615b;
         --green: #17664d;
-        --green-dark: #104e3b;
-        --green-soft: #e8f2eb;
+        --green-dark: #10533d;
+        --green-soft: #e9f2ed;
+        --surface-soft: #f7f9f7;
         --line: #dce5df;
+        --control-line: #aebeb5;
+        --shell: 1320px;
+        --gutter: clamp(0.85rem, 2.6vw, 2rem);
         --risk: #a04030;
         --amber: #76531a;
         --light-amber: #f9f0da;
-        --shadow: 0 2px 8px #23352608;
         font:
-          14px/1.5 "Inter",
+          16px/1.5 system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
           "Segoe UI",
-          "Microsoft YaHei",
+          Roboto,
+          "Helvetica Neue",
+          "Noto Sans",
+          Arial,
           sans-serif;
         color: var(--ink);
         background: var(--canvas);
@@ -32,6 +40,7 @@
       }
       body {
         margin: 0;
+        font-size: 0.875rem;
       }
       a {
         color: var(--green);
@@ -39,18 +48,27 @@
       }
       button,
       input,
-      select {
+      select,
+      textarea {
         font: inherit;
       }
       input,
-      select {
+      select,
+      textarea {
         min-height: 38px;
         width: 100%;
         padding: 0 12px;
-        border: 1px solid var(--line);
+        border: 1px solid var(--control-line);
         border-radius: 7px;
         background: #fff;
         color: var(--ink);
+      }
+      textarea {
+        display: block;
+        min-height: 6rem;
+        padding-block: 0.6rem;
+        font: inherit;
+        resize: vertical;
       }
       input::placeholder {
         color: #697771;
@@ -59,6 +77,7 @@
       button:focus-visible,
       input:focus-visible,
       select:focus-visible,
+      textarea:focus-visible,
       summary:focus-visible {
         outline: 2px solid var(--green);
         outline-offset: 3px;
@@ -112,18 +131,17 @@
         color: var(--risk);
       }
       .site-header {
+        position: relative;
+        z-index: 2;
         background: var(--paper);
         border-bottom: 1px solid var(--line);
       }
       .header-inner {
-        max-width: 1370px;
-        width: calc(100% - 64px);
-        min-height: 68px;
+        min-height: 58px;
         margin: auto;
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        gap: 12px;
+        gap: 0.75rem;
       }
       .brand {
         display: flex;
@@ -131,120 +149,123 @@
         gap: 10px;
         color: var(--ink);
         text-decoration: none;
-        font-size: 17px;
-        font-weight: 780;
-        letter-spacing: -0.025em;
+        font-size: 1rem;
+        font-weight: 750;
         white-space: nowrap;
       }
       .mark {
         display: grid;
         place-items: center;
-        width: 33px;
-        height: 33px;
-        border-radius: 9px;
+        width: 32px;
+        height: 32px;
+        flex-shrink: 0;
+        border-radius: 8px;
         background: var(--green);
         color: #fff;
-        font-size: 16px;
       }
-      .roles {
+      .icon {
+        width: 1em;
+        height: 1em;
+        flex: 0 0 auto;
+        fill: currentColor;
+        vertical-align: -0.12em;
+      }
+      .icon-library {
+        position: absolute;
+      }
+      .portal-nav {
         display: flex;
-        gap: 2px;
-        padding: 4px;
-        border: 1px solid var(--line);
-        border-radius: 9px;
-        background: #f3f6f2;
+        align-items: center;
+        gap: 0.15rem;
+        min-width: 0;
+        flex: 1;
       }
-      .roles a {
-        padding: 5px 12px;
-        border: 1px solid transparent;
-        border-radius: 6px;
+      .nav-link,
+      .nav-tools summary {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        min-height: 34px;
+        padding: 0.35rem 0.55rem;
+        border-radius: 7px;
         color: var(--muted);
+        font-weight: 550;
         text-decoration: none;
+      }
+      .nav-link:hover,
+      .nav-link[aria-current],
+      .nav-menu.active > summary {
+        background: var(--green-soft);
+        color: var(--green);
+      }
+      .nav-menu {
+        position: relative;
+      }
+      .nav-menu summary {
+        cursor: pointer;
+        list-style: none;
         white-space: nowrap;
       }
-      .roles .active {
-        border-color: var(--line);
+      .nav-menu summary::-webkit-details-marker {
+        display: none;
+      }
+      .nav-popover {
+        position: absolute;
+        top: calc(100% + 0.45rem);
+        right: 0;
+        min-width: 12rem;
+        max-height: min(65vh, 30rem);
+        overflow: auto;
+        padding: 0.35rem;
+        border: 1px solid var(--line);
+        border-radius: 9px;
         background: var(--paper);
-        color: var(--green-dark);
-        font-weight: 700;
+        box-shadow: 0 12px 26px rgb(23 39 35 / 12%);
       }
-      .prototype-label {
-        font-size: 12px;
+      .nav-popover .nav-link {
+        white-space: nowrap;
+      }
+      .nav-menu-label {
+        margin: 0;
+        padding: 0.35rem 0.55rem;
         color: var(--muted);
+        font-size: 0.75rem;
       }
-      .shell {
-        max-width: 1370px;
-        width: calc(100% - 64px);
-        margin: auto;
+      .nav-menu-label:not(:first-child) {
+        border-top: 1px solid var(--line);
+        margin-top: 0.25rem;
       }
-      .store-nav {
-        display: flex;
-        gap: 23px;
-        min-height: 45px;
-        align-items: center;
-        border-bottom: 1px solid var(--line);
+      .nav-tools {
+        margin-inline-start: auto;
       }
-      .store-nav a,
-      .side a {
-        color: var(--muted);
-        text-decoration: none;
+      .nav-tools summary {
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        color: var(--ink);
+        background: var(--paper);
+        font-weight: 650;
       }
-      .store-nav a .badge {
-        margin-left: 5px;
-      }
-      .store-nav a[aria-current="page"] {
-        color: var(--green);
-        font-weight: 700;
-      }
-      .store-nav .utility {
-        margin-left: auto;
-      }
-      .store-content {
-        max-width: 1200px;
-        margin: auto;
-        padding: 30px 0 46px;
-      }
-      .workspace {
+      .role-avatar {
         display: grid;
-        grid-template-columns: 210px minmax(0, 1fr);
-        min-height: calc(100vh - 69px);
-      }
-      .side {
-        padding: 32px 18px 32px 0;
-        border-right: 1px solid var(--line);
-      }
-      .side h2 {
-        font-size: 13px;
-        font-weight: 750;
-        margin: 0 0 12px;
-        padding-left: 10px;
-      }
-      .side p {
-        color: var(--muted);
-        font-size: 12px;
-        margin: 20px 0 8px;
-        padding-left: 10px;
-      }
-      .side a {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 7px;
-        padding: 9px 11px;
-        margin: 2px 0;
-        border-radius: 7px;
-      }
-      .side a:hover,
-      .side a[aria-current="page"] {
+        place-items: center;
+        width: 1.5rem;
+        height: 1.5rem;
+        border-radius: 0.4rem;
+        color: var(--green);
         background: var(--green-soft);
-        color: var(--green-dark);
+        font-size: 0.75rem;
       }
-      .side a[aria-current="page"] {
-        font-weight: 700;
+      .navigation-toggle {
+        display: none;
+      }
+      .header-inner,
+      .shell {
+        width: min(calc(100% - var(--gutter) * 2), var(--shell));
+        margin-inline: auto;
       }
       .operations {
         min-width: 0;
-        padding: 28px 0 46px 28px;
+        padding: clamp(1rem, 3vw, 1.6rem) 0 3rem;
       }
       .page-head {
         display: flex;
@@ -266,12 +287,8 @@
         letter-spacing: -0.025em;
       }
       h1 {
-        font-size: 29px;
-        letter-spacing: -0.045em;
-        font-weight: 750;
-      }
-      .operations h1 {
-        font-size: 24px;
+        font-size: clamp(1.375rem, 2vw, 1.6875rem);
+        font-weight: 680;
       }
       h2 {
         font-size: 17px;
@@ -289,8 +306,7 @@
         min-width: 0;
         background: var(--paper);
         border: 1px solid var(--line);
-        border-radius: 10px;
-        box-shadow: var(--shadow);
+        border-radius: 0.75rem;
       }
       .panel-head,
       .pad {
@@ -386,56 +402,48 @@
       .toolbar .wide {
         flex: 1 1 245px;
       }
-      .search-field {
-        display: flex;
-        align-items: center;
-        gap: 9px;
-        padding: 5px 5px 5px 12px;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: #fff;
-      }
-      .search-field input {
-        min-height: 40px;
-        border: 0;
-        padding: 0;
-      }
-      .search-field button {
-        min-height: 39px;
-        padding: 0 20px;
-      }
-      .search-icon {
-        font-size: 20px;
-        color: var(--green);
-        line-height: 1;
-      }
-      .catalog-layout {
+      .catalog-filters {
         display: grid;
-        grid-template-columns: 214px minmax(0, 1fr);
-        gap: 20px;
-        margin-top: 22px;
+        grid-template-columns: minmax(11rem, 1.9fr) minmax(18rem, 2.25fr) auto;
+        align-items: end;
+        gap: 0.75rem;
+        padding: 0.875rem 1rem;
       }
-      .filters {
-        padding: 16px;
-        align-self: start;
+      .filter-controls {
+        display: grid;
+        grid-template-columns: minmax(7rem, 1fr) minmax(9rem, 1.25fr);
+        gap: 0.75rem;
+        min-width: 0;
       }
-      .filters header,
       .results-head {
         display: flex;
         justify-content: space-between;
         align-items: center;
         flex-wrap: wrap;
         gap: 8px;
-        margin-bottom: 12px;
+        margin: 1rem 0 0.75rem;
       }
-      .filters label {
+      .catalog-filters label {
         display: grid;
-        gap: 5px;
-        margin: 12px 0;
+        gap: 0.25rem;
+        min-width: 0;
         color: var(--muted);
-        font-size: 13px;
+        font-size: 0.8125rem;
+        font-weight: 550;
       }
-      .filters .filter-toggle {
+      .search-field {
+        position: relative;
+      }
+      .search-field .icon {
+        position: absolute;
+        inset: 0.75rem auto auto 0.65rem;
+        color: var(--muted);
+        pointer-events: none;
+      }
+      .search-field input {
+        padding-inline-start: 2rem;
+      }
+      .catalog-filters .filter-toggle {
         display: none;
       }
       .price-range,
@@ -443,9 +451,6 @@
         display: grid;
         gap: 10px;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-      .filters button:not(.link) {
-        width: 100%;
       }
       .results-head select {
         width: auto;
@@ -474,8 +479,8 @@
       }
       .product-grid {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 15px;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.875rem;
       }
       .product-card {
         overflow: hidden;
@@ -490,7 +495,7 @@
       }
       .product-photo {
         position: relative;
-        aspect-ratio: 1.52;
+        aspect-ratio: 4 / 3;
         background: #eaf0e9;
         color: #526157;
         overflow: hidden;
@@ -501,7 +506,8 @@
         transform: translateY(-50%);
         width: 100%;
         aspect-ratio: 1;
-        background: url("../../web/commerce-portal/angular/src/assets/demo-product-photography.jpg") no-repeat;
+        background: url("../../web/commerce-portal/angular/src/assets/demo-product-photography.jpg")
+          no-repeat;
         background-size: 300% 200%;
       }
       .photo-laptop {
@@ -523,12 +529,48 @@
         background-position: 100% 100%;
       }
       .product-card .pad {
-        padding: 13px;
+        padding: 0.85rem 0.95rem 0.95rem;
         display: grid;
         gap: 4px;
       }
       .product-card h2 {
-        font-size: 15px;
+        font-size: 1rem;
+        font-weight: 650;
+      }
+      .product-brief {
+        display: -webkit-box;
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.8125rem;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+      }
+      .rating {
+        color: var(--muted);
+        font-size: 0.75rem;
+        font-variant-numeric: tabular-nums;
+      }
+      .store-intro {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+      }
+      .store-intro p {
+        margin: 0;
+        color: var(--muted);
+      }
+      .store-mark {
+        display: grid;
+        place-items: center;
+        width: 2.75rem;
+        height: 2.75rem;
+        border-radius: 0.6rem;
+        background: var(--green-soft);
+        color: var(--green);
+        font-size: 1.2rem;
       }
       .product-meta {
         display: flex;
@@ -538,9 +580,10 @@
         margin-top: 6px;
       }
       .price {
-        color: var(--green-dark);
-        font-weight: 750;
-        font-size: 19px;
+        color: var(--green);
+        font-weight: 680;
+        font-size: 1.125rem;
+        font-variant-numeric: tabular-nums;
       }
       .breadcrumbs {
         display: flex;
@@ -743,6 +786,181 @@
         box-shadow: 0 6px 22px #104e3b33;
         z-index: 10;
       }
+      .numeric {
+        font-size: 0.9375rem;
+        font-weight: 600;
+        font-variant-numeric: lining-nums tabular-nums;
+        overflow-wrap: anywhere;
+      }
+      .number-copy {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.2rem;
+        min-width: 0;
+        max-width: 100%;
+      }
+      .copy-button {
+        flex: 0 0 1.7rem;
+        min-height: 1.7rem;
+        padding: 0;
+        border-color: transparent;
+        color: var(--green);
+        background: transparent;
+      }
+      .order-copy {
+        min-height: 38px;
+        padding-inline: 0.65rem;
+      }
+      .invoice-detail {
+        display: grid;
+        gap: 0.875rem;
+        max-width: 74rem;
+        margin: auto;
+      }
+      .invoice-detail .panel {
+        padding: clamp(0.875rem, 2vw, 1.25rem);
+      }
+      .invoice-detail .badge::before {
+        display: none;
+      }
+      .invoice-detail-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 0.35rem 0.75rem;
+      }
+      .invoice-order {
+        grid-column: 1 / -1;
+      }
+      .invoice-back {
+        display: inline-flex;
+        gap: 0.4rem;
+        align-items: center;
+        margin-bottom: 0.25rem;
+        text-decoration: none;
+      }
+      .invoice-back:hover {
+        text-decoration: underline;
+      }
+      .field-line {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 0.1rem 0.55rem;
+        margin: 0;
+      }
+      .field-line dt,
+      .invoice-facts dt {
+        color: var(--muted);
+        font-size: 0.8125rem;
+        font-weight: 550;
+      }
+      .field-line dd,
+      .invoice-facts dd {
+        min-width: 0;
+        margin: 0;
+      }
+      .invoice-application-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: start;
+        gap: 0.35rem 0.75rem;
+      }
+      .invoice-application-head h2,
+      .invoice-detail h2 {
+        margin-bottom: 0.5rem;
+      }
+      .invoice-facts {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
+        gap: 0.6rem;
+        margin: 0.85rem 0 0;
+      }
+      .invoice-facts > div,
+      .red-records > li {
+        min-width: 0;
+        padding: 0.75rem 0.85rem;
+        border: 1px solid var(--line);
+        border-radius: 0.55rem;
+        background: var(--surface-soft);
+      }
+      .invoice-facts dd {
+        margin-top: 0.25rem;
+      }
+      .red-records {
+        display: grid;
+        gap: 0.6rem;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .red-records .invoice-facts {
+        grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.65fr) minmax(
+            0,
+            1fr
+          );
+        margin: 0;
+      }
+      .red-records .invoice-facts > div {
+        padding: 0;
+        border: 0;
+        background: none;
+      }
+      .red-amount {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 0.35rem 0.65rem;
+      }
+      .order-product-cell {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+      }
+      .order-thumb {
+        flex: 0 0 3rem;
+        border: 1px solid var(--line);
+        border-radius: 0.45rem;
+      }
+      .order-value {
+        display: grid;
+        justify-items: end;
+        gap: 0.3rem;
+      }
+      .order-list-table th:nth-child(3) {
+        text-align: right;
+      }
+      .order-date {
+        display: grid;
+        justify-items: start;
+        gap: 0.1rem;
+        text-align: left;
+      }
+      .order-match {
+        margin: 0;
+        padding: 0.6rem 1rem;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+      }
+      .order-expanded td {
+        background: var(--surface-soft);
+      }
+      .store-profile {
+        display: grid;
+        gap: 1rem;
+        max-width: 58rem;
+      }
+      .store-profile label {
+        display: grid;
+        gap: 0.4rem;
+        font-weight: 550;
+      }
+      .store-profile .store-intro {
+        margin-bottom: 0;
+      }
+      .store-profile .actions {
+        justify-content: flex-end;
+      }
       dialog {
         max-width: min(540px, calc(100% - 32px));
         width: 100%;
@@ -765,87 +983,72 @@
         gap: 8px;
         margin-top: 18px;
       }
-      @media (max-width: 940px) {
-        .header-inner,
-        .shell {
-          width: calc(100% - 36px);
-        }
-        .workspace {
-          grid-template-columns: 155px minmax(0, 1fr);
-        }
-        .operations {
-          padding-left: 18px;
-        }
-        .catalog-layout {
-          grid-template-columns: 175px 1fr;
-          gap: 13px;
-        }
+      @media (max-width: 1020px) {
         .product-grid {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+          grid-template-columns: repeat(3, minmax(0, 1fr));
         }
       }
-      @media (max-width: 700px) {
+      @media (max-width: 940px) {
         .header-inner {
-          padding: 9px 0;
+          padding-block: 0.5rem;
           flex-wrap: wrap;
           gap: 8px;
         }
-        .roles {
+        .nav-tools {
+          order: 1;
+        }
+        .navigation-toggle {
+          order: 2;
+          display: inline-flex;
+          width: 34px;
+          min-height: 34px;
+          padding: 0;
+          font-size: 1rem;
+        }
+        .portal-nav {
           order: 3;
-          width: 100%;
+          flex: 1 0 100%;
+          display: none;
+          flex-wrap: wrap;
+          padding-top: 0.35rem;
+          border-top: 1px solid var(--line);
         }
-        .roles a {
-          flex: 1;
-          text-align: center;
-          padding: 4px;
-        }
-        .header-inner,
-        .shell {
-          width: calc(100% - 26px);
-        }
-        .workspace {
-          display: block;
-        }
-        .side {
-          padding: 8px 0;
-          border-right: 0;
-          border-bottom: 1px solid var(--line);
+        .portal-nav.is-open {
           display: flex;
-          overflow: auto;
-          white-space: nowrap;
         }
-        .side h2,
-        .side p {
+        .portal-nav .nav-menu {
+          position: static;
+        }
+        .portal-nav .nav-popover {
+          top: 100%;
+          right: var(--gutter);
+          left: var(--gutter);
+        }
+      }
+      @media (max-width: 760px) {
+        .red-records .invoice-facts {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .catalog-filters {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .catalog-filters .filter-toggle {
+          display: inline-flex;
+          justify-self: start;
+        }
+        .catalog-filters:not(.expanded) .filter-controls {
           display: none;
         }
-        .side a {
-          gap: 4px;
+        .filter-controls {
+          grid-template-columns: minmax(0, 1fr);
         }
-        .operations,
-        .store-content {
-          padding: 17px 0 32px;
-        }
-        h1 {
-          font-size: 25px;
-        }
-        .operations h1 {
-          font-size: 22px;
-        }
-        .store-nav {
-          overflow: auto;
-          white-space: nowrap;
-          gap: 14px;
-        }
-        .catalog-layout,
         .detail,
         .split-admin {
           display: block;
         }
-        .filters {
-          margin-bottom: 14px;
-        }
         .product-grid {
-          gap: 8px;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 0.625rem;
         }
         .product-card .pad {
           padding: 9px;
@@ -870,24 +1073,37 @@
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
       }
-      @media (max-width: 700px) {
-        .filters {
-          padding: 10px 12px;
+      @media (max-width: 620px) {
+        .invoice-facts {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
         }
-        .filters header {
-          margin-bottom: 0;
+        .invoice-facts > :first-child {
+          grid-column: 1 / -1;
         }
-        .filters header h2 {
-          display: none;
+        .order-list-table thead {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          overflow: hidden;
+          clip-path: inset(50%);
         }
-        .filters .filter-toggle {
-          display: inline-flex;
-          text-decoration: none;
-          font-size: 14px;
-          font-weight: 700;
+        .order-list-table,
+        .order-list-table tbody {
+          display: block;
         }
-        .filters:not(.expanded) #filter-controls {
-          display: none;
+        .order-list-table tr {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          padding: 0.65rem;
+          border-top: 1px solid var(--line);
+        }
+        .order-list-table td {
+          min-width: 0;
+          border: 0;
+        }
+        .order-list-table td:first-child,
+        .order-list-table td:last-child {
+          grid-column: 1 / -1;
         }
       }
       @media (max-width: 390px) {
@@ -902,11 +1118,196 @@
     </style>
   </head>
   <body>
+    <!-- Bootstrap Icons (MIT), also used by the current portal. -->
+    <svg
+      class="icon-library"
+      width="0"
+      height="0"
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <symbol id="icon-bag-check" viewBox="0 0 16 16">
+        <path
+          fill-rule="evenodd"
+          d="M10.854 8.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 0 1 .708-.708L7.5 10.793l2.646-2.647a.5.5 0 0 1 .708 0"
+        />
+        <path
+          d="M8 1a2.5 2.5 0 0 1 2.5 2.5V4h-5v-.5A2.5 2.5 0 0 1 8 1m3.5 3v-.5a3.5 3.5 0 1 0-7 0V4H1v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V4zM2 5h12v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"
+        />
+      </symbol>
+      <symbol id="icon-grid" viewBox="0 0 16 16">
+        <path
+          d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5zM2.5 2a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5zm6.5.5A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5zM1 10.5A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5zm6.5.5A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5z"
+        />
+      </symbol>
+      <symbol id="icon-receipt" viewBox="0 0 16 16">
+        <path
+          d="M1.92.506a.5.5 0 0 1 .434.14L3 1.293l.646-.647a.5.5 0 0 1 .708 0L5 1.293l.646-.647a.5.5 0 0 1 .708 0L7 1.293l.646-.647a.5.5 0 0 1 .708 0L9 1.293l.646-.647a.5.5 0 0 1 .708 0l.646.647.646-.647a.5.5 0 0 1 .708 0l.646.647.646-.647a.5.5 0 0 1 .801.13l.5 1A.5.5 0 0 1 15 2v12a.5.5 0 0 1-.053.224l-.5 1a.5.5 0 0 1-.8.13L13 14.707l-.646.647a.5.5 0 0 1-.708 0L11 14.707l-.646.647a.5.5 0 0 1-.708 0L9 14.707l-.646.647a.5.5 0 0 1-.708 0L7 14.707l-.646.647a.5.5 0 0 1-.708 0L5 14.707l-.646.647a.5.5 0 0 1-.708 0L3 14.707l-.646.647a.5.5 0 0 1-.801-.13l-.5-1A.5.5 0 0 1 1 14V2a.5.5 0 0 1 .053-.224l.5-1a.5.5 0 0 1 .367-.27m.217 1.338L2 2.118v11.764l.137.274.51-.51a.5.5 0 0 1 .707 0l.646.647.646-.646a.5.5 0 0 1 .708 0l.646.646.646-.646a.5.5 0 0 1 .708 0l.646.646.646-.646a.5.5 0 0 1 .708 0l.646.646.646-.646a.5.5 0 0 1 .708 0l.646.646.646-.646a.5.5 0 0 1 .708 0l.509.509.137-.274V2.118l-.137-.274-.51.51a.5.5 0 0 1-.707 0L12 1.707l-.646.647a.5.5 0 0 1-.708 0L10 1.707l-.646.647a.5.5 0 0 1-.708 0L8 1.707l-.646.647a.5.5 0 0 1-.708 0L6 1.707l-.646.647a.5.5 0 0 1-.708 0L4 1.707l-.646.647a.5.5 0 0 1-.708 0z"
+        />
+        <path
+          d="M3 4.5a.5.5 0 0 1 .5-.5h6a.5.5 0 1 1 0 1h-6a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h6a.5.5 0 1 1 0 1h-6a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h6a.5.5 0 1 1 0 1h-6a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 0 1h-6a.5.5 0 0 1-.5-.5m8-6a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 0 1h-1a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 0 1h-1a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 0 1h-1a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 0 1h-1a.5.5 0 0 1-.5-.5"
+        />
+      </symbol>
+      <symbol id="icon-cart3" viewBox="0 0 16 16">
+        <path
+          d="M0 1.5A.5.5 0 0 1 .5 1H2a.5.5 0 0 1 .485.379L2.89 3H14.5a.5.5 0 0 1 .49.598l-1 5a.5.5 0 0 1-.465.401l-9.397.472L4.415 11H13a.5.5 0 0 1 0 1H4a.5.5 0 0 1-.491-.408L2.01 3.607 1.61 2H.5a.5.5 0 0 1-.5-.5M3.102 4l.84 4.479 9.144-.459L13.89 4zM5 12a2 2 0 1 0 0 4 2 2 0 0 0 0-4m7 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4m-7 1a1 1 0 1 1 0 2 1 1 0 0 1 0-2m7 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2"
+        />
+      </symbol>
+      <symbol id="icon-geo-alt" viewBox="0 0 16 16">
+        <path
+          d="M12.166 8.94c-.524 1.062-1.234 2.12-1.96 3.07A32 32 0 0 1 8 14.58a32 32 0 0 1-2.206-2.57c-.726-.95-1.436-2.008-1.96-3.07C3.304 7.867 3 6.862 3 6a5 5 0 0 1 10 0c0 .862-.305 1.867-.834 2.94M8 16s6-5.686 6-10A6 6 0 0 0 2 6c0 4.314 6 10 6 10"
+        />
+        <path
+          d="M8 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4m0 1a3 3 0 1 0 0-6 3 3 0 0 0 0 6"
+        />
+      </symbol>
+      <symbol id="icon-box-seam" viewBox="0 0 16 16">
+        <path
+          d="M8.186 1.113a.5.5 0 0 0-.372 0L1.846 3.5l2.404.961L10.404 2zm3.564 1.426L5.596 5 8 5.961 14.154 3.5zm3.25 1.7-6.5 2.6v7.922l6.5-2.6V4.24zM7.5 14.762V6.838L1 4.239v7.923zM7.443.184a1.5 1.5 0 0 1 1.114 0l7.129 2.852A.5.5 0 0 1 16 3.5v8.662a1 1 0 0 1-.629.928l-7.185 2.874a.5.5 0 0 1-.372 0L.63 13.09a1 1 0 0 1-.63-.928V3.5a.5.5 0 0 1 .314-.464z"
+        />
+      </symbol>
+      <symbol id="icon-truck" viewBox="0 0 16 16">
+        <path
+          d="M0 3.5A1.5 1.5 0 0 1 1.5 2h9A1.5 1.5 0 0 1 12 3.5V5h1.02a1.5 1.5 0 0 1 1.17.563l1.481 1.85a1.5 1.5 0 0 1 .329.938V10.5a1.5 1.5 0 0 1-1.5 1.5H14a2 2 0 1 1-4 0H5a2 2 0 1 1-3.998-.085A1.5 1.5 0 0 1 0 10.5zm1.294 7.456A2 2 0 0 1 4.732 11h5.536a2 2 0 0 1 .732-.732V3.5a.5.5 0 0 0-.5-.5h-9a.5.5 0 0 0-.5.5v7a.5.5 0 0 0 .294.456M12 10a2 2 0 0 1 1.732 1h.768a.5.5 0 0 0 .5-.5V8.35a.5.5 0 0 0-.11-.312l-1.48-1.85A.5.5 0 0 0 13.02 6H12zm-9 1a1 1 0 1 0 0 2 1 1 0 0 0 0-2m9 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2"
+        />
+      </symbol>
+      <symbol id="icon-boxes" viewBox="0 0 16 16">
+        <path
+          d="M7.752.066a.5.5 0 0 1 .496 0l3.75 2.143a.5.5 0 0 1 .252.434v3.995l3.498 2A.5.5 0 0 1 16 9.07v4.286a.5.5 0 0 1-.252.434l-3.75 2.143a.5.5 0 0 1-.496 0l-3.502-2-3.502 2.001a.5.5 0 0 1-.496 0l-3.75-2.143A.5.5 0 0 1 0 13.357V9.071a.5.5 0 0 1 .252-.434L3.75 6.638V2.643a.5.5 0 0 1 .252-.434zM4.25 7.504 1.508 9.071l2.742 1.567 2.742-1.567zM7.5 9.933l-2.75 1.571v3.134l2.75-1.571zm1 3.134 2.75 1.571v-3.134L8.5 9.933zm.508-3.996 2.742 1.567 2.742-1.567-2.742-1.567zm2.242-2.433V3.504L8.5 5.076V8.21zM7.5 8.21V5.076L4.75 3.504v3.134zM5.258 2.643 8 4.21l2.742-1.567L8 1.076zM15 9.933l-2.75 1.571v3.134L15 13.067zM3.75 14.638v-3.134L1 9.933v3.134z"
+        />
+      </symbol>
+      <symbol id="icon-shop" viewBox="0 0 16 16">
+        <path
+          d="M2.97 1.35A1 1 0 0 1 3.73 1h8.54a1 1 0 0 1 .76.35l2.609 3.044A1.5 1.5 0 0 1 16 5.37v.255a2.375 2.375 0 0 1-4.25 1.458A2.37 2.37 0 0 1 9.875 8 2.37 2.37 0 0 1 8 7.083 2.37 2.37 0 0 1 6.125 8a2.37 2.37 0 0 1-1.875-.917A2.375 2.375 0 0 1 0 5.625V5.37a1.5 1.5 0 0 1 .361-.976zm1.78 4.275a1.375 1.375 0 0 0 2.75 0 .5.5 0 0 1 1 0 1.375 1.375 0 0 0 2.75 0 .5.5 0 0 1 1 0 1.375 1.375 0 1 0 2.75 0V5.37a.5.5 0 0 0-.12-.325L12.27 2H3.73L1.12 5.045A.5.5 0 0 0 1 5.37v.255a1.375 1.375 0 0 0 2.75 0 .5.5 0 0 1 1 0M1.5 8.5A.5.5 0 0 1 2 9v6h1v-5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v5h6V9a.5.5 0 0 1 1 0v6h.5a.5.5 0 0 1 0 1H.5a.5.5 0 0 1 0-1H1V9a.5.5 0 0 1 .5-.5M4 15h3v-5H4zm5-5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1zm3 0h-2v3h2z"
+        />
+      </symbol>
+      <symbol id="icon-chevron-down" viewBox="0 0 16 16">
+        <path
+          fill-rule="evenodd"
+          d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708"
+        />
+      </symbol>
+      <symbol id="icon-list" viewBox="0 0 16 16">
+        <path
+          fill-rule="evenodd"
+          d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5m0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5m0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5"
+        />
+      </symbol>
+      <symbol id="icon-search" viewBox="0 0 16 16">
+        <path
+          d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"
+        />
+      </symbol>
+      <symbol id="icon-copy" viewBox="0 0 16 16">
+        <path
+          fill-rule="evenodd"
+          d="M4 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zM2 5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h1v1a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1v1z"
+        />
+      </symbol>
+      <symbol id="icon-check2" viewBox="0 0 16 16">
+        <path
+          d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0"
+        />
+      </symbol>
+      <symbol id="icon-arrow-left" viewBox="0 0 16 16">
+        <path
+          fill-rule="evenodd"
+          d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8"
+        />
+      </symbol>
+      <symbol id="icon-file-earmark-text" viewBox="0 0 16 16">
+        <path
+          d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5"
+        />
+        <path
+          d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z"
+        />
+      </symbol>
+      <symbol id="icon-bar-chart" viewBox="0 0 16 16">
+        <path
+          d="M4 11H2v3h2zm5-4H7v7h2zm5-5v12h-2V2zm-2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zM6 7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1zm-5 4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1z"
+        />
+      </symbol>
+      <symbol id="icon-ticket-perforated" viewBox="0 0 16 16">
+        <path
+          d="M4 4.85v.9h1v-.9zm7 0v.9h1v-.9zm-7 1.8v.9h1v-.9zm7 0v.9h1v-.9zm-7 1.8v.9h1v-.9zm7 0v.9h1v-.9zm-7 1.8v.9h1v-.9zm7 0v.9h1v-.9z"
+        />
+        <path
+          d="M1.5 3A1.5 1.5 0 0 0 0 4.5V6a.5.5 0 0 0 .5.5 1.5 1.5 0 1 1 0 3 .5.5 0 0 0-.5.5v1.5A1.5 1.5 0 0 0 1.5 13h13a1.5 1.5 0 0 0 1.5-1.5V10a.5.5 0 0 0-.5-.5 1.5 1.5 0 0 1 0-3A.5.5 0 0 0 16 6V4.5A1.5 1.5 0 0 0 14.5 3zM1 4.5a.5.5 0 0 1 .5-.5h13a.5.5 0 0 1 .5.5v1.05a2.5 2.5 0 0 0 0 4.9v1.05a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5v-1.05a2.5 2.5 0 0 0 0-4.9z"
+        />
+      </symbol>
+      <symbol id="icon-arrow-return-left" viewBox="0 0 16 16">
+        <path
+          fill-rule="evenodd"
+          d="M14.5 1.5a.5.5 0 0 1 .5.5v4.8a2.5 2.5 0 0 1-2.5 2.5H2.707l3.347 3.346a.5.5 0 0 1-.708.708l-4.2-4.2a.5.5 0 0 1 0-.708l4-4a.5.5 0 1 1 .708.708L2.707 8.3H12.5A1.5 1.5 0 0 0 14 6.8V2a.5.5 0 0 1 .5-.5"
+        />
+      </symbol>
+      <symbol id="icon-wallet2" viewBox="0 0 16 16">
+        <path
+          d="M12.136.326A1.5 1.5 0 0 1 14 1.78V3h.5A1.5 1.5 0 0 1 16 4.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 0 13.5v-9a1.5 1.5 0 0 1 1.432-1.499zM5.562 3H13V1.78a.5.5 0 0 0-.621-.484zM1.5 4a.5.5 0 0 0-.5.5v9a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5v-9a.5.5 0 0 0-.5-.5z"
+        />
+      </symbol>
+      <symbol id="icon-arrow-left-right" viewBox="0 0 16 16">
+        <path
+          fill-rule="evenodd"
+          d="M1 11.5a.5.5 0 0 0 .5.5h11.793l-3.147 3.146a.5.5 0 0 0 .708.708l4-4a.5.5 0 0 0 0-.708l-4-4a.5.5 0 0 0-.708.708L13.293 11H1.5a.5.5 0 0 0-.5.5m14-7a.5.5 0 0 1-.5.5H2.707l3.147 3.146a.5.5 0 1 1-.708.708l-4-4a.5.5 0 0 1 0-.708l4-4a.5.5 0 1 1 .708.708L2.707 4H14.5a.5.5 0 0 1 .5.5"
+        />
+      </symbol>
+      <symbol id="icon-people" viewBox="0 0 16 16">
+        <path
+          d="M15 14s1 0 1-1-1-4-5-4-5 3-5 4 1 1 1 1zm-7.978-1L7 12.996c.001-.264.167-1.03.76-1.72C8.312 10.629 9.282 10 11 10c1.717 0 2.687.63 3.24 1.276.593.69.758 1.457.76 1.72l-.008.002-.014.002zM11 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4m3-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0M6.936 9.28a6 6 0 0 0-1.23-.247A7 7 0 0 0 5 9c-4 0-5 3-5 4q0 1 1 1h4.216A2.24 2.24 0 0 1 5 13c0-1.01.377-2.042 1.09-2.904.243-.294.526-.569.846-.816M4.92 10A5.5 5.5 0 0 0 4 13H1c0-.26.164-1.03.76-1.724.545-.636 1.492-1.256 3.16-1.275ZM1.5 5.5a3 3 0 1 1 6 0 3 3 0 0 1-6 0m3-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4"
+        />
+      </symbol>
+      <symbol id="icon-clock" viewBox="0 0 16 16">
+        <path
+          d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71z"
+        />
+        <path
+          d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0"
+        />
+      </symbol>
+      <symbol id="icon-arrow-repeat" viewBox="0 0 16 16">
+        <path
+          d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41m-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9"
+        />
+        <path
+          fill-rule="evenodd"
+          d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5 5 0 0 0 8 3M3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9z"
+        />
+      </symbol>
+      <symbol id="icon-bell" viewBox="0 0 16 16">
+        <path
+          d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2M8 1.918l-.797.161A4 4 0 0 0 4 6c0 .628-.134 2.197-.459 3.742-.16.767-.376 1.566-.663 2.258h10.244c-.287-.692-.502-1.49-.663-2.258C12.134 8.197 12 6.628 12 6a4 4 0 0 0-3.203-3.92zM14.22 12c.223.447.481.801.78 1H1c.299-.199.557-.553.78-1C2.68 10.2 3 6.88 3 6c0-2.42 1.72-4.44 4.005-4.901a1 1 0 1 1 1.99 0A5 5 0 0 1 13 6c0 .88.32 4.2 1.22 6"
+        />
+      </symbol>
+      <symbol id="icon-arrow-up-right" viewBox="0 0 16 16">
+        <path
+          fill-rule="evenodd"
+          d="M14 2.5a.5.5 0 0 0-.5-.5h-6a.5.5 0 0 0 0 1h4.793L2.146 13.146a.5.5 0 0 0 .708.708L13 3.707V8.5a.5.5 0 0 0 1 0z"
+        />
+      </symbol>
+      <symbol id="icon-chevron-right" viewBox="0 0 16 16">
+        <path
+          fill-rule="evenodd"
+          d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708"
+        />
+      </symbol>
+    </svg>
     <header class="site-header">
       <div class="header-inner">
-        <a class="brand" href="#visitor/catalog"><span class="mark" aria-hidden="true">C</span>CommerceFlow Lab</a>
-        <nav id="roles" class="roles" aria-label="切换原型角色"></nav>
-        <span class="prototype-label">交互原型</span>
+        <a class="brand" id="brand" href="#visitor/catalog"
+          ><span class="mark" aria-hidden="true"></span>商流实验室</a
+        >
+        <nav id="navigation" class="portal-nav" aria-label="门户导航"></nav>
+        <div id="roles" class="nav-tools"></div>
+        <button
+          class="navigation-toggle"
+          id="navigation-toggle"
+          type="button"
+          aria-label="打开导航"
+          aria-controls="navigation"
+          aria-expanded="false"
+        ></button>
       </div>
     </header>
     <div id="app" class="shell"></div>
@@ -963,43 +1364,68 @@
           description: "用于记录日常的学习笔记。",
         },
       ];
-      const roles = { visitor: "访客", customer: "顾客", merchant: "商家", admin: "管理员" };
+      const roles = {
+        visitor: "访客",
+        customer: "顾客",
+        merchant: "商家",
+        admin: "管理员",
+      };
+      const roleNames = {
+        visitor: "访客预览",
+        customer: "演示顾客",
+        merchant: "演示商家",
+        admin: "平台管理员",
+      };
       const menus = {
         visitor: [
-          ["catalog", "商品"],
-          ["store", "店铺"],
+          ["catalog", "商品", "grid"],
+          ["store", "公开店铺", "shop"],
           ["discover", "搜索与推荐", true],
         ],
         customer: [
-          ["catalog", "商品"],
-          ["orders", "我的订单"],
-          ["invoices", "电子发票"],
-          ["cart", "购物车"],
+          ["catalog", "商品", "grid"],
+          ["cart", "购物车", "cart3"],
+          ["orders", "我的订单", "receipt"],
+          ["coupons", "优惠券", "ticket-perforated"],
+          ["addresses", "地址", "geo-alt"],
+          ["invoices", "电子发票", "file-earmark-text"],
           ["account", "账户与收藏", true],
         ],
         merchant: [
-          ["orders", "商家订单"],
-          ["products", "商品管理"],
-          ["inventory", "库存管理"],
-          ["returns", "退货工单"],
-          ["settlements", "应结账单"],
-          ["invoices", "电子发票"],
+          ["catalog", "商品", "grid"],
+          ["orders", "商家履约", "truck"],
+          ["products", "我的商品", "box-seam"],
+          ["inventory", "库存", "boxes"],
+          ["returns", "售后异常工单", "arrow-return-left"],
+          ["settlements", "应结账单", "wallet2"],
+          ["payments", "支付运营统计", "bar-chart"],
+          ["campaigns", "满减活动", "ticket-perforated"],
+          ["store", "我的店铺", "shop"],
+          ["invoices", "本店票据", "file-earmark-text"],
           ["exceptions", "异常队列", true],
           ["growth", "店铺经营", true],
         ],
         admin: [
-          ["stores", "店铺审核"],
-          ["inventory", "库存对账"],
-          ["exchanges", "换货管理"],
-          ["invoices", "电子发票"],
-          ["scheduling", "定时任务"],
-          ["callbacks", "回调治理"],
-          ["notifications", "通知投递"],
-          ["reconciliation", "对账差异", true],
+          ["catalog", "商品", "grid"],
+          ["stores", "店铺审核", "shop"],
+          ["inventory", "库存对账", "boxes"],
+          ["exchanges", "换货管理", "arrow-left-right"],
+          ["payments", "支付运营统计", "bar-chart"],
+          ["users", "用户管理", "people"],
+          ["scheduling", "定时任务", "clock"],
+          ["callbacks", "回调治理", "arrow-repeat"],
+          ["notifications", "通知投递恢复", "bell"],
+          ["invoices", "电子发票管理", "file-earmark-text"],
+          ["reconciliation", "统一差异待办", true],
           ["channels", "渠道接入", true],
         ],
       };
-      const homes = { visitor: "catalog", customer: "catalog", merchant: "orders", admin: "inventory" };
+      const homes = {
+        visitor: "catalog",
+        customer: "catalog",
+        merchant: "orders",
+        admin: "inventory",
+      };
       const state = {
         filters: { query: "", store: "", min: "", max: "", sort: "" },
         reviewPage: 0,
@@ -1010,27 +1436,81 @@
         storeStatus: "",
         invoiceStatus: "",
         invoiceQuery: "",
+        orderQuery: "",
+        orderStatus: "",
+        expandedOrder: "",
+        settlementReport: false,
+        storeDescription: "学习办公与桌面数码用品。",
       };
       const stores = [
-        { id: 5, name: "Demo Merchant", status: "启用中", tone: "positive", info: "演示店铺" },
-        { id: 26, name: "松针工作室", status: "待审核", tone: "pending", info: "主营学习用品" },
-        { id: 18, name: "青川数码", status: "已停用", tone: "", info: "商家认证" },
-        { id: 21, name: "禾雨手作", status: "已拒绝", tone: "negative", info: "等待补齐认证资料" },
+        {
+          id: 5,
+          name: "Demo Merchant",
+          status: "启用中",
+          tone: "positive",
+          info: "演示店铺",
+        },
+        {
+          id: 26,
+          name: "松针工作室",
+          status: "待审核",
+          tone: "pending",
+          info: "主营学习用品",
+        },
+        {
+          id: 18,
+          name: "青川数码",
+          status: "已停用",
+          tone: "",
+          info: "商家认证",
+        },
+        {
+          id: 21,
+          name: "禾雨手作",
+          status: "已拒绝",
+          tone: "negative",
+          info: "等待补齐认证资料",
+        },
       ];
       const escapeHtml = (input) =>
         String(input ?? "").replace(
           /[&<>"']/g,
-          (letter) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[letter],
+          (letter) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[letter],
         );
       const currency = (value) =>
-        "¥" + Number(value).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        "¥" +
+        Number(value).toLocaleString("zh-CN", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
       const app = document.querySelector("#app");
       const rolesBar = document.querySelector("#roles");
+      const portalNav = document.querySelector("#navigation");
+      const mobileToggle = document.querySelector("#navigation-toggle");
       const dialog = document.querySelector("#action-dialog");
-      const goto = (role, view, id) => "#" + role + "/" + view + (id ? "/" + id : "");
+      const goto = (role, view, id) =>
+        "#" + role + "/" + view + (id ? "/" + id : "");
+      const icon = (name) =>
+        '<svg class="icon" aria-hidden="true"><use href="#icon-' +
+        name +
+        '"></use></svg>';
       const button = (label, action, style = "") =>
-        '<button type="button" class="' + style + '" data-action="' + action + '">' + label + "</button>";
-      const badge = (label, tone = "") => '<span class="badge ' + tone + '">' + label + "</span>";
+        '<button type="button" class="' +
+        style +
+        '" data-action="' +
+        action +
+        '">' +
+        label +
+        "</button>";
+      const badge = (label, tone = "") =>
+        '<span class="badge ' + tone + '">' + label + "</span>";
       const heading = (title, tools = "", caption = "") =>
         '<div class="page-head"><div><h1>' +
         title +
@@ -1039,8 +1519,10 @@
         "</div>" +
         tools +
         "</div>";
-      const table = (headers, rows) =>
-        '<div class="scroll-table"><table><thead><tr>' +
+      const table = (headers, rows, className = "") =>
+        '<div class="scroll-table"><table class="' +
+        className +
+        '"><thead><tr>' +
         headers.map((label) => '<th scope="col">' + label + "</th>").join("") +
         "</tr></thead><tbody>" +
         rows.join("") +
@@ -1051,7 +1533,8 @@
         ">" +
         cells.map((cell) => "<td>" + cell + "</td>").join("") +
         "</tr>";
-      const empty = (message) => '<div class="empty"><strong>' + message + "</strong></div>";
+      const empty = (message) =>
+        '<div class="empty"><strong>' + message + "</strong></div>";
       const panel = (title, content, tools = "") =>
         '<section class="panel"><div class="panel-head"><h2>' +
         title +
@@ -1060,7 +1543,13 @@
         "</div>" +
         content +
         "</section>";
-      const input = (label, name, value = "", placeholder = "", type = "text") =>
+      const input = (
+        label,
+        name,
+        value = "",
+        placeholder = "",
+        type = "text",
+      ) =>
         "<label>" +
         label +
         '<input name="' +
@@ -1072,7 +1561,9 @@
         '" placeholder="' +
         placeholder +
         '"' +
-        (type === "number" ? ' min="0" step="' + (name === "quantity" ? "1" : "0.01") + '"' : "") +
+        (type === "number"
+          ? ' min="0" step="' + (name === "quantity" ? "1" : "0.01") + '"'
+          : "") +
         "></label>";
       const select = (label, name, options, value = "") =>
         "<label>" +
@@ -1083,7 +1574,13 @@
         options
           .map(
             ([key, text]) =>
-              '<option value="' + key + '"' + (value === key ? " selected" : "") + ">" + text + "</option>",
+              '<option value="' +
+              key +
+              '"' +
+              (value === key ? " selected" : "") +
+              ">" +
+              text +
+              "</option>",
           )
           .join("") +
         "</select></label>";
@@ -1103,32 +1600,74 @@
           status.hidden = true;
         }, 4000);
       }
-      function navigation(role, view, mode) {
-        return (
-          '<nav class="' +
-          mode +
-          '" aria-label="' +
-          (mode === "side" ? "工作区导航" : "商城导航") +
-          '">' +
-          (mode === "side" ? "<h2>" + roles[role] + "工作区</h2>" : "") +
-          menus[role]
+      let activeNavigation;
+      function renderNavigation(role, view) {
+        const section =
+          role === "admin" && (view === "statement" || view === "settlements")
+            ? "stores"
+            : {
+                product: "catalog",
+                invoice: "invoices",
+                "public-store": "store",
+                statement: "settlements",
+              }[view] || view;
+        const selection = role + "/" + section;
+        if (selection === activeNavigation) return;
+        activeNavigation = selection;
+        document.querySelector("#brand").href = goto(role, "catalog");
+        const link = ([key, label, glyph]) =>
+          '<a class="nav-link" href="' +
+          goto(role, key) +
+          '"' +
+          (key === section ? ' aria-current="page"' : "") +
+          ">" +
+          (typeof glyph === "string" ? icon(glyph) : "") +
+          label +
+          "</a>";
+        const live = menus[role].filter((entry) => entry[2] !== true);
+        const planned = menus[role].filter((entry) => entry[2] === true);
+        const primaryCount = role === "customer" ? live.length : 4;
+        const extra = live.slice(primaryCount);
+        portalNav.innerHTML = live.slice(0, primaryCount).map(link).join("");
+        if (extra.length || planned.length) {
+          const active = [...extra, ...planned].some(
+            ([key]) => key === section,
+          );
+          portalNav.insertAdjacentHTML(
+            "beforeend",
+            '<details class="nav-menu' +
+              (active ? " active" : "") +
+              '"><summary class="nav-link">更多 ' +
+              icon("chevron-down") +
+              '</summary><div class="nav-popover">' +
+              extra.map(link).join("") +
+              (planned.length
+                ? '<p class="nav-menu-label">功能规划</p>' +
+                  planned.map(link).join("")
+                : "") +
+              "</div></details>",
+          );
+        }
+        rolesBar.innerHTML =
+          '<details class="nav-menu"><summary><span class="role-avatar" aria-hidden="true">' +
+          roles[role][0] +
+          "</span>" +
+          roleNames[role] +
+          icon("chevron-down") +
+          '</summary><nav class="nav-popover" aria-label="切换原型角色"><p class="nav-menu-label">原型角色 · 示例数据</p>' +
+          Object.entries(roles)
             .map(
-              ([key, label, planned]) =>
-                '<a href="' +
-                goto(role, key) +
+              ([key, label]) =>
+                '<a class="nav-link" href="' +
+                goto(key, homes[key]) +
                 '"' +
-                (key === view ? ' aria-current="page"' : "") +
+                (key === role ? ' aria-current="true"' : "") +
                 ">" +
                 label +
-                (planned ? badge("规划", "new") : "") +
                 "</a>",
             )
             .join("") +
-          (role === "visitor"
-            ? '<a class="utility" href="' + goto("customer", "catalog") + '">进入顾客原型 →</a>'
-            : "") +
-          "</nav>"
-        );
+          "</nav></details>";
       }
       function results(role, byStore) {
         const { query, store, min, max, sort } = state.filters;
@@ -1143,27 +1682,40 @@
         if (sort === "price-down") listed.sort((a, b) => b.price - a.price);
         const activeFilters = [
           [query.trim(), "query", escapeHtml(query.trim())],
-          [store, "store", "Demo Merchant"],
+          [store, "store", escapeHtml(stores[0].name)],
           [min, "min", "最低 " + currency(min)],
           [max, "max", "最高 " + currency(max)],
         ]
           .filter(([value]) => value)
-          .map(([, key, label]) => button(label + ' <span aria-hidden="true">×</span>', "clear-filter-" + key));
+          .map(([, key, label]) =>
+            button(
+              label + ' <span aria-hidden="true">×</span>',
+              "clear-filter-" + key,
+            ),
+          );
         return (
-          heading(byStore ? "Demo Merchant" : "搜索商品") +
-          '<form class="search-field" id="catalog-search"><span aria-hidden="true" class="search-icon">⌕</span><input name="query" aria-label="搜索商品" placeholder="输入商品名称" value="' +
-          escapeHtml(query) +
-          '"><button class="primary">搜索</button></form>' +
-          '<div class="catalog-layout"><form class="panel filters' +
+          (byStore
+            ? '<div class="panel pad store-intro"><div class="store-mark">' +
+              icon("shop") +
+              "</div><div><h1>" +
+              escapeHtml(stores[0].name) +
+              "</h1><p>" +
+              escapeHtml(state.storeDescription) +
+              "</p></div>" +
+              badge("营业中", "positive") +
+              "</div>"
+            : heading("商品搜索")) +
+          '<form class="panel catalog-filters' +
           (state.filtersOpen ? " expanded" : "") +
-          '" id="catalog-filters"><header><h2>筛选</h2><button type="button" class="filter-toggle link" data-action="toggle-filters" aria-expanded="' +
+          '" id="catalog-filters" role="search" aria-label="商品筛选"><label>关键词<span class="search-field">' +
+          icon("search") +
+          '<input name="query" type="search" placeholder="输入商品名称" value="' +
+          escapeHtml(query) +
+          '"></span></label><button type="button" class="filter-toggle" data-action="toggle-filters" aria-expanded="' +
           Boolean(state.filtersOpen) +
-          '" aria-controls="filter-controls">筛选 <span aria-hidden="true">' +
-          (state.filtersOpen ? "−" : "+") +
-          "</span></button>" +
-          button("重置", "reset-filters", "link") +
-          "</header>" +
-          '<div id="filter-controls">' +
+          '" aria-controls="filter-controls">高级筛选 ' +
+          icon("chevron-down") +
+          '</button><div id="filter-controls" class="filter-controls">' +
           select(
             "店铺",
             "store",
@@ -1176,8 +1728,9 @@
           '<div class="price-range">' +
           input("最低价", "min", min, "¥", "number") +
           input("最高价", "max", max, "¥", "number") +
-          '</div><button class="primary">应用筛选</button></div></form>' +
-          '<section><div class="results-head"><p>共 <strong>' +
+          '</div></div><div class="actions"><button class="primary">搜索</button>' +
+          button("重置", "reset-filters") +
+          '</div></form><section aria-label="商品结果"><div class="results-head"><p role="status">共 <strong>' +
           listed.length +
           "</strong> 件商品</p>" +
           select(
@@ -1192,7 +1745,9 @@
           ) +
           "</div>" +
           (activeFilters.length
-            ? '<div class="active-filters" aria-label="已应用的筛选">' + activeFilters.join("") + "</div>"
+            ? '<div class="active-filters" aria-label="已应用的筛选">' +
+              activeFilters.join("") +
+              "</div>"
             : "") +
           (listed.length
             ? '<div class="product-grid">' +
@@ -1203,18 +1758,26 @@
                     goto(role, "product", p.id) +
                     '">' +
                     photo(p) +
-                    '<div class="pad"><h2>' +
+                    '<div class="pad"><span class="subtle compact">' +
+                    escapeHtml(stores[0].name) +
+                    "</span><h2>" +
                     p.name +
-                    '</h2><span class="subtle compact">Demo Merchant</span><div class="product-meta"><span class="price">' +
+                    '</h2><p class="product-brief">' +
+                    p.description +
+                    '</p><div class="product-meta"><span class="price">' +
                     currency(p.price) +
                     "</span>" +
-                    badge(p.stock ? "有货" : "缺货", p.stock ? "positive" : "") +
+                    (p.id === 1
+                      ? '<span class="rating">★ 5.0 · ' +
+                        reviews.length +
+                        " 条评价</span>"
+                      : "") +
                     "</div></div></a></article>",
                 )
                 .join("") +
               "</div>"
             : '<div class="panel">' + empty("没有符合条件的商品") + "</div>") +
-          "</section></div>"
+          "</section>"
         );
       }
       const reviews = [
@@ -1236,12 +1799,16 @@
           '<article class="panel detail"><div class="gallery">' +
           photo(p) +
           '</div><div class="buy-box"><a class="compact" href="' +
-          goto(role, "store") +
-          '">Demo Merchant</a><h1>' +
+          goto(role, "public-store") +
+          '">' +
+          escapeHtml(stores[0].name) +
+          "</a><h1>" +
           p.name +
           "</h1>" +
           (reviewSet.length
-            ? '<a href="#product-reviews" data-action="reviews">★ 5.0 · ' + reviewSet.length + " 条评价</a>"
+            ? '<a href="#product-reviews" data-action="reviews">★ 5.0 · ' +
+              reviewSet.length +
+              " 条评价</a>"
             : '<span class="subtle compact">暂无评价</span>') +
           '<p class="price">' +
           currency(p.price) +
@@ -1249,19 +1816,24 @@
           p.description +
           '</p><div class="stock">' +
           badge(p.stock ? "有货" : "缺货", p.stock ? "positive" : "") +
-          (p.stock ? '<span class="subtle">剩余 ' + p.stock + " 件</span>" : "") +
+          (p.stock
+            ? '<span class="subtle">剩余 ' + p.stock + " 件</span>"
+            : "") +
           "</div>" +
-          '<form class="toolbar" id="add-cart"><input type="hidden" name="product" value="' +
-          p.id +
-          '"><label>数量<input type="number" name="quantity" min="1" max="' +
-          p.stock +
-          '" value="1"' +
-          (p.stock ? "" : " disabled") +
-          '></label><button class="primary"' +
-          (p.stock ? "" : " disabled") +
-          ">" +
-          (role === "visitor" ? "登录后加入购物车" : "加入购物车") +
-          "</button></form></div></article>" +
+          (role === "visitor" || role === "customer"
+            ? '<form class="toolbar" id="add-cart"><input type="hidden" name="product" value="' +
+              p.id +
+              '"><label>数量<input type="number" name="quantity" min="1" max="' +
+              p.stock +
+              '" value="1"' +
+              (p.stock ? "" : " disabled") +
+              '></label><button class="primary"' +
+              (p.stock ? "" : " disabled") +
+              ">" +
+              (role === "visitor" ? "登录后加入购物车" : "加入购物车") +
+              "</button></form>"
+            : "") +
+          "</div></article>" +
           '<div id="product-reviews" class="reviews">' +
           panel(
             "商品评价",
@@ -1285,7 +1857,9 @@
                   (state.reviewPage === 1 ? " disabled" : "") +
                   ">下一页</button></div>"
               : empty("暂无商品评价"),
-            reviewSet.length ? '<span class="subtle">' + reviewSet.length + " 条</span>" : "",
+            reviewSet.length
+              ? '<span class="subtle">' + reviewSet.length + " 条</span>"
+              : "",
           ) +
           "</div>"
         );
@@ -1336,7 +1910,10 @@
             "</dd></div><div><dt>商品</dt><dd>" +
             item.product +
             "</dd></div></dl></div>" +
-            table(["SKU", "账面数量", "实盘数量"], [row([item.sku, item.expected, "待录入"])]) +
+            table(
+              ["SKU", "账面数量", "实盘数量"],
+              [row([item.sku, item.expected, "待录入"])],
+            ) +
             '<div class="pad"><form class="toolbar" id="voucher">' +
             input("实盘数量", "quantity", "", "", "number") +
             input("仓库凭证号", "voucher", "", "输入单据号") +
@@ -1377,13 +1954,18 @@
         );
         const storeRows = listed.map((s) =>
           row([
-            "<strong>" + escapeHtml(s.name) + "</strong><small>商家 #" + s.id + "</small>",
+            "<strong>" +
+              escapeHtml(s.name) +
+              "</strong><small>商家 #" +
+              s.id +
+              "</small>",
             badge(s.status, s.tone),
             escapeHtml(s.info),
             '<div class="row-actions">' +
               button("应结账单", "settlements-" + s.id, "link") +
               (s.status === "待审核"
-                ? button("通过", "approve-" + s.id, "link") + button("拒绝", "reject-" + s.id, "link danger")
+                ? button("通过", "approve-" + s.id, "link") +
+                  button("拒绝", "reject-" + s.id, "link danger")
                 : s.status === "启用中"
                   ? button("停用", "disable-" + s.id, "link danger")
                   : s.status === "已停用"
@@ -1393,18 +1975,33 @@
           ]),
         );
         return (
-          heading("店铺审核", button("创建商家账号", "create-store", "primary")) +
+          heading(
+            "店铺审核",
+            button("创建商家账号", "create-store", "primary"),
+          ) +
           '<div class="panel"><form class="pad toolbar" id="store-filter">' +
           input("店铺名称", "query", state.storeQuery, "搜索店铺名称") +
           select("审核状态", "status", options, state.storeStatus) +
           "<button>查询</button></form>" +
-          (storeRows.length ? table(["店铺名称", "状态", "审核说明", "操作"], storeRows) : empty("没有匹配的店铺")) +
+          (storeRows.length
+            ? table(["店铺名称", "状态", "审核说明", "操作"], storeRows)
+            : empty("没有匹配的店铺")) +
           "</div>"
         );
       }
       const exchange = [
-        { order: "738", product: "学习笔记本电脑", returnSlip: "UI-RETURN-738", replaceSlip: "UI-REPLACEMENT-738" },
-        { order: "737", product: "机械键盘", returnSlip: "UI-RETURN-737", replaceSlip: "UI-REPLACEMENT-737" },
+        {
+          order: "738",
+          product: "学习笔记本电脑",
+          returnSlip: "UI-RETURN-738",
+          replaceSlip: "UI-REPLACEMENT-738",
+        },
+        {
+          order: "737",
+          product: "机械键盘",
+          returnSlip: "UI-RETURN-737",
+          replaceSlip: "UI-REPLACEMENT-737",
+        },
       ];
       function timeline(title, slip) {
         return (
@@ -1422,8 +2019,12 @@
         );
       }
       function exchangesPage() {
-        const displayed = exchange.filter((x) => !state.exchangeQuery || state.exchangeQuery === x.order);
-        const selected = displayed.find((x) => exchange.indexOf(x) === state.exchange) || displayed[0];
+        const displayed = exchange.filter(
+          (x) => !state.exchangeQuery || state.exchangeQuery === x.order,
+        );
+        const selected =
+          displayed.find((x) => exchange.indexOf(x) === state.exchange) ||
+          displayed[0];
         return (
           heading("换货管理") +
           '<div class="stack"><div class="panel"><form class="pad toolbar" id="exchange-filter">' +
@@ -1439,7 +2040,11 @@
                       "5",
                       "1",
                       badge("已完成", "positive"),
-                      button("查看详情", "exchange-" + exchange.indexOf(x), "link"),
+                      button(
+                        "查看详情",
+                        "exchange-" + exchange.indexOf(x),
+                        "link",
+                      ),
                     ],
                     x === selected,
                   ),
@@ -1462,49 +2067,198 @@
         );
       }
       const invoiceEntries = [
-        ["ORD-41102E5127", "INV-e84638cd", "已开票", "positive", "1299.00"],
-        ["ORD-0405C3A0DB", "INV-5bedb0d5", "部分红冲", "pending", "69.00"],
-        ["ORD-8BC0957D3F", "INV-4e8dc081", "处理中", "", "89.90"],
+        {
+          id: 745,
+          order: "ord-41102e512771d42082c850fac55ebbad",
+          application: "APP-1ff214b4-5901-4d60-9e58-4281d1c9813e",
+          number: "inv-e846389d-f364-454b-a11f-cf095df266f2",
+          status: "已开票",
+          tone: "positive",
+          amount: 1299,
+          net: 0,
+          reds: [
+            {
+              refund: "REF-RMT-BF17616C8AEE4D1B",
+              number: "red-281e219a-cb9c-4261-a004-160dc97e59ab",
+              amount: 1299,
+            },
+          ],
+        },
+        {
+          id: 738,
+          order: "ord-0405c3a0db",
+          application: "APP-5bedb0d5",
+          number: "inv-5bedb0d5",
+          status: "已开票",
+          tone: "positive",
+          amount: 89.9,
+          net: 69,
+          reds: [{ refund: "REF-738", number: "red-738", amount: 20.9 }],
+        },
+        {
+          id: 737,
+          order: "ord-8bc0957d3f",
+          application: "APP-4e8dc081",
+          status: "处理中",
+          tone: "pending",
+          reds: [],
+        },
       ];
+      const invoiceMoney = (value) => currency(value).slice(1) + " CNY";
+      const invoiceTitle = (role) =>
+        ({ merchant: "本店票据", admin: "电子发票管理", customer: "电子发票" })[
+          role
+        ];
+      const copyButton = (value, label, withText = false) =>
+        '<button class="' +
+        (withText ? "order-copy" : "copy-button") +
+        '" type="button" data-copy="' +
+        escapeHtml(value) +
+        '" aria-label="' +
+        label +
+        '" title="' +
+        label +
+        '">' +
+        icon("copy") +
+        (withText ? "<span>" + label + "</span>" : "") +
+        "</button>";
+      const copyNumber = (value, label) =>
+        '<span class="number-copy"><span class="numeric">' +
+        escapeHtml(value) +
+        "</span>" +
+        copyButton(value, label) +
+        "</span>";
+      const invoiceField = (label, value) =>
+        "<div><dt>" + label + "</dt><dd>" + value + "</dd></div>";
       function invoicesPage(role) {
         const invoiceRows = invoiceEntries
           .filter(
             (invoice) =>
-              (!state.invoiceStatus || invoice[2] === state.invoiceStatus) &&
+              (!state.invoiceStatus ||
+                invoice.status === state.invoiceStatus) &&
               (!state.invoiceQuery ||
-                invoice.slice(0, 2).some((id) => id.toLowerCase().includes(state.invoiceQuery.toLowerCase()))),
+                [invoice.order, invoice.application].some((id) =>
+                  id.toLowerCase().includes(state.invoiceQuery.toLowerCase()),
+                )),
           )
-          .map(([order, ref, status, tone, value]) =>
-            row([button(order, "invoice-" + ref, "link"), ref, badge(status, tone), currency(value)]),
+          .map((invoice) =>
+            row([
+              "<small>关联订单</small>" +
+                copyNumber(invoice.order, "复制订单号") +
+                (invoice.number
+                  ? "<small>发票号码</small>" +
+                    copyNumber(invoice.number, "复制发票号码")
+                  : "<small>开票申请号 " + invoice.application + "</small>"),
+              badge(invoice.status, invoice.tone),
+              invoice.net === undefined
+                ? "—"
+                : '<span class="numeric">' +
+                  invoiceMoney(invoice.net) +
+                  "</span>",
+              '<a class="button" href="' +
+                goto(role, "invoice", invoice.id) +
+                '">查看发票</a>',
+            ]),
           );
         return (
-          heading("电子发票" + (role === "admin" ? "管理" : "")) +
+          heading(invoiceTitle(role)) +
           '<div class="panel"><form class="pad toolbar" id="invoice-filter">' +
-          input("订单号或申请号", "query", state.invoiceQuery, "输入订单号或申请号") +
+          input(
+            "订单号或申请号",
+            "query",
+            state.invoiceQuery,
+            "输入订单号或申请号",
+          ) +
           select(
             "发票状态",
             "status",
             [
               ["", "全部状态"],
               ["已开票", "已开票"],
-              ["部分红冲", "部分红冲"],
               ["处理中", "处理中"],
             ],
             state.invoiceStatus,
           ) +
-          "<button>查询</button></form>" +
+          '<button class="primary">查询</button></form>' +
           (invoiceRows.length
-            ? table(["订单号", "申请号", "状态", "有效票面"], invoiceRows)
+            ? table(["票据与订单", "发票状态", "有效票面", "操作"], invoiceRows)
             : empty("没有匹配的发票")) +
+          "</div>"
+        );
+      }
+      function invoicePage(role, id) {
+        const item = invoiceEntries.find((entry) => entry.id === Number(id));
+        if (!item) return panel("发票详情", empty("发票不存在"));
+        const number = (value) => '<span class="numeric">' + value + "</span>";
+        return (
+          '<div class="invoice-detail"><header class="panel invoice-detail-head"><div><a class="invoice-back" href="' +
+          goto(role, "invoices") +
+          '">' +
+          icon("arrow-left") +
+          "返回发票列表</a><h1>发票详情</h1></div>" +
+          button("刷新", "refresh") +
+          '<dl class="field-line invoice-order"><dt>关联订单</dt><dd>' +
+          copyNumber(item.order, "复制订单号") +
+          '</dd></dl></header><section class="panel"><header class="invoice-application-head"><div><h2>开票申请</h2><dl class="field-line"><dt>开票申请号</dt><dd>' +
+          number(item.application) +
+          "</dd></dl></div>" +
+          badge(item.status, item.tone) +
+          "</header>" +
+          (item.number
+            ? '<dl class="invoice-facts">' +
+              invoiceField(
+                role === "customer" ? "发票号码" : "正票号码",
+                copyNumber(item.number, "复制发票号码"),
+              ) +
+              invoiceField("正票金额", number(invoiceMoney(item.amount))) +
+              invoiceField("有效票面", number(invoiceMoney(item.net))) +
+              "</dl>"
+            : "") +
+          "</section>" +
+          (item.reds.length
+            ? '<section class="panel"><h2>红冲记录</h2><ul class="red-records">' +
+              item.reds
+                .map(
+                  (red) =>
+                    '<li><dl class="invoice-facts">' +
+                    invoiceField("关联退款单号", number(red.refund)) +
+                    invoiceField(
+                      "红字发票号码",
+                      copyNumber(red.number, "复制红字发票号码"),
+                    ) +
+                    '<div><dt>红冲金额</dt><dd class="red-amount">' +
+                    number(invoiceMoney(red.amount)) +
+                    badge("成功", "positive") +
+                    "</dd></div></dl></li>",
+                )
+                .join("") +
+              "</ul></section>"
+            : "") +
           "</div>"
         );
       }
       function schedulingPage() {
         const instances = [
-          ["188", "自动确认收货", "ORD-738", "11 月 22 日 12:34", "已完成", "positive"],
-          ["189", "待付款订单关闭", "ORD-737", "11 月 22 日 14:00", "待执行", "pending"],
+          [
+            "188",
+            "自动确认收货",
+            "ORD-738",
+            "11 月 22 日 12:34",
+            "已完成",
+            "positive",
+          ],
+          [
+            "189",
+            "待付款订单关闭",
+            "ORD-737",
+            "11 月 22 日 14:00",
+            "待执行",
+            "pending",
+          ],
         ].filter(
-          (i) => (!state.taskType || i[1].includes(state.taskType)) && (!state.taskStatus || i[4] === state.taskStatus),
+          (i) =>
+            (!state.taskType || i[1].includes(state.taskType)) &&
+            (!state.taskStatus || i[4] === state.taskStatus),
         );
         return (
           heading("任务调度", button("刷新回调状态", "refresh")) +
@@ -1514,8 +2268,16 @@
             table(
               ["任务类型", "触发方式", "状态"],
               [
-                row(["自动确认收货", "数据库对账", badge("启用中", "positive")]),
-                row(["待付款订单关闭", "RabbitMQ 延迟队列", badge("启用中", "positive")]),
+                row([
+                  "自动确认收货",
+                  "数据库对账",
+                  badge("启用中", "positive"),
+                ]),
+                row([
+                  "待付款订单关闭",
+                  "RabbitMQ 延迟队列",
+                  badge("启用中", "positive"),
+                ]),
               ],
             ),
             button("添加策略", "task-policy"),
@@ -1537,9 +2299,23 @@
               "<button>筛选</button></form>" +
               (instances.length
                 ? table(
-                    ["实例 ID", "任务类型", "业务对象", "到期时间", "状态", "操作"],
+                    [
+                      "实例 ID",
+                      "任务类型",
+                      "业务对象",
+                      "到期时间",
+                      "状态",
+                      "操作",
+                    ],
                     instances.map(([id, type, object, date, status, tone]) =>
-                      row([id, type, object, date, badge(status, tone), button("查看", "task-" + id, "link")]),
+                      row([
+                        id,
+                        type,
+                        object,
+                        date,
+                        badge(status, tone),
+                        button("查看", "task-" + id, "link"),
+                      ]),
                     ),
                   )
                 : empty("没有匹配的实例")),
@@ -1550,26 +2326,108 @@
       function ordersPage(role) {
         const isMerchant = role === "merchant";
         const orders = [
-          ["ORD-738", "学习笔记本电脑", "待发货", "pending", "1299"],
-          ["ORD-737", "机械键盘", "已完成", "positive", "89.90"],
-        ].filter((o) => !state.orderQuery || o[0].toLowerCase() === state.orderQuery.trim().toLowerCase());
+          {
+            id: "ORD-738",
+            product: catalog[0],
+            status: "待发货",
+            tone: "pending",
+            date: "2026/11/24",
+            time: "06:42",
+            amount: 1299,
+          },
+          {
+            id: "ORD-737",
+            product: catalog[1],
+            status: "已完成",
+            tone: "positive",
+            date: "2026/11/23",
+            time: "15:18",
+            amount: 89.9,
+          },
+        ].filter(
+          (order) =>
+            (!state.orderQuery ||
+              order.id
+                .toLowerCase()
+                .includes(state.orderQuery.trim().toLowerCase())) &&
+            (!state.orderStatus || order.status === state.orderStatus),
+        );
         return (
-          heading(isMerchant ? "商家订单" : "我的订单") +
+          heading(isMerchant ? "订单履约" : "我的订单") +
           '<div class="panel"><form class="pad toolbar" id="order-filter">' +
-          input("订单号", "query", state.orderQuery, "输入完整订单号") +
-          "<button>查询</button></form>" +
+          input("订单号", "query", state.orderQuery, "输入订单号") +
+          select(
+            "订单状态",
+            "status",
+            [
+              ["", "全部状态"],
+              ["待发货", "待发货"],
+              ["已完成", "已完成"],
+            ],
+            state.orderStatus,
+          ) +
+          '<button class="primary">查询</button>' +
+          button("重置", "clear-orders") +
+          '</form><p class="order-match" role="status">匹配 ' +
+          orders.length +
+          " 笔订单</p>" +
           (orders.length
             ? table(
-                ["订单号", "商品", "状态", "实付", "操作"],
-                orders.map(([id, name, status, tone, price]) =>
-                  row([
-                    id,
-                    name,
-                    badge(status, tone),
-                    currency(price),
-                    button(isMerchant && status === "待发货" ? "发货" : "查看详情", "order-" + id, "link"),
-                  ]),
-                ),
+                ["商品", "下单时间", "状态与金额", "操作"],
+                orders.map((order) => {
+                  const expanded = state.expandedOrder === order.id;
+                  const action = "expand-order-" + order.id;
+                  return (
+                    row([
+                      '<div class="order-product-cell"><div class="order-thumb">' +
+                        photo(order.product) +
+                        "</div><div><strong>" +
+                        order.product.name +
+                        "</strong><small>1 件商品</small></div></div>",
+                      '<button type="button" class="link order-date" data-action="' +
+                        action +
+                        '" aria-expanded="' +
+                        expanded +
+                        '" aria-controls="details-' +
+                        order.id +
+                        '"><span>' +
+                        order.date +
+                        "</span><span>" +
+                        order.time +
+                        "</span></button>",
+                      '<div class="order-value">' +
+                        badge(order.status, order.tone) +
+                        '<strong class="numeric">' +
+                        currency(order.amount) +
+                        "</strong></div>",
+                      '<div class="actions"><button type="button" data-action="' +
+                        action +
+                        '" aria-expanded="' +
+                        expanded +
+                        '" aria-controls="details-' +
+                        order.id +
+                        '">' +
+                        (expanded ? "收起详情" : "展开详情") +
+                        "</button>" +
+                        copyButton(order.id, "复制订单号", true) +
+                        "</div>",
+                    ]) +
+                    '<tr class="order-expanded" id="details-' +
+                    order.id +
+                    '"' +
+                    (expanded ? "" : " hidden") +
+                    '><td colspan="4"><p>订单号 ' +
+                    copyNumber(order.id, "复制完整订单号") +
+                    "</p>" +
+                    (isMerchant && order.status === "待发货"
+                      ? button("准备发货", "order-" + order.id, "primary")
+                      : '<a href="' +
+                        goto(role, "invoice", order.id) +
+                        '">查看已关联发票</a>') +
+                    "</td></tr>"
+                  );
+                }),
+                "order-list-table",
               )
             : empty("没有匹配的订单")) +
           "</div>"
@@ -1585,7 +2443,11 @@
                 ["商品", "数量", "小计", "操作"],
                 items.map((p) =>
                   row([
-                    '<a href="' + goto("customer", "product", p.id) + '">' + p.name + "</a>",
+                    '<a href="' +
+                      goto("customer", "product", p.id) +
+                      '">' +
+                      p.name +
+                      "</a>",
                     state.cart[p.id],
                     currency(state.cart[p.id] * p.price),
                     button("移除", "remove-" + p.id, "link"),
@@ -1593,6 +2455,139 @@
                 ),
               )
             : '<div class="empty"><strong>购物车为空</strong><a href="#customer/catalog">浏览商品</a></div>') +
+          "</div>"
+        );
+      }
+      function storeProfile() {
+        const store = stores[0];
+        return (
+          heading("我的店铺") +
+          '<form id="store-profile" class="panel pad store-profile"><div class="store-intro"><span class="store-mark">' +
+          icon("shop") +
+          "</span><div><h2>" +
+          escapeHtml(store.name) +
+          "</h2>" +
+          badge(store.status, store.tone) +
+          '</div><a class="button" href="#merchant/public-store">访问公开店铺 ' +
+          icon("arrow-up-right") +
+          "</a></div>" +
+          input("店铺名称", "name", store.name) +
+          '<label>店铺简介<textarea name="description" maxlength="500" rows="4">' +
+          escapeHtml(state.storeDescription) +
+          '</textarea></label><div class="actions"><button class="primary">保存店铺资料</button></div></form>'
+        );
+      }
+      const statements = [
+        {
+          id: "20261124",
+          period: "11 月 24 日",
+          amount: 12.75,
+          entries: 3,
+          previous: "11 月 23 日",
+        },
+        {
+          id: "20261123",
+          period: "11 月 23 日",
+          amount: 79.25,
+          entries: 3,
+          previous: null,
+        },
+      ];
+      function settlementsPage(role, storeId = stores[0].id) {
+        const store = stores.find((entry) => entry.id === Number(storeId));
+        const listed = store === stores[0] ? statements : [];
+        return (
+          heading("应结账单", "", store ? escapeHtml(store.name) : "") +
+          '<div class="panel">' +
+          (listed.length
+            ? table(
+                ["账期", "应结金额", "状态", "操作"],
+                listed.map((item) =>
+                  row([
+                    item.period,
+                    '<span class="numeric">' +
+                      currency(item.amount) +
+                      "</span>",
+                    badge("已冻结", "positive"),
+                    '<a class="button" href="' +
+                      goto(role, "statement", item.id) +
+                      '">查看</a>',
+                  ]),
+                ),
+              )
+            : empty("暂无冻结账单")) +
+          "</div>"
+        );
+      }
+      function statementPage(role, id) {
+        const item = statements.find((entry) => entry.id === id);
+        if (!item) return panel("账单详情", empty("账单不存在"));
+        return (
+          '<a class="invoice-back" href="' +
+          goto(role, "settlements") +
+          '">' +
+          icon("arrow-left") +
+          "返回应结账单</a>" +
+          heading(
+            item.period + "冻结账单",
+            button(
+              state.settlementReport ? "收起对账" : "查看对账",
+              "statement-report",
+            ),
+          ) +
+          '<div class="stack">' +
+          panel(
+            "账单明细",
+            '<div class="pad"><dl class="datagrid"><div><dt>冻结应结</dt><dd class="numeric">' +
+              currency(item.amount) +
+              "</dd></div><div><dt>冻结明细</dt><dd>" +
+              item.entries +
+              "</dd></div><div><dt>上期</dt><dd>" +
+              (item.previous || "—") +
+              "</dd></div></dl></div>",
+          ) +
+          (state.settlementReport
+            ? panel(
+                "账单对账",
+                '<div class="pad"><dl class="datagrid"><div><dt>明细汇总应结</dt><dd class="numeric">' +
+                  currency(item.amount) +
+                  '</dd></div><div><dt>已确认打款</dt><dd class="numeric">¥0.00</dd></div><div><dt>资金差异</dt><dd>一致</dd></div></dl></div>',
+              ) +
+              (role === "admin" ? panel("差异复核", empty("暂无复核记录")) : "")
+            : "") +
+          "</div>"
+        );
+      }
+      function paymentReports() {
+        return (
+          heading("支付运营统计") +
+          '<div class="stack">' +
+          panel(
+            "支付概览",
+            '<div class="pad"><dl class="datagrid"><div><dt>支付成功笔数</dt><dd>2</dd></div>' +
+              '<div><dt>支付金额</dt><dd class="numeric">¥1,388.90</dd></div>' +
+              '<div><dt>退款金额</dt><dd class="numeric">¥89.90</dd></div></dl></div>',
+          ) +
+          panel(
+            "支付明细",
+            table(
+              ["订单号", "支付渠道", "支付金额", "状态"],
+              [
+                row([
+                  "ORD-738",
+                  "支付宝",
+                  "¥1,299.00",
+                  badge("成功", "positive"),
+                ]),
+                row([
+                  "ORD-737",
+                  "微信支付",
+                  "¥89.90",
+                  badge("成功", "positive"),
+                ]),
+              ],
+            ),
+          ) +
           "</div>"
         );
       }
@@ -1608,7 +2603,11 @@
       }
       function planningScreen(title, sections) {
         return (
-          heading(title, badge("后期功能候选", "new"), "交互用于评审，数据为示例，功能按需立项。") +
+          heading(
+            title,
+            badge("后期功能候选", "new"),
+            "交互用于评审，数据为示例，功能按需立项。",
+          ) +
           '<div class="stack">' +
           sections
             .map(([name, copy, headers, records]) =>
@@ -1628,6 +2627,64 @@
         );
       }
       const simplePages = {
+        addresses: () =>
+          heading("收货地址") +
+          panel(
+            "地址簿",
+            table(
+              ["收件人", "地址", "状态"],
+              [
+                row([
+                  "演示顾客",
+                  "杭州市 · 演示收货地址",
+                  badge("默认", "positive"),
+                ]),
+              ],
+            ),
+          ),
+        coupons: () =>
+          heading("我的优惠券") +
+          panel(
+            "可用优惠券",
+            table(
+              ["活动", "门槛", "状态"],
+              [
+                row([
+                  "桌面数码满减",
+                  "满 ¥200.00 减 ¥20.00",
+                  badge("可用", "positive"),
+                ]),
+              ],
+            ),
+          ),
+        campaigns: () =>
+          heading("满减活动") +
+          panel(
+            "本店活动",
+            table(
+              ["活动", "优惠条件", "状态"],
+              [
+                row([
+                  "桌面数码满减",
+                  "满 ¥200.00 减 ¥20.00",
+                  badge("进行中", "positive"),
+                ]),
+              ],
+            ),
+          ),
+        users: () =>
+          heading("用户管理") +
+          panel(
+            "用户列表",
+            table(
+              ["用户", "角色", "状态"],
+              [
+                row(["演示商家", "商家", badge("启用", "positive")]),
+                row(["演示顾客", "顾客", badge("启用", "positive")]),
+              ],
+            ),
+          ),
+        payments: paymentReports,
         discover: () =>
           planningScreen("搜索与推荐", [
             [
@@ -1653,8 +2710,16 @@
               "支持注册邀请、邮箱验证、找回密码及会话管理。",
               ["安全设置", "状态", "操作"],
               [
-                ["邮箱验证", badge("待验证", "pending"), button("查看", "record-email", "link")],
-                ["登录会话", badge("有效", "positive"), button("查看", "record-session", "link")],
+                [
+                  "邮箱验证",
+                  badge("待验证", "pending"),
+                  button("查看", "record-email", "link"),
+                ],
+                [
+                  "登录会话",
+                  badge("有效", "positive"),
+                  button("查看", "record-session", "link"),
+                ],
               ],
             ],
             [
@@ -1671,8 +2736,16 @@
               "按店铺分组，首版结算仍以单店为单位。",
               ["店铺", "商品数", "结算入口"],
               [
-                ["Demo Merchant", "2 件", button("查看", "record-store-5", "link")],
-                ["松针工作室", "1 件", button("查看", "record-store-26", "link")],
+                [
+                  "Demo Merchant",
+                  "2 件",
+                  button("查看", "record-store-5", "link"),
+                ],
+                [
+                  "松针工作室",
+                  "1 件",
+                  button("查看", "record-store-26", "link"),
+                ],
               ],
             ],
           ]),
@@ -1741,7 +2814,13 @@
           '<div class="panel">' +
           table(
             ["商品", "可售数量", "操作"],
-            catalog.map((p) => row([p.name, p.stock, button("查看流水", "stock-" + p.id, "link")])),
+            catalog.map((p) =>
+              row([
+                p.name,
+                p.stock,
+                button("查看流水", "stock-" + p.id, "link"),
+              ]),
+            ),
           ) +
           "</div>",
         returns: () =>
@@ -1749,15 +2828,14 @@
           '<div class="panel">' +
           table(
             ["订单", "商品", "状态", "操作"],
-            [row(["ORD-738", "学习笔记本电脑", badge("已收货", "positive"), button("查看工单", "record-738", "link")])],
-          ) +
-          "</div>",
-        settlements: () =>
-          heading("应结账单") +
-          '<div class="panel">' +
-          table(
-            ["账期", "业务笔数", "应结金额", "状态"],
-            [row(["2026-11-01 ～ 2026-11-30", "8", "¥1,388.90", badge("待结算", "pending")])],
+            [
+              row([
+                "ORD-738",
+                "学习笔记本电脑",
+                badge("已收货", "positive"),
+                button("查看工单", "record-738", "link"),
+              ]),
+            ],
           ) +
           "</div>",
         notifications: () =>
@@ -1766,8 +2844,18 @@
           table(
             ["请求号", "渠道", "状态", "操作"],
             [
-              row(["MSG-20261121-064", "邮件", badge("已投递", "positive"), button("查看回执", "record-064", "link")]),
-              row(["MSG-20261121-065", "短信", badge("待重试", "pending"), button("重试", "retry-065", "link")]),
+              row([
+                "MSG-20261121-064",
+                "邮件",
+                badge("已投递", "positive"),
+                button("查看回执", "record-064", "link"),
+              ]),
+              row([
+                "MSG-20261121-065",
+                "短信",
+                badge("待重试", "pending"),
+                button("重试", "retry-065", "link"),
+              ]),
             ],
           ) +
           "</div>",
@@ -1792,7 +2880,12 @@
             "拟在同一队列汇总待处理任务，关联原业务凭证、当前负责人和处理记录。",
             ["原请求号", "类型", "状态", "下一步"],
             [
-              row(["ORD-738", "仓库差异", badge("待核对", "pending"), button("查看原单", "record-738", "link")]),
+              row([
+                "ORD-738",
+                "仓库差异",
+                badge("待核对", "pending"),
+                button("查看原单", "record-738", "link"),
+              ]),
               row([
                 "MSG-20261121-065",
                 "投递超时",
@@ -1803,12 +2896,22 @@
           ),
         reconciliation: () =>
           preview(
-            "对账差异",
-            "拟在已有账期结算基础上穿透到仓库出入库和供应方回执，并支持分派与关闭差异。",
+            "统一差异待办",
+            "汇总账单复核、仓库凭证和渠道回执的待处置差异，支持分派和关闭。",
             ["账期", "业务凭证", "差异类型", "状态"],
             [
-              row(["2026 年 11 月", "ORD-738", "仓库回执缺失", badge("待分派", "pending")]),
-              row(["2026 年 11 月", "MSG-20261121-065", "供应方回执迟到", badge("待核对", "pending")]),
+              row([
+                "2026 年 11 月",
+                "ORD-738",
+                "仓库回执缺失",
+                badge("待分派", "pending"),
+              ]),
+              row([
+                "2026 年 11 月",
+                "MSG-20261121-065",
+                "供应方回执迟到",
+                badge("待核对", "pending"),
+              ]),
             ],
           ),
       };
@@ -1820,18 +2923,7 @@
       }
       function render() {
         const [role, view, id] = route();
-        rolesBar.innerHTML = Object.entries(roles)
-          .map(
-            ([key, label]) =>
-              '<a href="' +
-              goto(key, homes[key]) +
-              '"' +
-              (key === role ? ' class="active" aria-current="true"' : "") +
-              ">" +
-              label +
-              "</a>",
-          )
-          .join("");
+        renderNavigation(role, view);
         const buyer = role === "visitor" || role === "customer";
         const adminScreens = {
           stores: storesPage,
@@ -1840,23 +2932,47 @@
           scheduling: schedulingPage,
         };
         let content;
-        if (buyer && view === "product") content = productPage(role, id);
-        else if (buyer && (view === "catalog" || view === "store")) content = results(role, view === "store");
-        else if (view === "orders" && role !== "admin") content = ordersPage(role);
-        else if (view === "invoices" && role !== "visitor") content = invoicesPage(role);
+        if (view === "product") content = productPage(role, id);
+        else if (
+          view === "catalog" ||
+          view === "public-store" ||
+          (buyer && view === "store")
+        )
+          content = results(role, view !== "catalog");
+        else if (
+          view === "orders" &&
+          (role === "customer" || role === "merchant")
+        )
+          content = ordersPage(role);
+        else if (view === "invoices" && role !== "visitor")
+          content = invoicesPage(role);
+        else if (view === "invoice" && role !== "visitor")
+          content = invoicePage(role, id);
+        else if (view === "store" && role === "merchant")
+          content = storeProfile();
+        else if (
+          view === "settlements" &&
+          (role === "merchant" || role === "admin")
+        )
+          content = settlementsPage(role, role === "admin" ? id : undefined);
+        else if (
+          view === "statement" &&
+          (role === "merchant" || role === "admin")
+        )
+          content = statementPage(role, id);
         else if (view === "cart" && role === "customer") content = cartPage();
-        else if (role === "admin" && Object.hasOwn(adminScreens, view)) content = adminScreens[view]();
-        else if (menus[role].some(([key]) => key === view) && Object.hasOwn(simplePages, view))
+        else if (role === "admin" && Object.hasOwn(adminScreens, view))
+          content = adminScreens[view]();
+        else if (
+          menus[role].some(([key]) => key === view) &&
+          Object.hasOwn(simplePages, view)
+        )
           content = simplePages[view]();
         else content = buyer ? results(role, false) : empty("请选择工作区页面");
         app.innerHTML =
-          navigation(role, view, buyer ? "store-nav" : "side") +
-          '<main id="content" tabindex="-1" class="' +
-          (buyer ? "store-content" : "operations") +
-          '">' +
+          '<main id="content" tabindex="-1" class="operations">' +
           content +
           "</main>";
-        app.className = buyer ? "shell" : "shell workspace";
         const sort = app.querySelector('select[name="sort"]');
         if (sort) sort.setAttribute("aria-label", "商品排序");
       }
@@ -1874,28 +2990,73 @@
         dialog.showModal();
       }
       function restoreFocus(value, selector) {
-        const element = document.querySelector(selector || '[data-action="' + value + '"]');
+        const element = document.querySelector(
+          selector || '[data-action="' + value + '"]',
+        );
         if (element) element.focus({ preventScroll: true });
       }
       const approvalActions = ["approve", "reject", "disable", "enable"];
+      let copiedButton;
+      let copyTimer;
+      document.addEventListener("click", async (event) => {
+        const control = event.target.closest("[data-copy]");
+        if (!control) return;
+        try {
+          await navigator.clipboard.writeText(
+            control.dataset.copy.toLowerCase(),
+          );
+          if (!control.isConnected) return;
+          if (copiedButton)
+            copiedButton.querySelector("svg").outerHTML = icon("copy");
+          clearTimeout(copyTimer);
+          copiedButton = control;
+          control.querySelector("svg").outerHTML = icon("check2");
+          toast("号码已复制");
+          copyTimer = setTimeout(() => {
+            control.querySelector("svg").outerHTML = icon("copy");
+            copiedButton = null;
+          }, 1500);
+        } catch {
+          toast("复制失败，请选中号码手动复制");
+        }
+      });
       document.addEventListener("click", (event) => {
         const action = event.target.closest("[data-action]")?.dataset.action;
         if (!action) return;
         event.preventDefault();
         const [role, view] = route();
         if (action === "reviews") {
-          document.querySelector("#product-reviews").scrollIntoView({ behavior: "smooth" });
+          document
+            .querySelector("#product-reviews")
+            .scrollIntoView({ behavior: "smooth" });
           return;
         }
         if (action === "dismiss") return dialog.close();
-        if (action === "reset-filters") state.filters = { query: "", store: "", min: "", max: "", sort: "" };
-        else if (action === "toggle-filters") state.filtersOpen = !state.filtersOpen;
-        else if (action.startsWith("clear-filter-")) state.filters[action.slice("clear-filter-".length)] = "";
-        else if (action === "review-prev") state.reviewPage = Math.max(0, state.reviewPage - 1);
-        else if (action === "review-next") state.reviewPage = Math.min(1, state.reviewPage + 1);
-        else if (action.startsWith("inventory-")) state.inventory = Number(action.split("-")[1]);
-        else if (action.startsWith("exchange-")) state.exchange = Number(action.split("-")[1]);
-        else if (action.startsWith("remove-")) delete state.cart[action.split("-")[1]];
+        if (action === "reset-filters")
+          state.filters = { query: "", store: "", min: "", max: "", sort: "" };
+        else if (action === "clear-orders") {
+          state.orderQuery = "";
+          state.orderStatus = "";
+          state.expandedOrder = "";
+        } else if (action === "statement-report")
+          state.settlementReport = !state.settlementReport;
+        else if (action.startsWith("expand-order-")) {
+          const id = action.slice("expand-order-".length);
+          state.expandedOrder = state.expandedOrder === id ? "" : id;
+        } else if (action === "toggle-filters")
+          state.filtersOpen = !state.filtersOpen;
+        else if (action.startsWith("clear-filter-"))
+          state.filters[action.slice("clear-filter-".length)] = "";
+        else if (action === "review-prev")
+          state.reviewPage = Math.max(0, state.reviewPage - 1);
+        else if (action === "review-next")
+          state.reviewPage = Math.min(1, state.reviewPage + 1);
+        else if (action.startsWith("inventory-"))
+          state.inventory = Number(action.split("-")[1]);
+        else if (action.startsWith("exchange-"))
+          state.exchange = Number(action.split("-")[1]);
+        else if (action.startsWith("remove-"))
+          delete state.cart[action.split("-")[1]];
         else if (action === "refresh") return toast("已刷新示例数据");
         else if (action === "create-store")
           return modal(
@@ -1923,21 +3084,32 @@
               ]),
             "保存",
           );
-        else if (approvalActions.some((prefix) => action.startsWith(prefix + "-"))) {
+        else if (
+          approvalActions.some((prefix) => action.startsWith(prefix + "-"))
+        ) {
           state.pendingStoreAction = action;
           const [verb, id] = action.split("-");
-          const names = { approve: "通过", reject: "拒绝", disable: "停用", enable: "启用" };
+          const names = {
+            approve: "通过",
+            reject: "拒绝",
+            disable: "停用",
+            enable: "启用",
+          };
           return modal(
             names[verb] + "店铺",
-            "<p>" + escapeHtml(stores.find((s) => s.id === Number(id)).name) + "</p>" + input("处理说明", "reason"),
+            "<p>" +
+              escapeHtml(stores.find((s) => s.id === Number(id)).name) +
+              "</p>" +
+              input("处理说明", "reason"),
             "确认",
           );
         } else if (action.startsWith("settlements-")) {
-          return modal(
-            "店铺应结账单",
-            "<p>商家 #" + action.split("-")[1] + " · 2026 年 11 月</p><p>应结 ¥1,388.90 · 待结算</p>",
-            "关闭",
+          location.hash = goto(
+            "admin",
+            "settlements",
+            action.slice("settlements-".length),
           );
+          return;
         } else {
           const reference = escapeHtml(action.split("-").slice(1).join("-"));
           const names = {
@@ -1952,7 +3124,9 @@
           const title = names[action.split("-")[0]] || "业务详情";
           return modal(
             title,
-            "<p>业务编号 <strong>" + reference + '</strong></p><p class="subtle">示例数据</p>',
+            "<p>业务编号 <strong>" +
+              reference +
+              '</strong></p><p class="subtle">示例数据</p>',
             "关闭",
           );
         }
@@ -1976,11 +3150,9 @@
         if (!form.id) return;
         event.preventDefault();
         switch (form.id) {
-          case "catalog-search":
-            state.filters.query = data.query;
-            break;
           case "catalog-filters":
-            if (data.min && data.max && Number(data.min) > Number(data.max)) return toast("最低价不能高于最高价");
+            if (data.min && data.max && Number(data.min) > Number(data.max))
+              return toast("最低价不能高于最高价");
             Object.assign(state.filters, data);
             state.filtersOpen = false;
             break;
@@ -2001,9 +3173,21 @@
             break;
           case "order-filter":
             state.orderQuery = data.query;
+            state.orderStatus = data.status;
+            state.expandedOrder = "";
+            break;
+          case "store-profile":
+            if (!data.name.trim()) return toast("请填写店铺名称");
+            stores[0].name = data.name.trim();
+            state.storeDescription = data.description.trim();
+            toast("店铺资料已保存");
             break;
           case "voucher":
-            if (!data.voucher.trim() || !data.reason.trim() || data.quantity === "")
+            if (
+              !data.voucher.trim() ||
+              !data.reason.trim() ||
+              data.quantity === ""
+            )
               return toast("请填写盘点数量、凭证号和处理说明");
             toast("已录入示例凭证 " + data.voucher);
             return;
@@ -2033,7 +3217,8 @@
               store.info = data.reason;
               toast("已更新示例审核状态");
             } else if ("merchant" in data) {
-              if (!data.merchant.trim() || !data.email.trim() || !data.password) return toast("请完整填写商家账号资料");
+              if (!data.merchant.trim() || !data.email.trim() || !data.password)
+                return toast("请完整填写商家账号资料");
               stores.push({
                 id: Math.max(...stores.map((s) => s.id)) + 1,
                 name: data.merchant,
@@ -2053,13 +3238,46 @@
         }
         const activeField = document.activeElement?.name;
         render();
-        if (activeField) restoreFocus(null, "#" + form.id + ' [name="' + activeField + '"]');
+        if (activeField)
+          restoreFocus(null, "#" + form.id + ' [name="' + activeField + '"]');
       });
       dialog.addEventListener("close", () => {
         state.pendingStoreAction = null;
       });
+      function setMobileNavigation(open) {
+        portalNav.classList.toggle("is-open", open);
+        mobileToggle.setAttribute("aria-expanded", String(open));
+        mobileToggle.setAttribute("aria-label", open ? "关闭导航" : "打开导航");
+      }
+      mobileToggle.innerHTML = icon("list");
+      document.querySelector(".mark").innerHTML = icon("bag-check");
+      mobileToggle.addEventListener("click", () =>
+        setMobileNavigation(!portalNav.classList.contains("is-open")),
+      );
+      document.addEventListener("click", (event) => {
+        document.querySelectorAll(".nav-menu[open]").forEach((menu) => {
+          if (!menu.contains(event.target)) menu.open = false;
+        });
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") return;
+        const menu = document.querySelector(".nav-menu[open]");
+        if (menu) {
+          menu.open = false;
+          menu.querySelector("summary").focus();
+        } else if (portalNav.classList.contains("is-open")) {
+          setMobileNavigation(false);
+          mobileToggle.focus();
+        }
+      });
       window.addEventListener("hashchange", () => {
         state.reviewPage = 0;
+        state.settlementReport = false;
+        state.expandedOrder = "";
+        setMobileNavigation(false);
+        document
+          .querySelectorAll(".nav-menu[open]")
+          .forEach((menu) => (menu.open = false));
         document.querySelector("#toast").hidden = true;
         render();
         window.scrollTo(0, 0);
