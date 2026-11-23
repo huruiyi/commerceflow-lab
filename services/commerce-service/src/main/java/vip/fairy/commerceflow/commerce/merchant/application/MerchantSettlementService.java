@@ -1,7 +1,6 @@
 package vip.fairy.commerceflow.commerce.merchant.application;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -140,7 +139,7 @@ public class MerchantSettlementService {
       String key = "sale:line:" + line.id();
       if (held.contains(line.id()) || keys.contains(key)) continue;
       ledger.append(new Entry(key, account.merchantId(), order.id(), line.id(), "MERCHANDISE",
-        line.merchandise(), ZERO, fee(line.merchandise(), account), order.completedAt(), null));
+        line.merchandise(), ZERO, account.commission(line.merchandise()), order.completedAt(), null));
       net.put(line.id(), line.merchandise());
     }
     String freightKey = "sale:freight:" + order.id();
@@ -159,7 +158,7 @@ public class MerchantSettlementService {
       if (after.signum() < 0) throw new IllegalStateException("Refund exceeds original merchandise");
       ledger.append(new Entry(key, account.merchantId(), order.id(), evidence.line(), "REFUND",
         evidence.merchandise().negate(), evidence.freight().negate(),
-        fee(after, account).subtract(fee(before, account)), refund.at(), null));
+        account.commission(after).subtract(account.commission(before)), refund.at(), null));
       net.put(evidence.line(), after);
     }
     return held;
@@ -182,10 +181,6 @@ public class MerchantSettlementService {
     }
     output.sort(Comparator.comparing(RefundFact::at).thenComparing(value -> value.evidence().id()));
     return output;
-  }
-
-  private BigDecimal fee(BigDecimal merchandise, Account account) {
-    return merchandise.multiply(BigDecimal.valueOf(account.commissionBps(), 4)).setScale(2, RoundingMode.HALF_UP);
   }
 
   private record RefundFact(SettlementRefundV1.Refund evidence, Instant at) {

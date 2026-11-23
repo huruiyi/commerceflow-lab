@@ -4,6 +4,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { finalize, forkJoin, Observable } from 'rxjs';
+import { StatementReconciliationComponent } from './statement-reconciliation.component';
 
 interface Amounts {
   merchandise: number;
@@ -36,7 +37,7 @@ interface Payout {
 
 @Component({
   selector: 'app-merchant-settlements',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, StatementReconciliationComponent],
   templateUrl: './settlements.component.html',
 })
 export class SettlementsComponent {
@@ -48,6 +49,7 @@ export class SettlementsComponent {
   readonly entries = signal<Entry[]>([]);
   readonly pending = signal<Entry[]>([]);
   readonly selected = signal<string | undefined>(undefined);
+  readonly reconciliationPath = signal<string | undefined>(undefined);
   readonly payouts = signal<Payout[]>([]);
   readonly busy = signal(false);
   readonly message = signal('');
@@ -82,11 +84,17 @@ export class SettlementsComponent {
         payouts: this.http.get<Payout[]>(path + '/payouts'),
       }),
       (details) => {
+        this.reconciliationPath.set(undefined);
         this.selected.set(value.id);
         this.entries.set(details.entries);
         this.payouts.set(details.payouts);
       },
     );
+  }
+
+  reconcile(): void {
+    const id = this.selected();
+    if (id) this.reconciliationPath.set(`${this.statementPath}/${id}/reconciliation`);
   }
 
   requestPayout(): void {

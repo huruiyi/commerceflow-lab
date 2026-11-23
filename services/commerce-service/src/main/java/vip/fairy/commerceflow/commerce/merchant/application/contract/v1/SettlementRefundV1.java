@@ -7,6 +7,8 @@ public interface SettlementRefundV1 {
 
   List<Refund> lockEvidence(Long orderId);
 
+  List<Refund> evidence(Long merchantId, Long orderId);
+
   record Refund(String id, Long line, String status, BigDecimal merchandise, BigDecimal freight, String number) {
   }
 }

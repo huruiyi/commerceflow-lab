@@ -67,6 +67,10 @@
   </ng-template>
   <ng-container *ngIf="selected()"
     ><h3 class="h5">已冻结明细 / Frozen entries</h3>
+    <button class="btn btn-outline-secondary mb-3" type="button" (click)="reconcile()">查看对账 / Reconcile</button>
+    @if (reconciliationPath(); as path) {
+      <app-statement-reconciliation [path]="path" />
+    }
     <ng-container *ngTemplateOutlet="ledger; context: { $implicit: entries() }"></ng-container>
     <h3 class="h5">模拟打款 / Simulated payouts</h3>
     <ul class="list-group mb-3" *ngIf="payouts().length">

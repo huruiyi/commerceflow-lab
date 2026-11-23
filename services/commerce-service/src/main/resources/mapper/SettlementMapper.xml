@@ -8,6 +8,9 @@
     SELECT merchant_id,commission_bps,enabled_at FROM merchant_settlement_accounts
     WHERE merchant_id=#{merchant} FOR UPDATE
   </select>
+  <select id="account" resultType="vip.fairy.commerceflow.commerce.merchant.domain.Settlement$Account">
+    SELECT merchant_id,commission_bps,enabled_at FROM merchant_settlement_accounts WHERE merchant_id=#{merchant}
+  </select>
   <insert id="enable">
     INSERT INTO merchant_settlement_accounts(merchant_id,commission_bps) VALUES(#{merchant},#{rate})
   </insert>
@@ -21,6 +24,24 @@
   <select id="statementEntries" resultType="vip.fairy.commerceflow.commerce.merchant.domain.Settlement$Entry">
     SELECT * FROM merchant_settlement_entries WHERE statement_id=#{statement}
     ORDER BY occurred_at,source_key
+  </select>
+  <sql id="statementScope">
+    FROM merchant_settlement_entries WHERE statement_id=#{statement} AND merchant_id=#{merchant}
+  </sql>
+  <select id="statementRollup" resultType="vip.fairy.commerceflow.commerce.merchant.domain.Settlement$Rollup">
+    SELECT COUNT(DISTINCT order_id) AS order_count,COALESCE(SUM(merchandise),0) AS merchandise,
+      COALESCE(SUM(freight),0) AS freight,COALESCE(SUM(commission),0) AS commission
+    <include refid="statementScope"/>
+  </select>
+  <select id="statementOrderIds" resultType="long">
+    SELECT DISTINCT order_id <include refid="statementScope"/>
+    ORDER BY order_id LIMIT #{size} OFFSET #{offset}
+  </select>
+  <select id="statementOrderEntries" resultType="vip.fairy.commerceflow.commerce.merchant.domain.Settlement$Entry">
+    SELECT * <include refid="statementScope"/>
+    AND order_id IN
+    <foreach collection="orders" item="order" open="(" separator="," close=")">#{order}</foreach>
+    ORDER BY order_id,occurred_at,source_key
   </select>
   <insert id="append">
     INSERT INTO merchant_settlement_entries(source_key,merchant_id,order_id,order_line_id,kind,

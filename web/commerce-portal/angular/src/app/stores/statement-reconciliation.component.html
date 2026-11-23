@@ -1,0 +1,105 @@
+<section class="border rounded p-3 mb-3" [attr.aria-busy]="loading()">
+  <h3 class="h5">账单对账 / Statement reconciliation</h3>
+  @if (loading()) {
+    <p role="status">正在对账 / Checking statement</p>
+  }
+  @if (failed()) {
+    <p class="alert alert-warning" role="alert">
+      暂时无法核对账本 / Reconciliation unavailable
+      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="load()">重试 / Retry</button>
+    </p>
+  }
+  @if (report(); as value) {
+    <p class="text-secondary">
+      核对时间 / Checked at {{ value.observedAt | date: 'medium' }} · 订单 / Orders {{ value.total }}
+    </p>
+    <dl class="row">
+      <dt class="col-sm-6">冻结应结 / Frozen payable</dt>
+      <dd class="col-sm-6">{{ value.statement.payable | currency: 'CNY' }}</dd>
+      <dt class="col-sm-6">明细汇总应结 / Entry payable</dt>
+      <dd class="col-sm-6">{{ value.entryPayable | currency: 'CNY' }}</dd>
+      <dt class="col-sm-6">已确认打款 / Confirmed payouts</dt>
+      <dd class="col-sm-6">{{ value.paidOut | currency: 'CNY' }}</dd>
+    </dl>
+    @if (value.payouts.length) {
+      <ul class="list-unstyled">
+        @for (payout of value.payouts; track payout.id) {
+          <li>
+            {{ payout.channelPayoutNo || payout.id }} · {{ payout.status }} · {{ payout.amount | currency: 'CNY' }}
+          </li>
+        }
+      </ul>
+    }
+    <ng-container *ngTemplateOutlet="differences; context: { $implicit: value.differences }" />
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead>
+          <tr>
+            <th scope="col">订单 / Order</th>
+            <th scope="col">账单应结 / Payable</th>
+            <th scope="col">实付 / Paid</th>
+            <th scope="col">退款 / Refunded</th>
+            <th scope="col">净开票 / Net invoice</th>
+            <th scope="col">差异 / Differences</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (order of value.orders; track order.orderId) {
+            <tr>
+              <td>
+                <details>
+                  <summary>{{ order.orderId }}</summary>
+                  <dl>
+                    <dt>账本记录 / Entries</dt>
+                    <dd>{{ order.entryReferences.join(', ') }}</dd>
+                    <dt>支付单 / Payment</dt>
+                    <dd>{{ order.paymentNumber || '—' }}</dd>
+                    <dt>成功退款 / Refunds</dt>
+                    <dd>{{ order.refundNumbers.join(', ') || '—' }}</dd>
+                    <dt>正票 / Invoice</dt>
+                    <dd>{{ order.blueInvoiceNumber || '—' }}</dd>
+                    <dt>红票 / Red invoices</dt>
+                    <dd>{{ order.redInvoiceNumbers.join(', ') || '—' }}</dd>
+                  </dl>
+                </details>
+              </td>
+              <td>{{ order.statementPayable | currency: 'CNY' }}</td>
+              <td>{{ (order.paidAmount | currency: 'CNY') || '—' }}</td>
+              <td>{{ (order.refundedAmount | currency: 'CNY') || '—' }}</td>
+              <td>{{ (order.netInvoice | currency: 'CNY') || '—' }}</td>
+              <td>
+                @if (order.differences.length) {
+                  <ng-container *ngTemplateOutlet="differences; context: { $implicit: order.differences }" />
+                } @else {
+                  一致 / Matched
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-list-pagination
+      [page]="value.page"
+      [totalPages]="totalPages()"
+      label="对账订单分页 / Reconciliation pages"
+      [loading]="loading()"
+      (pageChange)="load($event)"
+    />
+  }
+</section>
+
+<ng-template #differences let-items>
+  @if (items.length) {
+    <ul class="text-danger mb-1">
+      @for (item of items; track $index) {
+        <li>
+          {{ labels[item.kind] || item.kind }} · {{ item.reference }}
+          @if (item.expected !== null || item.observed !== null) {
+            · {{ (item.expected | currency: 'CNY') || '—' }} → {{ (item.observed | currency: 'CNY') || '—' }}
+          }
+        </li>
+      }
+    </ul>
+  }
+</ng-template>
