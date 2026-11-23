@@ -3,26 +3,19 @@
   [class.invoice-platform]="mode === 'platform'"
   [class.invoice-customer-list]="mode === 'customer' && orderId === null"
   [class.invoice-merchant]="mode === 'merchant'"
+  [class.invoice-detail-view]="orderId !== null"
   [attr.aria-busy]="busy"
 >
   <div class="invoice-toolbar">
     <header class="invoice-heading">
       <div>
         @if (orderId !== null) {
-          <a class="invoice-back" [routerLink]="root">{{ 'invoiceBack' | t }}</a>
+          <a class="invoice-back" [routerLink]="root">
+            <i class="bi bi-arrow-left" aria-hidden="true"></i>
+            {{ 'invoiceBack' | t }}
+          </a>
         }
         <h1>{{ (orderId === null ? heading : 'invoiceDetail') | t }}</h1>
-        @if (detail) {
-          <div class="invoice-identity-line">
-            <span class="invoice-identity-label">{{ 'invoiceRelatedOrder' | t }}</span>
-            <ng-container
-              *ngTemplateOutlet="
-                identifier;
-                context: { value: detail.orderNumber, fallback: '#' + detail.orderId, label: 'invoiceCopyOrderNumber' }
-              "
-            />
-          </div>
-        }
       </div>
       @if (orderId === null && mode === 'customer') {
         <a class="invoice-orders-link" routerLink="/orders">
@@ -34,6 +27,15 @@
         <button hlmBtn variant="outline" type="button" (click)="reload()" [disabled]="busy || acting">
           {{ 'invoiceRefresh' | t }}
         </button>
+        <div class="invoice-identity-line invoice-order-meta">
+          <span class="invoice-identity-label">{{ 'invoiceRelatedOrder' | t }}</span>
+          <ng-container
+            *ngTemplateOutlet="
+              identifier;
+              context: { value: detail.orderNumber, fallback: '#' + detail.orderId, label: 'invoiceCopyOrderNumber' }
+            "
+          />
+        </div>
       }
     </header>
 
@@ -201,9 +203,12 @@
     } @else {
       <section class="invoice-panel" data-testid="invoice-detail">
         <header class="invoice-panel-heading">
-          <div>
+          <div class="invoice-application-heading">
             <h2>{{ 'invoiceApplication' | t }}</h2>
-            <p class="invoice-code" data-testid="invoice-application">{{ current.applicationNo }}</p>
+            <dl class="invoice-application-number">
+              <dt class="invoice-identity-label">{{ 'invoiceApplicationNumber' | t }}</dt>
+              <dd class="invoice-detail-number" data-testid="invoice-application">{{ current.applicationNo }}</dd>
+            </dl>
           </div>
           <span class="invoice-status" [attr.data-state]="current.status">
             {{ (mode === 'customer' ? 'invoiceCustomerState_' : 'invoiceState_') + current.status | t }}
@@ -221,11 +226,13 @@
             </div>
             <div>
               <dt>{{ 'invoiceIssueAmount' | t }}</dt>
-              <dd data-testid="invoice-issue-amount">{{ issue.amount | number: '1.2-2' }} {{ issue.currency }}</dd>
+              <dd class="invoice-detail-number" data-testid="invoice-issue-amount">
+                {{ issue.amount | number: '1.2-2' }} {{ issue.currency }}
+              </dd>
             </div>
             <div>
               <dt>{{ (mode === 'customer' ? 'invoiceCustomerAmount' : 'invoiceNet') | t }}</dt>
-              <dd data-testid="invoice-effective">
+              <dd class="invoice-detail-number" data-testid="invoice-effective">
                 @if (current.effectiveAmount !== null) {
                   {{ current.effectiveAmount | number: '1.2-2' }} {{ issue.currency }}
                 } @else {
@@ -242,17 +249,32 @@
       @if (current.redAttempts.length) {
         <section class="invoice-panel">
           <h2>{{ (mode === 'customer' ? 'invoiceRefundAdjustments' : 'invoiceRedTickets') | t }}</h2>
-          <ul class="invoice-records">
+          <ul class="invoice-red-records">
             @for (red of current.redAttempts; track red.requestId || red.invoiceNo || $index) {
               <li>
-                <div>
-                  <strong>{{ red.referenceNo }}</strong>
-                  <ng-container
-                    *ngTemplateOutlet="identifier; context: { value: red.invoiceNo, label: 'invoiceCopyNumber' }"
-                  />
-                </div>
-                <span>{{ 'invoiceAttempt_' + (red.status || 'SUCCEEDED') | t }}</span>
-                <strong>{{ red.amount | number: '1.2-2' }} {{ red.currency }}</strong>
+                <dl class="invoice-red-identifiers">
+                  <div>
+                    <dt class="invoice-identity-label">{{ 'invoiceRedRefundNumber' | t }}</dt>
+                    <dd class="invoice-detail-number">{{ red.referenceNo }}</dd>
+                  </div>
+                  <div>
+                    <dt class="invoice-identity-label">{{ 'invoiceRedNumber' | t }}</dt>
+                    <dd>
+                      <ng-container
+                        *ngTemplateOutlet="identifier; context: { value: red.invoiceNo, label: 'invoiceCopyRedNumber' }"
+                      />
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="invoice-identity-label">{{ 'invoiceRedAmount' | t }}</dt>
+                    <dd class="invoice-red-result">
+                      <span class="invoice-detail-number">{{ red.amount | number: '1.2-2' }} {{ red.currency }}</span>
+                      <span class="invoice-status" [attr.data-state]="red.status || 'SUCCEEDED'">
+                        {{ 'invoiceAttempt_' + (red.status || 'SUCCEEDED') | t }}
+                      </span>
+                    </dd>
+                  </div>
+                </dl>
               </li>
             }
           </ul>

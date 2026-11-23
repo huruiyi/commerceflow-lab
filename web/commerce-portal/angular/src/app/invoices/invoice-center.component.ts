@@ -20,6 +20,8 @@ export class InvoiceCenterComponent implements OnInit, OnDestroy {
   private readonly account = inject(AccountService);
   private loadRequest?: Subscription;
   private refreshTimer?: ReturnType<typeof setTimeout>;
+  private copyResetTimer?: ReturnType<typeof setTimeout>;
+  private copyAttempt = 0;
   private scopeVersion = 0;
   private reviewRequest?: { id: string; note: string };
 
@@ -59,8 +61,7 @@ export class InvoiceCenterComponent implements OnInit, OnDestroy {
       this.reviewRequest = undefined;
       this.acting = false;
       this.actionError = '';
-      this.copiedIdentifier.set('');
-      this.copyFailed.set(false);
+      this.clearCopyFeedback();
       this.applicationPending = this.readApplication();
       this.reload();
     });
@@ -70,6 +71,7 @@ export class InvoiceCenterComponent implements OnInit, OnDestroy {
     this.scopeVersion++;
     this.loadRequest?.unsubscribe();
     clearTimeout(this.refreshTimer);
+    this.clearCopyFeedback();
   }
 
   reload(silent = false): void {
@@ -105,13 +107,15 @@ export class InvoiceCenterComponent implements OnInit, OnDestroy {
   }
 
   async copyIdentifier(value: string): Promise<void> {
-    this.copiedIdentifier.set('');
-    this.copyFailed.set(false);
+    this.clearCopyFeedback();
+    const attempt = this.copyAttempt;
     try {
       await navigator.clipboard.writeText(value.toLowerCase());
+      if (attempt !== this.copyAttempt) return;
       this.copiedIdentifier.set(value);
+      this.copyResetTimer = setTimeout(() => this.copiedIdentifier.set(''), 1500);
     } catch {
-      this.copyFailed.set(true);
+      if (attempt === this.copyAttempt) this.copyFailed.set(true);
     }
   }
 
@@ -127,6 +131,13 @@ export class InvoiceCenterComponent implements OnInit, OnDestroy {
       if (this.reviewRequest?.note !== note) this.reviewRequest = { id: crypto.randomUUID(), note };
       this.act(this.api.recheck(this.orderId, this.reviewRequest.id, note));
     }
+  }
+
+  private clearCopyFeedback(): void {
+    this.copyAttempt++;
+    clearTimeout(this.copyResetTimer);
+    this.copiedIdentifier.set('');
+    this.copyFailed.set(false);
   }
 
   private act(request: Observable<InvoiceDetail>, application = false): void {
