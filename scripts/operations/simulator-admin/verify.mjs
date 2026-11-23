@@ -1,16 +1,23 @@
 import assert from "node:assert/strict";
 import { createHash, createHmac, randomUUID } from "node:crypto";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { chromium, expect } from "@playwright/test";
+import { verifyBusinessFaults } from "./business-faults.mjs";
 
+const [configuration, artifacts] = process.argv.slice(2);
+const target = JSON.parse(await readFile(configuration, "utf8"));
 const [
   logisticsUrl,
   warehouseUrl,
   warehouseServiceUrl,
   messagingUrl,
-  artifacts,
-] = process.argv.slice(2);
+] = [
+  "logistics-simulator-web",
+  "warehouse-simulator-web",
+  "warehouse-simulator-service",
+  "messaging-simulator-web",
+].map((service) => target.Endpoints[service].Url);
 const urls = [
   logisticsUrl,
   warehouseUrl,
@@ -415,6 +422,7 @@ try {
     join(artifacts, "result.json"),
     JSON.stringify({ logistics, warehouse, warehouseRecovery, messaging }, null, 2),
   );
+  await verifyBusinessFaults(browser, target, artifacts);
 } finally {
   await browser.close();
 }

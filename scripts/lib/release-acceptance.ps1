@@ -21,7 +21,8 @@ function Assert-AcceptanceHealth($Target) {
 function Invoke-IsolatedAcceptance {
   param(
     [string]$BaseUrl, [switch]$SkipBuild, [switch]$Full, [string]$ProjectName,
-    [switch]$CleanupOnSuccess,
+    [switch]$CleanupOnSuccess, [switch]$SimulatorAdmin,
+    [ValidateRange(30, 420)][int]$WaitSeconds = 420,
     [ValidateSet('rabbitmq','rocketmq')][string[]]$BrokerProfiles,
     [scriptblock]$Initialize, [scriptblock]$Verify, [scriptblock]$Cleanup
   )
@@ -50,7 +51,11 @@ function Invoke-IsolatedAcceptance {
   $directory = New-Item -ItemType Directory -Path (Join-Path ([IO.Path]::GetTempPath()) $project)
   $baseFile = Join-Path $acceptanceRoot 'compose.yaml'
   $freshFile = Join-Path $acceptanceRoot 'infrastructure/compose/compose.fulfillment-fresh.yaml'
-  $baseFiles = @($baseFile, $freshFile) -join [IO.Path]::PathSeparator
+  $files = @($baseFile, $freshFile)
+  if ($SimulatorAdmin) {
+    $files += Join-Path $acceptanceRoot 'infrastructure/compose/compose.simulator-admin-verification.yaml'
+  }
+  $baseFiles = $files -join [IO.Path]::PathSeparator
   $overrideFile = Join-Path $directory.FullName 'compose.isolated.yaml'
   $envFile = Join-Path $directory.FullName 'isolated.env'
   Set-Content -LiteralPath $envFile '# Use tracked Compose defaults for acceptance.'
@@ -90,6 +95,13 @@ function Invoke-IsolatedAcceptance {
     $endpointSpecs['prometheus'] = @(9090, '/-/ready')
     $endpointSpecs['alertmanager'] = @(9093, '/-/ready')
     $endpointSpecs['alert-webhook'] = @(8080, '/healthz')
+  }
+  if ($SimulatorAdmin) {
+    foreach ($service in 'logistics-simulator-web', 'warehouse-simulator-web', 'messaging-simulator-web') {
+      $endpointSpecs[$service] = @(80, '/')
+    }
+    $endpointSpecs['invoice-simulator-service'] = @(8080, '/actuator/health')
+    $endpointSpecs['simulator-fault-fixture'] = @(8080, '/healthz')
   }
 
   $startAttempted = $false
@@ -217,7 +229,7 @@ function Invoke-IsolatedAcceptance {
     $target = @{ Project = $project; Endpoints = $endpoints; Directory = $directory.FullName }
     if ($Initialize) { & $Initialize $target }
     foreach ($listener in $listeners) { $listener.Stop() }
-    Invoke-AcceptanceCompose up -d --no-build --wait --wait-timeout 420
+    Invoke-AcceptanceCompose up -d --no-build --wait --wait-timeout $WaitSeconds
     $oneOffOptions = @('-T', '--no-deps')
     if ($CleanupOnSuccess) { $oneOffOptions += '--rm' }
     foreach ($service in 'catalog-demo-init', 'payment-demo-init') {
