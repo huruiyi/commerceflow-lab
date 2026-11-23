@@ -1,68 +1,85 @@
-<h2>{{ 'merchantProducts' | t }}</h2>
-<form #createForm="ngForm" (ngSubmit)="create()" class="row g-2 align-items-end border rounded p-3 mb-3">
-  <label class="col-md-3"
-    >{{ 'productName' | t }}
-    <input class="form-control" name="newName" [(ngModel)]="creation.name" maxlength="160" required />
-  </label>
-  <label class="col-md-3"
-    >{{ 'description' | t }}
-    <input class="form-control" name="newDescription" [(ngModel)]="creation.description" maxlength="2000" required />
-  </label>
-  <label class="col-md-2"
-    >{{ 'unitPrice' | t }}
-    <input
-      class="form-control"
-      name="newPrice"
-      [(ngModel)]="creation.unitPrice"
-      type="number"
-      min="0.01"
-      step="0.01"
-      required
-    />
-  </label>
-  <label class="col-md-3"
-    >{{ 'imageUrl' | t }}
-    <input class="form-control" name="newImage" [(ngModel)]="creation.imageUrl" maxlength="500" required />
-  </label>
-  <div class="col-auto">
-    <button class="btn btn-primary" [disabled]="createForm.invalid || saving()">
-      {{ 'createMerchantProduct' | t }}
-    </button>
+<header class="catalog-heading">
+  <h1>{{ 'merchantProducts' | t }}</h1>
+</header>
+<details class="catalog-panel catalog-create">
+  <summary>{{ 'merchantProductAdd' | t }}</summary>
+  <form #createForm="ngForm" (ngSubmit)="create()" class="catalog-create-form">
+    <label
+      >{{ 'productName' | t }}
+      <input class="form-control" name="newName" [(ngModel)]="creation.name" maxlength="160" required />
+    </label>
+    <label
+      >{{ 'description' | t }}
+      <input class="form-control" name="newDescription" [(ngModel)]="creation.description" maxlength="2000" required />
+    </label>
+    <label
+      >{{ 'unitPrice' | t }}
+      <input
+        class="form-control"
+        name="newPrice"
+        [(ngModel)]="creation.unitPrice"
+        type="number"
+        min="0.01"
+        step="0.01"
+        required
+      />
+    </label>
+    <label
+      >{{ 'imageUrl' | t }}
+      <input class="form-control" name="newImage" [(ngModel)]="creation.imageUrl" maxlength="500" required />
+    </label>
+    <div class="catalog-create-actions">
+      <button class="btn btn-primary" [disabled]="createForm.invalid || saving()">
+        {{ 'createMerchantProduct' | t }}
+      </button>
+    </div>
+  </form>
+  <p *ngIf="saveFailed() && !draft" role="alert" class="catalog-save-error">{{ 'merchantProductSaveFailed' | t }}</p>
+</details>
+<section class="catalog-panel" aria-labelledby="catalog-list-title" [attr.aria-busy]="loading()">
+  <h2 class="catalog-section-title" id="catalog-list-title">{{ 'merchantProductList' | t }}</h2>
+  <p *ngIf="loading()" class="catalog-message" role="status">{{ 'merchantProductsLoading' | t }}</p>
+  <div *ngIf="loadFailed()" class="catalog-message" role="alert">
+    {{ 'merchantProductsLoadFailed' | t }}
+    <button type="button" class="btn btn-sm btn-outline-primary" (click)="load()">{{ 'retry' | t }}</button>
   </div>
-</form>
-<p *ngIf="saveFailed() && !draft" role="alert">{{ 'merchantProductSaveFailed' | t }}</p>
-<p *ngIf="loading()" role="status">{{ 'merchantProductsLoading' | t }}</p>
-<div *ngIf="loadFailed()" class="alert alert-danger" role="alert">
-  {{ 'merchantProductsLoadFailed' | t }}
-  <button type="button" class="btn btn-outline-danger" (click)="load()">{{ 'retry' | t }}</button>
-</div>
-<p *ngIf="!loading() && !loadFailed() && !products().length">{{ 'merchantProductsEmpty' | t }}</p>
-<div class="table-responsive" *ngIf="products().length">
-  <table class="table align-middle">
-    <thead>
-      <tr>
-        <th scope="col">{{ 'productName' | t }}</th>
-        <th scope="col">{{ 'unitPrice' | t }}</th>
-        <th scope="col">{{ 'status' | t }}</th>
-        <th scope="col">{{ 'action' | t }}</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let item of products()">
-        <th scope="row">{{ item.name }}</th>
-        <td>{{ item.unitPrice | trcurrency }}</td>
-        <td>{{ (item.lifecycleStatus === 'ACTIVE' ? 'catalogActive' : 'catalogInactive') | t }}</td>
-        <td>
-          <button class="btn btn-outline-primary" type="button" (click)="edit(item)" [disabled]="saving() || loading()">
-            {{ 'editMerchantProduct' | t }}
-          </button>
-        </td>
-      </tr>
-    </tbody>
-  </table>
-</div>
-<section *ngIf="draft as product" class="border rounded p-3">
-  <h3 class="h5">{{ 'editMerchantProduct' | t }} #{{ product.productId }}</h3>
+  <p *ngIf="!loading() && !loadFailed() && !products().length" class="catalog-message">
+    {{ 'merchantProductsEmpty' | t }}
+  </p>
+  <ul *ngIf="products().length" class="catalog-list">
+    <li *ngFor="let item of products()" class="catalog-row">
+      <div class="catalog-item">
+        <app-catalog-image class="compact" [primary]="item.thumbnailUrl" [secondary]="item.imageUrl" />
+        <div>
+          <strong>{{ item.name }}</strong>
+          <small *ngIf="item.brief">{{ item.brief }}</small>
+        </div>
+      </div>
+      <strong class="catalog-price">{{ item.unitPrice | trcurrency }}</strong>
+      <span class="catalog-status" [class.catalog-active]="item.lifecycleStatus === 'ACTIVE'">
+        {{ (item.lifecycleStatus === 'ACTIVE' ? 'catalogActive' : 'catalogInactive') | t }}
+      </span>
+      <button
+        class="btn btn-sm btn-outline-primary"
+        type="button"
+        (click)="edit(item, true)"
+        [disabled]="saving() || loading()"
+      >
+        {{ 'editMerchantProduct' | t }}
+      </button>
+    </li>
+  </ul>
+</section>
+<section *ngIf="draft as product" class="catalog-panel catalog-editor">
+  <header class="catalog-editor-heading">
+    <div>
+      <h2 id="merchant-edit-title" tabindex="-1">{{ 'editMerchantProduct' | t }}</h2>
+      <p>{{ product.name }}</p>
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-secondary" (click)="draft = undefined" [disabled]="saving()">
+      {{ 'close' | t }}
+    </button>
+  </header>
   <p *ngIf="saved()" class="text-success" role="status">{{ 'merchantProductSaved' | t }}</p>
   <div *ngIf="saveFailed()" class="alert alert-danger" role="alert">
     {{ 'merchantProductSaveFailed' | t }}
@@ -134,8 +151,8 @@
   </form>
 </section>
 
-<section class="border rounded p-3 my-3">
-  <h3 class="h5">{{ 'shippingTemplate' | t }}</h3>
+<section class="catalog-panel catalog-editor">
+  <h2>{{ 'shippingTemplate' | t }}</h2>
   <p *ngIf="shippingError()" class="text-danger" role="alert">{{ shippingError() | t }}</p>
   <p *ngIf="shippingSaved()" class="text-success" role="status">{{ 'shippingSaved' | t }}</p>
   <button
@@ -204,7 +221,7 @@
           </button>
         </div>
       </div>
-      <div class="d-flex gap-2">
+      <div class="d-flex flex-wrap gap-2">
         <button
           class="btn btn-outline-secondary"
           type="button"

@@ -18,6 +18,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.commerce.inventory.domain.InventoryMovementView;
 import vip.fairy.commerceflow.commerce.inventory.domain.MerchantInventoryItem;
+import vip.fairy.commerceflow.commerce.shared.api.AdminListPage;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
 
@@ -70,6 +71,19 @@ public class MerchantInventoryRemoteClient {
         .headers(headers -> signer.sign(headers, "GET", target, signer.contentHash("")))
         .retrieve().body(MOVEMENT_LIST);
       return result == null ? List.of() : result;
+    } catch (RestClientResponseException exception) {
+      throw remoteFailure(exception);
+    } catch (RuntimeException exception) {
+      throw new InventoryRemoteUnavailableException(exception);
+    }
+  }
+
+  public AdminListPage<InventoryMovementView> movementPage(Long merchantId, Long productId, int page, int size) {
+    String target = merchantTarget(merchantId) + "/items/" + productId + "/movements/page";
+    try {
+      return client.get().uri(URI.create(baseUrl + target + "?page=" + page + "&size=" + size))
+        .headers(headers -> signer.sign(headers, "GET", target, signer.contentHash("")))
+        .retrieve().body(new ParameterizedTypeReference<AdminListPage<InventoryMovementView>>() {});
     } catch (RestClientResponseException exception) {
       throw remoteFailure(exception);
     } catch (RuntimeException exception) {

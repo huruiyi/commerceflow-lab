@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import vip.fairy.commerceflow.commerce.shared.api.AdminListPage;
 import org.springframework.web.bind.annotation.RestController;
 import vip.fairy.commerceflow.commerce.merchant.application.MerchantSettlementService;
 import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.Account;
@@ -80,6 +82,48 @@ public class MerchantSettlementController {
   @PreAuthorize("hasRole('MERCHANT')")
   List<Entry> ownEntries(@PathVariable UUID id, Authentication user) {
     return settlements.entries(actors.requireId(user), id.toString());
+  }
+
+  @GetMapping("/api/admin/stores/{merchantId}/statements/page")
+  @PreAuthorize("hasRole('ADMIN')")
+  AdminListPage<Statement> adminStatementPage(@PathVariable Long merchantId,
+      @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+    return settlements.statementPage(merchantId, page, size);
+  }
+
+  @GetMapping("/api/admin/stores/{merchantId}/settlement/pending/page")
+  @PreAuthorize("hasRole('ADMIN')")
+  AdminListPage<Entry> adminPendingPage(@PathVariable Long merchantId,
+      @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+    return settlements.pendingPage(merchantId, page, size);
+  }
+
+  @GetMapping("/api/admin/stores/{merchantId}/statements/{id}/entries/page")
+  @PreAuthorize("hasRole('ADMIN')")
+  AdminListPage<Entry> adminEntryPage(@PathVariable Long merchantId, @PathVariable UUID id,
+      @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+    return settlements.entryPage(merchantId, id.toString(), page, size);
+  }
+
+  @GetMapping("/api/merchant/settlement/statements/page")
+  @PreAuthorize("hasRole('MERCHANT')")
+  AdminListPage<Statement> ownStatementPage(Authentication user,
+      @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+    return settlements.statementPage(actors.requireId(user), page, size);
+  }
+
+  @GetMapping("/api/merchant/settlement/pending/page")
+  @PreAuthorize("hasRole('MERCHANT')")
+  AdminListPage<Entry> ownPendingPage(Authentication user,
+      @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+    return settlements.pendingPage(actors.requireId(user), page, size);
+  }
+
+  @GetMapping("/api/merchant/settlement/statements/{id}/entries/page")
+  @PreAuthorize("hasRole('MERCHANT')")
+  AdminListPage<Entry> ownEntryPage(Authentication user, @PathVariable UUID id,
+      @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+    return settlements.entryPage(actors.requireId(user), id.toString(), page, size);
   }
 
   record Enable(@NotNull @Min(0) @Max(10000) Integer commissionBps) {

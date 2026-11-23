@@ -5,6 +5,7 @@ import { ActivatedRoute } from '@angular/router';
 import { finalize, Observable, Subscription, timeout } from 'rxjs';
 import { AccountService } from '../services/account.service';
 import { InvoiceApi, InvoiceDetail, InvoiceMode, InvoicePage, invoiceRoutes } from './invoice-api.service';
+import { displayOrderNumber } from '../purchase-orders/order-number';
 
 @Component({
   standalone: false,
@@ -13,6 +14,7 @@ import { InvoiceApi, InvoiceDetail, InvoiceMode, InvoicePage, invoiceRoutes } fr
   styleUrl: './invoice-center.component.css',
 })
 export class InvoiceCenterComponent implements OnInit, OnDestroy {
+  readonly displayOrderNumber = displayOrderNumber;
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(InvoiceApi);
   private readonly destroyRef = inject(DestroyRef);

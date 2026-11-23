@@ -1,10 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormsModule } from '@angular/forms';
 import { RouterTestingModule } from '@angular/router/testing';
+import { HlmButton } from '@spartan-ng/helm/button';
 import { of, throwError } from 'rxjs';
 import { PurchaseOrder } from 'src/model/IPurchaseOrder';
 import { PurchaseOrdersComponent } from './purchase-orders.component';
 import { ListPaginationComponent } from '../list-pagination/list-pagination.component';
+import { AccountService } from '../services/account.service';
 import { ApiService } from '../services/api.service';
 import { TranslatePipe } from '../pipes/translate.pipe';
 import { TrdatePipe } from '../pipes/trdate.pipe';
@@ -18,7 +20,6 @@ describe('PurchaseOrdersComponent', () => {
   let api: {
     searchOrders: jasmine.Spy;
     purchaseOrder: jasmine.Spy;
-    allProducts: jasmine.Spy;
     payOrder: jasmine.Spy;
     reviewOrderItem: jasmine.Spy;
     requestRefund: jasmine.Spy;
@@ -69,7 +70,6 @@ describe('PurchaseOrdersComponent', () => {
           pendingShip: 0,
         }),
       ),
-      allProducts: jasmine.createSpy().and.returnValue(of([])),
       purchaseOrder: jasmine.createSpy(),
       payOrder: jasmine.createSpy().and.returnValue(
         of({
@@ -104,7 +104,7 @@ describe('PurchaseOrdersComponent', () => {
       receiveOrder: jasmine.createSpy().and.returnValue(of({ ...order, status: 'RECEIVED' })),
     };
     await TestBed.configureTestingModule({
-      imports: [FormsModule, RouterTestingModule, ListPaginationComponent],
+      imports: [FormsModule, RouterTestingModule, ListPaginationComponent, HlmButton],
       declarations: [
         PurchaseOrdersComponent,
         OrderListFilterComponent,
@@ -123,18 +123,60 @@ describe('PurchaseOrdersComponent', () => {
     expect(fixture.componentInstance.orders.length).toBe(1);
     expect(fixture.componentInstance.draftKeys[42]).toBeTruthy();
   });
-  it('opens the newest order by default and lets the customer collapse it', () => {
-    const component = fixture.componentInstance;
-    expect(component.expandedOrders.has(42)).toBeTrue();
-    component.toggleDetails(order);
-    expect(component.expandedOrders.has(42)).toBeFalse();
+  it('starts folded and lets the customer open and close the order details', () => {
+    const button = fixture.nativeElement.querySelector('.order-summary-row button[aria-expanded]') as HTMLButtonElement;
+    const details = fixture.nativeElement.querySelector('#order-inline-42') as HTMLElement;
+    expect(button.getAttribute('aria-expanded')).toBe('false');
+    expect(button.getAttribute('aria-controls')).toBe(details.id);
+    expect(details.hidden).toBeTrue();
+    button.click();
+    fixture.detectChanges();
+    expect(button.getAttribute('aria-expanded')).toBe('true');
+    expect(details.querySelector('.payment-panel')).not.toBeNull();
+    button.click();
+    fixture.detectChanges();
+    expect(details.hidden).toBeTrue();
   });
-  it('renders aligned summary fields for identity, status, amount and actions', () => {
-    const header = fixture.nativeElement.querySelector('.order-header') as HTMLElement;
-    expect(header.querySelector('.order-meta')?.textContent).toContain('1 items');
-    expect(header.querySelector('.order-state')?.textContent).toContain('Pending payment');
-    expect(header.querySelector('.order-total')?.textContent).toContain('99');
-    expect(header.querySelector('.summary-actions .primary-action-slot')).not.toBeNull();
+  it('renders a compact labeled table with a direct link and existing summary actions', () => {
+    const panel = fixture.nativeElement.querySelector('.orders-panel') as HTMLElement;
+    const row = panel.querySelector('.order-summary-row') as HTMLElement;
+    expect(panel.querySelector('app-order-list-filter')).not.toBeNull();
+    expect(Array.from(panel.querySelectorAll('thead th'), (item) => item.textContent?.trim())).toEqual([
+      'Order number',
+      'Products',
+      'Status',
+      'Amount',
+      'Action',
+    ]);
+    expect(row.querySelector('.order-identity a')?.getAttribute('href')).toBe('/orders/42');
+    expect(row.querySelector('.order-products')?.textContent).toContain('Learning Item');
+    expect(row.querySelector('.order-state')?.textContent).toContain('Pending payment');
+    expect(row.querySelector('.order-total')?.textContent).toContain('99');
+    expect(row.querySelector('.summary-actions .primary-action-slot button')).not.toBeNull();
+  });
+  it('opens an older order with a pending payment or cancellation recovery and allows collapsing it', () => {
+    const component = fixture.componentInstance;
+    const profileId = TestBed.inject(AccountService).userProfile()?.id;
+    const payment = { ...order, id: 41 };
+    const cancellation = { ...order, id: 40 };
+    sessionStorage.setItem(
+      `commerceflow-order:${profileId}:${payment.id}:payment`,
+      JSON.stringify({ key: 'original-key', channel: 'ALIPAY', simulateFailure: false, awaitingReceipt: true }),
+    );
+    sessionStorage.setItem(`commerceflow-order:${profileId}:${cancellation.id}:cancel`, 'Original reason');
+    api.searchOrders.and.returnValue(of({ orders: [order, payment, cancellation], total: 3, page: 0, size: 10 }));
+    component.reload();
+    fixture.detectChanges();
+
+    expect([...component.expandedOrders]).toEqual([41, 40]);
+    expect(component.lastAttempts[41].key).toBe('original-key');
+    expect(component.cancellationRequests[40]).toBe('Original reason');
+    expect(fixture.nativeElement.querySelector('#order-inline-41 .payment-panel')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('#order-inline-40 .cancel-order-form')).not.toBeNull();
+
+    component.toggleDetails(payment);
+    component.reload();
+    expect([...component.expandedOrders]).toEqual([40]);
   });
   it('only repeats payment state when it still needs attention', () => {
     const component = fixture.componentInstance;
@@ -213,6 +255,8 @@ describe('PurchaseOrdersComponent', () => {
   });
   it('does not render empty history and replaces unavailable product images', () => {
     const component = fixture.componentInstance;
+    component.toggleDetails(order);
+    fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.order-history')).toBeNull();
     component.markProductImageUnavailable(1);
     fixture.detectChanges();

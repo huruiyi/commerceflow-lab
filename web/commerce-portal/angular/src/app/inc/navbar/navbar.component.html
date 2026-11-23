@@ -1,260 +1,186 @@
-<nav class="navbar navbar-expand-lg">
-  <div class="container-fluid">
-    <a class="navbar-brand" [routerLink]="['/dashboard']">{{ 'brand' | t }}</a>
+<nav class="navbar">
+  <div class="portal-topbar">
+    <a class="navbar-brand" routerLink="/dashboard" (click)="closeNavigation()">
+      <span class="brand-mark"><i class="bi bi-bag-check" aria-hidden="true"></i></span>
+      <span>{{ 'brand' | t }}</span>
+    </a>
     <button
-      class="navbar-toggler"
+      hlmBtn
+      variant="outline"
+      class="navigation-toggle"
       type="button"
-      data-bs-toggle="collapse"
-      data-bs-target="#navbarSupportedContent"
-      aria-controls="navbarSupportedContent"
-      aria-expanded="false"
+      aria-controls="portal-navigation"
+      [attr.aria-expanded]="navigationOpen"
       [attr.aria-label]="'toggleNavigation' | t"
+      (click)="toggleNavigation()"
     >
-      <span class="navbar-toggler-icon"></span>
+      <i [class]="navigationOpen ? 'bi bi-x-lg' : 'bi bi-list'" aria-hidden="true"></i>
     </button>
-    <div class="collapse navbar-collapse" id="navbarSupportedContent">
-      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        <li class="nav-item">
-          <a
-            class="nav-link"
-            aria-current="page"
-            role="button"
-            [routerLink]="['/dashboard']"
-            routerLinkActive="active"
-            >{{ 'products' | t }}</a
-          >
-        </li>
-        <li class="nav-item" *ngIf="bilgiler.role === 'CUSTOMER'">
-          <a class="nav-link" routerLink="/coupons" routerLinkActive="active">{{ 'couponsHeading' | t }}</a>
-        </li>
-        <li class="nav-item" *ngIf="bilgiler.role === 'CUSTOMER'">
-          <a class="nav-link" aria-current="page" role="button" [routerLink]="['/cart']" routerLinkActive="active">{{
-            'cart' | t
-          }}</a>
-        </li>
-        <li class="nav-item" *ngIf="bilgiler.role === 'CUSTOMER'">
-          <a class="nav-link" role="button" [routerLink]="['/addresses']" routerLinkActive="active">{{
-            'addresses' | t
-          }}</a>
-        </li>
-        <li class="nav-item" *ngIf="bilgiler.role === 'CUSTOMER'">
-          <a class="nav-link" role="button" [routerLink]="['/orders']" routerLinkActive="active">{{ 'orders' | t }}</a>
-        </li>
-        <li class="nav-item" *ngIf="invoiceRoute as invoiceLink">
-          <a class="nav-link" [routerLink]="invoiceLink" routerLinkActive="active">{{ 'invoiceNav' | t }}</a>
-        </li>
-        <li class="nav-item" *ngIf="bilgiler.role === 'ADMIN'">
-          <a class="nav-link" routerLink="/admin/exchanges" routerLinkActive="active">{{ 'platformExchanges' | t }}</a>
-        </li>
-        <li class="nav-item" *ngIf="bilgiler.role === 'ADMIN'">
-          <a class="nav-link" aria-current="page" role="button" [routerLink]="['/users']" routerLinkActive="active">{{
-            'users' | t
-          }}</a>
-        </li>
-        <li class="nav-item" *ngIf="bilgiler.role === 'ADMIN'">
-          <a class="nav-link" role="button" [routerLink]="['/admin/scheduling']" routerLinkActive="active">{{
-            'scheduling' | t
-          }}</a>
-        </li>
-        <li class="nav-item" *ngIf="bilgiler.role === 'ADMIN'">
-          <a class="nav-link" role="button" [routerLink]="['/admin/logistics-callbacks']" routerLinkActive="active">{{
-            'callbackGovernance' | t
-          }}</a>
-        </li>
-        <li class="nav-item" *ngIf="bilgiler.role === 'ADMIN'">
-          <a class="nav-link" [routerLink]="['/admin/inventory-reconciliation']" routerLinkActive="active">
-            {{ 'warehouseReconciliation' | t }}
-          </a>
-        </li>
-        <li class="nav-item" *ngIf="bilgiler.role === 'MERCHANT'">
-          <a class="nav-link" routerLink="/merchant/coupons" routerLinkActive="active">{{
-            'couponMerchantHeading' | t
-          }}</a>
-        </li>
-        <li class="nav-item" *ngIf="bilgiler.role === 'ADMIN'">
-          <a class="nav-link" routerLink="/admin/notification-deliveries" routerLinkActive="active">
-            {{ 'notificationRecovery' | t }}
-          </a>
-        </li>
-        <li class="nav-item" *ngIf="bilgiler.role === 'ADMIN'">
-          <a class="nav-link" routerLink="/admin/stores" routerLinkActive="active">{{ 'storeReview' | t }}</a>
-        </li>
-        <li class="nav-item" *ngIf="bilgiler.role === 'MERCHANT'">
-          <a class="nav-link" routerLink="/merchant/store" routerLinkActive="active">{{ 'ownStore' | t }}</a>
-        </li>
-        <li class="nav-item" *ngIf="bilgiler.role === 'ADMIN' || bilgiler.role === 'MERCHANT'">
-          <a
-            class="nav-link"
-            [routerLink]="
-              bilgiler.role === 'ADMIN' ? '/admin/payment-ledger-reports' : '/merchant/payment-ledger-reports'
-            "
-            routerLinkActive="active"
-          >
-            {{ 'ledgerHeading' | t }}
-          </a>
-        </li>
-        <li class="nav-item" *ngIf="bilgiler.role === 'MERCHANT'">
-          <a class="nav-link" routerLink="/merchant/settlements" routerLinkActive="active">
-            {{ 'merchantSettlement' | t }}
-          </a>
-        </li>
-        <li class="nav-item" *ngIf="bilgiler.role === 'MERCHANT'">
-          <a class="nav-link" [routerLink]="['/merchant/products']" routerLinkActive="active">{{
-            'merchantProducts' | t
-          }}</a>
-        </li>
-        <li class="nav-item" *ngIf="bilgiler.role === 'MERCHANT'">
-          <a class="nav-link" [routerLink]="['/merchant/orders']" routerLinkActive="active">{{ 'fulfillment' | t }}</a>
-        </li>
-        <li class="nav-item" *ngIf="bilgiler.role === 'MERCHANT'">
-          <a class="nav-link" [routerLink]="['/merchant/return-work-orders']" routerLinkActive="active">{{
-            'returnWorkOrders' | t
-          }}</a>
-        </li>
-        <li class="nav-item" *ngIf="bilgiler.role === 'MERCHANT'">
-          <a class="nav-link" [routerLink]="['/merchant/inventory']" routerLinkActive="active">{{ 'inventory' | t }}</a>
-        </li>
+    <div id="portal-navigation" class="portal-navigation" [class.is-open]="navigationOpen">
+      @let links = navigationLinks;
+      @let primaryCount = bilgiler.role === 'CUSTOMER' ? links.length : primaryLinkCount;
+      <ul class="navigation-links">
+        @for (entry of links.slice(0, primaryCount); track entry.path) {
+          <li><ng-container *ngTemplateOutlet="navigationLink; context: { $implicit: entry }" /></li>
+        }
+        @if (links.length > primaryCount) {
+          <li class="navigation-more" routerLinkActive="contains-active">
+            <button
+              class="nav-link navigation-more-toggle"
+              type="button"
+              aria-controls="portal-navigation-more"
+              [attr.aria-expanded]="moreNavigationOpen"
+              (click)="moreNavigationOpen = !moreNavigationOpen"
+            >
+              {{ 'moreNavigation' | t }} <i class="bi bi-chevron-down" aria-hidden="true"></i>
+            </button>
+            <ul id="portal-navigation-more" class="navigation-extra" [class.is-open]="moreNavigationOpen">
+              @for (entry of links.slice(primaryCount); track entry.path) {
+                <li><ng-container *ngTemplateOutlet="navigationLink; context: { $implicit: entry }" /></li>
+              }
+            </ul>
+          </li>
+        }
       </ul>
-      <div class="navbar-tools">
-        <form *ngIf="isProductPage" class="product-search" role="search" (ngSubmit)="search()">
-          <i class="bi bi-search search-leading-icon" aria-hidden="true"></i>
-          <input
-            type="search"
-            name="productSearch"
-            [(ngModel)]="searchText"
-            [placeholder]="'searchProducts' | t"
-            [attr.aria-label]="'searchProducts' | t"
-          />
-          <button hlmBtn class="search-submit" type="submit" [attr.aria-label]="'search' | t" [title]="'search' | t">
-            <span>{{ 'search' | t }}</span>
-          </button>
-        </form>
+    </div>
+    <div class="navbar-tools">
+      <button
+        hlmBtn
+        variant="outline"
+        class="language-switch"
+        type="button"
+        (click)="i18n.switch()"
+        [attr.aria-label]="'language' | t"
+        [title]="'language' | t"
+      >
+        <i class="bi bi-translate" aria-hidden="true"></i>
+      </button>
+      <div class="notification-menu" *ngIf="bilgiler.role === 'CUSTOMER'">
         <button
           hlmBtn
           variant="outline"
-          class="language-switch"
+          class="notification-switch"
           type="button"
-          (click)="i18n.switch()"
-          [attr.aria-label]="'language' | t"
-          [title]="'language' | t"
+          [attr.aria-expanded]="notificationOpen"
+          (click)="toggleNotifications()"
+          aria-controls="notification-panel"
+          [attr.aria-label]="'notifications' | t"
         >
-          <i class="bi bi-translate" aria-hidden="true"></i>
+          <i class="bi bi-bell" aria-hidden="true"></i>
+          <span class="notification-count" *ngIf="unreadNotifications">{{
+            unreadNotifications > 99 ? '99+' : unreadNotifications
+          }}</span>
         </button>
-        <div class="notification-menu" *ngIf="bilgiler.role === 'CUSTOMER'">
-          <button
-            hlmBtn
-            variant="outline"
-            class="notification-switch"
-            type="button"
-            [attr.aria-expanded]="notificationOpen"
-            (click)="toggleNotifications()"
-            aria-controls="notification-panel"
-            [attr.aria-label]="'notifications' | t"
-          >
-            <i class="bi bi-bell" aria-hidden="true"></i>
-            <span class="notification-count" *ngIf="unreadNotifications">{{
-              unreadNotifications > 99 ? '99+' : unreadNotifications
-            }}</span>
-          </button>
-          <div
-            class="notification-panel notification-empty"
-            *ngIf="!notificationOpen && notificationReadFailed"
-            role="status"
-          >
-            {{ 'notificationReadFailed' | t }}
-          </div>
-          <div id="notification-panel" class="notification-panel" *ngIf="notificationOpen">
-            <div class="notification-heading">
-              <div>
-                <strong>{{ 'notifications' | t }}</strong><small>{{ notifications.length }}</small>
-              </div>
-              <div class="notification-heading-actions">
-                <button
-                  type="button"
-                  *ngIf="unreadNotifications"
-                  [disabled]="notificationReadPending"
-                  (click)="markAllNotificationsRead()"
-                >
-                  {{ 'markAllRead' | t }}
-                </button>
-                <button
-                  type="button"
-                  class="notification-close"
-                  (click)="closeNotifications()"
-                  [attr.aria-label]="'close' | t"
-                >
-                  <i class="bi bi-x-lg" aria-hidden="true"></i>
-                </button>
-              </div>
+        <div
+          class="notification-panel notification-empty"
+          *ngIf="!notificationOpen && notificationReadFailed"
+          role="status"
+        >
+          {{ 'notificationReadFailed' | t }}
+        </div>
+        <div id="notification-panel" class="notification-panel" *ngIf="notificationOpen">
+          <div class="notification-heading">
+            <div>
+              <strong>{{ 'notifications' | t }}</strong><small>{{ notifications.length }}</small>
             </div>
-            <div class="notification-empty" *ngIf="notificationReadFailed" role="status">
-              {{ 'notificationReadFailed' | t }}
-            </div>
-            <div class="notification-empty" *ngIf="notificationUnavailable">
-              <span role="status">
-                {{ 'notificationUnavailable' | t }}
-              </span>
-              <button type="button" [disabled]="notificationReadPending" (click)="loadNotifications()">
-                {{ 'retry' | t }}
-              </button>
-            </div>
-            <div class="notification-list">
-              <div class="notification-empty" *ngIf="!notificationUnavailable && !notifications.length">
-                {{ 'noNotifications' | t }}
-              </div>
+            <div class="notification-heading-actions">
               <button
                 type="button"
-                class="notification-item"
-                *ngFor="let notification of notifications"
-                [class.unread]="notification.status === 'UNREAD'"
-                [disabled]="notificationReadPending && notification.status === 'UNREAD'"
-                (click)="openNotification(notification)"
+                *ngIf="unreadNotifications"
+                [disabled]="notificationReadPending"
+                (click)="markAllNotificationsRead()"
               >
-                <span class="notification-dot" aria-hidden="true"></span>
-                <span
-                  ><strong>{{ notification.title }}</strong
-                  ><small>{{ notification.message }}</small
-                  ><time>{{ notification.createdAt | trdate }}</time></span
-                >
+                {{ 'markAllRead' | t }}
+              </button>
+              <button
+                type="button"
+                class="notification-close"
+                (click)="closeNotifications()"
+                [attr.aria-label]="'close' | t"
+              >
+                <i class="bi bi-x-lg" aria-hidden="true"></i>
               </button>
             </div>
           </div>
-        </div>
-        <div class="dropdown account-menu">
-          <button
-            hlmBtn
-            variant="outline"
-            class="account-switch dropdown-toggle"
-            type="button"
-            data-bs-toggle="dropdown"
-            aria-expanded="false"
-          >
-            <span class="account-avatar">{{ accountInitial }}</span>
-            <span class="account-name">{{ accountDisplayName }}</span>
-          </button>
-          <ul class="dropdown-menu dropdown-menu-end">
-            <li class="account-summary">
-              <span class="account-avatar large">{{ accountInitial }}</span><span
-                ><strong>{{ accountDisplayName }}</strong
-                ><small>{{ bilgiler.role | t }} · {{ bilgiler.email }}</small></span
+          <div class="notification-empty" *ngIf="notificationReadFailed" role="status">
+            {{ 'notificationReadFailed' | t }}
+          </div>
+          <div class="notification-empty" *ngIf="notificationUnavailable">
+            <span role="status">
+              {{ 'notificationUnavailable' | t }}
+            </span>
+            <button type="button" [disabled]="notificationReadPending" (click)="loadNotifications()">
+              {{ 'retry' | t }}
+            </button>
+          </div>
+          <div class="notification-list">
+            <div class="notification-empty" *ngIf="!notificationUnavailable && !notifications.length">
+              {{ 'noNotifications' | t }}
+            </div>
+            <button
+              type="button"
+              class="notification-item"
+              *ngFor="let notification of notifications"
+              [class.unread]="notification.status === 'UNREAD'"
+              [disabled]="notificationReadPending && notification.status === 'UNREAD'"
+              (click)="openNotification(notification)"
+            >
+              <span class="notification-dot" aria-hidden="true"></span>
+              <span
+                ><strong>{{ notification.title }}</strong
+                ><small>{{ notification.message }}</small
+                ><time>{{ notification.createdAt | trdate }}</time></span
               >
-            </li>
-            <li>
-              <hr class="dropdown-divider" />
-            </li>
-            <li>
-              <a class="dropdown-item" [routerLink]="['/profile']"
-                ><i class="bi bi-person me-2" aria-hidden="true"></i>{{ 'profile' | t }}</a
-              >
-            </li>
-            <li>
-              <button class="dropdown-item text-danger" type="button" (click)="logout()">
-                <i class="bi bi-box-arrow-right me-2" aria-hidden="true"></i>{{ 'logout' | t }}
-              </button>
-            </li>
-          </ul>
+            </button>
+          </div>
         </div>
+      </div>
+      <div class="dropdown account-menu">
+        <button
+          hlmBtn
+          variant="outline"
+          class="account-switch dropdown-toggle"
+          type="button"
+          data-bs-toggle="dropdown"
+          aria-expanded="false"
+        >
+          <span class="account-avatar">{{ accountInitial }}</span>
+          <span class="account-name">{{ accountDisplayName }}</span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li class="account-summary">
+            <span class="account-avatar large">{{ accountInitial }}</span><span
+              ><strong>{{ accountDisplayName }}</strong
+              ><small>{{ bilgiler.role | t }} · {{ bilgiler.email }}</small></span
+            >
+          </li>
+          <li>
+            <hr class="dropdown-divider" />
+          </li>
+          <li>
+            <a class="dropdown-item" [routerLink]="['/profile']"
+              ><i class="bi bi-person me-2" aria-hidden="true"></i>{{ 'profile' | t }}</a
+            >
+          </li>
+          <li>
+            <button class="dropdown-item text-danger" type="button" (click)="logout()">
+              <i class="bi bi-box-arrow-right me-2" aria-hidden="true"></i>{{ 'logout' | t }}
+            </button>
+          </li>
+        </ul>
       </div>
     </div>
   </div>
 </nav>
+
+<ng-template #navigationLink let-entry>
+  <a
+    class="nav-link"
+    [routerLink]="entry.path"
+    routerLinkActive="active"
+    ariaCurrentWhenActive="page"
+    (click)="closeNavigation()"
+  >
+    <i [class]="'bi bi-' + entry.icon" aria-hidden="true"></i>{{ entry.label | t }}
+  </a>
+</ng-template>

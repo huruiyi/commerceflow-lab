@@ -1,13 +1,12 @@
+import { displayOrderNumber } from './order-number';
 import { afterNextRender, ChangeDetectorRef, Component, DestroyRef, ElementRef, Injector, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationSkipped, NavigationSkippedCode, Router } from '@angular/router';
 import {
-  catchError,
   distinctUntilChanged,
   exhaustMap,
   filter,
   finalize,
-  forkJoin,
   map,
   Observable,
   of,
@@ -60,9 +59,10 @@ interface Notice {
   standalone: false,
   selector: 'app-purchase-orders',
   templateUrl: './purchase-orders.component.html',
-  styleUrls: ['./purchase-orders.component.css'],
+  styleUrls: ['./order-list-layout.css', './purchase-orders.component.css'],
 })
 export class PurchaseOrdersComponent implements OnInit {
+  readonly displayOrderNumber = displayOrderNumber;
   readonly reviewScores = [1, 2, 3, 4, 5];
   readonly channels: ChannelOption[] = [
     {
@@ -125,7 +125,6 @@ export class PurchaseOrdersComponent implements OnInit {
   detailId: string | null = null;
   detailUnavailable = false;
   private loadVersion = 0;
-  private expansionInitialized = false;
 
   constructor(
     protected account: AccountService,
@@ -195,30 +194,16 @@ export class PurchaseOrdersComponent implements OnInit {
       this.loadDetail(this.detailId, version);
       return;
     }
-    forkJoin({
-      page: this.api.searchOrders(criteria),
-      products: this.api.allProducts().pipe(catchError(() => of([]))),
-    })
+    this.api
+      .searchOrders(criteria)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ page, products }) => {
+        next: (page) => {
           if (version !== this.loadVersion) return;
           this.page = page;
           this.criteria = { ...criteria, page: page.page };
-          const catalogProducts = new Map(products.map((product) => [product.id, product]));
-          this.orders = page.orders.map((order) => ({
-            ...order,
-            items: order.items.map((item) => ({
-              ...item,
-              productName: catalogProducts.get(item.productId)?.name ?? item.productName,
-              thumbnailUrl: catalogProducts.get(item.productId)?.thumbnailUrl ?? item.thumbnailUrl,
-            })),
-          }));
-          this.orders.forEach((order) => this.initializeOrder(order));
-          if (!this.expansionInitialized && this.orders.length) {
-            this.expandedOrders.add(this.orders[0].id);
-            this.expansionInitialized = true;
-          }
+          this.orders = page.orders;
+          this.orders.forEach((order) => this.initializeListOrder(order));
           this.loading = false;
           this.changeDetector.markForCheck();
         },
@@ -713,6 +698,17 @@ export class PurchaseOrdersComponent implements OnInit {
     }
     this.selectedChannels[order.id] = (order.payment?.channel as PaymentChannel) ?? 'ALIPAY';
     this.draftKeys[order.id] = crypto.randomUUID();
+  }
+
+  private initializeListOrder(order: PurchaseOrder): void {
+    const firstVisit = this.draftKeys[order.id] === undefined;
+    this.initializeOrder(order);
+    const recovering =
+      this.cancellationRequests[order.id] !== undefined ||
+      this.paymentNeedsRecovery(order) ||
+      (this.lastAttempts[order.id]?.paymentNumber === order.payment?.paymentNumber &&
+        (order.payment?.status === 'PENDING' || this.paymentAwaitingOrder(order)));
+    if (firstVisit && recovering) this.expandedOrders.add(order.id);
   }
 
   private updatePaymentOrder(order: PurchaseOrder, pendingKey: string): void {

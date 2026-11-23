@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import vip.fairy.commerceflow.commerce.shared.api.AdminListPage;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -40,6 +42,14 @@ public class MerchantInventoryController {
   List<InventoryMovementView> movements(@PathVariable Long productId,
                                         Authentication authentication) {
     return inventory.movements(currentUsers.require(authentication).getId(), productId);
+  }
+
+  @GetMapping("/{productId}/movements/page")
+  AdminListPage<InventoryMovementView> movementPage(@PathVariable Long productId,
+                                                  @RequestParam(defaultValue = "0") int page,
+                                                  @RequestParam(defaultValue = "10") int size,
+                                                  Authentication authentication) {
+    return inventory.movementPage(currentUsers.require(authentication).getId(), productId, page, size);
   }
 
   @PostMapping("/{productId}/adjustments")

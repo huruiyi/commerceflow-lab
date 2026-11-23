@@ -17,5 +17,8 @@ public interface MerchantInventoryMapper {
              @Param("delta") int delta);
 
   List<InventoryMovementView> movements(@Param("merchantId") Long merchantId,
-                                        @Param("productId") Long productId);
+                                        @Param("productId") Long productId,
+                                        @Param("size") int size, @Param("offset") long offset);
+
+  long movementCount(@Param("merchantId") Long merchantId, @Param("productId") Long productId);
 }

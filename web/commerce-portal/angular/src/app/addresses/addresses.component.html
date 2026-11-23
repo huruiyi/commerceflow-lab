@@ -1,91 +1,181 @@
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h2 class="mb-0">{{ 'shippingAddresses' | t }}</h2>
-  <a routerLink="/cart">{{ 'backToCart' | t }}</a>
-</div>
-<div *ngIf="message" class="alert alert-success">{{ message }}</div>
-<form #addressForm="ngForm" (ngSubmit)="save()" class="row g-2 mb-4">
-  <div class="col-md-4">
-    <label class="form-label">{{ 'label' | t }}</label>
-    <input class="form-control" name="label" [(ngModel)]="draft.label" required maxlength="40" />
-  </div>
-  <div class="col-md-4">
-    <label class="form-label">{{ 'recipient' | t }}</label>
-    <input class="form-control" name="recipient" [(ngModel)]="draft.recipientName" required maxlength="100" />
-  </div>
-  <div class="col-md-4">
-    <label class="form-label">{{ 'phone' | t }}</label>
-    <input class="form-control" name="phone" [(ngModel)]="draft.phone" required maxlength="40" />
-  </div>
-  <div class="col-md-2">
-    <label class="form-label">{{ 'countryCode' | t }}</label>
-    <input
-      class="form-control"
-      name="country"
-      [(ngModel)]="draft.countryCode"
-      required
-      pattern="[A-Za-z]{2}"
-      maxlength="2"
-    />
-  </div>
-  <div class="col-md-3">
-    <label class="form-label">{{ 'province' | t }}</label>
-    <input class="form-control" name="state" [(ngModel)]="draft.stateProvince" required />
-  </div>
-  <div class="col-md-3">
-    <label class="form-label">{{ 'city' | t }}</label>
-    <input class="form-control" name="city" [(ngModel)]="draft.city" required />
-  </div>
-  <div class="col-md-4">
-    <label class="form-label">{{ 'district' | t }}</label>
-    <input class="form-control" name="district" [(ngModel)]="draft.district" required />
-  </div>
-  <div class="col-md-8">
-    <label class="form-label">{{ 'addressLine' | t }}</label>
-    <input class="form-control" name="line1" [(ngModel)]="draft.addressLine1" required />
-  </div>
-  <div class="col-md-4">
-    <label class="form-label">{{ 'postalCode' | t }}</label>
-    <input class="form-control" name="postal" [(ngModel)]="draft.postalCode" required />
-  </div>
-  <div class="col-12">
-    <label class="form-label">{{ 'addressLine2' | t }}</label>
-    <input class="form-control" name="line2" [(ngModel)]="draft.addressLine2" />
-  </div>
-  <div class="col-12 form-check ms-2">
-    <input class="form-check-input" type="checkbox" name="default" [(ngModel)]="draft.isDefault" id="defaultAddress" />
-    <label class="form-check-label" for="defaultAddress">{{ 'defaultAddress' | t }}</label>
-  </div>
-  <div class="col-12">
-    <button class="btn btn-primary" [disabled]="addressForm.invalid">
-      {{ (editingId ? 'update' : 'addAddress') | t }}
+<header class="address-heading">
+  <h1>{{ 'shippingAddresses' | t }}</h1>
+  <div class="address-actions">
+    <a class="btn btn-sm btn-outline-secondary" routerLink="/cart">{{ 'backToCart' | t }}</a>
+    <button
+      id="add-shipping-address"
+      type="button"
+      class="btn btn-sm btn-primary"
+      (click)="startCreate()"
+      [attr.aria-expanded]="formOpen"
+      [disabled]="busy"
+    >
+      <i class="bi bi-plus-lg" aria-hidden="true"></i> {{ 'addAddress' | t }}
     </button>
-    <button *ngIf="editingId" type="button" class="btn btn-secondary" (click)="cancel()">{{ 'cancel' | t }}</button>
   </div>
-</form>
-<div class="row g-3">
-  <div class="col-md-6" *ngFor="let a of addresses">
-    <div class="card h-100">
-      <div class="card-body">
-        <h5 class="d-flex align-items-center flex-wrap gap-2">
-          <span>{{ a.label }}</span>
-          <span *ngIf="a.isDefault" class="badge bg-primary">{{ 'default' | t }}</span>
-          <span *ngIf="selectedAddressId === a.id" class="badge bg-success">{{ 'selected' | t }}</span>
-        </h5>
-        <p>
-          {{ a.recipientName }} · {{ a.phone }}
-          <br />
-          {{ a.addressLine1 }} {{ a.addressLine2 }}
-          <br />
-          {{ a.district }}, {{ a.city }}, {{ a.stateProvince }}, {{ a.countryCode }} {{ a.postalCode }}
-        </p>
-        <button class="btn btn-sm btn-outline-primary me-1" (click)="edit(a)">{{ 'edit' | t }}</button>
-        <button class="btn btn-sm btn-outline-secondary me-1" (click)="makeDefault(a.id)" [disabled]="a.isDefault">
-          {{ 'setDefault' | t }}
-        </button>
-        <button class="btn btn-sm btn-outline-success me-1" (click)="select(a.id)">{{ 'useForCheckout' | t }}</button>
-        <button class="btn btn-sm btn-outline-danger" (click)="remove(a.id)">{{ 'delete' | t }}</button>
+</header>
+
+@if (message) {
+  <p class="alert alert-success" role="status">{{ message }}</p>
+}
+@if (actionFailed && !formOpen) {
+  <p class="alert alert-warning" role="alert">{{ 'addressActionFailed' | t }}</p>
+}
+
+@if (loading && !addresses.length) {
+  <p class="address-panel" role="status">{{ 'loading' | t }}</p>
+} @else if (loadFailed) {
+  <div class="address-panel" role="alert">
+    <p>{{ 'addressLoadFailed' | t }}</p>
+    <button class="btn btn-sm btn-outline-secondary" type="button" (click)="reload()">{{ 'retry' | t }}</button>
+  </div>
+} @else if (addresses.length) {
+  <ul class="address-list" [attr.aria-label]="'shippingAddresses' | t" [attr.aria-busy]="loading">
+    @for (a of addresses; track a.id) {
+      <li class="address-row">
+        <div class="address-icon" aria-hidden="true"><i class="bi bi-geo-alt"></i></div>
+        <div class="address-info">
+          <h2>
+            {{ a.label }}
+            @if (a.isDefault) {
+              <span class="address-badge">{{ 'default' | t }}</span>
+            }
+            @if (selectedAddressId === a.id) {
+              <span class="address-badge address-selected">{{ 'selected' | t }}</span>
+            }
+          </h2>
+          <p class="address-recipient">{{ a.recipientName }} · {{ a.phone }}</p>
+          <p>{{ a.addressLine1 }} {{ a.addressLine2 }}</p>
+          <p>{{ a.district }}, {{ a.city }}, {{ a.stateProvince }}, {{ a.countryCode }} {{ a.postalCode }}</p>
+        </div>
+        <div class="address-actions address-row-actions">
+          <button type="button" class="btn btn-sm btn-outline-secondary" (click)="edit(a)" [disabled]="busy || loading">
+            {{ 'edit' | t }}
+          </button>
+          @if (!a.isDefault) {
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-secondary"
+              (click)="makeDefault(a.id)"
+              [disabled]="busy || loading"
+            >
+              {{ 'setDefault' | t }}
+            </button>
+          }
+          @if (selectedAddressId !== a.id) {
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-primary"
+              (click)="select(a.id)"
+              [disabled]="busy || loading"
+            >
+              {{ 'useForCheckout' | t }}
+            </button>
+          }
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-danger"
+            (click)="remove(a.id)"
+            [disabled]="busy || loading"
+          >
+            {{ 'delete' | t }}
+          </button>
+        </div>
+      </li>
+    }
+  </ul>
+} @else {
+  <p class="address-panel" role="status">{{ 'noAddresses' | t }}</p>
+}
+
+@if (formOpen) {
+  <section class="address-panel" aria-labelledby="address-form-title">
+    <h2 id="address-form-title">{{ (editingId === undefined ? 'addAddress' : 'addressEditTitle') | t }}</h2>
+    @if (actionFailed) {
+      <p class="alert alert-warning" role="alert">{{ 'addressActionFailed' | t }}</p>
+    }
+    <form #addressForm="ngForm" (ngSubmit)="save()" class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label" for="address-label">{{ 'label' | t }}</label>
+        <input class="form-control" id="address-label" name="label" [(ngModel)]="draft.label" required maxlength="40" />
       </div>
-    </div>
-  </div>
-</div>
-<div *ngIf="addresses.length === 0" class="alert alert-info">{{ 'noAddresses' | t }}</div>
+      <div class="col-md-4">
+        <label class="form-label" for="address-recipient">{{ 'recipient' | t }}</label>
+        <input
+          class="form-control"
+          id="address-recipient"
+          name="recipient"
+          [(ngModel)]="draft.recipientName"
+          required
+          maxlength="100"
+        />
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="address-phone">{{ 'phone' | t }}</label>
+        <input
+          class="form-control"
+          id="address-phone"
+          type="tel"
+          name="phone"
+          [(ngModel)]="draft.phone"
+          required
+          maxlength="40"
+        />
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="address-country">{{ 'countryCode' | t }}</label>
+        <input
+          class="form-control"
+          id="address-country"
+          name="country"
+          [(ngModel)]="draft.countryCode"
+          required
+          pattern="[A-Za-z]{2}"
+          maxlength="2"
+        />
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="address-state">{{ 'province' | t }}</label>
+        <input class="form-control" id="address-state" name="state" [(ngModel)]="draft.stateProvince" required />
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="address-city">{{ 'city' | t }}</label>
+        <input class="form-control" id="address-city" name="city" [(ngModel)]="draft.city" required />
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="address-district">{{ 'district' | t }}</label>
+        <input class="form-control" id="address-district" name="district" [(ngModel)]="draft.district" required />
+      </div>
+      <div class="col-md-8">
+        <label class="form-label" for="address-line1">{{ 'addressLine' | t }}</label>
+        <input class="form-control" id="address-line1" name="line1" [(ngModel)]="draft.addressLine1" required />
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="address-postal">{{ 'postalCode' | t }}</label>
+        <input class="form-control" id="address-postal" name="postal" [(ngModel)]="draft.postalCode" required />
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="address-line2">{{ 'addressLine2' | t }}</label>
+        <input class="form-control" id="address-line2" name="line2" [(ngModel)]="draft.addressLine2" />
+      </div>
+      <div class="col-12 form-check ms-2">
+        <input
+          class="form-check-input"
+          type="checkbox"
+          name="default"
+          [(ngModel)]="draft.isDefault"
+          id="defaultAddress"
+        />
+        <label class="form-check-label" for="defaultAddress">{{ 'defaultAddress' | t }}</label>
+      </div>
+      <div class="col-12">
+        <button class="btn btn-primary" [disabled]="addressForm.invalid || busy">
+          {{ 'addressSave' | t }}
+        </button>
+        <button type="button" class="btn btn-outline-secondary" (click)="cancel()" [disabled]="busy">
+          {{ 'cancel' | t }}
+        </button>
+      </div>
+    </form>
+  </section>
+}

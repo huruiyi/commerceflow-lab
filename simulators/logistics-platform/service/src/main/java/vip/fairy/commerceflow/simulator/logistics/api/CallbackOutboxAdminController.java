@@ -44,6 +44,18 @@ public class CallbackOutboxAdminController {
     return outbox.list(status, limit);
   }
 
+  @GetMapping("/page")
+  CallbackOutboxService.OutboxPage page(@RequestParam(required = false) String status,
+                                        @RequestParam(defaultValue = "0") int page,
+                                        @RequestParam(defaultValue = "10") int size,
+                                        @RequestHeader("X-App-Id") String appId,
+                                        @RequestHeader("X-Timestamp") String timestamp,
+                                        @RequestHeader("X-Nonce") String nonce,
+                                        @RequestHeader("X-Signature") String signature) {
+    signatures.verify(appId, timestamp, nonce, signature, "");
+    return outbox.page(status, page, size);
+  }
+
   @GetMapping("/{id}/events")
   List<CallbackOutboxView.AuditEvent> events(@PathVariable Long id,
                                              @RequestHeader("X-App-Id") String appId,

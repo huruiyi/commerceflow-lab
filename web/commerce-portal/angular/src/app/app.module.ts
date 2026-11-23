@@ -14,6 +14,9 @@ import { AppComponent } from './app.component';
 import { InvoiceCenterComponent } from './invoices/invoice-center.component';
 import { LoginComponent } from './login/login.component';
 import { DashboardComponent } from './dashboard/dashboard.component';
+import { CatalogImageComponent } from './dashboard/catalog-image.component';
+import { CatalogProductCardComponent } from './dashboard/catalog-product-card.component';
+import { ProductDetailComponent } from './product-detail/product-detail.component';
 import { NavbarComponent } from './inc/navbar/navbar.component';
 import { ErrorpageComponent } from './errorpage/errorpage.component';
 import { CouponsComponent } from './coupons/coupons.component';
@@ -48,6 +51,7 @@ import { InventoryReconciliationAdminComponent } from './inventory-reconciliatio
     AppComponent,
     LoginComponent,
     DashboardComponent,
+    ProductDetailComponent,
     NavbarComponent,
     ErrorpageComponent,
     OrderComponent,
@@ -84,6 +88,8 @@ import { InventoryReconciliationAdminComponent } from './inventory-reconciliatio
     ReactiveFormsModule,
     HttpClientModule,
     HlmButton,
+    CatalogImageComponent,
+    CatalogProductCardComponent,
     ListPaginationComponent,
     HlmBadge,
     HlmSpinner,

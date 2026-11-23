@@ -5,7 +5,7 @@ import { I18nService } from '../services/i18n.service';
 export class TrcurrencyPipe implements PipeTransform {
   constructor(private i18n: I18nService) {}
 
-  transform(value: string | number): string {
-    return new Intl.NumberFormat(this.i18n.locale(), { style: 'currency', currency: 'CNY' }).format(Number(value));
+  transform(value: string | number, currency = 'CNY'): string {
+    return new Intl.NumberFormat(this.i18n.locale(), { style: 'currency', currency }).format(Number(value));
   }
 }

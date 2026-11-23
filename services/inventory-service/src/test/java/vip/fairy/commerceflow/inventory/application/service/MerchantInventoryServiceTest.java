@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import vip.fairy.commerceflow.inventory.domain.InventoryMovementView;
 import vip.fairy.commerceflow.inventory.domain.MerchantInventoryItem;
 import vip.fairy.commerceflow.inventory.domain.ProductInventory;
 import vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryMapper;
@@ -64,6 +66,23 @@ class MerchantInventoryServiceTest {
 
     assertThat(service().list(7L)).containsExactly(item);
     verify(merchantInventory).list(7L);
+  }
+
+  @Test
+  void pagesOwnedMovementHistoryBeyondTheLegacyLimit() {
+    when(merchantInventory.find(7L, 1L)).thenReturn(mock(MerchantInventoryItem.class));
+    when(merchantInventory.movementCount(7L, 1L)).thenReturn(104L);
+    InventoryMovementView row = mock(InventoryMovementView.class);
+    when(merchantInventory.movements(7L, 1L, 10, 100)).thenReturn(List.of(row));
+
+    var page = service().movementPage(7L, 1L, 99, 10);
+
+    assertThat(page.total()).isEqualTo(104);
+    assertThat(page.page()).isEqualTo(10);
+    assertThat(page.rows()).containsExactly(row);
+    assertThatThrownBy(() -> service().movementPage(8L, 1L, 0, 10))
+      .isInstanceOf(InventoryNotFoundException.class);
+    verify(merchantInventory, never()).movementCount(8L, 1L);
   }
 
   private MerchantInventoryService service() {

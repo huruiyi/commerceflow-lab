@@ -1,8 +1,9 @@
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute } from '@angular/router';
-import { finalize, forkJoin } from 'rxjs';
+import { ActivatedRoute, Router } from '@angular/router';
+import { finalize, forkJoin, Subscription } from 'rxjs';
+import { readPage } from '../list-pagination/page-query';
 import { I18nService } from '../services/i18n.service';
 
 interface LedgerSummary {
@@ -48,6 +49,7 @@ interface MerchantOption {
 const DAY = 86_400_000;
 const DEFAULT_ZONE = 'Asia/Shanghai';
 const CHANNELS = ['ALIPAY', 'WECHAT_PAY', 'UNION_PAY'] as const;
+const DAILY_PAGE_SIZE = 12;
 
 function dateAtZone(date: Date, timeZone: string): string {
   const parts = new Intl.DateTimeFormat('en', {
@@ -80,6 +82,8 @@ function initialFilters() {
   };
 }
 
+type LedgerFilters = ReturnType<typeof initialFilters>;
+
 @Component({
   selector: 'app-payment-ledger-reports',
   standalone: false,
@@ -89,12 +93,18 @@ function initialFilters() {
 export class PaymentLedgerReportsComponent {
   private readonly http = inject(HttpClient);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly i18n = inject(I18nService);
   private readonly api = this.route.snapshot.data['admin']
     ? '/api/admin/payment-ledger-reports'
     : '/api/merchant/payment-ledger-reports';
+  private readonly defaultFilters = initialFilters();
+  private readonly requestedPage = signal(0);
+  private readonly requestedCurrency = signal('');
+  private appliedFilters?: LedgerFilters;
+  private reportRequest?: Subscription;
 
+  readonly i18n = inject(I18nService);
   readonly timeZones = [...new Set([DEFAULT_ZONE, 'UTC', 'America/New_York', ...Intl.supportedValuesOf('timeZone')])];
   readonly channels = CHANNELS;
   readonly currencies = [...new Set(['CNY', 'USD', 'EUR', 'JPY', 'HKD', ...Intl.supportedValuesOf('currency')])];
@@ -102,9 +112,19 @@ export class PaymentLedgerReportsComponent {
   readonly report = signal<LedgerReport | null>(null);
   readonly loading = signal(false);
   readonly error = signal('');
-  readonly viewCurrency = signal('');
+  readonly viewCurrency = computed(() => {
+    const totals = this.report()?.totals;
+    const requested = this.requestedCurrency();
+    return totals?.find((row) => row.currency === requested)?.currency ?? totals?.[0]?.currency ?? '';
+  });
   readonly selected = computed(() => this.report()?.totals.find((row) => row.currency === this.viewCurrency()));
   readonly daily = computed(() => this.report()?.daily.filter((row) => row.currency === this.viewCurrency()) ?? []);
+  readonly dailyTotalPages = computed(() => Math.ceil(this.daily().length / DAILY_PAGE_SIZE));
+  readonly dailyPage = computed(() => Math.min(this.requestedPage(), Math.max(0, this.dailyTotalPages() - 1)));
+  readonly dailyPageRows = computed(() => {
+    const firstRow = this.dailyPage() * DAILY_PAGE_SIZE;
+    return this.daily().slice(firstRow, firstRow + DAILY_PAGE_SIZE);
+  });
   readonly byChannel = computed(
     () => this.report()?.channels.filter((row) => row.currency === this.viewCurrency()) ?? [],
   );
@@ -134,20 +154,69 @@ export class PaymentLedgerReportsComponent {
     return rows;
   });
   readonly trendPeak = computed(() => Math.max(1, ...this.trend().map((day) => Math.max(day.created, day.paid))));
-  filters = initialFilters();
+  filters = { ...this.defaultFilters };
 
   constructor() {
-    this.search();
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      this.requestedPage.set(readPage(params.get('page')));
+      this.requestedCurrency.set(params.get('viewCurrency') ?? '');
+      const filters = {
+        startDate: params.get('startDate') ?? this.defaultFilters.startDate,
+        endDate: params.get('endDate') ?? this.defaultFilters.endDate,
+        timeZone: params.get('timeZone') ?? this.defaultFilters.timeZone,
+        channel: params.get('channel') ?? '',
+        currency: params.get('currency') ?? '',
+        merchantId: params.get('merchantId') ?? '',
+      };
+      if (this.sameFilters(filters)) return;
+      this.appliedFilters = filters;
+      this.filters = { ...filters };
+      this.loadReport(filters);
+    });
   }
 
   reset(): void {
-    this.filters = initialFilters();
+    this.filters = { ...this.defaultFilters };
     this.search();
   }
 
   search(): void {
     if (this.loading()) return;
-    const { startDate, endDate, timeZone, channel, currency, merchantId } = this.filters;
+    const filters = { ...this.filters };
+    const currency = this.viewCurrency();
+    if (this.sameFilters(filters)) this.loadReport(filters);
+    this.navigateReport(filters, currency, 0);
+  }
+
+  changeDailyPage(page: number): void {
+    if (this.appliedFilters) this.navigateReport(this.appliedFilters, this.viewCurrency(), page);
+  }
+
+  changeViewCurrency(currency: string): void {
+    if (this.appliedFilters && currency !== this.viewCurrency()) this.navigateReport(this.appliedFilters, currency, 0);
+  }
+
+  private sameFilters(filters: LedgerFilters): boolean {
+    return JSON.stringify(filters) === JSON.stringify(this.appliedFilters);
+  }
+
+  private navigateReport(filters: LedgerFilters, viewCurrency: string, page: number): void {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {
+        ...filters,
+        channel: filters.channel || null,
+        currency: filters.currency || null,
+        merchantId: filters.merchantId || null,
+        viewCurrency: viewCurrency || null,
+        page: page || null,
+      },
+    });
+  }
+
+  private loadReport(filters: LedgerFilters): void {
+    this.reportRequest?.unsubscribe();
+    const { startDate, endDate, timeZone, channel, currency, merchantId } = filters;
     const span = (utcDay(endDate) - utcDay(startDate)) / DAY;
     if (!Number.isFinite(span) || span < 0 || span >= 366) {
       this.error.set('ledgerInvalidDates');
@@ -161,7 +230,7 @@ export class PaymentLedgerReportsComponent {
     this.error.set('');
     this.loading.set(true);
     this.report.set(null);
-    forkJoin({
+    this.reportRequest = forkJoin({
       merchants: this.http.get<MerchantOption[]>(this.api + '/merchants'),
       report: this.http.get<LedgerReport>(this.api, { params }),
     })
@@ -172,11 +241,6 @@ export class PaymentLedgerReportsComponent {
       .subscribe({
         next: ({ merchants, report }) => {
           this.merchants.set(merchants);
-          this.viewCurrency.set(
-            report.totals.some((row) => row.currency === this.viewCurrency())
-              ? this.viewCurrency()
-              : (report.totals[0]?.currency ?? ''),
-          );
           this.report.set(report);
         },
         error: (error: HttpErrorResponse) => {

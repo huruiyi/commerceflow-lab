@@ -22,10 +22,12 @@ export class OrderComponent implements OnInit {
   selectedCoupon?: string;
   availableCoupons?: CustomerCoupon[];
   loadingCoupons = false;
+  couponLoadFailed = false;
 
   loadCoupons(): void {
     if (this.loadingCoupons) return;
     this.loadingCoupons = true;
+    this.couponLoadFailed = false;
     this.api
       .couponWallet()
       .pipe(
@@ -43,7 +45,7 @@ export class OrderComponent implements OnInit {
             this.invalidateQuote();
           }
         },
-        error: () => (this.checkoutError = this.i18n.t('couponOperationFailed')),
+        error: () => (this.couponLoadFailed = true),
       });
   }
   checkingOut = false;
@@ -141,6 +143,7 @@ export class OrderComponent implements OnInit {
   ngOnInit(): void {
     this.loadCart();
     this.loadAddresses();
+    this.loadCoupons();
     this.i18n.localeChanged.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.loadCart());
   }
 

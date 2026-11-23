@@ -13,6 +13,7 @@ import vip.fairy.commerceflow.commerce.scheduling.application.ScheduledTaskServi
 import vip.fairy.commerceflow.commerce.scheduling.api.ScheduledTaskCancelRequest;
 import vip.fairy.commerceflow.commerce.scheduling.api.ScheduledTaskPolicyRequest;
 import vip.fairy.commerceflow.commerce.scheduling.api.ScheduledTaskPolicyResponse;
+import vip.fairy.commerceflow.commerce.shared.api.AdminListPage;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -70,6 +71,14 @@ public class ScheduledTaskAdminController {
                                 @RequestParam(required = false) String status,
                                 @RequestParam(defaultValue = "100") int limit) {
     return tasks.list(taskType, status, limit);
+  }
+
+  @GetMapping("/tasks/page")
+  AdminListPage<ScheduledTaskView> taskPage(@RequestParam(required = false) String taskType,
+                                           @RequestParam(required = false) String status,
+                                           @RequestParam(defaultValue = "0") int page,
+                                           @RequestParam(defaultValue = "10") int size) {
+    return tasks.page(taskType, status, page, size);
   }
 
   @GetMapping("/tasks/{id}/events")

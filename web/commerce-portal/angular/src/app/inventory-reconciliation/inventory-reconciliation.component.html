@@ -1,10 +1,23 @@
-<section class="workspace container-fluid">
+<section class="workspace">
   <header class="page-heading">
     <h1>{{ 'warehouseReconciliation' | t }}</h1>
-    <button type="button" class="btn btn-outline-secondary" (click)="load()" [disabled]="loading || saving">
-      <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
-      {{ 'warehouseRefresh' | t }}
-    </button>
+    <div class="workspace-actions">
+      <button type="button" class="btn btn-outline-secondary" (click)="load()" [disabled]="loading || saving">
+        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+        {{ 'warehouseRefresh' | t }}
+      </button>
+      <button
+        type="button"
+        class="btn btn-outline-primary"
+        id="stocktake-toggle"
+        [attr.aria-expanded]="stocktakeOpen"
+        [attr.aria-controls]="stocktakeOpen ? 'stocktake-workspace' : null"
+        (click)="toggleStocktake()"
+      >
+        <i class="bi bi-clipboard-check" aria-hidden="true"></i>
+        {{ 'stocktakeTitle' | t }}
+      </button>
+    </div>
   </header>
 
   @if (receipt; as result) {
@@ -23,41 +36,76 @@
         }
       </div>
 
+      @let queue = queueView;
+      @if (recoveries.length || queueQuery) {
+        <div class="queue-filters">
+          <label>
+            {{ 'warehouseQueueSearch' | t }}
+            <input
+              class="form-control"
+              type="search"
+              inputmode="numeric"
+              [ngModel]="queueQuery"
+              (ngModelChange)="filterQueue($event)"
+            />
+          </label>
+        </div>
+      }
+
       @if (loading) {
         <p class="panel-message" role="status">{{ 'warehouseLoading' | t }}</p>
       } @else if (listError) {
         <p class="panel-message text-danger" role="alert">{{ 'warehouseListError' | t }}</p>
+      } @else if (!recoveries.length) {
+        <p class="panel-message panel-empty">
+          <i class="bi bi-inbox" aria-hidden="true"></i>
+          {{ 'warehouseEmpty' | t }}
+        </p>
+      } @else if (!queue.total) {
+        <p class="panel-message" role="status">{{ 'warehouseQueueNoMatch' | t }}</p>
       } @else {
-        @for (recovery of recoveries; track recovery.commandId) {
-          <button
-            type="button"
-            class="queue-row"
-            [class.selected]="selected?.commandId === recovery.commandId"
-            [attr.aria-pressed]="selected?.commandId === recovery.commandId"
-            [disabled]="loadingDetail || saving || recovery.commandType !== 'RESERVE'"
-            (click)="open(recovery)"
-          >
-            <span class="row-title">
-              {{ 'warehouseOrder' | t }} #{{ recovery.orderId }}
-              <i class="bi bi-chevron-right" aria-hidden="true"></i>
-            </span>
-            <span class="row-details"> {{ recovery.commandType | t }} · {{ recovery.createdAt | trdate }} </span>
-            @if (recovery.lastError) {
-              <span class="row-error">{{ recovery.lastError | t }}</span>
-            }
-          </button>
-        } @empty {
-          <p class="panel-message">{{ 'warehouseEmpty' | t }}</p>
+        @if (queue.totalPages > 1) {
+          <div class="queue-pagination">
+            <app-list-pagination
+              class="admin-pagination"
+              [page]="queue.page"
+              [totalPages]="queue.totalPages"
+              [label]="'warehouseQueue' | t"
+              [loading]="loadingDetail || saving"
+              (pageChange)="changeQueuePage($event)"
+            />
+          </div>
         }
-        @if (recoveries.length === 200) {
-          <p class="panel-message">{{ 'warehouseQueueLimit' | t }}</p>
-        }
+        <div class="queue-rows">
+          @for (recovery of queue.rows; track recovery.commandId) {
+            <button
+              type="button"
+              class="queue-row"
+              [class.selected]="selected?.commandId === recovery.commandId"
+              [attr.aria-pressed]="selected?.commandId === recovery.commandId"
+              [disabled]="loadingDetail || saving || recovery.commandType !== 'RESERVE'"
+              (click)="open(recovery)"
+            >
+              <span class="row-title">
+                {{ 'warehouseOrder' | t }} #{{ recovery.orderId }}
+                <i class="bi bi-chevron-right" aria-hidden="true"></i>
+              </span>
+              <span class="row-details">{{ recovery.commandType | t }} · {{ recovery.createdAt | trdate }}</span>
+              @if (recovery.lastError) {
+                <span class="row-error">{{ recovery.lastError | t }}</span>
+              }
+            </button>
+          }
+        </div>
+      }
+      @if (recoveries.length === 200 && !listError && !loading) {
+        <p class="panel-message queue-limit">{{ 'warehouseQueueLimit' | t }}</p>
       }
     </section>
 
     <section class="panel editor" aria-labelledby="warehouse-editor-title" [attr.aria-busy]="loadingDetail || saving">
       <div class="panel-heading">
-        <h2 id="warehouse-editor-title">{{ 'warehouseEvidence' | t }}</h2>
+        <h2 id="warehouse-editor-title" tabindex="-1">{{ 'warehouseEvidence' | t }}</h2>
       </div>
       @if (loadingDetail) {
         <p class="panel-message" role="status">{{ 'warehouseLoading' | t }}</p>
@@ -164,25 +212,28 @@
           </div>
         </form>
       } @else {
-        <p class="panel-message">{{ 'warehouseChooseOrder' | t }}</p>
+        <p class="panel-message panel-empty">
+          <i class="bi bi-file-earmark-text" aria-hidden="true"></i>
+          {{ 'warehouseChooseOrder' | t }}
+        </p>
       }
     </section>
   </div>
 
-  <button
-    type="button"
-    class="btn btn-outline-secondary mt-3"
-    [attr.aria-expanded]="stocktakeOpen"
-    (click)="stocktakeOpen = !stocktakeOpen"
-  >
-    {{ 'stocktakeTitle' | t }}
-  </button>
   @if (stocktakeOpen) {
-    <section class="panel mt-3 p-3" aria-labelledby="stocktake-title" [attr.aria-busy]="stocktakeBusy">
-      <h2 id="stocktake-title" class="h5">{{ 'stocktakeTitle' | t }}</h2>
-      <p>{{ 'stocktakeExplanation' | t }}</p>
-      <fieldset [disabled]="stocktakeBusy">
-        <form class="fields" (ngSubmit)="submitCount()">
+    <section
+      class="panel stocktake"
+      id="stocktake-workspace"
+      aria-labelledby="stocktake-title"
+      [attr.aria-busy]="stocktakeBusy"
+    >
+      <div class="panel-heading">
+        <h2 id="stocktake-title" tabindex="-1">{{ 'stocktakeTitle' | t }}</h2>
+      </div>
+      <p class="form-note">{{ 'stocktakeExplanation' | t }}</p>
+      <fieldset class="stocktake-layout" [disabled]="stocktakeBusy">
+        <form class="fields stocktake-entry" (ngSubmit)="submitCount()">
+          <h3 class="wide">{{ 'warehouseStocktakeEntry' | t }}</h3>
           <label
             >{{ 'stocktakeReference' | t }}
             <input
@@ -245,8 +296,8 @@
               required
             ></textarea>
           </label>
-          <div class="wide">
-            <p class="mb-2">{{ 'stocktakeCases' | t }}</p>
+          <fieldset class="wide stocktake-cases">
+            <legend>{{ 'stocktakeCases' | t }}</legend>
             @for (recovery of recoveries; track recovery.commandId) {
               @if (recovery.commandType === 'RESERVE') {
                 <label class="form-check form-check-inline">
@@ -260,62 +311,65 @@
                 </label>
               }
             }
-          </div>
+          </fieldset>
           <div class="wide">
             <button type="submit" class="btn btn-primary">{{ 'stocktakeSubmit' | t }}</button>
           </div>
         </form>
-        <form class="mt-3 d-flex gap-2 align-items-end flex-wrap" (ngSubmit)="loadCountReview()">
-          <label
-            >{{ 'stocktakeReviewLookup' | t }}
-            <input class="form-control" name="countLookup" [(ngModel)]="stocktakeLookup" maxlength="80" required />
-          </label>
-          <button type="submit" class="btn btn-outline-secondary">{{ 'stocktakeLoad' | t }}</button>
-        </form>
-        @if (countReview; as review) {
-          <div class="mt-3">
-            <h3 class="h6">{{ review.proposal.reference }}</h3>
-            <p>
-              #{{ review.proposal.productId }} · {{ 'stocktakeBook' | t }} {{ review.proposal.baseline.available }} ·
-              {{ 'stocktakeCount' | t }} {{ review.proposal.countedAvailable }}
-            </p>
-            <p>{{ 'stocktakeRecorder' | t }} {{ review.countedBy }} · {{ review.proposal.countedAt | trdate }}</p>
-            @if (review.approvedBy) {
-              <p>{{ 'stocktakeReviewer' | t }} {{ review.approvedBy }}</p>
-              @if (review.approvedAt; as approvedAt) {
-                <p>{{ review.approvalReason }} · {{ approvedAt | trdate }}</p>
-              }
-            }
-            <p>{{ review.proposal.note }}</p>
-            <p>{{ 'stocktakeCases' | t }} {{ review.proposal.commandIds.join(', ') }}</p>
-            @if (review.receipt; as result) {
-              <p class="alert alert-success" role="status">
-                {{ 'stocktakeCompleted' | t }} {{ result.adjustment }}
-                @if (result.movementId !== null) {
-                  · {{ 'warehouseMovementId' | t }} {{ result.movementId }}
-                }
+        <div class="stocktake-review">
+          <h3>{{ 'warehouseStocktakeReview' | t }}</h3>
+          <form class="fields" (ngSubmit)="loadCountReview()">
+            <label
+              >{{ 'stocktakeReviewLookup' | t }}
+              <input class="form-control" name="countLookup" [(ngModel)]="stocktakeLookup" maxlength="80" required />
+            </label>
+            <button type="submit" class="btn btn-outline-secondary">{{ 'stocktakeLoad' | t }}</button>
+          </form>
+          @if (countReview; as review) {
+            <div class="mt-3">
+              <h3 class="h6">{{ review.proposal.reference }}</h3>
+              <p>
+                #{{ review.proposal.productId }} · {{ 'stocktakeBook' | t }} {{ review.proposal.baseline.available }} ·
+                {{ 'stocktakeCount' | t }} {{ review.proposal.countedAvailable }}
               </p>
-            } @else {
-              <label class="form-label">
-                {{ 'stocktakeApprovalReason' | t }}
-                <input
-                  class="form-control"
-                  name="approvalReason"
-                  [(ngModel)]="stocktakeApprovalReason"
-                  maxlength="300"
-                />
-              </label>
-              <button
-                type="button"
-                class="btn btn-primary"
-                (click)="confirmCount()"
-                [disabled]="!stocktakeApprovalReason.trim()"
-              >
-                {{ 'stocktakeApprove' | t }}
-              </button>
-            }
-          </div>
-        }
+              <p>{{ 'stocktakeRecorder' | t }} {{ review.countedBy }} · {{ review.proposal.countedAt | trdate }}</p>
+              @if (review.approvedBy) {
+                <p>{{ 'stocktakeReviewer' | t }} {{ review.approvedBy }}</p>
+                @if (review.approvedAt; as approvedAt) {
+                  <p>{{ review.approvalReason }} · {{ approvedAt | trdate }}</p>
+                }
+              }
+              <p>{{ review.proposal.note }}</p>
+              <p>{{ 'stocktakeCases' | t }} {{ review.proposal.commandIds.join(', ') }}</p>
+              @if (review.receipt; as result) {
+                <p class="alert alert-success" role="status">
+                  {{ 'stocktakeCompleted' | t }} {{ result.adjustment }}
+                  @if (result.movementId !== null) {
+                    · {{ 'warehouseMovementId' | t }} {{ result.movementId }}
+                  }
+                </p>
+              } @else {
+                <label class="form-label">
+                  {{ 'stocktakeApprovalReason' | t }}
+                  <input
+                    class="form-control"
+                    name="approvalReason"
+                    [(ngModel)]="stocktakeApprovalReason"
+                    maxlength="300"
+                  />
+                </label>
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  (click)="confirmCount()"
+                  [disabled]="!stocktakeApprovalReason.trim()"
+                >
+                  {{ 'stocktakeApprove' | t }}
+                </button>
+              }
+            </div>
+          }
+        </div>
       </fieldset>
       @if (stocktakeError) {
         <p class="alert alert-danger mt-3 mb-0" role="alert">{{ stocktakeError | t }}</p>

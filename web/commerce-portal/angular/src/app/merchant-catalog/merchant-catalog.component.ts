@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { afterNextRender, Component, DestroyRef, ElementRef, inject, Injector, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize, Observable } from 'rxjs';
 import { ApiService, MerchantProduct, ShippingTemplate } from '../services/api.service';
@@ -7,10 +7,13 @@ import { ApiService, MerchantProduct, ShippingTemplate } from '../services/api.s
   standalone: false,
   selector: 'app-merchant-catalog',
   templateUrl: './merchant-catalog.component.html',
+  styleUrl: './merchant-catalog.component.css',
 })
 export class MerchantCatalogComponent implements OnInit {
   private readonly api = inject(ApiService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly host: ElementRef<HTMLElement> = inject(ElementRef);
+  private readonly injector = inject(Injector);
   readonly products = signal<MerchantProduct[]>([]);
   readonly loading = signal(true);
   readonly loadFailed = signal(false);
@@ -84,10 +87,15 @@ export class MerchantCatalogComponent implements OnInit {
       });
   }
 
-  edit(product: MerchantProduct): void {
+  edit(product: MerchantProduct, focus = false): void {
     this.draft = { ...product };
     this.saveFailed.set(false);
     this.saved.set(false);
+    if (focus) {
+      afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('#merchant-edit-title')?.focus(), {
+        injector: this.injector,
+      });
+    }
   }
 
   create(): void {
@@ -107,7 +115,7 @@ export class MerchantCatalogComponent implements OnInit {
           this.products.update((items) => [...items.filter((item) => item.productId !== product.productId), product]);
           this.creation = { name: '', description: '', unitPrice: 0.01, imageUrl: '' };
           this.createRequest = undefined;
-          this.edit(product);
+          this.edit(product, true);
         },
         error: () => this.saveFailed.set(true),
       });

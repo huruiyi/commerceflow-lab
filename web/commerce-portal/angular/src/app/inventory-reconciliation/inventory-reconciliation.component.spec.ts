@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormsModule } from '@angular/forms';
 import { of, throwError } from 'rxjs';
 import { InventoryRecovery, WarehouseEvidenceContext } from 'src/model/IInventoryReconciliation';
+import { ListPaginationComponent } from '../list-pagination/list-pagination.component';
 import { TranslatePipe } from '../pipes/translate.pipe';
 import { TrdatePipe } from '../pipes/trdate.pipe';
 import { ApiService } from '../services/api.service';
@@ -45,7 +46,7 @@ describe('InventoryReconciliationAdminComponent', () => {
     api.submitWarehouseEvidence.and.returnValue(of({ orderId: recovery.orderId, movementIds: [51, 52] }));
     await TestBed.configureTestingModule({
       declarations: [InventoryReconciliationAdminComponent, TranslatePipe, TrdatePipe],
-      imports: [FormsModule],
+      imports: [FormsModule, ListPaginationComponent],
       providers: [{ provide: ApiService, useValue: api }],
     }).compileComponents();
     fixture = TestBed.createComponent(InventoryReconciliationAdminComponent);

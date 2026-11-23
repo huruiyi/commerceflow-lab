@@ -1,0 +1,255 @@
+.exchange-workspace {
+  color: var(--cf-ink);
+  font-size: 0.875rem;
+}
+
+.exchange-heading {
+  margin-bottom: 1rem;
+}
+
+.exchange-heading h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.exchange-panel {
+  border: 1px solid var(--cf-line);
+  border-radius: 0.65rem;
+  overflow: hidden;
+  background: var(--cf-surface);
+}
+
+.workspace-search {
+  display: block;
+  padding: 0.875rem 1rem;
+}
+
+.exchange-table {
+  margin: 0;
+  --bs-table-color: var(--cf-ink);
+  --bs-table-border-color: var(--cf-line);
+}
+
+.exchange-table :is(th, td) {
+  padding: 0.65rem 1rem;
+}
+
+.exchange-table thead th {
+  color: var(--cf-muted);
+  background: var(--cf-canvas);
+  border-top: 1px solid var(--cf-line);
+  white-space: nowrap;
+  font-size: 0.8125rem;
+}
+
+.exchange-table :is(th, td):last-child {
+  text-align: end;
+  white-space: nowrap;
+}
+
+.exchange-table tbody tr:last-child :is(th, td) {
+  border-bottom-width: 0;
+}
+
+.exchange-table tbody tr.selected :is(th, td) {
+  background: #f1f7f2;
+}
+
+.exchange-status {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.18rem 0.5rem;
+  color: #465651;
+  background: #eef2ee;
+  font-size: 0.75rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.exchange-status:is([data-state='EXCHANGE_READY'], [data-state='EXCHANGE_SHIPPING'], [data-state='COMPLETED']) {
+  color: var(--cf-accent);
+  background: var(--cf-tint);
+}
+
+.exchange-status:is([data-state='REVIEW_REQUIRED'], [data-state='EXCHANGE_OUT_OF_STOCK']) {
+  color: #805109;
+  background: #fff3d9;
+}
+
+.exchange-status:is([data-state='FAILED'], [data-state='REJECTED']) {
+  color: #a33737;
+  background: #faeeee;
+}
+
+.exchange-message,
+.exchange-empty {
+  border-top: 1px solid var(--cf-line);
+  padding: 0.75rem 1rem;
+  margin: 0;
+  color: var(--cf-muted);
+}
+
+.exchange-empty {
+  padding-block: 1.75rem;
+  text-align: center;
+}
+
+.exchange-detail {
+  margin-top: 1rem;
+}
+
+.exchange-detail-heading,
+.exchange-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding: 0.8rem 1rem;
+}
+
+.exchange-detail-heading {
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--cf-line);
+}
+
+.exchange-detail-heading h2 {
+  margin: 0 0 0.2rem;
+  font-size: 1.0625rem;
+  font-weight: 650;
+}
+
+.exchange-detail-heading p,
+.exchange-facts p {
+  margin: 0;
+  color: var(--cf-muted);
+}
+
+.exchange-facts strong {
+  color: var(--cf-ink);
+  margin-inline-end: 0.2rem;
+}
+
+.exchange-tracking {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 0 1rem 1rem;
+}
+
+@media (max-width: 640px) {
+  .exchange-tracking {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.exchange-results-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.8rem;
+  padding: 0.55rem 1rem;
+  border-top: 1px solid var(--cf-line);
+}
+
+.exchange-results {
+  margin: 0;
+  color: var(--cf-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.exchange-pagination {
+  min-width: 0;
+  flex: 0 1 32rem;
+}
+
+@media (max-width: 640px) {
+  .exchange-pagination {
+    flex-basis: 100%;
+  }
+}
+
+.exchange-pagination app-list-pagination {
+  display: block;
+}
+
+#exchange-detail-title {
+  scroll-margin-block-start: 1rem;
+}
+
+.exchange-mobile-label {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .exchange-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .exchange-table,
+  .exchange-table tbody {
+    display: block;
+  }
+
+  .exchange-table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-areas:
+      'order order state'
+      'merchant quantity action';
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--cf-line);
+  }
+
+  .exchange-table tbody tr.selected {
+    background: var(--cf-tint);
+  }
+
+  .exchange-table tbody tr :is(th, td) {
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .exchange-mobile-label {
+    display: block;
+    color: var(--cf-muted);
+    font-size: 0.75rem;
+    font-weight: 400;
+  }
+
+  .exchange-order-number {
+    grid-area: order;
+  }
+
+  .exchange-merchant {
+    grid-area: merchant;
+  }
+
+  .exchange-quantity {
+    grid-area: quantity;
+  }
+
+  .exchange-state {
+    grid-area: state;
+    justify-self: end;
+  }
+
+  .exchange-action {
+    grid-area: action;
+    align-self: end;
+  }
+
+  .exchange-status,
+  .exchange-table .btn {
+    white-space: normal;
+  }
+}

@@ -24,14 +24,22 @@
       AND stock_available+#{delta}&gt;=0
   </update>
 
-  <select id="movements" resultType="vip.fairy.commerceflow.inventory.domain.InventoryMovementView">
-    SELECT m.id,m.order_id,m.product_id,m.movement_type,m.quantity,m.available_after,
-      m.reserved_after,m.sold_after,m.detail,m.created_at
+  <sql id="movementScope">
     FROM inventory_movements m
     JOIN product_inventory i ON i.product_id=m.product_id
     WHERE m.product_id=#{productId} AND i.merchant_id=#{merchantId}
+  </sql>
+
+  <select id="movementCount" resultType="long">
+    SELECT COUNT(*) <include refid="movementScope"/>
+  </select>
+
+  <select id="movements" resultType="vip.fairy.commerceflow.inventory.domain.InventoryMovementView">
+    SELECT m.id,m.order_id,m.product_id,m.movement_type,m.quantity,m.available_after,
+      m.reserved_after,m.sold_after,m.detail,m.created_at
+    <include refid="movementScope"/>
     ORDER BY m.created_at DESC,m.id DESC
-    LIMIT 100
+    LIMIT #{size} OFFSET #{offset}
   </select>
 
 </mapper>

@@ -1,9 +1,11 @@
+import { AdminListPage } from 'src/model/IAdminListPage';
+import { ListPaginationComponent } from '../list-pagination/list-pagination.component';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import { finalize, forkJoin, Observable } from 'rxjs';
+import { forkJoin, Observable } from 'rxjs';
 import { StatementPeriodComparisonComponent } from './statement-period-comparison.component';
 import { StatementReconciliationComponent } from './statement-reconciliation.component';
 
@@ -42,7 +44,13 @@ interface Payout {
 
 @Component({
   selector: 'app-merchant-settlements',
-  imports: [CommonModule, FormsModule, StatementReconciliationComponent, StatementPeriodComparisonComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    StatementReconciliationComponent,
+    StatementPeriodComparisonComponent,
+    ListPaginationComponent,
+  ],
   templateUrl: './settlements.component.html',
 })
 export class SettlementsComponent {
@@ -50,9 +58,9 @@ export class SettlementsComponent {
   private readonly route = inject(ActivatedRoute);
   readonly admin = this.route.snapshot.data['admin'] === true;
   readonly merchantId = Number(this.route.snapshot.paramMap.get('id'));
-  readonly statements = signal<Statement[]>([]);
-  readonly entries = signal<Entry[]>([]);
-  readonly pending = signal<Entry[]>([]);
+  readonly statements = signal<AdminListPage<Statement> | null>(null);
+  readonly entries = signal<AdminListPage<Entry> | null>(null);
+  readonly pending = signal<AdminListPage<Entry> | null>(null);
   readonly selected = signal<string | undefined>(undefined);
   readonly reconciliationPath = signal<string | undefined>(undefined);
   readonly periodComparisonPath = signal<string | undefined>(undefined);
@@ -78,8 +86,11 @@ export class SettlementsComponent {
     const requestId = (this.closeRequest ??= crypto.randomUUID());
     this.run(this.http.post<Statement | null>(this.statementPath, { requestId }), (value) => {
       this.closeRequest = undefined;
-      if (value) this.statements.update((items) => [value, ...items.filter((item) => item.id !== value.id)]);
-      this.message.set(value ? '账单已冻结 / Statement frozen' : '当前无正应结金额 / No positive balance');
+      if (value) {
+        this.reload('账单已冻结 / Statement frozen', true);
+      } else {
+        this.message.set('当前无正应结金额 / No positive balance');
+      }
     });
   }
 
@@ -87,7 +98,7 @@ export class SettlementsComponent {
     const path = `${this.statementPath}/${value.id}`;
     this.run(
       forkJoin({
-        entries: this.http.get<Entry[]>(path + '/entries'),
+        entries: this.readPage<Entry>(path + '/entries', 0),
         payouts: this.http.get<Payout[]>(path + '/payouts'),
       }),
       (details) => {
@@ -137,18 +148,45 @@ export class SettlementsComponent {
     );
   }
 
-  reload(): void {
-    const pending = this.admin ? `${this.adminBase}/settlement/pending` : '/api/merchant/settlement/pending';
+  reload(notice = '', reset = false): void {
     this.run(
       forkJoin({
-        statements: this.http.get<Statement[]>(this.statementPath),
-        pending: this.http.get<Entry[]>(pending),
+        statements: this.readPage<Statement>(this.statementPath, reset ? 0 : (this.statements()?.page ?? 0)),
+        pending: this.readPage<Entry>(this.pendingPath, reset ? 0 : (this.pending()?.page ?? 0)),
       }),
       (value) => {
         this.statements.set(value.statements);
         this.pending.set(value.pending);
+        this.message.set(notice);
       },
     );
+  }
+
+  loadStatements(page: number): void {
+    this.run(this.readPage<Statement>(this.statementPath, page), (value) => this.statements.set(value));
+  }
+
+  loadPending(page: number): void {
+    this.run(this.readPage<Entry>(this.pendingPath, page), (value) => this.pending.set(value));
+  }
+
+  loadEntries(page: number): void {
+    const id = this.selected();
+    if (id) {
+      this.run(this.readPage<Entry>(`${this.statementPath}/${id}/entries`, page), (value) => this.entries.set(value));
+    }
+  }
+
+  pageCount(page: AdminListPage<unknown>): number {
+    return Math.ceil(page.total / page.size);
+  }
+
+  private readPage<T>(path: string, page: number): Observable<AdminListPage<T>> {
+    return this.http.get<AdminListPage<T>>(path + '/page', { params: { page } });
+  }
+
+  private get pendingPath(): string {
+    return this.admin ? `${this.adminBase}/settlement/pending` : '/api/merchant/settlement/pending';
   }
 
   private get adminBase(): string {
@@ -163,9 +201,15 @@ export class SettlementsComponent {
     if (this.busy()) return;
     this.busy.set(true);
     this.message.set('');
-    request.pipe(finalize(() => this.busy.set(false))).subscribe({
-      next,
-      error: (error) => this.message.set(error.error?.message || '操作失败 / Request failed'),
+    request.subscribe({
+      next: (value) => {
+        this.busy.set(false);
+        next(value);
+      },
+      error: (error) => {
+        this.busy.set(false);
+        this.message.set(error.error?.message || '操作失败 / Request failed');
+      },
     });
   }
 }

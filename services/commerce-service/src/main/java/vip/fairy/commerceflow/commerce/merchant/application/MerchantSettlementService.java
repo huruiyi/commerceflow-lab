@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import vip.fairy.commerceflow.commerce.shared.api.AdminListPage;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.Account;
@@ -101,11 +102,40 @@ public class MerchantSettlementService {
   }
 
   public List<Entry> entries(Long merchant, String statement) {
+    requireStatement(merchant, statement);
+    return ledger.statementEntries(statement);
+  }
+
+  private void requireStatement(Long merchant, String statement) {
     var value = ledger.statement(statement);
     if (value == null || !merchant.equals(value.merchantId())) {
       throw new ResourceNotFoundException("Statement not found");
     }
-    return ledger.statementEntries(statement);
+  }
+
+  @Transactional(readOnly = true)
+  public AdminListPage<Statement> statementPage(long merchant, int requestedPage, int requestedSize) {
+    long total = ledger.statementCount(merchant);
+    int size = AdminListPage.boundedSize(requestedSize);
+    int page = AdminListPage.availablePage(requestedPage, total, size);
+    return new AdminListPage<>(ledger.statementPage(merchant, size, (long) page * size), total, page, size);
+  }
+
+  @Transactional(readOnly = true)
+  public AdminListPage<Entry> pendingPage(long merchant, int requestedPage, int requestedSize) {
+    long total = ledger.pendingCount(merchant);
+    int size = AdminListPage.boundedSize(requestedSize);
+    int page = AdminListPage.availablePage(requestedPage, total, size);
+    return new AdminListPage<>(ledger.pendingPage(merchant, size, (long) page * size), total, page, size);
+  }
+
+  @Transactional(readOnly = true)
+  public AdminListPage<Entry> entryPage(Long merchant, String statement, int requestedPage, int requestedSize) {
+    requireStatement(merchant, statement);
+    long total = ledger.entryCount(merchant, statement);
+    int size = AdminListPage.boundedSize(requestedSize);
+    int page = AdminListPage.availablePage(requestedPage, total, size);
+    return new AdminListPage<>(ledger.entryPage(merchant, statement, size, (long) page * size), total, page, size);
   }
 
   private Set<Long> accrue(Account account, SettlementOrderV1.Order order, Instant cutoff) {

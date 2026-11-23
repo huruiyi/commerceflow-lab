@@ -1,23 +1,13 @@
-<section *ngIf="detailId === null" class="payment-hero">
-  <div>
-    <span class="chapter-label">{{ 'paymentChapter' | t }}</span>
-    <h2>{{ 'paymentLab' | t }}</h2>
-    <p>{{ 'paymentIntro' | t }}</p>
-  </div>
-  <div class="hero-note">
-    <strong>{{ 'realisticFlow' | t }}</strong><span>{{ 'realisticFlowDetail' | t }}</span>
-  </div>
-</section>
-<header *ngIf="detailId !== null" class="order-detail-heading">
-  <a [routerLink]="['/orders']" [queryParams]="listQueryParams">{{ 'backToOrders' | t }}</a>
-  <h2 id="order-detail-heading" tabindex="-1">{{ 'orderDetailsTitle' | t }}</h2>
+<header *ngIf="detailId === null" class="orders-heading">
+  <h1 id="orders-title">{{ 'orders' | t }}</h1>
 </header>
-<section *ngIf="loading" class="orders-loading" aria-live="polite">
-  <div class="skeleton-card" *ngFor="let placeholder of [1, 2, 3]">
-    <span></span><strong></strong>
-    <p></p>
-  </div>
-</section>
+<header *ngIf="detailId !== null" class="order-detail-heading">
+  <a [routerLink]="['/orders']" [queryParams]="listQueryParams">
+    <i class="bi bi-arrow-left" aria-hidden="true"></i> {{ 'backToOrders' | t }}
+  </a>
+  <h1 id="order-detail-heading" tabindex="-1">{{ 'orderDetailsTitle' | t }}</h1>
+</header>
+<p *ngIf="loading && detailId !== null" class="orders-loading" role="status">{{ 'loading' | t }}</p>
 <section *ngIf="loadError && !loading" hlmAlert class="orders-error" role="alert">
   <h3 hlmAlertTitle>{{ 'ordersLoadFailedTitle' | t }}</h3>
   <p hlmAlertDescription>{{ loadError }}</p>
@@ -26,103 +16,165 @@
 <section *ngIf="detailUnavailable" hlmAlert class="orders-error" role="alert">
   <h3 hlmAlertTitle>{{ 'orderDetailUnavailable' | t }}</h3>
 </section>
-<app-order-list-filter
-  *ngIf="detailId === null"
-  [result]="page"
-  [applied]="criteria"
-  [loading]="loading"
-  (changed)="applyCriteria($event)"
-></app-order-list-filter>
-<article *ngFor="let order of orders; trackBy: trackOrder" hlmCard class="order-card" [attr.data-status]="order.status">
-  <header class="order-header">
-    <div class="order-leading">
-      <span class="order-status-mark" aria-hidden="true"><i class="bi bi-receipt"></i></span>
+<section *ngIf="detailId === null; else orderDetail" class="orders-panel" aria-labelledby="orders-title">
+  <app-order-list-filter [result]="page" [applied]="criteria" [loading]="loading" (changed)="applyCriteria($event)" />
+  <table
+    *ngIf="orders.length"
+    class="orders-table"
+    role="table"
+    aria-labelledby="orders-title"
+    [attr.aria-busy]="loading"
+  >
+    <thead role="rowgroup">
+      <tr role="row">
+        <th scope="col" role="columnheader">{{ 'buyerOrderNumber' | t }}</th>
+        <th scope="col" role="columnheader">{{ 'products' | t }}</th>
+        <th scope="col" role="columnheader">{{ 'status' | t }}</th>
+        <th scope="col" role="columnheader" class="amount-column">{{ 'amount' | t }}</th>
+        <th scope="col" role="columnheader" class="actions-column">{{ 'action' | t }}</th>
+      </tr>
+    </thead>
+    <tbody role="rowgroup">
+      <ng-container *ngFor="let order of orders; trackBy: trackOrder">
+        <tr role="row" class="order-summary-row" [attr.data-order-id]="order.id" [attr.data-status]="order.status">
+          <th scope="row" role="rowheader" class="order-identity">
+            <a
+              [routerLink]="['/orders', order.id]"
+              [queryParams]="listQueryParams"
+              [attr.title]="order.orderNumber"
+              [attr.aria-label]="i18n.t('openOrderDetails', { order: order.orderNumber })"
+            >
+              {{ displayOrderNumber(order.orderNumber) }}
+            </a>
+            <small>{{ order.createdAt | trdate }}</small>
+          </th>
+          <td role="cell" class="order-products">
+            <span>{{ order.items[0]?.productName || '—' }}</span>
+            <small>{{ order.items.length }} {{ 'itemsCount' | t }}</small>
+          </td>
+          <td role="cell" class="order-state">
+            <ng-container *ngTemplateOutlet="orderState; context: { $implicit: order }" />
+          </td>
+          <td role="cell" class="order-total">
+            <strong>{{ order.totalAmount | trcurrency }}</strong>
+          </td>
+          <td role="cell" class="order-actions">
+            <ng-container *ngTemplateOutlet="orderActions; context: { $implicit: order }" />
+          </td>
+        </tr>
+        <tr
+          role="row"
+          class="order-more-row"
+          [attr.data-status]="order.status"
+          [hidden]="
+            !expandedOrders.has(order.id) && !notices[order.id] && order.inventoryStatus !== 'RESERVATION_REJECTED'
+          "
+        >
+          <td colspan="5" role="cell">
+            <ng-container *ngTemplateOutlet="orderNotices; context: { $implicit: order }" />
+            <div [id]="'order-inline-' + order.id" [hidden]="!expandedOrders.has(order.id)">
+              <ng-container *ngIf="expandedOrders.has(order.id)">
+                <ng-container *ngTemplateOutlet="orderDetails; context: { $implicit: order }" />
+              </ng-container>
+            </div>
+          </td>
+        </tr>
+      </ng-container>
+    </tbody>
+  </table>
+</section>
+
+<ng-template #orderDetail>
+  <article *ngFor="let order of orders; trackBy: trackOrder" class="order-card" [attr.data-status]="order.status">
+    <header class="order-header">
       <div class="order-identity">
-        <span class="eyebrow">{{ 'order' | t }}</span>
-        <h3>
-          <a
-            *ngIf="detailId === null; else currentOrderNumber"
-            [routerLink]="['/orders', order.id]"
-            [queryParams]="listQueryParams"
-            [attr.aria-label]="i18n.t('openOrderDetails', { order: order.orderNumber })"
-          >
-            {{ order.orderNumber }}
-          </a>
-          <ng-template #currentOrderNumber>{{ order.orderNumber }}</ng-template>
-        </h3>
+        <h2>{{ order.orderNumber }}</h2>
         <small>{{ 'orderedAt' | t }} {{ order.createdAt | trdate }}</small>
         <div class="order-meta">
-          <span><i class="bi bi-box-seam" aria-hidden="true"></i>{{ order.items.length }} {{ 'itemsCount' | t }}</span>
-          <span *ngIf="order.address as address"
-            ><i class="bi bi-person" aria-hidden="true"></i>{{ address.recipientName }}</span
-          >
+          <span>{{ order.items.length }} {{ 'itemsCount' | t }}</span>
+          <span *ngIf="order.address as address">{{ address.recipientName }}</span>
         </div>
       </div>
-    </div>
-    <div class="order-state">
-      <span class="status" [attr.aria-label]="('orderStatus' | t) + ': ' + (order.status | t)">
-        <span class="status-dot"></span>
-        {{ (order.status === 'CONFIRMED' && order.packages?.length ? 'partiallyShipped' : order.status) | t }}
-      </span>
-      <span *ngIf="showPaymentState(order)" class="payment-state">
-        {{ 'paymentStatus' | t }}·{{ order.payment!.status | t }}
-      </span>
-    </div>
-    <div class="order-total" [attr.aria-label]="'orderAmount' | t">
-      <strong>{{ order.totalAmount | trcurrency }}</strong>
-    </div>
-    <div class="summary-actions">
-      @if (detailId !== null && account.userProfile()?.invoiceEnabled) {
-        <a hlmBtn variant="outline" [routerLink]="['/orders', order.id, 'invoices']">{{ 'invoiceNav' | t }}</a>
-      }
-      <div class="primary-action-slot">
-        <button hlmBtn *ngIf="hasAction(order, 'PAY')" type="button" (click)="showPayment(order)">
-          {{ 'payNow' | t }}
-        </button>
-        <button
-          hlmBtn
-          *ngIf="hasAction(order, 'CONFIRM_RECEIPT')"
-          type="button"
-          (click)="receive(order)"
-          [disabled]="receiving.has(order.id)"
-        >
-          {{ 'confirmReceipt' | t }}
-        </button>
-        <button
-          hlmBtn
-          variant="outline"
-          *ngIf="hasAction(order, 'REQUEST_REFUND')"
-          type="button"
-          (click)="showRefund(order)"
-        >
-          {{ 'requestRefund' | t }}
-        </button>
+      <div class="order-state"><ng-container *ngTemplateOutlet="orderState; context: { $implicit: order }" /></div>
+      <div class="order-total" [attr.aria-label]="'orderAmount' | t">
+        <strong>{{ order.totalAmount | trcurrency }}</strong>
       </div>
+      <ng-container *ngTemplateOutlet="orderActions; context: { $implicit: order }" />
+    </header>
+    <ng-container *ngTemplateOutlet="orderNotices; context: { $implicit: order }" />
+    <ng-container *ngTemplateOutlet="orderDetails; context: { $implicit: order }" />
+  </article>
+</ng-template>
+
+<ng-template #orderState let-order>
+  @let displayStatus = order.status === 'CONFIRMED' && order.packages?.length ? 'partiallyShipped' : order.status;
+  <span class="status" [attr.aria-label]="('orderStatus' | t) + ' · ' + (displayStatus | t)">
+    {{ displayStatus | t }}
+  </span>
+  <small *ngIf="showPaymentState(order)" class="payment-state">
+    {{ 'paymentStatus' | t }} · {{ order.payment!.status | t }}
+  </small>
+</ng-template>
+
+<ng-template #orderActions let-order>
+  <div class="summary-actions">
+    @if (detailId !== null && account.userProfile()?.invoiceEnabled) {
+      <a hlmBtn variant="outline" [routerLink]="['/orders', order.id, 'invoices']">{{ 'invoiceNav' | t }}</a>
+    }
+    <div class="primary-action-slot">
+      <button hlmBtn *ngIf="hasAction(order, 'PAY')" type="button" (click)="showPayment(order)">
+        {{ 'payNow' | t }}
+      </button>
       <button
-        *ngIf="detailId === null"
         hlmBtn
-        variant="ghost"
+        *ngIf="hasAction(order, 'CONFIRM_RECEIPT')"
         type="button"
-        (click)="toggleDetails(order)"
-        [attr.aria-expanded]="expandedOrders.has(order.id)"
+        (click)="receive(order)"
+        [disabled]="receiving.has(order.id)"
       >
-        {{ (expandedOrders.has(order.id) ? 'collapseDetails' : 'expandDetails') | t }}
-        <i
-          class="bi"
-          [class.bi-chevron-up]="expandedOrders.has(order.id)"
-          [class.bi-chevron-down]="!expandedOrders.has(order.id)"
-          aria-hidden="true"
-        ></i>
+        {{ 'confirmReceipt' | t }}
+      </button>
+      <button
+        hlmBtn
+        variant="outline"
+        *ngIf="hasAction(order, 'REQUEST_REFUND')"
+        type="button"
+        (click)="showRefund(order)"
+      >
+        {{ 'requestRefund' | t }}
       </button>
     </div>
-  </header>
-  <p *ngIf="order.inventoryStatus === 'RESERVATION_REJECTED'" class="alert alert-warning" role="status">
+    <button
+      *ngIf="detailId === null"
+      hlmBtn
+      variant="ghost"
+      type="button"
+      (click)="toggleDetails(order)"
+      [attr.aria-expanded]="expandedOrders.has(order.id)"
+      [attr.aria-controls]="'order-inline-' + order.id"
+    >
+      {{ (expandedOrders.has(order.id) ? 'collapseDetails' : 'expandDetails') | t }}
+      <i
+        class="bi"
+        [class.bi-chevron-up]="expandedOrders.has(order.id)"
+        [class.bi-chevron-down]="!expandedOrders.has(order.id)"
+        aria-hidden="true"
+      ></i>
+    </button>
+  </div>
+</ng-template>
+
+<ng-template #orderNotices let-order>
+  <p *ngIf="order.inventoryStatus === 'RESERVATION_REJECTED'" class="summary-notice alert alert-warning" role="status">
     {{ 'orderStockRejected' | t }}
   </p>
   <div *ngIf="notices[order.id] as notice" class="summary-notice alert" [ngClass]="'alert-' + notice.type">
     {{ notice.text }}
   </div>
-  <div class="order-content" *ngIf="detailId !== null || expandedOrders.has(order.id)">
+</ng-template>
+
+<ng-template #orderDetails let-order>
+  <div class="order-content">
     <app-line-after-sales [order]="order"></app-line-after-sales>
     <section *ngIf="order.productSubtotal !== undefined" class="milestone-strip" [attr.aria-label]="'orderAmount' | t">
       <div>
@@ -755,4 +807,4 @@
       </section>
     </ng-container>
   </div>
-</article>
+</ng-template>

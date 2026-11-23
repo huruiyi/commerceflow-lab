@@ -1,17 +1,70 @@
-<h2>{{ 'userList' | t }}</h2>
-<div class="mb-3 col-sm-4">
-  <input
-    type="search"
-    (keyup)="filterUsers()"
-    [(ngModel)]="searchText"
-    [placeholder]="'search' | t"
-    class="form-control"
-  />
-</div>
-<div *ngIf="users">
-  <div class="row">
-    <div *ngFor="let user of filteredUsers" class="col-sm-3">
-      <app-useritem [userItem]="user"></app-useritem>
-    </div>
-  </div>
-</div>
+<section class="admin-browse" aria-labelledby="admin-users-title">
+  <header class="admin-browse-heading">
+    <h1 id="admin-users-title">{{ 'userList' | t }}</h1>
+  </header>
+  <section class="admin-browse-panel" [attr.aria-busy]="loading()">
+    <form class="admin-browse-filters" (ngSubmit)="applyFilter()">
+      <label>
+        {{ 'userSearchHint' | t }}
+        <input class="form-control" type="search" maxlength="160" name="query" [(ngModel)]="query" />
+      </label>
+      <div class="admin-row-actions">
+        <button type="submit" class="btn btn-primary" [disabled]="loading()">{{ 'search' | t }}</button>
+        <button type="button" class="btn btn-outline-secondary" [disabled]="loading()" (click)="clearFilter()">
+          {{ 'clearOrderFilters' | t }}
+        </button>
+      </div>
+    </form>
+    @if (failed()) {
+      <div class="admin-browse-message" role="alert">
+        {{ 'requestFailed' | t }}
+        <button type="button" class="btn btn-outline-secondary btn-sm" (click)="load()">{{ 'retry' | t }}</button>
+      </div>
+    } @else if (loading()) {
+      <p class="admin-browse-message" role="status">{{ 'loading' | t }}</p>
+    }
+    @if (result(); as page) {
+      @if (!failed()) {
+        <div class="admin-browse-results">
+          <span role="status">{{ i18n.t('adminResultCount', { count: page.total }) }}</span>
+          <app-list-pagination
+            class="admin-pagination"
+            [page]="page.page"
+            [totalPages]="totalPages"
+            [loading]="loading()"
+            [label]="'userList' | t"
+            (pageChange)="load($event)"
+          />
+        </div>
+      }
+      @if (page.rows.length) {
+        <table class="admin-history-table" role="table" aria-labelledby="admin-users-title">
+          <thead role="rowgroup">
+            <tr role="row">
+              <th scope="col" role="columnheader">{{ 'fullName' | t }}</th>
+              <th scope="col" role="columnheader">{{ 'email' | t }}</th>
+              <th scope="col" role="columnheader">{{ 'phone' | t }}</th>
+            </tr>
+          </thead>
+          <tbody role="rowgroup">
+            @for (user of page.rows; track user.id) {
+              <tr class="admin-history-row" role="row" [attr.data-user-id]="user.id">
+                <th scope="row" role="rowheader" class="admin-key-cell">
+                  <strong>{{ user.name }}</strong><small>#{{ user.id }}</small>
+                </th>
+                <td role="cell">
+                  <span class="admin-mobile-label">{{ 'email' | t }}</span>{{ user.email }}
+                </td>
+                <td role="cell">
+                  <span class="admin-mobile-label">{{ 'phone' | t }}</span>{{ user.phone || '—' }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      } @else if (!loading()) {
+        <p class="admin-browse-message" role="status">{{ 'usersEmpty' | t }}</p>
+      }
+    }
+  </section>
+</section>

@@ -1,3 +1,4 @@
+import { AdminListPage } from 'src/model/IAdminListPage';
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { forkJoin, map, Observable, of } from 'rxjs';
@@ -143,6 +144,7 @@ export interface CouponCampaign {
   discountAmount: number;
   supply: number;
   issued: number;
+  startsAt?: string;
   expiresAt: string;
   enabled: boolean;
 }
@@ -327,8 +329,8 @@ export class ApiService {
     return this.http.delete<void>('/api/cart');
   }
 
-  getUsers(): Observable<IUser[]> {
-    return this.http.get<IUser[]>('/api/users');
+  getUsers(q: string, page: number): Observable<AdminListPage<IUser>> {
+    return this.http.get<AdminListPage<IUser>>('/api/users/page', { params: { q, page } });
   }
 
   getAddresses(): Observable<ShippingAddress[]> {
@@ -584,8 +586,10 @@ export class ApiService {
     return this.http.put<MerchantProduct>(`/api/merchant/catalog/v1/products/${id}/${area}`, value);
   }
 
-  merchantInventoryMovements(productId: number): Observable<InventoryMovement[]> {
-    return this.http.get<InventoryMovement[]>(`/api/merchant/inventory/${productId}/movements`);
+  merchantInventoryMovements(productId: number, page: number): Observable<AdminListPage<InventoryMovement>> {
+    return this.http.get<AdminListPage<InventoryMovement>>(`/api/merchant/inventory/${productId}/movements/page`, {
+      params: { page },
+    });
   }
 
   adjustMerchantInventory(
@@ -662,12 +666,10 @@ export class ApiService {
     );
   }
 
-  scheduledTasks(taskType = '', status = ''): Observable<ScheduledTask[]> {
-    const query = new URLSearchParams();
-    if (taskType) query.set('taskType', taskType);
-    if (status) query.set('status', status);
-    query.set('limit', '200');
-    return this.http.get<ScheduledTask[]>(`/api/admin/scheduling/tasks?${query}`);
+  scheduledTasks(taskType: string, status: string, page: number): Observable<AdminListPage<ScheduledTask>> {
+    return this.http.get<AdminListPage<ScheduledTask>>('/api/admin/scheduling/tasks/page', {
+      params: { taskType, status, page },
+    });
   }
 
   scheduledTaskEvents(id: number): Observable<ScheduledTaskEvent[]> {
@@ -682,9 +684,10 @@ export class ApiService {
     return this.http.post<ScheduledTask>(`/api/admin/scheduling/tasks/${id}/cancel`, { reason });
   }
 
-  logisticsCallbacks(status = ''): Observable<LogisticsCallbackOutbox[]> {
-    const query = status ? `?status=${encodeURIComponent(status)}` : '';
-    return this.http.get<LogisticsCallbackOutbox[]>(`/api/admin/logistics-callbacks${query}`);
+  logisticsCallbacks(status: string, page: number): Observable<AdminListPage<LogisticsCallbackOutbox>> {
+    return this.http.get<AdminListPage<LogisticsCallbackOutbox>>('/api/admin/logistics-callbacks/page', {
+      params: { status, page },
+    });
   }
 
   logisticsCallbackEvents(id: number): Observable<LogisticsCallbackAuditEvent[]> {

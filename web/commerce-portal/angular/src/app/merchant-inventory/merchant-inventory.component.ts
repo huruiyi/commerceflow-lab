@@ -1,3 +1,5 @@
+import { AdminListPage } from 'src/model/IAdminListPage';
+import { finalize } from 'rxjs';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { InventoryMovement, MerchantInventoryItem } from 'src/model/IInventory';
 import { ApiService } from '../services/api.service';
@@ -11,7 +13,9 @@ import { I18nService } from '../services/i18n.service';
 })
 export class MerchantInventoryComponent implements OnInit {
   items: MerchantInventoryItem[] = [];
-  movements: Record<number, InventoryMovement[]> = {};
+  movementPages: Record<number, AdminListPage<InventoryMovement> | undefined> = {};
+  readonly loadingMovements = new Set<number>();
+  readonly failedMovements = new Set<number>();
   expanded = new Set<number>();
   delta: Record<number, number | null> = {};
   reason: Record<number, string> = {};
@@ -57,7 +61,7 @@ export class MerchantInventoryComponent implements OnInit {
   adjust(item: MerchantInventoryItem): void {
     const delta = this.delta[item.productId];
     const reason = (this.reason[item.productId] || '').trim();
-    if (!delta || !reason || this.saving.has(item.productId)) return;
+    if (!delta || !reason || this.saving.has(item.productId) || this.loadingMovements.has(item.productId)) return;
     this.saving.add(item.productId);
     this.api.adjustMerchantInventory(item.productId, delta, reason, this.warehouse[item.productId] ?? 1).subscribe({
       next: (updated) => {
@@ -78,10 +82,25 @@ export class MerchantInventoryComponent implements OnInit {
     });
   }
 
-  private loadMovements(productId: number): void {
-    this.api.merchantInventoryMovements(productId).subscribe((values) => {
-      this.movements[productId] = values;
-      this.changeDetector.markForCheck();
-    });
+  loadMovements(productId: number, page = 0): void {
+    if (this.loadingMovements.has(productId) || this.saving.has(productId)) return;
+    this.loadingMovements.add(productId);
+    this.failedMovements.delete(productId);
+    this.api
+      .merchantInventoryMovements(productId, page)
+      .pipe(
+        finalize(() => {
+          this.loadingMovements.delete(productId);
+          this.changeDetector.markForCheck();
+        }),
+      )
+      .subscribe({
+        next: (value) => (this.movementPages[productId] = value),
+        error: () => this.failedMovements.add(productId),
+      });
+  }
+
+  movementPageCount(page: AdminListPage<InventoryMovement>): number {
+    return Math.ceil(page.total / page.size);
   }
 }

@@ -31,3 +31,33 @@
     clip-path: none;
   }
 }
+
+:host(.admin-pagination) {
+  container-type: inline-size;
+}
+
+:host(.admin-pagination) .pagination-bar {
+  justify-content: flex-end;
+}
+
+@container (max-width: 420px) {
+  :host(.admin-pagination) .pagination-bar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.35rem;
+  }
+
+  :host(.admin-pagination) .page-numbers {
+    display: none;
+  }
+
+  :host(.admin-pagination) .page-summary {
+    position: static;
+    inline-size: auto;
+    block-size: auto;
+    clip-path: none;
+    overflow: visible;
+    text-align: center;
+    font-size: 0.8125rem;
+  }
+}

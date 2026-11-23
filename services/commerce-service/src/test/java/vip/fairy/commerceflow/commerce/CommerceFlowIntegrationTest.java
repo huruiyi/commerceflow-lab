@@ -39,6 +39,9 @@ import vip.fairy.commerceflow.commerce.logistics.application.LogisticsNotificati
 import vip.fairy.commerceflow.commerce.logistics.application.LogisticsGatewayClient;
 import vip.fairy.commerceflow.commerce.logistics.application.contract.LogisticsFulfillmentV1;
 import vip.fairy.commerceflow.commerce.logistics.application.contract.LogisticsFulfillmentV1.Command;
+import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.Entry;
+import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.Statement;
+import vip.fairy.commerceflow.commerce.merchant.infrastructure.SettlementMapper;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandRouter;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandV1;
 import vip.fairy.commerceflow.commerce.notification.infrastructure.NotificationDeliveryProperties;
@@ -72,6 +75,7 @@ import vip.fairy.commerceflow.commerce.ordering.application.PurchaseOrderService
 import vip.fairy.commerceflow.commerce.ordering.api.CreatePaymentRequest;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
+import vip.fairy.commerceflow.commerce.shared.api.AdminListPage;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentChannelV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCloseCommandV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentCloseResultV1;
@@ -216,6 +220,9 @@ class CommerceFlowIntegrationTest {
   NotificationDeliveryProperties notificationDelivery;
   @Autowired
   AppUserMapper users;
+
+  @Autowired
+  SettlementMapper settlementLedger;
   @MockitoBean
   PaymentOrchestrationV1 paymentOrchestration;
   @MockitoBean
@@ -689,6 +696,74 @@ class CommerceFlowIntegrationTest {
     CsrfContext customer = login("demo@example.com", false);
     mvc.perform(get(path + "/{commandId}", command).session(customer.session()))
       .andExpect(status().isForbidden());
+  }
+
+  @Test
+  @Transactional
+  void adminPaginationFiltersAndReadsOlderRowsWithStableOrdering() throws Exception {
+    for (int i = 0; i < 12; i++) {
+      users.insert(new AppUser("pagination" + i + "@example.test", "unused", "Page", "Fixture",
+        "130000010%02d".formatted(i), "CUSTOMER", true));
+      scheduledTasks.schedule(ScheduledTaskTypes.REVIEW_REMINDER, "admin-page-" + i, "ORDER", "1",
+        Instant.now().plusSeconds(3600), Map.of("orderId", 1));
+    }
+    CsrfContext admin = login("admin@example.com", false);
+    mvc.perform(get("/api/users/page").param("q", "Page Fixture").param("page", "1").session(admin.session()))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.total").value(12))
+      .andExpect(jsonPath("$.rows.length()").value(2))
+      .andExpect(jsonPath("$.rows[0].email").value("pagination10@example.test"));
+    mvc.perform(get("/api/admin/scheduling/tasks/page").param("taskType", "REVIEW_REMINDER").param("status", "SCHEDULED")
+        .param("page", "1").session(admin.session()))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.total").value(12))
+      .andExpect(jsonPath("$.rows.length()").value(2))
+      .andExpect(jsonPath("$.rows[0].taskKey").value("admin-page-1"));
+    when(logisticsGateway.callbackOutboxPage("PUBLISHED", 50, 10)).thenReturn(
+      new AdminListPage<>(List.of(), 501, 50, 10));
+    mvc.perform(get("/api/admin/logistics-callbacks/page").param("status", "PUBLISHED")
+        .param("page", "50").session(admin.session()))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.total").value(501))
+      .andExpect(jsonPath("$.page").value(50));
+    CsrfContext customer = login("demo@example.com", false);
+    for (String path : List.of("/api/users/page", "/api/admin/scheduling/tasks/page",
+        "/api/admin/logistics-callbacks/page")) {
+      mvc.perform(get(path).session(customer.session())).andExpect(status().isForbidden());
+    }
+  }
+
+  @Test
+  @Transactional
+  void settlementPaginationKeepsPendingAndFrozenEntriesInTheRightStore() throws Exception {
+    long merchant = users.selectOne(Wrappers.<AppUser>lambdaQuery().eq(AppUser::getEmail, "merchant@example.com")).getId();
+    long adminId = users.selectOne(Wrappers.<AppUser>lambdaQuery().eq(AppUser::getEmail, "admin@example.com")).getId();
+    if (settlementLedger.account(merchant) == null) settlementLedger.enable(merchant, 500);
+    Instant cutoff = Instant.parse("2025-01-02T00:00:00Z");
+    String statement = UUID.randomUUID().toString();
+    settlementLedger.freeze(new Statement(statement, merchant, cutoff.minusSeconds(3600), cutoff, BigDecimal.TEN,
+      BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.TEN, adminId));
+    for (int i = 0; i < 12; i++) {
+      settlementLedger.append(new Entry("page-pending-%02d".formatted(i), merchant, 800L + i, null, "MERCHANDISE",
+        BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, cutoff, null));
+      settlementLedger.append(new Entry("page-frozen-%02d".formatted(i), merchant, 900L + i, null, "MERCHANDISE",
+        BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, cutoff, null));
+    }
+    assertEquals(12, settlementLedger.assign(merchant, statement,
+      java.util.stream.IntStream.range(0, 12).mapToObj(i -> "page-frozen-%02d".formatted(i)).toList()));
+    CsrfContext own = login("merchant@example.com", false);
+    mvc.perform(get("/api/merchant/settlement/pending/page").param("page", "1").session(own.session()))
+      .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(12))
+      .andExpect(jsonPath("$.rows[0].sourceKey").value("page-pending-10"));
+    mvc.perform(get("/api/merchant/settlement/statements/{id}/entries/page", statement)
+        .param("page", "1").session(own.session()))
+      .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(12))
+      .andExpect(jsonPath("$.rows[0].sourceKey").value("page-frozen-10"));
+    CsrfContext admin = login("admin@example.com", false);
+    mvc.perform(get("/api/admin/stores/{merchantId}/statements/page", merchant).session(admin.session()))
+      .andExpect(status().isOk()).andExpect(jsonPath("$.rows[0].id").value(statement));
+    mvc.perform(get("/api/admin/stores/{merchantId}/statements/{id}/entries/page", adminId, statement)
+        .session(admin.session())).andExpect(status().isNotFound());
   }
 
   @Test

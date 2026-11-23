@@ -1,5 +1,14 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import {
+  afterNextRender,
+  ChangeDetectorRef,
+  Component,
+  DestroyRef,
+  ElementRef,
+  Injector,
+  OnInit,
+  inject,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, finalize } from 'rxjs';
 import {
@@ -31,8 +40,13 @@ export class InventoryReconciliationAdminComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly api = inject(ApiService);
+  private readonly host: ElementRef<HTMLElement> = inject(ElementRef);
+  private readonly injector = inject(Injector);
+  private readonly queuePageSize = 10;
+  private requestedQueuePage = 0;
 
   recoveries: InventoryRecovery[] = [];
+  queueQuery = '';
   selected: InventoryRecovery | null = null;
   context: WarehouseEvidenceContext | null = null;
   drafts: EvidenceDraft[] = [];
@@ -59,6 +73,35 @@ export class InventoryReconciliationAdminComponent implements OnInit {
 
   ngOnInit(): void {
     this.load();
+  }
+
+  get queueView() {
+    const query = this.queueQuery.trim().replace(/^#/, '');
+    const matches = query ? this.recoveries.filter((item) => String(item.orderId).includes(query)) : this.recoveries;
+    const totalPages = Math.ceil(matches.length / this.queuePageSize);
+    const page = Math.min(this.requestedQueuePage, Math.max(0, totalPages - 1));
+    const start = page * this.queuePageSize;
+    return { total: matches.length, page, totalPages, rows: matches.slice(start, start + this.queuePageSize) };
+  }
+
+  filterQueue(query: string): void {
+    this.queueQuery = query;
+    this.requestedQueuePage = 0;
+  }
+
+  changeQueuePage(page: number): void {
+    this.requestedQueuePage = page;
+  }
+
+  toggleStocktake(): void {
+    this.stocktakeOpen = !this.stocktakeOpen;
+    this.focusHeading(this.stocktakeOpen ? '#stocktake-title' : '#stocktake-toggle');
+  }
+
+  private focusHeading(selector: string): void {
+    afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus(), {
+      injector: this.injector,
+    });
   }
 
   toggleStocktakeCase(commandId: string, checked: boolean): void {
@@ -169,6 +212,7 @@ export class InventoryReconciliationAdminComponent implements OnInit {
 
   open(recovery: InventoryRecovery): void {
     this.selected = recovery;
+    this.focusHeading('#warehouse-editor-title');
     this.context = null;
     this.drafts = [];
     this.detailError = '';

@@ -105,7 +105,9 @@ public interface ScheduledTaskMapper {
 
   List<ScheduledTaskView> list(@Param("taskType") String taskType,
                                @Param("status") String status,
-                               @Param("limit") int limit);
+                               @Param("limit") int limit, @Param("offset") long offset);
+
+  long countForAdmin(@Param("taskType") String taskType, @Param("status") String status);
 
 
   void insertEvent(@Param("taskId") Long taskId, @Param("eventType") String eventType,

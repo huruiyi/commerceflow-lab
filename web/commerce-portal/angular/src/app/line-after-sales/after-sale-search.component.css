@@ -1,0 +1,52 @@
+.after-sale-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.after-sale-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+:host(.workspace-search) form {
+  display: grid;
+  grid-template-columns: minmax(6rem, 0.8fr) minmax(8rem, 1.1fr) minmax(7rem, 0.9fr) repeat(2, minmax(8rem, 1fr)) auto;
+  gap: 0.65rem 0.85rem;
+  margin-bottom: 0;
+}
+
+:host(.workspace-search) label {
+  display: grid;
+  min-width: 0;
+  gap: 0.3rem;
+  color: var(--cf-muted);
+  font-weight: 600;
+}
+
+:host(.workspace-search) :is(input, select) {
+  min-width: 0;
+}
+
+@media (max-width: 960px) {
+  :host(.workspace-search) form {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  :host(.workspace-search) form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  :host(.workspace-search) .after-sale-filter-actions {
+    grid-column: 1 / -1;
+  }
+
+  :host(.workspace-search) .after-sale-filter-actions .btn {
+    flex: 1 1 auto;
+  }
+}

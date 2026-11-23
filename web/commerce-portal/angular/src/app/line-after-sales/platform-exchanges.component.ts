@@ -1,17 +1,31 @@
-import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import {
+  afterNextRender,
+  ChangeDetectorRef,
+  Component,
+  DestroyRef,
+  ElementRef,
+  Injector,
+  OnInit,
+  inject,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize, Observable } from 'rxjs';
+import { I18nService } from '../services/i18n.service';
 import { AfterSale, AfterSaleListCriteria, ApiService, ExchangeDetail } from '../services/api.service';
 
 @Component({
   standalone: false,
   selector: 'app-platform-exchanges',
   templateUrl: './platform-exchanges.component.html',
+  styleUrl: './platform-exchanges.component.css',
 })
 export class PlatformExchangesComponent implements OnInit {
   private readonly api = inject(ApiService);
   private readonly destroy = inject(DestroyRef);
   private readonly changes = inject(ChangeDetectorRef);
+  private readonly host: ElementRef<HTMLElement> = inject(ElementRef);
+  private readonly injector = inject(Injector);
+  readonly i18n = inject(I18nService);
   exchanges: AfterSale[] = [];
   detail?: ExchangeDetail;
   readonly statuses = [
@@ -31,6 +45,7 @@ export class PlatformExchangesComponent implements OnInit {
   ];
   page = 0;
   totalPages = 0;
+  total = 0;
   private criteria: AfterSaleListCriteria = {};
   busy = false;
   failed = false;
@@ -48,6 +63,7 @@ export class PlatformExchangesComponent implements OnInit {
     this.run(this.api.platformExchanges(this.criteria, page), (result) => {
       this.exchanges = result.rows;
       this.page = result.page;
+      this.total = result.total;
       this.totalPages = Math.ceil(result.total / result.size);
       this.detail = undefined;
     });
@@ -55,7 +71,12 @@ export class PlatformExchangesComponent implements OnInit {
 
   show(id: string): void {
     this.detail = undefined;
-    this.run(this.api.platformExchange(id), (detail) => (this.detail = detail));
+    this.run(this.api.platformExchange(id), (detail) => {
+      this.detail = detail;
+      afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('#exchange-detail-title')?.focus(), {
+        injector: this.injector,
+      });
+    });
   }
 
   private run<T>(request: Observable<T>, success: (value: T) => void): void {

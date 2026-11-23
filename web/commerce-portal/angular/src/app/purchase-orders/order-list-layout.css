@@ -1,0 +1,210 @@
+.orders-panel,
+.order-card {
+  border: 1px solid #dce5df;
+  border-radius: 0.75rem;
+  background: #fff;
+}
+
+.orders-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 0.875rem;
+}
+
+.orders-table th,
+.orders-table td {
+  padding: 0.65rem 0.875rem;
+  border-top: 1px solid #e5ebe7;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.orders-table thead th {
+  background: #f1f5f2;
+  color: #52615b;
+  font-size: 0.8125rem;
+  font-weight: 650;
+}
+
+.orders-table thead th:first-child {
+  width: 29%;
+}
+
+.orders-table thead th:nth-child(3) {
+  width: 15%;
+}
+
+.orders-table thead th:nth-child(4) {
+  width: 12%;
+}
+
+.orders-table thead th:last-child {
+  width: 25%;
+}
+
+.orders-table .amount-column,
+.orders-table .actions-column {
+  text-align: end;
+}
+
+.order-summary-row:focus-within {
+  background: #f6f9f6;
+}
+
+.orders-table .order-more-row > td {
+  padding: 0;
+}
+
+.order-more-row[hidden] {
+  display: none;
+}
+
+:is(.order-card, .order-summary-row, .order-more-row)[data-status='PENDING_PAYMENT'],
+:is(.order-card, .order-summary-row, .order-more-row)[data-status='CANCELLING'],
+:is(.order-card, .order-summary-row, .order-more-row)[data-status='REFUNDING'] {
+  --order-accent: #805109;
+  --order-accent-soft: #fff3d9;
+}
+
+:is(.order-card, .order-summary-row, .order-more-row)[data-status='PAID'],
+:is(.order-card, .order-summary-row, .order-more-row)[data-status='RECEIVED'],
+:is(.order-card, .order-summary-row, .order-more-row)[data-status='COMPLETED'] {
+  --order-accent: #17664d;
+  --order-accent-soft: #e8f3ed;
+}
+
+:is(.order-card, .order-summary-row, .order-more-row)[data-status='CONFIRMED'],
+:is(.order-card, .order-summary-row, .order-more-row)[data-status='SHIPPED'] {
+  --order-accent: #28558a;
+  --order-accent-soft: #edf3fb;
+}
+
+:is(.order-card, .order-summary-row, .order-more-row)[data-status='REFUNDED'] {
+  --order-accent: #5b4385;
+  --order-accent-soft: #f2edf9;
+}
+
+.order-identity {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.order-identity a {
+  color: #17664d;
+  font-weight: 650;
+  text-underline-offset: 0.15em;
+}
+
+.order-identity small,
+.order-products small {
+  display: block;
+  margin-top: 0.15rem;
+  color: #52615b;
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.summary-actions,
+.primary-action-slot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: end;
+}
+
+.primary-action-slot:empty,
+.summary-actions:empty {
+  display: none;
+}
+
+.summary-actions :is(button, a) {
+  min-height: 2rem;
+  height: auto;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+  white-space: normal;
+}
+
+.order-total {
+  text-align: end;
+}
+
+.order-total strong {
+  color: #172723;
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.status {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.375rem;
+  background: var(--order-accent-soft, #eef2ee);
+  color: var(--order-accent, #52615b);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+@media (max-width: 780px) {
+  .orders-table,
+  .orders-table tbody,
+  .orders-table .order-more-row:not([hidden]),
+  .orders-table .order-more-row > td {
+    display: block;
+  }
+
+  .orders-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .orders-table .order-summary-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      'number number'
+      'product product'
+      'status amount'
+      'action action';
+    align-items: center;
+    gap: 0.4rem 0.75rem;
+    padding: 0.7rem 0.875rem;
+    border-top: 1px solid #e5ebe7;
+  }
+
+  .order-summary-row th,
+  .order-summary-row td {
+    display: block;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .order-summary-row .order-identity {
+    grid-area: number;
+  }
+
+  .order-summary-row .order-products {
+    grid-area: product;
+  }
+
+  .order-summary-row .order-state {
+    grid-area: status;
+  }
+
+  .order-summary-row .order-total {
+    grid-area: amount;
+  }
+
+  .order-summary-row .order-actions {
+    grid-area: action;
+  }
+}

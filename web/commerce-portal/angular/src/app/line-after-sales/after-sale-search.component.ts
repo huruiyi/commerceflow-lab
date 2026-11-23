@@ -5,6 +5,7 @@ import { AfterSaleListCriteria } from '../services/api.service';
   selector: 'app-after-sale-search',
   standalone: false,
   templateUrl: './after-sale-search.component.html',
+  styleUrl: './after-sale-search.component.css',
 })
 export class AfterSaleSearchComponent {
   readonly busy = input(false);

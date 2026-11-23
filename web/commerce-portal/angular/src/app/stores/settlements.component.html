@@ -25,8 +25,18 @@
       刷新 / Refresh
     </button>
   </div>
-  <p *ngIf="!statements().length">暂无账单 / No statements</p>
-  <div class="table-responsive" *ngIf="statements().length">
+  <p *ngIf="!statements()?.rows?.length">暂无账单 / No statements</p>
+  @if (statements(); as page) {
+    <app-list-pagination
+      class="d-block admin-pagination"
+      [page]="page.page"
+      [totalPages]="pageCount(page)"
+      label="Settlement statements"
+      [loading]="busy()"
+      (pageChange)="loadStatements($event)"
+    />
+  }
+  <div class="table-responsive" *ngIf="statements()?.rows?.length">
     <table class="table">
       <thead>
         <tr>
@@ -39,7 +49,7 @@
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let item of statements()">
+        <tr *ngFor="let item of statements()?.rows">
           <td>{{ item.startsAt | date: 'short' }} – {{ item.cutoffAt | date: 'short' }}</td>
           <td>{{ item.merchandise | currency: 'CNY' }}</td>
           <td>{{ item.freight | currency: 'CNY' }}</td>
@@ -79,7 +89,17 @@
     @if (periodComparisonPath(); as path) {
       <app-statement-period-comparison [path]="path" />
     }
-    <ng-container *ngTemplateOutlet="ledger; context: { $implicit: entries() }"></ng-container>
+    @if (entries(); as page) {
+      <app-list-pagination
+        class="d-block admin-pagination"
+        [page]="page.page"
+        [totalPages]="pageCount(page)"
+        label="Frozen entries"
+        [loading]="busy()"
+        (pageChange)="loadEntries($event)"
+      />
+      <ng-container *ngTemplateOutlet="ledger; context: { $implicit: page.rows }"></ng-container>
+    }
     <h3 class="h5">模拟打款 / Simulated payouts</h3>
     <ul class="list-group mb-3" *ngIf="payouts().length">
       <li class="list-group-item" *ngFor="let item of payouts()">
@@ -111,8 +131,18 @@
       </form>
     }
   </ng-container>
-  <ng-container *ngIf="pending().length"
-    ><h3 class="h5">待结余额记录 / Pending entries</h3>
-    <ng-container *ngTemplateOutlet="ledger; context: { $implicit: pending() }"></ng-container>
-  </ng-container>
+  @if (pending(); as page) {
+    @if (page.rows.length) {
+      <h3 class="h5">待结余额记录 / Pending entries</h3>
+      <app-list-pagination
+        class="d-block admin-pagination"
+        [page]="page.page"
+        [totalPages]="pageCount(page)"
+        label="Pending entries"
+        [loading]="busy()"
+        (pageChange)="loadPending($event)"
+      />
+      <ng-container *ngTemplateOutlet="ledger; context: { $implicit: page.rows }"></ng-container>
+    }
+  }
 </section>

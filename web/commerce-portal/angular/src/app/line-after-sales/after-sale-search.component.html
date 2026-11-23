@@ -1,4 +1,4 @@
-<form class="d-flex flex-wrap align-items-end gap-2 mb-3" (ngSubmit)="submit()" #criteria="ngForm">
+<form class="after-sale-search" (ngSubmit)="submit()" #criteria="ngForm">
   <label>
     {{ 'exchangeOrderId' | t }}
     <input class="form-control" type="number" name="orderId" [(ngModel)]="orderId" min="1" step="1" />
@@ -24,14 +24,16 @@
     {{ 'afterSaleCreatedThrough' | t }}
     <input class="form-control" type="date" name="through" [(ngModel)]="through" />
   </label>
-  <button
-    type="submit"
-    class="btn btn-primary"
-    [disabled]="busy() || criteria.invalid || !!(from && through && from > through)"
-  >
-    {{ 'search' | t }}
-  </button>
-  <button type="button" class="btn btn-outline-secondary" [disabled]="busy()" (click)="clear()">
-    {{ 'clearOrderFilters' | t }}
-  </button>
+  <div class="after-sale-filter-actions">
+    <button
+      type="submit"
+      class="btn btn-primary"
+      [disabled]="busy() || criteria.invalid || !!(from && through && from > through)"
+    >
+      {{ 'search' | t }}
+    </button>
+    <button type="button" class="btn btn-outline-secondary" [disabled]="busy()" (click)="clear()">
+      {{ 'clearOrderFilters' | t }}
+    </button>
+  </div>
 </form>

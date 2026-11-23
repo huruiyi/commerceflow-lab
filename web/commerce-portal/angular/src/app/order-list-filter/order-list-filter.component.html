@@ -1,4 +1,4 @@
-<section class="order-filter" [attr.aria-label]="'searchOrders' | t">
+<section class="order-filter compact-filter" [attr.aria-label]="'searchOrders' | t">
   <div *ngIf="merchant() && result() as queues" class="d-flex flex-wrap gap-2 mb-3">
     <button
       hlmBtn
@@ -20,7 +20,7 @@
     </button>
   </div>
   <form class="filter-controls" (ngSubmit)="apply()">
-    <label>
+    <label class="order-keyword">
       <span>{{ 'searchOrders' | t }}</span>
       <input
         class="form-control"
@@ -31,38 +31,57 @@
         [placeholder]="(merchant() ? 'merchantOrderSearchHint' : 'customerOrderSearchHint') | t"
       />
     </label>
-    <label>
+    <label class="order-status-filter">
       <span>{{ 'status' | t }}</span>
       <select class="form-select" name="status" [(ngModel)]="draft.status">
         <option value="">{{ 'allStatuses' | t }}</option>
         <option *ngFor="let option of statuses" [value]="option">{{ option | t }}</option>
       </select>
     </label>
-    <label>
-      <span>{{ 'orderDateFrom' | t }}</span>
-      <input class="form-control" type="date" name="from" [(ngModel)]="draft.from" />
-    </label>
-    <label>
-      <span>{{ 'orderDateTo' | t }}</span>
-      <input class="form-control" type="date" name="to" [(ngModel)]="draft.to" />
-    </label>
-    <div class="d-flex flex-wrap gap-2">
-      <button hlmBtn type="submit" [disabled]="invalidDateRange">{{ 'search' | t }}</button>
+    <div class="filter-actions">
+      <button hlmBtn variant="outline" type="submit" [disabled]="invalidDateRange">
+        {{ 'search' | t }}
+      </button>
+      <button
+        hlmBtn
+        variant="outline"
+        type="button"
+        [attr.aria-expanded]="datesOpen"
+        aria-controls="order-date-filters"
+        (click)="datesOpen = !datesOpen"
+      >
+        <i class="bi bi-calendar3" aria-hidden="true"></i>{{ 'orderDateFilter' | t }}
+      </button>
       <button hlmBtn variant="outline" type="button" (click)="clear()">{{ 'clearOrderFilters' | t }}</button>
     </div>
+    <ng-container [ngTemplateOutlet]="dateFields"></ng-container>
+    <ng-template #dateFields>
+      <div class="order-date-filters" id="order-date-filters" [hidden]="!datesOpen">
+        <label>
+          <span>{{ 'orderDateFrom' | t }}</span>
+          <input class="form-control" type="date" name="from" [(ngModel)]="draft.from" />
+        </label>
+        <label>
+          <span>{{ 'orderDateTo' | t }}</span>
+          <input class="form-control" type="date" name="to" [(ngModel)]="draft.to" />
+        </label>
+      </div>
+    </ng-template>
   </form>
   <p *ngIf="invalidDateRange" role="alert">{{ 'invalidOrderDates' | t }}</p>
-  <p *ngIf="loading()" class="filter-result" role="status">{{ 'loading' | t }}</p>
-  <ng-container *ngIf="!loading() && result() as page">
-    <p class="filter-result" role="status">
-      {{ page.total ? i18n.t('orderSearchTotal', { count: page.total }) : ('noOrdersMatch' | t) }}
-    </p>
-  </ng-container>
-  <app-list-pagination
-    [page]="result()?.page ?? 0"
-    [totalPages]="pageCount"
-    [label]="'orderPagination' | t"
-    [loading]="loading()"
-    (pageChange)="go($event)"
-  />
+  <div class="filter-result-bar">
+    <p *ngIf="loading()" class="filter-result" role="status">{{ 'loading' | t }}</p>
+    <ng-container *ngIf="!loading() && result() as page">
+      <p class="filter-result" role="status">
+        {{ page.total ? i18n.t('orderSearchTotal', { count: page.total }) : ('noOrdersMatch' | t) }}
+      </p>
+    </ng-container>
+    <app-list-pagination
+      [page]="result()?.page ?? 0"
+      [totalPages]="pageCount"
+      [label]="'orderPagination' | t"
+      [loading]="loading()"
+      (pageChange)="go($event)"
+    />
+  </div>
 </section>

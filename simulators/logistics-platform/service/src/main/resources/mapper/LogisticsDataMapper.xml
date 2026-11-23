@@ -152,16 +152,25 @@
     next_attempt_at, lease_until, claimed_by, last_error, created_at, published_at, updated_at
   </sql>
 
-  <select id="listOutbox"
-          resultType="vip.fairy.commerceflow.simulator.logistics.infrastructure.persistence.row.CallbackOutboxRow">
-    SELECT <include refid="outboxProjection"/>
-    FROM callback_outbox
+  <sql id="outboxFilter">
     <where>
       <if test="status != null and status != ''">status = #{status}</if>
       <if test="shipmentId != null">AND shipment_id = #{shipmentId}</if>
     </where>
+  </sql>
+
+  <select id="countOutboxForAdmin" resultType="long">
+    SELECT COUNT(*) FROM callback_outbox
+    <where><if test="status != null and status != ''">status = #{status}</if></where>
+  </select>
+
+  <select id="listOutbox"
+          resultType="vip.fairy.commerceflow.simulator.logistics.infrastructure.persistence.row.CallbackOutboxRow">
+    SELECT <include refid="outboxProjection"/>
+    FROM callback_outbox
+    <include refid="outboxFilter"/>
     ORDER BY id DESC
-    LIMIT #{limit}
+    LIMIT #{limit} OFFSET #{offset}
   </select>
 
   <select id="outboxEvents"

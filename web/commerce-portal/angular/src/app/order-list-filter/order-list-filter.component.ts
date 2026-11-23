@@ -22,6 +22,7 @@ export class OrderListFilterComponent implements OnChanges {
   readonly changed = output<OrderSearchCriteria>();
   readonly statuses = orderSearchStatuses;
   draft = { ...initialOrderSearch };
+  datesOpen = false;
 
   ngOnChanges(changes: SimpleChanges<OrderListFilterComponent>): void {
     const change = changes.applied;
@@ -36,6 +37,7 @@ export class OrderListFilterComponent implements OnChanges {
       previous.to !== current.to
     ) {
       this.draft = { ...current };
+      if (current.from || current.to) this.datesOpen = true;
     }
   }
 
@@ -63,6 +65,7 @@ export class OrderListFilterComponent implements OnChanges {
 
   clear(): void {
     this.draft = { ...initialOrderSearch };
+    this.datesOpen = false;
     this.apply();
   }
 }

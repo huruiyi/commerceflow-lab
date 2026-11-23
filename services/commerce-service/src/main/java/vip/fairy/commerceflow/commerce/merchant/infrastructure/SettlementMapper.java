@@ -50,6 +50,21 @@ public interface SettlementMapper {
 
   List<Statement> statements(Long merchant);
 
+  long statementCount(@Param("merchant") long merchant);
+
+  List<Statement> statementPage(@Param("merchant") long merchant, @Param("size") int size,
+                                @Param("offset") long offset);
+
+  long pendingCount(@Param("merchant") long merchant);
+
+  List<Entry> pendingPage(@Param("merchant") long merchant, @Param("size") int size,
+                          @Param("offset") long offset);
+
+  long entryCount(@Param("merchant") long merchant, @Param("statement") String statement);
+
+  List<Entry> entryPage(@Param("merchant") long merchant, @Param("statement") String statement,
+                        @Param("size") int size, @Param("offset") long offset);
+
   void freeze(Statement statement);
 
   int assign(@Param("merchant") Long merchant, @Param("statement") String statement,

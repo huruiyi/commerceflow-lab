@@ -22,6 +22,7 @@
 | 收货评价 | `POST /api/purchase-orders/{id}/receive`、`POST /api/order-items/{id}/reviews` | CUSTOMER |
 | 商家履约 | `GET /api/merchant/orders/search`、`GET /api/merchant/orders/{id}`、`POST /api/merchant/orders/fulfillment-v1/commands`、`GET /api/merchant/orders/fulfillment-v1/commands/{commandId}`、`POST /api/merchant/orders/{id}/packages` | MERCHANT，仅本店订单 |
 | 用户管理 | `GET /api/users` | ADMIN |
+| 分页查询用户 | `GET /api/users/page?q=&page=&size=` | ADMIN |
 | 商家账号 | `POST /api/users/merchants` | ADMIN |
 | 店铺 | `GET /api/stores/{id}`、`GET/PUT /api/merchant/store`、`GET /api/admin/stores`、`PUT /api/admin/stores/{id}/status` | 公开店铺 / 商家本人 / 管理员 |
 | 新建商品 | `POST /api/merchant/catalog/v1/products` | 已启用店铺的商家 |
@@ -61,6 +62,20 @@
 两期摘要分别保留冻结金额、成功打款和退款汇总。退款冲正按时间及账本行标识排序，可追到
 同店原订单行、销售账本和原冻结账单。原销售账单未确认时返回空引用，不计入已确认的跨期退款。
 分页从 0 开始，默认每页 10 条，最大 20 条。账单属于其他店铺时返回 404。
+
+### 列表分页查询
+
+以下分页接口返回 `rows`、`total`、`page`、`size`。页码从 0 开始，默认每页 10 条，最大 100 条。页码超出范围时返回最后一页，空结果返回第 0 页。
+用户查询支持按姓名、邮箱和电话筛选。任务实例和回调按 ID 倒序排列，库存流水按发生时间和 ID 倒序排列。结算明细按发生时间和原凭证号排序。
+
+| 列表 | 分页路径和筛选 |
+| --- | --- |
+| 定时任务实例 | `GET /api/admin/scheduling/tasks/page`，可按 `taskType`、`status` 筛选 |
+| 回调事务发件箱 | `GET /api/admin/logistics-callbacks/page`，可按 `status` 筛选，商城转发到物流模拟器的签名分页入口 |
+| 商品库存流水 | `GET /api/merchant/inventory/{productId}/movements/page` |
+| 结算账单 | 商家用 `GET /api/merchant/settlement/statements/page`，管理员用 `GET /api/admin/stores/{merchantId}/statements/page` |
+| 待结记录 | 商家用 `GET /api/merchant/settlement/pending/page`，管理员用 `GET /api/admin/stores/{merchantId}/settlement/pending/page` |
+| 冻结明细 | 商家用 `GET /api/merchant/settlement/statements/{id}/entries/page`，管理员用 `GET /api/admin/stores/{merchantId}/statements/{id}/entries/page`，商家只能查看本店账单 |
 
 ## 管理员人工恢复 API
 
@@ -103,7 +118,8 @@
 | 保存覆盖 | `PUT /api/admin/scheduling/policies/{taskType}` | 写数据库覆盖并递增配置版本，只影响后续新任务 |
 | 恢复配置 | `DELETE /api/admin/scheduling/policies/{taskType}` | 删除数据库覆盖，恢复 YAML 任务策略或默认策略 |
 | 策略审计 | `GET /api/admin/scheduling/policies/{taskType}/events` | 查看新增、修改和恢复配置的操作者与完整参数 |
-| 任务查询 | `GET /api/admin/scheduling/tasks?taskType=&status=&limit=` | 按类型/状态查询，最大 500 条 |
+| 任务分页 | `GET /api/admin/scheduling/tasks/page?taskType=&status=&page=&size=` | 按类型和状态查询历史 |
+| 最近任务查询 | `GET /api/admin/scheduling/tasks?taskType=&status=&limit=` | 保留既有调用，最大 500 条 |
 | 任务事件 | `GET /api/admin/scheduling/tasks/{id}/events` | 查看创建、领取、成功、失败、重试和取消轨迹 |
 | 人工重试 | `POST /api/admin/scheduling/tasks/{id}/retry` | 仅允许重试 `FAILED` 任务，次数从零重新开始 |
 | 人工取消 | `POST /api/admin/scheduling/tasks/{id}/cancel` | 仅允许取消尚未完成的待执行/失败任务 |
@@ -177,6 +193,7 @@ Angular 管理员可从导航栏“定时任务”进入 `/admin/scheduling` 操
 | `POST /api/channel/shipments/{merchantShipmentNo}/recover` | 同上 | 通过 `RECOVERY（异常恢复）` 返回异常前状态 |
 | `POST /api/logistics-notifications/callback` | 回调 HMAC | 物流平台推送状态和轨迹 |
 | `GET /api/admin/logistics-callbacks?status=DEAD` | ADMIN | 查询 Callback Outbox，可按状态筛选 |
+| `GET /api/admin/logistics-callbacks/page?status=DEAD&page=0` | ADMIN | 按状态分页查询历史，返回匹配总数 |
 | `GET /api/admin/logistics-callbacks/{id}/events` | ADMIN | 查询回调投递和人工操作审计 |
 | `POST /api/admin/logistics-callbacks/{id}/replay` | ADMIN + CSRF | 填写 `reason` 重放 `DEAD（停止自动重试）` 回调 |
 

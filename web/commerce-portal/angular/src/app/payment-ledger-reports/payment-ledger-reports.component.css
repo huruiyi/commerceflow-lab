@@ -281,14 +281,18 @@ h2 {
   font-weight: 600;
 }
 
-.daily-scroll {
-  max-height: 29rem;
-  overflow: auto;
+.daily-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.7rem;
 }
 
-.daily-scroll thead {
-  position: sticky;
-  top: 0;
+.daily-heading h2,
+.daily-heading p {
+  margin: 0;
 }
 
 @media (max-width: 740px) {

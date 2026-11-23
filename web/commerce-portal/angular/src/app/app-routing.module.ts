@@ -4,6 +4,7 @@ import { AuthGuard } from './auth.guard';
 import { InvoiceCenterComponent } from './invoices/invoice-center.component';
 import { PlatformExchangesComponent } from './line-after-sales/platform-exchanges.component';
 import { DashboardComponent } from './dashboard/dashboard.component';
+import { ProductDetailComponent } from './product-detail/product-detail.component';
 import { ErrorpageComponent } from './errorpage/errorpage.component';
 import { LoginComponent } from './login/login.component';
 import { CouponsComponent } from './coupons/coupons.component';
@@ -26,6 +27,7 @@ import { InventoryReconciliationAdminComponent } from './inventory-reconciliatio
 const routes: Routes = [
   { path: '', component: LoginComponent }, //LoginGuard
   { path: 'dashboard', component: DashboardComponent, canActivate: [AuthGuard] },
+  { path: 'products/:id', component: ProductDetailComponent },
   { path: 'stores/:id', component: StoresComponent, data: { mode: 'public' } },
   {
     path: 'merchant/store',

@@ -45,14 +45,30 @@ public class CallbackOutboxService {
 
   public List<CallbackOutboxView> list(String status, Long shipmentId, int limit) {
     int safeLimit = Math.max(1, Math.min(limit, 500));
-    String normalized = null;
-    if (status != null && !status.isBlank()) {
-      normalized = status.trim().toUpperCase();
-      if (!Set.of("NEW", "PROCESSING", "RETRY", "PUBLISHED", "DEAD").contains(normalized)) {
-        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "CALLBACK_OUTBOX_STATUS_INVALID");
-      }
+    return dataMapper.listOutbox(filterStatus(status), shipmentId, safeLimit, 0).stream().map(this::map).toList();
+  }
+
+  @Transactional(readOnly = true)
+  public OutboxPage page(String status, int requestedPage, int requestedSize) {
+    String state = filterStatus(status);
+    int size = Math.clamp(requestedSize, 1, 100);
+    long total = dataMapper.countOutboxForAdmin(state);
+    long last = total == 0 ? 0 : (total - 1) / size;
+    int page = (int) Math.clamp(requestedPage, 0L, last);
+    var rows = dataMapper.listOutbox(state, null, size, (long) page * size).stream().map(this::map).toList();
+    return new OutboxPage(rows, total, page, size);
+  }
+
+  public record OutboxPage(List<CallbackOutboxView> rows, long total, int page, int size) {
+  }
+
+  private static String filterStatus(String status) {
+    if (status == null || status.isBlank()) return null;
+    String normalized = status.trim().toUpperCase();
+    if (!Set.of("NEW", "PROCESSING", "RETRY", "PUBLISHED", "DEAD").contains(normalized)) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "CALLBACK_OUTBOX_STATUS_INVALID");
     }
-    return dataMapper.listOutbox(normalized, shipmentId, safeLimit).stream().map(this::map).toList();
+    return normalized;
   }
 
   public List<CallbackOutboxView.AuditEvent> events(Long id) {

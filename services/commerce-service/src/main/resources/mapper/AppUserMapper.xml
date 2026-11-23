@@ -11,6 +11,29 @@
     ORDER BY r.code
     ]]>
   </select>
+  <sql id="adminFilter">
+    <where>
+      <if test="term != ''">
+        LOCATE(LOWER(#{term}), LOWER(CONCAT_WS(' ', first_name, last_name))) &gt; 0
+        OR LOCATE(LOWER(#{term}), LOWER(email)) &gt; 0
+        OR LOCATE(#{term}, phone) &gt; 0
+      </if>
+    </where>
+  </sql>
+
+  <select id="countForAdmin" resultType="long">
+    SELECT COUNT(*) FROM app_users
+    <include refid="adminFilter"/>
+  </select>
+
+  <select id="pageForAdmin" resultType="vip.fairy.commerceflow.commerce.identity.api.UserSummaryResponse">
+    SELECT id, CONCAT_WS(' ', first_name, last_name) AS name, email, phone
+    FROM app_users
+    <include refid="adminFilter"/>
+    ORDER BY first_name, last_name, id
+    LIMIT #{size} OFFSET #{offset}
+  </select>
+
   <insert id="grantMerchant">
     INSERT INTO user_roles(user_id,role_id) SELECT #{userId},id FROM roles WHERE code='MERCHANT'
   </insert>

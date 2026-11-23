@@ -1,0 +1,2071 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CommerceFlow Lab · 商城原型</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --canvas: #f7f8f5;
+        --paper: #fff;
+        --ink: #172723;
+        --muted: #52615b;
+        --green: #17664d;
+        --green-dark: #104e3b;
+        --green-soft: #e8f2eb;
+        --line: #dce5df;
+        --risk: #a04030;
+        --amber: #76531a;
+        --light-amber: #f9f0da;
+        --shadow: 0 2px 8px #23352608;
+        font:
+          14px/1.5 "Inter",
+          "Segoe UI",
+          "Microsoft YaHei",
+          sans-serif;
+        color: var(--ink);
+        background: var(--canvas);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+      }
+      a {
+        color: var(--green);
+        text-underline-offset: 3px;
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+      input,
+      select {
+        min-height: 38px;
+        width: 100%;
+        padding: 0 12px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: #fff;
+        color: var(--ink);
+      }
+      input::placeholder {
+        color: #697771;
+      }
+      a:focus-visible,
+      button:focus-visible,
+      input:focus-visible,
+      select:focus-visible,
+      summary:focus-visible {
+        outline: 2px solid var(--green);
+        outline-offset: 3px;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      button,
+      .button {
+        min-height: 38px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        padding: 0 14px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: #fff;
+        color: var(--ink);
+        text-decoration: none;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      button:hover,
+      .button:hover {
+        background: #edf3ed;
+      }
+      .primary {
+        background: var(--green);
+        border-color: var(--green);
+        color: white;
+        font-weight: 650;
+      }
+      .primary:hover {
+        background: var(--green-dark);
+      }
+      button:disabled {
+        opacity: 0.48;
+        cursor: default;
+      }
+      .link {
+        padding: 0;
+        border: 0;
+        min-height: 32px;
+        background: transparent;
+        color: var(--green);
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      .danger {
+        color: var(--risk);
+      }
+      .site-header {
+        background: var(--paper);
+        border-bottom: 1px solid var(--line);
+      }
+      .header-inner {
+        max-width: 1370px;
+        width: calc(100% - 64px);
+        min-height: 68px;
+        margin: auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--ink);
+        text-decoration: none;
+        font-size: 17px;
+        font-weight: 780;
+        letter-spacing: -0.025em;
+        white-space: nowrap;
+      }
+      .mark {
+        display: grid;
+        place-items: center;
+        width: 33px;
+        height: 33px;
+        border-radius: 9px;
+        background: var(--green);
+        color: #fff;
+        font-size: 16px;
+      }
+      .roles {
+        display: flex;
+        gap: 2px;
+        padding: 4px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: #f3f6f2;
+      }
+      .roles a {
+        padding: 5px 12px;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        color: var(--muted);
+        text-decoration: none;
+        white-space: nowrap;
+      }
+      .roles .active {
+        border-color: var(--line);
+        background: var(--paper);
+        color: var(--green-dark);
+        font-weight: 700;
+      }
+      .prototype-label {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .shell {
+        max-width: 1370px;
+        width: calc(100% - 64px);
+        margin: auto;
+      }
+      .store-nav {
+        display: flex;
+        gap: 23px;
+        min-height: 45px;
+        align-items: center;
+        border-bottom: 1px solid var(--line);
+      }
+      .store-nav a,
+      .side a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      .store-nav a .badge {
+        margin-left: 5px;
+      }
+      .store-nav a[aria-current="page"] {
+        color: var(--green);
+        font-weight: 700;
+      }
+      .store-nav .utility {
+        margin-left: auto;
+      }
+      .store-content {
+        max-width: 1200px;
+        margin: auto;
+        padding: 30px 0 46px;
+      }
+      .workspace {
+        display: grid;
+        grid-template-columns: 210px minmax(0, 1fr);
+        min-height: calc(100vh - 69px);
+      }
+      .side {
+        padding: 32px 18px 32px 0;
+        border-right: 1px solid var(--line);
+      }
+      .side h2 {
+        font-size: 13px;
+        font-weight: 750;
+        margin: 0 0 12px;
+        padding-left: 10px;
+      }
+      .side p {
+        color: var(--muted);
+        font-size: 12px;
+        margin: 20px 0 8px;
+        padding-left: 10px;
+      }
+      .side a {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 7px;
+        padding: 9px 11px;
+        margin: 2px 0;
+        border-radius: 7px;
+      }
+      .side a:hover,
+      .side a[aria-current="page"] {
+        background: var(--green-soft);
+        color: var(--green-dark);
+      }
+      .side a[aria-current="page"] {
+        font-weight: 700;
+      }
+      .operations {
+        min-width: 0;
+        padding: 28px 0 46px 28px;
+      }
+      .page-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+      .page-head p {
+        margin: 4px 0 0;
+        color: var(--muted);
+      }
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        line-height: 1.27;
+        letter-spacing: -0.025em;
+      }
+      h1 {
+        font-size: 29px;
+        letter-spacing: -0.045em;
+        font-weight: 750;
+      }
+      .operations h1 {
+        font-size: 24px;
+      }
+      h2 {
+        font-size: 17px;
+        font-weight: 730;
+      }
+      h3 {
+        font-size: 14px;
+        font-weight: 730;
+      }
+      .stack {
+        display: grid;
+        gap: 16px;
+      }
+      .panel {
+        min-width: 0;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        box-shadow: var(--shadow);
+      }
+      .panel-head,
+      .pad {
+        padding: 16px 18px;
+      }
+      .panel-head {
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+      }
+      .panel-head + *:not(.scroll-table) {
+        border-top: 1px solid var(--line);
+      }
+      .subtle {
+        color: var(--muted);
+      }
+      .subtle p,
+      p.subtle {
+        margin: 4px 0 0;
+      }
+      .compact {
+        font-size: 12px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        vertical-align: middle;
+        padding: 3px 8px;
+        border-radius: 20px;
+        font-size: 12px;
+        line-height: 1.25;
+        font-weight: 700;
+        color: #4d5a54;
+        background: #edf0ed;
+        white-space: nowrap;
+      }
+      .badge::before {
+        content: "";
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        border-radius: 100%;
+        background: currentColor;
+      }
+      .positive {
+        color: var(--green-dark);
+        background: var(--green-soft);
+      }
+      .pending {
+        color: var(--amber);
+        background: var(--light-amber);
+      }
+      .negative {
+        color: var(--risk);
+        background: #f9e9e5;
+      }
+      .new {
+        color: #52615b;
+        background: #eef2ee;
+      }
+      .actions,
+      .row-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+      }
+      .row-actions {
+        flex-wrap: nowrap;
+        gap: 15px;
+      }
+      .toolbar {
+        display: flex;
+        align-items: end;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .toolbar label {
+        display: grid;
+        gap: 5px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 650;
+      }
+      .toolbar label input,
+      .toolbar label select {
+        font-size: 14px;
+        font-weight: 400;
+      }
+      .toolbar .wide {
+        flex: 1 1 245px;
+      }
+      .search-field {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 5px 5px 5px 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+      }
+      .search-field input {
+        min-height: 40px;
+        border: 0;
+        padding: 0;
+      }
+      .search-field button {
+        min-height: 39px;
+        padding: 0 20px;
+      }
+      .search-icon {
+        font-size: 20px;
+        color: var(--green);
+        line-height: 1;
+      }
+      .catalog-layout {
+        display: grid;
+        grid-template-columns: 214px minmax(0, 1fr);
+        gap: 20px;
+        margin-top: 22px;
+      }
+      .filters {
+        padding: 16px;
+        align-self: start;
+      }
+      .filters header,
+      .results-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .filters label {
+        display: grid;
+        gap: 5px;
+        margin: 12px 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .filters .filter-toggle {
+        display: none;
+      }
+      .price-range,
+      .split {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .filters button:not(.link) {
+        width: 100%;
+      }
+      .results-head select {
+        width: auto;
+        min-height: 34px;
+      }
+      .results-head p {
+        margin: 0;
+        color: var(--muted);
+      }
+      .results-head strong {
+        color: var(--ink);
+      }
+      .active-filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin: -2px 0 12px;
+      }
+      .active-filters button {
+        min-height: 26px;
+        padding: 0 8px;
+        border-color: #c6ddd0;
+        background: var(--green-soft);
+        color: var(--green-dark);
+        font-size: 12px;
+      }
+      .product-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 15px;
+      }
+      .product-card {
+        overflow: hidden;
+      }
+      .product-card > a {
+        text-decoration: none;
+        color: var(--ink);
+        display: block;
+      }
+      .product-card:hover {
+        border-color: #99baab;
+      }
+      .product-photo {
+        position: relative;
+        aspect-ratio: 1.52;
+        background: #eaf0e9;
+        color: #526157;
+        overflow: hidden;
+      }
+      .photo-crop {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 100%;
+        aspect-ratio: 1;
+        background: url("../../web/commerce-portal/angular/src/assets/demo-product-photography.jpg") no-repeat;
+        background-size: 300% 200%;
+      }
+      .photo-laptop {
+        background-position: 0 0;
+      }
+      .photo-keyboard {
+        background-position: 50% 0;
+      }
+      .photo-monitor {
+        background-position: 100% 0;
+      }
+      .photo-hub {
+        background-position: 0 100%;
+      }
+      .photo-headphones {
+        background-position: 50% 100%;
+      }
+      .photo-notebook {
+        background-position: 100% 100%;
+      }
+      .product-card .pad {
+        padding: 13px;
+        display: grid;
+        gap: 4px;
+      }
+      .product-card h2 {
+        font-size: 15px;
+      }
+      .product-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        margin-top: 6px;
+      }
+      .price {
+        color: var(--green-dark);
+        font-weight: 750;
+        font-size: 19px;
+      }
+      .breadcrumbs {
+        display: flex;
+        gap: 9px;
+        flex-wrap: wrap;
+        color: var(--muted);
+        margin-bottom: 15px;
+      }
+      .detail {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 36px;
+        padding: 22px;
+      }
+      .gallery .product-photo {
+        aspect-ratio: 1.45;
+        border-radius: 8px;
+      }
+      .buy-box {
+        align-self: center;
+        min-width: 0;
+        padding: 4px 8px 4px 0;
+      }
+      .buy-box h1 {
+        margin: 4px 0 10px;
+      }
+      .buy-box .price {
+        margin: 17px 0 12px;
+        font-size: 30px;
+        line-height: 1;
+      }
+      .buy-box .description {
+        color: var(--muted);
+        margin: 0 0 16px;
+      }
+      .buy-box form {
+        margin-top: 16px;
+      }
+      .buy-box input {
+        width: 90px;
+      }
+      .stock {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .reviews {
+        margin-top: 18px;
+      }
+      .review {
+        display: grid;
+        grid-template-columns: minmax(115px, 170px) 1fr;
+        gap: 15px;
+        padding: 13px 18px;
+      }
+      .review + .review {
+        border-top: 1px solid var(--line);
+      }
+      .review p {
+        margin: 4px 0;
+      }
+      .stars {
+        color: #82560a;
+        letter-spacing: 2px;
+      }
+      .pagination {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+      .pagination button {
+        min-height: 32px;
+      }
+      .split-admin {
+        display: grid;
+        gap: 15px;
+        grid-template-columns: minmax(225px, 0.53fr) minmax(0, 1fr);
+        align-items: start;
+      }
+      .queue-row {
+        width: 100%;
+        min-height: 59px;
+        border: 0;
+        border-radius: 0;
+        border-top: 1px solid var(--line);
+        justify-content: space-between;
+        text-align: left;
+      }
+      .queue-row.selected {
+        background: #edf5ee;
+        border-left: 3px solid var(--green);
+        padding-left: 11px;
+      }
+      .queue .panel {
+        overflow: hidden;
+      }
+      .datagrid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin: 0;
+      }
+      .datagrid dt {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .datagrid dd {
+        margin: 4px 0 0;
+        font-weight: 680;
+      }
+      .scroll-table {
+        overflow: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+      }
+      th,
+      td {
+        padding: 10px 14px;
+        border-top: 1px solid var(--line);
+        vertical-align: middle;
+      }
+      th {
+        font-size: 12px;
+        color: var(--muted);
+        background: #f8faf7;
+        text-wrap: nowrap;
+      }
+      td small {
+        display: block;
+        color: var(--muted);
+        margin-top: 3px;
+      }
+      .selected-row td {
+        background: #f2f7f1;
+      }
+      .empty {
+        display: grid;
+        place-content: center;
+        text-align: center;
+        min-height: 170px;
+        padding: 20px;
+        color: var(--muted);
+      }
+      .empty strong {
+        color: var(--ink);
+      }
+      .timeline {
+        list-style: none;
+        margin: 13px 0 0 4px;
+        padding: 0;
+      }
+      .timeline li {
+        position: relative;
+        padding: 0 0 14px 16px;
+        border-left: 1px solid #cbdace;
+      }
+      .timeline li:last-child {
+        padding-bottom: 0;
+      }
+      .timeline li::before {
+        content: "";
+        position: absolute;
+        left: -4px;
+        top: 5px;
+        width: 7px;
+        height: 7px;
+        border: 1px solid var(--green);
+        background: #fff;
+        border-radius: 50%;
+      }
+      .timeline li:first-child::before {
+        background: var(--green);
+      }
+      .timeline time {
+        display: block;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .note {
+        background: #f0f5ee;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        padding: 11px 14px;
+        color: var(--muted);
+      }
+      .toast {
+        position: fixed;
+        right: 20px;
+        bottom: 20px;
+        max-width: min(400px, calc(100% - 40px));
+        background: var(--green-dark);
+        color: #fff;
+        border-radius: 8px;
+        padding: 12px 16px;
+        box-shadow: 0 6px 22px #104e3b33;
+        z-index: 10;
+      }
+      dialog {
+        max-width: min(540px, calc(100% - 32px));
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 20px;
+        color: var(--ink);
+      }
+      dialog::backdrop {
+        background: #14262066;
+      }
+      dialog label {
+        display: grid;
+        gap: 5px;
+        margin: 10px 0;
+      }
+      dialog footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 18px;
+      }
+      @media (max-width: 940px) {
+        .header-inner,
+        .shell {
+          width: calc(100% - 36px);
+        }
+        .workspace {
+          grid-template-columns: 155px minmax(0, 1fr);
+        }
+        .operations {
+          padding-left: 18px;
+        }
+        .catalog-layout {
+          grid-template-columns: 175px 1fr;
+          gap: 13px;
+        }
+        .product-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+      @media (max-width: 700px) {
+        .header-inner {
+          padding: 9px 0;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+        .roles {
+          order: 3;
+          width: 100%;
+        }
+        .roles a {
+          flex: 1;
+          text-align: center;
+          padding: 4px;
+        }
+        .header-inner,
+        .shell {
+          width: calc(100% - 26px);
+        }
+        .workspace {
+          display: block;
+        }
+        .side {
+          padding: 8px 0;
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+          display: flex;
+          overflow: auto;
+          white-space: nowrap;
+        }
+        .side h2,
+        .side p {
+          display: none;
+        }
+        .side a {
+          gap: 4px;
+        }
+        .operations,
+        .store-content {
+          padding: 17px 0 32px;
+        }
+        h1 {
+          font-size: 25px;
+        }
+        .operations h1 {
+          font-size: 22px;
+        }
+        .store-nav {
+          overflow: auto;
+          white-space: nowrap;
+          gap: 14px;
+        }
+        .catalog-layout,
+        .detail,
+        .split-admin {
+          display: block;
+        }
+        .filters {
+          margin-bottom: 14px;
+        }
+        .product-grid {
+          gap: 8px;
+        }
+        .product-card .pad {
+          padding: 9px;
+        }
+        .product-meta {
+          flex-wrap: wrap;
+        }
+        .detail {
+          padding: 14px;
+        }
+        .buy-box {
+          padding: 14px 0 0;
+        }
+        .queue {
+          margin-bottom: 14px;
+        }
+        .review {
+          grid-template-columns: 1fr;
+          gap: 4px;
+        }
+        .datagrid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+      @media (max-width: 700px) {
+        .filters {
+          padding: 10px 12px;
+        }
+        .filters header {
+          margin-bottom: 0;
+        }
+        .filters header h2 {
+          display: none;
+        }
+        .filters .filter-toggle {
+          display: inline-flex;
+          text-decoration: none;
+          font-size: 14px;
+          font-weight: 700;
+        }
+        .filters:not(.expanded) #filter-controls {
+          display: none;
+        }
+      }
+      @media (max-width: 390px) {
+        .split {
+          grid-template-columns: 1fr;
+        }
+        th,
+        td {
+          padding: 8px 10px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand" href="#visitor/catalog"><span class="mark" aria-hidden="true">C</span>CommerceFlow Lab</a>
+        <nav id="roles" class="roles" aria-label="切换原型角色"></nav>
+        <span class="prototype-label">交互原型</span>
+      </div>
+    </header>
+    <div id="app" class="shell"></div>
+    <p class="toast" id="toast" role="status" hidden></p>
+    <dialog id="action-dialog"></dialog>
+    <script>
+      const catalog = [
+        {
+          id: 1,
+          name: "学习笔记本电脑",
+          price: 1299,
+          stock: 12,
+          image: "laptop",
+          description: "适合日常学习与开发的便携笔记本电脑。",
+        },
+        {
+          id: 2,
+          name: "机械键盘",
+          price: 89.9,
+          stock: 24,
+          image: "keyboard",
+          description: "机械键轴与紧凑布局，适合长时间编辑。",
+        },
+        {
+          id: 3,
+          name: "开发者显示器",
+          price: 349.5,
+          stock: 8,
+          image: "monitor",
+          description: "为多窗口编程和文档阅读提供充足的桌面空间。",
+        },
+        {
+          id: 4,
+          name: "USB-C 扩展坞",
+          price: 119,
+          stock: 18,
+          image: "hub",
+          description: "通过 USB-C 扩展多种连接方式。",
+        },
+        {
+          id: 5,
+          name: "学习耳机",
+          price: 69,
+          stock: 9,
+          image: "headphones",
+          description: "适合在网课和在线沟通时使用。",
+        },
+        {
+          id: 6,
+          name: "Spring 笔记本",
+          price: 12.5,
+          stock: 0,
+          image: "notebook",
+          description: "用于记录日常的学习笔记。",
+        },
+      ];
+      const roles = { visitor: "访客", customer: "顾客", merchant: "商家", admin: "管理员" };
+      const menus = {
+        visitor: [
+          ["catalog", "商品"],
+          ["store", "店铺"],
+          ["discover", "搜索与推荐", true],
+        ],
+        customer: [
+          ["catalog", "商品"],
+          ["orders", "我的订单"],
+          ["invoices", "电子发票"],
+          ["cart", "购物车"],
+          ["account", "账户与收藏", true],
+        ],
+        merchant: [
+          ["orders", "商家订单"],
+          ["products", "商品管理"],
+          ["inventory", "库存管理"],
+          ["returns", "退货工单"],
+          ["settlements", "应结账单"],
+          ["invoices", "电子发票"],
+          ["exceptions", "异常队列", true],
+          ["growth", "店铺经营", true],
+        ],
+        admin: [
+          ["stores", "店铺审核"],
+          ["inventory", "库存对账"],
+          ["exchanges", "换货管理"],
+          ["invoices", "电子发票"],
+          ["scheduling", "定时任务"],
+          ["callbacks", "回调治理"],
+          ["notifications", "通知投递"],
+          ["reconciliation", "对账差异", true],
+          ["channels", "渠道接入", true],
+        ],
+      };
+      const homes = { visitor: "catalog", customer: "catalog", merchant: "orders", admin: "inventory" };
+      const state = {
+        filters: { query: "", store: "", min: "", max: "", sort: "" },
+        reviewPage: 0,
+        cart: {},
+        inventory: 0,
+        exchange: 0,
+        storeQuery: "",
+        storeStatus: "",
+        invoiceStatus: "",
+        invoiceQuery: "",
+      };
+      const stores = [
+        { id: 5, name: "Demo Merchant", status: "启用中", tone: "positive", info: "演示店铺" },
+        { id: 26, name: "松针工作室", status: "待审核", tone: "pending", info: "主营学习用品" },
+        { id: 18, name: "青川数码", status: "已停用", tone: "", info: "商家认证" },
+        { id: 21, name: "禾雨手作", status: "已拒绝", tone: "negative", info: "等待补齐认证资料" },
+      ];
+      const escapeHtml = (input) =>
+        String(input ?? "").replace(
+          /[&<>"']/g,
+          (letter) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[letter],
+        );
+      const currency = (value) =>
+        "¥" + Number(value).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const app = document.querySelector("#app");
+      const rolesBar = document.querySelector("#roles");
+      const dialog = document.querySelector("#action-dialog");
+      const goto = (role, view, id) => "#" + role + "/" + view + (id ? "/" + id : "");
+      const button = (label, action, style = "") =>
+        '<button type="button" class="' + style + '" data-action="' + action + '">' + label + "</button>";
+      const badge = (label, tone = "") => '<span class="badge ' + tone + '">' + label + "</span>";
+      const heading = (title, tools = "", caption = "") =>
+        '<div class="page-head"><div><h1>' +
+        title +
+        "</h1>" +
+        (caption ? "<p>" + caption + "</p>" : "") +
+        "</div>" +
+        tools +
+        "</div>";
+      const table = (headers, rows) =>
+        '<div class="scroll-table"><table><thead><tr>' +
+        headers.map((label) => '<th scope="col">' + label + "</th>").join("") +
+        "</tr></thead><tbody>" +
+        rows.join("") +
+        "</tbody></table></div>";
+      const row = (cells, selected = false) =>
+        "<tr" +
+        (selected ? ' class="selected-row"' : "") +
+        ">" +
+        cells.map((cell) => "<td>" + cell + "</td>").join("") +
+        "</tr>";
+      const empty = (message) => '<div class="empty"><strong>' + message + "</strong></div>";
+      const panel = (title, content, tools = "") =>
+        '<section class="panel"><div class="panel-head"><h2>' +
+        title +
+        "</h2>" +
+        tools +
+        "</div>" +
+        content +
+        "</section>";
+      const input = (label, name, value = "", placeholder = "", type = "text") =>
+        "<label>" +
+        label +
+        '<input name="' +
+        name +
+        '" type="' +
+        type +
+        '" value="' +
+        escapeHtml(value) +
+        '" placeholder="' +
+        placeholder +
+        '"' +
+        (type === "number" ? ' min="0" step="' + (name === "quantity" ? "1" : "0.01") + '"' : "") +
+        "></label>";
+      const select = (label, name, options, value = "") =>
+        "<label>" +
+        label +
+        '<select name="' +
+        name +
+        '">' +
+        options
+          .map(
+            ([key, text]) =>
+              '<option value="' + key + '"' + (value === key ? " selected" : "") + ">" + text + "</option>",
+          )
+          .join("") +
+        "</select></label>";
+      const photo = (product) =>
+        '<div class="product-photo" role="img" aria-label="' +
+        product.name +
+        '"><div class="photo-crop photo-' +
+        product.image +
+        '"></div></div>';
+      let toastTimer;
+      function toast(message) {
+        const status = document.querySelector("#toast");
+        status.textContent = message;
+        status.hidden = false;
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
+          status.hidden = true;
+        }, 4000);
+      }
+      function navigation(role, view, mode) {
+        return (
+          '<nav class="' +
+          mode +
+          '" aria-label="' +
+          (mode === "side" ? "工作区导航" : "商城导航") +
+          '">' +
+          (mode === "side" ? "<h2>" + roles[role] + "工作区</h2>" : "") +
+          menus[role]
+            .map(
+              ([key, label, planned]) =>
+                '<a href="' +
+                goto(role, key) +
+                '"' +
+                (key === view ? ' aria-current="page"' : "") +
+                ">" +
+                label +
+                (planned ? badge("规划", "new") : "") +
+                "</a>",
+            )
+            .join("") +
+          (role === "visitor"
+            ? '<a class="utility" href="' + goto("customer", "catalog") + '">进入顾客原型 →</a>'
+            : "") +
+          "</nav>"
+        );
+      }
+      function results(role, byStore) {
+        const { query, store, min, max, sort } = state.filters;
+        const listed = catalog.filter(
+          (p) =>
+            p.name.toLowerCase().includes(query.trim().toLowerCase()) &&
+            (!store || store === "demo") &&
+            (!min || p.price >= Number(min)) &&
+            (!max || p.price <= Number(max)),
+        );
+        if (sort === "price-up") listed.sort((a, b) => a.price - b.price);
+        if (sort === "price-down") listed.sort((a, b) => b.price - a.price);
+        const activeFilters = [
+          [query.trim(), "query", escapeHtml(query.trim())],
+          [store, "store", "Demo Merchant"],
+          [min, "min", "最低 " + currency(min)],
+          [max, "max", "最高 " + currency(max)],
+        ]
+          .filter(([value]) => value)
+          .map(([, key, label]) => button(label + ' <span aria-hidden="true">×</span>', "clear-filter-" + key));
+        return (
+          heading(byStore ? "Demo Merchant" : "搜索商品") +
+          '<form class="search-field" id="catalog-search"><span aria-hidden="true" class="search-icon">⌕</span><input name="query" aria-label="搜索商品" placeholder="输入商品名称" value="' +
+          escapeHtml(query) +
+          '"><button class="primary">搜索</button></form>' +
+          '<div class="catalog-layout"><form class="panel filters' +
+          (state.filtersOpen ? " expanded" : "") +
+          '" id="catalog-filters"><header><h2>筛选</h2><button type="button" class="filter-toggle link" data-action="toggle-filters" aria-expanded="' +
+          Boolean(state.filtersOpen) +
+          '" aria-controls="filter-controls">筛选 <span aria-hidden="true">' +
+          (state.filtersOpen ? "−" : "+") +
+          "</span></button>" +
+          button("重置", "reset-filters", "link") +
+          "</header>" +
+          '<div id="filter-controls">' +
+          select(
+            "店铺",
+            "store",
+            [
+              ["", "全部店铺"],
+              ["demo", "Demo Merchant"],
+            ],
+            store,
+          ) +
+          '<div class="price-range">' +
+          input("最低价", "min", min, "¥", "number") +
+          input("最高价", "max", max, "¥", "number") +
+          '</div><button class="primary">应用筛选</button></div></form>' +
+          '<section><div class="results-head"><p>共 <strong>' +
+          listed.length +
+          "</strong> 件商品</p>" +
+          select(
+            "",
+            "sort",
+            [
+              ["", "综合排序"],
+              ["price-up", "价格从低到高"],
+              ["price-down", "价格从高到低"],
+            ],
+            sort,
+          ) +
+          "</div>" +
+          (activeFilters.length
+            ? '<div class="active-filters" aria-label="已应用的筛选">' + activeFilters.join("") + "</div>"
+            : "") +
+          (listed.length
+            ? '<div class="product-grid">' +
+              listed
+                .map(
+                  (p) =>
+                    '<article class="panel product-card"><a href="' +
+                    goto(role, "product", p.id) +
+                    '">' +
+                    photo(p) +
+                    '<div class="pad"><h2>' +
+                    p.name +
+                    '</h2><span class="subtle compact">Demo Merchant</span><div class="product-meta"><span class="price">' +
+                    currency(p.price) +
+                    "</span>" +
+                    badge(p.stock ? "有货" : "缺货", p.stock ? "positive" : "") +
+                    "</div></div></a></article>",
+                )
+                .join("") +
+              "</div>"
+            : '<div class="panel">' + empty("没有符合条件的商品") + "</div>") +
+          "</section></div>"
+        );
+      }
+      const reviews = [
+        ["学习用户", "外观简洁，满足日常写代码和记笔记。"],
+        ["演示顾客", "打开项目和文档都很顺畅。"],
+        ["学习用户", "收货后检查正常，已开始使用。"],
+        ["体验用户", "包装完整，屏幕阅读清晰。"],
+      ];
+      function productPage(role, id) {
+        const p = catalog.find((item) => item.id === Number(id));
+        if (!p) return '<div class="panel">' + empty("商品不存在") + "</div>";
+        const reviewSet = p.id === 1 ? reviews : [];
+        return (
+          '<div class="breadcrumbs"><a href="' +
+          goto(role, "catalog") +
+          '">商品</a><span aria-hidden="true">›</span><span>' +
+          p.name +
+          "</span></div>" +
+          '<article class="panel detail"><div class="gallery">' +
+          photo(p) +
+          '</div><div class="buy-box"><a class="compact" href="' +
+          goto(role, "store") +
+          '">Demo Merchant</a><h1>' +
+          p.name +
+          "</h1>" +
+          (reviewSet.length
+            ? '<a href="#product-reviews" data-action="reviews">★ 5.0 · ' + reviewSet.length + " 条评价</a>"
+            : '<span class="subtle compact">暂无评价</span>') +
+          '<p class="price">' +
+          currency(p.price) +
+          '</p><p class="description">' +
+          p.description +
+          '</p><div class="stock">' +
+          badge(p.stock ? "有货" : "缺货", p.stock ? "positive" : "") +
+          (p.stock ? '<span class="subtle">剩余 ' + p.stock + " 件</span>" : "") +
+          "</div>" +
+          '<form class="toolbar" id="add-cart"><input type="hidden" name="product" value="' +
+          p.id +
+          '"><label>数量<input type="number" name="quantity" min="1" max="' +
+          p.stock +
+          '" value="1"' +
+          (p.stock ? "" : " disabled") +
+          '></label><button class="primary"' +
+          (p.stock ? "" : " disabled") +
+          ">" +
+          (role === "visitor" ? "登录后加入购物车" : "加入购物车") +
+          "</button></form></div></article>" +
+          '<div id="product-reviews" class="reviews">' +
+          panel(
+            "商品评价",
+            reviewSet.length
+              ? reviewSet
+                  .slice(state.reviewPage * 2, state.reviewPage * 2 + 2)
+                  .map(
+                    ([name, copy]) =>
+                      '<article class="review"><div><strong>' +
+                      name +
+                      '</strong><p class="stars" aria-label="5 星">★★★★★</p></div><p>' +
+                      copy +
+                      "</p></article>",
+                  )
+                  .join("") +
+                  '<div class="pad pagination"><button type="button" data-action="review-prev"' +
+                  (state.reviewPage === 0 ? " disabled" : "") +
+                  '>上一页</button><span aria-live="polite">' +
+                  (state.reviewPage + 1) +
+                  ' / 2</span><button type="button" data-action="review-next"' +
+                  (state.reviewPage === 1 ? " disabled" : "") +
+                  ">下一页</button></div>"
+              : empty("暂无商品评价"),
+            reviewSet.length ? '<span class="subtle">' + reviewSet.length + " 条</span>" : "",
+          ) +
+          "</div>"
+        );
+      }
+      const inventoryRecords = [
+        {
+          order: "ORD-738",
+          date: "11 月 21 日 12:34",
+          sku: "LAPTOP-001",
+          product: "学习笔记本电脑",
+          expected: 3,
+          warehouse: "一号仓",
+        },
+        {
+          order: "ORD-736",
+          date: "11 月 21 日 10:16",
+          sku: "KEYBOARD-01",
+          product: "机械键盘",
+          expected: 2,
+          warehouse: "二号仓",
+        },
+      ];
+      function inventoryPage() {
+        const item = inventoryRecords[state.inventory];
+        const queue = inventoryRecords
+          .map(
+            (record, index) =>
+              '<button type="button" class="queue-row ' +
+              (index === state.inventory ? "selected" : "") +
+              '" aria-pressed="' +
+              (index === state.inventory) +
+              '" data-action="inventory-' +
+              index +
+              '"><span><strong>' +
+              record.order +
+              '</strong><br><span class="subtle compact">' +
+              record.date +
+              "</span></span>" +
+              badge("待核对", "pending") +
+              "</button>",
+          )
+          .join("");
+        const evidence = item
+          ? '<div class="pad"><dl class="datagrid"><div><dt>订单号</dt><dd>' +
+            item.order +
+            "</dd></div><div><dt>仓库</dt><dd>" +
+            item.warehouse +
+            "</dd></div><div><dt>商品</dt><dd>" +
+            item.product +
+            "</dd></div></dl></div>" +
+            table(["SKU", "账面数量", "实盘数量"], [row([item.sku, item.expected, "待录入"])]) +
+            '<div class="pad"><form class="toolbar" id="voucher">' +
+            input("实盘数量", "quantity", "", "", "number") +
+            input("仓库凭证号", "voucher", "", "输入单据号") +
+            input("处理说明", "reason", "", "录入核对结果") +
+            '<button class="primary">提交凭证</button></form></div>'
+          : empty("选择待对账订单以查看商品和凭证");
+        return (
+          heading(
+            "库存对账",
+            '<div class="actions">' +
+              button("实盘差异对账", "stocktake", "primary") +
+              button("刷新待对账", "refresh") +
+              "</div>",
+          ) +
+          '<div class="split-admin"><div class="queue">' +
+          panel(
+            "待对账",
+            queue || empty("暂无待对账记录"),
+            '<span class="subtle">' + inventoryRecords.length + " 笔</span>",
+          ) +
+          "</div>" +
+          panel("仓库凭证", evidence) +
+          "</div>"
+        );
+      }
+      function storesPage() {
+        const options = [
+          ["", "全部状态"],
+          ["待审核", "待审核"],
+          ["启用中", "启用中"],
+          ["已停用", "已停用"],
+          ["已拒绝", "已拒绝"],
+        ];
+        const listed = stores.filter(
+          (s) =>
+            s.name.toLowerCase().includes(state.storeQuery.toLowerCase()) &&
+            (!state.storeStatus || s.status === state.storeStatus),
+        );
+        const storeRows = listed.map((s) =>
+          row([
+            "<strong>" + escapeHtml(s.name) + "</strong><small>商家 #" + s.id + "</small>",
+            badge(s.status, s.tone),
+            escapeHtml(s.info),
+            '<div class="row-actions">' +
+              button("应结账单", "settlements-" + s.id, "link") +
+              (s.status === "待审核"
+                ? button("通过", "approve-" + s.id, "link") + button("拒绝", "reject-" + s.id, "link danger")
+                : s.status === "启用中"
+                  ? button("停用", "disable-" + s.id, "link danger")
+                  : s.status === "已停用"
+                    ? button("启用", "enable-" + s.id, "link")
+                    : "") +
+              "</div>",
+          ]),
+        );
+        return (
+          heading("店铺审核", button("创建商家账号", "create-store", "primary")) +
+          '<div class="panel"><form class="pad toolbar" id="store-filter">' +
+          input("店铺名称", "query", state.storeQuery, "搜索店铺名称") +
+          select("审核状态", "status", options, state.storeStatus) +
+          "<button>查询</button></form>" +
+          (storeRows.length ? table(["店铺名称", "状态", "审核说明", "操作"], storeRows) : empty("没有匹配的店铺")) +
+          "</div>"
+        );
+      }
+      const exchange = [
+        { order: "738", product: "学习笔记本电脑", returnSlip: "UI-RETURN-738", replaceSlip: "UI-REPLACEMENT-738" },
+        { order: "737", product: "机械键盘", returnSlip: "UI-RETURN-737", replaceSlip: "UI-REPLACEMENT-737" },
+      ];
+      function timeline(title, slip) {
+        return (
+          '<div class="panel">' +
+          '<div class="panel-head"><h3>' +
+          title +
+          "</h3>" +
+          badge("已签收", "positive") +
+          '</div><div class="pad"><code>' +
+          slip +
+          "</code>" +
+          '<ol class="timeline"><li><strong>已签收</strong><time datetime="2026-11-21T12:34">11 月 21 日 12:34 · 收货地址</time></li>' +
+          '<li><strong>运输中</strong><time datetime="2026-11-21T12:15">11 月 21 日 12:15 · 分拣中心</time></li>' +
+          '<li><strong>已揽收</strong><time datetime="2026-11-21T11:08">11 月 21 日 11:08 · 始发仓</time></li></ol></div></div>'
+        );
+      }
+      function exchangesPage() {
+        const displayed = exchange.filter((x) => !state.exchangeQuery || state.exchangeQuery === x.order);
+        const selected = displayed.find((x) => exchange.indexOf(x) === state.exchange) || displayed[0];
+        return (
+          heading("换货管理") +
+          '<div class="stack"><div class="panel"><form class="pad toolbar" id="exchange-filter">' +
+          input("订单 ID", "query", state.exchangeQuery, "输入订单 ID") +
+          "<button>搜索</button></form>" +
+          (displayed.length
+            ? table(
+                ["订单 ID", "商家 ID", "换货数量", "状态", "操作"],
+                displayed.map((x) =>
+                  row(
+                    [
+                      x.order,
+                      "5",
+                      "1",
+                      badge("已完成", "positive"),
+                      button("查看详情", "exchange-" + exchange.indexOf(x), "link"),
+                    ],
+                    x === selected,
+                  ),
+                ),
+              )
+            : empty("没有匹配的换货记录")) +
+          "</div>" +
+          (selected
+            ? panel(
+                "订单 " + selected.order,
+                '<div class="pad stack"><dl class="datagrid"><div><dt>商品</dt><dd>' +
+                  selected.product +
+                  '</dd></div><div><dt>售后处理</dt><dd>同店同 SKU，无差价</dd></div><div><dt>仓库质检</dt><dd>合格</dd></div></dl><div class="split">' +
+                  timeline("退回物流", selected.returnSlip) +
+                  timeline("补发物流", selected.replaceSlip) +
+                  "</div></div>",
+              )
+            : "") +
+          "</div>"
+        );
+      }
+      const invoiceEntries = [
+        ["ORD-41102E5127", "INV-e84638cd", "已开票", "positive", "1299.00"],
+        ["ORD-0405C3A0DB", "INV-5bedb0d5", "部分红冲", "pending", "69.00"],
+        ["ORD-8BC0957D3F", "INV-4e8dc081", "处理中", "", "89.90"],
+      ];
+      function invoicesPage(role) {
+        const invoiceRows = invoiceEntries
+          .filter(
+            (invoice) =>
+              (!state.invoiceStatus || invoice[2] === state.invoiceStatus) &&
+              (!state.invoiceQuery ||
+                invoice.slice(0, 2).some((id) => id.toLowerCase().includes(state.invoiceQuery.toLowerCase()))),
+          )
+          .map(([order, ref, status, tone, value]) =>
+            row([button(order, "invoice-" + ref, "link"), ref, badge(status, tone), currency(value)]),
+          );
+        return (
+          heading("电子发票" + (role === "admin" ? "管理" : "")) +
+          '<div class="panel"><form class="pad toolbar" id="invoice-filter">' +
+          input("订单号或申请号", "query", state.invoiceQuery, "输入订单号或申请号") +
+          select(
+            "发票状态",
+            "status",
+            [
+              ["", "全部状态"],
+              ["已开票", "已开票"],
+              ["部分红冲", "部分红冲"],
+              ["处理中", "处理中"],
+            ],
+            state.invoiceStatus,
+          ) +
+          "<button>查询</button></form>" +
+          (invoiceRows.length
+            ? table(["订单号", "申请号", "状态", "有效票面"], invoiceRows)
+            : empty("没有匹配的发票")) +
+          "</div>"
+        );
+      }
+      function schedulingPage() {
+        const instances = [
+          ["188", "自动确认收货", "ORD-738", "11 月 22 日 12:34", "已完成", "positive"],
+          ["189", "待付款订单关闭", "ORD-737", "11 月 22 日 14:00", "待执行", "pending"],
+        ].filter(
+          (i) => (!state.taskType || i[1].includes(state.taskType)) && (!state.taskStatus || i[4] === state.taskStatus),
+        );
+        return (
+          heading("任务调度", button("刷新回调状态", "refresh")) +
+          '<div class="stack">' +
+          panel(
+            "任务策略",
+            table(
+              ["任务类型", "触发方式", "状态"],
+              [
+                row(["自动确认收货", "数据库对账", badge("启用中", "positive")]),
+                row(["待付款订单关闭", "RabbitMQ 延迟队列", badge("启用中", "positive")]),
+              ],
+            ),
+            button("添加策略", "task-policy"),
+          ) +
+          panel(
+            "定时任务实例",
+            '<form class="pad toolbar" id="task-filter">' +
+              input("任务类型", "query", state.taskType, "输入任务类型") +
+              select(
+                "状态",
+                "status",
+                [
+                  ["", "全部状态"],
+                  ["待执行", "待执行"],
+                  ["已完成", "已完成"],
+                ],
+                state.taskStatus,
+              ) +
+              "<button>筛选</button></form>" +
+              (instances.length
+                ? table(
+                    ["实例 ID", "任务类型", "业务对象", "到期时间", "状态", "操作"],
+                    instances.map(([id, type, object, date, status, tone]) =>
+                      row([id, type, object, date, badge(status, tone), button("查看", "task-" + id, "link")]),
+                    ),
+                  )
+                : empty("没有匹配的实例")),
+          ) +
+          "</div>"
+        );
+      }
+      function ordersPage(role) {
+        const isMerchant = role === "merchant";
+        const orders = [
+          ["ORD-738", "学习笔记本电脑", "待发货", "pending", "1299"],
+          ["ORD-737", "机械键盘", "已完成", "positive", "89.90"],
+        ].filter((o) => !state.orderQuery || o[0].toLowerCase() === state.orderQuery.trim().toLowerCase());
+        return (
+          heading(isMerchant ? "商家订单" : "我的订单") +
+          '<div class="panel"><form class="pad toolbar" id="order-filter">' +
+          input("订单号", "query", state.orderQuery, "输入完整订单号") +
+          "<button>查询</button></form>" +
+          (orders.length
+            ? table(
+                ["订单号", "商品", "状态", "实付", "操作"],
+                orders.map(([id, name, status, tone, price]) =>
+                  row([
+                    id,
+                    name,
+                    badge(status, tone),
+                    currency(price),
+                    button(isMerchant && status === "待发货" ? "发货" : "查看详情", "order-" + id, "link"),
+                  ]),
+                ),
+              )
+            : empty("没有匹配的订单")) +
+          "</div>"
+        );
+      }
+      function cartPage() {
+        const items = catalog.filter((p) => state.cart[p.id]);
+        return (
+          heading("购物车") +
+          '<div class="panel">' +
+          (items.length
+            ? table(
+                ["商品", "数量", "小计", "操作"],
+                items.map((p) =>
+                  row([
+                    '<a href="' + goto("customer", "product", p.id) + '">' + p.name + "</a>",
+                    state.cart[p.id],
+                    currency(state.cart[p.id] * p.price),
+                    button("移除", "remove-" + p.id, "link"),
+                  ]),
+                ),
+              )
+            : '<div class="empty"><strong>购物车为空</strong><a href="#customer/catalog">浏览商品</a></div>') +
+          "</div>"
+        );
+      }
+      function preview(title, copy, headers, data) {
+        return (
+          heading(title, badge("规划中的原型", "new")) +
+          '<div class="stack"><p class="note">' +
+          copy +
+          '</p><div class="panel">' +
+          table(headers, data) +
+          "</div></div>"
+        );
+      }
+      function planningScreen(title, sections) {
+        return (
+          heading(title, badge("后期功能候选", "new"), "交互用于评审，数据为示例，功能按需立项。") +
+          '<div class="stack">' +
+          sections
+            .map(([name, copy, headers, records]) =>
+              panel(
+                name,
+                '<div class="pad subtle">' +
+                  copy +
+                  "</div>" +
+                  table(
+                    headers,
+                    records.map((record) => row(record)),
+                  ),
+              ),
+            )
+            .join("") +
+          "</div>"
+        );
+      }
+      const simplePages = {
+        discover: () =>
+          planningScreen("搜索与推荐", [
+            [
+              "查询建议",
+              "输入商品词时提供联想和纠错，再用类目、价格和有货状态缩小搜索范围。",
+              ["输入", "候选词", "类目"],
+              [
+                ["键磐", "机械键盘", "电脑配件"],
+                ["笔记本", "学习笔记本电脑", "电脑设备"],
+              ],
+            ],
+            [
+              "相关商品",
+              "先按类目和价格匹配，再评估授权及冷启动表现。",
+              ["参考商品", "相关商品", "推荐理由"],
+              [["学习笔记本电脑", "USB-C 扩展坞", "同类桌面配件"]],
+            ],
+          ]),
+        account: () =>
+          planningScreen("账户与收藏", [
+            [
+              "账号自助",
+              "支持注册邀请、邮箱验证、找回密码及会话管理。",
+              ["安全设置", "状态", "操作"],
+              [
+                ["邮箱验证", badge("待验证", "pending"), button("查看", "record-email", "link")],
+                ["登录会话", badge("有效", "positive"), button("查看", "record-session", "link")],
+              ],
+            ],
+            [
+              "收藏与到货提醒",
+              "按商品设定提醒渠道，可在通知中心分页查看和退订。",
+              ["商品", "通知渠道", "状态"],
+              [
+                ["Spring 笔记本", "站内通知", badge("等待到货", "pending")],
+                ["机械键盘", "邮件", badge("已收藏", "positive")],
+              ],
+            ],
+            [
+              "多店铺购物车",
+              "按店铺分组，首版结算仍以单店为单位。",
+              ["店铺", "商品数", "结算入口"],
+              [
+                ["Demo Merchant", "2 件", button("查看", "record-store-5", "link")],
+                ["松针工作室", "1 件", button("查看", "record-store-26", "link")],
+              ],
+            ],
+          ]),
+        growth: () =>
+          planningScreen("店铺经营", [
+            [
+              "团队与商品维护",
+              "邀请店铺运营人员并分配最小权限，管理类目、规格、批量维护及评价。",
+              ["操作对象", "任务", "状态"],
+              [
+                ["店铺成员", "邀请并分配商品权限", badge("待接受", "pending")],
+                ["目录商品", "批量维护类目和规格", badge("待核对", "pending")],
+              ],
+            ],
+            [
+              "价格与多仓",
+              "候选活动按店配置；仓储操作可关联盘点、调拨、批次和承运规则。",
+              ["业务对象", "候选操作", "关联凭证"],
+              [
+                ["春季活动", "满额包邮", "活动配置"],
+                ["一号仓 → 二号仓", "调拨与区域运费", "WMS-TRANSFER-28"],
+              ],
+            ],
+            [
+              "售后与财务",
+              "评估跨规格换货、差价和申诉，同时保留结算异议、发票抬头及分角色导出。",
+              ["业务对象", "候选操作", "关联凭证"],
+              [
+                ["售后申请", "跨规格换货差价", "ORD-738"],
+                ["账期结算", "导出及结算异议", "SETTLE-2026-11"],
+              ],
+            ],
+          ]),
+        channels: () =>
+          planningScreen("真实渠道接入", [
+            [
+              "签约与联调",
+              "渠道签约后先验证协议、回执、对账与失败切换。",
+              ["渠道", "联调项目", "阶段"],
+              [
+                ["支付与打款", "签约、回执和对账", badge("待评估", "pending")],
+                ["承运商", "运单回调与切换", badge("待评估", "pending")],
+                ["短信与邮件", "回执与失败恢复", badge("待评估", "pending")],
+                ["电子发票", "开票、红冲、对账", badge("待评估", "pending")],
+              ],
+            ],
+          ]),
+        products: () =>
+          heading("商品管理") +
+          '<div class="panel">' +
+          table(
+            ["商品", "SKU", "价格", "状态", "操作"],
+            catalog.map((p, i) =>
+              row([
+                p.name,
+                "SKU-" + (i + 1),
+                currency(p.price),
+                badge("已上架", "positive"),
+                button("编辑", "product-" + p.id, "link"),
+              ]),
+            ),
+          ) +
+          "</div>",
+        inventory: () =>
+          heading("库存管理") +
+          '<div class="panel">' +
+          table(
+            ["商品", "可售数量", "操作"],
+            catalog.map((p) => row([p.name, p.stock, button("查看流水", "stock-" + p.id, "link")])),
+          ) +
+          "</div>",
+        returns: () =>
+          heading("退货工单") +
+          '<div class="panel">' +
+          table(
+            ["订单", "商品", "状态", "操作"],
+            [row(["ORD-738", "学习笔记本电脑", badge("已收货", "positive"), button("查看工单", "record-738", "link")])],
+          ) +
+          "</div>",
+        settlements: () =>
+          heading("应结账单") +
+          '<div class="panel">' +
+          table(
+            ["账期", "业务笔数", "应结金额", "状态"],
+            [row(["2026-11-01 ～ 2026-11-30", "8", "¥1,388.90", badge("待结算", "pending")])],
+          ) +
+          "</div>",
+        notifications: () =>
+          heading("通知投递") +
+          '<div class="panel">' +
+          table(
+            ["请求号", "渠道", "状态", "操作"],
+            [
+              row(["MSG-20261121-064", "邮件", badge("已投递", "positive"), button("查看回执", "record-064", "link")]),
+              row(["MSG-20261121-065", "短信", badge("待重试", "pending"), button("重试", "retry-065", "link")]),
+            ],
+          ) +
+          "</div>",
+        callbacks: () =>
+          heading("回调治理") +
+          '<div class="panel">' +
+          table(
+            ["请求号", "关联订单", "状态", "操作"],
+            [
+              row([
+                "CB-20261121-008",
+                "ORD-738",
+                badge("已处理", "positive"),
+                button("查看记录", "record-008", "link"),
+              ]),
+            ],
+          ) +
+          "</div>",
+        exceptions: () =>
+          preview(
+            "异常队列",
+            "拟在同一队列汇总待处理任务，关联原业务凭证、当前负责人和处理记录。",
+            ["原请求号", "类型", "状态", "下一步"],
+            [
+              row(["ORD-738", "仓库差异", badge("待核对", "pending"), button("查看原单", "record-738", "link")]),
+              row([
+                "MSG-20261121-065",
+                "投递超时",
+                badge("待跟进", "pending"),
+                button("查看凭证", "record-065", "link"),
+              ]),
+            ],
+          ),
+        reconciliation: () =>
+          preview(
+            "对账差异",
+            "拟在已有账期结算基础上穿透到仓库出入库和供应方回执，并支持分派与关闭差异。",
+            ["账期", "业务凭证", "差异类型", "状态"],
+            [
+              row(["2026 年 11 月", "ORD-738", "仓库回执缺失", badge("待分派", "pending")]),
+              row(["2026 年 11 月", "MSG-20261121-065", "供应方回执迟到", badge("待核对", "pending")]),
+            ],
+          ),
+      };
+
+      function route() {
+        const [candidate, view, id] = location.hash.slice(1).split("/");
+        const role = Object.hasOwn(roles, candidate) ? candidate : "visitor";
+        return [role, view || homes[role], id];
+      }
+      function render() {
+        const [role, view, id] = route();
+        rolesBar.innerHTML = Object.entries(roles)
+          .map(
+            ([key, label]) =>
+              '<a href="' +
+              goto(key, homes[key]) +
+              '"' +
+              (key === role ? ' class="active" aria-current="true"' : "") +
+              ">" +
+              label +
+              "</a>",
+          )
+          .join("");
+        const buyer = role === "visitor" || role === "customer";
+        const adminScreens = {
+          stores: storesPage,
+          inventory: inventoryPage,
+          exchanges: exchangesPage,
+          scheduling: schedulingPage,
+        };
+        let content;
+        if (buyer && view === "product") content = productPage(role, id);
+        else if (buyer && (view === "catalog" || view === "store")) content = results(role, view === "store");
+        else if (view === "orders" && role !== "admin") content = ordersPage(role);
+        else if (view === "invoices" && role !== "visitor") content = invoicesPage(role);
+        else if (view === "cart" && role === "customer") content = cartPage();
+        else if (role === "admin" && Object.hasOwn(adminScreens, view)) content = adminScreens[view]();
+        else if (menus[role].some(([key]) => key === view) && Object.hasOwn(simplePages, view))
+          content = simplePages[view]();
+        else content = buyer ? results(role, false) : empty("请选择工作区页面");
+        app.innerHTML =
+          navigation(role, view, buyer ? "store-nav" : "side") +
+          '<main id="content" tabindex="-1" class="' +
+          (buyer ? "store-content" : "operations") +
+          '">' +
+          content +
+          "</main>";
+        app.className = buyer ? "shell" : "shell workspace";
+        const sort = app.querySelector('select[name="sort"]');
+        if (sort) sort.setAttribute("aria-label", "商品排序");
+      }
+      function modal(title, fields, label = "确认") {
+        dialog.innerHTML =
+          '<form id="dialog-form"><h2>' +
+          title +
+          "</h2>" +
+          fields +
+          "<footer>" +
+          button("取消", "dismiss") +
+          '<button class="primary">' +
+          label +
+          "</button></footer></form>";
+        dialog.showModal();
+      }
+      function restoreFocus(value, selector) {
+        const element = document.querySelector(selector || '[data-action="' + value + '"]');
+        if (element) element.focus({ preventScroll: true });
+      }
+      const approvalActions = ["approve", "reject", "disable", "enable"];
+      document.addEventListener("click", (event) => {
+        const action = event.target.closest("[data-action]")?.dataset.action;
+        if (!action) return;
+        event.preventDefault();
+        const [role, view] = route();
+        if (action === "reviews") {
+          document.querySelector("#product-reviews").scrollIntoView({ behavior: "smooth" });
+          return;
+        }
+        if (action === "dismiss") return dialog.close();
+        if (action === "reset-filters") state.filters = { query: "", store: "", min: "", max: "", sort: "" };
+        else if (action === "toggle-filters") state.filtersOpen = !state.filtersOpen;
+        else if (action.startsWith("clear-filter-")) state.filters[action.slice("clear-filter-".length)] = "";
+        else if (action === "review-prev") state.reviewPage = Math.max(0, state.reviewPage - 1);
+        else if (action === "review-next") state.reviewPage = Math.min(1, state.reviewPage + 1);
+        else if (action.startsWith("inventory-")) state.inventory = Number(action.split("-")[1]);
+        else if (action.startsWith("exchange-")) state.exchange = Number(action.split("-")[1]);
+        else if (action.startsWith("remove-")) delete state.cart[action.split("-")[1]];
+        else if (action === "refresh") return toast("已刷新示例数据");
+        else if (action === "create-store")
+          return modal(
+            "创建商家账号",
+            input("商家姓名", "merchant") +
+              input("邮箱", "email", "", "", "email") +
+              input("初始口令", "password", "", "", "password"),
+            "创建",
+          );
+        else if (action === "stocktake")
+          return modal(
+            "实盘差异对账",
+            '<p class="subtle">录入实盘差异后，可核对原仓库凭证。</p>' +
+              input("凭证号", "document") +
+              input("处理说明", "reason"),
+            "查看差异",
+          );
+        else if (action === "task-policy")
+          return modal(
+            "添加策略",
+            input("任务类型", "task") +
+              select("触发方式", "trigger", [
+                ["", "数据库对账"],
+                ["rabbitmq", "RabbitMQ 延迟队列"],
+              ]),
+            "保存",
+          );
+        else if (approvalActions.some((prefix) => action.startsWith(prefix + "-"))) {
+          state.pendingStoreAction = action;
+          const [verb, id] = action.split("-");
+          const names = { approve: "通过", reject: "拒绝", disable: "停用", enable: "启用" };
+          return modal(
+            names[verb] + "店铺",
+            "<p>" + escapeHtml(stores.find((s) => s.id === Number(id)).name) + "</p>" + input("处理说明", "reason"),
+            "确认",
+          );
+        } else if (action.startsWith("settlements-")) {
+          return modal(
+            "店铺应结账单",
+            "<p>商家 #" + action.split("-")[1] + " · 2026 年 11 月</p><p>应结 ¥1,388.90 · 待结算</p>",
+            "关闭",
+          );
+        } else {
+          const reference = escapeHtml(action.split("-").slice(1).join("-"));
+          const names = {
+            task: "任务实例",
+            invoice: "发票详情",
+            order: "订单详情",
+            product: "商品信息",
+            stock: "库存流水",
+            record: "业务凭证",
+            retry: "投递请求",
+          };
+          const title = names[action.split("-")[0]] || "业务详情";
+          return modal(
+            title,
+            "<p>业务编号 <strong>" + reference + '</strong></p><p class="subtle">示例数据</p>',
+            "关闭",
+          );
+        }
+        render();
+        if (action.startsWith("clear-filter-")) restoreFocus("reset-filters");
+        else if (action === "review-next") restoreFocus("review-prev");
+        else if (action === "review-prev") restoreFocus("review-next");
+        else if (view) restoreFocus(action);
+      });
+      document.addEventListener("change", (event) => {
+        if (event.target.name === "sort") {
+          state.filters.sort = event.target.value;
+          render();
+          restoreFocus(null, 'select[name="sort"]');
+        }
+      });
+      document.addEventListener("submit", (event) => {
+        const form = event.target;
+        const data = Object.fromEntries(new FormData(form));
+        const [role] = route();
+        if (!form.id) return;
+        event.preventDefault();
+        switch (form.id) {
+          case "catalog-search":
+            state.filters.query = data.query;
+            break;
+          case "catalog-filters":
+            if (data.min && data.max && Number(data.min) > Number(data.max)) return toast("最低价不能高于最高价");
+            Object.assign(state.filters, data);
+            state.filtersOpen = false;
+            break;
+          case "store-filter":
+            state.storeQuery = data.query;
+            state.storeStatus = data.status;
+            break;
+          case "exchange-filter":
+            state.exchangeQuery = data.query.trim();
+            break;
+          case "invoice-filter":
+            state.invoiceQuery = data.query;
+            state.invoiceStatus = data.status;
+            break;
+          case "task-filter":
+            state.taskType = data.query;
+            state.taskStatus = data.status;
+            break;
+          case "order-filter":
+            state.orderQuery = data.query;
+            break;
+          case "voucher":
+            if (!data.voucher.trim() || !data.reason.trim() || data.quantity === "")
+              return toast("请填写盘点数量、凭证号和处理说明");
+            toast("已录入示例凭证 " + data.voucher);
+            return;
+          case "add-cart": {
+            const p = catalog.find((item) => item.id === Number(data.product));
+            if (role === "visitor") {
+              location.hash = goto("customer", "product", p.id);
+              return;
+            }
+            const total = (state.cart[p.id] || 0) + Number(data.quantity);
+            if (total > p.stock) return toast("购物车数量超过可售库存");
+            state.cart[p.id] = total;
+            return toast("已加入购物车 · " + p.name);
+          }
+          case "dialog-form": {
+            if (state.pendingStoreAction) {
+              if (!data.reason?.trim()) return toast("请填写处理说明");
+              const [verb, id] = state.pendingStoreAction.split("-");
+              const store = stores.find((item) => item.id === Number(id));
+              const transitions = {
+                approve: ["启用中", "positive"],
+                reject: ["已拒绝", "negative"],
+                disable: ["已停用", ""],
+                enable: ["启用中", "positive"],
+              };
+              [store.status, store.tone] = transitions[verb];
+              store.info = data.reason;
+              toast("已更新示例审核状态");
+            } else if ("merchant" in data) {
+              if (!data.merchant.trim() || !data.email.trim() || !data.password) return toast("请完整填写商家账号资料");
+              stores.push({
+                id: Math.max(...stores.map((s) => s.id)) + 1,
+                name: data.merchant,
+                status: "待审核",
+                tone: "pending",
+                info: "账号已创建",
+              });
+              toast("已添加示例商家");
+            } else if (Object.keys(data).length) {
+              toast("已记录示例操作");
+            }
+            dialog.close();
+            break;
+          }
+          default:
+            return;
+        }
+        const activeField = document.activeElement?.name;
+        render();
+        if (activeField) restoreFocus(null, "#" + form.id + ' [name="' + activeField + '"]');
+      });
+      dialog.addEventListener("close", () => {
+        state.pendingStoreAction = null;
+      });
+      window.addEventListener("hashchange", () => {
+        state.reviewPage = 0;
+        document.querySelector("#toast").hidden = true;
+        render();
+        window.scrollTo(0, 0);
+        document.querySelector("main").focus({ preventScroll: true });
+      });
+      render();
+    </script>
+  </body>
+</html>

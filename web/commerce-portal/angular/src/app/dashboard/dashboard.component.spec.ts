@@ -1,23 +1,21 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { HttpErrorResponse } from '@angular/common/http';
+import { TestBed } from '@angular/core/testing';
 import { FormsModule } from '@angular/forms';
-import { RouterTestingModule } from '@angular/router/testing';
-import { of, Subject, throwError } from 'rxjs';
-
+import { provideRouter, Router, RouterModule } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
+import { of } from 'rxjs';
+import { Product } from 'src/model/IProduct';
 import { DashboardComponent } from './dashboard.component';
+import { CatalogProductCardComponent } from './catalog-product-card.component';
 import { ListPaginationComponent } from '../list-pagination/list-pagination.component';
 import { TranslatePipe } from '../pipes/translate.pipe';
-import { ApiService, StockAvailability } from '../services/api.service';
-import { Product } from 'src/model/IProduct';
+import { ApiService } from '../services/api.service';
 
 describe('DashboardComponent', () => {
-  let component: DashboardComponent;
-  let fixture: ComponentFixture<DashboardComponent>;
+  let harness: RouterTestingHarness;
   let search: jasmine.Spy;
-  let detail: jasmine.Spy;
-  let availability: jasmine.Spy;
   const product: Product = {
     id: 1,
+    merchantId: 4,
     name: 'Product',
     brief: '',
     description: 'Authoritative details',
@@ -30,67 +28,78 @@ describe('DashboardComponent', () => {
   };
 
   beforeEach(async () => {
-    search = jasmine.createSpy('searchProducts').and.returnValue(of({ products: [], total: 14, page: 1, size: 12 }));
-    detail = jasmine.createSpy('productDetail');
-    availability = jasmine.createSpy('productAvailability');
+    search = jasmine
+      .createSpy('searchProducts')
+      .and.returnValue(of({ products: [product], total: 14, page: 1, size: 12 }));
     await TestBed.configureTestingModule({
-      imports: [RouterTestingModule, FormsModule, ListPaginationComponent],
+      imports: [FormsModule, RouterModule, ListPaginationComponent, CatalogProductCardComponent],
       declarations: [DashboardComponent, TranslatePipe],
       providers: [
+        provideRouter([{ path: 'dashboard', component: DashboardComponent }]),
         {
           provide: ApiService,
-          useValue: {
-            searchProducts: search,
-            publicStores: () => of([]),
-            productDetail: detail,
-            productAvailability: availability,
-          },
+          useValue: { searchProducts: search, publicStores: () => of([]) },
         },
       ],
     }).compileComponents();
-
-    fixture = TestBed.createComponent(DashboardComponent);
-    component = fixture.componentInstance;
-    fixture.detectChanges();
+    harness = await RouterTestingHarness.create();
   });
 
-  it('uses the server search total and effective page', () => {
+  it('uses the server search total and effective page in its links', async () => {
+    const component = await harness.navigateByUrl('/dashboard', DashboardComponent);
     expect(search).toHaveBeenCalledWith({ q: '', sort: 'default', page: 0, size: 12 });
     expect(component.totalPages).toBe(2);
-    expect(component.page).toBe(1);
+    expect(component.displayPage).toBe(1);
+    expect(harness.routeNativeElement?.querySelector('.product-card')?.getAttribute('href')).toBe('/products/1?page=1');
   });
 
-  it('preserves details on a stock error and uses the catalog result when retrying', () => {
-    component.products = [product];
-    detail.and.returnValues(
-      of(product),
-      throwError(() => new HttpErrorResponse({ status: 404 })),
+  it('uses saved filters and keeps them in product links', async () => {
+    const component = await harness.navigateByUrl(
+      '/dashboard?q=laptop&merchantId=4&minPrice=0&maxPrice=100&sort=rating&page=1&other=ignore',
+      DashboardComponent,
     );
-    availability.and.returnValue(throwError(() => new HttpErrorResponse({ status: 503 })));
-
-    component.fncSelectDetail(0);
-    expect(component.detailStatus).toBe('ready');
-    expect(component.selectedProduct?.description).toBe(product.description);
-    expect(component.stock).toBeUndefined();
-    expect(component.canAddToBasket).toBeFalse();
-
-    component.loadProductDetail();
-    expect(component.detailStatus).toBe('missing');
-    expect(availability).toHaveBeenCalledOnceWith([1]);
+    expect(search).toHaveBeenCalledWith({
+      q: 'laptop',
+      merchantId: 4,
+      minPrice: 0,
+      maxPrice: 100,
+      sort: 'rating',
+      page: 1,
+      size: 12,
+    });
+    const link = harness.routeNativeElement?.querySelector('.product-card')?.getAttribute('href');
+    expect(TestBed.inject(Router).parseUrl(link ?? '').queryParams).toEqual({
+      q: 'laptop',
+      merchantId: '4',
+      minPrice: '0',
+      maxPrice: '100',
+      sort: 'rating',
+      page: '1',
+    });
+    expect(component.appliedFilters.map((filter) => filter.field)).toEqual(['q', 'merchantId', 'minPrice', 'maxPrice']);
+    component.removeFilter('maxPrice');
+    await harness.fixture.whenStable();
+    expect(search.calls.mostRecent().args[0]).toEqual({
+      q: 'laptop',
+      merchantId: 4,
+      minPrice: 0,
+      sort: 'rating',
+      page: 0,
+      size: 12,
+    });
   });
 
-  it('ignores a pending stock result after a different product is opened', () => {
-    const nextProduct = { ...product, id: 2 };
-    const previousStock = new Subject<Record<number, StockAvailability>>();
-    component.products = [product, nextProduct];
-    detail.and.returnValues(of(product), of(nextProduct));
-    availability.and.returnValues(previousStock, of({ 2: { productId: 2, listed: true, available: 0 } }));
+  it('rejects invalid draft prices and resets applied filters', async () => {
+    const component = await harness.navigateByUrl('/dashboard?q=notebook&page=1', DashboardComponent);
+    component.draft.minPrice = 200;
+    component.draft.maxPrice = 100;
+    component.applyFilters();
+    expect(component.invalidPrice).toBeTrue();
+    expect(search).toHaveBeenCalledTimes(1);
 
-    component.fncSelectDetail(0);
-    component.fncSelectDetail(1);
-    previousStock.next({ 1: { productId: 1, listed: true, available: 8 } });
-
-    expect(component.stock?.productId).toBe(2);
-    expect(component.canAddToBasket).toBeFalse();
+    component.clearFilters();
+    await harness.fixture.whenStable();
+    expect(TestBed.inject(Router).url).toBe('/dashboard');
+    expect(search.calls.mostRecent().args[0]).toEqual({ q: '', sort: 'default', page: 0, size: 12 });
   });
 });

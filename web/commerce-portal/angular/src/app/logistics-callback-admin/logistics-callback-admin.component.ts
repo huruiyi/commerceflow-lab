@@ -1,4 +1,8 @@
-import { Component, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { finalize } from 'rxjs';
+import { AdminListPage } from 'src/model/IAdminListPage';
+import { I18nService } from '../services/i18n.service';
+import { ChangeDetectorRef, Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { ApiService } from '../services/api.service';
 import { LogisticsCallbackAuditEvent, LogisticsCallbackOutbox } from 'src/model/ILogisticsCallbackAdmin';
 
@@ -9,7 +13,12 @@ import { LogisticsCallbackAuditEvent, LogisticsCallbackOutbox } from 'src/model/
   styleUrls: ['./logistics-callback-admin.component.css'],
 })
 export class LogisticsCallbackAdminComponent implements OnInit {
-  callbacks: LogisticsCallbackOutbox[] = [];
+  callbackPage?: AdminListPage<LogisticsCallbackOutbox>;
+  readonly i18n = inject(I18nService);
+  readonly loading = signal(false);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly changes = inject(ChangeDetectorRef);
+  private appliedStatus = '';
   events: Record<number, LogisticsCallbackAuditEvent[]> = {};
   replayReasons: Record<number, string> = {};
   statusFilter = '';
@@ -23,11 +32,39 @@ export class LogisticsCallbackAdminComponent implements OnInit {
     this.load();
   }
 
-  load(): void {
+  get callbacks(): LogisticsCallbackOutbox[] {
+    return this.callbackPage?.rows ?? [];
+  }
+
+  get totalPages(): number {
+    return this.callbackPage ? Math.ceil(this.callbackPage.total / this.callbackPage.size) : 0;
+  }
+
+  applyFilter(): void {
+    if (this.loading()) return;
+    this.appliedStatus = this.statusFilter;
+    this.load(0);
+  }
+
+  clearFilter(): void {
+    this.statusFilter = '';
+    this.applyFilter();
+  }
+
+  load(page = this.callbackPage?.page ?? 0): void {
+    if (this.loading()) return;
     this.error = '';
+    this.loading.set(true);
     this.api
-      .logisticsCallbacks(this.statusFilter)
-      .subscribe({ next: (v) => (this.callbacks = v), error: (e) => this.fail(e) });
+      .logisticsCallbacks(this.appliedStatus, page)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.loading.set(false)),
+      )
+      .subscribe({
+        next: (value) => (this.callbackPage = value),
+        error: (error) => this.fail(error),
+      });
   }
 
   toggleEvents(item: LogisticsCallbackOutbox): void {
@@ -36,12 +73,16 @@ export class LogisticsCallbackAdminComponent implements OnInit {
       return;
     }
     this.api.logisticsCallbackEvents(item.id).subscribe({
-      next: (v) => (this.events[item.id] = v),
+      next: (v) => {
+        this.events[item.id] = v;
+        this.changes.markForCheck();
+      },
       error: (e) => this.fail(e),
     });
   }
 
   replay(item: LogisticsCallbackOutbox): void {
+    if (this.busy || this.loading()) return;
     const reason = (this.replayReasons[item.id] || '').trim();
     if (!reason) {
       this.error = 'replayReasonRequired';

@@ -7,7 +7,6 @@
       </a>
 
       <div class="login-intro">
-        <span class="eyebrow">{{ 'learningEnvironment' | t }}</span>
         <h1>{{ 'loginWelcome' | t }}</h1>
         <p>{{ 'loginDescription' | t }}</p>
       </div>
@@ -34,10 +33,7 @@
 
     <div class="login-form-panel">
       <header class="login-heading">
-        <div>
-          <span>{{ 'secureLogin' | t }}</span>
-          <h2>{{ 'loginTitle' | t }}</h2>
-        </div>
+        <h2>{{ 'loginTitle' | t }}</h2>
         <button class="language-button" type="button" (click)="i18n.switch()">
           <i class="bi bi-globe2" aria-hidden="true"></i>
           {{ 'language' | t }}

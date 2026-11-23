@@ -21,14 +21,16 @@ interface StoredFulfillment {
 interface FulfillmentRecovery extends StoredFulfillment {
   message: 'fulfillmentResultUnknown' | 'fulfillmentResultMissing' | 'fulfillmentResultPending' | 'orderStatusPending';
 }
+import { displayOrderNumber } from '../purchase-orders/order-number';
 
 @Component({
   standalone: false,
   selector: 'app-merchant-orders',
   templateUrl: './merchant-orders.component.html',
-  styleUrls: ['./merchant-orders.component.css'],
+  styleUrls: ['../purchase-orders/order-list-layout.css', './merchant-orders.component.css'],
 })
 export class MerchantOrdersComponent implements OnInit {
+  readonly displayOrderNumber = displayOrderNumber;
   orders: PurchaseOrder[] = [];
   criteria = { ...initialOrderSearch };
   page?: OrderSearchPage;

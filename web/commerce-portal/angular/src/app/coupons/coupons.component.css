@@ -1,0 +1,413 @@
+.coupon-workspace {
+  max-width: var(--cf-shell);
+  margin-inline: auto;
+  padding: 1.5rem var(--cf-gutter) 3rem;
+  color: var(--cf-ink);
+  font-size: 0.875rem;
+}
+
+.merchant-coupons {
+  max-width: none;
+  padding: 0;
+}
+
+.coupon-heading,
+.coupon-panel-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+}
+
+.coupon-heading {
+  margin-bottom: 1rem;
+}
+
+.coupon-heading h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.coupon-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 1rem;
+}
+
+.coupon-panel {
+  min-width: 0;
+  border: 1px solid var(--cf-line);
+  border-radius: 0.65rem;
+  background: var(--cf-surface);
+}
+
+.coupon-panel h2 {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 650;
+}
+
+.coupon-panel-heading,
+.coupon-filters,
+.coupon-row,
+.coupon-state {
+  padding: 0.85rem 1rem;
+}
+
+.coupon-panel-heading {
+  border-bottom: 1px solid var(--cf-line);
+}
+
+.coupon-total,
+.campaign-count,
+.coupon-limit {
+  color: var(--cf-muted);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.coupon-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.45rem;
+  border-bottom: 1px solid var(--cf-line);
+}
+
+.coupon-filter {
+  min-height: 2rem;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--cf-line);
+  border-radius: 999px;
+  background: var(--cf-surface);
+  color: var(--cf-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.coupon-filter:hover,
+.coupon-filter[aria-pressed='true'] {
+  border-color: var(--cf-accent);
+  background: var(--cf-tint);
+  color: var(--cf-accent);
+}
+
+.coupon-filter:focus-visible {
+  outline: 2px solid var(--cf-focus);
+  outline-offset: 2px;
+}
+
+.coupon-filter span {
+  display: inline-block;
+  min-width: 1.15rem;
+  padding-inline: 0.2rem;
+  border-radius: 999px;
+  background: var(--cf-surface-soft);
+  color: var(--cf-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.coupon-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.coupon-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.65rem 0.85rem;
+  align-items: center;
+}
+
+.coupon-row + .coupon-row {
+  border-top: 1px solid var(--cf-line);
+}
+
+.coupon-facts {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.coupon-facts h3 {
+  margin: 0 0 0.25rem;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.coupon-facts p {
+  margin: 0;
+  color: var(--cf-muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.coupon-value {
+  display: grid;
+  justify-items: end;
+  gap: 0.25rem;
+}
+
+.coupon-amount {
+  color: var(--cf-accent);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.coupon-status {
+  display: inline-block;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  color: var(--cf-muted);
+  background: var(--cf-surface-soft);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.coupon-status[data-state='AVAILABLE'] {
+  background: var(--cf-tint);
+  color: var(--cf-accent);
+}
+
+.coupon-status[data-state='HELD'] {
+  background: #fdf1d8;
+  color: #75500c;
+}
+
+.coupon-status:is([data-state='EXPIRED'], [data-state='DISABLED']) {
+  background: #f6ebeb;
+  color: #7f3939;
+}
+
+.coupon-state {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 0.5rem;
+  min-height: 6.5rem;
+  margin: 0;
+  color: var(--cf-muted);
+  text-align: center;
+}
+
+.coupon-state p,
+.coupon-limit {
+  margin: 0;
+}
+
+.coupon-state i {
+  color: var(--cf-accent);
+  font-size: 1.2rem;
+}
+
+.coupon-limit {
+  padding: 0.55rem 1rem;
+  border-top: 1px solid var(--cf-line);
+}
+
+.coupon-panel app-list-pagination {
+  display: block;
+  padding-inline: 1rem;
+}
+
+.campaign-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.campaign-action {
+  grid-column: 2;
+  justify-self: end;
+}
+
+.campaign-action .btn {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.merchant-campaigns .campaign-row {
+  grid-template-columns: minmax(0, 1fr) minmax(8rem, 0.25fr) minmax(6rem, auto);
+  gap: 1rem 1.5rem;
+}
+
+.merchant-campaigns .coupon-value {
+  justify-items: start;
+}
+
+.merchant-campaigns .campaign-action {
+  grid-column: 3;
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.campaign-tally {
+  display: grid;
+  gap: 0.25rem;
+  width: min(100%, 9rem);
+}
+
+.campaign-tally progress {
+  width: 100%;
+  height: 0.35rem;
+  appearance: none;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  color: var(--cf-accent);
+  background: var(--cf-tint);
+}
+
+.campaign-tally progress::-webkit-progress-bar {
+  background: var(--cf-tint);
+}
+
+.campaign-tally progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--cf-accent);
+}
+
+.campaign-tally progress::-moz-progress-bar {
+  border-radius: 999px;
+  background: var(--cf-accent);
+}
+
+.merchant-campaigns .coupon-status[data-state='ACTIVE'] {
+  background: var(--cf-tint);
+  color: var(--cf-accent);
+}
+
+.merchant-campaigns .coupon-status[data-state='SCHEDULED'] {
+  background: #fdf1d8;
+  color: #75500c;
+}
+
+.coupon-create {
+  margin-bottom: 1rem;
+}
+
+.coupon-create-heading {
+  padding: 1rem 1.15rem 0;
+}
+
+.coupon-create-heading .coupon-guidance {
+  margin: 0.35rem 0 0;
+}
+
+.coupon-create-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 0.8fr)) minmax(13rem, 1.25fr);
+  gap: 0.75rem 1rem;
+  padding: 1rem 1.15rem;
+}
+
+.coupon-create-fields label {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+  align-content: end;
+  color: var(--cf-ink);
+  font-weight: 600;
+}
+
+.coupon-create-fields .form-control {
+  min-width: 0;
+  width: 100%;
+  min-height: 2.5rem;
+  font-size: 0.9rem;
+}
+
+.coupon-publish {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  flex-wrap: wrap;
+  gap: 0.55rem 1rem;
+  padding: 0.75rem 1.15rem;
+  border-top: 1px solid var(--cf-line);
+  background: var(--cf-surface-soft);
+  border-radius: 0 0 0.65rem 0.65rem;
+}
+
+.coupon-validation {
+  margin: 0 auto 0 0;
+  color: #8e3434;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 850px) {
+  .coupon-create-fields {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .coupon-create-fields .campaign-name {
+    grid-column: 1 / -1;
+  }
+
+  .coupon-create-fields .campaign-expiry {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 540px) {
+  .coupon-create-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .coupon-create-fields .campaign-expiry {
+    grid-column: 1 / -1;
+  }
+
+  .coupon-publish .btn {
+    width: 100%;
+  }
+
+  .merchant-campaigns .campaign-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.65rem 0.9rem;
+  }
+
+  .merchant-campaigns .campaign-action {
+    grid-column: 1 / -1;
+    justify-content: space-between;
+  }
+}
+
+@media (min-width: 1120px) {
+  .campaign-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .campaign-action {
+    grid-column: 3;
+  }
+}
+
+@media (max-width: 840px) {
+  .coupon-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 470px) {
+  .coupon-row,
+  .coupon-filters,
+  .coupon-panel-heading {
+    padding-inline: 0.75rem;
+  }
+}
+
+.coupon-guidance {
+  margin: 0 0 0.75rem;
+  color: var(--cf-muted, #526660);
+  font-size: 0.875rem;
+}
+
+.coupon-campaign-guidance {
+  padding-inline: 1rem;
+}

@@ -1,236 +1,157 @@
-<section class="catalog-shell">
+<section class="catalog-shell" aria-labelledby="catalog-title">
   <header class="catalog-header">
-    <div>
-      <p class="catalog-eyebrow"><span aria-hidden="true"></span>{{ 'catalogCollection' | t }}</p>
-      <h1>{{ 'productList' | t }}</h1>
-      <p class="catalog-intro" *ngIf="!loading && !searchFailed">{{ i18n.t('searchResults', { count: total }) }}</p>
-    </div>
-    <div *ngIf="searchQuery" class="search-summary">
-      <span>{{ searchQuery }}</span>
-      <button hlmBtn variant="outline" size="sm" (click)="clearSearch()">{{ 'clearSearch' | t }}</button>
-    </div>
+    <h1 id="catalog-title">{{ 'catalogBrowse' | t }}</h1>
   </header>
 
-  <form class="catalog-filters" (ngSubmit)="applyFilters()">
-    <label>
-      {{ 'catalogStoreFilter' | t }}
-      <select class="form-select" name="merchantId" [(ngModel)]="merchantId">
-        <option [ngValue]="null">{{ 'catalogAllStores' | t }}</option>
-        <option *ngFor="let store of stores" [ngValue]="store.merchantId">{{ store.name }}</option>
-      </select>
-    </label>
-    <label>
-      {{ 'catalogMinPrice' | t }}
-      <input class="form-control" name="minPrice" type="number" min="0" step="0.01" [(ngModel)]="minPrice" />
-    </label>
-    <label>
-      {{ 'catalogMaxPrice' | t }}
-      <input class="form-control" name="maxPrice" type="number" min="0" step="0.01" [(ngModel)]="maxPrice" />
-    </label>
-    <button hlmBtn type="submit" [disabled]="minPrice !== null && maxPrice !== null && minPrice > maxPrice">
-      {{ 'catalogApplyFilters' | t }}
-    </button>
-  </form>
-  <label class="catalog-sort">
-    <span>{{ 'catalogSort' | t }}</span>
-    <select class="form-select" [ngModel]="sort" (ngModelChange)="changeSort($event)">
-      <option value="default">{{ 'catalogDefaultSort' | t }}</option>
-      <option value="price-asc">{{ 'catalogPriceAscending' | t }}</option>
-      <option value="price-desc">{{ 'catalogPriceDescending' | t }}</option>
-      <option value="rating">{{ 'catalogRatingDescending' | t }}</option>
-    </select>
-  </label>
-
-  <p *ngIf="loading" role="status">{{ 'catalogSearching' | t }}</p>
-  <div *ngIf="searchFailed" class="alert alert-danger" role="alert">
-    {{ 'catalogSearchFailed' | t }}
-    <button hlmBtn variant="outline" type="button" (click)="loadProducts()">{{ 'retry' | t }}</button>
-  </div>
-  <div class="product-grid" *ngIf="!loading && products.length">
-    <article hlmCard *ngFor="let item of products; let i = index" class="product-card">
-      <div class="product-visual">
-        <img [src]="item.imageUrl" [alt]="item.name" />
-        <span hlmBadge class="price-badge">{{ item.price | trcurrency }}</span>
-      </div>
-      <div hlmCardHeader>
-        <div class="rating-row">
-          <span class="rating-mark">★ {{ item.averageRating | number: '1.1-1' }}</span>
-          <span>{{ item.reviewCount }} {{ 'reviews' | t }}</span>
-        </div>
-        <h2 hlmCardTitle>{{ item.name }}</h2>
-        <p hlmCardDescription>{{ item.brief }}</p>
-      </div>
-      <div hlmCardFooter>
-        <button
-          hlmBtn
-          class="details-button"
-          (click)="fncSelectDetail(i)"
-          data-bs-toggle="modal"
-          data-bs-target="#exampleModal"
-        >
-          {{ 'details' | t }}
-          <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
-        </button>
-      </div>
-    </article>
-  </div>
-
-  <div *ngIf="!loading && !searchFailed && products.length === 0" hlmAlert class="empty-alert">
-    <i class="bi bi-search" aria-hidden="true"></i>
-    <h3 hlmAlertTitle>{{ 'noSearchResults' | t }}</h3>
-    <p hlmAlertDescription>{{ searchQuery }}</p>
-  </div>
-  <app-list-pagination
-    [page]="displayPage"
-    [totalPages]="totalPages"
-    [label]="'catalogPages' | t"
-    [loading]="loading"
-    (pageChange)="changePage($event)"
-  />
-</section>
-
-<div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="exampleModalLabel">{{ selectedProduct?.name }}</h5>
-        <button
-          hlmBtn
-          variant="ghost"
-          size="icon-sm"
-          type="button"
-          data-bs-dismiss="modal"
-          [attr.aria-label]="'close' | t"
-        >
-          <i class="bi bi-x-lg"></i>
-        </button>
-      </div>
-      <div class="modal-body" *ngIf="selectedProduct">
-        <p role="status" *ngIf="detailStatus === 'loading'">{{ 'loading' | t }}</p>
-        <p role="status" *ngIf="detailStatus === 'missing'">{{ 'productMissingOrUnlisted' | t }}</p>
-        <div *ngIf="detailStatus === 'unavailable'">
-          <p role="status">{{ 'productDetailUnavailable' | t }}</p>
-          <button hlmBtn variant="outline" type="button" (click)="loadProductDetail()">{{ 'retry' | t }}</button>
-        </div>
-        <div class="container" *ngIf="detailStatus === 'ready'">
-          <div class="row">
-            <div class="col-sm-6">
-              <img src="{{ bigImage }}" class="img-fluid" />
-              <div class="mt-2">
-                <img
-                  src="{{ selectedProduct.thumbnailUrl }}"
-                  (click)="fncSelectBigImage(selectedProduct.imageUrl)"
-                  role="button"
-                  class="img-thumbnail m-1"
-                />
-              </div>
-            </div>
-            <div class="col-sm-6">
-              <h3>
-                {{ selectedProduct.name }}
-                <span hlmBadge variant="secondary">{{ selectedProduct.price | trcurrency }}</span>
-              </h3>
-              <div>{{ selectedProduct.description }}</div>
-              <a
-                *ngIf="selectedProduct.merchantId"
-                [routerLink]="['/stores', selectedProduct.merchantId]"
-                data-bs-dismiss="modal"
-                >{{ 'visitStore' | t }}</a
-              >
-              <div class="mt-3" [attr.aria-busy]="loadingReviews">
-                <h6>{{ 'customerReviews' | t }}</h6>
-                <div *ngFor="let review of reviews" class="border-bottom py-2">
-                  <span class="text-warning">{{ review.rating }} ★</span> <b>{{ review.reviewerName }}</b>
-                  <p class="mb-0">{{ review.comment }}</p>
-                </div>
-                <small *ngIf="!reviewTotal">{{ 'noReviews' | t }}</small>
-                <div *ngIf="failedReviewPage !== undefined" class="mt-2">
-                  <p role="status">{{ 'reviewsUnavailable' | t }}</p>
-                  <button hlmBtn variant="outline" type="button" (click)="loadReviews(failedReviewPage)">
-                    {{ 'retry' | t }}
-                  </button>
-                </div>
-                <app-list-pagination
-                  [label]="'customerReviews' | t"
-                  [page]="reviewPage"
-                  [totalPages]="reviewPages"
-                  [loading]="loadingReviews"
-                  (pageChange)="loadReviews($event)"
-                />
-              </div>
-              <label for="productQuantity" class="form-label mt-4">{{ 'quantity' | t }}</label>
-              <div class="input-group" style="max-width: 180px">
-                <button
-                  hlmBtn
-                  variant="outline"
-                  size="icon"
-                  type="button"
-                  (click)="changeSelectedQuantity(selectedQuantity - 1)"
-                  [disabled]="selectedQuantity <= 1"
-                  [attr.aria-label]="'decreaseQuantity' | t"
-                >
-                  −
-                </button>
-                <input
-                  id="productQuantity"
-                  type="number"
-                  class="form-control text-center quantity-input"
-                  min="1"
-                  max="99"
-                  [value]="selectedQuantity"
-                  (change)="quantityInput($event)"
-                  [attr.aria-label]="'productQuantity' | t"
-                />
-                <button
-                  hlmBtn
-                  variant="outline"
-                  size="icon"
-                  type="button"
-                  (click)="changeSelectedQuantity(selectedQuantity + 1)"
-                  [disabled]="selectedQuantity >= 99"
-                  [attr.aria-label]="'increaseQuantity' | t"
-                >
-                  +
-                </button>
-              </div>
-              <div class="mt-2">{{ 'subtotal' | t }}: {{ selectedProduct.price * selectedQuantity | trcurrency }}</div>
-              <p class="mt-2" role="status" *ngIf="stockLoading">{{ 'loading' | t }}</p>
-              <div class="mt-2" *ngIf="!stockLoading && !stock">
-                <p role="status">{{ 'stockUnknown' | t }}</p>
-                <button hlmBtn variant="outline" type="button" (click)="loadProductDetail()">{{ 'retry' | t }}</button>
-              </div>
-              <p class="mt-2" role="status" *ngIf="stock">
-                {{
-                  stock.available === 0
-                    ? ('stockSoldOut' | t)
-                    : selectedQuantity > stock.available
-                      ? i18n.t('stockQuantityAdjustment', {
-                          available: stock.available,
-                          reduceBy: selectedQuantity - stock.available,
-                        })
-                      : i18n.t('stockAvailableUnits', { count: stock.available })
-                }}
-              </p>
-              <p *ngIf="basketError" role="alert">{{ basketError | t }}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <hlm-spinner *ngIf="showLoader" [attr.aria-label]="'loading' | t"></hlm-spinner>
-        <button hlmBtn variant="outline" type="button" data-bs-dismiss="modal">
-          <i class="bi bi-x-circle"></i> {{ 'close' | t }}
-        </button>
-        <button
-          hlmBtn
-          *ngIf="selectedProduct"
-          type="button"
-          (click)="fncAddBasket(selectedProduct.id)"
-          [disabled]="!canAddToBasket"
-        >
-          <i class="bi bi-cart-plus-fill"></i> {{ 'addBasket' | t }} ({{ selectedQuantity }})
-        </button>
+  <form class="catalog-filters" role="search" [attr.aria-label]="'searchProducts' | t" (ngSubmit)="applyFilters()">
+    <div class="keyword-field">
+      <label for="catalog-keyword">{{ 'catalogKeyword' | t }}</label>
+      <div class="search-input">
+        <i class="bi bi-search" aria-hidden="true"></i>
+        <input
+          id="catalog-keyword"
+          class="form-control"
+          name="q"
+          type="search"
+          [placeholder]="'catalogKeywordHint' | t"
+          [(ngModel)]="draft.q"
+        />
       </div>
     </div>
-  </div>
-</div>
+    <button
+      type="button"
+      class="btn catalog-secondary filter-toggle"
+      [attr.aria-expanded]="mobileFiltersOpen"
+      aria-controls="catalog-advanced"
+      (click)="mobileFiltersOpen = !mobileFiltersOpen"
+    >
+      <i class="bi bi-sliders" aria-hidden="true"></i>
+      {{ 'catalogAdvancedFilters' | t }}
+    </button>
+    <div id="catalog-advanced" class="advanced-filters" [class.is-open]="mobileFiltersOpen">
+      <label>
+        {{ 'catalogStoreFilter' | t }}
+        <select class="form-select" name="merchantId" [(ngModel)]="draft.merchantId">
+          <option [ngValue]="null">{{ 'catalogAllStores' | t }}</option>
+          @if (draft.merchantId !== null && !storeNames.has(draft.merchantId)) {
+            <option [ngValue]="draft.merchantId">{{ i18n.t('catalogStoreNumber', { id: draft.merchantId }) }}</option>
+          }
+          @for (store of stores; track store.merchantId) {
+            <option [ngValue]="store.merchantId">{{ store.name }}</option>
+          }
+        </select>
+      </label>
+      <div class="price-fields">
+        <label>
+          {{ 'catalogMinPrice' | t }}
+          <input
+            class="form-control"
+            name="minPrice"
+            type="number"
+            inputmode="decimal"
+            min="0"
+            step="0.01"
+            [(ngModel)]="draft.minPrice"
+            [attr.aria-invalid]="invalidPrice ? 'true' : null"
+            [attr.aria-describedby]="invalidPrice ? 'catalog-price-error' : null"
+          />
+        </label>
+        <label>
+          {{ 'catalogMaxPrice' | t }}
+          <input
+            class="form-control"
+            name="maxPrice"
+            type="number"
+            inputmode="decimal"
+            min="0"
+            step="0.01"
+            [(ngModel)]="draft.maxPrice"
+            [attr.aria-invalid]="invalidPrice ? 'true' : null"
+            [attr.aria-describedby]="invalidPrice ? 'catalog-price-error' : null"
+          />
+        </label>
+      </div>
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn catalog-primary" [disabled]="invalidPrice">{{ 'search' | t }}</button>
+      <button type="button" class="btn catalog-secondary" (click)="clearFilters()">
+        {{ 'catalogResetFilters' | t }}
+      </button>
+    </div>
+    @if (invalidPrice) {
+      <p id="catalog-price-error" class="filter-error">{{ 'catalogInvalidPriceRange' | t }}</p>
+    }
+  </form>
+
+  <section aria-labelledby="catalog-results" [attr.aria-busy]="loading">
+    <div class="results-toolbar">
+      <div class="result-heading">
+        <h2 id="catalog-results" class="visually-hidden">{{ 'catalogResults' | t }}</h2>
+        @if (!loading && !searchFailed) {
+          <p role="status">{{ i18n.t('searchResults', { count: total }) }}</p>
+        }
+      </div>
+      <label class="catalog-sort">
+        {{ 'catalogSort' | t }}
+        <select class="form-select" [ngModel]="filters.sort" (ngModelChange)="changeSort($event)">
+          @for (sort of sorts; track sort.value) {
+            <option [value]="sort.value">{{ sort.label | t }}</option>
+          }
+        </select>
+      </label>
+    </div>
+
+    @let active = appliedFilters;
+    @if (active.length) {
+      <ul class="applied-filters" [attr.aria-label]="'catalogAppliedFilters' | t">
+        @for (filter of active; track filter.field) {
+          <li>
+            <button
+              type="button"
+              (click)="removeFilter(filter.field)"
+              [attr.aria-label]="i18n.t('catalogRemoveFilter', { filter: filter.text })"
+            >
+              {{ filter.text }} <i class="bi bi-x" aria-hidden="true"></i>
+            </button>
+          </li>
+        }
+      </ul>
+    }
+    @if (loading) {
+      <p class="catalog-state" role="status">{{ 'catalogSearching' | t }}</p>
+    } @else if (searchFailed) {
+      <div class="catalog-state" role="alert">
+        <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+        <p>{{ 'catalogSearchFailed' | t }}</p>
+        <button class="btn catalog-secondary" type="button" (click)="loadProducts()">{{ 'retry' | t }}</button>
+      </div>
+    } @else if (products.length) {
+      <div class="product-grid">
+        @for (item of products; track item.id) {
+          <app-catalog-product-card
+            [item]="item"
+            [storeName]="storeNames.get(item.merchantId ?? 0) ?? ''"
+            [queryParams]="detailQueryParams"
+          />
+        }
+      </div>
+    } @else {
+      <div class="catalog-state" role="status">
+        <i class="bi bi-search" aria-hidden="true"></i>
+        <h3>{{ 'noSearchResults' | t }}</h3>
+        @if (hasFilters) {
+          <button class="btn catalog-secondary" type="button" (click)="clearFilters()">
+            {{ 'catalogResetFilters' | t }}
+          </button>
+        }
+      </div>
+    }
+    <app-list-pagination
+      [page]="displayPage"
+      [totalPages]="totalPages"
+      [label]="'catalogPages' | t"
+      [loading]="loading"
+      (pageChange)="changePage($event)"
+    />
+  </section>
+</section>

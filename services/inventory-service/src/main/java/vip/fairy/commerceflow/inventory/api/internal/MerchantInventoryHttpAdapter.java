@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
@@ -52,6 +53,14 @@ public class MerchantInventoryHttpAdapter {
                                         @PathVariable Long productId) {
     trafficGate.requireOpen();
     return inventory.movements(merchantId, productId);
+  }
+
+  @GetMapping("/items/{productId}/movements/page")
+  MerchantInventoryService.MovementPage movementPage(@PathVariable Long merchantId, @PathVariable Long productId,
+                                                       @RequestParam(defaultValue = "0") int page,
+                                                       @RequestParam(defaultValue = "10") int size) {
+    trafficGate.requireOpen();
+    return inventory.movementPage(merchantId, productId, page, size);
   }
 
   @PostMapping("/items/{productId}/adjustments")

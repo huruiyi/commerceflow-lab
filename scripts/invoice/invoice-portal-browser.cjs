@@ -169,7 +169,7 @@ async function refundStoreB(page) {
     await guest.close();
 
     const customerA = await login(browser, 'demo@example.com', customerRoute);
-    await customerA.getByRole('heading', { name: '我的发票', exact: true }).waitFor();
+    await customerA.getByRole('heading', { name: '电子发票', exact: true }).waitFor();
     const appA = await apply(customerA, 9201, true);
     equal((await (await ok(customerA, '/api/purchase-orders/9201/invoices', 200)).json()).applicationNo,
       appA, 'customer application stable');

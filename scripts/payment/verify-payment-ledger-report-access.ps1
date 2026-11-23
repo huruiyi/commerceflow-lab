@@ -9,6 +9,7 @@ $db = "$network-db"
 $password = [guid]::NewGuid().ToString('N')
 $secret = [guid]::NewGuid().ToString('N')
 $containers = [Collections.Generic.List[string]]::new()
+$temporaryImages = [Collections.Generic.List[string]]::new()
 $networkCreated = $false
 $utf8 = [Text.Encoding]::UTF8
 $adminRoute = '/api/admin/payment-ledger-reports'
@@ -21,6 +22,11 @@ $images = [ordered]@{
   order = 'services/order-service'
   simulator = 'simulators/payment-platform/service'
 }
+$imageTags = @{}
+foreach ($key in $images.Keys) {
+  $imageTags[$key] = if ($SkipBuild) { "commerceflow-report-$($key):batch2" } else { "${network}-${key}:verify" }
+}
+$imageTags.portal = if ($SkipBuild) { 'commerceflow-report-portal:batch3' } else { "${network}-portal:verify" }
 
 function Assert-Equal($Expected, $Actual, [string]$Label) {
   if ($Expected -cne $Actual) { throw "$Label expected [$Expected], got [$Actual]" }
@@ -30,6 +36,13 @@ function Start-Container([string]$Name, [string]$Alias, [string[]]$Options) {
   docker create --name $Name --network $network --network-alias $Alias @Options | Out-Null
   $containers.Add($Name)
   docker start $Name | Out-Null
+}
+
+function Build-VerificationImage([string]$Key, [string]$Context) {
+  $tag = $imageTags[$Key]
+  if (docker image ls -q --filter "reference=$tag") { throw "Verification image tag is in use: $tag" }
+  docker build -t $tag (Join-Path $root $Context)
+  $temporaryImages.Add($tag)
 }
 
 function Wait-Ready([string]$Label, [scriptblock]$Check, [string]$Container = '') {
@@ -54,7 +67,7 @@ function Start-App([string]$Key, [string]$Schema, [string]$Account, [string[]]$S
   $options = @('-p','127.0.0.1::8080','-e',"$($prefix)_URL=$jdbcUrl",'-e',"$($prefix)_USERNAME=$Account",
     '-e',"$($prefix)_PASSWORD=$password")
   $name = "$network-$Key"
-  Start-Container $name $Key ($options + $Settings + "commerceflow-report-$($Key):batch2")
+  Start-Container $name $Key ($options + $Settings + $imageTags[$Key])
   return 'http://' + (docker port $name '8080/tcp')
 }
 
@@ -130,13 +143,13 @@ function Assert-Historical($Report, [int]$Count, [decimal]$Received, [decimal]$R
 try {
   if (-not $SkipBuild) {
     foreach ($key in $images.Keys) {
-      docker build -t "commerceflow-report-$($key):batch2" (Join-Path $root $images[$key])
+      Build-VerificationImage $key $images[$key]
     }
   }
   if ($PlaywrightModule) {
     $PlaywrightModule = (Resolve-Path -LiteralPath $PlaywrightModule).Path
     if (-not $SkipBuild) {
-      docker build -t commerceflow-report-portal:batch3 (Join-Path $root 'web/commerce-portal/angular')
+      Build-VerificationImage portal 'web/commerce-portal/angular'
     }
   }
   docker network create $network | Out-Null
@@ -344,8 +357,12 @@ VALUES (507,'REPORT-P507','p507',12.34,'SUCCESS','','2025-03-09 02:00:00',2,'UNI
 '@ | Out-Null
     $browserBackfill = Invoke-Payment $backfill @{afterOrderId=506; limit=2}
     Assert-Equal 1 $browserBackfill.singleMerchant 'USD browser fixture ownership'
+    Sql orders (Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'payment-ledger-pagination-fixture.sql')) | Out-Null
+    $paginationBackfill = Invoke-Payment $backfill @{afterOrderId=507; limit=50}
+    Assert-Equal 30 $paginationBackfill.singleMerchant 'Pagination browser fixture ownership'
+    Assert-Equal $true $paginationBackfill.complete 'Pagination browser fixture end of stream'
     $web = "$network-portal"
-    Start-Container $web 'report-portal' @('-p','127.0.0.1::80','commerceflow-report-portal:batch3')
+    Start-Container $web 'report-portal' @('-p','127.0.0.1::80',$imageTags.portal)
     $webUrl = 'http://' + (docker port $web '80/tcp')
     Wait-Ready 'Angular portal' { (Invoke-WebRequest "$webUrl/healthz" -TimeoutSec 3).StatusCode -eq 200 } $web
     node (Join-Path $PSScriptRoot 'payment-ledger-browser.cjs') $webUrl $PlaywrightModule
@@ -365,4 +382,5 @@ VALUES (507,'REPORT-P507','p507',12.34,'SUCCESS','','2025-03-09 02:00:00',2,'UNI
 } finally {
   if ($containers.Count) { docker rm -f -v @containers | Out-Null }
   if ($networkCreated) { docker network rm $network | Out-Null }
+  if ($temporaryImages.Count) { docker image rm --no-prune @temporaryImages | Out-Null }
 }

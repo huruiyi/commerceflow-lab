@@ -2,15 +2,16 @@
   <h5 class="h6">{{ title | t }}</h5>
   <ng-content></ng-content>
   <ng-container *ngIf="parcel as current">
-    <p class="mb-1 mt-2 text-break" aria-live="polite">
+    <p class="tracking-reference mb-1 mt-2 text-break" aria-live="polite">
       {{ current.carrier }} · {{ current.trackingNumber }} · {{ current.status | t }}
     </p>
-    <ul *ngIf="current.events.length" class="list-unstyled mb-1">
+    <ol *ngIf="current.events.length" class="tracking-events list-unstyled mb-1">
       <li *ngFor="let event of current.events">
-        <strong>{{ event.status | t }}</strong> · {{ event.occurredAt | trdate }} · {{ event.location }}
+        <strong>{{ event.status | t }}</strong>
+        <span class="tracking-location"> · {{ event.occurredAt | trdate }} · {{ event.location }}</span>
         <small class="d-block">{{ event.description }}</small>
       </li>
-    </ul>
+    </ol>
   </ng-container>
   <p *ngIf="parcel === null" class="mb-1 mt-2">{{ 'returnTrackingUnavailable' | t }}</p>
 </section>

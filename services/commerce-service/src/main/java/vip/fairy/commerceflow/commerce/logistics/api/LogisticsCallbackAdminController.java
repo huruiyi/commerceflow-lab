@@ -5,6 +5,7 @@ import java.util.List;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import vip.fairy.commerceflow.commerce.logistics.application.LogisticsGatewayClient;
+import vip.fairy.commerceflow.commerce.shared.api.AdminListPage;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,6 +32,13 @@ public class LogisticsCallbackAdminController {
     @RequestParam(required = false) String status,
     @RequestParam(defaultValue = "100") int limit) {
     return logistics.callbackOutbox(status, limit);
+  }
+
+  @GetMapping("/page")
+  AdminListPage<LogisticsGatewayClient.CallbackOutbox> page(@RequestParam(required = false) String status,
+                                                           @RequestParam(defaultValue = "0") int page,
+                                                           @RequestParam(defaultValue = "10") int size) {
+    return logistics.callbackOutboxPage(status, page, size);
   }
 
   @GetMapping("/{id}/events")

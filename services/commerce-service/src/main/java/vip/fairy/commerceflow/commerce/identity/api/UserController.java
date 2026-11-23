@@ -6,10 +6,12 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import vip.fairy.commerceflow.commerce.identity.application.MerchantAccountService;
 import vip.fairy.commerceflow.commerce.identity.application.UserQueryService;
+import vip.fairy.commerceflow.commerce.shared.api.AdminListPage;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.prepost.PreAuthorize;
 
@@ -31,6 +33,13 @@ public class UserController {
   @GetMapping
   List<UserSummaryResponse> list() {
     return users.list();
+  }
+
+  @GetMapping("/page")
+  AdminListPage<UserSummaryResponse> page(@RequestParam(defaultValue = "") String q,
+                                         @RequestParam(defaultValue = "0") int page,
+                                         @RequestParam(defaultValue = "10") int size) {
+    return users.page(q, page, size);
   }
 
   @PostMapping("/merchants")

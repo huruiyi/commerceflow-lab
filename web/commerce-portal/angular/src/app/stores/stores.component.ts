@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink } from '@angular/router';
@@ -16,6 +16,7 @@ import {
   startWith,
   switchMap,
 } from 'rxjs';
+import { CatalogProductCardComponent } from '../dashboard/catalog-product-card.component';
 import { ListPaginationComponent } from '../list-pagination/list-pagination.component';
 import { readPage } from '../list-pagination/page-query';
 import { ApiService, CatalogSearchPage } from '../services/api.service';
@@ -30,18 +31,43 @@ interface Store {
 
 @Component({
   selector: 'app-stores',
-  imports: [CommonModule, FormsModule, RouterLink, ListPaginationComponent],
+  imports: [CommonModule, FormsModule, RouterLink, ListPaginationComponent, CatalogProductCardComponent],
   templateUrl: './stores.component.html',
+  styleUrl: './stores.component.css',
 })
 export class StoresComponent {
   private readonly http = inject(HttpClient);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly api = inject(ApiService);
+  private readonly destroy = inject(DestroyRef);
   readonly i18n = inject(I18nService);
   readonly mode = this.route.snapshot.data['mode'];
   readonly store = signal<Store | null>(null);
   readonly stores = signal<Store[]>([]);
+  readonly storeStatuses = ['PENDING', 'ACTIVE', 'REJECTED', 'DISABLED'];
+  readonly storeQuery = signal('');
+  readonly storeStatus = signal('');
+  readonly storeListLoading = signal(false);
+  readonly storeListFailed = signal(false);
+  readonly matchingStores = computed(() => {
+    const query = this.storeQuery().trim().toLocaleLowerCase();
+    const merchantId = query.replace(/^#/, '');
+    const status = this.storeStatus();
+    return this.stores().filter(
+      (store) =>
+        (!status || store.status === status) &&
+        (!query || store.name.toLocaleLowerCase().includes(query) || String(store.merchantId) === merchantId),
+    );
+  });
+  private readonly storePageSize = 10;
+  private readonly requestedStorePage = signal(0);
+  readonly storePageCount = computed(() => Math.ceil(this.matchingStores().length / this.storePageSize));
+  readonly storePage = computed(() => Math.min(this.requestedStorePage(), Math.max(0, this.storePageCount() - 1)));
+  readonly pageStores = computed(() => {
+    const start = this.storePage() * this.storePageSize;
+    return this.matchingStores().slice(start, start + this.storePageSize);
+  });
   readonly productPage = signal<CatalogSearchPage | null>(null);
   readonly totalPages = computed(() => {
     const page = this.productPage();
@@ -52,6 +78,8 @@ export class StoresComponent {
   private readonly pageSize = 12;
   readonly busy = signal(false);
   readonly message = signal('');
+  readonly actionFailed = signal(false);
+  createOpen = false;
   name = '';
   description = '';
   account = { email: '', password: '', name: '' };
@@ -106,6 +134,16 @@ export class StoresComponent {
     }
   }
 
+  filterStores(query: string, status: string): void {
+    this.storeQuery.set(query);
+    this.storeStatus.set(status);
+    this.requestedStorePage.set(0);
+  }
+
+  changeStorePage(page: number): void {
+    this.requestedStorePage.set(page);
+  }
+
   changePage(page: number): void {
     void this.router.navigate([], {
       relativeTo: this.route,
@@ -115,16 +153,25 @@ export class StoresComponent {
   }
 
   save(): void {
-    this.run(this.http.put<Store>('/api/merchant/store', { name: this.name, description: this.description }), (value) =>
-      this.select(value),
+    this.run(
+      this.http.put<Store>('/api/merchant/store', { name: this.name, description: this.description }),
+      (value) => {
+        this.select(value);
+        this.message.set('storeMerchantSaved');
+      },
     );
   }
 
   createAccount(): void {
     this.run(this.http.post('/api/users/merchants', this.account), () => {
-      this.message.set('商家账号已创建 / Merchant account created');
+      this.message.set('storeAdminAccountCreated');
       this.account = { email: '', password: '', name: '' };
     });
+  }
+
+  toggleAccountForm(): void {
+    this.createOpen = !this.createOpen;
+    if (!this.createOpen) this.account.password = '';
   }
 
   decide(value: Store, status: string): void {
@@ -133,8 +180,20 @@ export class StoresComponent {
     );
   }
 
-  private reload(): void {
-    this.run(this.http.get<Store[]>('/api/admin/stores'), (values) => this.stores.set(values));
+  reload(): void {
+    if (this.storeListLoading()) return;
+    this.storeListLoading.set(true);
+    this.storeListFailed.set(false);
+    this.http
+      .get<Store[]>('/api/admin/stores')
+      .pipe(
+        takeUntilDestroyed(this.destroy),
+        finalize(() => this.storeListLoading.set(false)),
+      )
+      .subscribe({
+        next: (values) => this.stores.set(values),
+        error: () => this.storeListFailed.set(true),
+      });
   }
 
   private select(store: Store | null): void {
@@ -147,9 +206,18 @@ export class StoresComponent {
     if (this.busy()) return;
     this.busy.set(true);
     this.message.set('');
-    request.pipe(finalize(() => this.busy.set(false))).subscribe({
-      next,
-      error: (error) => this.message.set(error.error?.message || '操作失败 / Request failed'),
-    });
+    this.actionFailed.set(false);
+    request
+      .pipe(
+        takeUntilDestroyed(this.destroy),
+        finalize(() => this.busy.set(false)),
+      )
+      .subscribe({
+        next,
+        error: (error) => {
+          this.actionFailed.set(true);
+          this.message.set(error.error?.message || 'requestFailed');
+        },
+      });
   }
 }

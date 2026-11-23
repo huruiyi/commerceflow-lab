@@ -1,16 +1,19 @@
-<section class="invoice-center" [attr.aria-busy]="busy">
+<section class="invoice-center" [class.invoice-platform]="mode === 'platform'" [attr.aria-busy]="busy">
   <header class="invoice-heading">
     <div>
       @if (orderId !== null) {
         <a class="invoice-back" [routerLink]="root">{{ 'invoiceBack' | t }}</a>
       }
       <h1>{{ (orderId === null ? heading : 'invoiceDetail') | t }}</h1>
+      @if (orderId === null && mode === 'customer') {
+        <p class="invoice-customer-help">{{ 'invoiceCustomerHelp' | t }}</p>
+      }
       @if (detail) {
         <p>{{ 'order' | t }} {{ detail.orderNumber || '#' + detail.orderId }}</p>
       }
     </div>
     @if (orderId === null && mode === 'customer') {
-      <a hlmBtn variant="outline" routerLink="/orders">{{ 'invoiceFindOrder' | t }}</a>
+      <a hlmBtn variant="outline" routerLink="/orders">{{ 'invoiceGoToOrders' | t }}</a>
     }
     @if (orderId !== null && detail) {
       <button hlmBtn variant="outline" type="button" (click)="reload()" [disabled]="busy || acting">
@@ -30,7 +33,9 @@
         <select class="form-select" name="invoiceStatus" [(ngModel)]="status">
           <option value="">{{ 'invoiceAnyStatus' | t }}</option>
           @for (option of statusOptions; track option) {
-            <option [value]="option">{{ 'invoiceState_' + option | t }}</option>
+            <option [value]="option">
+              {{ (mode === 'customer' ? 'invoiceCustomerState_' : 'invoiceState_') + option | t }}
+            </option>
           }
         </select>
       </label>
@@ -55,24 +60,68 @@
       <p class="invoice-message" role="status">{{ 'invoiceEmpty' | t }}</p>
     } @else {
       <div class="invoice-list">
+        @if (mode === 'platform') {
+          <div class="invoice-list-head" aria-hidden="true">
+            <span>{{ 'order' | t }}</span>
+            <span>{{ 'invoiceStatus' | t }}</span>
+            <span>{{ 'invoiceMerchantId' | t }}</span>
+            <span>{{ 'invoiceNet' | t }}</span>
+          </div>
+        }
         @for (row of page.rows; track row.orderId) {
-          <article class="invoice-row" [attr.data-testid]="'invoice-row-' + row.orderId">
+          <article
+            class="invoice-row"
+            [class.invoice-customer-row]="mode === 'customer'"
+            [attr.data-testid]="'invoice-row-' + row.orderId"
+          >
             <div class="invoice-row-id">
-              <a [routerLink]="detailLink(row.orderId)">{{ row.orderNumber || '#' + row.orderId }}</a>
-              <small>{{ row.invoiceNo || row.applicationNo }}</small>
+              @if (mode === 'customer') {
+                <strong>{{ (row.invoiceNo ? 'invoiceCustomerTicket' : 'invoiceApplication') | t }}</strong>
+                <small [attr.title]="row.orderNumber">
+                  {{ 'invoiceRelatedOrder' | t }} {{ displayOrderNumber(row.orderNumber || '#' + row.orderId) }}
+                </small>
+                @if (row.invoiceNo) {
+                  <small>{{ 'invoiceCustomerNumber' | t }} {{ row.invoiceNo }}</small>
+                }
+              } @else {
+                <a [routerLink]="detailLink(row.orderId)">{{ row.orderNumber || '#' + row.orderId }}</a>
+                <small>{{ row.invoiceNo || row.applicationNo }}</small>
+              }
             </div>
-            <span class="invoice-status" [attr.data-state]="row.status">{{ 'invoiceState_' + row.status | t }}</span>
-            @if (mode === 'platform' && row.merchantId) {
-              <span class="invoice-secondary">{{ 'invoiceMerchantId' | t }} #{{ row.merchantId }}</span>
+            <span class="invoice-status" [attr.data-state]="row.status">
+              {{ (mode === 'customer' ? 'invoiceCustomerState_' : 'invoiceState_') + row.status | t }}
+            </span>
+            @if (mode === 'platform') {
+              <span class="invoice-secondary">
+                @if (row.merchantId) {
+                  {{ 'invoiceMerchantId' | t }} #{{ row.merchantId }}
+                }
+              </span>
             }
             <div class="invoice-value">
-              <small>{{ 'invoiceNet' | t }}</small>
+              <small>{{ (mode === 'customer' ? 'invoiceCustomerAmount' : 'invoiceNet') | t }}</small>
               @if (row.effectiveAmount !== null) {
-                <strong>{{ row.effectiveAmount | number: '1.2-2' }} {{ row.currency }}</strong>
+                @if (mode === 'customer' && row.currency) {
+                  <strong>{{ row.effectiveAmount | trcurrency: row.currency }}</strong>
+                } @else {
+                  <strong>{{ row.effectiveAmount | number: '1.2-2' }} {{ row.currency }}</strong>
+                }
+                @if (mode === 'customer' && row.amount !== null && row.amount > row.effectiveAmount && row.currency) {
+                  <small>{{ 'invoiceIssueAmount' | t }} {{ row.amount | trcurrency: row.currency }}</small>
+                }
               } @else {
                 <span aria-hidden="true">—</span>
               }
             </div>
+            @if (mode === 'customer') {
+              <a
+                class="btn btn-sm btn-outline-secondary"
+                [routerLink]="detailLink(row.orderId)"
+                [attr.aria-label]="('invoiceView' | t) + ' · ' + (row.orderNumber || '#' + row.orderId)"
+              >
+                {{ 'invoiceView' | t }}
+              </a>
+            }
           </article>
         }
       </div>
@@ -113,13 +162,13 @@
             <p class="invoice-code" data-testid="invoice-application">{{ current.applicationNo }}</p>
           </div>
           <span class="invoice-status" [attr.data-state]="current.status">
-            {{ 'invoiceState_' + current.status | t }}
+            {{ (mode === 'customer' ? 'invoiceCustomerState_' : 'invoiceState_') + current.status | t }}
           </span>
         </header>
         @if (current.issue; as issue) {
           <dl class="invoice-amounts">
             <div>
-              <dt>{{ 'invoiceIssueNumber' | t }}</dt>
+              <dt>{{ (mode === 'customer' ? 'invoiceCustomerNumber' : 'invoiceIssueNumber') | t }}</dt>
               <dd class="invoice-code">{{ issue.invoiceNo || '—' }}</dd>
             </div>
             <div>
@@ -127,7 +176,7 @@
               <dd data-testid="invoice-issue-amount">{{ issue.amount | number: '1.2-2' }} {{ issue.currency }}</dd>
             </div>
             <div>
-              <dt>{{ 'invoiceNet' | t }}</dt>
+              <dt>{{ (mode === 'customer' ? 'invoiceCustomerAmount' : 'invoiceNet') | t }}</dt>
               <dd data-testid="invoice-effective">
                 @if (current.effectiveAmount !== null) {
                   {{ current.effectiveAmount | number: '1.2-2' }} {{ issue.currency }}
@@ -144,7 +193,7 @@
       </section>
       @if (current.redAttempts.length) {
         <section class="invoice-panel">
-          <h2>{{ 'invoiceRedTickets' | t }}</h2>
+          <h2>{{ (mode === 'customer' ? 'invoiceRefundAdjustments' : 'invoiceRedTickets') | t }}</h2>
           <ul class="invoice-records">
             @for (red of current.redAttempts; track red.requestId || red.invoiceNo || $index) {
               <li>

@@ -196,13 +196,22 @@
     ]]>
   </update>
 
-  <select id="list" resultType="vip.fairy.commerceflow.commerce.scheduling.domain.ScheduledTaskView">
-    SELECT * FROM scheduled_tasks
+  <sql id="adminFilter">
     <where>
       <if test='taskType != null and taskType != ""'>task_type=#{taskType}</if>
       <if test='status != null and status != ""'>AND status=#{status}</if>
     </where>
-    ORDER BY id DESC LIMIT #{limit}
+  </sql>
+
+  <select id="countForAdmin" resultType="long">
+    SELECT COUNT(*) FROM scheduled_tasks
+    <include refid="adminFilter"/>
+  </select>
+
+  <select id="list" resultType="vip.fairy.commerceflow.commerce.scheduling.domain.ScheduledTaskView">
+    SELECT * FROM scheduled_tasks
+    <include refid="adminFilter"/>
+    ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}
   </select>
 
   <insert id="insertEvent">

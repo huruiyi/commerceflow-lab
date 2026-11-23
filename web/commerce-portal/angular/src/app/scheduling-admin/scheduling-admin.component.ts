@@ -1,4 +1,8 @@
-import { Component, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { AdminListPage } from 'src/model/IAdminListPage';
+import { I18nService } from '../services/i18n.service';
+import { ChangeDetectorRef, Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { finalize } from 'rxjs';
 import { ApiService } from '../services/api.service';
 import { ScheduledTask, ScheduledTaskEvent, SchedulingPolicy, SchedulingPolicyEvent } from 'src/model/IScheduling';
 
@@ -10,13 +14,20 @@ import { ScheduledTask, ScheduledTaskEvent, SchedulingPolicy, SchedulingPolicyEv
 })
 export class SchedulingAdminComponent implements OnInit {
   policies: SchedulingPolicy[] = [];
-  tasks: ScheduledTask[] = [];
+  taskPage?: AdminListPage<ScheduledTask>;
+  readonly i18n = inject(I18nService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly changes = inject(ChangeDetectorRef);
+  private appliedType = '';
+  private appliedStatus = '';
   events: Record<number, ScheduledTaskEvent[]> = {};
   policyEvents: Record<string, SchedulingPolicyEvent[]> = {};
   taskTypeFilter = '';
   statusFilter = '';
   newTaskType = '';
   busy = false;
+  readonly loadingPolicies = signal(false);
+  readonly loadingTasks = signal(false);
   message = '';
   error = '';
 
@@ -28,23 +39,54 @@ export class SchedulingAdminComponent implements OnInit {
 
   reload(): void {
     this.error = '';
+    this.loadingPolicies.set(true);
     this.api
       .schedulingPolicies()
+      .pipe(finalize(() => this.loadingPolicies.set(false)))
       .subscribe({ next: (values) => (this.policies = values), error: (error) => this.fail(error) });
     this.loadTasks();
   }
 
-  loadTasks(): void {
-    this.api.scheduledTasks(this.taskTypeFilter, this.statusFilter).subscribe({
-      next: (values) => (this.tasks = values),
-      error: (error) => this.fail(error),
-    });
+  get tasks(): ScheduledTask[] {
+    return this.taskPage?.rows ?? [];
+  }
+
+  get totalPages(): number {
+    return this.taskPage ? Math.ceil(this.taskPage.total / this.taskPage.size) : 0;
+  }
+
+  applyTaskFilter(): void {
+    if (this.loadingTasks()) return;
+    this.appliedType = this.taskTypeFilter.trim();
+    this.appliedStatus = this.statusFilter;
+    this.loadTasks(0);
+  }
+
+  clearTaskFilter(): void {
+    this.taskTypeFilter = this.statusFilter = '';
+    this.applyTaskFilter();
+  }
+
+  loadTasks(page = this.taskPage?.page ?? 0): void {
+    if (this.loadingTasks()) return;
+    this.error = '';
+    this.loadingTasks.set(true);
+    this.api
+      .scheduledTasks(this.appliedType, this.appliedStatus, page)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.loadingTasks.set(false)),
+      )
+      .subscribe({
+        next: (value) => (this.taskPage = value),
+        error: (error) => this.fail(error),
+      });
   }
 
   addPolicy(): void {
     const taskType = this.newTaskType.trim().toUpperCase();
     if (!/^[A-Z][A-Z0-9_]{2,63}$/.test(taskType)) {
-      this.error = 'Invalid task type';
+      this.error = 'schedulingInvalidType';
       return;
     }
     const policy: SchedulingPolicy = {
@@ -105,7 +147,10 @@ export class SchedulingAdminComponent implements OnInit {
       return;
     }
     this.api.scheduledTaskEvents(task.id).subscribe({
-      next: (values) => (this.events[task.id] = values),
+      next: (values) => {
+        this.events[task.id] = values;
+        this.changes.markForCheck();
+      },
       error: (error) => this.fail(error),
     });
   }
@@ -116,6 +161,7 @@ export class SchedulingAdminComponent implements OnInit {
         next: (value) => {
           Object.assign(task, value);
           this.success('scheduledTaskRetried');
+          this.loadTasks();
         },
         error: (error) => this.fail(error),
       }),
@@ -128,6 +174,7 @@ export class SchedulingAdminComponent implements OnInit {
         next: (value) => {
           Object.assign(task, value);
           this.success('scheduledTaskCancelled');
+          this.loadTasks();
         },
         error: (error) => this.fail(error),
       }),
@@ -155,6 +202,6 @@ export class SchedulingAdminComponent implements OnInit {
 
   private fail(error: any): void {
     this.busy = false;
-    this.error = error?.error?.message || 'Request failed';
+    this.error = error?.error?.message || 'requestFailed';
   }
 }

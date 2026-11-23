@@ -32,7 +32,20 @@ public class MerchantInventoryService {
 
   public List<InventoryMovementView> movements(Long merchantId, Long productId) {
     requireProduct(merchantId, productId);
-    return merchantInventory.movements(merchantId, productId);
+    return merchantInventory.movements(merchantId, productId, 100, 0);
+  }
+
+  @Transactional(readOnly = true)
+  public MovementPage movementPage(Long merchantId, Long productId, int requestedPage, int requestedSize) {
+    requireProduct(merchantId, productId);
+    int size = Math.clamp(requestedSize, 1, 100);
+    long total = merchantInventory.movementCount(merchantId, productId);
+    int page = (int) Math.clamp(requestedPage, 0L, total == 0 ? 0 : (total - 1) / size);
+    return new MovementPage(merchantInventory.movements(merchantId, productId, size, (long) page * size),
+      total, page, size);
+  }
+
+  public record MovementPage(List<InventoryMovementView> rows, long total, int page, int size) {
   }
 
   @Transactional

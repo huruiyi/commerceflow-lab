@@ -16,9 +16,72 @@
   font-weight: 600;
 }
 
+.order-date-filters {
+  display: contents;
+}
+
+.order-date-filters[hidden] {
+  display: none;
+}
+
+.filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .filter-result {
   margin: 0.65rem 0 0;
   color: var(--bs-secondary-color);
+}
+
+.compact-filter {
+  margin: 0;
+  padding: 0.85rem 1rem 0.25rem;
+  font-size: 0.875rem;
+}
+
+.compact-filter .filter-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem;
+}
+
+.compact-filter .order-keyword {
+  flex: 0 1 17rem;
+}
+
+.compact-filter .order-status-filter {
+  flex: 0 1 10rem;
+}
+
+.compact-filter .form-control,
+.compact-filter .form-select {
+  min-width: 0;
+  min-height: 36px;
+  font-size: inherit;
+}
+
+.compact-filter .order-date-filters:not([hidden]) {
+  display: grid;
+  flex: 1 1 100%;
+  grid-template-columns: repeat(2, minmax(0, 10.5rem));
+  gap: 0.65rem;
+}
+
+.compact-filter .filter-result-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 0.8rem;
+  min-height: 2.25rem;
+}
+
+.compact-filter .filter-result {
+  margin: 0.65rem 0;
+  color: var(--cf-muted);
 }
 
 @media (max-width: 575px) {
@@ -28,5 +91,9 @@
 
   .filter-controls button {
     justify-self: start;
+  }
+
+  .compact-filter .order-keyword {
+    flex: 1 1 100%;
   }
 }

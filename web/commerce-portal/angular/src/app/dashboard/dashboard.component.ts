@@ -1,94 +1,113 @@
 import { ChangeDetectorRef, Component, DestroyRef, OnInit } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router } from '@angular/router';
-import { Product, ProductReview } from 'src/model/IProduct';
-import { readPage } from '../list-pagination/page-query';
-import { ApiService, CatalogStore, StockAvailability } from '../services/api.service';
-import { catchError, EMPTY, map, of, Subscription, switchMap, timeout } from 'rxjs';
-import { SeoService } from '../services/seo.service';
+import { ActivatedRoute, Params, Router } from '@angular/router';
+import { Subscription, timeout } from 'rxjs';
+import { Product } from 'src/model/IProduct';
+import { ApiService, CatalogStore } from '../services/api.service';
 import { I18nService } from '../services/i18n.service';
+import { SeoService } from '../services/seo.service';
+import { CatalogQuery, CatalogSort, catalogQueryParams, readCatalogQuery } from './catalog-query';
 
-type CatalogSort = 'default' | 'price-asc' | 'price-desc' | 'rating';
-const PRODUCT_QUERY_TIMEOUT_MS = 8000;
-const REVIEW_PAGE_SIZE = 5;
+type FilterField = 'q' | 'merchantId' | 'minPrice' | 'maxPrice';
 
 @Component({
   standalone: false,
   selector: 'app-dashboard',
   templateUrl: './dashboard.component.html',
-  styleUrls: ['./dashboard.component.css'],
+  styleUrl: './dashboard.component.css',
 })
 export class DashboardComponent implements OnInit {
+  readonly size = 12;
+  readonly sorts: { value: CatalogSort; label: string }[] = [
+    { value: 'default', label: 'catalogDefaultSort' },
+    { value: 'price-asc', label: 'catalogPriceAscending' },
+    { value: 'price-desc', label: 'catalogPriceDescending' },
+    { value: 'rating', label: 'catalogRatingDescending' },
+  ];
   products: Product[] = [];
   stores: CatalogStore[] = [];
+  storeNames = new Map<number, string>();
   total = 0;
-  page = 0;
   displayPage = 0;
-  readonly size = 12;
   loading = true;
   searchFailed = false;
-  merchantId: number | null = null;
-  minPrice: number | null = null;
-  maxPrice: number | null = null;
-  searchQuery = '';
-  sort: CatalogSort = 'default';
-  selectedProduct?: Product;
-  detailStatus: 'loading' | 'ready' | 'missing' | 'unavailable' = 'loading';
-  reviews: ProductReview[] = [];
-  reviewPage = 0;
-  reviewTotal = 0;
-  loadingReviews = false;
-  failedReviewPage?: number;
-  bigImage = '';
-  showLoader = false;
-  selectedQuantity = 1;
-  stock?: StockAvailability;
-  stockLoading = false;
-  basketError = '';
-  private detailRequest?: Subscription;
-  private reviewRequest?: Subscription;
+  mobileFiltersOpen = false;
+  filters: CatalogQuery;
+  draft: CatalogQuery;
   private searchRequest?: Subscription;
+
+  constructor(
+    private readonly api: ApiService,
+    private readonly router: Router,
+    private readonly route: ActivatedRoute,
+    private readonly seo: SeoService,
+    private readonly changeDetector: ChangeDetectorRef,
+    readonly i18n: I18nService,
+    private readonly destroyRef: DestroyRef,
+  ) {
+    this.filters = readCatalogQuery(this.route.snapshot.queryParamMap);
+    this.draft = { ...this.filters };
+  }
 
   get totalPages(): number {
     return Math.ceil(this.total / this.size);
   }
 
-  get reviewPages(): number {
-    return Math.ceil(this.reviewTotal / REVIEW_PAGE_SIZE);
+  get detailQueryParams(): Params {
+    return catalogQueryParams({ ...this.filters, page: this.displayPage });
   }
 
-  get canAddToBasket(): boolean {
+  get hasFilters(): boolean {
+    const { q, merchantId, minPrice, maxPrice, sort } = this.filters;
+    return Boolean(q) || merchantId !== null || minPrice !== null || maxPrice !== null || sort !== 'default';
+  }
+
+  get appliedFilters(): { field: FilterField; text: string }[] {
+    const { q, merchantId, minPrice, maxPrice } = this.filters;
+    const applied: { field: FilterField; text: string }[] = [];
+    if (q) applied.push({ field: 'q', text: q });
+    if (merchantId !== null) {
+      const text = this.storeNames.get(merchantId) ?? this.i18n.t('catalogStoreNumber', { id: merchantId });
+      applied.push({ field: 'merchantId', text });
+    }
+    const price = new Intl.NumberFormat(this.i18n.locale(), { style: 'currency', currency: 'CNY' });
+    if (minPrice !== null) {
+      applied.push({
+        field: 'minPrice',
+        text: this.i18n.t('catalogMinPriceFilter', { price: price.format(minPrice) }),
+      });
+    }
+    if (maxPrice !== null) {
+      applied.push({
+        field: 'maxPrice',
+        text: this.i18n.t('catalogMaxPriceFilter', { price: price.format(maxPrice) }),
+      });
+    }
+    return applied;
+  }
+
+  get invalidPrice(): boolean {
+    const { minPrice, maxPrice } = this.draft;
     return (
-      this.detailStatus === 'ready' &&
-      !this.showLoader &&
-      !this.stockLoading &&
-      this.stock !== undefined &&
-      this.stock.available >= this.selectedQuantity
+      (minPrice !== null && minPrice < 0) ||
+      (maxPrice !== null && maxPrice < 0) ||
+      (minPrice !== null && maxPrice !== null && minPrice > maxPrice)
     );
   }
 
-  constructor(
-    private api: ApiService,
-    private router: Router,
-    private route: ActivatedRoute,
-    private seoService: SeoService,
-    private changeDetector: ChangeDetectorRef,
-    public i18n: I18nService,
-    private destroyRef: DestroyRef,
-  ) {
-    seoService.setTitle('Product List');
-    seoService.setMeta('The page that lists products...');
-  }
-
   ngOnInit(): void {
-    this.i18n.localeChanged.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.loadProducts());
+    this.updateTitle();
+    this.i18n.localeChanged.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.updateTitle();
+      this.loadProducts();
+    });
     this.api
       .publicStores()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (stores) => {
           this.stores = stores;
+          this.storeNames = new Map(stores.map((store) => [store.merchantId, store.name]));
           this.changeDetector.markForCheck();
         },
         error: () => {
@@ -96,59 +115,53 @@ export class DashboardComponent implements OnInit {
         },
       });
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
-      this.searchQuery = (params.get('q') || '').trim();
-      const sort = params.get('sort');
-      this.sort = sort === 'price-asc' || sort === 'price-desc' || sort === 'rating' ? sort : 'default';
-      this.merchantId = params.has('merchantId') ? Number(params.get('merchantId')) : null;
-      this.minPrice = params.has('minPrice') ? Number(params.get('minPrice')) : null;
-      this.maxPrice = params.has('maxPrice') ? Number(params.get('maxPrice')) : null;
-      this.page = readPage(params.get('page'));
+      this.filters = readCatalogQuery(params);
+      this.draft = { ...this.filters };
+      if (this.invalidPrice) this.mobileFiltersOpen = true;
       this.loadProducts();
     });
   }
 
-  clearSearch(): void {
-    this.updateQuery({ q: null, page: null });
+  applyFilters(): void {
+    if (this.invalidPrice) return;
+    this.updateQuery({ ...this.draft, q: this.draft.q.trim(), page: 0 });
+  }
+
+  clearFilters(): void {
+    this.draft = { q: '', merchantId: null, minPrice: null, maxPrice: null, sort: 'default', page: 0 };
+    this.mobileFiltersOpen = false;
+    this.updateQuery(this.draft);
+  }
+
+  removeFilter(field: FilterField): void {
+    this.updateQuery({ ...this.filters, [field]: field === 'q' ? '' : null, page: 0 });
   }
 
   changeSort(sort: CatalogSort): void {
-    this.updateQuery({ sort: sort === 'default' ? null : sort, page: null });
-  }
-
-  applyFilters(): void {
-    this.updateQuery({ merchantId: this.merchantId, minPrice: this.minPrice, maxPrice: this.maxPrice, page: null });
+    this.updateQuery({ ...this.filters, sort, page: 0 });
   }
 
   changePage(page: number): void {
-    this.updateQuery({ page: page || null });
-  }
-
-  private updateQuery(queryParams: Record<string, string | number | null>): void {
-    void this.router.navigate([], { relativeTo: this.route, queryParams, queryParamsHandling: 'merge' });
+    this.updateQuery({ ...this.filters, page });
   }
 
   loadProducts(): void {
     this.searchRequest?.unsubscribe();
-    const params: Record<string, string | number> = {
-      q: this.searchQuery,
-      sort: this.sort,
-      page: this.page,
-      size: this.size,
-    };
-    if (this.merchantId !== null) params['merchantId'] = this.merchantId;
-    if (this.minPrice !== null) params['minPrice'] = this.minPrice;
-    if (this.maxPrice !== null) params['maxPrice'] = this.maxPrice;
+    const { q, sort, page, merchantId, minPrice, maxPrice } = this.filters;
+    const params: Record<string, string | number> = { q, sort, page, size: this.size };
+    if (merchantId !== null) params['merchantId'] = merchantId;
+    if (minPrice !== null) params['minPrice'] = minPrice;
+    if (maxPrice !== null) params['maxPrice'] = maxPrice;
     this.loading = true;
     this.searchFailed = false;
     this.searchRequest = this.api
       .searchProducts(params)
-      .pipe(takeUntilDestroyed(this.destroyRef))
+      .pipe(timeout(8000), takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (value) => {
-          this.products = value.products;
-          this.total = value.total;
-          this.page = value.page;
-          this.displayPage = value.page;
+        next: ({ products, total, page: effectivePage }) => {
+          this.products = products;
+          this.total = total;
+          this.displayPage = effectivePage;
           this.loading = false;
           this.changeDetector.markForCheck();
         },
@@ -162,120 +175,12 @@ export class DashboardComponent implements OnInit {
       });
   }
 
-  fncSelectDetail(index: number) {
-    this.selectedProduct = this.products[index];
-    this.detailStatus = 'loading';
-    this.selectedQuantity = 1;
-    this.loadProductDetail();
+  private updateQuery(query: CatalogQuery): void {
+    void this.router.navigate([], { relativeTo: this.route, queryParams: catalogQueryParams(query) });
   }
 
-  loadProductDetail(): void {
-    if (!this.selectedProduct) return;
-    const productId = this.selectedProduct.id;
-    this.detailRequest?.unsubscribe();
-    this.reviewRequest?.unsubscribe();
-    this.loadingReviews = false;
-    this.failedReviewPage = undefined;
-    if (this.detailStatus !== 'ready') this.detailStatus = 'loading';
-    this.stock = undefined;
-    this.basketError = '';
-    this.stockLoading = true;
-    this.detailRequest = this.api
-      .productDetail(productId)
-      .pipe(
-        timeout(PRODUCT_QUERY_TIMEOUT_MS),
-        catchError((error: unknown) => {
-          this.detailStatus = error instanceof HttpErrorResponse && error.status === 404 ? 'missing' : 'unavailable';
-          this.stockLoading = false;
-          this.changeDetector.markForCheck();
-          return EMPTY;
-        }),
-        switchMap((product) => {
-          this.selectedProduct = product;
-          this.reviews = product.reviews;
-          this.reviewPage = 0;
-          this.reviewTotal = product.reviewCount;
-          this.bigImage = product.imageUrl;
-          this.detailStatus = 'ready';
-          this.changeDetector.markForCheck();
-          return this.api.productAvailability([productId]).pipe(
-            timeout(PRODUCT_QUERY_TIMEOUT_MS),
-            map((stocks) => stocks[productId]),
-            catchError(() => of(undefined)),
-          );
-        }),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe((stock) => {
-        this.stock = stock?.listed ? stock : undefined;
-        this.stockLoading = false;
-        this.changeDetector.markForCheck();
-      });
-  }
-
-  loadReviews(page: number): void {
-    if (this.detailStatus !== 'ready' || !this.selectedProduct) return;
-    this.reviewRequest?.unsubscribe();
-    this.loadingReviews = true;
-    this.failedReviewPage = undefined;
-    this.reviewRequest = this.api
-      .productReviews(this.selectedProduct.id, page, REVIEW_PAGE_SIZE)
-      .pipe(timeout(PRODUCT_QUERY_TIMEOUT_MS), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (result) => {
-          this.reviews = result.reviews;
-          this.reviewPage = result.page;
-          this.reviewTotal = result.total;
-          this.loadingReviews = false;
-          this.changeDetector.markForCheck();
-        },
-        error: () => {
-          this.failedReviewPage = page;
-          this.loadingReviews = false;
-          this.changeDetector.markForCheck();
-        },
-      });
-  }
-
-  fncSelectBigImage(path: string) {
-    this.bigImage = path;
-  }
-
-  changeSelectedQuantity(quantity: number) {
-    this.selectedQuantity = this.normalizeQuantity(quantity);
-  }
-
-  quantityInput(event: Event) {
-    this.changeSelectedQuantity((event.target as HTMLInputElement).valueAsNumber);
-  }
-
-  fncAddBasket(productId: number) {
-    if (!this.canAddToBasket || this.selectedProduct?.id !== productId) return;
-    this.basketError = '';
-    this.showLoader = true;
-    this.api.addOrder(productId, this.selectedQuantity).subscribe({
-      next: () => {
-        //try
-        //console.log(res.order[0].durum);
-        //newThis.router.navigate(['/order'])
-        window.location.href = '/cart';
-      },
-      error: (err) => {
-        this.basketError = err.status === 404 ? 'productMissingOrUnlisted' : 'addBasketFailed';
-        this.showLoader = false;
-        this.changeDetector.markForCheck();
-      },
-      complete: () => {
-        this.showLoader = false;
-        this.changeDetector.markForCheck();
-      },
-    });
-  }
-
-  private normalizeQuantity(quantity: number): number {
-    if (!Number.isFinite(quantity)) {
-      return 1;
-    }
-    return Math.min(99, Math.max(1, Math.trunc(quantity)));
+  private updateTitle(): void {
+    this.seo.setTitle(`${this.i18n.t('catalogBrowse')} | CommerceFlow Lab`);
+    this.seo.setMeta(this.i18n.t('searchProducts'));
   }
 }

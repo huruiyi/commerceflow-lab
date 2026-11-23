@@ -72,7 +72,9 @@ public interface LogisticsDataMapper {
   Long outboxIdByEventId(String eventId);
 
   List<CallbackOutboxRow> listOutbox(@Param("status") String status, @Param("shipmentId") Long shipmentId,
-                                    @Param("limit") int limit);
+                                    @Param("limit") int limit, @Param("offset") long offset);
+
+  long countOutboxForAdmin(@Param("status") String status);
 
   List<CallbackOutboxEventRow> outboxEvents(Long outboxId);
 

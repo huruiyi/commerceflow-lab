@@ -5,6 +5,7 @@ const day = '2025-03-09';
 const nextDay = '2025-03-10';
 const merchantRoute = '/merchant/payment-ledger-reports';
 const adminRoute = '/admin/payment-ledger-reports';
+const paginationDates = Array.from({ length: 26 }, (_, index) => `2025-04-${String(index + 1).padStart(2, '0')}`);
 
 async function signIn(browser, email, path) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1080 }, locale: 'zh-CN' });
@@ -21,7 +22,7 @@ async function signIn(browser, email, path) {
   await link.waitFor();
   assert.equal(await link.getAttribute('href'), path, email + ' navigation');
   await link.click();
-  await page.waitForURL('**' + path);
+  await page.waitForURL((url) => url.pathname === path);
   await page.getByRole('heading', { name: '支付运营统计' }).waitFor();
   await page.locator('.results[aria-busy="false"]').waitFor();
   return page;
@@ -53,6 +54,97 @@ async function merchantOptions(page) {
   );
 }
 
+async function checkDailyPagination(page, route, expected) {
+  const [start] = paginationDates;
+  const end = paginationDates.at(-1);
+  const zone = 'UTC';
+  const { currency, received, refunded, net } = expected;
+  await filters(page, { start, end, zone, channel: '', currency });
+  if (!currency) {
+    await page.getByRole('button', { name: 'CNY', exact: true }).click();
+  }
+  const query = new URLSearchParams({ startDate: start, endDate: end, timeZone: zone, currency: 'CNY' });
+  const api = new URL('/api' + route, baseUrl);
+  const response = await page.request.get(api + '?' + query);
+  assert.equal(response.status(), 200);
+  const report = await response.json();
+  assert.deepEqual(report.daily.map((row) => row.date), paginationDates);
+  assert.equal(report.totals[0].summary.receivedAmount + ' CNY', received);
+  assert.equal(report.totals[0].summary.refundedAmount + ' CNY', refunded);
+  assert.equal(report.totals[0].summary.netAmount + ' CNY', net);
+
+  const table = page.getByTestId('ledger-daily');
+  const dataRows = table.locator('tbody th[scope=row]');
+  const bar = page.locator('app-list-pagination nav');
+  const previous = bar.getByRole('button', { name: '上一页', exact: true });
+  const next = bar.getByRole('button', { name: '下一页', exact: true });
+  let calls = 0;
+  const countReport = (request) => {
+    if (new URL(request.url()).pathname === api.pathname) calls++;
+  };
+  page.on('request', countReport);
+
+  async function verifyPage(index) {
+    const dates = paginationDates.slice(index * 12, index * 12 + 12);
+    await page.waitForURL((url) => Number(url.searchParams.get('page') ?? '0') === index);
+    await dataRows.getByText(dates[0], { exact: true }).waitFor();
+    assert.deepEqual(await dataRows.allTextContents(), dates);
+    assert.equal(await previous.isDisabled(), index === 0);
+    assert.equal(await next.isDisabled(), index === 2);
+    await amounts(page, received, refunded, net);
+    const trend = page.getByTestId('ledger-trend');
+    assert.equal(await trend.getByRole('img').count(), paginationDates.length);
+    assert.equal(await trend.getByRole('img', { name: new RegExp(end + '.*成功笔数') }).count(), 1);
+  }
+
+  await verifyPage(0);
+  await next.focus();
+  await page.keyboard.press('Enter');
+  await verifyPage(1);
+  await next.click();
+  await verifyPage(2);
+  await page.goBack();
+  await verifyPage(1);
+  await page.goForward();
+  await verifyPage(2);
+  assert.equal(calls, 0, 'Paging aggregated rows does not re-fetch the report');
+  page.off('request', countReport);
+  if (!currency) {
+    await page.getByRole('button', { name: 'USD', exact: true }).click();
+    await amounts(page, '7.00 USD', '0.00 USD', '7.00 USD');
+    assert.equal(await bar.count(), 0);
+    await page.getByRole('button', { name: 'CNY', exact: true }).click();
+    await verifyPage(0);
+    await next.click();
+    await verifyPage(1);
+    await next.click();
+    await verifyPage(2);
+  }
+
+  await page.reload();
+  await verifyPage(2);
+  assert.equal(await page.locator('input[name=startDate]').inputValue(), start);
+  assert.equal(await page.locator('input[name=endDate]').inputValue(), end);
+  assert.equal(await page.locator('select[name=timeZone]').inputValue(), zone);
+  assert.equal(await page.locator('select[name=currency]').inputValue(), currency);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await bar.getByText('第 3 页，共 3 页', { exact: true }).waitFor({ state: 'visible' });
+  await previous.click();
+  await verifyPage(1);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+  if (process.env.CFL_REPORT_PAGINATION_SCREENSHOT && route === adminRoute) {
+    await bar.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: process.env.CFL_REPORT_PAGINATION_SCREENSHOT });
+  }
+  await filters(page, { start, end: start, zone, currency: 'CNY' });
+  await page.waitForURL((url) => Number(url.searchParams.get('page') ?? '0') === 0);
+  await dataRows.getByText(start, { exact: true }).waitFor();
+  assert.equal(await dataRows.count(), 1);
+  assert.equal(await bar.count(), 0);
+  console.log(`${route} validated 26 real rows in pages 12/12/2, refresh, 390px, period totals, trend, and filter reset.`);
+}
+
 async function checkMerchantA(browser) {
   const page = await signIn(browser, 'report-a@example.test', merchantRoute);
   assert.deepEqual(await merchantOptions(page), ['10001']);
@@ -80,6 +172,10 @@ async function checkMerchantA(browser) {
   await page.setViewportSize({ width: 390, height: 844 });
   await filters(page, { end: nextDay });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+  await page.setViewportSize({ width: 1440, height: 1080 });
+  await checkDailyPagination(page, merchantRoute, {
+    currency: 'CNY', received: '325.00 CNY', refunded: '4.00 CNY', net: '321.00 CNY',
+  });
   await page.close();
 }
 
@@ -126,6 +222,9 @@ async function checkPlatform(browser) {
   await amounts(full, '100.00 CNY', '10.00 CNY', '90.00 CNY');
   await filters(full);
   await full.getByTestId('ledger-unattributed').getByText(/1,700\.00 CNY/).waitFor();
+  await checkDailyPagination(full, adminRoute, {
+    currency: '', received: '334.00 CNY', refunded: '4.00 CNY', net: '330.00 CNY',
+  });
   await full.close();
 
   const limited = await signIn(browser, 'report-limited@example.test', adminRoute);
@@ -142,7 +241,7 @@ async function checkPlatform(browser) {
 }
 
 (async () => {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ channel: process.env.CFL_REPORT_BROWSER_CHANNEL });
   try {
     await checkMerchantA(browser);
     await checkMerchantB(browser);

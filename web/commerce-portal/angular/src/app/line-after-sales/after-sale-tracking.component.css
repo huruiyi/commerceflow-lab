@@ -1,0 +1,64 @@
+:host(.tracking-panel) {
+  display: block;
+  min-width: 0;
+}
+
+:host(.tracking-panel) section {
+  border-color: var(--cf-line) !important;
+  border-radius: 0.55rem !important;
+  padding: 0.8rem 1rem !important;
+  background: var(--cf-canvas);
+  overflow-wrap: anywhere;
+}
+
+:host(.tracking-panel) h5 {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 650;
+}
+
+:host(.tracking-panel) .tracking-reference {
+  color: var(--cf-muted);
+}
+
+:host(.tracking-panel) .tracking-events {
+  padding: 0.3rem 0;
+  margin-top: 0.65rem;
+}
+
+:host(.tracking-panel) li {
+  position: relative;
+  margin-inline-start: 0.25rem;
+  padding: 0 0 0.65rem 0.85rem;
+}
+
+:host(.tracking-panel) li:not(:last-child)::after {
+  position: absolute;
+  top: 0.53rem;
+  bottom: -0.53rem;
+  inset-inline-start: 0;
+  width: 1px;
+  background: #b7cfc0;
+  content: '';
+}
+
+:host(.tracking-panel) li::before {
+  position: absolute;
+  z-index: 1;
+  top: 0.4rem;
+  inset-inline-start: -0.2rem;
+  width: 0.44rem;
+  height: 0.44rem;
+  border: 1px solid var(--cf-accent);
+  border-radius: 50%;
+  background: var(--cf-canvas);
+  content: '';
+}
+
+:host(.tracking-panel) li:last-child::before {
+  background: var(--cf-accent);
+}
+
+:host(.tracking-panel) :is(.tracking-location, small) {
+  color: var(--cf-muted);
+}

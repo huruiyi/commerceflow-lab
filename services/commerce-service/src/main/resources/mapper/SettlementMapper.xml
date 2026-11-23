@@ -28,6 +28,28 @@
   <sql id="statementScope">
     FROM merchant_settlement_entries WHERE statement_id=#{statement} AND merchant_id=#{merchant}
   </sql>
+  <sql id="pendingScope">
+    FROM merchant_settlement_entries WHERE merchant_id=#{merchant} AND statement_id IS NULL
+  </sql>
+
+  <select id="pendingCount" resultType="long">
+    SELECT COUNT(*) <include refid="pendingScope"/>
+  </select>
+
+  <select id="pendingPage" resultType="vip.fairy.commerceflow.commerce.merchant.domain.Settlement$Entry">
+    SELECT * <include refid="pendingScope"/>
+    ORDER BY occurred_at,source_key LIMIT #{size} OFFSET #{offset}
+  </select>
+
+  <select id="entryCount" resultType="long">
+    SELECT COUNT(*) <include refid="statementScope"/>
+  </select>
+
+  <select id="entryPage" resultType="vip.fairy.commerceflow.commerce.merchant.domain.Settlement$Entry">
+    SELECT * <include refid="statementScope"/>
+    ORDER BY occurred_at,source_key LIMIT #{size} OFFSET #{offset}
+  </select>
+
   <select id="statementRollup" resultType="vip.fairy.commerceflow.commerce.merchant.domain.Settlement$Rollup">
     SELECT COUNT(DISTINCT order_id) AS order_count,COALESCE(SUM(merchandise),0) AS merchandise,
       COALESCE(SUM(freight),0) AS freight,COALESCE(SUM(commission),0) AS commission
@@ -94,6 +116,15 @@
   <select id="statements" resultType="vip.fairy.commerceflow.commerce.merchant.domain.Settlement$Statement">
     SELECT * FROM merchant_settlement_statements WHERE merchant_id=#{merchant} ORDER BY cutoff_at DESC,id
   </select>
+  <select id="statementCount" resultType="long">
+    SELECT COUNT(*) FROM merchant_settlement_statements WHERE merchant_id=#{merchant}
+  </select>
+
+  <select id="statementPage" resultType="vip.fairy.commerceflow.commerce.merchant.domain.Settlement$Statement">
+    SELECT * FROM merchant_settlement_statements WHERE merchant_id=#{merchant}
+    ORDER BY cutoff_at DESC,id LIMIT #{size} OFFSET #{offset}
+  </select>
+
   <insert id="freeze">
     INSERT INTO merchant_settlement_statements(id,merchant_id,starts_at,cutoff_at,
       merchandise,freight,commission,payable,frozen_by)

@@ -2,6 +2,7 @@ package vip.fairy.commerceflow.commerce.inventory.application;
 
 import java.util.List;
 
+import vip.fairy.commerceflow.commerce.shared.api.AdminListPage;
 import vip.fairy.commerceflow.commerce.inventory.domain.InventoryMovementView;
 import vip.fairy.commerceflow.commerce.inventory.domain.MerchantInventoryItem;
 import vip.fairy.commerceflow.commerce.inventory.infrastructure.transport.MerchantInventoryRemoteClient;
@@ -22,6 +23,10 @@ public class MerchantInventoryService {
 
   public List<InventoryMovementView> movements(Long merchantId, Long productId) {
     return inventory.movements(merchantId, productId);
+  }
+
+  public AdminListPage<InventoryMovementView> movementPage(Long merchantId, Long productId, int page, int size) {
+    return inventory.movementPage(merchantId, productId, page, size);
   }
 
   public MerchantInventoryItem adjust(Long merchantId, Long productId, int delta, String reason, Long warehouseId) {

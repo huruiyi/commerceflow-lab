@@ -1,14 +1,13 @@
-<main class="inventory-page container-fluid">
-  <section class="inventory-hero">
+<section class="inventory-page">
+  <header class="inventory-heading">
     <div>
-      <span>{{ 'inventoryChapter' | t }}</span>
       <h1>{{ 'inventoryCenter' | t }}</h1>
       <p>{{ 'inventoryHelp' | t }}</p>
     </div>
     <button hlmBtn variant="outline" type="button" (click)="load()">
       <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>{{ 'refreshStatus' | t }}
     </button>
-  </section>
+  </header>
 
   <div hlmAlert *ngIf="notice" class="inventory-notice">
     <i class="bi bi-check2-circle" aria-hidden="true"></i><span>{{ notice }}</span>
@@ -27,42 +26,54 @@
       </div>
     </div>
     <div class="table-responsive">
-      <table class="inventory-table">
-        <thead>
-          <tr>
-            <th>{{ 'productName' | t }}</th>
-            <th>{{ 'availableStock' | t }}</th>
-            <th>{{ 'reservedStock' | t }}</th>
-            <th>{{ 'soldStock' | t }}</th>
-            <th>{{ 'action' | t }}</th>
+      <table class="inventory-table" role="table">
+        <thead role="rowgroup">
+          <tr role="row">
+            <th scope="col" role="columnheader">{{ 'productName' | t }}</th>
+            <th scope="col" role="columnheader">{{ 'availableStock' | t }}</th>
+            <th scope="col" role="columnheader">{{ 'reservedStock' | t }}</th>
+            <th scope="col" role="columnheader">{{ 'soldStock' | t }}</th>
+            <th scope="col" role="columnheader">{{ 'action' | t }}</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody role="rowgroup">
           <ng-container *ngFor="let item of items">
-            <tr>
-              <td>
+            <tr class="inventory-stock-row" role="row">
+              <td class="inventory-product" role="cell">
                 <div class="product-cell">
-                  <img [src]="item.thumbnailUrl" [alt]="item.productName" /><span
+                  <app-catalog-image [primary]="item.thumbnailUrl" class="compact" /><span
                     ><strong>{{ item.productName }}</strong
                     ><small>#{{ item.productId }} · {{ item.price | trcurrency }}</small></span
                   >
                 </div>
               </td>
-              <td>
+              <td class="inventory-number" role="cell">
+                <span class="inventory-mobile-label">{{ 'availableStock' | t }}</span>
                 <span hlmBadge variant="secondary">{{ item.stockAvailable }}</span>
               </td>
-              <td>
+              <td class="inventory-number" role="cell">
+                <span class="inventory-mobile-label">{{ 'reservedStock' | t }}</span>
                 <span hlmBadge variant="outline">{{ item.stockReserved }}</span>
               </td>
-              <td>{{ item.stockSold }}</td>
-              <td>
-                <button hlmBtn variant="outline" size="sm" type="button" (click)="toggle(item)">
+              <td class="inventory-number" role="cell">
+                <span class="inventory-mobile-label">{{ 'soldStock' | t }}</span>
+                <span>{{ item.stockSold }}</span>
+              </td>
+              <td class="inventory-action" role="cell">
+                <button
+                  hlmBtn
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  (click)="toggle(item)"
+                  [attr.aria-expanded]="expanded.has(item.productId)"
+                >
                   {{ expanded.has(item.productId) ? ('hideDetails' | t) : ('inventoryManage' | t) }}
                 </button>
               </td>
             </tr>
-            <tr *ngIf="expanded.has(item.productId)" class="inventory-detail-row">
-              <td colspan="5">
+            <tr *ngIf="expanded.has(item.productId)" class="inventory-detail-row" role="row">
+              <td colspan="5" role="cell">
                 <div class="inventory-detail">
                   <form (ngSubmit)="adjust(item)">
                     <label>
@@ -101,7 +112,10 @@
                       hlmBtn
                       type="submit"
                       [disabled]="
-                        !delta[item.productId] || !(reason[item.productId] || '').trim() || saving.has(item.productId)
+                        !delta[item.productId] ||
+                        !(reason[item.productId] || '').trim() ||
+                        saving.has(item.productId) ||
+                        loadingMovements.has(item.productId)
                       "
                     >
                       {{ saving.has(item.productId) ? ('savingInventory' | t) : ('applyInventoryAdjustment' | t) }}
@@ -109,22 +123,48 @@
                   </form>
                   <section class="movement-list">
                     <h3>{{ 'inventoryMovements' | t }}</h3>
-                    <div *ngIf="!movements[item.productId]?.length" class="movement-empty">
-                      {{ 'noInventoryMovements' | t }}
-                    </div>
-                    <ol>
-                      <li *ngFor="let movement of movements[item.productId]">
-                        <i aria-hidden="true"></i
-                        ><span
-                          ><strong>{{ movement.movementType | t }} · {{ movement.quantity }}</strong
-                          ><small>{{ movement.detail }}</small
-                          ><time
-                            >{{ movement.createdAt | trdate }} · {{ 'availableStock' | t }}
-                            {{ movement.availableAfter }} / {{ 'reservedStock' | t }} {{ movement.reservedAfter }}</time
-                          ></span
+                    @if (failedMovements.has(item.productId)) {
+                      <div role="alert" class="movement-empty">
+                        {{ 'requestFailed' | t }}
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline-secondary"
+                          (click)="loadMovements(item.productId, movementPages[item.productId]?.page)"
                         >
-                      </li>
-                    </ol>
+                          {{ 'retry' | t }}
+                        </button>
+                      </div>
+                    } @else if (loadingMovements.has(item.productId)) {
+                      <p role="status" class="movement-empty">{{ 'loading' | t }}</p>
+                    }
+                    @if (movementPages[item.productId]; as page) {
+                      <app-list-pagination
+                        class="admin-pagination"
+                        [page]="page.page"
+                        [totalPages]="movementPageCount(page)"
+                        [label]="'inventoryMovements' | t"
+                        [loading]="loadingMovements.has(item.productId) || saving.has(item.productId)"
+                        (pageChange)="loadMovements(item.productId, $event)"
+                      />
+                      @if (!page.rows.length && !loadingMovements.has(item.productId)) {
+                        <p class="movement-empty">{{ 'noInventoryMovements' | t }}</p>
+                      }
+                      <ol>
+                        @for (movement of page.rows; track movement.id) {
+                          <li>
+                            <i aria-hidden="true"></i>
+                            <span>
+                              <strong>{{ movement.movementType | t }} · {{ movement.quantity }}</strong>
+                              <small>{{ movement.detail }}</small>
+                              <time>
+                                {{ movement.createdAt | trdate }} · {{ 'availableStock' | t }}
+                                {{ movement.availableAfter }} / {{ 'reservedStock' | t }} {{ movement.reservedAfter }}
+                              </time>
+                            </span>
+                          </li>
+                        }
+                      </ol>
+                    }
                   </section>
                 </div>
               </td>
@@ -134,4 +174,4 @@
       </table>
     </div>
   </section>
-</main>
+</section>

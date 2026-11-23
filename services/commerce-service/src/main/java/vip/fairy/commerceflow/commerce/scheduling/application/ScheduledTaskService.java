@@ -13,6 +13,7 @@ import vip.fairy.commerceflow.commerce.scheduling.domain.ScheduledTaskEventView;
 import vip.fairy.commerceflow.commerce.scheduling.infrastructure.ScheduledTaskMapper;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import vip.fairy.commerceflow.commerce.shared.api.AdminListPage;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -97,10 +98,25 @@ public class ScheduledTaskService {
 
   public List<ScheduledTaskView> list(String taskType, String status, int limit) {
     int safeLimit = Math.max(1, Math.min(limit, 500));
-    String normalizedType = taskType == null || taskType.isBlank() ? null : ScheduledTaskTypes.normalize(taskType);
-    String normalizedStatus = status == null || status.isBlank() ? null
-      : ScheduledTaskStatus.valueOf(status.trim().toUpperCase()).name();
-    return mapper.list(normalizedType, normalizedStatus, safeLimit);
+    return mapper.list(filterType(taskType), filterStatus(status), safeLimit, 0);
+  }
+
+  @Transactional(readOnly = true)
+  public AdminListPage<ScheduledTaskView> page(String taskType, String status, int requestedPage, int requestedSize) {
+    String type = filterType(taskType);
+    String state = filterStatus(status);
+    int size = AdminListPage.boundedSize(requestedSize);
+    long total = mapper.countForAdmin(type, state);
+    int page = AdminListPage.availablePage(requestedPage, total, size);
+    return new AdminListPage<>(mapper.list(type, state, size, (long) page * size), total, page, size);
+  }
+
+  private static String filterType(String taskType) {
+    return taskType == null || taskType.isBlank() ? null : ScheduledTaskTypes.normalize(taskType);
+  }
+
+  private static String filterStatus(String status) {
+    return status == null || status.isBlank() ? null : ScheduledTaskStatus.valueOf(status.trim().toUpperCase()).name();
   }
 
   public List<ScheduledTaskEventView> events(Long taskId) {

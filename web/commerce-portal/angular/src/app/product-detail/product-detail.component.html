@@ -1,0 +1,198 @@
+<div class="product-detail">
+  <nav class="product-context" [attr.aria-label]="'catalogProductContext' | t">
+    <a [routerLink]="returnStore ? ['/stores', returnStore] : ['/dashboard']" [queryParams]="returnQueryParams">
+      <i class="bi bi-arrow-left" aria-hidden="true"></i>
+      {{ (returnStore ? 'catalogBackToStore' : 'catalogBackToResults') | t }}
+    </a>
+  </nav>
+
+  @if (product; as item) {
+    <section class="product-overview" aria-labelledby="product-title">
+      <app-catalog-image
+        class="product-image"
+        [primary]="item.imageUrl"
+        [secondary]="item.thumbnailUrl"
+        [alt]="item.name"
+        loading="eager"
+      />
+      <div class="product-information">
+        @if (item.merchantId) {
+          <a class="store-link" [routerLink]="['/stores', item.merchantId]">
+            <i class="bi bi-shop" aria-hidden="true"></i>
+            {{ 'visitStore' | t }}
+          </a>
+        }
+        <h1 id="product-title">{{ item.name }}</h1>
+        @if (item.brief && item.brief !== item.description) {
+          <p class="product-intro">{{ item.brief }}</p>
+        }
+        @if (item.reviewCount) {
+          <a class="reviews-link" href="#product-reviews">
+            <i class="bi bi-star-fill" aria-hidden="true"></i>
+            <strong>{{ item.averageRating | number: '1.1-1' }}</strong>
+            <span>{{ i18n.t('catalogReviewCount', { count: reviewTotal }) }}</span>
+          </a>
+        }
+        <p class="product-price">{{ item.price | trcurrency }}</p>
+        @if (item.description) {
+          <p class="product-description">{{ item.description }}</p>
+        }
+
+        <div class="purchase-panel">
+          @if (account.userProfile()) {
+            <div class="stock-status">
+              @if (stockLoading) {
+                <p role="status">{{ 'catalogCheckingStock' | t }}</p>
+              } @else if (!stock) {
+                <p role="status">{{ 'stockUnknown' | t }}</p>
+                <button class="btn detail-secondary" type="button" (click)="loadProductDetail()">
+                  {{ 'retry' | t }}
+                </button>
+              } @else if (stock.available === 0) {
+                <p class="sold-out" role="status"><span></span>{{ 'stockSoldOut' | t }}</p>
+              } @else if (isCustomer && selectedQuantity > stock.available) {
+                <p role="status">
+                  {{
+                    i18n.t('stockQuantityAdjustment', {
+                      available: stock.available,
+                      reduceBy: selectedQuantity - stock.available,
+                    })
+                  }}
+                </p>
+              } @else {
+                <p class="in-stock" role="status">
+                  <span aria-hidden="true"></span>{{ i18n.t('stockAvailableUnits', { count: stock.available }) }}
+                </p>
+              }
+            </div>
+          }
+
+          @if (isCustomer) {
+            <div class="purchase-options">
+              <div>
+                <label for="product-quantity">{{ 'quantity' | t }}</label>
+                <div class="quantity-picker">
+                  <button
+                    type="button"
+                    (click)="changeQuantity(selectedQuantity - 1)"
+                    [disabled]="selectedQuantity <= 1"
+                    [attr.aria-label]="'decreaseQuantity' | t"
+                  >
+                    −
+                  </button>
+                  <input
+                    id="product-quantity"
+                    type="number"
+                    inputmode="numeric"
+                    min="1"
+                    max="99"
+                    [value]="selectedQuantity"
+                    (change)="readQuantity($event)"
+                  />
+                  <button
+                    type="button"
+                    (click)="changeQuantity(selectedQuantity + 1)"
+                    [disabled]="selectedQuantity >= 99"
+                    [attr.aria-label]="'increaseQuantity' | t"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+              <div class="subtotal">
+                <span>{{ 'subtotal' | t }}</span>
+                <strong>{{ item.price * selectedQuantity | trcurrency }}</strong>
+              </div>
+            </div>
+            <button
+              class="btn detail-primary buy-button"
+              type="button"
+              [disabled]="!canAddToBasket"
+              [attr.aria-busy]="basketLoading"
+              (click)="addToBasket()"
+            >
+              <i class="bi bi-cart-plus" aria-hidden="true"></i>
+              {{ (basketLoading ? 'loading' : 'addBasket') | t }}
+            </button>
+            @if (basketError) {
+              <p class="purchase-error" role="alert">{{ basketError | t }}</p>
+            }
+          } @else if (!account.userProfile()) {
+            <a class="btn detail-primary buy-button" routerLink="/" [queryParams]="signInQueryParams">
+              {{ 'catalogSignInToBuy' | t }}
+            </a>
+          }
+        </div>
+      </div>
+    </section>
+
+    <section
+      class="review-panel"
+      aria-labelledby="product-reviews-title"
+      id="product-reviews"
+      [attr.aria-busy]="loadingReviews"
+    >
+      <header>
+        <h2 id="product-reviews-title">{{ 'customerReviews' | t }}</h2>
+        @if (reviewTotal > 0) {
+          <span>{{ i18n.t('catalogReviewCount', { count: reviewTotal }) }}</span>
+        }
+      </header>
+      @if (reviewTotal > 0) {
+        <ul class="review-list">
+          @for (review of reviews; track review.id) {
+            <li>
+              <div class="review-header">
+                <strong>{{ review.reviewerName }}</strong>
+                <span class="review-rating">
+                  <i class="bi bi-star-fill" aria-hidden="true"></i>
+                  {{ i18n.t('catalogRatingOutOfFive', { rating: review.rating }) }}
+                </span>
+                @if (review.createdAt) {
+                  <time [attr.datetime]="review.createdAt">{{ review.createdAt | date: 'yyyy-MM-dd' }}</time>
+                }
+              </div>
+              <p>{{ review.comment }}</p>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="review-empty">{{ 'noReviews' | t }}</p>
+      }
+      @if (loadingReviews) {
+        <p class="review-empty" role="status">{{ 'loading' | t }}</p>
+      }
+      @if (failedReviewPage !== undefined) {
+        <div class="review-error" role="alert">
+          <p>{{ 'reviewsUnavailable' | t }}</p>
+          <button class="btn detail-secondary" type="button" (click)="loadReviews(failedReviewPage)">
+            {{ 'retry' | t }}
+          </button>
+        </div>
+      }
+      <app-list-pagination
+        [label]="'customerReviews' | t"
+        [page]="reviewPage"
+        [totalPages]="reviewPages"
+        [loading]="loadingReviews"
+        (pageChange)="loadReviews($event)"
+      />
+    </section>
+  } @else {
+    <section class="detail-state" aria-labelledby="detail-state-title" [attr.aria-busy]="detailStatus === 'loading'">
+      <h1 id="detail-state-title">{{ 'details' | t }}</h1>
+      @switch (detailStatus) {
+        @case ('loading') {
+          <p role="status">{{ 'loading' | t }}</p>
+        }
+        @case ('missing') {
+          <p role="status">{{ 'productMissingOrUnlisted' | t }}</p>
+        }
+        @case ('unavailable') {
+          <p role="alert">{{ 'productDetailUnavailable' | t }}</p>
+          <button class="btn detail-secondary" type="button" (click)="loadProductDetail()">{{ 'retry' | t }}</button>
+        }
+      }
+    </section>
+  }
+</div>

@@ -5,6 +5,7 @@ import { OrderLogistics } from 'src/model/IPurchaseOrder';
   standalone: false,
   selector: 'app-after-sale-tracking',
   templateUrl: './after-sale-tracking.component.html',
+  styleUrl: './after-sale-tracking.component.css',
 })
 export class AfterSaleTrackingComponent {
   @Input({ required: true }) title!: string;

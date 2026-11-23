@@ -15,6 +15,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -23,6 +24,7 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriUtils;
 import tools.jackson.databind.ObjectMapper;
+import vip.fairy.commerceflow.commerce.shared.api.AdminListPage;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 
 @Component
@@ -157,6 +159,26 @@ public class LogisticsGatewayClient {
         .retrieve()
         .body(CallbackOutbox[].class);
       return values == null ? List.of() : List.of(values);
+    } catch (Exception exception) {
+      throw new BusinessRuleException("Logistics callback outbox query failed: " + exception.getMessage());
+    }
+  }
+
+  public AdminListPage<CallbackOutbox> callbackOutboxPage(String status, int page, int size) {
+    try {
+      Headers headers = sign("");
+      String query = "?page=" + Math.max(0, page) + "&size=" + AdminListPage.boundedSize(size);
+      if (status != null && !status.isBlank()) {
+        query += "&status=" + UriUtils.encodeQueryParam(status, StandardCharsets.UTF_8);
+      }
+      return client.get()
+        .uri(baseUrl + "/api/channel/callback-outbox/page" + query)
+        .header("X-App-Id", appId)
+        .header("X-Timestamp", headers.timestamp())
+        .header("X-Nonce", headers.nonce())
+        .header("X-Signature", headers.signature())
+        .retrieve()
+        .body(new ParameterizedTypeReference<AdminListPage<CallbackOutbox>>() {});
     } catch (Exception exception) {
       throw new BusinessRuleException("Logistics callback outbox query failed: " + exception.getMessage());
     }

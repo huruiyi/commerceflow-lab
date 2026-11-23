@@ -1,71 +1,125 @@
-<section class="container py-4" [attr.aria-busy]="busy">
-  <h1 class="h3 mb-3">{{ 'platformExchanges' | t }}</h1>
-  <app-after-sale-search
-    [busy]="busy"
-    [statuses]="statuses"
-    statusKey="afterSaleState_"
-    (changed)="applyCriteria($event)"
-  />
-  <p *ngIf="failed" class="alert alert-danger" role="alert">{{ 'requestFailed' | t }}</p>
-  <p *ngIf="!busy && !failed && !exchanges.length">{{ 'exchangeNoCases' | t }}</p>
-  <div class="table-responsive" *ngIf="exchanges.length">
-    <table class="table align-middle">
-      <caption class="visually-hidden">
-        {{
-          'platformExchanges' | t
-        }}
-      </caption>
-      <thead>
-        <tr>
-          <th scope="col">{{ 'exchangeOrderId' | t }}</th>
-          <th scope="col">{{ 'exchangeMerchantId' | t }}</th>
-          <th scope="col">{{ 'afterSaleQuantity' | t }}</th>
-          <th scope="col">{{ 'status' | t }}</th>
-          <th scope="col">
-            <span class="visually-hidden">{{ 'viewDetails' | t }}</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let item of exchanges" [attr.data-case-id]="item.id">
-          <td>{{ item.orderId }}</td>
-          <td>{{ item.merchantId }}</td>
-          <td>{{ item.quantity }}</td>
-          <td>{{ (item.status === 'PREPARING' ? 'exchangePreparing' : 'afterSaleState_' + item.status) | t }}</td>
-          <td>
-            <button type="button" class="btn btn-sm btn-outline-primary" [disabled]="busy" (click)="show(item.id)">
-              {{ 'viewDetails' | t }}
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-  <app-list-pagination
-    [page]="page"
-    [totalPages]="totalPages"
-    [label]="'afterSalePages' | t"
-    [loading]="busy"
-    (pageChange)="load($event)"
-  />
+<section class="exchange-workspace" [attr.aria-busy]="busy">
+  <header class="exchange-heading">
+    <h1>{{ 'platformExchanges' | t }}</h1>
+  </header>
+  <section class="exchange-panel" [attr.aria-label]="'platformExchanges' | t">
+    <app-after-sale-search
+      class="workspace-search"
+      [busy]="busy"
+      [statuses]="statuses"
+      statusKey="afterSaleState_"
+      (changed)="applyCriteria($event)"
+    />
+    <div *ngIf="total > 0" class="exchange-results-bar">
+      <div class="exchange-results" role="status">
+        {{ i18n.t('exchangeResultCount', { count: total }) }}
+      </div>
+      <div *ngIf="totalPages > 1" class="exchange-pagination">
+        <app-list-pagination
+          class="admin-pagination"
+          [page]="page"
+          [totalPages]="totalPages"
+          [label]="'afterSalePages' | t"
+          [loading]="busy"
+          (pageChange)="load($event)"
+        />
+      </div>
+    </div>
+    <p *ngIf="failed" class="exchange-message text-danger" role="alert">{{ 'requestFailed' | t }}</p>
+    <p *ngIf="busy" class="exchange-message" role="status">{{ 'warehouseLoading' | t }}</p>
+    <p *ngIf="!busy && !failed && !exchanges.length" class="exchange-empty">{{ 'exchangeNoCases' | t }}</p>
+    <div *ngIf="exchanges.length">
+      <table class="table align-middle exchange-table" role="table">
+        <caption class="visually-hidden">
+          {{
+            'platformExchanges' | t
+          }}
+        </caption>
+        <thead role="rowgroup">
+          <tr role="row">
+            <th scope="col" role="columnheader">{{ 'exchangeOrderId' | t }}</th>
+            <th scope="col" role="columnheader">{{ 'exchangeMerchantId' | t }}</th>
+            <th scope="col" role="columnheader">{{ 'afterSaleQuantity' | t }}</th>
+            <th scope="col" role="columnheader">{{ 'status' | t }}</th>
+            <th scope="col" role="columnheader">
+              <span class="visually-hidden">{{ 'viewDetails' | t }}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody role="rowgroup">
+          <tr
+            *ngFor="let item of exchanges"
+            role="row"
+            [attr.data-case-id]="item.id"
+            [class.selected]="detail?.exchange.id === item.id"
+          >
+            <th scope="row" role="rowheader" class="exchange-order-number">
+              <span class="exchange-mobile-label">{{ 'exchangeOrderId' | t }}</span>
+              #{{ item.orderId }}
+            </th>
+            <td role="cell" class="exchange-merchant">
+              <span class="exchange-mobile-label">{{ 'exchangeMerchantId' | t }}</span>
+              #{{ item.merchantId }}
+            </td>
+            <td role="cell" class="exchange-quantity">
+              <span class="exchange-mobile-label">{{ 'afterSaleQuantity' | t }}</span>
+              {{ item.quantity }}
+            </td>
+            <td role="cell" class="exchange-state">
+              <span class="exchange-status" [attr.data-state]="item.status">
+                {{ (item.status === 'PREPARING' ? 'exchangePreparing' : 'afterSaleState_' + item.status) | t }}
+              </span>
+            </td>
+            <td role="cell" class="exchange-action">
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-primary"
+                [disabled]="busy"
+                [attr.aria-expanded]="detail?.exchange.id === item.id"
+                (click)="show(item.id)"
+              >
+                {{ 'viewDetails' | t }}
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
   <article
     *ngIf="detail as selected"
-    class="border rounded p-3 mt-3"
+    class="exchange-panel exchange-detail"
     [attr.data-exchange-detail]="selected.exchange.id"
   >
-    <h2 class="h5">{{ 'exchangeOrderId' | t }} {{ selected.exchange.orderId }}</h2>
-    <p class="mb-1">
-      {{ 'afterSaleOrderLine' | t }} {{ selected.exchange.orderLineId }} · SKU {{ selected.exchange.productId }}
-    </p>
-    <p class="mb-1">{{ 'afterSaleReason' | t }} {{ selected.exchange.reason }}</p>
-    <p *ngIf="selected.exchange.warehouseReturnStatus" class="mb-1">
-      {{ 'warehouseReturn_' + selected.exchange.warehouseReturnStatus | t }}
-    </p>
-    <p>{{ 'exchangeNoDifference' | t }}</p>
-    <div class="row g-2">
-      <app-after-sale-tracking class="col-md" title="exchangeReturnParcel" [parcel]="selected.returnTracking" />
+    <header class="exchange-detail-heading">
+      <div>
+        <h2 id="exchange-detail-title" tabindex="-1">{{ 'exchangeOrderId' | t }} #{{ selected.exchange.orderId }}</h2>
+        <p>
+          {{ 'afterSaleOrderLine' | t }} {{ selected.exchange.orderLineId }} · SKU {{ selected.exchange.productId }}
+        </p>
+      </div>
+      <span class="exchange-status" [attr.data-state]="selected.exchange.status">
+        {{
+          (selected.exchange.status === 'PREPARING'
+            ? 'exchangePreparing'
+            : 'afterSaleState_' + selected.exchange.status
+          ) | t
+        }}
+      </span>
+    </header>
+    <div class="exchange-facts">
+      <p>
+        <strong>{{ 'afterSaleReason' | t }}</strong> {{ selected.exchange.reason }}
+      </p>
+      <p *ngIf="selected.exchange.warehouseReturnStatus">
+        {{ 'warehouseReturn_' + selected.exchange.warehouseReturnStatus | t }}
+      </p>
+      <p>{{ 'exchangeNoDifference' | t }}</p>
+    </div>
+    <div class="exchange-tracking">
+      <app-after-sale-tracking class="tracking-panel" title="exchangeReturnParcel" [parcel]="selected.returnTracking" />
       <app-after-sale-tracking
-        class="col-md"
+        class="tracking-panel"
         title="exchangeReplacementParcel"
         [parcel]="selected.replacementTracking"
       />
