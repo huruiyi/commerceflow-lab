@@ -28,6 +28,8 @@ INSERT INTO catalog_cutover_state(cutover_key,status,source_version,product_coun
                                   product_fingerprint,translation_fingerprint,completed_at)
 SELECT 'catalog-demo-v1','COMPLETE',0,COUNT(*),COUNT(*),0,0,CURRENT_TIMESTAMP(6)
 FROM demo_products HAVING NOT @seeded;
+-- Bootstrap inserts bypass the catalog Outbox and need a fresh search projection.
+UPDATE catalog_search_state SET rebuild_requested=TRUE WHERE singleton_id=1 AND NOT @seeded;
 COMMIT;
 DO RELEASE_LOCK('commerceflow.catalog.bootstrap');
 SELECT IF(@seeded,'Catalog demo already initialized','Catalog demo initialized');

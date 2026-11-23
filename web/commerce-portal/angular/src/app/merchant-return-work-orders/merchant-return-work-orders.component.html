@@ -5,6 +5,12 @@
       {{ 'returnWorkRefresh' | t }}
     </button>
   </header>
+  <app-after-sale-search
+    [busy]="busy"
+    [statuses]="statuses"
+    statusKey="returnWork_"
+    (changed)="applyCriteria($event)"
+  />
   <p *ngIf="error" class="text-danger" role="alert">{{ error | t }}</p>
   <p *ngIf="!tickets.length && !busy && !error">{{ 'returnWorkEmpty' | t }}</p>
   <div class="row g-3">
@@ -15,17 +21,39 @@
           type="button"
           class="list-group-item list-group-item-action d-flex justify-content-between gap-2"
           [class.active]="detail?.ticket?.caseId === item.caseId"
-          [disabled]="busy"
+          [disabled]="busy || loadingDetail"
           (click)="select(item)"
         >
           <span>{{ 'order' | t }} {{ item.orderId }} · {{ 'warehouseReturn_' + item.warehouseStatus | t }}</span>
           <span>{{ 'returnWork_' + status(item) | t }}</span>
         </button>
       </div>
+      <app-list-pagination
+        [page]="page"
+        [totalPages]="totalPages"
+        [label]="'afterSalePages' | t"
+        [loading]="busy"
+        (pageChange)="refresh($event)"
+      />
     </div>
+    <p *ngIf="loadingDetail" class="col-md-7" role="status">{{ 'loading' | t }}</p>
     <div *ngIf="detail as selected" class="col-md-7">
       <article class="border rounded p-3">
         <h3 class="h5">{{ 'order' | t }} {{ selected.ticket.orderId }}</h3>
+        <p *ngIf="notice" role="status">{{ notice | t }}</p>
+        <div *ngIf="pending" class="d-flex flex-wrap gap-2 mb-3">
+          <button
+            type="button"
+            class="btn btn-outline-primary"
+            [disabled]="busy || loadingDetail"
+            (click)="checkResult()"
+          >
+            {{ 'returnWorkCheckResult' | t }}
+          </button>
+          <button type="button" class="btn btn-outline-secondary" [disabled]="busy || loadingDetail" (click)="retry()">
+            {{ 'returnWorkRetryOriginal' | t }}
+          </button>
+        </div>
         <p class="mb-1">{{ 'returnWork_' + status(selected.ticket) | t }}</p>
         <p class="mb-1">{{ 'returnOriginalPackage' | t }} {{ selected.ticket.outboundId }}</p>
         <p class="mb-1">{{ 'fulfillmentWarehouse' | t }} {{ selected.ticket.warehouseId }}</p>
@@ -57,27 +85,46 @@
           </p>
           <label class="d-block mt-2">
             {{ 'afterSaleDecision' | t }}
-            <textarea class="form-control" maxlength="300" [(ngModel)]="note"></textarea>
+            <textarea class="form-control" maxlength="300" [(ngModel)]="note" [readonly]="!!pending"></textarea>
           </label>
           <label *ngIf="selected.ticket.kind !== 'EXCHANGE' && evidence as proof" class="d-block mt-2">
             {{ 'returnWorkApprovedQuantity' | t }}
-            <input type="number" class="form-control" min="1" [max]="proof.qualifiedQuantity" [(ngModel)]="quantity" />
+            <input
+              type="number"
+              class="form-control"
+              min="1"
+              [max]="proof.qualifiedQuantity"
+              [(ngModel)]="quantity"
+              [readonly]="!!pending"
+            />
           </label>
           <div class="d-flex flex-wrap gap-2 mt-3">
             <button
               class="btn btn-outline-primary"
-              [disabled]="busy || !note.trim()"
+              [disabled]="busy || loadingDetail || !!pending || !note.trim()"
               (click)="decide('REQUEST_EVIDENCE')"
             >
               {{ 'returnWorkRequestEvidence' | t }}
             </button>
-            <button class="btn btn-outline-danger" [disabled]="busy || !note.trim()" (click)="decide('REJECT')">
+            <button
+              class="btn btn-outline-danger"
+              [disabled]="busy || loadingDetail || !!pending || !note.trim()"
+              (click)="decide('REJECT')"
+            >
               {{ 'returnWorkReject' | t }}
             </button>
             <button
               *ngIf="selected.ticket.kind !== 'EXCHANGE' && evidence as proof"
               class="btn btn-primary"
-              [disabled]="busy || !note.trim() || !quantity || quantity < 1 || quantity > proof.qualifiedQuantity"
+              [disabled]="
+                busy ||
+                loadingDetail ||
+                !!pending ||
+                !note.trim() ||
+                !quantity ||
+                quantity < 1 ||
+                quantity > proof.qualifiedQuantity
+              "
               (click)="decide('APPROVE')"
             >
               {{ 'returnWorkApprove' | t }}

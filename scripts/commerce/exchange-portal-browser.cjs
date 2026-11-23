@@ -232,8 +232,9 @@ async function advanceExchange(customer, merchant, item) {
   const headers = { Authorization: 'Bearer demo-warehouse-admin-token' };
   const wmsRoute = warehouse + '/api/admin/returns';
   await until(async () => {
-    const result = await customer.request.get(wmsRoute + '?orderId=' + item.orderId, { headers });
-    return result.ok() && (await result.json()).some((entry) => entry.returnId === item.id);
+    const filters = new URLSearchParams({ orderId: item.orderId, jobId: item.id });
+    const result = await customer.request.get(wmsRoute + '?' + filters, { headers });
+    return result.ok() && (await result.json()).rows.some((entry) => entry.returnId === item.id);
   }, 'warehouse received return instruction');
   equal((await customer.request.put(wmsRoute + '/' + item.id + '/receipt', {
     headers, data: { warehouseId: item.warehouseId, quantity: item.quantity, rejected: false },

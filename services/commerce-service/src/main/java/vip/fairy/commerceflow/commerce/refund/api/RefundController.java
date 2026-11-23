@@ -11,6 +11,7 @@ import jakarta.validation.constraints.Size;
 import vip.fairy.commerceflow.commerce.refund.application.LineAfterSaleService;
 import vip.fairy.commerceflow.commerce.refund.application.LineAfterSaleService.ExchangeDetail;
 import vip.fairy.commerceflow.commerce.refund.application.LineAfterSaleService.Offer;
+import vip.fairy.commerceflow.commerce.refund.domain.AfterSaleListQuery;
 import vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale;
 import vip.fairy.commerceflow.commerce.logistics.api.LogisticsResponse;
 import vip.fairy.commerceflow.commerce.identity.application.CurrentUserService;
@@ -29,6 +30,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -187,8 +189,8 @@ public class RefundController {
 
   @GetMapping("/api/admin/exchanges")
   @PreAuthorize("hasRole('ADMIN')")
-  List<LineAfterSale> platformExchanges(@RequestParam(required = false) @Positive Long orderId) {
-    return afterSales.platformExchanges(orderId);
+  AfterSaleListQuery.Page<LineAfterSale> platformExchanges(@ModelAttribute AfterSaleListQuery query) {
+    return afterSales.platformExchanges(query);
   }
 
   @GetMapping("/api/admin/exchanges/{id}")

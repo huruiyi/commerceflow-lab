@@ -32,6 +32,8 @@ import { PlatformExchangesComponent } from './line-after-sales/platform-exchange
 import { MerchantOrdersComponent } from './merchant-orders/merchant-orders.component';
 import { MerchantReturnWorkOrdersComponent } from './merchant-return-work-orders/merchant-return-work-orders.component';
 import { OrderListFilterComponent } from './order-list-filter/order-list-filter.component';
+import { AfterSaleSearchComponent } from './line-after-sales/after-sale-search.component';
+import { ListPaginationComponent } from './list-pagination/list-pagination.component';
 import { MerchantCatalogComponent } from './merchant-catalog/merchant-catalog.component';
 import { ProfileComponent } from './profile/profile.component';
 import { TranslatePipe } from './pipes/translate.pipe';
@@ -64,6 +66,7 @@ import { InventoryReconciliationAdminComponent } from './inventory-reconciliatio
     AfterSaleTrackingComponent,
     PlatformExchangesComponent,
     OrderListFilterComponent,
+    AfterSaleSearchComponent,
     MerchantCatalogComponent,
     ProfileComponent,
     TranslatePipe,
@@ -81,6 +84,7 @@ import { InventoryReconciliationAdminComponent } from './inventory-reconciliatio
     ReactiveFormsModule,
     HttpClientModule,
     HlmButton,
+    ListPaginationComponent,
     HlmBadge,
     HlmSpinner,
     ...HlmCardImports,

@@ -9,7 +9,8 @@ interface WarehouseReturnMapper {
 
   void insert(WarehouseReturns.Command value);
   WarehouseReturns.Receipt lock(String id);
-  List<WarehouseReturns.Receipt> list(Long orderId);
+  long count(@Param("query") WarehouseJobSearch query);
+  List<WarehouseReturns.Receipt> search(@Param("query") WarehouseJobSearch query, @Param("offset") long offset);
   int receive(@Param("id") String id, @Param("quantity") int quantity, @Param("status") String status);
   int inspect(@Param("id") String id, @Param("status") String status);
   int supplement(@Param("id") String id, @Param("evidenceId") String evidenceId,

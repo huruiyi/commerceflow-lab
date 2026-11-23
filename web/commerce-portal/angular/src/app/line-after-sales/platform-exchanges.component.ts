@@ -1,7 +1,7 @@
 import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize, Observable } from 'rxjs';
-import { AfterSale, ApiService, ExchangeDetail } from '../services/api.service';
+import { AfterSale, AfterSaleListCriteria, ApiService, ExchangeDetail } from '../services/api.service';
 
 @Component({
   standalone: false,
@@ -14,7 +14,24 @@ export class PlatformExchangesComponent implements OnInit {
   private readonly changes = inject(ChangeDetectorRef);
   exchanges: AfterSale[] = [];
   detail?: ExchangeDetail;
-  orderId?: number;
+  readonly statuses = [
+    'APPLIED',
+    'WAITING_RETURN',
+    'RETURN_SENT',
+    'WAITING_MERCHANT',
+    'PREPARING',
+    'REVIEW_REQUIRED',
+    'EXCHANGE_OUT_OF_STOCK',
+    'EXCHANGE_READY',
+    'EXCHANGE_SHIPPING',
+    'RELEASING',
+    'COMPLETED',
+    'REJECTED',
+    'FAILED',
+  ];
+  page = 0;
+  totalPages = 0;
+  private criteria: AfterSaleListCriteria = {};
   busy = false;
   failed = false;
 
@@ -22,9 +39,16 @@ export class PlatformExchangesComponent implements OnInit {
     this.load();
   }
 
-  load(): void {
-    this.run(this.api.platformExchanges(this.orderId), (values) => {
-      this.exchanges = values;
+  applyCriteria(criteria: AfterSaleListCriteria): void {
+    this.criteria = criteria;
+    this.load(0);
+  }
+
+  load(page = this.page): void {
+    this.run(this.api.platformExchanges(this.criteria, page), (result) => {
+      this.exchanges = result.rows;
+      this.page = result.page;
+      this.totalPages = Math.ceil(result.total / result.size);
       this.detail = undefined;
     });
   }
@@ -35,6 +59,7 @@ export class PlatformExchangesComponent implements OnInit {
   }
 
   private run<T>(request: Observable<T>, success: (value: T) => void): void {
+    if (this.busy) return;
     this.busy = true;
     this.failed = false;
     request

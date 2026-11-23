@@ -57,24 +57,12 @@
     <p class="filter-result" role="status">
       {{ page.total ? i18n.t('orderSearchTotal', { count: page.total }) : ('noOrdersMatch' | t) }}
     </p>
-    <nav
-      *ngIf="pageCount > 1"
-      class="d-flex flex-wrap align-items-center gap-2 mt-2"
-      [attr.aria-label]="'orderPagination' | t"
-    >
-      <button hlmBtn variant="outline" type="button" [disabled]="page.page === 0" (click)="go(page.page - 1)">
-        {{ 'orderPreviousPage' | t }}
-      </button>
-      <span>{{ i18n.t('orderPageOf', { page: page.page + 1, total: pageCount }) }}</span>
-      <button
-        hlmBtn
-        variant="outline"
-        type="button"
-        [disabled]="page.page + 1 >= pageCount"
-        (click)="go(page.page + 1)"
-      >
-        {{ 'orderNextPage' | t }}
-      </button>
-    </nav>
   </ng-container>
+  <app-list-pagination
+    [page]="result()?.page ?? 0"
+    [totalPages]="pageCount"
+    [label]="'orderPagination' | t"
+    [loading]="loading()"
+    (pageChange)="go($event)"
+  />
 </section>

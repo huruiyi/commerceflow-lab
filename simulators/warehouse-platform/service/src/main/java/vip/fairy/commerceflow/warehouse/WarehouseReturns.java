@@ -1,8 +1,8 @@
 package vip.fairy.commerceflow.warehouse;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -33,8 +33,10 @@ public class WarehouseReturns {
     return result;
   }
 
-  public List<Receipt> list(Long orderId) {
-    return store.list(orderId);
+  @Transactional(readOnly = true)
+  public WarehouseJobSearch.Page<Receipt> search(WarehouseJobSearch search) {
+    search.validateStatus(Set.of("WAITING_RECEIPT", "RECEIVED", "PASSED", "FAILED", "SHORT_RECEIVED", "REJECTED"));
+    return search.slice(store.count(search), offset -> store.search(search, offset));
   }
 
   @Transactional

@@ -21,10 +21,24 @@
     SELECT <include refid="fields"/> FROM warehouse_outbounds WHERE outbound_id=#{outboundId} FOR UPDATE
   </select>
 
-  <select id="list" resultType="vip.fairy.commerceflow.warehouse.WarehouseOutboundMapper$Row">
+  <sql id="filters">
+    <where>
+      <if test="query.orderId != null">AND order_id=#{query.orderId}</if>
+      <if test="query.jobId != null">AND outbound_id=#{query.jobId}</if>
+      <if test="query.status != null">AND status=#{query.status}</if>
+      <if test="query.createdFrom != null">AND created_at &gt;= #{query.createdFrom}</if>
+      <if test="query.createdBefore != null">AND created_at &lt; #{query.createdBefore}</if>
+    </where>
+  </sql>
+
+  <select id="count" resultType="long">
+    SELECT COUNT(*) FROM warehouse_outbounds <include refid="filters"/>
+  </select>
+
+  <select id="search" resultType="vip.fairy.commerceflow.warehouse.WarehouseOutboundMapper$Row">
     SELECT <include refid="fields"/> FROM warehouse_outbounds
-    <if test="orderId != null">WHERE order_id=#{orderId}</if>
-    ORDER BY created_at DESC,outbound_id LIMIT 100
+    <include refid="filters"/>
+    ORDER BY created_at DESC,outbound_id LIMIT #{query.size} OFFSET #{offset}
   </select>
 
   <update id="decide">

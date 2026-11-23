@@ -3,11 +3,13 @@ package vip.fairy.commerceflow.commerce.refund.application;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vip.fairy.commerceflow.commerce.notification.application.contract.v1.ReturnWorkOpenedPublisher;
+import vip.fairy.commerceflow.commerce.refund.domain.AfterSaleListQuery;
 import vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale;
 import vip.fairy.commerceflow.commerce.refund.domain.ReturnWorkOrder;
 import vip.fairy.commerceflow.commerce.refund.domain.ReturnWorkOrder.Action;
@@ -45,8 +47,10 @@ public class ReturnWorkOrderService {
     }
   }
 
-  public List<ReturnWorkOrder> list(long merchantId) {
-    return work.forMerchant(merchantId);
+  @Transactional(readOnly = true)
+  public AfterSaleListQuery.Page<ReturnWorkOrder> list(long merchantId, AfterSaleListQuery query) {
+    query.validate(Set.of("OPEN", "WAITING_EVIDENCE", "APPROVED", "REJECTED"));
+    return query.slice(work.countForMerchant(merchantId, query), offset -> work.forMerchant(merchantId, query, offset));
   }
 
   public Detail detail(long merchantId, String id) {

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogElasticsearchMapper">
+  <select id="state"
+          resultType="vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogElasticsearchMapper$State">
+    SELECT generation, catalog_generation FROM catalog_elasticsearch_state WHERE singleton_id = 1
+  </select>
+
+  <select id="lockState"
+          resultType="vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogElasticsearchMapper$State">
+    SELECT generation, catalog_generation FROM catalog_elasticsearch_state WHERE singleton_id = 1 FOR UPDATE
+  </select>
+
+  <select id="productIdsAfter" resultType="long">
+    SELECT id FROM products WHERE id &gt; #{productId} ORDER BY id LIMIT 200
+  </select>
+
+  <select id="pending"
+          resultType="vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogSearchMapper$Change">
+    SELECT id, aggregate_id AS product_id FROM catalog_event_outbox
+    WHERE elasticsearch_indexed_at IS NULL AND id &lt;= #{throughId}
+    ORDER BY id LIMIT 100
+  </select>
+
+  <select id="hasPending" resultType="boolean">
+    SELECT EXISTS (SELECT 1 FROM catalog_event_outbox WHERE elasticsearch_indexed_at IS NULL)
+  </select>
+
+  <update id="acknowledge">
+    UPDATE catalog_event_outbox SET elasticsearch_indexed_at = CURRENT_TIMESTAMP(6) WHERE id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+  </update>
+
+  <update id="switchGeneration">
+    UPDATE catalog_elasticsearch_state SET generation = #{generation}, catalog_generation = #{catalogGeneration}
+    WHERE singleton_id = 1
+  </update>
+</mapper>

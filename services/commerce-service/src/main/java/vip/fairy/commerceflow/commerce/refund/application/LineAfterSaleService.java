@@ -20,6 +20,7 @@ import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentWr
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.RefundCreateCommandV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.RefundQueryV1;
 import vip.fairy.commerceflow.commerce.refund.infrastructure.LineAfterSaleMapper;
+import vip.fairy.commerceflow.commerce.refund.domain.AfterSaleListQuery;
 import vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale;
 import vip.fairy.commerceflow.commerce.refund.infrastructure.WarehouseReturnClient;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
@@ -252,8 +253,12 @@ public class LineAfterSaleService {
     return returns.replacementTracking(id);
   }
 
-  public List<LineAfterSale> platformExchanges(Long orderId) {
-    return cases.platformExchanges(orderId);
+  @Transactional(readOnly = true)
+  public AfterSaleListQuery.Page<LineAfterSale> platformExchanges(AfterSaleListQuery query) {
+    query.validate(Set.of("APPLIED", "WAITING_RETURN", "RETURN_SENT", "WAITING_MERCHANT", "PREPARING", "REFUNDING",
+      "RESTOCKING", "RELEASING", "REVIEW_REQUIRED", "COMPLETED", "REJECTED", "FAILED",
+      "EXCHANGE_OUT_OF_STOCK", "EXCHANGE_READY", "EXCHANGE_SHIPPING"));
+    return query.slice(cases.countPlatformExchanges(query), offset -> cases.platformExchanges(query, offset));
   }
 
   public ExchangeDetail platformExchange(String id) {

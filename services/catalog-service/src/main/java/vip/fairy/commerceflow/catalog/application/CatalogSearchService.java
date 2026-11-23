@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -17,11 +18,13 @@ import vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogSearchMa
 public class CatalogSearchService {
 
   private final CatalogSearchMapper store;
+  private final ObjectProvider<CatalogElasticsearchSearch> elasticsearch;
   private final boolean indexingEnabled;
 
-  public CatalogSearchService(CatalogSearchMapper store,
+  public CatalogSearchService(CatalogSearchMapper store, ObjectProvider<CatalogElasticsearchSearch> elasticsearch,
                               @Value("${commerceflow.catalog-search.indexing-enabled:true}") boolean indexingEnabled) {
     this.store = store;
+    this.elasticsearch = elasticsearch;
     this.indexingEnabled = indexingEnabled;
   }
 
@@ -83,6 +86,11 @@ public class CatalogSearchService {
     if (request.merchantIds().isEmpty()) return new Page(List.of(), 0, 0, request.size());
     Criteria criteria = new Criteria(text, terms, CatalogApplicationService.locale(request.locale()), request.sort(),
       request.merchantIds(), request.ratedIds(), request.minPrice(), request.maxPrice(), request.size(), 0);
+    var backend = elasticsearch.getIfAvailable();
+    if (backend != null) {
+      var page = backend.search(criteria, request.page());
+      if (page.isPresent()) return page.get();
+    }
     long total = store.count(criteria);
     if (total == 0) return new Page(List.of(), 0, 0, request.size());
     int page = (int) Math.min(request.page(), (total - 1) / request.size());

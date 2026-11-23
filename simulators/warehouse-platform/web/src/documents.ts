@@ -41,6 +41,13 @@ export interface ReturnDocument {
 
 export type WarehouseDocument = Outbound | ReturnDocument;
 
+export interface WarehousePage {
+  rows: WarehouseDocument[];
+  total: number;
+  page: number;
+  size: number;
+}
+
 export function documentId(document: WarehouseDocument) {
   return 'returnId' in document ? document.returnId : document.outboundId;
 }

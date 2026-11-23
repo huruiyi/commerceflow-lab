@@ -152,7 +152,7 @@ function Confirm-WarehouseReturn($case){
   $headers=@{Authorization="Bearer $token"}
   $base="$WarehouseBaseUrl/api/admin/returns"
   $receipt=Wait-Value {
-    Invoke-RestMethod "$base`?orderId=$($case.orderId)" -Headers $headers -TimeoutSec 12 |
+    (Invoke-RestMethod "$base`?orderId=$($case.orderId)&jobId=$($case.id)" -Headers $headers -TimeoutSec 12).rows |
       Where-Object returnId -eq $case.id
   } 'Warehouse return was not registered'
   if($receipt.outboundId-ne$case.outboundId -or $receipt.warehouseId-ne$case.warehouseId){

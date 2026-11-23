@@ -5,6 +5,7 @@ import { RouterTestingModule } from '@angular/router/testing';
 import { of, Subject, throwError } from 'rxjs';
 
 import { DashboardComponent } from './dashboard.component';
+import { ListPaginationComponent } from '../list-pagination/list-pagination.component';
 import { TranslatePipe } from '../pipes/translate.pipe';
 import { ApiService, StockAvailability } from '../services/api.service';
 import { Product } from 'src/model/IProduct';
@@ -33,7 +34,7 @@ describe('DashboardComponent', () => {
     detail = jasmine.createSpy('productDetail');
     availability = jasmine.createSpy('productAvailability');
     await TestBed.configureTestingModule({
-      imports: [RouterTestingModule, FormsModule],
+      imports: [RouterTestingModule, FormsModule, ListPaginationComponent],
       declarations: [DashboardComponent, TranslatePipe],
       providers: [
         {

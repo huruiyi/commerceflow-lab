@@ -24,10 +24,23 @@
     SELECT <include refid="columns"/> FROM line_after_sales
     WHERE merchant_id=#{merchantId} AND order_id=#{orderId} ORDER BY created_at DESC,id DESC
   </select>
+  <sql id="exchangeFilters">
+    WHERE kind='EXCHANGE'
+    <if test="query.orderId != null">AND order_id=#{query.orderId}</if>
+    <if test="query.caseId != null">
+      <bind name="caseNumber" value="query.caseNumber()"/>
+      AND id=#{caseNumber}
+    </if>
+    <if test="query.status != null">AND status=#{query.status}</if>
+    <if test="query.createdFrom != null">AND created_at &gt;= #{query.createdFrom}</if>
+    <if test="query.createdBefore != null">AND created_at &lt; #{query.createdBefore}</if>
+  </sql>
+  <select id="countPlatformExchanges" resultType="long">
+    SELECT COUNT(*) FROM line_after_sales <include refid="exchangeFilters"/>
+  </select>
   <select id="platformExchanges" resultType="vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale">
-    SELECT <include refid="columns"/> FROM line_after_sales WHERE kind='EXCHANGE'
-    <if test="orderId != null">AND order_id=#{orderId}</if>
-    ORDER BY created_at DESC,id DESC LIMIT 50
+    SELECT <include refid="columns"/> FROM line_after_sales <include refid="exchangeFilters"/>
+    ORDER BY created_at DESC,id DESC LIMIT #{query.size} OFFSET #{offset}
   </select>
   <select id="forOrder" resultType="vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale">
     SELECT <include refid="columns"/> FROM line_after_sales WHERE order_id=#{orderId}

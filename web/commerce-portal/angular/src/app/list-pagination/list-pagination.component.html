@@ -1,0 +1,31 @@
+@if (totalPages() > 1) {
+  <nav class="pagination-bar" [attr.aria-label]="label()" [attr.aria-busy]="loading()">
+    <button hlmBtn variant="outline" type="button" [disabled]="page() === 0" (click)="select(page() - 1)">
+      {{ i18n.t('orderPreviousPage') }}
+    </button>
+    <div class="page-numbers">
+      @for (token of tokens(); track token) {
+        @if (token < 0) {
+          <span aria-hidden="true">…</span>
+        } @else {
+          <button
+            hlmBtn
+            [variant]="token === page() ? 'default' : 'outline'"
+            type="button"
+            [attr.aria-current]="token === page() ? 'page' : null"
+            [attr.aria-label]="i18n.t('goToListPage', { page: token + 1 })"
+            (click)="select(token)"
+          >
+            {{ token + 1 }}
+          </button>
+        }
+      }
+    </div>
+    <span class="page-summary" aria-live="polite">
+      {{ i18n.t('orderPageOf', { page: page() + 1, total: totalPages() }) }}
+    </span>
+    <button hlmBtn variant="outline" type="button" [disabled]="page() + 1 >= totalPages()" (click)="select(page() + 1)">
+      {{ i18n.t('orderNextPage') }}
+    </button>
+  </nav>
+}

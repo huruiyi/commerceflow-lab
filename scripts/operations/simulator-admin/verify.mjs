@@ -33,13 +33,14 @@ for (const url of urls) {
 
 const logisticsToken = "demo-logistics-admin-token";
 const messagingToken = "demo-messaging-admin-token";
+const warehouseToken = "demo-warehouse-admin-token";
 const fixtureCount = 11;
 const attempts = 10;
 
 async function request(
   base,
   path,
-  { method = "GET", body, token, headers = {}, status = 200 } = {},
+  { method = "GET", body, token, headers = {}, status = 200, discardBody = false } = {},
 ) {
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) headers["Content-Type"] = "application/json";
@@ -50,6 +51,10 @@ async function request(
     signal: AbortSignal.timeout(10000),
   });
   assert.equal(response.status, status, `${method} ${path}`);
+  if (discardBody) {
+    await response.body?.cancel();
+    return;
+  }
   return response.status === 204 || status >= 400 ? undefined : response.json();
 }
 
@@ -194,7 +199,7 @@ async function verifyLogistics(page) {
 }
 
 async function seedWarehouse() {
-  async function submit(path, command, caller, secret) {
+  async function submit(path, command, caller, secret, options = {}) {
     const body = JSON.stringify(command);
     const time = Math.floor(Date.now() / 1000).toString();
     const nonce = randomUUID();
@@ -205,6 +210,7 @@ async function seedWarehouse() {
     return request(warehouseServiceUrl, path, {
       method: "POST",
       body,
+      ...options,
       headers: {
         "X-CommerceFlow-Service": caller,
         "X-CommerceFlow-Timestamp": time,
@@ -215,36 +221,68 @@ async function seedWarehouse() {
     });
   }
 
+  let first;
   for (let orderId = 1; orderId <= fixtureCount; orderId++) {
     const outboundId = randomUUID();
-    await submit(
-      "/internal/v1/outbounds",
-      {
-        outboundId,
-        orderId,
-        merchantId: 1,
-        warehouseId: 1,
-        wholeOrder: true,
-        lines: [{ orderLineId: orderId, productId: 1, quantity: 1 }],
-      },
-      "fulfillment-service",
-      "isolated-warehouse-fulfillment-secret",
-    );
-    await submit(
-      "/internal/v1/returns",
-      {
-        returnId: randomUUID(),
-        outboundId,
-        orderId,
-        orderLineId: orderId,
-        warehouseId: 1,
-        trackingNumber: `QA-RETURN-${orderId}`,
-        expectedQuantity: 1,
-      },
-      "commerce-service",
-      "isolated-warehouse-return-secret",
-    );
+    const outbound = {
+      outboundId,
+      orderId,
+      merchantId: 1,
+      warehouseId: 1,
+      wholeOrder: true,
+      lines: [{ orderLineId: orderId, productId: 1, quantity: 1 }],
+    };
+    const returnId = randomUUID();
+    const returned = {
+      returnId,
+      outboundId,
+      orderId,
+      orderLineId: orderId,
+      warehouseId: 1,
+      trackingNumber: `QA-RETURN-${orderId}`,
+      expectedQuantity: 1,
+    };
+    const submitOutbound = (body, options) =>
+      submit("/internal/v1/outbounds", body, "fulfillment-service", "isolated-warehouse-fulfillment-secret", options);
+    const submitReturn = (body, options) =>
+      submit("/internal/v1/returns", body, "commerce-service", "isolated-warehouse-return-secret", options);
+    if (orderId !== 1) {
+      await submitOutbound(outbound);
+      await submitReturn(returned);
+      continue;
+    }
+
+    // The caller loses the body after the first command is committed.
+    await submitOutbound(outbound, { discardBody: true });
+    const replayed = await submitOutbound(outbound);
+    assert.equal(replayed.outboundId, outboundId);
+    assert.equal(replayed.status, "DISPATCHED");
+    assert.deepEqual(replayed.actual, [{ orderLineId: orderId, quantity: 1 }]);
+    await submitOutbound({ ...outbound, lines: [{ orderLineId: orderId, productId: 1, quantity: 2 }] }, { status: 409 });
+    assert.deepEqual(await submitOutbound(outbound), replayed);
+
+    await submitReturn(returned, { discardBody: true });
+    const returnedAgain = await submitReturn(returned);
+    assert.equal(returnedAgain.returnId, returnId);
+    assert.equal(returnedAgain.status, "WAITING_RECEIPT");
+    const adminPath = "/api/admin/returns/" + returnId;
+    const write = (path, body, options) =>
+      request(warehouseUrl, adminPath + path, { method: "PUT", token: warehouseToken, body, ...options });
+    await write("/quality", { warehouseId: 1, passed: true }, { status: 409 });
+    const receipt = { warehouseId: 1, quantity: 1, rejected: false };
+    await write("/receipt", receipt, { discardBody: true });
+    const received = await write("/receipt", receipt);
+    assert.equal(received.status, "RECEIVED");
+    const checked = await write("/quality", { warehouseId: 1, passed: true });
+    assert.equal(checked.status, "PASSED");
+    assert.deepEqual(await write("/quality", { warehouseId: 1, passed: true }), checked);
+    const jobs = await request(warehouseUrl, "/api/admin/returns?jobId=" + returnId, { token: warehouseToken });
+    assert.equal(jobs.total, 1);
+    assert.deepEqual(jobs.rows, [checked]);
+    first = { outboundId, returnId, dispatchedAt: replayed.decidedAt, receivedAt: received.receivedAt,
+      inspectedAt: checked.inspectedAt, status: checked.status };
   }
+  return first;
 }
 
 async function seedMessaging() {
@@ -344,7 +382,8 @@ try {
     "PASS logistics: 10 failures, terminal state, manual replay, 24 audit records",
   );
 
-  await seedWarehouse();
+  const warehouseRecovery = await seedWarehouse();
+  console.log("PASS warehouse recovery: lost results, request replay, and out-of-order inspection");
   const warehousePage = await context.newPage();
   const warehouse = await verifyLists(warehousePage, {
     url: warehouseUrl,
@@ -374,7 +413,7 @@ try {
 
   await writeFile(
     join(artifacts, "result.json"),
-    JSON.stringify({ logistics, warehouse, messaging }, null, 2),
+    JSON.stringify({ logistics, warehouse, warehouseRecovery, messaging }, null, 2),
   );
 } finally {
   await browser.close();

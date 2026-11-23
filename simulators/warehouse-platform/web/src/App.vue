@@ -16,6 +16,7 @@ import {
   warehouseApi,
   type Resource,
   type WarehouseDocument,
+  type WarehousePage,
 } from './documents';
 
 const menu = [
@@ -37,13 +38,13 @@ const {
 } = useAdminTokenSession('warehouse', signIn);
 const resource = ref<Resource>('outbounds');
 const data = ref<WarehouseDocument[]>([]);
+const total = ref(0);
 const selected = ref<WarehouseDocument | null>(null);
 const detailsDialog = ref<HTMLDialogElement>();
 const selectionVersion = ref(0);
-const order = ref('');
-const status = ref('');
-const appliedOrder = ref('');
-const appliedStatus = ref('');
+const emptyFilters = { orderId: '', jobId: '', status: '', from: '', through: '' };
+const filters = ref({ ...emptyFilters });
+const appliedFilters = ref({ ...emptyFilters });
 const page = ref(1);
 const size = useAdminPageSize(() => 'warehouse-' + resource.value);
 const loading = ref(false);
@@ -53,7 +54,6 @@ const notice = ref('');
 let querySequence = 0;
 const isReturn = computed(() => resource.value === 'returns');
 const labels = computed<Record<string, string>>(() => (isReturn.value ? returnLabels : outboundLabels));
-const rows = computed(() => data.value.filter((entry) => !appliedStatus.value || entry.status === appliedStatus.value));
 const columns = computed<VxeGridProps<WarehouseDocument>['columns']>(() => [
   {
     field: isReturn.value ? 'returnId' : 'outboundId',
@@ -96,7 +96,8 @@ async function signIn(credential: string) {
   loading.value = true;
   error.value = '';
   try {
-    data.value = await warehouseApi<WarehouseDocument[]>(credential, resource.value);
+    const result = await warehouseApi<WarehousePage>(credential, searchPath());
+    applyPage(result);
     remember(credential);
   } catch (failure) {
     discardIfUnauthorized(failure);
@@ -106,37 +107,63 @@ async function signIn(credential: string) {
   }
 }
 
+function searchPath() {
+  const { orderId, jobId, status, from, through } = appliedFilters.value;
+  const params = new URLSearchParams({ page: String(page.value), size: String(size.value) });
+  if (orderId) params.set('orderId', orderId);
+  if (jobId.trim()) params.set('jobId', jobId.trim());
+  if (status) params.set('status', status);
+  if (from) params.set('createdFrom', new Date(from + 'T00:00:00').toISOString());
+  if (through) {
+    const midnight = new Date(through + 'T00:00:00');
+    midnight.setDate(midnight.getDate() + 1);
+    params.set('createdBefore', midnight.toISOString());
+  }
+  return resource.value + '?' + params;
+}
+
+function applyPage(result: WarehousePage) {
+  data.value = result.rows;
+  total.value = result.total;
+  page.value = result.page;
+  if (selected.value) {
+    const id = documentId(selected.value);
+    selected.value = result.rows.find((entry) => documentId(entry) === id) ?? selected.value;
+  }
+}
+
 async function load() {
   const request = ++querySequence;
-  const suffix = appliedOrder.value ? '?orderId=' + encodeURIComponent(appliedOrder.value) : '';
   loading.value = true;
   error.value = '';
   try {
-    const values = await warehouseApi<WarehouseDocument[]>(token.value, resource.value + suffix);
+    const result = await warehouseApi<WarehousePage>(token.value, searchPath());
     if (request !== querySequence) return;
-    data.value = values;
-    page.value = Math.min(page.value, Math.max(1, Math.ceil(rows.value.length / size.value)));
-    if (selected.value) {
-      const id = documentId(selected.value);
-      selected.value = values.find((entry) => documentId(entry) === id) ?? null;
-    }
+    applyPage(result);
   } catch (failure) {
-    if (request === querySequence) report(failure);
+    if (request === querySequence) {
+      discardIfUnauthorized(failure);
+      report(failure);
+    }
   } finally {
     if (request === querySequence) loading.value = false;
   }
 }
 
 function search() {
+  const { from, through } = filters.value;
+  if (from && through && from > through) {
+    error.value = '创建日期的起始日期不能晚于结束日期。';
+    return;
+  }
   selected.value = null;
-  appliedOrder.value = String(order.value);
-  appliedStatus.value = status.value;
+  appliedFilters.value = { ...filters.value, orderId: String(filters.value.orderId) };
   page.value = 1;
   void load();
 }
 
 function reset() {
-  order.value = status.value = '';
+  filters.value = { ...emptyFilters };
   search();
 }
 
@@ -144,13 +171,17 @@ function navigate(key: string) {
   if (saving.value || key === resource.value || (key !== 'outbounds' && key !== 'returns')) return;
   resource.value = key;
   data.value = [];
+  total.value = 0;
   notice.value = '';
   reset();
 }
 
 function changePage(number: number, pageSize: number) {
+  if (number === page.value && pageSize === size.value) return;
   page.value = pageSize === size.value ? number : 1;
   size.value = pageSize;
+  selected.value = null;
+  void load();
 }
 
 function openDetails(row: WarehouseDocument) {
@@ -174,9 +205,12 @@ function logout() {
   querySequence++;
   clearSession();
   data.value = [];
+  total.value = 0;
   resource.value = 'outbounds';
   selected.value = null;
-  order.value = status.value = appliedOrder.value = appliedStatus.value = notice.value = error.value = '';
+  filters.value = { ...emptyFilters };
+  appliedFilters.value = { ...emptyFilters };
+  notice.value = error.value = '';
   page.value = 1;
   loading.value = false;
 }
@@ -230,7 +264,8 @@ async function save(path: string, body: object) {
       :key="resource"
       :id="'warehouse-' + resource"
       :title="isReturn ? '退货单列表' : '出库单列表'"
-      :rows="rows"
+      :rows="data"
+      :total="total"
       :columns="columns"
       :row-key="isReturn ? 'returnId' : 'outboundId'"
       :loading="loading"
@@ -243,19 +278,25 @@ async function save(path: string, body: object) {
     >
       <template #filters>
         <label
-          >订单编号<input v-model="order" type="number" min="1" inputmode="numeric" placeholder="全部订单"
+          >订单编号<input v-model="filters.orderId" type="number" min="1" inputmode="numeric" placeholder="全部订单"
         /></label>
+        <label>
+          {{ isReturn ? '退货单号' : '出库单号' }}
+          <input v-model="filters.jobId" type="search" maxlength="36" />
+        </label>
       </template>
       <template #advancedFilters>
         <label
           >状态
-          <select v-model="status">
+          <select v-model="filters.status">
             <option value="">全部状态</option>
             <option v-for="(label, key) in labels" :key="key" :value="key">
               {{ label }}
             </option>
           </select>
         </label>
+        <label>创建日期从<input v-model="filters.from" type="date" /></label>
+        <label>创建日期至<input v-model="filters.through" type="date" /></label>
       </template>
       <template #status="{ row }"
         ><span class="warehouse-status">{{ labels[row.status] }}</span></template

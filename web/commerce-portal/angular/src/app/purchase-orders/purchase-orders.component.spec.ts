@@ -4,6 +4,7 @@ import { RouterTestingModule } from '@angular/router/testing';
 import { of, throwError } from 'rxjs';
 import { PurchaseOrder } from 'src/model/IPurchaseOrder';
 import { PurchaseOrdersComponent } from './purchase-orders.component';
+import { ListPaginationComponent } from '../list-pagination/list-pagination.component';
 import { ApiService } from '../services/api.service';
 import { TranslatePipe } from '../pipes/translate.pipe';
 import { TrdatePipe } from '../pipes/trdate.pipe';
@@ -103,7 +104,7 @@ describe('PurchaseOrdersComponent', () => {
       receiveOrder: jasmine.createSpy().and.returnValue(of({ ...order, status: 'RECEIVED' })),
     };
     await TestBed.configureTestingModule({
-      imports: [FormsModule, RouterTestingModule],
+      imports: [FormsModule, RouterTestingModule, ListPaginationComponent],
       declarations: [
         PurchaseOrdersComponent,
         OrderListFilterComponent,

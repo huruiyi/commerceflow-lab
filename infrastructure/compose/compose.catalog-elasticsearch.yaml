@@ -1,0 +1,26 @@
+services:
+  catalog-elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.6
+    container_name: fairy-commerceflow-catalog-elasticsearch
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    mem_limit: 1500m
+    volumes:
+      - catalog-elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9200/_cluster/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 15s
+
+  catalog-service:
+    environment:
+      COMMERCEFLOW_CATALOG_SEARCH_ELASTICSEARCH_ENABLED: "true"
+      COMMERCEFLOW_CATALOG_SEARCH_ELASTICSEARCH_URL: http://catalog-elasticsearch:9200
+
+volumes:
+  catalog-elasticsearch-data:

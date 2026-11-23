@@ -312,7 +312,11 @@ function Warehouse-Api([string]$Path,[string]$Method='Get',$Body,$AcceptedStatus
   if($null-ne$Body){$params.Body=$Body|ConvertTo-Json -Depth 7 -Compress;$params.ContentType='application/json'}
   $response=Invoke-WebRequest "$WarehouseBaseUrl/api/admin/$Resource$Path" @params
   if($response.StatusCode-ne$AcceptedStatus){throw "Unexpected warehouse status $($response.StatusCode): $Path"}
-  if($AcceptedStatus-eq200){$response.Content|ConvertFrom-Json}
+  if($AcceptedStatus-eq200){
+    $result=$response.Content|ConvertFrom-Json
+    if($Method -eq 'Get' -and $Path.StartsWith('?')){$result.rows}
+    else{$result}
+  }
 }
 
 function Start-WarehousePackage($shop,$order,[int]$quantity,[long]$WarehouseId){
@@ -323,7 +327,7 @@ function Start-WarehousePackage($shop,$order,[int]$quantity,[long]$WarehouseId){
   $receipt=Api $shop.actor $path Post $document
   if($receipt.commandId-ne$id -or $receipt.status-ne'PENDING'){throw 'Warehouse request did not queue'}
   $queued=Wait-Value {
-    Warehouse-Api "?orderId=$($order.id)"|Where-Object outboundId -eq $id
+    Warehouse-Api "?orderId=$($order.id)&jobId=$id"|Where-Object outboundId -eq $id
   } 'Missing pending warehouse outbound'
   if($queued.status-ne'PENDING' -or $queued.warehouseId-ne$WarehouseId -or
       $queued.planned[0].quantity-ne$quantity){throw 'Unexpected warehouse dispatch plan'}
@@ -357,7 +361,7 @@ function Ship-Package($shop,$order,[int]$quantity,[string]$expected,[long]$Wareh
   if($submission.commandId-ne$packageId){throw 'Wrong package ID'}
   if($expected-eq'COMPLETED'){
     $dispatch=Wait-Value {
-      Warehouse-Api "?orderId=$($order.id)"|Where-Object outboundId -eq $packageId
+      Warehouse-Api "?orderId=$($order.id)&jobId=$packageId"|Where-Object outboundId -eq $packageId
     } 'Missing package warehouse dispatch'
     Confirm-WarehousePackage @{id=$packageId;dispatch=$dispatch} $quantity|Out-Null
   }
@@ -653,7 +657,7 @@ function Send-WmsReturn($shop,$sale,[switch]$CheckBeforeDelivery){
     if((Api $buyer "/api/purchase-orders/after-sales/$key/return-tracking").status-eq'DELIVERED'){$true}
   } 'Missing return delivery'
   $return=Wait-Value {
-    Warehouse-Api "?orderId=$($sale.orderId)" -Resource returns|Where-Object returnId -eq $key
+    Warehouse-Api "?orderId=$($sale.orderId)&jobId=$key" -Resource returns|Where-Object returnId -eq $key
   } 'Missing WMS return'
   if($return.outboundId-ne$sale.outboundId -or $return.warehouseId-ne$sale.warehouseId -or
       $return.expectedQuantity-ne$sale.quantity -or $return.status-ne'WAITING_RECEIPT'){
@@ -697,7 +701,7 @@ function Assert-NoReturnEffect($sale){
 
 function Wait-WorkOrder($shop,$sale){
   Wait-Value {
-    Api $shop.actor '/api/merchant/return-work-orders'|Where-Object caseId -eq $sale.id
+    (Api $shop.actor "/api/merchant/return-work-orders?caseId=$($sale.id)").rows|Where-Object caseId -eq $sale.id
   } 'Return exception did not project a work order'
 }
 

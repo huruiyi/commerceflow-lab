@@ -217,8 +217,7 @@
     justify-content: space-between;
   }
 }
-.catalog-filters,
-.catalog-pagination {
+.catalog-filters {
   display: flex;
   flex-wrap: wrap;
   align-items: end;

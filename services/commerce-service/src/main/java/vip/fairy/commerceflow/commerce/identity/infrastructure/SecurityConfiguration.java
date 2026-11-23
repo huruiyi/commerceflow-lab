@@ -6,8 +6,10 @@ import vip.fairy.commerceflow.commerce.identity.domain.AppUser;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -26,6 +28,7 @@ import org.springframework.security.web.authentication.RememberMeServices;
 import org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenBasedRememberMeServices;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
+import vip.fairy.commerceflow.commerce.identity.application.CurrentUserService;
 
 import javax.sql.DataSource;
 import java.util.Map;
@@ -95,7 +98,8 @@ public class SecurityConfiguration {
 
   @Bean
   SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper,
-                                          RememberMeServices rememberMeServices) throws Exception {
+                                          RememberMeServices rememberMeServices,
+                                          CurrentUserService users) throws Exception {
     CookieCsrfTokenRepository csrfRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
     csrfRepository.setCookiePath("/");
     csrfRepository.setHeaderName("X-XSRF-TOKEN");
@@ -131,6 +135,14 @@ public class SecurityConfiguration {
           "/actuator/info",
           "/actuator/prometheus")
         .permitAll()
+        .requestMatchers("/api/admin/**", "/api/users/**").access((authentication, context) ->
+          new AuthorizationDecision(users.hasCurrentRole(authentication.get(), "ADMIN")))
+        .requestMatchers("/api/merchant/**").access((authentication, context) ->
+          new AuthorizationDecision(users.hasCurrentRole(authentication.get(), "MERCHANT")))
+        .requestMatchers(HttpMethod.POST, "/api/purchase-orders/{orderId}/refunds",
+          "/api/purchase-orders/after-sales/**", "/api/purchase-orders/{orderId}/after-sales/**",
+          "/api/purchase-orders/{orderId}/invoices").access((authentication, context) ->
+            new AuthorizationDecision(users.hasCurrentRole(authentication.get(), "CUSTOMER")))
         .anyRequest().authenticated())
       .exceptionHandling(errors -> errors
         .authenticationEntryPoint((request, response, exception) -> {

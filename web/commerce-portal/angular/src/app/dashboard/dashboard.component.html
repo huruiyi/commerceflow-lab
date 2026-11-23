@@ -80,21 +80,13 @@
     <h3 hlmAlertTitle>{{ 'noSearchResults' | t }}</h3>
     <p hlmAlertDescription>{{ searchQuery }}</p>
   </div>
-  <nav *ngIf="!loading && total > size" class="catalog-pagination" [attr.aria-label]="'catalogPages' | t">
-    <button hlmBtn variant="outline" type="button" [disabled]="page === 0" (click)="changePage(page - 1)">
-      {{ 'catalogPrevious' | t }}
-    </button>
-    <span>{{ page + 1 }} / {{ totalPages }}</span>
-    <button
-      hlmBtn
-      variant="outline"
-      type="button"
-      [disabled]="(page + 1) * size >= total"
-      (click)="changePage(page + 1)"
-    >
-      {{ 'catalogNext' | t }}
-    </button>
-  </nav>
+  <app-list-pagination
+    [page]="displayPage"
+    [totalPages]="totalPages"
+    [label]="'catalogPages' | t"
+    [loading]="loading"
+    (pageChange)="changePage($event)"
+  />
 </section>
 
 <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">

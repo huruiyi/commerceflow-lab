@@ -564,6 +564,38 @@ class CommerceFlowIntegrationTest {
   }
 
   @Test
+  void existingSessionsLoseWithdrawnOperationalAccess() throws Exception {
+    var merchant = login("merchant@example.com", false);
+    var customer = login("demo@example.com", false);
+    var admin = login("admin@example.com", false);
+
+    mvc.perform(get("/api/merchant/return-work-orders").session(merchant.session())).andExpect(status().isOk());
+    mvc.perform(get("/api/admin/exchanges").session(admin.session())).andExpect(status().isOk());
+    Long merchantId = jdbc.queryForObject("SELECT id FROM app_users WHERE email='merchant@example.com'", Long.class);
+    Long merchantRole = jdbc.queryForObject("SELECT id FROM roles WHERE code='MERCHANT'", Long.class);
+    assertEquals(1, jdbc.update("DELETE FROM user_roles WHERE user_id=? AND role_id=?", merchantId, merchantRole));
+    try {
+      mvc.perform(get("/api/merchant/return-work-orders").session(merchant.session()))
+        .andExpect(status().isForbidden());
+      mvc.perform(post("/api/merchant/return-work-orders/{id}/actions", UUID.randomUUID()).session(merchant.session())
+          .cookie(merchant.cookie()).header("X-XSRF-TOKEN", merchant.token()).contentType("application/json")
+          .content("{\"requestId\":\"" + UUID.randomUUID() + "\",\"action\":\"REJECT\",\"note\":\"revoked\"}"))
+        .andExpect(status().isForbidden());
+
+      assertEquals(1, jdbc.update("UPDATE app_users SET enabled=false WHERE email=?", "admin@example.com"));
+      mvc.perform(get("/api/admin/exchanges").session(admin.session())).andExpect(status().isForbidden());
+      mvc.perform(get("/api/auth/me").session(admin.session())).andExpect(status().isForbidden());
+      assertEquals(1, jdbc.update("UPDATE app_users SET enabled=false WHERE email=?", "demo@example.com"));
+      mvc.perform(post("/api/purchase-orders/900000/refunds").session(customer.session()).cookie(customer.cookie())
+          .header("X-XSRF-TOKEN", customer.token()).contentType("application/json").content("{}"))
+        .andExpect(status().isForbidden());
+    } finally {
+      jdbc.update("INSERT INTO user_roles(user_id,role_id) VALUES (?,?)", merchantId, merchantRole);
+      jdbc.update("UPDATE app_users SET enabled=true WHERE email IN (?,?)", "admin@example.com", "demo@example.com");
+    }
+  }
+
+  @Test
   void legacyMerchantOrderListIsRetired() throws Exception {
     CsrfContext merchant = login("merchant@example.com", false);
 

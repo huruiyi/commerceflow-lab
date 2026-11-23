@@ -79,11 +79,30 @@
   <ng-container *ngIf="mode === 'public' && store() as value">
     <h2>{{ value.name }}</h2>
     <p>{{ value.description }}</p>
-    <ul class="list-group">
-      <li class="list-group-item" *ngFor="let product of products()">
-        {{ product.name }} <span class="text-secondary">{{ product.price | currency: 'CNY' }}</span>
-      </li>
-    </ul>
+    @if (productsLoading()) {
+      <p role="status">{{ i18n.t('storeProductsLoading') }}</p>
+    } @else if (productsFailed()) {
+      <p role="alert">{{ i18n.t('storeProductsFailed') }}</p>
+    } @else if (productPage(); as page) {
+      @if (page.total) {
+        <ul class="list-group">
+          @for (product of page.products; track product.id) {
+            <li class="list-group-item">
+              {{ product.name }} <span class="text-secondary">{{ product.price | currency: 'CNY' }}</span>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p role="status">{{ i18n.t('noSearchResults') }}</p>
+      }
+    }
+    <app-list-pagination
+      [page]="productPage()?.page ?? 0"
+      [totalPages]="totalPages()"
+      [label]="i18n.t('catalogPages')"
+      [loading]="productsLoading()"
+      (pageChange)="changePage($event)"
+    />
     <a routerLink="/dashboard">返回商品 / Browse products</a>
   </ng-container>
 </section>

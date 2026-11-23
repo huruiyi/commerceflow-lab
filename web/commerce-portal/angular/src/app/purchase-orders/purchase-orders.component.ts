@@ -1,6 +1,6 @@
 import { afterNextRender, ChangeDetectorRef, Component, DestroyRef, ElementRef, Injector, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, NavigationSkipped, NavigationSkippedCode, ParamMap, Router } from '@angular/router';
+import { ActivatedRoute, NavigationSkipped, NavigationSkippedCode, Router } from '@angular/router';
 import {
   catchError,
   distinctUntilChanged,
@@ -24,11 +24,11 @@ import {
   OrderEvent,
   OrderSearchCriteria,
   OrderSearchPage,
-  orderSearchStatuses,
   PaymentChannel,
   PurchaseOrder,
   RepurchaseResult,
 } from 'src/model/IPurchaseOrder';
+import { orderSearchParams, readOrderSearch } from '../order-list-filter/order-search-query';
 import { AccountService } from '../services/account.service';
 import { ApiService } from '../services/api.service';
 import { I18nService } from '../services/i18n.service';
@@ -140,7 +140,7 @@ export class PurchaseOrdersComponent implements OnInit {
   ngOnInit(): void {
     if (this.route.snapshot.paramMap.has('id')) {
       this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
-        this.criteria = this.readSearch(params);
+        this.criteria = readOrderSearch(params);
       });
       this.route.paramMap
         .pipe(
@@ -170,42 +170,17 @@ export class PurchaseOrdersComponent implements OnInit {
     } else {
       this.route.queryParamMap
         .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe((params) => this.reload(this.readSearch(params)));
+        .subscribe((params) => this.reload(readOrderSearch(params)));
     }
     this.i18n.localeChanged.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.reload());
   }
 
   get listQueryParams() {
-    return this.searchParams(this.criteria);
+    return orderSearchParams(this.criteria);
   }
 
   applyCriteria(criteria: OrderSearchCriteria): void {
-    void this.router.navigate([], { relativeTo: this.route, queryParams: this.searchParams(criteria) });
-  }
-
-  private readSearch(params: ParamMap): OrderSearchCriteria {
-    const status = params.get('status') ?? '';
-    const page = Number(params.get('page') ?? 0);
-    const from = params.get('from') ?? '';
-    const to = params.get('to') ?? '';
-    const date = /^\d{4}-\d{2}-\d{2}$/;
-    return {
-      q: (params.get('q') ?? '').trim().slice(0, 120),
-      status: orderSearchStatuses.includes(status) ? status : '',
-      from: date.test(from) ? from : '',
-      to: date.test(to) && (!date.test(from) || from <= to) ? to : '',
-      page: Number.isInteger(page) && page >= 0 && page <= 2147483647 ? page : 0,
-    };
-  }
-
-  private searchParams(criteria: OrderSearchCriteria) {
-    return {
-      q: criteria.q || null,
-      status: criteria.status || null,
-      from: criteria.from || null,
-      to: criteria.to || null,
-      page: criteria.page || null,
-    };
+    void this.router.navigate([], { relativeTo: this.route, queryParams: orderSearchParams(criteria) });
   }
 
   reload(criteria: OrderSearchCriteria = this.criteria): void {

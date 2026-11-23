@@ -1,8 +1,10 @@
 import { ChangeDetectorRef, Component, DestroyRef, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, finalize, forkJoin, Observable, of, Subscription, TimeoutError } from 'rxjs';
 import { initialOrderSearch, OrderSearchCriteria, OrderSearchPage, PurchaseOrder } from 'src/model/IPurchaseOrder';
 import { WarehousePlan } from 'src/model/IPurchaseOrder';
+import { orderSearchParams, readOrderSearch } from '../order-list-filter/order-search-query';
 import { ApiService } from '../services/api.service';
 import { I18nService } from '../services/i18n.service';
 
@@ -37,11 +39,19 @@ export class MerchantOrdersComponent implements OnInit {
     private i18n: I18nService,
     private changeDetector: ChangeDetectorRef,
     private destroyRef: DestroyRef,
+    private route: ActivatedRoute,
+    private router: Router,
   ) {}
 
   ngOnInit(): void {
-    this.load();
+    this.route.queryParamMap
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((params) => this.load(readOrderSearch(params)));
     this.i18n.localeChanged.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.load());
+  }
+
+  applyCriteria(criteria: OrderSearchCriteria): void {
+    void this.router.navigate([], { relativeTo: this.route, queryParams: orderSearchParams(criteria) });
   }
 
   load(criteria: OrderSearchCriteria = this.criteria): void {

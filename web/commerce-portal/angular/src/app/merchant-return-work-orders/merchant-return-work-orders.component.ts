@@ -1,7 +1,26 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { finalize, Observable } from 'rxjs';
-import { ApiService, ReturnWorkDetail, ReturnWorkEvidence, ReturnWorkTicket } from '../services/api.service';
+import { ActivatedRoute, Router } from '@angular/router';
+import { distinctUntilChanged, finalize, map, Observable, Subscription, timeout, TimeoutError } from 'rxjs';
+import { AccountService } from '../services/account.service';
+import {
+  AfterSaleListCriteria,
+  ApiService,
+  ReturnWorkDetail,
+  ReturnWorkEvidence,
+  ReturnWorkTicket,
+} from '../services/api.service';
+
+type WorkAction = 'REQUEST_EVIDENCE' | 'REJECT' | 'APPROVE';
+
+interface PendingDecision {
+  caseId: string;
+  requestId: string;
+  action: WorkAction;
+  note: string;
+  quantity?: number;
+}
 
 @Component({
   standalone: false,
@@ -12,37 +31,92 @@ export class MerchantReturnWorkOrdersComponent implements OnInit {
   private readonly api = inject(ApiService);
   private readonly destroy = inject(DestroyRef);
   private readonly changes = inject(ChangeDetectorRef);
+  private readonly account = inject(AccountService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   tickets: ReturnWorkTicket[] = [];
+  readonly statuses = ['OPEN', 'WAITING_EVIDENCE', 'APPROVED', 'REJECTED'];
+  page = 0;
+  totalPages = 0;
+  private criteria: AfterSaleListCriteria = {};
   detail?: ReturnWorkDetail;
   evidence?: ReturnWorkEvidence | null;
   note = '';
   quantity?: number;
   busy = false;
+  loadingDetail = false;
   error = '';
+  notice = '';
   evidenceError = false;
-  private retry?: { key: string; id: string };
+  pending?: PendingDecision;
+  private selectedCase?: string;
+  private detailRequest?: Subscription;
 
   ngOnInit(): void {
+    this.route.queryParamMap
+      .pipe(
+        map((params) => params.get('caseId') ?? undefined),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroy),
+      )
+      .subscribe((caseId) => {
+        this.detailRequest?.unsubscribe();
+        this.selectedCase = caseId;
+        this.detail = this.evidence = undefined;
+        this.notice = this.note = '';
+        this.quantity = undefined;
+        this.pending = caseId ? this.readPending(caseId) : undefined;
+        if (caseId) this.checkResult();
+      });
     this.refresh();
   }
 
-  refresh(): void {
-    this.run(this.api.returnWorkOrders(), (tickets) => {
-      this.tickets = tickets;
-      const selected = tickets.find((item) => item.caseId === this.detail?.ticket.caseId);
+  applyCriteria(criteria: AfterSaleListCriteria): void {
+    this.criteria = criteria;
+    this.refresh(0);
+  }
+
+  refresh(page = this.page): void {
+    this.run(this.api.returnWorkOrders(this.criteria, page), (result) => {
+      this.tickets = result.rows;
+      this.page = result.page;
+      this.totalPages = Math.ceil(result.total / result.size);
+      const selected = result.rows.find((item) => item.caseId === this.detail?.ticket.caseId);
       if (selected && this.detail) this.detail = { ...this.detail, ticket: selected };
     });
   }
 
   select(ticket: ReturnWorkTicket): void {
-    this.run(this.api.returnWorkOrder(ticket.caseId), (detail) => {
-      this.detail = detail;
-      this.evidence = undefined;
-      this.evidenceError = false;
-      this.note = '';
-      this.quantity = undefined;
-      if (ticket.warehouseStatus !== 'REJECTED') this.loadEvidence();
-    });
+    if (this.selectedCase === ticket.caseId) this.checkResult();
+    else void this.router.navigate([], { relativeTo: this.route, queryParams: { caseId: ticket.caseId } });
+  }
+
+  checkResult(): void {
+    const id = this.selectedCase;
+    if (!id || this.loadingDetail) return;
+    this.loadingDetail = true;
+    this.error = '';
+    this.detailRequest = this.api
+      .returnWorkOrder(id)
+      .pipe(
+        takeUntilDestroyed(this.destroy),
+        finalize(() => {
+          this.loadingDetail = false;
+          this.changes.markForCheck();
+        }),
+      )
+      .subscribe({
+        next: (detail) => {
+          this.syncDetail(detail);
+          if (detail.ticket.warehouseStatus !== 'REJECTED') this.loadEvidence();
+        },
+        error: (error) => {
+          if (error.status === 401 || error.status === 403 || error.status === 404) {
+            this.detail = this.evidence = this.pending = undefined;
+          }
+          this.error = error.error?.message ?? 'requestFailed';
+        },
+      });
   }
 
   loadEvidence(): void {
@@ -56,7 +130,8 @@ export class MerchantReturnWorkOrdersComponent implements OnInit {
         next: (evidence) => {
           if (this.detail?.ticket.caseId !== id) return;
           this.evidence = evidence;
-          if (evidence) this.quantity = Math.min(evidence.qualifiedQuantity, this.detail.ticket.requestedQuantity);
+          if (evidence && !this.pending)
+            this.quantity = Math.min(evidence.qualifiedQuantity, this.detail.ticket.requestedQuantity);
           this.changes.markForCheck();
         },
         error: () => {
@@ -66,20 +141,80 @@ export class MerchantReturnWorkOrdersComponent implements OnInit {
       });
   }
 
-  decide(action: 'REQUEST_EVIDENCE' | 'REJECT' | 'APPROVE'): void {
+  decide(action: WorkAction): void {
     const ticket = this.detail?.ticket;
-    if (!ticket || !this.note.trim()) return;
+    if (!ticket || this.pending || this.busy || !this.note.trim()) return;
     const quantity = action === 'APPROVE' ? this.quantity : undefined;
-    const payload = { action, note: this.note.trim(), quantity };
-    const key = JSON.stringify([ticket.caseId, payload]);
-    const requestId = this.retry?.key === key ? this.retry.id : crypto.randomUUID();
-    this.retry = { key, id: requestId };
-    this.run(this.api.decideReturnWork(ticket.caseId, { requestId, ...payload }), (detail) => {
-      this.detail = detail;
-      this.tickets = this.tickets.map((item) => (item.caseId === ticket.caseId ? detail.ticket : item));
+    this.send({ caseId: ticket.caseId, requestId: crypto.randomUUID(), action, note: this.note.trim(), quantity });
+  }
+
+  retry(): void {
+    if (this.pending && this.detail?.ticket.caseId === this.pending.caseId && !this.busy) this.send(this.pending);
+  }
+
+  private send(pending: PendingDecision): void {
+    const { caseId, ...body } = pending;
+    this.persist(caseId, pending);
+    this.notice = '';
+    this.run(
+      this.api.decideReturnWork(caseId, body).pipe(timeout(8000)),
+      (detail) => {
+        if (this.selectedCase === caseId) this.syncDetail(detail);
+        else this.persist(caseId);
+      },
+      (error: HttpErrorResponse | TimeoutError) => {
+        if (error instanceof TimeoutError || error.status === 0 || error.status >= 500) {
+          if (this.selectedCase === caseId) this.notice = 'returnWorkUnknown';
+          return;
+        }
+        this.persist(caseId);
+        if (this.selectedCase === caseId) this.error = error.error?.message ?? 'requestFailed';
+      },
+    );
+  }
+
+  private syncDetail(detail: ReturnWorkDetail): void {
+    this.detail = detail;
+    const ticket = detail.ticket;
+    this.tickets = this.tickets.map((item) => (item.caseId === ticket.caseId ? ticket : item));
+    const pending = this.pending;
+    if (!pending) return;
+    if (detail.actions.some((item) => item.requestId === pending.requestId)) {
+      this.persist(ticket.caseId);
       this.note = '';
-      this.retry = undefined;
-    });
+      this.notice = 'returnWorkConfirmed';
+    } else if (!['OPEN', 'WAITING_EVIDENCE'].includes(ticket.phase)) {
+      this.persist(ticket.caseId);
+      this.note = '';
+      this.notice = 'returnWorkChanged';
+    } else {
+      this.note = pending.note;
+      this.quantity = pending.quantity;
+      this.notice = 'returnWorkUnknown';
+    }
+  }
+
+  private readPending(id: string): PendingDecision | undefined {
+    try {
+      const stored = sessionStorage.getItem(this.storageKey(id));
+      return stored ? (JSON.parse(stored) as PendingDecision) : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private persist(id: string, value?: PendingDecision): void {
+    if (this.selectedCase === id) this.pending = value;
+    try {
+      if (value) sessionStorage.setItem(this.storageKey(id), JSON.stringify(value));
+      else sessionStorage.removeItem(this.storageKey(id));
+    } catch {
+      // Keep the in-memory request when tab storage is unavailable.
+    }
+  }
+
+  private storageKey(id: string): string {
+    return 'commerceflow-return-work:' + this.account.userProfile()?.id + ':' + id;
   }
 
   status(ticket: ReturnWorkTicket): string {
@@ -89,7 +224,11 @@ export class MerchantReturnWorkOrdersComponent implements OnInit {
     return 'PROCESSING';
   }
 
-  private run<T>(request: Observable<T>, onSuccess: (value: T) => void): void {
+  private run<T>(
+    request: Observable<T>,
+    onSuccess: (value: T) => void,
+    onError?: (error: HttpErrorResponse) => void,
+  ): void {
     if (this.busy) return;
     this.busy = true;
     this.error = '';
@@ -103,7 +242,7 @@ export class MerchantReturnWorkOrdersComponent implements OnInit {
       )
       .subscribe({
         next: onSuccess,
-        error: (error) => (this.error = error.error?.message ?? 'requestFailed'),
+        error: onError ?? ((error) => (this.error = error.error?.message ?? 'requestFailed')),
       });
   }
 }

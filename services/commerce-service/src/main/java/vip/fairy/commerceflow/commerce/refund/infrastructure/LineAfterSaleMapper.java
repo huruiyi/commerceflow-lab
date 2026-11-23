@@ -2,8 +2,10 @@ package vip.fairy.commerceflow.commerce.refund.infrastructure;
 
 import java.math.BigDecimal;
 import java.util.List;
+import vip.fairy.commerceflow.commerce.refund.domain.AfterSaleListQuery;
 import vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface LineAfterSaleMapper {
@@ -16,7 +18,9 @@ public interface LineAfterSaleMapper {
 
   List<LineAfterSale> forMerchant(Long merchantId, Long orderId);
 
-  List<LineAfterSale> platformExchanges(Long orderId);
+  long countPlatformExchanges(@Param("query") AfterSaleListQuery query);
+
+  List<LineAfterSale> platformExchanges(@Param("query") AfterSaleListQuery query, @Param("offset") long offset);
 
   List<LineAfterSale> forOrder(Long orderId);
 

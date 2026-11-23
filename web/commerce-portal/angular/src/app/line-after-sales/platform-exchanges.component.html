@@ -1,20 +1,11 @@
 <section class="container py-4" [attr.aria-busy]="busy">
   <h1 class="h3 mb-3">{{ 'platformExchanges' | t }}</h1>
-  <form class="d-flex flex-wrap align-items-end gap-2 mb-3" (ngSubmit)="load()" #filters="ngForm">
-    <label>
-      {{ 'exchangeOrderId' | t }}
-      <input
-        class="form-control"
-        type="number"
-        name="orderId"
-        [(ngModel)]="orderId"
-        min="1"
-        step="1"
-        [disabled]="busy"
-      />
-    </label>
-    <button type="submit" class="btn btn-primary" [disabled]="busy || filters.invalid">{{ 'search' | t }}</button>
-  </form>
+  <app-after-sale-search
+    [busy]="busy"
+    [statuses]="statuses"
+    statusKey="afterSaleState_"
+    (changed)="applyCriteria($event)"
+  />
   <p *ngIf="failed" class="alert alert-danger" role="alert">{{ 'requestFailed' | t }}</p>
   <p *ngIf="!busy && !failed && !exchanges.length">{{ 'exchangeNoCases' | t }}</p>
   <div class="table-responsive" *ngIf="exchanges.length">
@@ -50,6 +41,13 @@
       </tbody>
     </table>
   </div>
+  <app-list-pagination
+    [page]="page"
+    [totalPages]="totalPages"
+    [label]="'afterSalePages' | t"
+    [loading]="busy"
+    (pageChange)="load($event)"
+  />
   <article
     *ngIf="detail as selected"
     class="border rounded p-3 mt-3"

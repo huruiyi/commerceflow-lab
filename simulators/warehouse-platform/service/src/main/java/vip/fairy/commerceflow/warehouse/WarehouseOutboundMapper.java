@@ -11,7 +11,8 @@ interface WarehouseOutboundMapper {
   void insert(@Param("value") WarehouseOutbounds.Command value, @Param("planned") String planned);
   Row get(String outboundId);
   Row lock(String outboundId);
-  List<Row> list(Long orderId);
+  long count(@Param("query") WarehouseJobSearch query);
+  List<Row> search(@Param("query") WarehouseJobSearch query, @Param("offset") long offset);
   int decide(@Param("id") String id, @Param("status") String status, @Param("actual") String actual);
 
   record Row(String outboundId, long orderId, long merchantId, long warehouseId, boolean wholeOrder,

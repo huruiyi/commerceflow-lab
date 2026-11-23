@@ -159,7 +159,7 @@ function Return-Parcel($Case, [bool]$Pass) {
   Advance-Logistics $registered.merchantShipmentNo
   $warehousePath = "$WarehouseBaseUrl/api/admin/returns"
   $receipt = Wait-Value {
-    (Invoke-RestMethod "$warehousePath`?orderId=$($Case.orderId)" -Headers $warehouseHeaders -TimeoutSec 15) |
+    (Invoke-RestMethod "$warehousePath`?orderId=$($Case.orderId)&jobId=$($Case.id)" -Headers $warehouseHeaders -TimeoutSec 15).rows |
       Where-Object returnId -EQ $Case.id
   } 'warehouse return record'
   Assert-Equal $receipt.outboundId $Case.outboundId 'Return origin'
@@ -295,7 +295,7 @@ Assert-Equal @(Ledger $failed).Count 0 'Failed quality movements'
 Assert-NoMoney $failed
 $workPath = "/api/merchant/return-work-orders/$($failed.id)/actions"
 Wait-Value {
-  Api $merchant '/api/merchant/return-work-orders' | Where-Object caseId -EQ $failed.id
+  (Api $merchant "/api/merchant/return-work-orders?caseId=$($failed.id)").rows | Where-Object caseId -EQ $failed.id
 } 'quality exception work order' | Out-Null
 Reject $merchant $workPath @{
   requestId = [guid]::NewGuid().ToString(); action = 'APPROVE'; note = 'Must reject'; quantity = 1

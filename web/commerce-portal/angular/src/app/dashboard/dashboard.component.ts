@@ -3,6 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Product } from 'src/model/IProduct';
+import { readPage } from '../list-pagination/page-query';
 import { ApiService, CatalogStore, StockAvailability } from '../services/api.service';
 import { catchError, EMPTY, map, of, Subscription, switchMap, timeout } from 'rxjs';
 import { SeoService } from '../services/seo.service';
@@ -22,6 +23,7 @@ export class DashboardComponent implements OnInit {
   stores: CatalogStore[] = [];
   total = 0;
   page = 0;
+  displayPage = 0;
   readonly size = 12;
   loading = true;
   searchFailed = false;
@@ -89,7 +91,7 @@ export class DashboardComponent implements OnInit {
       this.merchantId = params.has('merchantId') ? Number(params.get('merchantId')) : null;
       this.minPrice = params.has('minPrice') ? Number(params.get('minPrice')) : null;
       this.maxPrice = params.has('maxPrice') ? Number(params.get('maxPrice')) : null;
-      this.page = Math.max(0, Math.trunc(Number(params.get('page')) || 0));
+      this.page = readPage(params.get('page'));
       this.loadProducts();
     });
   }
@@ -135,6 +137,7 @@ export class DashboardComponent implements OnInit {
           this.products = value.products;
           this.total = value.total;
           this.page = value.page;
+          this.displayPage = value.page;
           this.loading = false;
           this.changeDetector.markForCheck();
         },

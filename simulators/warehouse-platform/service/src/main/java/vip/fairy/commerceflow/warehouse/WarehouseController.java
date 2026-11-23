@@ -5,7 +5,6 @@ import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.HexFormat;
-import java.util.List;
 import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -16,12 +15,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.ObjectMapper;
@@ -64,10 +63,11 @@ class WarehouseController {
   }
 
   @GetMapping("/api/admin/outbounds")
-  List<WarehouseOutbounds.Receipt> list(@RequestHeader(value = "Authorization", required = false) String auth,
-                                       @RequestParam(required = false) Long orderId) {
+  WarehouseJobSearch.Page<WarehouseOutbounds.Receipt> list(
+      @RequestHeader(value = "Authorization", required = false) String auth,
+      @ModelAttribute WarehouseJobSearch search) {
     requireAdmin(auth);
-    return outbounds.list(orderId);
+    return outbounds.search(search);
   }
 
   @PutMapping("/api/admin/outbounds/{id}/result")
@@ -84,10 +84,11 @@ class WarehouseController {
   }
 
   @GetMapping("/api/admin/returns")
-  List<WarehouseReturns.Receipt> listReturns(@RequestHeader(value = "Authorization", required = false) String auth,
-                                             @RequestParam(required = false) Long orderId) {
+  WarehouseJobSearch.Page<WarehouseReturns.Receipt> listReturns(
+      @RequestHeader(value = "Authorization", required = false) String auth,
+      @ModelAttribute WarehouseJobSearch search) {
     requireAdmin(auth);
-    return returns.list(orderId);
+    return returns.search(search);
   }
 
   @PutMapping("/api/admin/returns/{id}/receipt")

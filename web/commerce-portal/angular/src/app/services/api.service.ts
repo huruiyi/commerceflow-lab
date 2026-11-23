@@ -61,6 +61,21 @@ export interface AfterSale extends Pick<AfterSaleOffer, 'merchandiseAmount' | 's
   decision?: string;
 }
 
+export interface AfterSaleListCriteria {
+  orderId?: number;
+  caseId?: string;
+  status?: string;
+  createdFrom?: string;
+  createdBefore?: string;
+}
+
+export interface AfterSalePage<T> {
+  rows: T[];
+  total: number;
+  page: number;
+  size: number;
+}
+
 export interface ReturnWorkTicket {
   kind: AfterSaleOffer['kind'];
   caseId: string;
@@ -372,8 +387,8 @@ export class ApiService {
     });
   }
 
-  platformExchanges(orderId?: number): Observable<AfterSale[]> {
-    return this.http.get<AfterSale[]>('/api/admin/exchanges', { params: orderId ? { orderId } : {} });
+  platformExchanges(criteria: AfterSaleListCriteria, page: number): Observable<AfterSalePage<AfterSale>> {
+    return this.http.get<AfterSalePage<AfterSale>>('/api/admin/exchanges', { params: { ...criteria, page } });
   }
 
   platformExchange(id: string): Observable<ExchangeDetail> {
@@ -387,8 +402,10 @@ export class ApiService {
     );
   }
 
-  returnWorkOrders(): Observable<ReturnWorkTicket[]> {
-    return this.http.get<ReturnWorkTicket[]>('/api/merchant/return-work-orders');
+  returnWorkOrders(criteria: AfterSaleListCriteria, page: number): Observable<AfterSalePage<ReturnWorkTicket>> {
+    return this.http.get<AfterSalePage<ReturnWorkTicket>>('/api/merchant/return-work-orders', {
+      params: { ...criteria, page },
+    });
   }
 
   returnWorkOrder(caseId: string): Observable<ReturnWorkDetail> {

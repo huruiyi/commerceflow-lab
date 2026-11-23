@@ -1,0 +1,37 @@
+<form class="d-flex flex-wrap align-items-end gap-2 mb-3" (ngSubmit)="submit()" #criteria="ngForm">
+  <label>
+    {{ 'exchangeOrderId' | t }}
+    <input class="form-control" type="number" name="orderId" [(ngModel)]="orderId" min="1" step="1" />
+  </label>
+  <label>
+    {{ 'afterSaleCaseId' | t }}
+    <input class="form-control" type="search" name="caseId" [(ngModel)]="caseId" maxlength="36" />
+  </label>
+  <label>
+    {{ 'status' | t }}
+    <select class="form-select" name="status" [(ngModel)]="status">
+      <option value="">{{ 'allStatuses' | t }}</option>
+      @for (value of statuses(); track value) {
+        <option [value]="value">{{ statusKey() + value | t }}</option>
+      }
+    </select>
+  </label>
+  <label>
+    {{ 'afterSaleCreatedFrom' | t }}
+    <input class="form-control" type="date" name="from" [(ngModel)]="from" />
+  </label>
+  <label>
+    {{ 'afterSaleCreatedThrough' | t }}
+    <input class="form-control" type="date" name="through" [(ngModel)]="through" />
+  </label>
+  <button
+    type="submit"
+    class="btn btn-primary"
+    [disabled]="busy() || criteria.invalid || !!(from && through && from > through)"
+  >
+    {{ 'search' | t }}
+  </button>
+  <button type="button" class="btn btn-outline-secondary" [disabled]="busy()" (click)="clear()">
+    {{ 'clearOrderFilters' | t }}
+  </button>
+</form>

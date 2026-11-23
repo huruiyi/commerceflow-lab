@@ -21,7 +21,7 @@
   [applied]="criteria"
   [loading]="loading"
   [merchant]="true"
-  (changed)="load($event)"
+  (changed)="applyCriteria($event)"
 ></app-order-list-filter>
 <article *ngFor="let order of orders" class="fulfillment-card">
   <header>
