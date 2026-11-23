@@ -96,9 +96,12 @@
     @if (!current.applicationNo) {
       <section class="invoice-panel">
         <p>{{ (current.eligible ? 'invoiceReady' : 'invoiceUnpaid') | t }}</p>
+        @if (applicationPending) {
+          <p role="status">{{ 'invoiceRequestUnknown' | t }}</p>
+        }
         @if (current.eligible) {
           <button hlmBtn type="button" (click)="request()" [disabled]="acting">
-            {{ (acting ? 'invoiceSending' : 'invoiceApply') | t }}
+            {{ (acting ? 'invoiceSending' : applicationPending ? 'invoiceRetryOriginal' : 'invoiceApply') | t }}
           </button>
         }
       </section>

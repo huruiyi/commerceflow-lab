@@ -72,6 +72,7 @@ export interface OrderPayment {
   checkoutUrl?: string;
   actionType?: string;
   qrPayload?: string;
+  idempotencyKey?: string;
 }
 
 export interface OrderEvent {

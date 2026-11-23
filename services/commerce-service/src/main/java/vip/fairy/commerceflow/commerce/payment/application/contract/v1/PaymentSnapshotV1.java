@@ -20,7 +20,8 @@ public record PaymentSnapshotV1(
   Instant expiresAt,
   String checkoutUrl,
   String actionType,
-  String qrPayload
+  String qrPayload,
+  String idempotencyKey
 ) {
 
   public static final int VERSION = 1;

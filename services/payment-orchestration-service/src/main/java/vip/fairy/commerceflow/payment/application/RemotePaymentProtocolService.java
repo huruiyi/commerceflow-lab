@@ -439,7 +439,7 @@ public class RemotePaymentProtocolService {
       text(row, "failure_reason"), decimal(row, "amount"), decimal(row, "refunded_amount"),
       text(row, "currency"), instant(row, "created_at"), instant(row, "paid_at"),
       instant(row, "expires_at"), nullableText(row, "checkout_url"),
-      nullableText(row, "action_type"), nullableText(row, "qr_payload"));
+      nullableText(row, "action_type"), nullableText(row, "qr_payload"), nullableText(row, "idempotency_key"));
   }
 
   private String processId(Long orderId) {

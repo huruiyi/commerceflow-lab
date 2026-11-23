@@ -48,6 +48,7 @@ interface PaymentAttempt {
   channel: PaymentChannel;
   simulateFailure: boolean;
   paymentNumber?: string;
+  awaitingReceipt?: boolean;
 }
 
 interface Notice {
@@ -114,6 +115,7 @@ export class PurchaseOrdersComponent implements OnInit {
   cancelling = new Set<number>();
   receiving = new Set<number>();
   cancellationReasons: Record<number, string> = {};
+  cancellationRequests: Record<number, string | undefined> = {};
   unavailableProductImages = new Set<number>();
   expandedOrders = new Set<number>();
   repurchasing = new Set<number>();
@@ -278,16 +280,19 @@ export class PurchaseOrdersComponent implements OnInit {
   }
 
   selectChannel(order: PurchaseOrder, channel: PaymentChannel): void {
+    if (this.paymentNeedsRecovery(order)) return;
     this.selectedChannels[order.id] = channel;
     this.newAttempt(order);
   }
 
   newAttempt(order: PurchaseOrder): void {
+    if (this.paymentNeedsRecovery(order)) return;
     this.draftKeys[order.id] = crypto.randomUUID();
     delete this.notices[order.id];
   }
 
   pay(order: PurchaseOrder, simulateFailure = false): void {
+    if (this.paymentNeedsRecovery(order) || this.cancellationRequests[order.id] !== undefined) return;
     this.execute(
       order,
       {
@@ -306,7 +311,7 @@ export class PurchaseOrdersComponent implements OnInit {
 
   replayOnAnotherChannel(order: PurchaseOrder): void {
     const previous = this.lastAttempts[order.id];
-    if (!previous) return;
+    if (!previous || previous.awaitingReceipt) return;
     const alternative = this.channels.find((channel) => channel.code !== previous.channel)?.code ?? 'WECHAT_PAY';
     this.execute(order, { ...previous, channel: alternative }, true);
   }
@@ -367,15 +372,26 @@ export class PurchaseOrdersComponent implements OnInit {
   }
 
   cancelOrder(order: PurchaseOrder): void {
+    if (this.cancelling.has(order.id) || this.paying.has(order.id)) return;
+    const reason = this.cancellationRequests[order.id] ?? this.cancellationReasons[order.id] ?? '';
+    this.cancellationRequests[order.id] = reason;
+    this.writeRequest(this.requestKey(order.id, 'cancel'), reason);
+    this.observeCancellation(order, this.api.cancelOrder(order.id, reason));
+  }
+
+  checkCancellation(order: PurchaseOrder): void {
     if (this.cancelling.has(order.id)) return;
+    this.observeCancellation(order, this.api.purchaseOrder(order.id));
+  }
+
+  private observeCancellation(order: PurchaseOrder, request: Observable<PurchaseOrder>): void {
     this.cancelling.add(order.id);
     delete this.notices[order.id];
-    this.api
-      .cancelOrder(order.id, this.cancellationReasons[order.id] ?? '')
+    request
       .pipe(
+        timeout(8000),
         switchMap((updated) => {
           this.orders = this.orders.map((value) => (value.id === updated.id ? updated : value));
-          this.cancelForms.delete(order.id);
           this.changeDetector.markForCheck();
           return updated.status === 'CANCELLING'
             ? this.awaitOrder(order.id, (current) => current.status !== 'CANCELLING')
@@ -390,18 +406,35 @@ export class PurchaseOrdersComponent implements OnInit {
       .subscribe({
         next: (updated) => {
           this.orders = this.orders.map((value) => (value.id === updated.id ? updated : value));
-          this.cancelForms.delete(order.id);
-          this.notices[order.id] =
-            updated.status === 'CANCELLED'
-              ? { type: 'success', text: this.i18n.t('orderCancelled') }
-              : { type: 'danger', text: this.i18n.t('orderCancelFailed') };
+          this.restoreCancellation(updated);
         },
-        error: (error) =>
-          (this.notices[order.id] =
-            error instanceof TimeoutError
-              ? { type: 'info', text: this.i18n.t('orderStatusPending') }
-              : { type: 'danger', text: error.error?.message ?? this.i18n.t('orderCancelFailed') }),
+        error: () => {
+          this.notices[order.id] = { type: 'info', text: this.i18n.t('cancelReceiptUnknown') };
+        },
       });
+  }
+
+  private restoreCancellation(order: PurchaseOrder): void {
+    const reason = this.cancellationRequests[order.id] ?? this.readRequest(this.requestKey(order.id, 'cancel'));
+    if (reason === null) return;
+    if (['PENDING_PAYMENT', 'CANCELLING'].includes(order.status)) {
+      this.cancellationRequests[order.id] = reason;
+      this.cancellationReasons[order.id] = reason;
+      if (order.status === 'CANCELLING') {
+        this.cancelForms.delete(order.id);
+        if (!this.cancelling.has(order.id)) this.checkCancellation(order);
+      }
+      this.notices[order.id] = { type: 'info', text: this.i18n.t('cancelReceiptUnknown') };
+      return;
+    }
+    delete this.cancellationRequests[order.id];
+    this.writeRequest(this.requestKey(order.id, 'cancel'), null);
+    this.cancelForms.delete(order.id);
+    const cancelled = order.status === 'CANCELLED';
+    this.notices[order.id] = {
+      type: cancelled ? 'success' : 'warning',
+      text: this.i18n.t(cancelled ? 'orderCancelled' : 'orderCancelFailed'),
+    };
   }
 
   refresh(order: PurchaseOrder): void {
@@ -616,7 +649,12 @@ export class PurchaseOrdersComponent implements OnInit {
   }
 
   private execute(order: PurchaseOrder, attempt: PaymentAttempt, replay: boolean): void {
-    if (this.paying.has(order.id)) return;
+    if (this.paying.has(order.id) || this.cancellationRequests[order.id] !== undefined) return;
+    if (!replay || attempt.awaitingReceipt) {
+      attempt.awaitingReceipt = true;
+      this.lastAttempts[order.id] = attempt;
+      this.persist(order.id, attempt);
+    }
     this.paying.add(order.id);
     this.notices[order.id] = {
       type: 'info',
@@ -625,6 +663,8 @@ export class PurchaseOrdersComponent implements OnInit {
     this.api
       .payOrder(order.id, attempt.key, attempt.simulateFailure, attempt.channel)
       .pipe(
+        timeout(8000),
+        takeUntilDestroyed(this.destroyRef),
         finalize(() => {
           this.paying.delete(order.id);
           this.changeDetector.markForCheck();
@@ -632,12 +672,14 @@ export class PurchaseOrdersComponent implements OnInit {
       )
       .subscribe({
         next: (updated) => {
+          attempt.awaitingReceipt = false;
           attempt.paymentNumber = updated.payment?.paymentNumber;
           this.lastAttempts[order.id] = attempt;
           this.persist(order.id, attempt);
           this.updatePaymentOrder(updated, 'paymentPending');
         },
         error: (error) => {
+          if ([400, 403, 404, 409, 422].includes(error.status) && !replay) attempt.awaitingReceipt = false;
           if (!replay || !this.lastAttempts[order.id]) {
             this.lastAttempts[order.id] = attempt;
             this.persist(order.id, attempt);
@@ -651,17 +693,22 @@ export class PurchaseOrdersComponent implements OnInit {
   }
 
   private initializeOrder(order: PurchaseOrder): void {
-    const stored = sessionStorage.getItem(this.storageKey(order.id));
+    this.restoreCancellation(order);
+    const stored = this.readRequest(this.requestKey(order.id, 'payment'));
     if (stored) {
       try {
         const attempt = JSON.parse(stored) as PaymentAttempt;
         this.lastAttempts[order.id] = attempt;
         this.selectedChannels[order.id] = attempt.channel;
         this.draftKeys[order.id] = attempt.key;
+        this.recoverPaymentReceipt(order);
         this.prepareRetry(order);
+        if (attempt.paymentNumber === order.payment?.paymentNumber && order.payment) {
+          this.watchRecoveredPayment(order);
+        }
         return;
       } catch {
-        sessionStorage.removeItem(this.storageKey(order.id));
+        this.writeRequest(this.requestKey(order.id, 'payment'), null);
       }
     }
     this.selectedChannels[order.id] = (order.payment?.channel as PaymentChannel) ?? 'ALIPAY';
@@ -670,6 +717,7 @@ export class PurchaseOrdersComponent implements OnInit {
 
   private updatePaymentOrder(order: PurchaseOrder, pendingKey: string): void {
     this.orders = this.orders.map((item) => (item.id === order.id ? order : item));
+    this.recoverPaymentReceipt(order);
     this.prepareRetry(order);
     const status = order.payment?.status;
     if (this.paymentAwaitingOrder(order)) {
@@ -710,10 +758,65 @@ export class PurchaseOrdersComponent implements OnInit {
   }
 
   private persist(orderId: number, attempt: PaymentAttempt): void {
-    sessionStorage.setItem(this.storageKey(orderId), JSON.stringify(attempt));
+    this.writeRequest(this.requestKey(orderId, 'payment'), JSON.stringify(attempt));
   }
 
-  private storageKey(orderId: number): string {
-    return `commerceflow-payment-attempt-${orderId}`;
+  paymentNeedsRecovery(order: PurchaseOrder): boolean {
+    return this.lastAttempts[order.id]?.awaitingReceipt === true && this.hasAction(order, 'PAY');
+  }
+
+  private recoverPaymentReceipt(order: PurchaseOrder): void {
+    const attempt = this.lastAttempts[order.id];
+    if (!attempt?.awaitingReceipt) return;
+    if (order.payment?.idempotencyKey === attempt.key) {
+      attempt.awaitingReceipt = false;
+      attempt.paymentNumber = order.payment.paymentNumber;
+      this.persist(order.id, attempt);
+      this.notices[order.id] = { type: 'info', text: this.i18n.t('paymentReceiptRecovered') };
+    } else if (this.paymentNeedsRecovery(order)) {
+      this.notices[order.id] = { type: 'info', text: this.i18n.t('paymentReceiptUnknown') };
+    }
+  }
+
+  private watchRecoveredPayment(order: PurchaseOrder): void {
+    if (
+      this.refreshingPayment.has(order.id) ||
+      (order.payment?.status !== 'PENDING' && !this.paymentAwaitingOrder(order))
+    )
+      return;
+    this.refreshingPayment.add(order.id);
+    this.awaitOrder(order.id, (current) => current.payment?.status !== 'PENDING' && !this.paymentAwaitingOrder(current))
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => {
+          this.refreshingPayment.delete(order.id);
+          this.changeDetector.markForCheck();
+        }),
+      )
+      .subscribe({
+        next: (current) => this.updatePaymentOrder(current, 'waitingCallback'),
+        error: () => undefined,
+      });
+  }
+
+  private requestKey(orderId: number, operation: 'payment' | 'cancel'): string {
+    return `commerceflow-order:${this.account.userProfile()?.id}:${orderId}:${operation}`;
+  }
+
+  private readRequest(key: string): string | null {
+    try {
+      return sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  private writeRequest(key: string, value: string | null): void {
+    try {
+      if (value === null) sessionStorage.removeItem(key);
+      else sessionStorage.setItem(key, value);
+    } catch {
+      // Keep the in-memory request when tab storage is unavailable.
+    }
   }
 }

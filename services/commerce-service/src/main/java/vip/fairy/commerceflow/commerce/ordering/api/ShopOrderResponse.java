@@ -100,7 +100,8 @@ public record ShopOrderResponse(
     Instant expiresAt,
     String checkoutUrl,
     String actionType,
-    String qrPayload) {
+    String qrPayload,
+    String idempotencyKey) {
     public static Payment from(PaymentSnapshotV1 payment) {
       return payment == null
         ? null
@@ -119,7 +120,8 @@ public record ShopOrderResponse(
           payment.expiresAt(),
           payment.checkoutUrl(),
           payment.actionType(),
-          payment.qrPayload());
+          payment.qrPayload(),
+          payment.idempotencyKey());
     }
   }
 }

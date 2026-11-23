@@ -17,6 +17,7 @@
 | 退货运单 | `POST /api/purchase-orders/after-sales/{id}/return`、`GET /api/purchase-orders/after-sales/{id}/return-tracking` | CUSTOMER，仅本人售后单 |
 | 商家退货轨迹及验收 | `GET /api/merchant/after-sales/{id}/return-tracking`、`POST /api/merchant/after-sales/{id}/inspection` | MERCHANT，仅本人售后单 |
 | 支付 | `POST /api/purchase-orders/{id}/payments` | CUSTOMER |
+| 顾客发票 | `GET/POST /api/purchase-orders/{id}/invoices`、`GET /api/purchase-orders/{id}/invoices/eligibility` | CUSTOMER，仅本人订单，需启用发票能力 |
 | 退款 | `POST/GET /api/purchase-orders/{id}/refunds`、`GET /api/refunds/{refundNumber}` | CUSTOMER，仅本人订单 |
 | 收货评价 | `POST /api/purchase-orders/{id}/receive`、`POST /api/order-items/{id}/reviews` | CUSTOMER |
 | 商家履约 | `GET /api/merchant/orders/search`、`GET /api/merchant/orders/{id}`、`POST /api/merchant/orders/fulfillment-v1/commands`、`GET /api/merchant/orders/fulfillment-v1/commands/{commandId}`、`POST /api/merchant/orders/{id}/packages` | MERCHANT，仅本店订单 |
@@ -31,6 +32,11 @@
 商品目录和公开店铺通过 `GET /api/products/search` 分页，返回 `products`、`total`、`page` 和 `size`。
 页码从 0 开始，默认每页 12 件。商品只来自当前对外开放的店铺。公开店铺页以当前店铺的 `merchantId`
 查询。目录可再传入 `q`、`lang`、`minPrice`、`maxPrice` 和 `sort`。
+
+顾客订单详情中的 `payment.idempotencyKey` 对应原支付提交。门户按原键核对支付单，结果未知时
+保留渠道和原参数，手动重试复用原键。取消用原订单和取消原因重试，订单侧完成和审计分别使用
+`finish-cancellation:{id}`、`audit-cancellation:{id}`。顾客开票按订单查原申请号，回执迟到时
+继续读取同一申请。服务端为每个订单保留一条开票申请，渠道开票请求使用账本中持久化的请求号。
 
 商家的 `GET /api/merchant/return-work-orders` 与平台的 `GET /api/admin/exchanges` 返回
 `rows`、`total`、`page`、`size`，页码从 0 起算，默认每页 20 条，最大 50 条。

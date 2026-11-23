@@ -2,7 +2,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectorRef, Component, DestroyRef, inject, OnDestroy, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
-import { finalize, Observable, Subscription } from 'rxjs';
+import { finalize, Observable, Subscription, timeout } from 'rxjs';
+import { AccountService } from '../services/account.service';
 import { InvoiceApi, InvoiceDetail, InvoiceMode, InvoicePage, invoiceRoutes } from './invoice-api.service';
 
 @Component({
@@ -16,6 +17,7 @@ export class InvoiceCenterComponent implements OnInit, OnDestroy {
   private readonly api = inject(InvoiceApi);
   private readonly destroyRef = inject(DestroyRef);
   private readonly changeDetector = inject(ChangeDetectorRef);
+  private readonly account = inject(AccountService);
   private loadRequest?: Subscription;
   private refreshTimer?: ReturnType<typeof setTimeout>;
   private scopeVersion = 0;
@@ -36,6 +38,7 @@ export class InvoiceCenterComponent implements OnInit, OnDestroy {
   acting = false;
   error = '';
   actionError = '';
+  applicationPending = false;
   reviewNote = '';
   term = '';
   status = '';
@@ -52,6 +55,7 @@ export class InvoiceCenterComponent implements OnInit, OnDestroy {
       this.reviewNote = '';
       this.acting = false;
       this.actionError = '';
+      this.applicationPending = this.readApplication();
       this.reload();
     });
   }
@@ -95,7 +99,9 @@ export class InvoiceCenterComponent implements OnInit, OnDestroy {
   }
 
   request(): void {
-    if (this.orderId !== null && this.detail?.eligible) this.act(this.api.request(this.orderId));
+    if (this.acting || this.orderId === null || !this.detail?.eligible) return;
+    this.saveApplication(true);
+    this.act(this.api.request(this.orderId).pipe(timeout(8000)), true);
   }
 
   recheck(): void {
@@ -104,7 +110,7 @@ export class InvoiceCenterComponent implements OnInit, OnDestroy {
     }
   }
 
-  private act(request: Observable<InvoiceDetail>): void {
+  private act(request: Observable<InvoiceDetail>, application = false): void {
     if (this.acting) return;
     this.loadRequest?.unsubscribe();
     clearTimeout(this.refreshTimer);
@@ -132,7 +138,12 @@ export class InvoiceCenterComponent implements OnInit, OnDestroy {
           }
         },
         error: (error) => {
-          if (scope === this.scopeVersion) this.actionError = this.errorKey(error, 'invoiceActionFailed');
+          if (scope !== this.scopeVersion) return;
+          if (application && [400, 403, 404, 409, 422].includes(error.status)) this.saveApplication(false);
+          this.actionError = this.errorKey(
+            error,
+            application && this.applicationPending ? 'invoiceRequestUnknown' : 'invoiceActionFailed',
+          );
         },
       });
   }
@@ -157,10 +168,37 @@ export class InvoiceCenterComponent implements OnInit, OnDestroy {
 
   private setDetail(detail: InvoiceDetail): void {
     this.detail = detail;
+    if (this.applicationPending && detail.applicationNo) {
+      this.saveApplication(false);
+      this.actionError = '';
+    }
     clearTimeout(this.refreshTimer);
     if (detail.status === 'PENDING' || detail.redAttempts.some((attempt) => attempt.status === 'PENDING')) {
       this.refreshTimer = setTimeout(() => this.reload(true), 2500);
     }
+  }
+
+  private readApplication(): boolean {
+    if (this.mode !== 'customer' || this.orderId === null) return false;
+    try {
+      return sessionStorage.getItem(this.applicationKey()) === 'pending';
+    } catch {
+      return false;
+    }
+  }
+
+  private saveApplication(pending: boolean): void {
+    this.applicationPending = pending;
+    try {
+      if (pending) sessionStorage.setItem(this.applicationKey(), 'pending');
+      else sessionStorage.removeItem(this.applicationKey());
+    } catch {
+      // Keep the in-memory state when tab storage is unavailable.
+    }
+  }
+
+  private applicationKey(): string {
+    return `commerceflow-invoice:${this.account.userProfile()?.id}:${this.orderId}`;
   }
 
   private errorKey(error: HttpErrorResponse, fallback: string): string {

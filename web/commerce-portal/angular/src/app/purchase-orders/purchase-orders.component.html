@@ -445,6 +445,7 @@
           type="button"
           class="channel-card"
           [class.selected]="selectedChannels[order.id] === option.code"
+          [disabled]="refreshingPayment.has(order.id) || paying.has(order.id) || paymentNeedsRecovery(order)"
           (click)="selectChannel(order, option.code)"
         >
           <span class="channel-logo">{{ option.badge }}</span><span
@@ -474,7 +475,7 @@
           type="button"
           class="btn btn-sm btn-outline-secondary"
           (click)="newAttempt(order)"
-          [disabled]="paying.has(order.id)"
+          [disabled]="paying.has(order.id) || paymentNeedsRecovery(order)"
         >
           {{ 'generateKey' | t }}
         </button>
@@ -487,21 +488,48 @@
           type="button"
           class="btn btn-primary"
           (click)="pay(order, false)"
-          [disabled]="paying.has(order.id) || paymentAwaitingOrder(order)"
+          [disabled]="
+            paying.has(order.id) ||
+            paymentAwaitingOrder(order) ||
+            paymentNeedsRecovery(order) ||
+            cancellationRequests[order.id] !== undefined
+          "
         >
           {{ (paying.has(order.id) ? 'creating' : 'createPayment') | t }}
         </button>
+        <ng-container *ngIf="paymentNeedsRecovery(order)">
+          <button
+            class="btn btn-outline-secondary"
+            type="button"
+            (click)="refresh(order)"
+            [disabled]="refreshingPayment.has(order.id)"
+          >
+            {{ 'checkOriginalPayment' | t }}
+          </button>
+          <button
+            class="btn btn-outline-primary"
+            type="button"
+            (click)="replayLast(order)"
+            [disabled]="paying.has(order.id) || refreshingPayment.has(order.id)"
+          >
+            {{ 'retryOriginalPayment' | t }}
+          </button>
+        </ng-container>
         <button
           type="button"
           class="btn btn-outline-danger"
-          *ngIf="hasAction(order, 'CANCEL_ORDER')"
+          *ngIf="hasAction(order, 'CANCEL_ORDER') && cancellationRequests[order.id] === undefined"
           (click)="toggleCancel(order)"
           [disabled]="cancelling.has(order.id)"
         >
           {{ 'cancelOrder' | t }}
         </button>
       </div>
-      <form *ngIf="cancelForms.has(order.id)" class="cancel-order-form" (ngSubmit)="cancelOrder(order)">
+      <form
+        *ngIf="cancelForms.has(order.id) && cancellationRequests[order.id] === undefined"
+        class="cancel-order-form"
+        (ngSubmit)="cancelOrder(order)"
+      >
         <strong>{{ 'cancelOrderTitle' | t }}</strong>
         <p>{{ 'cancelOrderHelp' | t }}</p>
         <input
@@ -518,7 +546,7 @@
           <button type="button" class="btn btn-link" (click)="toggleCancel(order)">{{ 'cancel' | t }}</button>
         </div>
       </form>
-      <details class="experiment" *ngIf="lastAttempts[order.id]">
+      <details class="experiment" *ngIf="lastAttempts[order.id] && !paymentNeedsRecovery(order)">
         <summary>{{ 'advancedExperiments' | t }}</summary>
         <p>{{ 'replayExplanation' | t }}</p>
         <button
@@ -539,6 +567,26 @@
           {{ 'reuseAnotherChannel' | t }}
         </button>
       </details>
+    </section>
+    <section *ngIf="cancellationRequests[order.id] !== undefined" class="cancel-order-form">
+      <p role="status">{{ (order.status === 'CANCELLING' ? 'orderCancelling' : 'cancelReceiptUnknown') | t }}</p>
+      <p *ngIf="cancellationRequests[order.id]">{{ cancellationRequests[order.id] }}</p>
+      <button
+        class="btn btn-outline-secondary me-2"
+        type="button"
+        (click)="checkCancellation(order)"
+        [disabled]="cancelling.has(order.id)"
+      >
+        {{ 'checkOriginalCancellation' | t }}
+      </button>
+      <button
+        class="btn btn-outline-danger"
+        type="button"
+        (click)="cancelOrder(order)"
+        [disabled]="cancelling.has(order.id)"
+      >
+        {{ 'retryOriginalCancellation' | t }}
+      </button>
     </section>
     <section
       class="payment-receipt"
