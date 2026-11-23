@@ -1,3 +1,4 @@
+#requires -Version 7.0
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 
@@ -17,16 +18,31 @@ function Assert-Contains([string]$Label, [string]$RelativePath, [string]$Pattern
 }
 
 function Assert-Absent([string]$Label, [string[]]$Paths, [string]$Pattern) {
+  $PSNativeCommandUseErrorActionPreference = $false
   $matches = @(rg -n $Pattern @Paths 2>$null)
   if ($LASTEXITCODE -eq 0 -or $matches.Count -gt 0) {
     throw "Payment CUTOVER review drifted: $Label was found: $matches"
   }
+  if ($LASTEXITCODE -ne 1) {
+    throw "Payment CUTOVER evidence could not be checked: $Label"
+  }
   Write-Host "  PASS evidence confirmed: $Label"
 }
 
+function Assert-PaymentMySql([string]$Graph, [string[]]$ComposeFiles) {
+  $config = docker compose @ComposeFiles config --format json
+  if ($LASTEXITCODE -ne 0) { throw "Compose configuration is invalid ($Graph)" }
+
+  $services = ($config | ConvertFrom-Json -AsHashtable).services
+  if ($services['payment-orchestration-service'].environment.DATABASE_URL -notmatch '^jdbc:mysql:' -or
+      $services['payment-db'].image -notmatch '(?:^|/)mysql(?:[:@]|$)') {
+    throw "Payment CUTOVER review drifted: payment orchestration and payment-db must use MySQL ($Graph)"
+  }
+
+  Write-Host "  PASS evidence confirmed: payment orchestration and payment-db use MySQL ($Graph)"
+}
+
 Set-Location $ProjectRoot
-docker compose config --quiet
-if ($LASTEXITCODE -ne 0) { throw 'Compose configuration is invalid' }
 
 Write-Host 'Payment CUTOVER safety gates:'
 Assert-Contains 'independent service owns ordinary traffic' 'compose.yaml' `
@@ -36,8 +52,8 @@ Assert-Contains 'independent service owns downstream effects' 'compose.yaml' `
 Assert-Contains 'shadow replication is disabled in the default graph' 'compose.yaml' `
   'PAYMENT_SHADOW_ENABLED: "false"'
 Assert-Absent 'payment runtime has no commerce source credentials' @('compose.yaml') 'PAYMENT_SOURCE_DATABASE_'
-Assert-Absent 'PostgreSQL is not configured' @('compose.yaml', 'infrastructure/compose/compose.ha.yaml') `
-  '(?i)postgres|jdbc:postgresql'
+Assert-PaymentMySql 'default' @('-f', 'compose.yaml')
+Assert-PaymentMySql 'HA' @('-f', 'compose.yaml', '-f', 'infrastructure/compose/compose.ha.yaml')
 
 Write-Host 'Payment CUTOVER prerequisite closure:'
 Assert-File 'independent remote Order V1 effect client' `
