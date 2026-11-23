@@ -14,6 +14,7 @@ import { TrcurrencyPipe } from '../pipes/trcurrency.pipe';
 import { OrderListFilterComponent } from '../order-list-filter/order-list-filter.component';
 import { LineAfterSalesComponent } from '../line-after-sales/line-after-sales.component';
 import { AfterSaleTrackingComponent } from '../line-after-sales/after-sale-tracking.component';
+import { CatalogImageComponent } from '../dashboard/catalog-image.component';
 
 describe('PurchaseOrdersComponent', () => {
   let fixture: ComponentFixture<PurchaseOrdersComponent>;
@@ -104,7 +105,7 @@ describe('PurchaseOrdersComponent', () => {
       receiveOrder: jasmine.createSpy().and.returnValue(of({ ...order, status: 'RECEIVED' })),
     };
     await TestBed.configureTestingModule({
-      imports: [FormsModule, RouterTestingModule, ListPaginationComponent, HlmButton],
+      imports: [FormsModule, RouterTestingModule, ListPaginationComponent, HlmButton, CatalogImageComponent],
       declarations: [
         PurchaseOrdersComponent,
         OrderListFilterComponent,
@@ -142,14 +143,16 @@ describe('PurchaseOrdersComponent', () => {
     const row = panel.querySelector('.order-summary-row') as HTMLElement;
     expect(panel.querySelector('app-order-list-filter')).not.toBeNull();
     expect(Array.from(panel.querySelectorAll('thead th'), (item) => item.textContent?.trim())).toEqual([
-      'Order number',
       'Products',
+      'Ordered',
       'Status',
       'Amount',
       'Action',
     ]);
     expect(row.querySelector('.order-identity a')?.getAttribute('href')).toBe('/orders/42');
-    expect(row.querySelector('.order-products')?.textContent).toContain('Learning Item');
+    expect(row.querySelector('.order-identity time')?.getAttribute('datetime')).toBe(order.createdAt);
+    expect(row.querySelector(':first-child.order-products')?.textContent).toContain('Learning Item');
+    expect(row.querySelector('.order-product-image img')?.getAttribute('src')).toBe('item.png');
     expect(row.querySelector('.order-state')?.textContent).toContain('Pending payment');
     expect(row.querySelector('.order-total')?.textContent).toContain('99');
     expect(row.querySelector('.summary-actions .primary-action-slot button')).not.toBeNull();

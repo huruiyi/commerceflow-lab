@@ -336,14 +336,97 @@
   }
 }
 
-.invoice-center:has(.invoice-customer-help) {
+.invoice-customer-list {
   max-width: none;
   padding: 0;
+  font-size: 0.875rem;
 }
 
-.invoice-customer-help {
-  color: var(--cf-muted, #526660);
-  font-size: 0.9rem;
+.invoice-customer-list .invoice-toolbar {
+  padding: 0.9rem 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--cf-line);
+  border-radius: 0.75rem;
+  background: var(--cf-surface);
+}
+
+.invoice-customer-list .invoice-heading {
+  padding: 0;
+  margin-bottom: 0.85rem;
+  border: 0;
+}
+
+.invoice-customer-list .invoice-heading h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  letter-spacing: normal;
+}
+
+.invoice-customer-list .invoice-filters {
+  margin-bottom: 0;
+}
+
+.invoice-orders-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid var(--cf-line);
+  border-radius: 0.45rem;
+  color: var(--cf-accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.invoice-orders-link:hover,
+.invoice-copy-button:hover {
+  background: var(--cf-tint);
+}
+
+.invoice-identity-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 0.55rem;
+}
+
+.invoice-identity-label {
+  flex-shrink: 0;
+  color: var(--cf-muted);
+  font-size: 0.8125rem;
+}
+
+.invoice-identifier {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  max-width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+
+.invoice-identifier-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.invoice-copy-button {
+  display: inline-grid;
+  flex: 0 0 2rem;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--cf-accent);
+}
+
+.invoice-copy-button:focus-visible,
+.invoice-orders-link:focus-visible {
+  outline: 2px solid var(--cf-focus);
+  outline-offset: 2px;
 }
 
 .invoice-customer-row {
@@ -357,11 +440,21 @@
     align-items: start;
   }
 
+  .invoice-customer-row .invoice-row-id {
+    grid-column: 1 / -1;
+  }
+
+  .invoice-customer-row .invoice-status {
+    justify-self: start;
+    align-self: center;
+  }
+
   .invoice-customer-row .invoice-value {
-    text-align: start;
+    text-align: end;
   }
 
   .invoice-customer-row .btn {
+    grid-column: 2;
     justify-self: end;
   }
 }

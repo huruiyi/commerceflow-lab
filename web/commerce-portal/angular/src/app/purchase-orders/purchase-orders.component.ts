@@ -1,4 +1,3 @@
-import { displayOrderNumber } from './order-number';
 import { afterNextRender, ChangeDetectorRef, Component, DestroyRef, ElementRef, Injector, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationSkipped, NavigationSkippedCode, Router } from '@angular/router';
@@ -62,7 +61,6 @@ interface Notice {
   styleUrls: ['./order-list-layout.css', './purchase-orders.component.css'],
 })
 export class PurchaseOrdersComponent implements OnInit {
-  readonly displayOrderNumber = displayOrderNumber;
   readonly reviewScores = [1, 2, 3, 4, 5];
   readonly channels: ChannelOption[] = [
     {

@@ -20,15 +20,15 @@
   <app-order-list-filter [result]="page" [applied]="criteria" [loading]="loading" (changed)="applyCriteria($event)" />
   <table
     *ngIf="orders.length"
-    class="orders-table"
+    class="orders-table customer-orders-table"
     role="table"
     aria-labelledby="orders-title"
     [attr.aria-busy]="loading"
   >
     <thead role="rowgroup">
       <tr role="row">
-        <th scope="col" role="columnheader">{{ 'buyerOrderNumber' | t }}</th>
         <th scope="col" role="columnheader">{{ 'products' | t }}</th>
+        <th scope="col" role="columnheader">{{ 'orderedAt' | t }}</th>
         <th scope="col" role="columnheader">{{ 'status' | t }}</th>
         <th scope="col" role="columnheader" class="amount-column">{{ 'amount' | t }}</th>
         <th scope="col" role="columnheader" class="actions-column">{{ 'action' | t }}</th>
@@ -37,20 +37,25 @@
     <tbody role="rowgroup">
       <ng-container *ngFor="let order of orders; trackBy: trackOrder">
         <tr role="row" class="order-summary-row" [attr.data-order-id]="order.id" [attr.data-status]="order.status">
-          <th scope="row" role="rowheader" class="order-identity">
+          <th scope="row" role="rowheader" class="order-products">
+            <div class="order-product-preview">
+              <app-catalog-image class="compact order-product-image" [primary]="order.items[0]?.thumbnailUrl || ''" />
+              <div>
+                <span>{{ order.items[0]?.productName || '—' }}</span>
+                <small>{{ order.items.length }} {{ 'itemsCount' | t }}</small>
+              </div>
+            </div>
+          </th>
+          <td role="cell" class="order-identity">
+            @let orderedAt = order.createdAt | trdate;
             <a
               [routerLink]="['/orders', order.id]"
               [queryParams]="listQueryParams"
               [attr.title]="order.orderNumber"
-              [attr.aria-label]="i18n.t('openOrderDetails', { order: order.orderNumber })"
+              [attr.aria-label]="orderedAt + ' · ' + i18n.t('openOrderDetails', { order: order.orderNumber })"
             >
-              {{ displayOrderNumber(order.orderNumber) }}
+              <time [attr.datetime]="order.createdAt">{{ orderedAt }}</time>
             </a>
-            <small>{{ order.createdAt | trdate }}</small>
-          </th>
-          <td role="cell" class="order-products">
-            <span>{{ order.items[0]?.productName || '—' }}</span>
-            <small>{{ order.items.length }} {{ 'itemsCount' | t }}</small>
           </td>
           <td role="cell" class="order-state">
             <ng-container *ngTemplateOutlet="orderState; context: { $implicit: order }" />

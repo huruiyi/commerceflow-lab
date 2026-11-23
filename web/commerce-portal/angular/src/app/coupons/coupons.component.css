@@ -32,9 +32,13 @@
 
 .coupon-columns {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.2fr);
   align-items: start;
   gap: 1rem;
+}
+
+.coupon-columns-compact {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .coupon-panel {
@@ -59,6 +63,44 @@
 
 .coupon-panel-heading {
   border-bottom: 1px solid var(--cf-line);
+}
+
+.customer-campaigns .coupon-panel-heading {
+  justify-content: start;
+  flex-wrap: nowrap;
+  gap: 0.75rem;
+  border-bottom: 0;
+}
+
+.coupon-campaign-icon {
+  display: grid;
+  flex: 0 0 2.5rem;
+  min-height: 2.5rem;
+  place-items: center;
+  border-radius: 0.55rem;
+  background: var(--cf-tint);
+  color: var(--cf-accent);
+  font-size: 1.15rem;
+}
+
+.coupon-campaign-summary {
+  min-width: 0;
+}
+
+.coupon-campaign-summary .coupon-guidance {
+  margin: 0.2rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.customer-campaigns .campaign-list {
+  border-top: 1px solid var(--cf-line);
+}
+
+.customer-campaigns .coupon-amount {
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.45rem;
+  background: var(--cf-tint);
 }
 
 .coupon-total,
@@ -406,8 +448,4 @@
   margin: 0 0 0.75rem;
   color: var(--cf-muted, #526660);
   font-size: 0.875rem;
-}
-
-.coupon-campaign-guidance {
-  padding-inline: 1rem;
 }

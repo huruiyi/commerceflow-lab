@@ -90,7 +90,7 @@
     </section>
     <ng-container *ngTemplateOutlet="campaignList" />
   } @else {
-    <div class="coupon-columns">
+    <div class="coupon-columns" [class.coupon-columns-compact]="!campaignRows().length">
       <ng-container *ngTemplateOutlet="campaignList" />
       <section class="coupon-panel" aria-labelledby="coupon-wallet-title" [attr.aria-busy]="walletLoading()">
         <header class="coupon-panel-heading">
@@ -173,13 +173,27 @@
 </section>
 
 <ng-template #campaignList>
-  <section class="coupon-panel" aria-labelledby="coupon-campaigns-title" [attr.aria-busy]="campaignsLoading()">
+  <section
+    class="coupon-panel"
+    [class.customer-campaigns]="!merchant"
+    aria-labelledby="coupon-campaigns-title"
+    [attr.aria-busy]="campaignsLoading()"
+  >
     <header class="coupon-panel-heading">
-      <h2 id="coupon-campaigns-title">{{ (merchant ? 'couponCampaignList' : 'couponClaimableCampaigns') | t }}</h2>
+      @if (merchant) {
+        <h2 id="coupon-campaigns-title">{{ 'couponCampaignList' | t }}</h2>
+      } @else {
+        <span class="coupon-campaign-icon" aria-hidden="true"><i class="bi bi-ticket-perforated"></i></span>
+        <div class="coupon-campaign-summary">
+          <h2 id="coupon-campaigns-title">{{ 'couponClaimableCampaigns' | t }}</h2>
+          @if (campaignRows().length && !campaignsLoading() && !campaignsFailed()) {
+            <p class="coupon-guidance">{{ 'couponClaimHelp' | t }}</p>
+          } @else if (!campaignsLoading() && !campaignsFailed()) {
+            <p class="coupon-guidance" role="status">{{ 'couponNoCampaigns' | t }}</p>
+          }
+        </div>
+      }
     </header>
-    @if (!merchant) {
-      <p class="coupon-guidance coupon-campaign-guidance">{{ 'couponClaimHelp' | t }}</p>
-    }
     @if (campaignsLoading()) {
       <p class="coupon-state" role="status">{{ 'couponCampaignsLoading' | t }}</p>
     } @else if (campaignsFailed()) {
@@ -251,7 +265,7 @@
         [label]="'couponCampaignPages' | t"
         (pageChange)="changeCampaignPage($event)"
       />
-    } @else {
+    } @else if (merchant) {
       <p class="coupon-state" role="status">{{ 'couponNoCampaigns' | t }}</p>
     }
   </section>

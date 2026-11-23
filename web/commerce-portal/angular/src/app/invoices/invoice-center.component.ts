@@ -1,11 +1,10 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectorRef, Component, DestroyRef, inject, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { finalize, Observable, Subscription, timeout } from 'rxjs';
 import { AccountService } from '../services/account.service';
 import { InvoiceApi, InvoiceDetail, InvoiceMode, InvoicePage, invoiceRoutes } from './invoice-api.service';
-import { displayOrderNumber } from '../purchase-orders/order-number';
 
 @Component({
   standalone: false,
@@ -14,7 +13,6 @@ import { displayOrderNumber } from '../purchase-orders/order-number';
   styleUrl: './invoice-center.component.css',
 })
 export class InvoiceCenterComponent implements OnInit, OnDestroy {
-  readonly displayOrderNumber = displayOrderNumber;
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(InvoiceApi);
   private readonly destroyRef = inject(DestroyRef);
@@ -28,6 +26,8 @@ export class InvoiceCenterComponent implements OnInit, OnDestroy {
   readonly mode = this.route.snapshot.data['invoiceMode'] as InvoiceMode;
   readonly root = invoiceRoutes[this.mode];
   readonly statusOptions = ['PENDING', 'ISSUED', 'EXHAUSTED', 'REVIEW_REQUIRED'];
+  readonly copiedIdentifier = signal('');
+  readonly copyFailed = signal(false);
   readonly heading = {
     customer: 'invoiceCustomer',
     merchant: 'invoiceMerchant',
@@ -59,6 +59,8 @@ export class InvoiceCenterComponent implements OnInit, OnDestroy {
       this.reviewRequest = undefined;
       this.acting = false;
       this.actionError = '';
+      this.copiedIdentifier.set('');
+      this.copyFailed.set(false);
       this.applicationPending = this.readApplication();
       this.reload();
     });
@@ -100,6 +102,17 @@ export class InvoiceCenterComponent implements OnInit, OnDestroy {
 
   detailLink(orderId: number): (string | number)[] {
     return this.mode === 'customer' ? ['/orders', orderId, 'invoices'] : [this.root, orderId];
+  }
+
+  async copyIdentifier(value: string): Promise<void> {
+    this.copiedIdentifier.set('');
+    this.copyFailed.set(false);
+    try {
+      await navigator.clipboard.writeText(value.toLowerCase());
+      this.copiedIdentifier.set(value);
+    } catch {
+      this.copyFailed.set(true);
+    }
   }
 
   request(): void {
