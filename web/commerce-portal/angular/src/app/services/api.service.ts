@@ -24,7 +24,6 @@ import {
   InventoryRecovery,
   StocktakeBaseline,
   StocktakeProposal,
-  StocktakeReceipt,
   StocktakeReview,
   WarehouseEvidenceContext,
   WarehouseEvidenceLine,
@@ -237,8 +236,8 @@ export class ApiService {
     return this.http.get<StocktakeReview>(`${this.stocktakes}/${encodeURIComponent(reference)}`);
   }
 
-  approveStocktake(reference: string): Observable<StocktakeReceipt> {
-    return this.http.post<StocktakeReceipt>(`${this.stocktakes}/${encodeURIComponent(reference)}/approve`, {});
+  approveStocktake(reference: string, reason: string): Observable<StocktakeReview> {
+    return this.http.post<StocktakeReview>(`${this.stocktakes}/${encodeURIComponent(reference)}/approve`, { reason });
   }
 
   warehouseEvidenceContext(commandId: string): Observable<WarehouseEvidenceContext> {

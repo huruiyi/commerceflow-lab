@@ -34,7 +34,8 @@ public final class InvoicePortal {
   }
 
   /** A completed operator action retains the previous review evidence and the authenticated actor. */
-  public record ReviewAction(long actorId, String priorReason, String priorDetail, String note, Instant createdAt) {
+  public record ReviewAction(long actorId, String priorReason, String priorDetail, String note, Instant createdAt,
+                             String requestId) {
   }
 
   public record OperatorInvoice(String orderNumber, View invoice, List<Attempt> issueAttempts,

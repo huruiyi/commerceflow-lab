@@ -54,6 +54,15 @@
 同店原订单行、销售账本和原冻结账单。原销售账单未确认时返回空引用，不计入已确认的跨期退款。
 分页从 0 开始，默认每页 10 条，最大 20 条。账单属于其他店铺时返回 404。
 
+## 管理员人工恢复 API
+
+| 操作 | 入口与审计 |
+| --- | --- |
+| 盘点审批 | `POST /api/admin/inventory-command-recoveries/stocktakes/{reference}/approve` 接收审批人独立填写的 `reason`。登记人无法审批自己的报告。回执包含盘点报告、审批人、理由、时间及库存调整流水。 |
+| 失败打款恢复 | `POST /api/admin/stores/{merchantId}/statements/{id}/payouts` 复用冻结账单。恢复须传 `requestId`、最近一笔渠道已确认失败的 `recoveryOf` 和 `reason`。管理员可查原单号、操作人和理由，商家只读本店打款。 |
+| 发票复核 | `POST /api/admin/invoices/{orderId}/review-actions` 需要管理员的发票运营授权，并传 `requestId` 和 `note`。审计保存复核前的原因、证据、操作人和时间，同一请求重放不重复复核。 |
+| 通知投递重试 | `GET /api/admin/notification-deliveries/{eventId}` 查询商城发送 Outbox 的原事件及审计。仅允许通过 `POST /api/admin/notification-deliveries/{eventId}/retries` 重试 `DEAD` 事件，提交 `requestId` 和 `reason`。重试使用原事件号及载荷。 |
+
 ## 商家履约 API
 
 - 商家订单搜索默认每页 10 笔，`page` 从 0 开始，`size` 可设为 1–20。按创建时间和订单 ID 倒序返回，`pendingConfirm` 和 `pendingShip` 是本店待办总数。`orderNumber` 用完整订单号精确匹配，可配合 `status` 使用。关键词、商品和运单等模糊查询用 `q`，两个参数互斥。查不到或订单归属其他店铺时返回空页，按内部 ID 查其他店铺订单返回 404。原 `GET /api/merchant/orders` 全量入口已移除。

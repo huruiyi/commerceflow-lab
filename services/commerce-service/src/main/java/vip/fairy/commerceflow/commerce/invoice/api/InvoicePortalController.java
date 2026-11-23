@@ -2,7 +2,9 @@ package vip.fairy.commerceflow.commerce.invoice.api;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
@@ -77,7 +79,7 @@ public class InvoicePortalController {
     long actor = actors.requireId(user);
     access.requireOperator(actor);
     return ResponseEntity.accepted().cacheControl(CacheControl.noStore()).body(
-      invoices.recheck(orderId, actor, command.note()));
+      invoices.recheck(orderId, actor, command.requestId().toString(), command.note().strip()));
   }
 
   private static <T> ResponseEntity<T> read(T value) {
@@ -91,6 +93,6 @@ public class InvoicePortalController {
     }
   }
 
-  record Review(@NotBlank @Size(max = 300) String note) {
+  record Review(@NotNull UUID requestId, @NotBlank @Size(max = 300) String note) {
   }
 }

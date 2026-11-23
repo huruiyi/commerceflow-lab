@@ -53,11 +53,15 @@
     WHERE order_id = #{orderId} AND kind = #{kind} AND reference_no = #{referenceNo} AND id &gt; #{afterId}
   </select>
   <insert id="insertReviewAction">
-    INSERT INTO invoice_review_actions (order_id, actor_id, prior_reason, prior_detail, note)
-    VALUES (#{orderId}, #{actorId}, #{priorReason}, #{priorDetail}, #{note})
+    INSERT INTO invoice_review_actions (order_id, actor_id, prior_reason, prior_detail, note, request_id)
+    VALUES (#{orderId}, #{actorId}, #{priorReason}, #{priorDetail}, #{note}, #{requestId})
   </insert>
+  <select id="reviewAction" resultType="vip.fairy.commerceflow.commerce.invoice.domain.InvoicePortal$ReviewAction">
+    SELECT actor_id, prior_reason, prior_detail, note, created_at, request_id
+    FROM invoice_review_actions WHERE order_id = #{orderId} AND request_id = #{requestId}
+  </select>
   <select id="reviewActions" resultType="vip.fairy.commerceflow.commerce.invoice.domain.InvoicePortal$ReviewAction">
-    SELECT actor_id, prior_reason, prior_detail, note, created_at
+    SELECT actor_id, prior_reason, prior_detail, note, created_at, request_id
     FROM invoice_review_actions WHERE order_id = #{orderId} ORDER BY id DESC LIMIT 50
   </select>
   <update id="reopen">

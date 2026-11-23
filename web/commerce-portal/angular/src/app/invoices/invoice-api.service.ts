@@ -39,6 +39,7 @@ interface ReviewAction {
   priorDetail: string | null;
   note: string;
   createdAt: string;
+  requestId?: string | null;
 }
 
 export interface InvoiceDetail {
@@ -115,12 +116,12 @@ export class InvoiceApi {
     );
   }
 
-  recheck(orderId: number, note: string): Observable<InvoiceDetail> {
+  recheck(orderId: number, requestId: string, note: string): Observable<InvoiceDetail> {
     return this.csrf().pipe(
       switchMap(({ headerName, token }) =>
         this.http.post<OperatorInvoice>(
           `/api/admin/invoices/${orderId}/review-actions`,
-          { note },
+          { requestId, note },
           {
             headers: { [headerName]: token },
           },

@@ -6,7 +6,7 @@
     VALUES(#{reference},#{proposal},#{actor})
   </insert>
   <sql id="review">
-    SELECT reference,proposal,counted_by,approved_by,receipt
+    SELECT reference,proposal,counted_by,approved_by,approval_reason,approved_at,receipt
     FROM inventory_stocktake_reviews WHERE reference=#{reference}
   </sql>
   <select id="find" resultType="vip.fairy.commerceflow.commerce.inventory.infrastructure.StocktakeReviewMapper$Row">
@@ -16,7 +16,8 @@
     <include refid="review"/> FOR UPDATE
   </select>
   <update id="approve">
-    UPDATE inventory_stocktake_reviews SET approved_by=#{actor},approved_at=CURRENT_TIMESTAMP(6)
+    UPDATE inventory_stocktake_reviews
+    SET approved_by=#{actor},approval_reason=#{reason},approved_at=CURRENT_TIMESTAMP(6)
     WHERE reference=#{reference} AND approved_by IS NULL
   </update>
   <update id="complete">

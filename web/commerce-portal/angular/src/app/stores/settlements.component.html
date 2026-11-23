@@ -85,17 +85,31 @@
       <li class="list-group-item" *ngFor="let item of payouts()">
         {{ item.status }} · {{ item.amount | currency: 'CNY' }}
         <span *ngIf="item.channelPayoutNo"> · {{ item.channelPayoutNo }}</span>
+        @if (admin && item.recoveryOf) {
+          <p class="mb-0 text-break">
+            原打款 / Original payout {{ item.recoveryOf }} · #{{ item.requestedBy }} ·
+            {{ item.createdAt | date: 'medium' }}
+          </p>
+          <p class="mb-0">{{ item.recoveryReason }}</p>
+        }
       </li>
     </ul>
-    <button
-      *ngIf="admin && (!payouts().length || payouts()[0].status === 'FAILED')"
-      class="btn btn-outline-primary"
-      type="button"
-      [disabled]="busy()"
-      (click)="requestPayout()"
-    >
-      发起模拟打款 / Request simulated payout
-    </button>
+    @if (admin && !payouts().length) {
+      <button class="btn btn-outline-primary" type="button" [disabled]="busy()" (click)="requestPayout()">
+        发起模拟打款 / Request simulated payout
+      </button>
+    }
+    @if (admin && payouts()[0]?.status === 'FAILED' && payouts()[0].channelPayoutNo) {
+      <form class="mb-3" (ngSubmit)="requestPayout()">
+        <label class="form-label">
+          恢复理由 / Recovery reason
+          <input class="form-control" name="payoutReason" maxlength="300" [(ngModel)]="payoutReason" required />
+        </label>
+        <button class="btn btn-outline-primary ms-2" type="submit" [disabled]="busy() || !payoutReason.trim()">
+          恢复失败打款 / Recover failed payout
+        </button>
+      </form>
+    }
   </ng-container>
   <ng-container *ngIf="pending().length"
     ><h3 class="h5">待结余额记录 / Pending entries</h3>

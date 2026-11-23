@@ -112,16 +112,23 @@ public class CommerceInvoiceService {
     return transactions.execute(ignored -> operatorView(requireApp(orderId)));
   }
 
-  public OperatorInvoice recheck(long orderId, long actorId, String note) {
+  public OperatorInvoice recheck(long orderId, long actorId, String requestId, String note) {
     return transactions.execute(ignored -> {
       Application app = journal.lock(orderId);
       if (app == null) {
         throw missing();
       }
+      var prior = journal.reviewAction(orderId, requestId);
+      if (prior != null) {
+        if (prior.actorId() != actorId || !prior.note().equals(note)) {
+          throw new BusinessRuleException("Invoice review request has different operator or reason");
+        }
+        return operatorView(app);
+      }
       if (app.status() != State.REVIEW_REQUIRED) {
         throw new BusinessRuleException("Invoice is no longer awaiting review");
       }
-      journal.insertReviewAction(orderId, actorId, app.reviewReason(), app.reviewDetail(), note.strip());
+      journal.insertReviewAction(orderId, actorId, app.reviewReason(), app.reviewDetail(), note, requestId);
       boolean restart = List.of("ISSUE_RETRIES_EXHAUSTED", "RED_RETRIES_EXHAUSTED").contains(app.reviewReason());
       State state = issued(latestIssue(journal.attempts(orderId))) ? State.ISSUED : State.PENDING;
       journal.reopen(orderId, state, restart);

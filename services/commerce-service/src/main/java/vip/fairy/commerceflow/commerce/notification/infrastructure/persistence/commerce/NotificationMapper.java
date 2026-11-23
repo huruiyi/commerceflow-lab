@@ -3,6 +3,8 @@ package vip.fairy.commerceflow.commerce.notification.infrastructure.persistence.
 import java.time.Instant;
 import java.util.List;
 
+import vip.fairy.commerceflow.commerce.notification.domain.DeliveryAudit.Delivery;
+import vip.fairy.commerceflow.commerce.notification.domain.DeliveryAudit.Recovery;
 import vip.fairy.commerceflow.commerce.notification.domain.NotificationOutboxEntry;
 import org.apache.ibatis.annotations.Param;
 
@@ -32,4 +34,15 @@ public interface NotificationMapper {
 
 
   int replayDeadOutbox(@Param("eventId") String eventId);
+
+  Delivery delivery(String eventId);
+
+  Delivery lockDelivery(String eventId);
+
+  Recovery recovery(@Param("eventId") String eventId, @Param("requestId") String requestId);
+
+  List<Recovery> recoveries(String eventId);
+
+  void recordRecovery(@Param("delivery") Delivery delivery, @Param("requestId") String requestId,
+                      @Param("actorId") long actorId, @Param("reason") String reason);
 }

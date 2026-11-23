@@ -62,15 +62,16 @@ public class StocktakeRecoveryService {
   }
 
   @Transactional
-  public void approve(String reference, String actor) {
+  public void approve(String reference, String actor, String reason) {
     Row row = require(reviews.lock(reference));
     if (actor.equalsIgnoreCase(row.countedBy())) {
       throw new BusinessRuleException("The person who recorded the stocktake cannot approve it");
     }
     if (row.approvedBy() == null) {
-      reviews.approve(reference, actor);
-    } else if (!actor.equals(row.approvedBy())) {
-      throw new BusinessRuleException("Stocktake approval was already recorded by a different reviewer");
+      reviews.approve(reference, actor, reason);
+    } else if (!actor.equals(row.approvedBy())
+        || (row.approvalReason() != null && !reason.equals(row.approvalReason()))) {
+      throw new BusinessRuleException("Stocktake approval has different reviewer or evidence");
     }
   }
 
@@ -148,13 +149,14 @@ public class StocktakeRecoveryService {
 
   private Review view(Row row) {
     var receipt = row.receipt() == null ? null : json.readValue(row.receipt(), StocktakeV1.Receipt.class);
-    return new Review(decode(row), row.countedBy(), row.approvedBy(), receipt);
+    return new Review(decode(row), row.countedBy(), row.approvedBy(), row.approvalReason(), row.approvedAt(), receipt);
   }
 
   public record Proposal(String reference, long productId, StocktakeV1.Baseline baseline, Integer countedAvailable,
                          Instant countedAt, String note, List<String> commandIds) {
   }
 
-  public record Review(Proposal proposal, String countedBy, String approvedBy, StocktakeV1.Receipt receipt) {
+  public record Review(Proposal proposal, String countedBy, String approvedBy, String approvalReason,
+                       Instant approvedAt, StocktakeV1.Receipt receipt) {
   }
 }

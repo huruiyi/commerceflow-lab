@@ -3,7 +3,7 @@
 <mapper namespace="vip.fairy.commerceflow.commerce.merchant.infrastructure.MerchantPayoutMapper">
   <sql id="columns">
     id,statement_id,merchant_id,amount,currency,status,simulate_failure,
-    requested_by,channel_payout_no,created_at,resolved_at
+    requested_by,channel_payout_no,created_at,resolved_at,recovery_of,recovery_reason
   </sql>
   <select id="find" resultType="vip.fairy.commerceflow.commerce.merchant.domain.MerchantPayout">
     SELECT <include refid="columns"/> FROM merchant_payout_attempts WHERE id=#{id}
@@ -22,8 +22,9 @@
   </select>
   <insert id="insert">
     INSERT INTO merchant_payout_attempts(id,statement_id,merchant_id,amount,currency,status,
-                                         simulate_failure,requested_by)
-    VALUES(#{id},#{statementId},#{merchantId},#{amount},#{currency},'REQUESTED',#{simulateFailure},#{requestedBy})
+                                         simulate_failure,requested_by,recovery_of,recovery_reason)
+    VALUES(#{id},#{statementId},#{merchantId},#{amount},#{currency},'REQUESTED',#{simulateFailure},#{requestedBy},
+           #{recoveryOf},#{recoveryReason})
   </insert>
   <update id="observe">
     UPDATE merchant_payout_attempts SET status=#{status},channel_payout_no=#{channel},resolved_at=#{resolvedAt},

@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
@@ -49,24 +50,40 @@ public class MerchantPayoutService {
   }
 
   @Transactional
-  public MerchantPayout request(Long merchant, String statement, String attempt, Long admin, boolean fail) {
+  public MerchantPayout request(Long merchant, String statement, String attempt, Long admin, boolean fail,
+                                String recoveryOf, String reason) {
     if (ledger.lockAccount(merchant) == null) throw new ResourceNotFoundException("Settlement account not found");
     var value = ledger.statement(statement);
     if (value == null || !merchant.equals(value.merchantId())) {
       throw new ResourceNotFoundException("Statement not found");
     }
+    String recoveryReason = reason == null || reason.isBlank() ? null : reason.strip();
+    if ((recoveryOf == null) != (recoveryReason == null)) {
+      throw new IllegalArgumentException("Payout recovery requires the original failed attempt and a reason");
+    }
     var replay = payouts.find(attempt);
     if (replay != null) {
       if (!statement.equals(replay.statementId()) || !merchant.equals(replay.merchantId())
-        || fail != replay.simulateFailure()) {
+        || fail != replay.simulateFailure() || !admin.equals(replay.requestedBy())
+        || !Objects.equals(recoveryOf, replay.recoveryOf())
+        || !Objects.equals(recoveryReason, replay.recoveryReason())) {
         throw new BusinessRuleException("Payout request conflicts with its original statement or parameters");
       }
       return replay;
     }
     var latest = payouts.attempts(statement).stream().findFirst().orElse(null);
-    if (latest != null && !"FAILED".equals(latest.status())) return latest;
+    if (recoveryOf != null && (latest == null || !recoveryOf.equals(latest.id())
+        || !"FAILED".equals(latest.status()) || latest.channelPayoutNo() == null)) {
+      throw new BusinessRuleException("Only the latest payout with a confirmed failure can be recovered");
+    }
+    if (recoveryOf == null && latest != null) {
+      if ("FAILED".equals(latest.status())) {
+        throw new BusinessRuleException("Record recovery evidence for the failed payout");
+      }
+      return latest;
+    }
     payouts.insert(new MerchantPayout(attempt, statement, merchant, value.payable(), "CNY", "REQUESTED",
-      fail, admin, null, null, null));
+      fail, admin, null, null, null, recoveryOf, recoveryReason));
     return payouts.find(attempt);
   }
 

@@ -1157,14 +1157,15 @@ function Wait-Payout($shop,[string]$Statement,[string]$Id,[string]$Expected){
   } "Payout $Id never entered $Expected"
 }
 
-function Start-PayoutRecovery($shop,[string]$Path){
+function Start-PayoutRecovery($shop,[string]$Path,[string]$FailedId){
   Sql commerce-db commerceflow "CREATE TRIGGER payout_fixture_block_confirmation BEFORE UPDATE ON merchant_payout_attempts FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='isolated payout outcome interruption'"|Out-Null
   try{
     $second=Session 'admin@example.com'
     $jobs=@()
     try{
+      $json=@{requestId=[guid]::NewGuid();simulateFailure=$false;recoveryOf=$FailedId;
+        reason='Verified original channel failure for controlled recovery'}|ConvertTo-Json -Compress
       foreach($actor in $admin,$second){
-        $json=@{requestId=[guid]::NewGuid();simulateFailure=$false}|ConvertTo-Json -Compress
         $jobs+=Start-ThreadJob -ArgumentList "$BaseUrl$Path",$actor,$json -ScriptBlock {
           param($url,$actor,$body)
           $options=@{Method='Post';WebSession=$actor.Session;Headers=$actor.Headers;Body=$body;
@@ -1215,7 +1216,7 @@ function Verify-Payout($shop,$product){
     if((Sql payment-simulator-db payment_platform "SELECT status FROM channel_payouts WHERE attempt_id='$($failed.id)'")-ne'FAILED'){
       throw 'The channel did not confirm the failed payout'
     }
-    $id=Start-PayoutRecovery $shop $path
+    $id=Start-PayoutRecovery $shop $path $failed.id
   }else{
     $id=(Api $admin $path Post @{requestId=[guid]::NewGuid()}).id
   }

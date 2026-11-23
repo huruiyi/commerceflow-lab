@@ -2,6 +2,7 @@ package vip.fairy.commerceflow.commerce.merchant.api;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -35,7 +36,8 @@ public class MerchantPayoutController {
   MerchantPayout request(@PathVariable Long merchantId, @PathVariable UUID id, Authentication user,
                           @Valid @RequestBody Attempt input) {
     return payouts.request(merchantId, id.toString(), input.requestId().toString(),
-      actors.requireId(user), Boolean.TRUE.equals(input.simulateFailure()));
+      actors.requireId(user), Boolean.TRUE.equals(input.simulateFailure()),
+      input.recoveryOf() == null ? null : input.recoveryOf().toString(), input.reason());
   }
 
   @GetMapping("/api/admin/stores/{merchantId}/statements/{id}/payouts")
@@ -47,7 +49,8 @@ public class MerchantPayoutController {
   @GetMapping("/api/merchant/settlement/statements/{id}/payouts")
   @PreAuthorize("hasRole('MERCHANT')")
   List<MerchantPayout> ownAttempts(@PathVariable UUID id, Authentication user) {
-    return payouts.attempts(actors.requireId(user), id.toString());
+    return payouts.attempts(actors.requireId(user), id.toString()).stream()
+      .map(MerchantPayout::merchantView).toList();
   }
 
   @PostMapping("/api/payout-notifications")
@@ -56,6 +59,6 @@ public class MerchantPayoutController {
     payouts.callback(raw, signature);
   }
 
-  record Attempt(@NotNull UUID requestId, Boolean simulateFailure) {
+  record Attempt(@NotNull UUID requestId, Boolean simulateFailure, UUID recoveryOf, @Size(max = 300) String reason) {
   }
 }

@@ -211,6 +211,7 @@
                 <li>
                   <div>
                     <strong>{{ action.note }}</strong><small>{{ action.priorReason }} {{ action.priorDetail }}</small>
+                    <small class="text-break">{{ action.requestId }}</small>
                   </div>
                   <span>#{{ action.actorId }} · {{ action.createdAt | trdate }}</span>
                 </li>

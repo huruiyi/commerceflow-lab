@@ -72,6 +72,11 @@
           }}</a>
         </li>
         <li class="nav-item" *ngIf="bilgiler.role === 'ADMIN'">
+          <a class="nav-link" routerLink="/admin/notification-deliveries" routerLinkActive="active">
+            {{ 'notificationRecovery' | t }}
+          </a>
+        </li>
+        <li class="nav-item" *ngIf="bilgiler.role === 'ADMIN'">
           <a class="nav-link" routerLink="/admin/stores" routerLinkActive="active">{{ 'storeReview' | t }}</a>
         </li>
         <li class="nav-item" *ngIf="bilgiler.role === 'MERCHANT'">

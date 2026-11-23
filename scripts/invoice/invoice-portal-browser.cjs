@@ -82,7 +82,9 @@ async function postWithCsrf(page, url, data) {
 }
 
 async function attempts(page, id, status, note) {
-  const response = await postWithCsrf(page, '/api/admin/invoices/' + id + '/review-actions', { note });
+  const response = await postWithCsrf(page, '/api/admin/invoices/' + id + '/review-actions', {
+    requestId: crypto.randomUUID(), note,
+  });
   equal(response.status(), status, 'review action on ' + id);
 }
 

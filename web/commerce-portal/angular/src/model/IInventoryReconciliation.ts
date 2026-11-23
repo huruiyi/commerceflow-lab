@@ -58,5 +58,7 @@ export interface StocktakeReview {
   proposal: StocktakeProposal;
   countedBy: string;
   approvedBy: string | null;
+  approvalReason?: string | null;
+  approvedAt?: string | null;
   receipt: StocktakeReceipt | null;
 }

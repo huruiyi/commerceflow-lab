@@ -282,6 +282,9 @@
             <p>{{ 'stocktakeRecorder' | t }} {{ review.countedBy }} · {{ review.proposal.countedAt | trdate }}</p>
             @if (review.approvedBy) {
               <p>{{ 'stocktakeReviewer' | t }} {{ review.approvedBy }}</p>
+              @if (review.approvedAt; as approvedAt) {
+                <p>{{ review.approvalReason }} · {{ approvedAt | trdate }}</p>
+              }
             }
             <p>{{ review.proposal.note }}</p>
             <p>{{ 'stocktakeCases' | t }} {{ review.proposal.commandIds.join(', ') }}</p>
@@ -293,7 +296,21 @@
                 }
               </p>
             } @else {
-              <button type="button" class="btn btn-primary" (click)="confirmCount()">
+              <label class="form-label">
+                {{ 'stocktakeApprovalReason' | t }}
+                <input
+                  class="form-control"
+                  name="approvalReason"
+                  [(ngModel)]="stocktakeApprovalReason"
+                  maxlength="300"
+                />
+              </label>
+              <button
+                type="button"
+                class="btn btn-primary"
+                (click)="confirmCount()"
+                [disabled]="!stocktakeApprovalReason.trim()"
+              >
                 {{ 'stocktakeApprove' | t }}
               </button>
             }

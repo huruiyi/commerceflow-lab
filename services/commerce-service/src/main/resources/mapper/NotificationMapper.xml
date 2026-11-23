@@ -55,4 +55,31 @@
     WHERE event_id=#{eventId} AND status='DEAD'
   </update>
 
+  <sql id="deliveryColumns">
+    SELECT event_id,topic,status,attempts,last_error FROM notification_delivery_outbox WHERE event_id=#{eventId}
+  </sql>
+  <select id="delivery"
+          resultType="vip.fairy.commerceflow.commerce.notification.domain.DeliveryAudit$Delivery">
+    <include refid="deliveryColumns"/>
+  </select>
+  <select id="lockDelivery"
+          resultType="vip.fairy.commerceflow.commerce.notification.domain.DeliveryAudit$Delivery">
+    <include refid="deliveryColumns"/> FOR UPDATE
+  </select>
+  <sql id="recoveryColumns">
+    SELECT request_id,actor_id,reason,prior_attempts,prior_error,created_at
+    FROM notification_delivery_recoveries WHERE event_id=#{eventId}
+  </sql>
+  <select id="recovery"
+          resultType="vip.fairy.commerceflow.commerce.notification.domain.DeliveryAudit$Recovery">
+    <include refid="recoveryColumns"/> AND request_id=#{requestId}
+  </select>
+  <select id="recoveries"
+          resultType="vip.fairy.commerceflow.commerce.notification.domain.DeliveryAudit$Recovery">
+    <include refid="recoveryColumns"/> ORDER BY created_at DESC,request_id LIMIT 50
+  </select>
+  <insert id="recordRecovery">
+    INSERT INTO notification_delivery_recoveries(event_id,request_id,actor_id,reason,prior_attempts,prior_error)
+    VALUES(#{delivery.eventId},#{requestId},#{actorId},#{reason},#{delivery.attempts},#{delivery.lastError})
+  </insert>
 </mapper>

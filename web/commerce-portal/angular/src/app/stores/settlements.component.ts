@@ -34,6 +34,10 @@ interface Payout {
   channelPayoutNo?: string;
   amount: number;
   resolvedAt?: string;
+  requestedBy: number;
+  createdAt: string;
+  recoveryOf?: string;
+  recoveryReason?: string;
 }
 
 @Component({
@@ -56,8 +60,9 @@ export class SettlementsComponent {
   readonly busy = signal(false);
   readonly message = signal('');
   commissionBps = 500;
+  payoutReason = '';
   private closeRequest?: string;
-  private payoutRequest?: { statement: string; id: string };
+  private payoutRequest?: { fingerprint: string; id: string };
 
   constructor() {
     this.reload();
@@ -88,6 +93,7 @@ export class SettlementsComponent {
       (details) => {
         this.reconciliationPath.set(undefined);
         this.periodComparisonPath.set(undefined);
+        this.payoutReason = '';
         this.selected.set(value.id);
         this.entries.set(details.entries);
         this.payouts.set(details.payouts);
@@ -108,13 +114,23 @@ export class SettlementsComponent {
   requestPayout(): void {
     const statement = this.selected();
     if (!statement || !this.admin) return;
-    if (this.payoutRequest?.statement !== statement) {
-      this.payoutRequest = { statement, id: crypto.randomUUID() };
+    const latest = this.payouts()[0];
+    const recoveryOf = latest?.status === 'FAILED' ? latest.id : undefined;
+    const reason = recoveryOf ? this.payoutReason.trim() : undefined;
+    if (latest && (!recoveryOf || !reason || !latest.channelPayoutNo)) return;
+    const fingerprint = JSON.stringify({ statement, recoveryOf, reason });
+    if (this.payoutRequest?.fingerprint !== fingerprint) {
+      this.payoutRequest = { fingerprint, id: crypto.randomUUID() };
     }
     this.run(
-      this.http.post<Payout>(`${this.statementPath}/${statement}/payouts`, { requestId: this.payoutRequest.id }),
+      this.http.post<Payout>(`${this.statementPath}/${statement}/payouts`, {
+        requestId: this.payoutRequest.id,
+        recoveryOf,
+        reason,
+      }),
       (value) => {
         this.payoutRequest = undefined;
+        this.payoutReason = '';
         this.payouts.update((items) => [value, ...items.filter((item) => item.id !== value.id)]);
         this.message.set('打款请求已记录 / Payout request recorded');
       },

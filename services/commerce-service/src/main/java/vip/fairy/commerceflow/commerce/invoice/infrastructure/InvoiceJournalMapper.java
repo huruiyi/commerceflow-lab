@@ -34,7 +34,9 @@ public interface InvoiceJournalMapper {
 
   void insertReviewAction(@Param("orderId") long orderId, @Param("actorId") long actorId,
                           @Param("priorReason") String priorReason, @Param("priorDetail") String priorDetail,
-                          @Param("note") String note);
+                          @Param("note") String note, @Param("requestId") String requestId);
+
+  ReviewAction reviewAction(@Param("orderId") long orderId, @Param("requestId") String requestId);
 
   List<ReviewAction> reviewActions(long orderId);
 

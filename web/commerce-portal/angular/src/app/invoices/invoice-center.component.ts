@@ -21,6 +21,7 @@ export class InvoiceCenterComponent implements OnInit, OnDestroy {
   private loadRequest?: Subscription;
   private refreshTimer?: ReturnType<typeof setTimeout>;
   private scopeVersion = 0;
+  private reviewRequest?: { id: string; note: string };
 
   readonly mode = this.route.snapshot.data['invoiceMode'] as InvoiceMode;
   readonly root = invoiceRoutes[this.mode];
@@ -53,6 +54,7 @@ export class InvoiceCenterComponent implements OnInit, OnDestroy {
       this.detail = null;
       this.page = null;
       this.reviewNote = '';
+      this.reviewRequest = undefined;
       this.acting = false;
       this.actionError = '';
       this.applicationPending = this.readApplication();
@@ -105,8 +107,10 @@ export class InvoiceCenterComponent implements OnInit, OnDestroy {
   }
 
   recheck(): void {
-    if (this.orderId !== null && this.detail?.status === 'REVIEW_REQUIRED' && this.reviewNote.trim()) {
-      this.act(this.api.recheck(this.orderId, this.reviewNote.trim()));
+    const note = this.reviewNote.trim();
+    if (!this.acting && this.orderId !== null && this.detail?.status === 'REVIEW_REQUIRED' && note) {
+      if (this.reviewRequest?.note !== note) this.reviewRequest = { id: crypto.randomUUID(), note };
+      this.act(this.api.recheck(this.orderId, this.reviewRequest.id, note));
     }
   }
 
@@ -131,6 +135,7 @@ export class InvoiceCenterComponent implements OnInit, OnDestroy {
         next: (detail) => {
           if (scope === this.scopeVersion) {
             this.reviewNote = '';
+            this.reviewRequest = undefined;
             this.setDetail(detail);
             if (this.mode === 'platform' && detail.status !== 'PENDING') {
               this.refreshTimer = setTimeout(() => this.reload(true), 1000);

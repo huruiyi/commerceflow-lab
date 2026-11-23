@@ -1,0 +1,52 @@
+<section class="container py-3" [attr.aria-busy]="busy()">
+  <h1 class="h3">通知投递恢复 / Notification delivery recovery</h1>
+  <form class="mb-3" (ngSubmit)="lookup()">
+    <label class="form-label">
+      通知事件号 / Notification event ID
+      <input class="form-control" name="eventId" [(ngModel)]="eventId" maxlength="100" required />
+    </label>
+    <button class="btn btn-outline-primary ms-2" type="submit" [disabled]="busy() || !eventId.trim()">
+      查询事件 / Find event
+    </button>
+  </form>
+  @if (error()) {
+    <p class="alert alert-danger" role="alert">{{ error() }}</p>
+  }
+  @if (report(); as value) {
+    <dl>
+      <dt>原事件 / Original event</dt>
+      <dd class="text-break">{{ value.delivery.eventId }} · {{ value.delivery.topic }}</dd>
+      <dt>状态、尝试次数 / Status and attempts</dt>
+      <dd>{{ value.delivery.status }} · {{ value.delivery.attempts }}</dd>
+      @if (value.delivery.lastError) {
+        <dt>失败原因 / Delivery error</dt>
+        <dd>{{ value.delivery.lastError }}</dd>
+      }
+    </dl>
+    @if (value.delivery.status === 'DEAD') {
+      <form (ngSubmit)="retry()">
+        <label class="form-label d-block">
+          重试理由 / Retry reason
+          <textarea class="form-control" name="retryReason" [(ngModel)]="reason" maxlength="300" required></textarea>
+        </label>
+        <button class="btn btn-primary" type="submit" [disabled]="busy() || !reason.trim()">
+          重试原事件 / Retry original event
+        </button>
+      </form>
+    }
+    @if (value.actions.length) {
+      <h2 class="h5 mt-3">重试审计 / Retry audit</h2>
+      <ul class="list-group">
+        @for (action of value.actions; track action.requestId) {
+          <li class="list-group-item">
+            <div class="text-break">
+              #{{ action.actorId }} · {{ action.createdAt | date: 'medium' }} · {{ action.requestId }}
+            </div>
+            <p class="mb-1">{{ action.reason }}</p>
+            <small>{{ action.priorAttempts }} · {{ action.priorError }}</small>
+          </li>
+        }
+      </ul>
+    }
+  }
+</section>

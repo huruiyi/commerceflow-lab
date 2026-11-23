@@ -118,7 +118,14 @@ describe('InventoryReconciliationAdminComponent', () => {
     api.submitStocktake.and.callFake((proposal) =>
       of({ proposal, countedBy: 'recorder', approvedBy: null, receipt: null }),
     );
-    api.approveStocktake.and.returnValue(of({ reference: 'REPORT-1', movementId: 53, adjustment: -3 }));
+    api.approveStocktake.and.callFake(() =>
+      of({
+        ...component.countReview!,
+        approvedBy: 'reviewer',
+        approvalReason: 'Verified original warehouse records',
+        receipt: { reference: 'REPORT-1', movementId: 53, adjustment: -3 },
+      }),
+    );
     component.stocktakeProductId = 1;
     component.captureBaseline();
     component.toggleStocktakeCase(recovery.commandId, true);
@@ -136,8 +143,9 @@ describe('InventoryReconciliationAdminComponent', () => {
     );
     expect(component.recoveries).toEqual([recovery]);
     expect(api.approveStocktake).not.toHaveBeenCalled();
+    component.stocktakeApprovalReason = 'Verified original warehouse records';
     component.confirmCount();
-    expect(api.approveStocktake).toHaveBeenCalledOnceWith('REPORT-1');
+    expect(api.approveStocktake).toHaveBeenCalledOnceWith('REPORT-1', 'Verified original warehouse records');
     expect(component.countReview?.receipt?.movementId).toBe(53);
   });
 });

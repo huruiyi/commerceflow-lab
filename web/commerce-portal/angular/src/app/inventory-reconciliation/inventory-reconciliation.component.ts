@@ -52,6 +52,7 @@ export class InventoryReconciliationAdminComponent implements OnInit {
   stocktakeCounted: number | null = null;
   stocktakeTime = '';
   stocktakeNote = '';
+  stocktakeApprovalReason = '';
   stocktakeCases = new Set<string>();
   countBaseline: StocktakeBaseline | null = null;
   countReview: StocktakeReview | null = null;
@@ -113,15 +114,18 @@ export class InventoryReconciliationAdminComponent implements OnInit {
     const reference = this.stocktakeLookup.trim();
     if (!reference) return;
     this.countReview = null;
+    this.stocktakeApprovalReason = '';
     this.runStocktake(this.api.stocktakeReview(reference), (review) => (this.countReview = review));
   }
 
   confirmCount(): void {
     const review = this.countReview;
-    if (!review || review.receipt) return;
+    const reason = this.stocktakeApprovalReason.trim();
+    if (!review || review.receipt || !reason) return;
     const reference = review.proposal.reference;
-    this.runStocktake(this.api.approveStocktake(reference), (receipt) => {
-      this.countReview = { ...review, receipt };
+    this.runStocktake(this.api.approveStocktake(reference, reason), (approved) => {
+      this.countReview = approved;
+      this.stocktakeApprovalReason = '';
       this.stocktakeCases.clear();
       this.load();
     });

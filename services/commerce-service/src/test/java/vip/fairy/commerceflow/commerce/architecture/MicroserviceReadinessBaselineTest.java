@@ -175,6 +175,7 @@ class MicroserviceReadinessBaselineTest {
       Map.entry("customer_notifications", "notification"),
       Map.entry("notification_inbox", "notification"),
       Map.entry("notification_delivery_outbox", "notification"),
+      Map.entry("notification_delivery_recoveries", "notification"),
       Map.entry("notification_projection_windows", "notification"),
       Map.entry("notification_projection_shadow", "notification"),
       Map.entry("notification_projection_audits", "notification"),

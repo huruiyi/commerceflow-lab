@@ -113,6 +113,15 @@ const routes: Routes = [
     data: { roles: ['ADMIN'] },
   },
   {
+    path: 'admin/notification-deliveries',
+    loadComponent: () =>
+      import('./notification-recovery/notification-recovery.component').then(
+        (module) => module.NotificationRecoveryComponent,
+      ),
+    canActivate: [AuthGuard],
+    data: { roles: ['ADMIN'] },
+  },
+  {
     path: 'admin/payment-ledger-reports',
     component: PaymentLedgerReportsComponent,
     canActivate: [AuthGuard],

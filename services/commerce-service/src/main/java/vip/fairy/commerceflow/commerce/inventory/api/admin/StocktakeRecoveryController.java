@@ -1,5 +1,8 @@
 package vip.fairy.commerceflow.commerce.inventory.api.admin;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,8 +43,12 @@ public class StocktakeRecoveryController {
   }
 
   @PostMapping("/{reference}/approve")
-  StocktakeV1.Receipt approve(@PathVariable String reference, Authentication actor) {
-    stocktakes.approve(reference, actor.getName());
-    return stocktakes.applyApproved(reference);
+  Review approve(@PathVariable String reference, @Valid @RequestBody Approval input, Authentication actor) {
+    stocktakes.approve(reference, actor.getName(), input.reason().strip());
+    stocktakes.applyApproved(reference);
+    return stocktakes.get(reference);
+  }
+
+  record Approval(@NotBlank @Size(max = 300) String reason) {
   }
 }
