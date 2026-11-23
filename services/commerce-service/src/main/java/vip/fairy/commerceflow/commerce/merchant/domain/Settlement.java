@@ -30,4 +30,13 @@ public final class Settlement {
       return merchandise.add(freight).subtract(commission);
     }
   }
+
+  public record RefundRollup(long count, BigDecimal amount, BigDecimal commissionReversed,
+                             long priorCount, BigDecimal priorAmount) {
+  }
+
+  public record RefundOrigin(String sourceKey, Long orderId, Long orderLineId, Instant occurredAt,
+                             BigDecimal amount, BigDecimal commissionReversed,
+                             String saleSourceKey, String originStatementId, Instant originCutoffAt) {
+  }
 }

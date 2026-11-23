@@ -1,0 +1,90 @@
+<section class="border rounded p-3 mb-3" [attr.aria-busy]="loading()">
+  <h3 class="h5">跨期对账 / Period comparison</h3>
+  @if (loading()) {
+    <p role="status">正在核对账期 / Checking periods</p>
+  }
+  @if (failed()) {
+    <p class="alert alert-warning" role="alert">
+      暂时无法核对账期 / Period comparison unavailable
+      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="load()">重试 / Retry</button>
+    </p>
+  }
+  @if (report(); as value) {
+    @if (!value.previous) {
+      <p class="text-secondary">暂无相接的上期账单 / No adjacent previous statement</p>
+    }
+    <div class="row g-3">
+      @for (column of periods(); track column.period.statement.id) {
+        @let period = column.period;
+        <div class="col-md">
+          <h4 class="h6">{{ column.label }}</h4>
+          <p class="text-break mb-1">{{ period.statement.id }}</p>
+          <p>{{ period.statement.startsAt | date: 'medium' }} → {{ period.statement.cutoffAt | date: 'medium' }}</p>
+          <dl>
+            <dt>净商品额 / Net merchandise</dt>
+            <dd>{{ period.statement.merchandise | currency: 'CNY' }}</dd>
+            <dt>净运费 / Net freight</dt>
+            <dd>{{ period.statement.freight | currency: 'CNY' }}</dd>
+            <dt>净佣金 / Net commission</dt>
+            <dd>{{ period.statement.commission | currency: 'CNY' }}</dd>
+            <dt>冻结应结 / Frozen payable</dt>
+            <dd>{{ period.statement.payable | currency: 'CNY' }}</dd>
+            <dt>已确认打款 / Confirmed payouts</dt>
+            <dd>{{ period.paidOut | currency: 'CNY' }}</dd>
+            <dt>退款及佣金冲正 / Refunds and reversed commission</dt>
+            <dd>
+              {{ period.refunds.count }} · {{ period.refunds.amount | currency: 'CNY' }} ·
+              {{ period.refunds.commissionReversed | currency: 'CNY' }}
+            </dd>
+            <dt>来自以前账期的退款 / Refunds from earlier periods</dt>
+            <dd>{{ period.refunds.priorCount }} · {{ period.refunds.priorAmount | currency: 'CNY' }}</dd>
+          </dl>
+          @if (period.payouts.length) {
+            <ul class="list-unstyled">
+              @for (payout of period.payouts; track payout.id) {
+                <li class="text-break">
+                  {{ payout.channelPayoutNo || payout.id }} · {{ payout.amount | currency: 'CNY' }}
+                </li>
+              }
+            </ul>
+          }
+        </div>
+      }
+    </div>
+    <h4 class="h6">本期退款来源 / Current refund origins</h4>
+    @for (refund of value.refunds; track refund.sourceKey) {
+      <details class="border-top py-2">
+        <summary class="text-break">
+          #{{ refund.orderId }} · {{ refund.amount | currency: 'CNY' }} · {{ refund.sourceKey }}
+        </summary>
+        <dl class="text-break mb-0">
+          <dt>订单行 / Order line</dt>
+          <dd>{{ refund.orderLineId ?? '—' }}</dd>
+          <dt>退款成功时间 / Refunded at</dt>
+          <dd>{{ refund.occurredAt | date: 'medium' }}</dd>
+          <dt>佣金冲正 / Reversed commission</dt>
+          <dd>{{ refund.commissionReversed | currency: 'CNY' }}</dd>
+          <dt>原销售入账 / Original sale entry</dt>
+          <dd>{{ refund.saleSourceKey || '—' }}</dd>
+          <dt>原销售所属冻结账单 / Original sales statement</dt>
+          <dd>
+            @if (refund.originStatementId; as origin) {
+              {{ origin }} · {{ refund.originCutoffAt | date: 'medium' }}
+            } @else {
+              原销售账单待确认 / Original statement unconfirmed
+            }
+          </dd>
+        </dl>
+      </details>
+    } @empty {
+      <p class="text-secondary">本期无退款冲正 / No refund reversals in this period</p>
+    }
+    <app-list-pagination
+      [page]="value.page"
+      [totalPages]="totalPages()"
+      label="退款冲正分页 / Refund reversal pages"
+      [loading]="loading()"
+      (pageChange)="load($event)"
+    />
+  }
+</section>

@@ -55,6 +55,42 @@
   <select id="statement" resultType="vip.fairy.commerceflow.commerce.merchant.domain.Settlement$Statement">
     SELECT * FROM merchant_settlement_statements WHERE id=#{id}
   </select>
+  <select id="previousStatement" resultType="vip.fairy.commerceflow.commerce.merchant.domain.Settlement$Statement">
+    SELECT * FROM merchant_settlement_statements
+    WHERE merchant_id=#{merchant} AND cutoff_at=#{cutoff} AND id!=#{current}
+    ORDER BY id LIMIT 1
+  </select>
+  <sql id="refundOrigins">
+    FROM merchant_settlement_entries reversal
+    LEFT JOIN merchant_settlement_entries sale
+      ON sale.source_key=CONCAT('sale:line:',reversal.order_line_id)
+      AND sale.merchant_id=reversal.merchant_id AND sale.order_id=reversal.order_id
+      AND sale.order_line_id=reversal.order_line_id AND sale.kind='MERCHANDISE'
+    LEFT JOIN merchant_settlement_statements origin
+      ON origin.id=sale.statement_id AND origin.merchant_id=reversal.merchant_id
+    WHERE reversal.statement_id=#{statement.id} AND reversal.merchant_id=#{statement.merchantId}
+      AND reversal.kind='REFUND'
+  </sql>
+  <sql id="priorOrigin">
+    origin.id!=#{statement.id} AND origin.cutoff_at &lt;= #{statement.startsAt}
+  </sql>
+  <select id="statementRefundRollup"
+          resultType="vip.fairy.commerceflow.commerce.merchant.domain.Settlement$RefundRollup">
+    SELECT COUNT(*) AS count,COALESCE(-SUM(reversal.merchandise+reversal.freight),0) AS amount,
+      COALESCE(-SUM(reversal.commission),0) AS commission_reversed,
+      COUNT(CASE WHEN <include refid="priorOrigin"/> THEN 1 END) AS prior_count,
+      COALESCE(-SUM(CASE WHEN <include refid="priorOrigin"/> THEN reversal.merchandise+reversal.freight END),0)
+        AS prior_amount
+    <include refid="refundOrigins"/>
+  </select>
+  <select id="statementRefundOrigins"
+          resultType="vip.fairy.commerceflow.commerce.merchant.domain.Settlement$RefundOrigin">
+    SELECT reversal.source_key,reversal.order_id,reversal.order_line_id,reversal.occurred_at,
+      -(reversal.merchandise+reversal.freight) AS amount,-reversal.commission AS commission_reversed,
+      sale.source_key AS sale_source_key,origin.id AS origin_statement_id,origin.cutoff_at AS origin_cutoff_at
+    <include refid="refundOrigins"/>
+    ORDER BY reversal.occurred_at,reversal.source_key LIMIT #{size} OFFSET #{offset}
+  </select>
   <select id="statements" resultType="vip.fairy.commerceflow.commerce.merchant.domain.Settlement$Statement">
     SELECT * FROM merchant_settlement_statements WHERE merchant_id=#{merchant} ORDER BY cutoff_at DESC,id
   </select>

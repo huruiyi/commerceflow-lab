@@ -4,6 +4,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { finalize, forkJoin, Observable } from 'rxjs';
+import { StatementPeriodComparisonComponent } from './statement-period-comparison.component';
 import { StatementReconciliationComponent } from './statement-reconciliation.component';
 
 interface Amounts {
@@ -37,7 +38,7 @@ interface Payout {
 
 @Component({
   selector: 'app-merchant-settlements',
-  imports: [CommonModule, FormsModule, StatementReconciliationComponent],
+  imports: [CommonModule, FormsModule, StatementReconciliationComponent, StatementPeriodComparisonComponent],
   templateUrl: './settlements.component.html',
 })
 export class SettlementsComponent {
@@ -50,6 +51,7 @@ export class SettlementsComponent {
   readonly pending = signal<Entry[]>([]);
   readonly selected = signal<string | undefined>(undefined);
   readonly reconciliationPath = signal<string | undefined>(undefined);
+  readonly periodComparisonPath = signal<string | undefined>(undefined);
   readonly payouts = signal<Payout[]>([]);
   readonly busy = signal(false);
   readonly message = signal('');
@@ -85,6 +87,7 @@ export class SettlementsComponent {
       }),
       (details) => {
         this.reconciliationPath.set(undefined);
+        this.periodComparisonPath.set(undefined);
         this.selected.set(value.id);
         this.entries.set(details.entries);
         this.payouts.set(details.payouts);
@@ -95,6 +98,11 @@ export class SettlementsComponent {
   reconcile(): void {
     const id = this.selected();
     if (id) this.reconciliationPath.set(`${this.statementPath}/${id}/reconciliation`);
+  }
+
+  comparePeriods(): void {
+    const id = this.selected();
+    if (id) this.periodComparisonPath.set(`${this.statementPath}/${id}/period-comparison`);
   }
 
   requestPayout(): void {

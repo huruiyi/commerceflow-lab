@@ -16,6 +16,8 @@ import vip.fairy.commerceflow.commerce.invoice.application.contract.v1.Settlemen
 import vip.fairy.commerceflow.commerce.merchant.application.contract.v1.SettlementRefundV1;
 import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.Account;
 import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.Entry;
+import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.RefundOrigin;
+import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.RefundRollup;
 import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.Rollup;
 import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.Statement;
 import vip.fairy.commerceflow.commerce.merchant.infrastructure.MerchantPayoutMapper;
@@ -49,23 +51,14 @@ public class StatementReconciliationService {
 
   @Transactional(readOnly = true)
   public Report reconcile(long merchant, String statementId, int requestedPage, int size) {
-    if (requestedPage < 0 || size < 1 || size > 20) {
-      throw new IllegalArgumentException("Invalid reconciliation page");
-    }
-    var statement = ledger.statement(statementId);
-    if (statement == null || !Long.valueOf(merchant).equals(statement.merchantId())) {
-      throw new ResourceNotFoundException("Statement not found");
-    }
+    validatePage(requestedPage, size);
+    var statement = requireStatement(merchant, statementId);
     var rollup = ledger.statementRollup(statementId, merchant);
-    int page = rollup.orderCount() == 0 ? 0 : (int) Math.min(requestedPage, (rollup.orderCount() - 1) / size);
+    int page = availablePage(requestedPage, size, rollup.orderCount());
     var differences = statementDifferences(statement, rollup);
     var account = ledger.account(merchant);
     if (account == null) differences.add(new Difference("SETTLEMENT_ACCOUNT_MISSING", statementId, null, null));
-    var payoutRefs = payouts.attempts(statementId).stream()
-      .filter(attempt -> Long.valueOf(merchant).equals(attempt.merchantId()))
-      .map(attempt -> new Payout(attempt.id(), attempt.channelPayoutNo(), attempt.status(),
-        attempt.amount(), attempt.currency()))
-      .toList();
+    var payoutRefs = payoutReferences(statement);
     var settled = payoutRefs.stream().filter(payout -> "SUCCEEDED".equals(payout.status())).toList();
     var paidOut = settled.stream().map(Payout::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
     if (!settled.isEmpty()) {
@@ -83,6 +76,50 @@ public class StatementReconciliationService {
     }
     return new Report(statement, rollup.payable(), paidOut, payoutRefs, differences, checks,
       rollup.orderCount(), page, size, Instant.now());
+  }
+
+  @Transactional(readOnly = true)
+  public PeriodComparison comparePeriods(long merchant, String statementId, int requestedPage, int size) {
+    validatePage(requestedPage, size);
+    var current = requireStatement(merchant, statementId);
+    var previous = ledger.previousStatement(merchant, current.startsAt(), current.id());
+    var period = summarize(current);
+    long total = period.refunds().count();
+    int page = availablePage(requestedPage, size, total);
+    var refunds = ledger.statementRefundOrigins(current, (long) page * size, size);
+    return new PeriodComparison(previous == null ? null : summarize(previous), period, refunds, total, page, size);
+  }
+
+  private Period summarize(Statement statement) {
+    var confirmed = payoutReferences(statement).stream().filter(payout -> "SUCCEEDED".equals(payout.status())).toList();
+    var paidOut = confirmed.stream().map(Payout::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+    return new Period(statement, paidOut, confirmed, ledger.statementRefundRollup(statement));
+  }
+
+  private List<Payout> payoutReferences(Statement statement) {
+    return payouts.attempts(statement.id()).stream()
+      .filter(attempt -> statement.merchantId().equals(attempt.merchantId()))
+      .map(attempt -> new Payout(attempt.id(), attempt.channelPayoutNo(), attempt.status(),
+        attempt.amount(), attempt.currency()))
+      .toList();
+  }
+
+  private Statement requireStatement(long merchant, String statementId) {
+    var statement = ledger.statement(statementId);
+    if (statement == null || !Long.valueOf(merchant).equals(statement.merchantId())) {
+      throw new ResourceNotFoundException("Statement not found");
+    }
+    return statement;
+  }
+
+  private static void validatePage(int requestedPage, int size) {
+    if (requestedPage < 0 || size < 1 || size > 20) {
+      throw new IllegalArgumentException("Invalid reconciliation page");
+    }
+  }
+
+  private static int availablePage(int requestedPage, int size, long total) {
+    return total == 0 ? 0 : (int) Math.min(requestedPage, (total - 1) / size);
   }
 
   private List<Difference> statementDifferences(Statement statement, Rollup rollup) {
@@ -230,5 +267,12 @@ public class StatementReconciliationService {
   public record Report(Statement statement, BigDecimal entryPayable, BigDecimal paidOut, List<Payout> payouts,
                        List<Difference> differences, List<OrderCheck> orders, long total, int page, int size,
                        Instant observedAt) {
+  }
+
+  public record Period(Statement statement, BigDecimal paidOut, List<Payout> payouts, RefundRollup refunds) {
+  }
+
+  public record PeriodComparison(Period previous, Period current, List<RefundOrigin> refunds,
+                                 long total, int page, int size) {
   }
 }

@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import vip.fairy.commerceflow.commerce.merchant.application.StatementReconciliationService;
+import vip.fairy.commerceflow.commerce.merchant.application.StatementReconciliationService.PeriodComparison;
 import vip.fairy.commerceflow.commerce.merchant.application.StatementReconciliationService.Report;
 import vip.fairy.commerceflow.commerce.shared.application.CurrentActorIdResolver;
 
@@ -34,5 +35,21 @@ public class MerchantReconciliationController {
   Report merchant(Authentication actor, @PathVariable UUID id,
                   @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
     return reports.reconcile(actors.requireId(actor), id.toString(), page, size);
+  }
+
+  @GetMapping("/api/admin/stores/{merchantId}/statements/{id}/period-comparison")
+  @PreAuthorize("hasRole('ADMIN')")
+  PeriodComparison adminPeriods(@PathVariable long merchantId, @PathVariable UUID id,
+                                @RequestParam(defaultValue = "0") int page,
+                                @RequestParam(defaultValue = "10") int size) {
+    return reports.comparePeriods(merchantId, id.toString(), page, size);
+  }
+
+  @GetMapping("/api/merchant/settlement/statements/{id}/period-comparison")
+  @PreAuthorize("hasRole('MERCHANT')")
+  PeriodComparison merchantPeriods(Authentication actor, @PathVariable UUID id,
+                                   @RequestParam(defaultValue = "0") int page,
+                                   @RequestParam(defaultValue = "10") int size) {
+    return reports.comparePeriods(actors.requireId(actor), id.toString(), page, size);
   }
 }

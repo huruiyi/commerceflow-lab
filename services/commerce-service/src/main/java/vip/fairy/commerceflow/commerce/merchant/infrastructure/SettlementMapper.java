@@ -5,6 +5,8 @@ import java.util.List;
 import org.apache.ibatis.annotations.Param;
 import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.Account;
 import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.Entry;
+import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.RefundOrigin;
+import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.RefundRollup;
 import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.Statement;
 import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.Rollup;
 
@@ -37,6 +39,14 @@ public interface SettlementMapper {
   Instant lastCutoff(Long merchant);
 
   Statement statement(String id);
+
+  Statement previousStatement(@Param("merchant") long merchant, @Param("cutoff") Instant cutoff,
+                              @Param("current") String current);
+
+  RefundRollup statementRefundRollup(@Param("statement") Statement statement);
+
+  List<RefundOrigin> statementRefundOrigins(@Param("statement") Statement statement,
+                                          @Param("offset") long offset, @Param("size") int size);
 
   List<Statement> statements(Long merchant);
 

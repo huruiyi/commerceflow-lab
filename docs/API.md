@@ -41,6 +41,13 @@
 平台使用 `GET /api/admin/stores/{merchantId}/statements/{id}/reconciliation`。响应包含账期总额、
 打款尝试、汇总差异及逐单凭证与差异。订单页从 0 开始，默认每页 10 条，最大 20 条。
 
+跨期对账使用 `GET /api/merchant/settlement/statements/{id}/period-comparison`，平台使用
+`GET /api/admin/stores/{merchantId}/statements/{id}/period-comparison`。指定本期冻结账单，
+返回与其起点相接的上期账单 `previous`（首期为 `null`）、本期 `current` 和本期退款冲正分页。
+两期摘要分别保留冻结金额、成功打款和退款汇总。退款冲正按时间及账本行标识排序，可追到
+同店原订单行、销售账本和原冻结账单。原销售账单未确认时返回空引用，不计入已确认的跨期退款。
+分页从 0 开始，默认每页 10 条，最大 20 条。账单属于其他店铺时返回 404。
+
 ## 商家履约 API
 
 - 商家订单搜索默认每页 10 笔，`page` 从 0 开始，`size` 可设为 1–20。按创建时间和订单 ID 倒序返回，`pendingConfirm` 和 `pendingShip` 是本店待办总数。`orderNumber` 用完整订单号精确匹配，可配合 `status` 使用。关键词、商品和运单等模糊查询用 `q`，两个参数互斥。查不到或订单归属其他店铺时返回空页，按内部 ID 查其他店铺订单返回 404。原 `GET /api/merchant/orders` 全量入口已移除。
