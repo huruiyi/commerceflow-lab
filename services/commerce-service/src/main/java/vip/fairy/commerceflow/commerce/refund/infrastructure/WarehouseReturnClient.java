@@ -7,7 +7,10 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -16,12 +19,17 @@ import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
+import vip.fairy.commerceflow.commerce.merchant.application.contract.v1.SettlementFulfillmentV1.WarehouseEvidence;
+import vip.fairy.commerceflow.commerce.merchant.application.contract.v1.SettlementFulfillmentV1.WarehouseSource;
 
 @Component
-public class WarehouseReturnClient {
+public class WarehouseReturnClient implements WarehouseSource {
 
-  private static final String PATH = "/internal/v1/returns";
+  private static final String RETURN_PATH = "/internal/v1/returns";
+  private static final String EVIDENCE_PATH = "/internal/v1/warehouse/reconciliation/query";
   private final RestClient client;
   private final ObjectMapper mapper;
   private final String secret;
@@ -38,13 +46,40 @@ public class WarehouseReturnClient {
   }
 
   public Receipt submit(Plan plan) {
-    String payload = mapper.writeValueAsString(plan);
+    var reply = signedPost(RETURN_PATH, plan, Receipt.class);
+    if (!plan.equals(new Plan(reply.returnId(), reply.outboundId(), reply.orderId(), reply.orderLineId(),
+        reply.warehouseId(), reply.trackingNumber(), reply.expectedQuantity()))
+        || !validCount(reply) || !validSupplement(reply)) {
+      throw new IllegalStateException("Warehouse return receipt does not match the submitted plan");
+    }
+    return reply;
+  }
+
+  @Override
+  public Optional<WarehouseEvidence> warehouseEvidence(long merchantId, List<Long> orderIds) {
+    try {
+      var reply = signedPost(EVIDENCE_PATH, Map.of("merchantId", merchantId, "orderIds", orderIds),
+        WarehouseEvidence.class);
+      if (reply == null || reply.outbounds() == null || reply.returns() == null
+          || reply.outbounds().stream().anyMatch(row ->
+            row.merchantId() != merchantId || !orderIds.contains(row.orderId()))
+          || reply.returns().stream().anyMatch(row -> !orderIds.contains(row.orderId()))) {
+        return Optional.empty();
+      }
+      return Optional.of(reply);
+    } catch (RestClientException | JacksonException | IllegalStateException failure) {
+      return Optional.empty();
+    }
+  }
+
+  private <T> T signedPost(String path, Object command, Class<T> type) {
+    String payload = mapper.writeValueAsString(command);
     String nonce = UUID.randomUUID().toString();
     String time = Long.toString(Instant.now().getEpochSecond());
     try {
       String hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes(payload)));
-      String signature = sign(String.join("\n", "POST", PATH, time, nonce, hash));
-      var response = client.post().uri(PATH).contentType(MediaType.APPLICATION_JSON)
+      String signature = sign(String.join("\n", "POST", path, time, nonce, hash));
+      var response = client.post().uri(path).contentType(MediaType.APPLICATION_JSON)
         .header("X-CommerceFlow-Service", "commerce-service")
         .header("X-CommerceFlow-Timestamp", time)
         .header("X-CommerceFlow-Request-Id", nonce)
@@ -56,13 +91,7 @@ public class WarehouseReturnClient {
           || !MessageDigest.isEqual(bytes(sign(nonce + "\n" + json)), bytes(received))) {
         throw new IllegalStateException("Warehouse return receipt authentication failed");
       }
-      var reply = mapper.readValue(json, Receipt.class);
-      if (!plan.equals(new Plan(reply.returnId(), reply.outboundId(), reply.orderId(), reply.orderLineId(),
-          reply.warehouseId(), reply.trackingNumber(), reply.expectedQuantity()))
-          || !validCount(reply) || !validSupplement(reply)) {
-        throw new IllegalStateException("Warehouse return receipt does not match the submitted plan");
-      }
-      return reply;
+      return mapper.readValue(json, type);
     } catch (GeneralSecurityException failure) {
       throw new IllegalStateException("Warehouse return signing failed", failure);
     }

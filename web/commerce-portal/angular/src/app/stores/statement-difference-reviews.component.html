@@ -1,0 +1,91 @@
+<section class="border-top mt-3 pt-3">
+  <h4 class="h6">差异复核 / Discrepancy review</h4>
+  @if (targets().length) {
+    <form class="mb-3" (ngSubmit)="save()">
+      <label class="form-label" for="statement-difference">本页差异 / Discrepancy on this page</label>
+      <select class="form-select mb-2" id="statement-difference" name="target" [(ngModel)]="selected" required>
+        <option [ngValue]="null">选择差异 / Select discrepancy</option>
+        @for (target of targets(); track target) {
+          <option [ngValue]="target">
+            {{ labels()[target.kind] || target.kind }} · {{ target.reference }}
+            @if (target.orderId !== null) {
+              · 订单 / Order {{ target.orderId }}
+            }
+            @if (target.orderLineId !== null) {
+              · 订单行 / Line {{ target.orderLineId }}
+            }
+            · {{ target.expected ?? '—' }} → {{ target.observed ?? '—' }}
+          </option>
+        }
+      </select>
+      <label class="form-label" for="statement-review-decision">结论 / Decision</label>
+      <select class="form-select mb-2" id="statement-review-decision" name="decision" [(ngModel)]="decision">
+        <option value="CONFIRMED">{{ decisions.CONFIRMED }}</option>
+        <option value="NO_ACTION">{{ decisions.NO_ACTION }}</option>
+      </select>
+      <label class="form-label" for="statement-review-reason">复核依据 / Reason</label>
+      <textarea
+        class="form-control mb-2"
+        id="statement-review-reason"
+        name="reason"
+        [(ngModel)]="reason"
+        rows="2"
+        maxlength="300"
+        required
+      ></textarea>
+      <button
+        class="btn btn-primary btn-sm"
+        type="submit"
+        [disabled]="
+          saving() || loading() || reportBusy() || !selected || !targets().includes(selected) || !reason.trim()
+        "
+      >
+        保存复核 / Save review
+      </button>
+    </form>
+  }
+  @if (saved()) {
+    <p class="text-success" role="status">已登记复核 / Review recorded</p>
+  }
+  @if (saveError()) {
+    <p class="alert alert-warning" role="alert">{{ saveError() }}</p>
+  }
+  <h5 class="h6">复核记录 / Review history</h5>
+  @if (historyError()) {
+    <p role="alert">
+      暂时无法读取复核记录 / Review history unavailable
+      <button class="btn btn-sm btn-outline-secondary" type="button" (click)="loadHistory()">重试 / Retry</button>
+    </p>
+  } @else if (loading()) {
+    <p role="status">读取复核记录 / Loading review history</p>
+  } @else if (history(); as value) {
+    @if (value.rows.length) {
+      <ul class="list-group mb-2">
+        @for (row of value.rows; track row.requestId) {
+          <li class="list-group-item text-break">
+            <strong>{{ decisions[row.decision] }}</strong> · {{ labels()[row.differenceKind] || row.differenceKind }} ·
+            {{ row.evidenceReference }}
+            @if (row.orderId !== null) {
+              · 订单 / Order {{ row.orderId }}
+            }
+            @if (row.orderLineId !== null) {
+              · 订单行 / Line {{ row.orderLineId }}
+            }
+            · {{ row.expectedValue ?? '—' }} → {{ row.observedValue ?? '—' }}
+            <div>{{ row.reason }}</div>
+            <small>复核人 / Reviewer {{ row.reviewedBy }} · {{ row.reviewedAt | date: 'medium' }}</small>
+          </li>
+        }
+      </ul>
+      <app-list-pagination
+        [page]="value.page"
+        [totalPages]="totalPages()"
+        label="复核记录分页 / Review history pages"
+        [loading]="saving()"
+        (pageChange)="loadHistory($event)"
+      />
+    } @else {
+      <p>暂无复核记录 / No reviews recorded</p>
+    }
+  }
+</section>

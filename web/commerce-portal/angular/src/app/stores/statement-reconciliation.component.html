@@ -26,13 +26,16 @@
         @for (payout of value.payouts; track payout.id) {
           <li>
             {{ payout.channelPayoutNo || payout.id }} · {{ payout.status }} · {{ payout.amount | currency: 'CNY' }}
+            @if (payout.resolvedAt) {
+              · {{ payout.resolvedAt | date: 'medium' }}
+            }
           </li>
         }
       </ul>
     }
     <ng-container *ngTemplateOutlet="differences; context: { $implicit: value.differences }" />
     <div class="table-responsive">
-      <table class="table table-sm align-middle">
+      <table class="table table-sm align-top">
         <thead>
           <tr>
             <th scope="col">订单 / Order</th>
@@ -40,7 +43,7 @@
             <th scope="col">实付 / Paid</th>
             <th scope="col">退款 / Refunded</th>
             <th scope="col">净开票 / Net invoice</th>
-            <th scope="col">差异 / Differences</th>
+            <th scope="col">资金差异 / Financial differences</th>
           </tr>
         </thead>
         <tbody>
@@ -53,14 +56,131 @@
                     <dt>账本记录 / Entries</dt>
                     <dd>{{ order.entryReferences.join(', ') }}</dd>
                     <dt>支付单 / Payment</dt>
-                    <dd>{{ order.paymentNumber || '—' }}</dd>
+                    <dd>
+                      {{ order.paymentNumber || '—' }}
+                      @if (order.paidAt) {
+                        · {{ order.paidAt | date: 'medium' }}
+                      }
+                    </dd>
                     <dt>成功退款 / Refunds</dt>
-                    <dd>{{ order.refundNumbers.join(', ') || '—' }}</dd>
+                    <dd>
+                      @if (order.refundDetails?.length) {
+                        @for (refund of order.refundDetails; track refund.refundNumber) {
+                          <div>
+                            {{ refund.refundNumber }} · {{ refund.amount | currency: refund.currency }} ·
+                            {{ refund.succeededAt | date: 'medium' }}
+                          </div>
+                        }
+                      } @else {
+                        {{ order.refundNumbers.join(', ') || '—' }}
+                      }
+                    </dd>
                     <dt>正票 / Invoice</dt>
-                    <dd>{{ order.blueInvoiceNumber || '—' }}</dd>
+                    <dd>
+                      {{ order.blueInvoiceNumber || '—' }}
+                      @if (order.invoiceDetails; as invoices) {
+                        · {{ invoices.issue.amount | currency: invoices.issue.currency }}
+                      }
+                    </dd>
                     <dt>红票 / Red invoices</dt>
-                    <dd>{{ order.redInvoiceNumbers.join(', ') || '—' }}</dd>
+                    <dd>
+                      @if (order.invoiceDetails?.reds.length) {
+                        @for (red of order.invoiceDetails.reds; track red.invoiceNumber) {
+                          <div>
+                            {{ red.invoiceNumber }} · {{ red.amount | currency: red.currency }} ·
+                            {{ red.originalInvoiceNumber }} · {{ red.reference }}
+                          </div>
+                        }
+                      } @else {
+                        {{ order.redInvoiceNumbers.join(', ') || '—' }}
+                      }
+                    </dd>
                   </dl>
+                  @if (order.fulfillment; as fulfillment) {
+                    <div class="text-break mb-2">
+                      <h4 class="h6">库存出库 / Inventory outbound</h4>
+                      @if (!fulfillment.inventoryAvailable) {
+                        <p>暂时无法读取库存出库 / Inventory evidence unavailable</p>
+                      } @else if (!fulfillment.inventory.length) {
+                        <p>暂无库存出库凭证 / No inventory outbound evidence</p>
+                      }
+                      <ul class="list-unstyled">
+                        @for (line of fulfillment.inventory; track line.outboundId + ':' + line.orderLineId) {
+                          <li>
+                            {{ line.outboundId }} · 仓 / Warehouse {{ line.warehouseId }} · 订单行 / Line
+                            {{ line.orderLineId }} · 出库 / Posted {{ line.quantity }} ·
+                            {{ line.postedAt | date: 'medium' }}
+                          </li>
+                        }
+                      </ul>
+                      <h4 class="h6">WMS 实发 / Warehouse dispatch</h4>
+                      @if (!fulfillment.warehouseAvailable) {
+                        <p>暂时无法读取仓库凭证 / Warehouse evidence unavailable</p>
+                      } @else if (!fulfillment.dispatches.length) {
+                        <p>暂无实发凭证 / No dispatch evidence</p>
+                      }
+                      <ul class="list-unstyled">
+                        @for (dispatch of fulfillment.dispatches; track dispatch.outboundId) {
+                          <li>
+                            {{ dispatch.outboundId }} · 仓 / Warehouse {{ dispatch.warehouseId }} ·
+                            {{ warehouseStatuses[dispatch.status] || dispatch.status }}
+                            @if (dispatch.decidedAt) {
+                              · {{ dispatch.decidedAt | date: 'medium' }}
+                            }
+                            <ul>
+                              @for (line of dispatch.planned; track line.orderLineId) {
+                                <li>
+                                  订单行 / Line {{ line.orderLineId }} · 计划 / Planned {{ line.quantity }} · 实发 /
+                                  Dispatched {{ actualQuantity(dispatch, line.orderLineId) ?? '—' }}
+                                </li>
+                              }
+                            </ul>
+                          </li>
+                        }
+                      </ul>
+                      <h4 class="h6">WMS 实收与质检 / Warehouse receipt and inspection</h4>
+                      @if (fulfillment.warehouseAvailable && !fulfillment.returns.length) {
+                        <p>暂无退货实收凭证 / No return receipt evidence</p>
+                      }
+                      <ul class="list-unstyled">
+                        @for (item of fulfillment.returns; track item.receipt.returnId) {
+                          <li>
+                            {{ item.receipt.returnId }} · 仓 / Warehouse {{ item.receipt.warehouseId }} ·
+                            {{ warehouseStatuses[item.receipt.status] || item.receipt.status }}<br />
+                            原出库 / Original outbound {{ item.receipt.outboundId }} · 订单行 / Line
+                            {{ item.receipt.orderLineId }}<br />
+                            应收 / Expected {{ item.receipt.expectedQuantity }} · 实收 / Received
+                            {{ item.receipt.receivedQuantity ?? '—' }}
+                            @if (item.receipt.receivedAt) {
+                              · {{ item.receipt.receivedAt | date: 'medium' }}
+                            }
+                            @if (item.receipt.inspectedAt) {
+                              · 质检 / Inspected {{ item.receipt.inspectedAt | date: 'medium' }}
+                            }
+                            @if (item.receipt.supplementId) {
+                              <br />补检 / Supplemental inspection {{ item.receipt.supplementId }} · 合格 / Qualified
+                              {{ item.receipt.qualifiedQuantity }}
+                            }
+                            @if (item.refundNumber) {
+                              <br />退款单 / Refund {{ item.refundNumber }} · 退款件数 / Refunded
+                              {{ item.refundedQuantity }}
+                            }
+                          </li>
+                        }
+                      </ul>
+                      @if (fulfillment.differences.length) {
+                        <ul class="text-danger">
+                          @for (difference of fulfillment.differences; track $index) {
+                            <li>
+                              {{ labels[difference.kind] }} · {{ difference.outboundId }} · 订单行 / Line
+                              {{ difference.orderLineId }} · {{ difference.expected ?? '—' }} →
+                              {{ difference.observed ?? '—' }}
+                            </li>
+                          }
+                        </ul>
+                      }
+                    </div>
+                  }
                 </details>
               </td>
               <td>{{ order.statementPayable | currency: 'CNY' }}</td>
@@ -86,6 +206,17 @@
       [loading]="loading()"
       (pageChange)="load($event)"
     />
+    @if (allowReview()) {
+      <app-statement-difference-reviews
+        [path]="path() + '/reviews'"
+        [targets]="reviewTargets()"
+        [labels]="labels"
+        [reportPage]="value.page"
+        [reportSize]="value.size"
+        [reportBusy]="loading() || failed()"
+        (reloadReport)="load()"
+      />
+    }
   }
 </section>
 

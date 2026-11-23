@@ -103,6 +103,10 @@ public class WarehouseOutbounds {
       planned, actual, row.createdAt(), row.decidedAt());
   }
 
+  List<Receipt> evidence(long merchantId, List<Long> orderIds) {
+    return store.evidence(merchantId, orderIds).stream().map(this::receipt).toList();
+  }
+
   private WarehouseOutboundMapper.Row required(WarehouseOutboundMapper.Row row) {
     if (row == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Outbound not found");
     return row;

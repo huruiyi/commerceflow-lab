@@ -847,6 +847,21 @@ CREATE TABLE merchant_settlement_statements (
   payable DECIMAL(16,2) NOT NULL,
   frozen_by BIGINT NOT NULL
 );
+CREATE TABLE merchant_statement_difference_reviews (
+  request_id CHAR(36) PRIMARY KEY,
+  statement_id CHAR(36) NOT NULL REFERENCES merchant_settlement_statements(id),
+  merchant_id BIGINT NOT NULL,
+  order_id BIGINT,
+  order_line_id BIGINT,
+  difference_kind VARCHAR(64) NOT NULL,
+  evidence_reference VARCHAR(128) NOT NULL,
+  expected_value DECIMAL(24,2),
+  observed_value DECIMAL(24,2),
+  decision VARCHAR(16) NOT NULL CHECK (decision IN ('CONFIRMED','NO_ACTION')),
+  reason VARCHAR(300) NOT NULL,
+  reviewed_by BIGINT NOT NULL,
+  reviewed_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+);
 CREATE TABLE merchant_settlement_entries (
   source_key VARCHAR(100) PRIMARY KEY,
   merchant_id BIGINT NOT NULL,
@@ -871,6 +886,8 @@ CREATE TABLE merchant_payout_attempts (
   channel_payout_no VARCHAR(50) UNIQUE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   resolved_at TIMESTAMP,
+  recovery_of CHAR(36) UNIQUE REFERENCES merchant_payout_attempts(id),
+  recovery_reason VARCHAR(300),
   next_attempt_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   active_statement_id CHAR(36) GENERATED ALWAYS AS (
     CASE WHEN status IN ('REQUESTED','PENDING','SUCCEEDED') THEN statement_id END

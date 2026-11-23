@@ -1,6 +1,7 @@
 package vip.fairy.commerceflow.warehouse;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -100,6 +101,10 @@ public class WarehouseReturns {
 
   private ResponseStatusException conflict() {
     return new ResponseStatusException(HttpStatus.CONFLICT, "Warehouse return state or immutable facts conflict");
+  }
+
+  List<Receipt> evidence(long merchantId, List<Long> orderIds) {
+    return store.evidence(merchantId, orderIds);
   }
 
   public record Command(String returnId, String outboundId, long orderId, long orderLineId, long warehouseId,

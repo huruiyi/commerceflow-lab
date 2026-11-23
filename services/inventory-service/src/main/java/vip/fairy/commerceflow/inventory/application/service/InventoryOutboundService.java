@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryOutboundV1.Document;
 import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryOutboundV1.Event;
+import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryOutboundV1.EvidenceLine;
+import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryOutboundV1.EvidenceQuery;
 import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryOutboundV1.Line;
 import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryOutboundV1.Receipt;
 import vip.fairy.commerceflow.inventory.domain.InventoryReservation;
@@ -35,6 +37,11 @@ public class InventoryOutboundService {
     this.credits = credits;
     this.store = store;
     this.mapper = mapper;
+  }
+
+  @Transactional(readOnly = true)
+  public List<EvidenceLine> evidence(EvidenceQuery query) {
+    return store.evidence(query);
   }
 
   @Transactional

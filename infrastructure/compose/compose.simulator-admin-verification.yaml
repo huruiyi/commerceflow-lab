@@ -30,7 +30,7 @@ services:
       INVOICE_BASE_URL: http://simulator-fault-fixture:8080
       INVOICE_REQUEST_SECRET: simulator-admin-test-request-signing-secret
       INVOICE_CALLBACK_SECRET: simulator-admin-test-callback-signing-secret
-      WAREHOUSE_RETURN_SECRET: isolated-warehouse-return-secret
+      COMMERCEFLOW_WAREHOUSE_RETURN_SECRET: isolated-warehouse-return-secret
 
   payment-simulator-service:
     environment:

@@ -5,6 +5,7 @@ import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
@@ -12,22 +13,27 @@ import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.commerce.inventory.domain.InventoryMovementView;
 import vip.fairy.commerceflow.commerce.inventory.domain.MerchantInventoryItem;
+import vip.fairy.commerceflow.commerce.merchant.application.contract.v1.SettlementFulfillmentV1.InventoryLine;
+import vip.fairy.commerceflow.commerce.merchant.application.contract.v1.SettlementFulfillmentV1.InventorySource;
 import vip.fairy.commerceflow.commerce.shared.api.AdminListPage;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
 
 @Component
-public class MerchantInventoryRemoteClient {
+public class MerchantInventoryRemoteClient implements InventorySource {
 
   private static final ParameterizedTypeReference<List<MerchantInventoryItem>> ITEM_LIST =
     new ParameterizedTypeReference<>() { };
   private static final ParameterizedTypeReference<List<InventoryMovementView>> MOVEMENT_LIST =
+    new ParameterizedTypeReference<>() { };
+  private static final ParameterizedTypeReference<List<InventoryLine>> OUTBOUND_EVIDENCE =
     new ParameterizedTypeReference<>() { };
 
   private final RestClient client;
@@ -88,6 +94,21 @@ public class MerchantInventoryRemoteClient {
       throw remoteFailure(exception);
     } catch (RuntimeException exception) {
       throw new InventoryRemoteUnavailableException(exception);
+    }
+  }
+
+  @Override
+  public Optional<List<InventoryLine>> outboundEvidence(long merchantId, List<Long> orderIds) {
+    String target = "/internal/v1/inventory/outbound-documents/query";
+    String payload = mapper.writeValueAsString(Map.of("merchantId", merchantId, "orderIds", orderIds));
+    try {
+      var lines = client.post().uri(URI.create(baseUrl + target)).contentType(MediaType.APPLICATION_JSON)
+        .headers(headers -> signer.sign(headers, "POST", target, signer.contentHash(payload)))
+        .body(payload).retrieve().body(OUTBOUND_EVIDENCE);
+      return Optional.ofNullable(lines)
+        .filter(value -> value.stream().allMatch(line -> orderIds.contains(line.orderId())));
+    } catch (RestClientException exception) {
+      return Optional.empty();
     }
   }
 

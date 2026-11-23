@@ -84,7 +84,7 @@
       </button>
     </div>
     @if (reconciliationPath(); as path) {
-      <app-statement-reconciliation [path]="path" />
+      <app-statement-reconciliation [path]="path" [allowReview]="admin" />
     }
     @if (periodComparisonPath(); as path) {
       <app-statement-period-comparison [path]="path" />

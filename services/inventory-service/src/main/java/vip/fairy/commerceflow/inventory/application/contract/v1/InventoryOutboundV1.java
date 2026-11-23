@@ -32,6 +32,19 @@ public final class InventoryOutboundV1 {
   public record Receipt(UUID outboundId, long orderId, int lineCount) {
   }
 
+  public record EvidenceQuery(long merchantId, List<Long> orderIds) {
+    public EvidenceQuery {
+      if (merchantId < 1 || orderIds == null || orderIds.isEmpty() || orderIds.size() > 20
+          || orderIds.stream().anyMatch(id -> id == null || id < 1)) {
+        throw new IllegalArgumentException("Invalid inventory outbound evidence query");
+      }
+    }
+  }
+
+  public record EvidenceLine(String outboundId, long orderId, long warehouseId, long orderLineId, long productId,
+                             int quantity, Instant postedAt) {
+  }
+
   public record Event(int schemaVersion, String eventType, String eventId, UUID outboundId,
                       long orderId, long merchantId, long orderLineId, long productId,
                       int quantity, Instant occurredAt, long warehouseId) {

@@ -41,6 +41,14 @@
     ORDER BY created_at DESC,outbound_id LIMIT #{query.size} OFFSET #{offset}
   </select>
 
+  <select id="evidence" resultType="vip.fairy.commerceflow.warehouse.WarehouseOutboundMapper$Row">
+    SELECT <include refid="fields"/> FROM warehouse_outbounds WHERE merchant_id=#{merchantId} AND order_id IN
+    <foreach collection="orderIds" item="orderId" open="(" separator="," close=")">
+      #{orderId}
+    </foreach>
+    ORDER BY order_id,created_at,outbound_id
+  </select>
+
   <update id="decide">
     UPDATE warehouse_outbounds SET status=#{status},actual=#{actual},decided_at=CURRENT_TIMESTAMP(6)
     WHERE outbound_id=#{id} AND status='PENDING'

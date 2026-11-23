@@ -3,6 +3,8 @@ package vip.fairy.commerceflow.inventory.infrastructure.persistence;
 import java.util.List;
 
 import org.apache.ibatis.annotations.Param;
+import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryOutboundV1.EvidenceLine;
+import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryOutboundV1.EvidenceQuery;
 import vip.fairy.commerceflow.inventory.application.contract.v1.InventoryOutboundV1.Line;
 import vip.fairy.commerceflow.inventory.domain.OutboundProductQuantity;
 
@@ -16,6 +18,7 @@ public interface InventoryOutboundMapper {
 
   List<OutboundProductQuantity> postedQuantities(@Param("orderId") long orderId,
                                                 @Param("warehouseId") long warehouseId);
+  List<EvidenceLine> evidence(EvidenceQuery query);
 
   void insertLine(@Param("outboundId") String outboundId, @Param("line") Line line);
 

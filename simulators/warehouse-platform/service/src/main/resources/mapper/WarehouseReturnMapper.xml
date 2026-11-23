@@ -38,6 +38,19 @@
     ORDER BY created_at DESC,return_id LIMIT #{query.size} OFFSET #{offset}
   </select>
 
+  <select id="evidence" resultType="vip.fairy.commerceflow.warehouse.WarehouseReturns$Receipt">
+    SELECT <include refid="fields"/> FROM warehouse_returns r WHERE r.order_id IN
+    <foreach collection="orderIds" item="orderId" open="(" separator="," close=")">
+      #{orderId}
+    </foreach>
+    AND EXISTS (
+      SELECT 1 FROM warehouse_outbounds o
+      WHERE o.outbound_id=r.outbound_id AND o.order_id=r.order_id
+        AND o.warehouse_id=r.warehouse_id AND o.merchant_id=#{merchantId}
+    )
+    ORDER BY r.order_id,r.created_at,r.return_id
+  </select>
+
   <update id="receive">
     UPDATE warehouse_returns SET received_quantity=#{quantity},status=#{status},received_at=CURRENT_TIMESTAMP(6)
     WHERE return_id=#{id} AND status='WAITING_RECEIPT'

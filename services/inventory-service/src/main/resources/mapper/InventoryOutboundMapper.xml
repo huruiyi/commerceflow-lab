@@ -20,6 +20,18 @@
     GROUP BY l.product_id
   </select>
 
+  <select id="evidence"
+          resultType="vip.fairy.commerceflow.inventory.application.contract.v1.InventoryOutboundV1$EvidenceLine">
+    SELECT d.outbound_id,d.order_id,d.warehouse_id,l.order_line_id,l.product_id,l.quantity,d.posted_at
+    FROM inventory_outbound_documents d
+    JOIN inventory_outbound_lines l ON l.outbound_id=d.outbound_id
+    WHERE d.merchant_id=#{merchantId} AND d.order_id IN
+    <foreach collection="orderIds" item="orderId" open="(" separator="," close=")">
+      #{orderId}
+    </foreach>
+    ORDER BY d.order_id,d.posted_at,d.outbound_id,l.order_line_id
+  </select>
+
   <insert id="insertLine">
     INSERT INTO inventory_outbound_lines(outbound_id,order_line_id,product_id,quantity)
     VALUES(#{outboundId},#{line.orderLineId},#{line.productId},#{line.quantity})

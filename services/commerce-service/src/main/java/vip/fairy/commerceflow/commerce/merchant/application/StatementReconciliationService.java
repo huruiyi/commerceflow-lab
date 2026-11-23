@@ -3,17 +3,21 @@ package vip.fairy.commerceflow.commerce.merchant.application;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vip.fairy.commerceflow.commerce.invoice.application.contract.v1.SettlementInvoiceV1;
 import vip.fairy.commerceflow.commerce.invoice.application.contract.v1.SettlementInvoiceV1.Tickets;
+import vip.fairy.commerceflow.commerce.merchant.application.StatementFulfillmentQuery.FulfillmentCheck;
 import vip.fairy.commerceflow.commerce.merchant.application.contract.v1.SettlementRefundV1;
+import vip.fairy.commerceflow.commerce.merchant.application.contract.v1.SettlementRefundV1.Refund;
 import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.Account;
 import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.Entry;
 import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.RefundOrigin;
@@ -37,16 +41,18 @@ public class StatementReconciliationService {
   private final SettlementRefundV1 afterSales;
   private final PaymentOrchestrationV1 payments;
   private final SettlementInvoiceV1 invoices;
+  private final StatementFulfillmentQuery fulfillment;
 
   StatementReconciliationService(SettlementMapper ledger, MerchantPayoutMapper payouts, SettlementOrderV1 orders,
                                  SettlementRefundV1 afterSales, PaymentOrchestrationV1 payments,
-                                 SettlementInvoiceV1 invoices) {
+                                 SettlementInvoiceV1 invoices, StatementFulfillmentQuery fulfillment) {
     this.ledger = ledger;
     this.payouts = payouts;
     this.orders = orders;
     this.afterSales = afterSales;
     this.payments = payments;
     this.invoices = invoices;
+    this.fulfillment = fulfillment;
   }
 
   @Transactional(readOnly = true)
@@ -72,7 +78,8 @@ public class StatementReconciliationService {
     if (!orderIds.isEmpty()) {
       var entries = ledger.statementOrderEntries(statementId, merchant, orderIds).stream()
         .collect(Collectors.groupingBy(Entry::orderId));
-      for (var orderId : orderIds) checks.add(checkOrder(merchant, orderId, account, entries.get(orderId)));
+      var evidence = fulfillment.load(merchant, orderIds);
+      for (var orderId : orderIds) checks.add(checkOrder(merchant, orderId, account, entries.get(orderId), evidence));
     }
     return new Report(statement, rollup.payable(), paidOut, payoutRefs, differences, checks,
       rollup.orderCount(), page, size, Instant.now());
@@ -100,11 +107,11 @@ public class StatementReconciliationService {
     return payouts.attempts(statement.id()).stream()
       .filter(attempt -> statement.merchantId().equals(attempt.merchantId()))
       .map(attempt -> new Payout(attempt.id(), attempt.channelPayoutNo(), attempt.status(),
-        attempt.amount(), attempt.currency()))
+        attempt.amount(), attempt.currency(), attempt.resolvedAt()))
       .toList();
   }
 
-  private Statement requireStatement(long merchant, String statementId) {
+  Statement requireStatement(long merchant, String statementId) {
     var statement = ledger.statement(statementId);
     if (statement == null || !Long.valueOf(merchant).equals(statement.merchantId())) {
       throw new ResourceNotFoundException("Statement not found");
@@ -131,7 +138,8 @@ public class StatementReconciliationService {
     return differences;
   }
 
-  private OrderCheck checkOrder(long merchant, long orderId, Account account, List<Entry> entries) {
+  private OrderCheck checkOrder(long merchant, long orderId, Account account, List<Entry> entries,
+                                StatementFulfillmentQuery.Page evidence) {
     var sourceKeys = entries.stream().map(Entry::sourceKey).toList();
     var payable = entries.stream().map(entry -> entry.merchandise().add(entry.freight()).subtract(entry.commission()))
       .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -140,7 +148,7 @@ public class StatementReconciliationService {
     if (lines.isEmpty() || lines.stream().anyMatch(line -> !Long.valueOf(merchant).equals(line.merchant()))) {
       var missing = new Difference(order == null ? "ORDER_MISSING" : "ORDER_SCOPE", Long.toString(orderId), null, null);
       return new OrderCheck(orderId, payable, null, null, null, null, null, null, List.of(), List.of(), sourceKeys,
-        List.of(missing));
+        List.of(missing), null, List.of(), null, null);
     }
     var funds = payments.invoiceFunds(new PaymentQueryV1(PaymentQueryV1.VERSION, orderId));
     List<Difference> differences = new ArrayList<>();
@@ -160,14 +168,18 @@ public class StatementReconciliationService {
       .reduce(BigDecimal.ZERO, BigDecimal::add);
     compare(differences, "PAYMENT_REFUND_TOTAL", paymentRef, funds.refundedAmount(), observedRefunds);
     checkEarnings(order, lines, account, entries, differences);
-    checkReversals(merchant, orderId, entries, refunds, differences);
+    var cases = afterSales.evidence(merchant, orderId).stream()
+      .collect(Collectors.toMap(Refund::id, Function.identity()));
+    checkReversals(entries, refunds, cases, differences);
     var tickets = invoices.confirmed(merchant, orderId).orElse(null);
     BigDecimal netInvoice = tickets == null ? null : checkInvoice(tickets, funds, refunds, differences);
     var redNumbers = tickets == null ? List.<String>of()
       : tickets.reds().stream().map(SettlementInvoiceV1.Ticket::invoiceNumber).filter(Objects::nonNull).toList();
     return new OrderCheck(orderId, payable, order.total(), funds.paidAmount(), funds.refundedAmount(),
       funds.paymentNumber(), tickets == null ? null : tickets.issue().invoiceNumber(), netInvoice, redNumbers,
-      refunds.keySet().stream().sorted().toList(), sourceKeys, differences);
+      refunds.keySet().stream().sorted().toList(), sourceKeys, differences, funds.paidAt(),
+      refunds.values().stream().sorted(Comparator.comparing(InvoiceFundsV1.Refund::refundNumber)).toList(),
+      tickets, evidence.check(orderId, cases));
   }
 
   private void checkEarnings(SettlementOrderV1.Order order, List<SettlementOrderV1.Line> snapshot, Account account,
@@ -190,14 +202,11 @@ public class StatementReconciliationService {
     }
   }
 
-  private void checkReversals(long merchant, long orderId, List<Entry> entries,
-                              Map<String, InvoiceFundsV1.Refund> refunds, List<Difference> differences) {
-    var reversals = entries.stream().filter(entry -> "REFUND".equals(entry.kind())).toList();
-    if (reversals.isEmpty()) return;
-    var cases = afterSales.evidence(merchant, orderId).stream()
-      .collect(Collectors.toMap(value -> "refund:" + value.id(), value -> value));
-    for (var entry : reversals) {
-      var source = cases.get(entry.sourceKey());
+  private void checkReversals(List<Entry> entries, Map<String, InvoiceFundsV1.Refund> refunds,
+                              Map<String, Refund> cases, List<Difference> differences) {
+    for (var entry : entries.stream().filter(value -> "REFUND".equals(value.kind())).toList()) {
+      var reference = entry.sourceKey();
+      var source = reference.startsWith("refund:") ? cases.get(reference.substring("refund:".length())) : null;
       var refund = source == null || !"COMPLETED".equals(source.status()) ? null : refunds.get(source.number());
       var expected = entry.merchandise().add(entry.freight()).negate();
       compare(differences, "REFUND_REVERSAL", entry.sourceKey(), expected, refund == null ? null : refund.amount());
@@ -254,14 +263,16 @@ public class StatementReconciliationService {
   public record Difference(String kind, String reference, BigDecimal expected, BigDecimal observed) {
   }
 
-  public record Payout(String id, String channelPayoutNo, String status, BigDecimal amount, String currency) {
+  public record Payout(String id, String channelPayoutNo, String status, BigDecimal amount, String currency,
+                       Instant resolvedAt) {
   }
 
   public record OrderCheck(long orderId, BigDecimal statementPayable, BigDecimal orderAmount, BigDecimal paidAmount,
                            BigDecimal refundedAmount, String paymentNumber, String blueInvoiceNumber,
                            BigDecimal netInvoice, List<String> redInvoiceNumbers, List<String> refundNumbers,
                            List<String> entryReferences,
-                           List<Difference> differences) {
+                           List<Difference> differences, Instant paidAt, List<InvoiceFundsV1.Refund> refundDetails,
+                           Tickets invoiceDetails, FulfillmentCheck fulfillment) {
   }
 
   public record Report(Statement statement, BigDecimal entryPayable, BigDecimal paidOut, List<Payout> payouts,

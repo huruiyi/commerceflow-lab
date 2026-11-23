@@ -767,6 +767,45 @@ class CommerceFlowIntegrationTest {
   }
 
   @Test
+  @Transactional
+  void settlementReviewRejectsChangedEvidenceAndPreservesTheOriginalSubmission() throws Exception {
+    long merchant = users.selectOne(Wrappers.<AppUser>lambdaQuery().eq(AppUser::getEmail, "merchant@example.com")).getId();
+    long adminId = users.selectOne(Wrappers.<AppUser>lambdaQuery().eq(AppUser::getEmail, "admin@example.com")).getId();
+    String statement = UUID.randomUUID().toString();
+    String requestId = UUID.randomUUID().toString();
+    Instant cutoff = Instant.parse("2025-01-02T00:00:00Z");
+    settlementLedger.freeze(new Statement(statement, merchant, cutoff.minusSeconds(3600), cutoff, BigDecimal.TEN,
+      BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.TEN, adminId));
+    String path = "/api/admin/stores/{merchantId}/statements/{id}/reconciliation/reviews";
+    String body = """
+      {"requestId":"%s","page":0,"size":10,"target":{"kind":"STATEMENT_PAYABLE","reference":"%s",
+        "expected":10,"observed":0},"decision":"CONFIRMED","reason":"Checked settlement rollup"}
+      """.formatted(requestId, statement);
+    CsrfContext own = login("merchant@example.com", false);
+    mvc.perform(post(path, merchant, statement).session(own.session()).cookie(own.cookie())
+        .header("X-XSRF-TOKEN", own.token()).contentType("application/json").content(body))
+      .andExpect(status().isForbidden());
+    CsrfContext admin = login("admin@example.com", false);
+    var submission = post(path, merchant, statement).session(admin.session()).cookie(admin.cookie())
+      .header("X-XSRF-TOKEN", admin.token()).contentType("application/json");
+    mvc.perform(submission.content(body.replace("\"observed\":0", "\"observed\":1")))
+      .andExpect(status().isConflict());
+    mvc.perform(submission.content(body)).andExpect(status().isOk())
+      .andExpect(jsonPath("$.reviewedBy").value(adminId))
+      .andExpect(jsonPath("$.observedValue").value(0))
+      .andExpect(jsonPath("$.reviewedAt").isNotEmpty());
+    mvc.perform(submission.content(body)).andExpect(status().isOk())
+      .andExpect(jsonPath("$.requestId").value(requestId));
+    mvc.perform(submission.content(body.replace("Checked settlement rollup", "Changed decision rationale")))
+      .andExpect(status().isConflict());
+    mvc.perform(get(path, merchant, statement).session(admin.session())).andExpect(status().isOk())
+      .andExpect(jsonPath("$.total").value(1))
+      .andExpect(jsonPath("$.rows[0].reason").value("Checked settlement rollup"));
+    mvc.perform(get(path, adminId, statement).session(admin.session())).andExpect(status().isNotFound());
+    assertEquals(0, settlementLedger.statement(statement).payable().compareTo(BigDecimal.TEN));
+  }
+
+  @Test
   void genericSchedulingUsesPolicySnapshotAndAdminCanMaintainPolicies() throws Exception {
     scheduledTasks.schedule(ScheduledTaskTypes.REVIEW_REMINDER, "review-reminder-test", "ORDER", "1",
       Instant.now().minusSeconds(1), Map.of("orderId", 1));

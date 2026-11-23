@@ -4,12 +4,68 @@ import { Component, computed, DestroyRef, inject, input, OnInit, signal } from '
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { ListPaginationComponent } from '../list-pagination/list-pagination.component';
+import { ReviewTarget, StatementDifferenceReviewsComponent } from './statement-difference-reviews.component';
 
 interface Difference {
   kind: string;
   reference: string;
   expected: number | null;
   observed: number | null;
+}
+
+interface Dispatch {
+  outboundId: string;
+  warehouseId: number;
+  status: string;
+  planned: { orderLineId: number; productId: number; quantity: number }[];
+  actual: { orderLineId: number; quantity: number }[] | null;
+  decidedAt: string | null;
+}
+
+interface FulfillmentCheck {
+  inventoryAvailable: boolean;
+  warehouseAvailable: boolean;
+  inventory: {
+    outboundId: string;
+    warehouseId: number;
+    orderLineId: number;
+    productId: number;
+    quantity: number;
+    postedAt: string;
+  }[];
+  dispatches: Dispatch[];
+  returns: {
+    receipt: {
+      returnId: string;
+      outboundId: string;
+      warehouseId: number;
+      orderLineId: number;
+      expectedQuantity: number;
+      receivedQuantity: number | null;
+      status: string;
+      receivedAt: string | null;
+      inspectedAt: string | null;
+      supplementId: string | null;
+      qualifiedQuantity: number | null;
+    };
+    refundNumber: string | null;
+    refundedQuantity: number | null;
+  }[];
+  differences: {
+    kind: string;
+    outboundId: string;
+    orderLineId: number;
+    expected: number | null;
+    observed: number | null;
+  }[];
+}
+
+interface Ticket {
+  invoiceNumber: string;
+  originalInvoiceNumber: string | null;
+  reference: string;
+  amount: number;
+  currency: string;
 }
 
 interface OrderCheck {
@@ -25,13 +81,17 @@ interface OrderCheck {
   refundNumbers: string[];
   entryReferences: string[];
   differences: Difference[];
+  paidAt?: string | null;
+  refundDetails?: { refundNumber: string; amount: number; currency: string; succeededAt: string }[];
+  invoiceDetails?: { issue: Ticket; reds: Ticket[] } | null;
+  fulfillment?: FulfillmentCheck | null;
 }
 
 interface Report {
   statement: { payable: number; startsAt: string; cutoffAt: string };
   entryPayable: number;
   paidOut: number;
-  payouts: { id: string; channelPayoutNo: string | null; status: string; amount: number }[];
+  payouts: { id: string; channelPayoutNo: string | null; status: string; amount: number; resolvedAt?: string | null }[];
   differences: Difference[];
   orders: OrderCheck[];
   total: number;
@@ -42,12 +102,28 @@ interface Report {
 
 @Component({
   selector: 'app-statement-reconciliation',
-  imports: [CommonModule, ListPaginationComponent],
+  imports: [CommonModule, ListPaginationComponent, StatementDifferenceReviewsComponent],
   templateUrl: './statement-reconciliation.component.html',
 })
 export class StatementReconciliationComponent implements OnInit {
   readonly path = input.required<string>();
+  readonly allowReview = input(false);
   readonly report = signal<Report | null>(null);
+  readonly reviewTargets = computed<ReviewTarget[]>(() => {
+    const report = this.report();
+    if (!report) return [];
+    return [
+      ...report.differences.map((difference) => ({ ...difference, orderId: null, orderLineId: null })),
+      ...report.orders.flatMap((order) => [
+        ...order.differences.map((difference) => ({ ...difference, orderId: order.orderId, orderLineId: null })),
+        ...(order.fulfillment?.differences ?? []).map(({ outboundId, ...difference }) => ({
+          ...difference,
+          orderId: order.orderId,
+          reference: outboundId,
+        })),
+      ]),
+    ];
+  });
   readonly totalPages = computed(() => {
     const value = this.report();
     return value ? Math.ceil(value.total / value.size) : 0;
@@ -84,7 +160,25 @@ export class StatementReconciliationComponent implements OnInit {
     RED_FACTS: '红票引用或币种 / Red invoice facts',
     RED_AMOUNT: '红票金额 / Red invoice amount',
     RED_NOT_CONFIRMED: '红冲尚未确认 / Red invoice unconfirmed',
+    INVENTORY_OUTBOUND_QUANTITY: 'WMS 实发与库存出库数量差异 / Dispatched and posted quantity differ',
+    WMS_OUTBOUND_MISSING: '库存出库缺少对应实发凭证 / Dispatch evidence missing',
   };
+
+  readonly warehouseStatuses: Record<string, string> = {
+    PENDING: '待实发 / Awaiting dispatch',
+    DISPATCHED: '已实发 / Dispatched',
+    VOIDED: '已拒绝出库 / Dispatch rejected',
+    WAITING_RECEIPT: '待实收 / Awaiting receipt',
+    RECEIVED: '待质检 / Awaiting inspection',
+    PASSED: '质检合格 / Inspection passed',
+    FAILED: '质检不通过 / Inspection failed',
+    SHORT_RECEIVED: '短收 / Short receipt',
+    REJECTED: '拒收 / Receipt rejected',
+  };
+
+  actualQuantity(dispatch: Dispatch, orderLineId: number): number | null {
+    return dispatch.actual?.find((line) => line.orderLineId === orderLineId)?.quantity ?? null;
+  }
 
   ngOnInit(): void {
     this.load(0);

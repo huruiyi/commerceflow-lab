@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.merchant.infrastructure.StatementDifferenceReviewMapper">
+
+  <sql id="fields">
+    request_id,statement_id,merchant_id,order_id,order_line_id,difference_kind,evidence_reference,
+    expected_value,observed_value,decision,reason,reviewed_by,reviewed_at
+  </sql>
+
+  <select id="find" resultType="vip.fairy.commerceflow.commerce.merchant.domain.StatementDifferenceReview">
+    SELECT <include refid="fields"/> FROM merchant_statement_difference_reviews WHERE request_id=#{requestId}
+  </select>
+
+  <insert id="insert">
+    INSERT INTO merchant_statement_difference_reviews (
+      request_id,statement_id,merchant_id,order_id,order_line_id,difference_kind,evidence_reference,
+      expected_value,observed_value,decision,reason,reviewed_by
+    ) VALUES (
+      #{requestId},#{statementId},#{merchantId},#{orderId},#{orderLineId},#{differenceKind},#{evidenceReference},
+      #{expectedValue},#{observedValue},#{decision},#{reason},#{reviewedBy}
+    )
+  </insert>
+
+  <select id="count" resultType="long">
+    SELECT COUNT(*) FROM merchant_statement_difference_reviews
+    WHERE merchant_id=#{merchant} AND statement_id=#{statement}
+  </select>
+
+  <select id="page" resultType="vip.fairy.commerceflow.commerce.merchant.domain.StatementDifferenceReview">
+    SELECT <include refid="fields"/> FROM merchant_statement_difference_reviews
+    WHERE merchant_id=#{merchant} AND statement_id=#{statement}
+    ORDER BY reviewed_at DESC,request_id DESC LIMIT #{size} OFFSET #{offset}
+  </select>
+</mapper>

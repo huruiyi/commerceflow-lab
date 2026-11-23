@@ -5,6 +5,7 @@ import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -14,6 +15,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -81,6 +83,19 @@ class WarehouseController {
   ResponseEntity<String> submitReturn(HttpServletRequest request, @RequestBody String payload) {
     String nonce = verify(request, payload, "commerce-service", returnSecret);
     return signed(nonce, returns.submit(mapper.readValue(payload, WarehouseReturns.Command.class)), returnSecret);
+  }
+
+  @PostMapping("/internal/v1/warehouse/reconciliation/query")
+  @Transactional(readOnly = true)
+  ResponseEntity<String> reconciliation(HttpServletRequest request, @RequestBody String payload) {
+    String nonce = verify(request, payload, "commerce-service", returnSecret);
+    var query = mapper.readValue(payload, ReconciliationQuery.class);
+    if (query.merchantId() < 1 || query.orderIds() == null || query.orderIds().isEmpty()
+        || query.orderIds().size() > 20 || query.orderIds().stream().anyMatch(id -> id == null || id < 1)) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid warehouse reconciliation query");
+    }
+    return signed(nonce, new ReconciliationEvidence(outbounds.evidence(query.merchantId(), query.orderIds()),
+      returns.evidence(query.merchantId(), query.orderIds())), returnSecret);
   }
 
   @GetMapping("/api/admin/returns")
@@ -177,5 +192,12 @@ class WarehouseController {
   }
 
   private record OutboundReference(String outboundId) {
+  }
+
+  private record ReconciliationQuery(long merchantId, List<Long> orderIds) {
+  }
+
+  private record ReconciliationEvidence(List<WarehouseOutbounds.Receipt> outbounds,
+                                        List<WarehouseReturns.Receipt> returns) {
   }
 }
