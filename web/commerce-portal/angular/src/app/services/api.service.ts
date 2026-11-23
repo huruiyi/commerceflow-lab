@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { exhaustMap, filter, forkJoin, map, Observable, of, switchMap, take, timeout, timer } from 'rxjs';
+import { forkJoin, map, Observable, of } from 'rxjs';
 import { CreateOrderRequest } from 'src/model/IOrder';
 import { OrderList } from 'src/model/IOrderList';
 import { Product } from 'src/model/IProduct';
@@ -30,6 +30,32 @@ import {
   WarehouseEvidenceLine,
   WarehouseEvidenceReceipt,
 } from 'src/model/IInventoryReconciliation';
+
+export type FulfillmentOperation =
+  | { operation: 'CONFIRM' }
+  | {
+      operation: 'SHIP';
+      carrier: string;
+      trackingNumber: string;
+      lines: { orderLineId: number; quantity: number }[];
+      warehouseId?: number;
+    }
+  | { operation: 'UPDATE_SHIPMENT'; carrier: string; trackingNumber: string; expectedShipmentVersion: number };
+
+export type FulfillmentIntent = FulfillmentOperation & {
+  commandId: string;
+  orderId: number;
+  occurredAt: string;
+};
+
+export interface FulfillmentReceipt {
+  commandId: string;
+  orderId: number;
+  status: 'PENDING' | 'COMPLETED' | 'REJECTED' | 'REVIEW_REQUIRED';
+  errorCode?: string;
+}
+
+const FULFILLMENT_COMMANDS = '/api/merchant/orders/fulfillment-v1/commands';
 
 export interface AfterSaleOffer {
   kind: 'BEFORE_SHIPMENT' | 'RETURN' | 'EXCHANGE';
@@ -557,86 +583,28 @@ export class ApiService {
     });
   }
 
-  private readonly fulfillmentCommands = new Map<number, { fingerprint: string; commandId: string }>();
-
-  confirmMerchantOrder(id: number): Observable<PurchaseOrder> {
-    return this.submitMerchantFulfillment(id, 'CONFIRM');
-  }
-
   merchantShipmentStatus(id: number): Observable<{ status: string; step: string; lastError?: string }> {
     return this.http.get<{ status: string; step: string; lastError?: string }>(
       `/api/merchant/orders/${id}/fulfillment-v1/shipment`,
     );
   }
 
-  shipMerchantPackage(
-    id: number,
-    packageId: string,
-    carrier: string,
-    trackingNumber: string,
-    lines: { orderLineId: number; quantity: number }[],
-    warehouseId?: number,
-  ): Observable<{ status: string; step: string; errorCode?: string }> {
-    return this.http.post<{ status: string; step: string; errorCode?: string }>(`/api/merchant/orders/${id}/packages`, {
-      packageId,
-      carrier,
-      trackingNumber,
-      lines,
-      warehouseId,
-    });
+  submitFulfillment(intent: FulfillmentIntent): Observable<FulfillmentReceipt> {
+    if (intent.operation === 'SHIP') {
+      const { orderId, commandId, carrier, trackingNumber, lines, warehouseId } = intent;
+      return this.http.post<FulfillmentReceipt>(`/api/merchant/orders/${orderId}/packages`, {
+        packageId: commandId,
+        carrier,
+        trackingNumber,
+        lines,
+        warehouseId,
+      });
+    }
+    return this.http.post<FulfillmentReceipt>(FULFILLMENT_COMMANDS, { version: 1, ...intent });
   }
 
-  shipMerchantOrder(id: number, carrier: string, trackingNumber: string): Observable<PurchaseOrder> {
-    return this.submitMerchantFulfillment(id, 'SHIP', { carrier, trackingNumber });
-  }
-
-  updateMerchantShipment(
-    id: number,
-    carrier: string,
-    trackingNumber: string,
-    expectedShipmentVersion: number,
-  ): Observable<PurchaseOrder> {
-    return this.submitMerchantFulfillment(id, 'UPDATE_SHIPMENT', { carrier, trackingNumber, expectedShipmentVersion });
-  }
-
-  private submitMerchantFulfillment(
-    orderId: number,
-    operation: 'CONFIRM' | 'SHIP' | 'UPDATE_SHIPMENT',
-    fields: { carrier?: string; trackingNumber?: string; expectedShipmentVersion?: number } = {},
-  ): Observable<PurchaseOrder> {
-    const fingerprint = JSON.stringify({ operation, ...fields });
-    const previous = this.fulfillmentCommands.get(orderId);
-    const commandId = previous?.fingerprint === fingerprint ? previous.commandId : crypto.randomUUID();
-    this.fulfillmentCommands.set(orderId, { fingerprint, commandId });
-    const commands = '/api/merchant/orders/fulfillment-v1/commands';
-    return this.http
-      .post<{ status: string }>(commands, {
-        version: 1,
-        commandId,
-        orderId,
-        operation,
-        occurredAt: new Date().toISOString(),
-        ...fields,
-      })
-      .pipe(
-        switchMap((receipt) =>
-          receipt.status === 'PENDING'
-            ? timer(0, 1000).pipe(
-                exhaustMap(() => this.http.get<{ status: string }>(`${commands}/${commandId}`)),
-                filter((current) => current.status !== 'PENDING'),
-                take(1),
-                timeout({ first: 60000 }),
-              )
-            : of(receipt),
-        ),
-        switchMap((receipt) => {
-          if (this.fulfillmentCommands.get(orderId)?.commandId === commandId) {
-            this.fulfillmentCommands.delete(orderId);
-          }
-          if (receipt.status !== 'COMPLETED') throw new Error('Fulfillment operation did not complete');
-          return this.http.get<PurchaseOrder>(`/api/merchant/orders/${orderId}`);
-        }),
-      );
+  fulfillmentReceipt(commandId: string): Observable<FulfillmentReceipt> {
+    return this.http.get<FulfillmentReceipt>(`${FULFILLMENT_COMMANDS}/${encodeURIComponent(commandId)}`);
   }
 
   receiveOrder(id: number): Observable<PurchaseOrder> {

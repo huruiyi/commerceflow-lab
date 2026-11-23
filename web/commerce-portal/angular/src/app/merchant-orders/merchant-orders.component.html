@@ -16,6 +16,15 @@
   {{ 'ordersLoadFailed' | t }}
   <button class="btn btn-outline-danger" type="button" (click)="load()">{{ 'retry' | t }}</button>
 </div>
+<ng-container *ngIf="!loading">
+  <div *ngFor="let order of ordersOutsideResults" class="alert alert-info">
+    <p class="mb-2">{{ 'order' | t }} {{ order.orderNumber }}</p>
+    <ng-container *ngTemplateOutlet="fulfillmentRecovery; context: { $implicit: order }"></ng-container>
+    <button type="button" class="action-button mt-2" (click)="openOriginalOrder(order)">
+      {{ 'openOriginalFulfillmentOrder' | t }}
+    </button>
+  </div>
+</ng-container>
 <app-order-list-filter
   [result]="page"
   [applied]="criteria"
@@ -51,7 +60,7 @@
       class="action-button primary"
       type="button"
       (click)="confirm(order)"
-      [disabled]="pending.has(order.id)"
+      [disabled]="pending.has(order.id) || recoveries.has(order.id)"
     >
       <i class="bi bi-check2-circle" aria-hidden="true"></i>{{ 'confirmOrder' | t }}
     </button>
@@ -71,6 +80,10 @@
     >
       <i class="bi bi-pencil-square" aria-hidden="true"></i>{{ 'updateShipment' | t }}
     </button>
+  </div>
+
+  <div *ngIf="recoveries.has(order.id)" class="alert alert-info mt-3">
+    <ng-container *ngTemplateOutlet="fulfillmentRecovery; context: { $implicit: order }"></ng-container>
   </div>
 
   <div *ngIf="expandedOrders.has(order.id)" class="order-details">
@@ -123,12 +136,14 @@
         class="form-control"
         name="carrier{{ order.id }}"
         [(ngModel)]="carrier[order.id]"
+        [readonly]="recoveries.has(order.id)"
         [placeholder]="'carrier' | t"
         required
       /><input
         class="form-control"
         name="tracking{{ order.id }}"
         [(ngModel)]="tracking[order.id]"
+        [readonly]="recoveries.has(order.id)"
         [placeholder]="'tracking' | t"
         required
       />
@@ -138,7 +153,13 @@
         </p>
         <label *ngIf="isMultiWarehouse(order.id)">
           {{ 'fulfillmentWarehouse' | t }}
-          <select class="form-select" name="warehouse{{ order.id }}" [(ngModel)]="warehouses[order.id]" required>
+          <select
+            class="form-select"
+            name="warehouse{{ order.id }}"
+            [(ngModel)]="warehouses[order.id]"
+            [disabled]="recoveries.has(order.id)"
+            required
+          >
             <option [ngValue]="undefined"></option>
             <option *ngFor="let warehouse of warehouseOptions(order.id)" [ngValue]="warehouse">{{ warehouse }}</option>
           </select>
@@ -153,6 +174,7 @@
             step="1"
             name="packageQuantity{{ item.id }}"
             [(ngModel)]="packageQuantities[item.id]"
+            [readonly]="recoveries.has(order.id)"
           />
         </label>
       </ng-container>
@@ -160,6 +182,7 @@
         class="btn btn-success"
         [disabled]="
           pending.has(order.id) ||
+          recoveries.has(order.id) ||
           shipmentProgress[order.id]?.status === 'PENDING' ||
           shipmentInvalid(order) ||
           shipmentUnchanged(order) ||
@@ -201,3 +224,27 @@
     </section>
   </div>
 </article>
+
+<ng-template #fulfillmentRecovery let-order>
+  <ng-container *ngIf="recoveries.get(order.id) as recovery">
+    <p class="mb-2" role="status">{{ recovery.message | t }}</p>
+    <p class="mb-2 text-break">{{ 'fulfillmentCommandId' | t }} {{ recovery.intent.commandId }}</p>
+    <button
+      type="button"
+      class="action-button me-2"
+      [disabled]="pending.has(order.id)"
+      (click)="checkFulfillment(order)"
+    >
+      {{ 'checkFulfillmentResult' | t }}
+    </button>
+    <button
+      *ngIf="recovery.message === 'fulfillmentResultMissing'"
+      type="button"
+      class="action-button primary"
+      [disabled]="pending.has(order.id)"
+      (click)="retryFulfillment(order)"
+    >
+      {{ 'retryFulfillmentCommand' | t }}
+    </button>
+  </ng-container>
+</ng-template>

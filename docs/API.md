@@ -53,6 +53,7 @@
 - 商家订单搜索默认每页 10 笔，`page` 从 0 开始，`size` 可设为 1–20。按创建时间和订单 ID 倒序返回，`pendingConfirm` 和 `pendingShip` 是本店待办总数。`orderNumber` 用完整订单号精确匹配，可配合 `status` 使用。关键词、商品和运单等模糊查询用 `q`，两个参数互斥。查不到或订单归属其他店铺时返回空页，按内部 ID 查其他店铺订单返回 404。原 `GET /api/merchant/orders` 全量入口已移除。
 - 统一提交接口用 `operation` 区分接单 `CONFIRM`、发货 `SHIP` 和改运单 `UPDATE_SHIPMENT`。重试保留原 `commandId`。提交返回 `202 Accepted` 时，按 `Location` 或 `commandId` 查询结果。
 - 独立包裹创建使用 `POST /api/merchant/orders/{id}/packages`，提交 `packageId`、承运商、运单号和包裹明细。两仓发货须提交选定的 `warehouseId`，仅使用默认仓时可省略。返回命令可按 `commandId` 查询。
+- 门户在提交接单、包裹发货或改运单前保存原请求，刷新后用 `GET /api/merchant/orders/fulfillment-v1/commands/{commandId}` 核对结果。包裹请求用 `packageId` 作为查询的 `commandId`。查询无回执时，商家可手动重发原请求。已受理的命令继续使用原回执，改运单重试保留原运单版本。
 
 仓库模拟器管理员使用 `GET /api/admin/outbounds` 和 `GET /api/admin/returns` 分页查询。
 响应包含 `rows`、`total`、`page`、`size`，页码从 1 开始，默认每页 20 条，可选 1–200。

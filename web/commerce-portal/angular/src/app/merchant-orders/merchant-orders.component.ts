@@ -1,12 +1,26 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectorRef, Component, DestroyRef, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
-import { catchError, finalize, forkJoin, Observable, of, Subscription, TimeoutError } from 'rxjs';
+import { catchError, EMPTY, exhaustMap, filter, finalize, forkJoin, Observable, of } from 'rxjs';
+import { Subscription, switchMap, take, timeout, timer } from 'rxjs';
 import { initialOrderSearch, OrderSearchCriteria, OrderSearchPage, PurchaseOrder } from 'src/model/IPurchaseOrder';
 import { WarehousePlan } from 'src/model/IPurchaseOrder';
 import { orderSearchParams, readOrderSearch } from '../order-list-filter/order-search-query';
-import { ApiService } from '../services/api.service';
+import { AccountService } from '../services/account.service';
+import { ApiService, FulfillmentIntent, FulfillmentOperation, FulfillmentReceipt } from '../services/api.service';
 import { I18nService } from '../services/i18n.service';
+
+type FulfillmentOrder = Pick<PurchaseOrder, 'id' | 'orderNumber'>;
+
+interface StoredFulfillment {
+  order: FulfillmentOrder;
+  intent: FulfillmentIntent;
+}
+
+interface FulfillmentRecovery extends StoredFulfillment {
+  message: 'fulfillmentResultUnknown' | 'fulfillmentResultMissing' | 'fulfillmentResultPending' | 'orderStatusPending';
+}
 
 @Component({
   standalone: false,
@@ -29,13 +43,14 @@ export class MerchantOrdersComponent implements OnInit {
   warehousePlanFailed = new Set<number>();
   private warehouseRequests = new Map<number, Subscription>();
   shipmentProgress: Record<number, { status: string; lastError?: string } | undefined> = {};
-  private packageRequests = new Map<number, { key: string; id: string }>();
+  recoveries = new Map<number, FulfillmentRecovery>();
   expandedOrders = new Set<number>();
   notice?: { type: 'success' | 'danger' | 'info'; text: string };
   pending = new Set<number>();
 
   constructor(
     private api: ApiService,
+    private account: AccountService,
     private i18n: I18nService,
     private changeDetector: ChangeDetectorRef,
     private destroyRef: DestroyRef,
@@ -44,6 +59,7 @@ export class MerchantOrdersComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    this.restoreFulfillment();
     this.route.queryParamMap
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((params) => this.load(readOrderSearch(params)));
@@ -94,28 +110,16 @@ export class MerchantOrdersComponent implements OnInit {
   }
 
   confirm(order: PurchaseOrder): void {
-    this.execute(order.id, this.api.confirmMerchantOrder(order.id), (value) =>
-      value.status === 'PAID' ? 'orderConfirmationAccepted' : 'orderConfirmed',
-    );
+    this.beginFulfillment(order, { operation: 'CONFIRM' });
   }
 
   saveShipment(order: PurchaseOrder): void {
-    if (this.shipmentInvalid(order) || this.shipmentUnchanged(order)) return;
-    const request =
-      order.status === 'SHIPPED'
-        ? this.api.updateMerchantShipment(
-            order.id,
-            this.carrier[order.id].trim(),
-            this.tracking[order.id].trim(),
-            order.shipmentVersion ?? 0,
-          )
-        : this.api.shipMerchantOrder(order.id, this.carrier[order.id].trim(), this.tracking[order.id].trim());
-    this.execute(order.id, request, (value) => {
-      if (order.status === 'SHIPPED' && order.shipmentVersion === value.shipmentVersion) {
-        return 'shipmentUpdateAccepted';
-      }
-      if (value.status !== 'SHIPPED') return 'shipmentAccepted';
-      return order.status === 'SHIPPED' ? 'shipmentUpdated' : 'orderShipped';
+    if (order.status !== 'SHIPPED' || this.shipmentInvalid(order) || this.shipmentUnchanged(order)) return;
+    this.beginFulfillment(order, {
+      operation: 'UPDATE_SHIPMENT',
+      carrier: this.carrier[order.id].trim(),
+      trackingNumber: this.tracking[order.id].trim(),
+      expectedShipmentVersion: order.shipmentVersion ?? 0,
     });
   }
 
@@ -131,41 +135,13 @@ export class MerchantOrdersComponent implements OnInit {
       .map((item) => ({ orderLineId: item.id, quantity: this.packageQuantities[item.id] ?? 0 }))
       .filter((line) => line.quantity > 0);
     if (!lines.length || lines.some((line) => !Number.isInteger(line.quantity))) return;
-    const carrier = this.carrier[order.id].trim();
-    const trackingNumber = this.tracking[order.id].trim();
-    const warehouseId = this.warehouses[order.id];
-    const key = JSON.stringify({ carrier, trackingNumber, lines, warehouseId });
-    const previous = this.packageRequests.get(order.id);
-    const id = previous?.key === key ? previous.id : crypto.randomUUID();
-    this.packageRequests.set(order.id, { key, id });
-    this.pending.add(order.id);
-    this.api
-      .shipMerchantPackage(order.id, id, carrier, trackingNumber, lines, warehouseId)
-      .pipe(
-        takeUntilDestroyed(this.destroyRef),
-        finalize(() => {
-          this.pending.delete(order.id);
-          this.changeDetector.markForCheck();
-        }),
-      )
-      .subscribe({
-        next: (receipt) => {
-          if (receipt.status === 'REJECTED') this.packageRequests.delete(order.id);
-          if (receipt.status === 'PENDING' || receipt.status === 'COMPLETED') {
-            this.tracking[order.id] = '';
-            order.items.forEach((item) => delete this.packageQuantities[item.id]);
-          }
-          this.shipmentProgress[order.id] = { status: receipt.status, lastError: receipt.errorCode };
-          this.refreshShipment(order.id);
-        },
-        error: (error) => {
-          if (error instanceof Error && error.message === 'REJECTED') this.packageRequests.delete(order.id);
-          this.notice = {
-            type: error instanceof TimeoutError ? 'info' : 'danger',
-            text: this.i18n.t(error instanceof TimeoutError ? 'orderStatusPending' : 'requestFailed'),
-          };
-        },
-      });
+    this.beginFulfillment(order, {
+      operation: 'SHIP',
+      carrier: this.carrier[order.id].trim(),
+      trackingNumber: this.tracking[order.id].trim(),
+      warehouseId: this.warehouses[order.id],
+      lines,
+    });
   }
 
   shipmentInvalid(order: PurchaseOrder): boolean {
@@ -190,8 +166,10 @@ export class MerchantOrdersComponent implements OnInit {
   }
 
   prepareShipment(order: PurchaseOrder): void {
-    if (order.carrier) this.carrier[order.id] = order.carrier;
-    if (order.trackingNumber) this.tracking[order.id] = order.trackingNumber;
+    if (!this.recoveries.has(order.id)) {
+      if (order.carrier) this.carrier[order.id] = order.carrier;
+      if (order.trackingNumber) this.tracking[order.id] = order.trackingNumber;
+    }
     this.expandedOrders.add(order.id);
     this.loadWarehousePlan(order.id);
   }
@@ -229,7 +207,6 @@ export class MerchantOrdersComponent implements OnInit {
         .subscribe({
           next: (progress) => {
             this.shipmentProgress[orderId] = progress;
-            if (progress.status === 'REJECTED') this.packageRequests.delete(orderId);
             this.changeDetector.markForCheck();
           },
           error: (error) => {
@@ -265,35 +242,188 @@ export class MerchantOrdersComponent implements OnInit {
     this.changeDetector.markForCheck();
   }
 
-  private execute(
-    orderId: number,
-    request: Observable<PurchaseOrder>,
-    successKey: (order: PurchaseOrder) => string,
+  get ordersOutsideResults(): FulfillmentOrder[] {
+    const visible = new Set(this.orders.map((order) => order.id));
+    return [...this.recoveries.values()].map(({ order }) => order).filter((order) => !visible.has(order.id));
+  }
+
+  openOriginalOrder(order: FulfillmentOrder): void {
+    this.applyCriteria({ ...initialOrderSearch, q: order.orderNumber });
+  }
+
+  checkFulfillment(order: FulfillmentOrder): void {
+    const recovery = this.recoveries.get(order.id);
+    if (!recovery || this.pending.has(order.id)) return;
+    const receipt = this.api.fulfillmentReceipt(recovery.intent.commandId).pipe(
+      timeout(8000),
+      catchError((error) => {
+        if (error instanceof HttpErrorResponse && error.status === 404) return of(null);
+        throw error;
+      }),
+    );
+    this.watchFulfillment(order, recovery, receipt, true);
+  }
+
+  retryFulfillment(order: FulfillmentOrder): void {
+    const recovery = this.recoveries.get(order.id);
+    if (recovery?.message === 'fulfillmentResultMissing' && !this.pending.has(order.id)) {
+      this.submitFulfillment(order, recovery);
+    }
+  }
+
+  private beginFulfillment(order: PurchaseOrder, operation: FulfillmentOperation): void {
+    if (this.pending.has(order.id) || this.recoveries.has(order.id)) return;
+    const intent = {
+      ...operation,
+      orderId: order.id,
+      commandId: crypto.randomUUID(),
+      occurredAt: new Date().toISOString(),
+    };
+    const stored = { order: { id: order.id, orderNumber: order.orderNumber }, intent };
+    const recovery: FulfillmentRecovery = { ...stored, message: 'fulfillmentResultUnknown' };
+    this.recoveries.set(order.id, recovery);
+    this.persistFulfillment(order.id, stored);
+    this.submitFulfillment(order, recovery);
+  }
+
+  private submitFulfillment(order: FulfillmentOrder, recovery: FulfillmentRecovery): void {
+    recovery.message = 'fulfillmentResultUnknown';
+    const receipt = this.api.submitFulfillment(recovery.intent).pipe(
+      timeout(8000),
+      catchError((error) => {
+        if (error instanceof HttpErrorResponse && [400, 401, 403, 404, 409, 422].includes(error.status)) {
+          this.clearFulfillment(order.id);
+          this.notice = { type: 'danger', text: error.error?.message ?? this.i18n.t('requestFailed') };
+          return EMPTY;
+        }
+        throw error;
+      }),
+    );
+    this.watchFulfillment(order, recovery, receipt, false);
+  }
+
+  private watchFulfillment(
+    order: FulfillmentOrder,
+    recovery: FulfillmentRecovery,
+    request: Observable<FulfillmentReceipt | null>,
+    lookup: boolean,
   ): void {
-    if (this.pending.has(orderId)) return;
-    this.pending.add(orderId);
+    this.pending.add(order.id);
     this.notice = undefined;
     request
       .pipe(
+        switchMap((receipt) => {
+          if (receipt?.status !== 'PENDING') return of(receipt);
+          recovery.message = 'fulfillmentResultPending';
+          this.changeDetector.markForCheck();
+          return timer(1000, 1000).pipe(
+            exhaustMap(() => this.api.fulfillmentReceipt(recovery.intent.commandId)),
+            filter((response) => response.status !== 'PENDING'),
+            take(1),
+            timeout({ first: 60000 }),
+          );
+        }),
         takeUntilDestroyed(this.destroyRef),
         finalize(() => {
-          this.pending.delete(orderId);
+          this.pending.delete(order.id);
           this.changeDetector.markForCheck();
         }),
       )
       .subscribe({
-        next: (value) => {
-          if (value.carrier) this.carrier[value.id] = value.carrier;
-          if (value.trackingNumber) this.tracking[value.id] = value.trackingNumber;
-          this.notice = { type: 'success', text: this.i18n.t(successKey(value), { order: value.orderNumber }) };
-          this.load();
+        next: (receipt) => {
+          if (!receipt) {
+            recovery.message = 'fulfillmentResultMissing';
+            return;
+          }
+          if (receipt.status === 'REVIEW_REQUIRED') {
+            recovery.message = 'orderStatusPending';
+            return;
+          }
+          this.clearFulfillment(order.id);
+          if (receipt.status === 'REJECTED') {
+            this.notice = { type: 'danger', text: receipt.errorCode || this.i18n.t('requestFailed') };
+            if (recovery.intent.operation === 'SHIP') this.refreshShipment(order.id);
+            return;
+          }
+          const operation = recovery.intent.operation;
+          const successKey =
+            operation === 'CONFIRM' ? 'orderConfirmed' : operation === 'SHIP' ? 'orderShipped' : 'shipmentUpdated';
+          this.notice = {
+            type: 'success',
+            text: this.i18n.t(lookup ? 'fulfillmentResultRecovered' : successKey, { order: order.orderNumber }),
+          };
+          if (recovery.intent.operation === 'SHIP') {
+            this.tracking[order.id] = '';
+            recovery.intent.lines.forEach((line) => delete this.packageQuantities[line.orderLineId]);
+            this.refreshShipment(order.id);
+          } else {
+            this.load();
+          }
         },
-        error: (error) => {
-          this.notice =
-            error instanceof TimeoutError
-              ? { type: 'info', text: this.i18n.t('orderStatusPending') }
-              : { type: 'danger', text: error.error?.message ?? this.i18n.t('requestFailed') };
+        error: () => {
+          if (recovery.message !== 'fulfillmentResultPending') recovery.message = 'fulfillmentResultUnknown';
         },
       });
+  }
+
+  private restoreFulfillment(): void {
+    const prefix = this.fulfillmentStoragePrefix();
+    if (!prefix) return;
+    let keys: string[];
+    try {
+      keys = Object.keys(sessionStorage).filter((key) => key.startsWith(prefix));
+    } catch {
+      return;
+    }
+    for (const key of keys) {
+      const stored = this.readFulfillment(key);
+      if (!stored || key !== prefix + stored.order.id) continue;
+      const { order, intent } = stored;
+      this.recoveries.set(order.id, { ...stored, message: 'fulfillmentResultUnknown' });
+      if (intent.operation !== 'CONFIRM') {
+        this.carrier[order.id] = intent.carrier;
+        this.tracking[order.id] = intent.trackingNumber;
+        this.expandedOrders.add(order.id);
+        if (intent.operation === 'SHIP') {
+          this.warehouses[order.id] = intent.warehouseId;
+          for (const line of intent.lines) this.packageQuantities[line.orderLineId] = line.quantity;
+          this.loadWarehousePlan(order.id);
+        }
+      }
+      this.checkFulfillment(order);
+    }
+  }
+
+  private readFulfillment(key: string): StoredFulfillment | undefined {
+    try {
+      const stored = JSON.parse(sessionStorage.getItem(key) ?? 'null') as StoredFulfillment | null;
+      if (!stored?.intent?.commandId || !stored.order?.orderNumber || stored.intent.orderId !== stored.order.id) return;
+      if (stored.intent.operation === 'SHIP' && !Array.isArray(stored.intent.lines)) return;
+      return stored;
+    } catch {
+      return;
+    }
+  }
+
+  private clearFulfillment(orderId: number): void {
+    this.recoveries.delete(orderId);
+    this.persistFulfillment(orderId);
+  }
+
+  private persistFulfillment(orderId: number, stored?: StoredFulfillment): void {
+    const prefix = this.fulfillmentStoragePrefix();
+    if (!prefix) return;
+    const key = prefix + orderId;
+    try {
+      if (stored) sessionStorage.setItem(key, JSON.stringify(stored));
+      else sessionStorage.removeItem(key);
+    } catch {
+      // Keep the current intent available while the page remains open.
+    }
+  }
+
+  private fulfillmentStoragePrefix(): string | undefined {
+    const actorId = this.account.userProfile()?.id;
+    return actorId === undefined ? undefined : `commerceflow-fulfillment:${actorId}:`;
   }
 }
