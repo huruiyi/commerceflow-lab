@@ -87,7 +87,7 @@ export class StoresComponent {
   constructor() {
     if (this.mode === 'admin') this.reload();
     else if (this.mode === 'merchant') {
-      this.run(this.http.get<Store>('/api/merchant/store'), (value) => this.select(value));
+      this.loadStore();
     } else {
       this.route.paramMap
         .pipe(
@@ -150,6 +150,10 @@ export class StoresComponent {
       queryParams: { page: page || null },
       queryParamsHandling: 'merge',
     });
+  }
+
+  loadStore(): void {
+    this.run(this.http.get<Store>('/api/merchant/store'), (value) => this.select(value));
   }
 
   save(): void {

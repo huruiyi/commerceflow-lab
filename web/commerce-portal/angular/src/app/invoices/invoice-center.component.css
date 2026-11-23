@@ -336,13 +336,14 @@
   }
 }
 
-.invoice-customer-list {
+.invoice-customer-list,
+.invoice-merchant {
   max-width: none;
   padding: 0;
   font-size: 0.875rem;
 }
 
-.invoice-customer-list .invoice-toolbar {
+:is(.invoice-customer-list, .invoice-merchant) .invoice-toolbar {
   padding: 0.9rem 1rem;
   margin-bottom: 1rem;
   border: 1px solid var(--cf-line);
@@ -350,19 +351,19 @@
   background: var(--cf-surface);
 }
 
-.invoice-customer-list .invoice-heading {
+:is(.invoice-customer-list, .invoice-merchant) .invoice-heading {
   padding: 0;
   margin-bottom: 0.85rem;
   border: 0;
 }
 
-.invoice-customer-list .invoice-heading h1 {
+:is(.invoice-customer-list, .invoice-merchant) .invoice-heading h1 {
   margin: 0;
   font-size: 1.5rem;
   letter-spacing: normal;
 }
 
-.invoice-customer-list .invoice-filters {
+:is(.invoice-customer-list, .invoice-merchant) .invoice-filters {
   margin-bottom: 0;
 }
 
@@ -429,31 +430,75 @@
   outline-offset: 2px;
 }
 
-.invoice-customer-row {
+.invoice-customer-row,
+.invoice-merchant .invoice-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(7.5rem, auto) auto;
 }
 
+.invoice-merchant-list-head {
+  display: none;
+}
+
+@media (min-width: 681px) {
+  .invoice-merchant .invoice-filters {
+    grid-template-columns: minmax(0, 26rem) minmax(9rem, 13rem) auto;
+    justify-content: start;
+  }
+
+  .invoice-merchant :is(.invoice-row, .invoice-merchant-list-head) {
+    grid-template-columns: minmax(0, 1fr) 7rem 8rem 6rem;
+    gap: 0.6rem 1rem;
+    justify-items: start;
+  }
+
+  .invoice-merchant-list-head {
+    display: grid;
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--cf-line);
+    border-radius: 0.8rem 0.8rem 0 0;
+    background: var(--cf-surface-soft);
+    color: var(--cf-muted);
+    font-size: 0.8125rem;
+    font-weight: 650;
+  }
+
+  .invoice-merchant-list-head > :nth-last-child(-n + 2),
+  .invoice-merchant .invoice-row > :is(.invoice-value, .btn) {
+    justify-self: end;
+  }
+
+  .invoice-merchant .invoice-value small {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
 @media (max-width: 680px) {
-  .invoice-customer-row {
+  .invoice-customer-row,
+  .invoice-merchant .invoice-row {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: start;
   }
 
-  .invoice-customer-row .invoice-row-id {
+  :is(.invoice-customer-row, .invoice-merchant .invoice-row) .invoice-row-id {
     grid-column: 1 / -1;
   }
 
-  .invoice-customer-row .invoice-status {
+  :is(.invoice-customer-row, .invoice-merchant .invoice-row) .invoice-status {
     justify-self: start;
     align-self: center;
   }
 
-  .invoice-customer-row .invoice-value {
+  :is(.invoice-customer-row, .invoice-merchant .invoice-row) .invoice-value {
     text-align: end;
   }
 
-  .invoice-customer-row .btn {
+  :is(.invoice-customer-row, .invoice-merchant .invoice-row) .btn {
     grid-column: 2;
     justify-self: end;
   }

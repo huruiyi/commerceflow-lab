@@ -32,43 +32,51 @@
     [merchant]="true"
     (changed)="applyCriteria($event)"
   ></app-order-list-filter>
-  <table *ngIf="orders.length" class="orders-table" role="table" aria-labelledby="merchant-orders-title">
+  <table
+    *ngIf="orders.length"
+    class="orders-table merchant-orders-table"
+    role="table"
+    aria-labelledby="merchant-orders-title"
+  >
     <thead role="rowgroup">
       <tr role="row">
-        <th scope="col" role="columnheader">{{ 'buyerOrderNumber' | t }}</th>
         <th scope="col" role="columnheader">{{ 'products' | t }}</th>
-        <th scope="col" role="columnheader">{{ 'status' | t }}</th>
-        <th scope="col" role="columnheader" class="amount-column">{{ 'amount' | t }}</th>
+        <th scope="col" role="columnheader">{{ 'orderDateColumn' | t }}</th>
+        <th scope="col" role="columnheader" class="amount-column">{{ 'orderStatusAndAmount' | t }}</th>
         <th scope="col" role="columnheader" class="actions-column">{{ 'action' | t }}</th>
       </tr>
     </thead>
     <tbody role="rowgroup">
       <ng-container *ngFor="let order of orders">
         <tr class="order-summary-row" role="row" [attr.data-status]="order.status" [attr.data-order-id]="order.id">
-          <th class="order-identity" scope="row" role="rowheader">
+          <th class="order-products" scope="row" role="rowheader">
+            <div class="order-product-preview">
+              <app-catalog-image class="compact order-product-image" [primary]="order.items[0]?.thumbnailUrl || ''" />
+              <div>
+                <span>{{ order.items[0]?.productName || '—' }}</span>
+                <small>{{ order.items.length }} {{ 'itemsCount' | t }}</small>
+              </div>
+            </div>
+          </th>
+          <td class="order-identity" role="cell">
             <button
-              class="order-number"
+              class="order-date"
               type="button"
               (click)="toggleDetails(order.id)"
               [attr.title]="order.orderNumber"
               [attr.aria-expanded]="expandedOrders.has(order.id)"
               [attr.aria-controls]="'merchant-order-' + order.id"
             >
-              {{ displayOrderNumber(order.orderNumber) }}
+              <time [attr.datetime]="order.createdAt">{{ order.createdAt | trdate }}</time>
             </button>
-            <small>{{ order.createdAt | trdate }}</small>
-          </th>
-          <td class="order-products" role="cell">
-            <span>{{ order.items[0]?.productName || '—' }}</span>
-            <small>{{ order.items.length }} {{ 'itemsCount' | t }}</small>
-          </td>
-          <td class="order-state" role="cell">
-            <span class="status">{{
-              (order.status === 'CONFIRMED' && order.packages?.length ? 'partiallyShipped' : order.status) | t
-            }}</span>
           </td>
           <td class="order-total" role="cell">
-            <strong>{{ order.totalAmount | trcurrency }}</strong>
+            <div class="merchant-order-value">
+              <span class="status">{{
+                (order.status === 'CONFIRMED' && order.packages?.length ? 'partiallyShipped' : order.status) | t
+              }}</span>
+              <strong>{{ order.totalAmount | trcurrency }}</strong>
+            </div>
           </td>
           <td class="order-actions" role="cell">
             <div class="summary-actions" [attr.aria-label]="'fulfillmentActions' | t">
@@ -115,12 +123,13 @@
           </td>
         </tr>
         <tr class="order-more-row" role="row" [hidden]="!(expandedOrders.has(order.id) || recoveries.has(order.id))">
-          <td colspan="5" role="cell" [id]="'merchant-order-' + order.id">
+          <td colspan="4" role="cell" [id]="'merchant-order-' + order.id">
             <div *ngIf="recoveries.has(order.id)" class="alert alert-info mt-3">
               <ng-container *ngTemplateOutlet="fulfillmentRecovery; context: { $implicit: order }"></ng-container>
             </div>
 
             <div *ngIf="expandedOrders.has(order.id)" class="order-details">
+              <p class="order-detail-reference">{{ 'buyerOrderNumber' | t }} {{ order.orderNumber }}</p>
               <app-line-after-sales [order]="order" [merchant]="true"></app-line-after-sales>
               <p *ngIf="warehousePlanFailed.has(order.id)" role="status">
                 {{ 'warehousePlanUnavailable' | t }}

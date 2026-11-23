@@ -2,6 +2,7 @@
   class="invoice-center"
   [class.invoice-platform]="mode === 'platform'"
   [class.invoice-customer-list]="mode === 'customer' && orderId === null"
+  [class.invoice-merchant]="mode === 'merchant'"
   [attr.aria-busy]="busy"
 >
   <div class="invoice-toolbar">
@@ -87,6 +88,13 @@
             <span>{{ 'invoiceMerchantId' | t }}</span>
             <span>{{ 'invoiceNet' | t }}</span>
           </div>
+        } @else if (mode === 'merchant') {
+          <div class="invoice-merchant-list-head" aria-hidden="true">
+            <span>{{ 'invoiceDocumentAndOrder' | t }}</span>
+            <span>{{ 'invoiceStatus' | t }}</span>
+            <span>{{ 'invoiceNet' | t }}</span>
+            <span>{{ 'action' | t }}</span>
+          </div>
         }
         @for (row of page.rows; track row.orderId) {
           <article
@@ -96,7 +104,7 @@
           >
             <div class="invoice-row-id">
               <div class="invoice-identity-line">
-                @if (mode === 'customer') {
+                @if (mode !== 'platform') {
                   <span class="invoice-identity-label">{{ 'invoiceRelatedOrder' | t }}</span>
                 }
                 <ng-container
@@ -113,7 +121,7 @@
               </div>
               @if (row.invoiceNo) {
                 <div class="invoice-identity-line">
-                  @if (mode === 'customer') {
+                  @if (mode !== 'platform') {
                     <span class="invoice-identity-label">{{ 'invoiceCustomerNumber' | t }}</span>
                   }
                   <ng-container
@@ -137,7 +145,7 @@
             <div class="invoice-value">
               <small>{{ (mode === 'customer' ? 'invoiceCustomerAmount' : 'invoiceNet') | t }}</small>
               @if (row.effectiveAmount !== null) {
-                @if (mode === 'customer' && row.currency) {
+                @if (mode !== 'platform' && row.currency) {
                   <strong>{{ row.effectiveAmount | trcurrency: row.currency }}</strong>
                 } @else {
                   <strong>{{ row.effectiveAmount | number: '1.2-2' }} {{ row.currency }}</strong>
@@ -149,7 +157,7 @@
                 <span aria-hidden="true">—</span>
               }
             </div>
-            @if (mode === 'customer') {
+            @if (mode !== 'platform') {
               <a
                 class="btn btn-sm btn-outline-secondary"
                 [routerLink]="detailLink(row.orderId)"

@@ -18,36 +18,12 @@
   line-height: 1.25;
 }
 
-.order-product-preview {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-weight: 600;
-}
-
-.order-product-image {
-  width: 2.75rem;
-  height: 2.75rem;
-  flex: none;
-  border-radius: 0.45rem;
-}
-
 .order-summary-row .order-identity a {
   font-weight: 500;
 }
 
 .order-summary-row .order-identity time {
   font-variant-numeric: tabular-nums;
-}
-
-@media (max-width: 780px) {
-  .customer-orders-table .order-summary-row {
-    grid-template-areas:
-      'product product'
-      'number number'
-      'status amount'
-      'action action';
-  }
 }
 
 .order-detail-heading a {

@@ -12,34 +12,55 @@
   <ng-container *ngIf="mode === 'merchant'">
     <header class="store-heading">
       <h1>{{ i18n.t('ownStore') }}</h1>
-      @if (store(); as value) {
-        <span class="store-status" [attr.data-state]="value.status">
-          {{ storeStatuses.includes(value.status) ? i18n.t('storeAdminState_' + value.status) : value.status }}
-        </span>
-      }
     </header>
-    <form (ngSubmit)="save()" class="store-panel store-edit">
-      <label>
-        {{ i18n.t('storeMerchantName') }}
-        <input class="form-control" [(ngModel)]="name" name="name" required maxlength="120" />
-      </label>
-      <label>
-        {{ i18n.t('storeMerchantDescription') }}
-        <textarea class="form-control" [(ngModel)]="description" name="description" maxlength="500" rows="4"></textarea>
-      </label>
-      <div class="store-actions">
-        <button class="btn btn-primary" type="submit" [disabled]="busy() || !name.trim()">
-          {{ i18n.t('storeMerchantSave') }}
-        </button>
-        @if (store(); as value) {
+    @if (store(); as value) {
+      <form (ngSubmit)="save()" class="store-panel store-edit" aria-labelledby="merchant-store-name">
+        <div class="store-profile-heading">
+          <span class="store-profile-icon" aria-hidden="true"><i class="bi bi-shop"></i></span>
+          <div class="store-profile-title">
+            <h2 id="merchant-store-name">{{ value.name }}</h2>
+            <span class="store-status" [attr.data-state]="value.status">
+              {{ storeStatuses.includes(value.status) ? i18n.t('storeAdminState_' + value.status) : value.status }}
+            </span>
+          </div>
           @if (value.status === 'ACTIVE') {
-            <a class="btn btn-outline-primary" [routerLink]="['/stores', value.merchantId]">{{
-              i18n.t('visitStore')
-            }}</a>
+            <a class="btn btn-sm btn-outline-secondary" [routerLink]="['/stores', value.merchantId]">
+              {{ i18n.t('visitStore') }} <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+            </a>
           }
-        }
-      </div>
-    </form>
+        </div>
+        <fieldset class="store-profile-fields" [disabled]="busy()">
+          <label>
+            {{ i18n.t('storeMerchantName') }}
+            <input class="form-control" [(ngModel)]="name" name="name" required maxlength="120" />
+          </label>
+          <label>
+            {{ i18n.t('storeMerchantDescription') }}
+            <textarea
+              class="form-control"
+              [(ngModel)]="description"
+              name="description"
+              maxlength="500"
+              rows="4"
+              aria-describedby="store-description-help"
+            ></textarea>
+            <span class="store-field-note">
+              <span id="store-description-help">{{ i18n.t('storeDescriptionHelp') }}</span>
+              <span>{{ description.length }} / 500</span>
+            </span>
+          </label>
+        </fieldset>
+        <footer class="store-actions">
+          <button class="btn btn-primary" type="submit" [disabled]="busy() || !name.trim()">
+            {{ i18n.t('storeMerchantSave') }}
+          </button>
+        </footer>
+      </form>
+    } @else if (busy()) {
+      <p class="store-panel store-profile-state" role="status">{{ i18n.t('loading') }}</p>
+    } @else if (actionFailed()) {
+      <button class="btn btn-outline-secondary" type="button" (click)="loadStore()">{{ i18n.t('retry') }}</button>
+    }
   </ng-container>
   @if (mode === 'admin') {
     <header class="store-heading">
