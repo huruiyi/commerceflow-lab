@@ -54,11 +54,11 @@ PostgreSQL 专项与服务拆分、目录及命名重构分开推进。2026-11-2
 ### 复跑方式
 
 ```powershell
-docker build --build-arg NOTIFICATION_POSTGRESQL_PILOT=true -t commerceflow-m4-notification:pilot services/notification-service
 pwsh -NoProfile -File scripts/messaging/verify-notification-postgresql.ps1
 ```
 
 通过 `-MySqlDump` 指定已有通知库归档可复跑存量场景，`-MySqlOnly` 单独运行 MySQL 对照和恢复。
+缺少默认通知试点镜像时，脚本从当前代码构建支持 PostgreSQL 的验收镜像。通过 `-CandidateImage` 可固定指定镜像。
 脚本使用一次性网络、Kafka、短信邮件模拟器及数据库，应用端口绑定在环回地址。每组 Kafka 和模拟器独立，
 同组恢复和反向回退沿用该组 Kafka 及模拟器账本。默认将证据保存到系统临时目录，`-EvidenceDirectory` 可指定目录。
 
@@ -369,7 +369,7 @@ Flyway 初始化八表，再关闭初始化实例。目标消费者启用原组�
 `Rollback` 到另一份空 MySQL 恢复库，然后执行该批次的 `Resume`。
 
 隔离入口使用 PowerShell 7 的 `verify-notification-postgresql.ps1 -OffsitePause`，通过
-`-CommerceImage`、`-PaymentImage` 和 `-CandidateImage` 固定本轮验收的三个镜像。
+`-CommerceImage`、`-PaymentImage` 和 `-CandidateImage` 可固定本轮验收的三个镜像。未指定的默认镜像在本机缺失时从当前代码构建。
 
 隔离验收从实际商城和支付编排 Outbox 写入售后、退款测试记录。停写 38.22 秒，超过商城 5 次、每 5 秒一次的
 重试预算。商城一直保持 `NEW / 0`，支付一直保持 `RETRY / 2`，通知库和供应方均未收到这两条任务。

@@ -6,7 +6,7 @@ operations/verify-simulator-admin.ps1	MaxWaitSeconds
 operations/verify-simulator-monitoring.ps1	MaxWaitSeconds
 fulfillment/verify-logistics-simulator-web.ps1	BaseUrl,AdminToken
 commerce/verify-line-exchanges.ps1	BaseUrl,PaymentBaseUrl,LogisticsUrl,WarehouseBaseUrl,ProjectName
-verify-all.ps1	BaseUrl,SkipBuild
+verify-all.ps1	BaseUrl,SkipBuild,CleanupOnSuccess
 commerce/verify-authorization.ps1	BaseUrl
 orders/verify-auto-lifecycle.ps1	BaseUrl,LogisticsUrl,PaymentBaseUrl,PaymentOrchestrationUrl
 orders/verify-auto-lifecycle-mq-failures.ps1	BaseUrl,MaxWaitSeconds
@@ -51,7 +51,7 @@ payment/verify-payment-shadow-runtime.ps1	BaseUrl
 payment/verify-payment-write-freeze.ps1	BaseUrl,PaymentBaseUrl
 payment/verify-payment-remote-protocol.ps1	BaseUrl,TempoUrl
 payment/verify-payment-precutover-rehearsal.ps1	BaseUrl
-verify-quick.ps1	BaseUrl,SkipBuild
+verify-quick.ps1	BaseUrl,SkipBuild,CleanupOnSuccess
 scheduling/verify-rabbitmq-scheduling.ps1	BaseUrl,MaxWaitSeconds
 orders/verify-receipt-lifecycle-stress.ps1	BaseUrl,RabbitManagementUrl,DurationSeconds,MinimumRounds,Concurrency,RequestsPerWorker,MaxWaitSeconds
 operations/verify-distributed-tracing.ps1	BaseUrl,TempoUrl,MaxWaitSeconds,SkipBuild

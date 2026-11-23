@@ -110,6 +110,17 @@ async function deliver(page, reference) {
   }
 }
 
+function submitFulfillment(page, orderId, operation, fields = {}) {
+  return call(page, '/api/merchant/orders/fulfillment-v1/commands', 'POST', {
+    version: 1,
+    commandId: randomUUID(),
+    orderId,
+    operation,
+    occurredAt: new Date().toISOString(),
+    ...fields,
+  });
+}
+
 async function originalOrder(customer, merchant) {
   const address = await call(customer, '/api/addresses', 'POST', {
     recipientName: 'Exchange Lab', phone: '13800000000', countryCode: 'CN', stateProvince: 'Shanghai',
@@ -128,10 +139,9 @@ async function originalOrder(customer, merchant) {
   const token = new URL(attempt.payment.checkoutUrl).pathname.split('/').at(-1);
   equal((await customer.request.post(payment + `/api/checkout/${token}/complete?success=true`)).status(), 200, 'payment simulator');
   await until(async () => (await call(customer, route)).inventoryStatus === 'COMMITTED', 'payment committed');
-  const fulfill = `/api/merchant/orders/${order.id}`;
-  await call(merchant.page, fulfill + '/confirm', 'POST', {});
+  await submitFulfillment(merchant.page, order.id, 'CONFIRM');
   await until(async () => (await call(customer, route)).status === 'CONFIRMED', 'merchant order confirmation');
-  await call(merchant.page, fulfill + '/ship', 'POST', {
+  await submitFulfillment(merchant.page, order.id, 'SHIP', {
     carrier: 'CommerceFlow Express', trackingNumber: 'UI-ORIGINAL-' + order.id,
   });
   const shipped = await until(async () => {

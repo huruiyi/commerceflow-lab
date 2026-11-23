@@ -4,8 +4,10 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$root = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+. (Join-Path $root 'scripts/lib/lifecycle-verification.ps1')
 $projectName = 'fairy-commerceflow-invoice-qa-' + [guid]::NewGuid().ToString('N').Substring(0, 10)
-$composeFile = Join-Path $PSScriptRoot '../../infrastructure/compose/compose.invoice-verification.yaml'
+$composeFile = Join-Path $root 'infrastructure/compose/compose.invoice-verification.yaml'
 $requestSecret = 'invoice-isolated-request-secret-2026'
 $utf8 = [Text.Encoding]::UTF8
 $client = [Net.Http.HttpClient]::new()
@@ -267,7 +269,10 @@ try {
     (Invoke-MySql 'SELECT COUNT(*) FROM invoice_receipts WHERE delivered_at IS NOT NULL') -eq [string]$eventCount
   } "$eventCount durable receipt acknowledgements" | Out-Null
 
-  Assert-Equal (Invoke-MySql "SELECT version FROM flyway_schema_history WHERE success = 1 AND version IS NOT NULL") '1' 'Flyway schema'
+  $migrations = Get-VersionedMigrations (Join-Path $root 'simulators/invoice-platform/service/src/main/resources/db/migration')
+  $expectedHistory = $migrations | ForEach-Object { "$($_.version)|$($_.script)|1" }
+  $history = Invoke-MySql "SELECT CONCAT_WS('|', version, script, success) FROM flyway_schema_history WHERE version IS NOT NULL ORDER BY installed_rank"
+  Assert-Equal ($history -join ', ') ($expectedHistory -join ', ') 'Invoice Flyway schema'
   Assert-Equal (Invoke-MySql 'SELECT CONCAT((SELECT COUNT(*) FROM invoice_requests), ":",
     (SELECT COUNT(*) FROM invoice_tickets), ":", (SELECT COUNT(*) FROM invoice_receipts))') '9:7:9' 'request/ticket/receipt counts'
   Assert-Equal (Invoke-MySql "SELECT SUM(t.amount) FROM invoice_tickets t WHERE t.original_invoice_no = '$($issued.invoiceNo)'") '250.00' 'total red amount equals original invoice'

@@ -21,6 +21,7 @@ function Assert-AcceptanceHealth($Target) {
 function Invoke-IsolatedAcceptance {
   param(
     [string]$BaseUrl, [switch]$SkipBuild, [switch]$Full, [string]$ProjectName,
+    [switch]$CleanupOnSuccess,
     [ValidateSet('rabbitmq','rocketmq')][string[]]$BrokerProfiles,
     [scriptblock]$Initialize, [scriptblock]$Verify, [scriptblock]$Cleanup
   )
@@ -92,7 +93,9 @@ function Invoke-IsolatedAcceptance {
   }
 
   $startAttempted = $false
+  $acceptancePassed = $false
   $acceptanceFailure = $null
+  $temporaryImages = [Collections.Generic.List[string]]::new()
   try {
     foreach ($name in $environment.Keys) {
       $previous[$name] = [Environment]::GetEnvironmentVariable($name)
@@ -139,7 +142,14 @@ function Invoke-IsolatedAcceptance {
       }
       $yaml.Add("    ports: !override $portList")
       if ($base.services[$service].build) {
-        $yaml.Add("    image: fairy-commerceflow-acceptance-$service")
+        $image = "fairy-commerceflow-acceptance-${service}:latest"
+        if ($CleanupOnSuccess -and !$SkipBuild) {
+          $image = "${project}-${service}:latest"
+          $existingImage = docker image ls -q --filter "reference=$image"
+          if ($LASTEXITCODE -ne 0 -or $existingImage) { throw "Temporary image name is unavailable: $image" }
+          $temporaryImages.Add($image)
+        }
+        $yaml.Add("    image: $image")
         $yaml.Add('    pull_policy: never')
       }
       $definition = $base.services[$service]
@@ -208,16 +218,19 @@ function Invoke-IsolatedAcceptance {
     if ($Initialize) { & $Initialize $target }
     foreach ($listener in $listeners) { $listener.Stop() }
     Invoke-AcceptanceCompose up -d --no-build --wait --wait-timeout 420
+    $oneOffOptions = @('-T', '--no-deps')
+    if ($CleanupOnSuccess) { $oneOffOptions += '--rm' }
     foreach ($service in 'catalog-demo-init', 'payment-demo-init') {
-      Invoke-AcceptanceCompose run -T --no-deps $service
+      Invoke-AcceptanceCompose run @oneOffOptions $service
     }
     foreach ($scope in '--readers', '--task-fixture') {
-      Invoke-AcceptanceCompose run -T --no-deps verification-db-access $scope
+      Invoke-AcceptanceCompose run @oneOffOptions verification-db-access $scope
     }
 
     Assert-AcceptanceHealth $target
     & $Verify $target
     Assert-AcceptanceHealth $target
+    $acceptancePassed = $true
   } catch {
     $acceptanceFailure = $_
     throw
@@ -225,6 +238,13 @@ function Invoke-IsolatedAcceptance {
     try {
       if ($startAttempted) {
         if ($Cleanup) { & $Cleanup }
+        elseif ($CleanupOnSuccess -and $acceptancePassed) {
+          Invoke-AcceptanceCompose down --volumes --remove-orphans
+          if ($temporaryImages.Count) {
+            & docker image rm --no-prune @temporaryImages
+            if ($LASTEXITCODE -ne 0) { throw "Could not remove acceptance image tags for $project" }
+          }
+        }
         else { Invoke-AcceptanceCompose stop --timeout 10 }
       }
     } catch {

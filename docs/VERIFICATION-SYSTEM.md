@@ -63,16 +63,21 @@ docker compose ps
 ### 4.3 提交/基线门禁
 
 ```powershell
-pwsh -File ./scripts/verify-quick.ps1
-pwsh -File ./scripts/verify-all.ps1
+pwsh -File ./scripts/verify-quick.ps1 -CleanupOnSuccess
+pwsh -File ./scripts/verify-all.ps1 -CleanupOnSuccess
 ```
 
 `verify-quick` 和 `verify-all` 始终运行后端质量与脚本契约门禁。两者均创建独立 Compose 项目，
 按仓库默认配置在新卷初始化 MySQL、通知 PostgreSQL 和 Kafka。业务请求、数据库核对、故障恢复及健康检查
-均使用该项目，完整入口还启用隔离观测 Profile。结束时停止隔离容器并保留卷。默认构建模式还会通过 Angular Dockerfile 执行
+均使用该项目，完整入口还启用隔离观测 Profile。默认结束时停止隔离容器并保留卷。默认构建模式还会通过 Angular Dockerfile 执行
 `npm run format:check` 和生产构建。`-SkipBuild` 只能在已确认镜像来自当前源码时使用，
 并且不会重新执行 Maven/ArchUnit 测试或 Angular 格式检查。冻结基线或修改 Dockerfile/POM/前端依赖时
 必须使用默认构建模式。
+
+验收结果只需保留日志和账本摘要时，在快速或完整入口传入 `-CleanupOnSuccess` 并将命令输出保存到验收目录。
+通过最后一轮健康检查后，脚本删除本次隔离项目的容器、网络、数据卷及本次构建的项目专用镜像标签。
+搭配 `-SkipBuild` 使用时保留预先提供的验收镜像。验收失败时停止项目并保留现场，下次复测前先保存日志、
+故障证据及卷清单。需要保留现场的升级或回退演练，在待办中登记对应项目、复验条件和清理时点。
 
 新卷初始化使用履约空库覆盖文件。演示库存同时写入商品总账和默认仓，保证报价与实际仓库预占使用一致的库存。
 

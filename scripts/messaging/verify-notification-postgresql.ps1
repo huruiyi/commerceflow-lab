@@ -43,6 +43,12 @@ function Invoke-Docker {
   if ($LASTEXITCODE) { throw "Docker $($args[0]) failed with exit code $LASTEXITCODE" }
 }
 
+function Initialize-VerificationImage([string]$Image, [string]$Context, [string[]]$BuildOptions = @()) {
+  if (!(Invoke-Docker image ls --quiet $Image)) {
+    Invoke-Docker build @BuildOptions --tag $Image (Join-Path $root $Context) | Out-Host
+  }
+}
+
 function Start-Container($Name, $Options) {
   Invoke-Docker create --name $Name --label "commerceflow.m4.run=$run" --network $run @Options | Out-Null
   $containers.Add($Name)
@@ -347,6 +353,17 @@ function Verify-Recovered($App, [int]$Records, $ExpectedReadAt) {
 }
 
 try {
+  if (!$MySqlOnly -and !$PSBoundParameters.ContainsKey('CandidateImage')) {
+    Initialize-VerificationImage $CandidateImage 'services/notification-service' @('--build-arg', 'NOTIFICATION_POSTGRESQL_PILOT=true')
+  }
+  if ($OffsitePause) {
+    if (!$PSBoundParameters.ContainsKey('CommerceImage')) {
+      Initialize-VerificationImage $CommerceImage 'services/commerce-service'
+    }
+    if (!$PSBoundParameters.ContainsKey('PaymentImage')) {
+      Initialize-VerificationImage $PaymentImage 'services/payment-orchestration-service'
+    }
+  }
   Invoke-Docker network create --label "commerceflow.m4.run=$run" $run | Out-Null
   if ($OffsitePause) {
     Invoke-OffsitePauseVerification

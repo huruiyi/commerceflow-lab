@@ -1,7 +1,8 @@
 #requires -Version 7.0
 param(
   [string]$BaseUrl,
-  [switch]$SkipBuild
+  [switch]$SkipBuild,
+  [switch]$CleanupOnSuccess
 )
 
 $ErrorActionPreference = 'Stop'
@@ -10,7 +11,7 @@ $ErrorActionPreference = 'Stop'
 & "$PSScriptRoot/audit/audit-code-quality.ps1"
 & "$PSScriptRoot/audit-script-contracts.ps1"
 
-Invoke-IsolatedAcceptance -BaseUrl $BaseUrl -SkipBuild:$SkipBuild -Full -Verify {
+Invoke-IsolatedAcceptance -BaseUrl $BaseUrl -SkipBuild:$SkipBuild -CleanupOnSuccess:$CleanupOnSuccess -Full -Verify {
   param($Target)
   $endpoints = $Target.Endpoints
   $portal = $endpoints['commerce-portal-angular'].Url
