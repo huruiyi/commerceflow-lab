@@ -17,7 +17,7 @@
 | 通知服务 Maven artifactId | `notification-service`（默认启动、唯一通知读写实现） |
 | 商品服务 Maven artifactId | `catalog-service`（默认启动、唯一商品资料读写实现） |
 | 库存服务 Maven artifactId | `inventory-service`（默认启动，库存命令和商家库存管理的唯一实现） |
-| 支付编排服务 Maven artifactId | `payment-orchestration-service`（远程协议已验收，普通业务流量门关闭） |
+| 支付编排服务 Maven artifactId | `payment-orchestration-service`（日常支付与退款的权威服务） |
 | 命名迁移策略 | 不混用两套名称；按 [命名规范](docs/NAMING-CONVENTIONS.md) 独立迁移 |
 
 ## 技术架构
@@ -28,8 +28,9 @@
        └─ Nginx
             ├─ Angular 22.2.6 + SimUI 1.8.0 / Spartan UI 静态页面
             └─ /api/* → commerce-service → MySQL 8.4 / Redis 7.4
-                         └─ 通知身份薄代理 → notification-service → 独立 MySQL 8.4
+                         ├─ 通知身份薄代理 → notification-service → PostgreSQL 17.11 / Kafka
                          ├─ 商品身份薄代理 → catalog-service → 独立 MySQL 8.4
+                         ├─ Payment V1 → payment-orchestration-service → 独立 MySQL 8.4
                          └─ 库存 Outbox / 身份薄代理 → inventory-service → 独立 MySQL 8.4
 
 支付平台浏览器 http://localhost:14201
@@ -46,9 +47,8 @@
 - `services/inventory-service/`：分层库存服务，独立 MySQL 保存五张所有权表；默认接收 RESERVE、COMMIT、
   RELEASE、REFUND，并独占商家库存查询、调账和流水。commerce 只保留生产端 Outbox/结果 Inbox 与
   Session/RBAC/HMAC 薄代理，其运行数据库账号无五张库存源表权限。
-- `services/payment-orchestration-service/`：独立 MySQL 支付/退款边界；已完成 14 张所有权表的影子迁移、远程
-  Payment V1、跨边界订单/库存副作用、可靠 Outbox、退款命令和故障/回退演练，普通业务流量门与副作用门关闭，
-  尚未 CUTOVER。
+- `services/payment-orchestration-service/`：独立 MySQL 支付与退款服务，通过 Payment V1 接收商城命令，
+  独立接收渠道回调，并使用 Outbox 投递订单、库存和通知结果。[M3 日常切换验收](docs/architecture/M3-SINGLE-OWNERSHIP-REVIEW.md#14-2026-11-21-日常发布与-m3-验收)。
 - `simulators/payment-platform/service/`：独立支付数据库、后台安全、商户凭据和三渠道交易服务。
 - `simulators/logistics-platform/service/`：独立物流数据库、运单推进、异常与可靠回调模拟服务。
 - `simulators/payment-platform/web/`：Vue 3.5.45、Ant Design Vue Next 和 VXE-Table 支付管理后台与模拟收银台。
@@ -125,7 +125,7 @@ docker compose --profile demo-data run --rm payment-demo-init
 - 商品服务健康检查：`http://localhost:18087/actuator/health`
 - 库存服务健康检查：`http://localhost:18088/actuator/health`
 - 订单服务健康检查：`http://localhost:18089/actuator/health`
-- 支付编排影子服务健康检查：`http://localhost:18090/actuator/health`
+- 支付编排服务健康检查：`http://localhost:18090/actuator/health`
 - 物流 MySQL：`localhost:13308`
 - Kafka UI：`http://localhost:14202`
 
@@ -244,36 +244,35 @@ pwsh -File ./scripts/orders/verify-order-precutover-rehearsal.ps1
 
 影子与预切换脚本保留为历史取证入口；默认运行时关闭影子复制且不再配置源库，不应重新开放源端权限。
 
-payment-orchestration 准入审计检查 14 张 payment/refund 所有权表、跨边界外键、外部内部实现消费者、
-金额/状态/幂等、独立 Outbox/Inbox 和恢复不变量；当前 CREATE 已准入，独立影子服务与数据库已经创建，
-但没有业务流量，也未 CUTOVER：
+支付编排已在日常环境切流，商城使用远程 Payment V1 适配器，支付与退款回调直达支付编排服务。
+权威数据库、旧权限退役和恢复证据见 [M3 最终验收](docs/architecture/M3-SINGLE-OWNERSHIP-REVIEW.md#14-2026-11-21-日常发布与-m3-验收)。
+
+以下为切流前的历史取证入口。CREATE 准入审计当时核对了 14 张所有权表、跨域依赖、金额与幂等约束、
+Outbox/Inbox 及恢复不变量：
 
 ```powershell
 pwsh -File ./scripts/audit/audit-payment-orchestration-admission.ps1
 ```
 
-当前结论和后续顺序见
+历史准入过程见
 [payment-orchestration-service 准入与单一所有权演进计划](docs/architecture/PAYMENT-ORCHESTRATION-SERVICE-EVOLUTION-PLAN.md)。
 受控停写、最终追平、唯一远程适配器、回调切换和源表撤权的原子顺序见
 [payment-orchestration 一次性切换运行手册](docs/architecture/PAYMENT-ORCHESTRATION-CUTOVER-RUNBOOK.md)。
-当前最终结论和剩余阻塞见
+切流前的阶段评审见
 [payment-orchestration 最终切换 GO/NO-GO 评审](docs/architecture/PAYMENT-CUTOVER-GO-NO-GO-REVIEW.md)。
 切换窗口使用 `PAYMENT_WRITE_FROZEN=true` 暂停创建支付、关闭支付和发起退款，同时保留签名回调排空；默认必须为
 `false`，该开关本身不表示已经切流。
 创建、查询、关闭和结果的稳定字段与恢复语义见
-[支付第一版远程契约](docs/architecture/PAYMENT-V1-CONTRACT.md)。当前仍由唯一的本地适配器实现；CREATE
-准入之后已完成无业务流量影子服务、远程协议和切流前故障/回退演练；commerce 仍只有本地正式路径，这仍不能
-描述成已经切换独立支付服务。
+[支付第一版远程契约](docs/architecture/PAYMENT-V1-CONTRACT.md)。
 
-一次性 CUTOVER 评审当前仍为 `REJECTED`：订单/库存副作用、支付 Outbox 投递和退款发起已在关闭流量门下补齐，
-但 commerce 本地运行路径、渠道回调与源表权限尚未切换。以下审计通过表示剩余拒绝原因和安全门禁没有漂移，
-不表示允许切流：
+切流前的一次性评审曾记录 `REJECTED`，当时的阻断是商城本地路径、渠道回调和源表权限尚未切换。
+脚本保留了默认流量与副作用开关、影子关闭及源库连接配置退役的检查。2026-11-24 复跑时，这四项通过；随后，全局排除 PostgreSQL 的历史断言命中现役通知配置，脚本退出。当前支付所有权以 M3 最终验收记录为准。
 
 ```powershell
 pwsh -File ./scripts/audit/audit-payment-cutover-readiness.ps1
 ```
 
-支付副作用演练只插入一条精确合成 Outbox，验证远程失败进入可恢复 RETRY 且不产生库存写入；结束时删除该事件并
+历史隔离配置下，支付副作用演练只插入一条精确合成 Outbox，验证远程失败进入可恢复 RETRY 且不产生库存写入；结束时删除该事件并
 恢复流量关、副作用关、影子开：
 
 ```powershell

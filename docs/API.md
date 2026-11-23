@@ -30,7 +30,7 @@
 | 商家打款 | `GET/POST /api/admin/stores/{merchantId}/statements/{id}/payouts`、`GET /api/merchant/settlement/statements/{id}/payouts` | 管理员发起，商家读本店 |
 | 定时任务治理 | `GET/PUT/DELETE /api/admin/scheduling/policies...`、`GET/POST /api/admin/scheduling/tasks...` | ADMIN |
 
-商品目录和公开店铺通过 `GET /api/products/search` 分页，返回 `products`、`total`、`page` 和 `size`。
+当前仓库的商品目录和公开店铺通过 `GET /api/products/search` 分页，返回 `products`、`total`、`page` 和 `size`。
 页码从 0 开始，默认每页 12 件。商品只来自当前对外开放的店铺。公开店铺页以当前店铺的 `merchantId`
 查询。目录可再传入 `q`、`lang`、`minPrice`、`maxPrice` 和 `sort`。
 
@@ -38,9 +38,13 @@
 `GET /api/products/{productId}/reviews` 返回 `reviews`、`total`、`page`、`size`，
 从第 0 页起算，默认 5 条，最大 20 条，按评价时间和评价 ID 倒序。商品不可对外展示时返回 404。
 
-购物车以 `POST /api/products/lookup?lang=zh-CN` 读取当前商品名和价格。请求体是最多 100 个商品 ID 的数组，
+2026-11-24 第 1 批发布后，日常公开店铺使用带 `merchantId` 的搜索分页。日常目录为 Flyway V5，搜索优先读取 Elasticsearch，故障时回退到 MySQL。独立商详首屏展示详情内嵌的最新评价，随后翻页调用独立评价接口。
+
+日常购物车以 `POST /api/products/lookup?lang=zh-CN` 读取当前商品名和价格。请求体是最多 100 个商品 ID 的数组，
 响应按商品 ID 提供 `name` 和 `price`。不存在、已下架或店铺未开放的商品不出现在映射中。
 购物车保留这些行的原商品快照，库存仍由可售量接口单独读取。
+
+日常店铺、评价、购物车的 Chrome 实测和 Elasticsearch 索引核对见[第 1 批日常发布记录](IMPLEMENTED.md#268-2026-11-24-第-1-批商品目录日常发布)。
 
 顾客订单详情中的 `payment.idempotencyKey` 对应原支付提交。门户按原键核对支付单，结果未知时
 保留渠道和原参数，手动重试复用原键。取消用原订单和取消原因重试，订单侧完成和审计分别使用
@@ -55,6 +59,21 @@
 商家使用 `GET /api/merchant/settlement/statements/{id}/reconciliation` 核对本店一个冻结账期。
 平台使用 `GET /api/admin/stores/{merchantId}/statements/{id}/reconciliation`。响应包含账期总额、
 打款尝试、汇总差异及逐单凭证与差异。订单页从 0 开始，默认每页 10 条，最大 20 条。
+
+第 07 项扩展上述只读响应。逐单的 `fulfillment` 包含库存出库行、WMS 计划与实发、WMS 实收及质检回执。
+库存和 WMS 按商家及当页订单批量查询。实发与库存出库按出库单、仓库、订单行和商品核对件数。
+退货回执保留原出库号和售后单号，可关联退款单及已完成退款的件数。库存及 WMS 可用性各自返回，查询失败保留资金报告。
+日常商城与门户已发布该响应，库存与 WMS 配套服务待更新。店铺 8 抽检中两个凭证可用性字段均为 `false`。
+逐单增加支付确认时间、退款金额与成功时间、正红票金额和引用，门户在原冻结账单详情中展示。打款尝试增加渠道确认时间。
+
+平台管理员可通过 `GET /api/admin/stores/{merchantId}/statements/{id}/reconciliation/reviews`
+读取复核历史。响应为 `rows`、`total`、`page` 和 `size`，从第 0 页开始，默认每页 10 条，最大 100 条。
+向同一路径发送 `POST`，提交 `requestId`（UUID）、原报告的 `page` 和 `size`、`target`、`decision` 和 `reason`。
+`target` 包含 `orderId`、`orderLineId`、`kind`、`reference`、`expected` 和 `observed`。
+账单汇总差异的订单和订单行为空，资金差异沿用报告中的引用，件数差异以出库单号作为引用。
+结论可选 `CONFIRMED` 或 `NO_ACTION`，依据须为 1 至 300 个字符。
+服务端复算证据，证据变化时返回 409。同一管理员重试相同请求返回原记录，请求号冲突返回 409。
+复核只追加结论、差异快照、操作人和时间。商家访问复核接口返回 403，店铺与账单错配返回 404。
 
 跨期对账使用 `GET /api/merchant/settlement/statements/{id}/period-comparison`，平台使用
 `GET /api/admin/stores/{merchantId}/statements/{id}/period-comparison`。指定本期冻结账单，
