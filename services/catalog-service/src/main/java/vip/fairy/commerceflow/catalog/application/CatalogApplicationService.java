@@ -60,6 +60,25 @@ public class CatalogApplicationService {
     return CatalogProductV1.from(product, translation(productId, locale(requestedLocale)));
   }
 
+  public List<CatalogProductV1> lookup(List<Long> productIds, String requestedLocale) {
+    var ids = new LinkedHashSet<>(productIds);
+    var found = products.selectList(new LambdaQueryWrapper<Product>()
+      .in(Product::getId, ids)
+      .eq(Product::getLifecycleStatus, "ACTIVE"));
+    String locale = locale(requestedLocale);
+    Map<Long, ProductTranslation> localized = Map.of();
+    if ("zh-CN".equals(locale) && !found.isEmpty()) {
+      localized = translations.selectList(new LambdaQueryWrapper<ProductTranslation>()
+          .in(ProductTranslation::getProductId, found.stream().map(Product::getId).toList())
+          .eq(ProductTranslation::getLocale, locale))
+        .stream().collect(Collectors.toMap(ProductTranslation::getProductId, Function.identity()));
+    }
+    var translationsById = localized;
+    return found.stream()
+      .map(product -> CatalogProductV1.from(product, translationsById.get(product.getId())))
+      .toList();
+  }
+
   public List<CatalogProductSnapshotV1> snapshots(List<Long> productIds) {
     List<Long> uniqueIds = new LinkedHashSet<>(productIds).stream().toList();
     Map<Long, Product> found = products.selectBatchIds(uniqueIds).stream()

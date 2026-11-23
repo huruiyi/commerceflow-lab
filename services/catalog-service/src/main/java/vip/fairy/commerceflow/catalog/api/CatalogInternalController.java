@@ -43,6 +43,12 @@ public class CatalogInternalController {
     return catalog.snapshots(request.productIds());
   }
 
+  @PostMapping("/products/lookup")
+  List<CatalogProductV1> lookup(@Valid @RequestBody CatalogSnapshotBatchRequest request,
+                                @RequestParam(required = false) String lang) {
+    return catalog.lookup(request.productIds(), lang);
+  }
+
   @GetMapping("/merchant/products")
   List<CatalogProductV1> merchantList(@RequestHeader(MERCHANT_HEADER) Long merchantId) {
     return catalog.merchantList(merchantId);

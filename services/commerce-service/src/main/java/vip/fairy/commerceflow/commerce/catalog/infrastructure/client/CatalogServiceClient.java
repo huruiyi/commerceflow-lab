@@ -110,6 +110,18 @@ public class CatalogServiceClient {
     }
   }
 
+  public List<CatalogProductV1> lookup(List<Long> productIds, String locale) {
+    String target = target("/internal/v1/products/lookup", locale);
+    try {
+      CatalogProductV1[] body = client.post().uri(URI.create(baseUrl + target))
+        .headers(headers -> sign(headers, "POST", target)).body(new CatalogSnapshotBatchRequest(productIds))
+        .retrieve().body(CatalogProductV1[].class);
+      return body == null ? List.of() : Arrays.asList(body);
+    } catch (RuntimeException exception) {
+      throw translated(exception);
+    }
+  }
+
   public List<CatalogProductV1> merchantList(Long merchantId) {
     String target = "/internal/v1/merchant/products";
     try {

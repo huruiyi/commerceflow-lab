@@ -19,7 +19,7 @@ describe('OrderComponent', () => {
           provide: ApiService,
           useValue: {
             getOrders: () => of([]),
-            allProducts: () => of([]),
+            cartProducts: () => of({}),
             productAvailability: () => of({}),
             getAddresses: () => of([]),
             selectedAddress: () => of({}),

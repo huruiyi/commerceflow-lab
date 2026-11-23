@@ -2,7 +2,7 @@ import { ChangeDetectorRef, Component, DestroyRef, OnInit } from '@angular/core'
 import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Product } from 'src/model/IProduct';
+import { Product, ProductReview } from 'src/model/IProduct';
 import { readPage } from '../list-pagination/page-query';
 import { ApiService, CatalogStore, StockAvailability } from '../services/api.service';
 import { catchError, EMPTY, map, of, Subscription, switchMap, timeout } from 'rxjs';
@@ -11,6 +11,7 @@ import { I18nService } from '../services/i18n.service';
 
 type CatalogSort = 'default' | 'price-asc' | 'price-desc' | 'rating';
 const PRODUCT_QUERY_TIMEOUT_MS = 8000;
+const REVIEW_PAGE_SIZE = 5;
 
 @Component({
   standalone: false,
@@ -34,6 +35,11 @@ export class DashboardComponent implements OnInit {
   sort: CatalogSort = 'default';
   selectedProduct?: Product;
   detailStatus: 'loading' | 'ready' | 'missing' | 'unavailable' = 'loading';
+  reviews: ProductReview[] = [];
+  reviewPage = 0;
+  reviewTotal = 0;
+  loadingReviews = false;
+  failedReviewPage?: number;
   bigImage = '';
   showLoader = false;
   selectedQuantity = 1;
@@ -41,10 +47,15 @@ export class DashboardComponent implements OnInit {
   stockLoading = false;
   basketError = '';
   private detailRequest?: Subscription;
+  private reviewRequest?: Subscription;
   private searchRequest?: Subscription;
 
   get totalPages(): number {
     return Math.ceil(this.total / this.size);
+  }
+
+  get reviewPages(): number {
+    return Math.ceil(this.reviewTotal / REVIEW_PAGE_SIZE);
   }
 
   get canAddToBasket(): boolean {
@@ -162,6 +173,9 @@ export class DashboardComponent implements OnInit {
     if (!this.selectedProduct) return;
     const productId = this.selectedProduct.id;
     this.detailRequest?.unsubscribe();
+    this.reviewRequest?.unsubscribe();
+    this.loadingReviews = false;
+    this.failedReviewPage = undefined;
     if (this.detailStatus !== 'ready') this.detailStatus = 'loading';
     this.stock = undefined;
     this.basketError = '';
@@ -178,6 +192,9 @@ export class DashboardComponent implements OnInit {
         }),
         switchMap((product) => {
           this.selectedProduct = product;
+          this.reviews = product.reviews;
+          this.reviewPage = 0;
+          this.reviewTotal = product.reviewCount;
           this.bigImage = product.imageUrl;
           this.detailStatus = 'ready';
           this.changeDetector.markForCheck();
@@ -193,6 +210,30 @@ export class DashboardComponent implements OnInit {
         this.stock = stock?.listed ? stock : undefined;
         this.stockLoading = false;
         this.changeDetector.markForCheck();
+      });
+  }
+
+  loadReviews(page: number): void {
+    if (this.detailStatus !== 'ready' || !this.selectedProduct) return;
+    this.reviewRequest?.unsubscribe();
+    this.loadingReviews = true;
+    this.failedReviewPage = undefined;
+    this.reviewRequest = this.api
+      .productReviews(this.selectedProduct.id, page, REVIEW_PAGE_SIZE)
+      .pipe(timeout(PRODUCT_QUERY_TIMEOUT_MS), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.reviews = result.reviews;
+          this.reviewPage = result.page;
+          this.reviewTotal = result.total;
+          this.loadingReviews = false;
+          this.changeDetector.markForCheck();
+        },
+        error: () => {
+          this.failedReviewPage = page;
+          this.loadingReviews = false;
+          this.changeDetector.markForCheck();
+        },
       });
   }
 

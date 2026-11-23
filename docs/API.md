@@ -7,7 +7,7 @@
 | 领域 | 主要接口 | 权限 |
 | --- | --- | --- |
 | 认证 | `GET /api/auth/csrf`、`POST /api/auth/login`、`GET /api/auth/me`、`POST /api/auth/logout` | 公开/已登录 |
-| 商品 | `GET /api/products`、`GET /api/products/search`、`GET /api/products/{productId}`、`POST /api/products/availability` | 公开，可售量 POST 需 CSRF |
+| 商品 | `GET /api/products`、`GET /api/products/search`、`GET /api/products/{productId}`、`GET /api/products/{productId}/reviews`、`POST /api/products/lookup`、`POST /api/products/availability` | 公开，POST 需 CSRF |
 | 购物车 | `GET /api/cart`、`POST /api/cart/items`、`PUT/DELETE /api/cart/items/{id}`、`DELETE /api/cart` | CUSTOMER |
 | 地址 | `GET/POST /api/addresses`、`PUT/DELETE /api/addresses/{id}`、`PUT /api/addresses/{id}/default|select` | CUSTOMER |
 | 订单 | `POST /api/purchase-orders/checkout/quote`、`POST /api/purchase-orders/checkout`、`GET /api/purchase-orders/search`、`GET /api/purchase-orders`、`GET /api/purchase-orders/{id}`、`POST /api/purchase-orders/{id}/cancel` | CUSTOMER |
@@ -32,6 +32,14 @@
 商品目录和公开店铺通过 `GET /api/products/search` 分页，返回 `products`、`total`、`page` 和 `size`。
 页码从 0 开始，默认每页 12 件。商品只来自当前对外开放的店铺。公开店铺页以当前店铺的 `merchantId`
 查询。目录可再传入 `q`、`lang`、`minPrice`、`maxPrice` 和 `sort`。
+
+商品列表和搜索返回 `averageRating`、`reviewCount`，其中 `reviews` 为空数组。详情内嵌最新 5 条评价。
+`GET /api/products/{productId}/reviews` 返回 `reviews`、`total`、`page`、`size`，
+从第 0 页起算，默认 5 条，最大 20 条，按评价时间和评价 ID 倒序。商品不可对外展示时返回 404。
+
+购物车以 `POST /api/products/lookup?lang=zh-CN` 读取当前商品名和价格。请求体是最多 100 个商品 ID 的数组，
+响应按商品 ID 提供 `name` 和 `price`。不存在、已下架或店铺未开放的商品不出现在映射中。
+购物车保留这些行的原商品快照，库存仍由可售量接口单独读取。
 
 顾客订单详情中的 `payment.idempotencyKey` 对应原支付提交。门户按原键核对支付单，结果未知时
 保留渠道和原参数，手动重试复用原键。取消用原订单和取消原因重试，订单侧完成和审计分别使用

@@ -3,7 +3,7 @@ import { Injectable } from '@angular/core';
 import { forkJoin, map, Observable, of } from 'rxjs';
 import { CreateOrderRequest } from 'src/model/IOrder';
 import { OrderList } from 'src/model/IOrderList';
-import { Product } from 'src/model/IProduct';
+import { Product, ProductReviewPage } from 'src/model/IProduct';
 import { IUser } from 'src/model/IUser';
 import { ShippingAddress, ShippingAddressRequest } from 'src/model/IShippingAddress';
 import {
@@ -267,6 +267,10 @@ export class ApiService {
     return this.http.get<Product>(`/api/products/${id}`, { params: { lang: this.productLocale() } });
   }
 
+  productReviews(id: number, page: number, size: number): Observable<ProductReviewPage> {
+    return this.http.get<ProductReviewPage>(`/api/products/${id}/reviews`, { params: { page, size } });
+  }
+
   private productLocale(): string {
     return localStorage.getItem('commerceflow-locale') || 'en';
   }
@@ -275,6 +279,21 @@ export class ApiService {
     return this.http.get<Product[]>(
       `/api/products?lang=${encodeURIComponent(localStorage.getItem('commerceflow-locale') || 'en')}`,
     );
+  }
+
+  cartProducts(ids: number[]): Observable<Record<number, Pick<Product, 'name' | 'price'>>> {
+    const requests = [];
+    const uniqueIds = [...new Set(ids)];
+    for (let start = 0; start < uniqueIds.length; start += 100) {
+      requests.push(
+        this.http.post<Record<number, Pick<Product, 'name' | 'price'>>>(
+          '/api/products/lookup',
+          uniqueIds.slice(start, start + 100),
+          { params: { lang: this.productLocale() } },
+        ),
+      );
+    }
+    return requests.length ? forkJoin(requests).pipe(map((batches) => Object.assign({}, ...batches))) : of({});
   }
 
   productAvailability(ids: number[]): Observable<Record<number, StockAvailability>> {

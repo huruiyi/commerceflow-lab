@@ -1,6 +1,7 @@
 package vip.fairy.commerceflow.commerce.review.infrastructure;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.apache.ibatis.annotations.Param;
 import vip.fairy.commerceflow.commerce.review.domain.ProductReview;
 import vip.fairy.commerceflow.commerce.review.domain.ProductReviewView;
 import java.math.BigDecimal;
@@ -12,9 +13,11 @@ public interface ReviewMapper extends BaseMapper<ProductReview> {
 
   ProductReviewView byItem(Long itemId);
 
-  List<ProductReviewView> reviews(Long productId);
+  List<SummaryRow> summaries(@Param("productIds") List<Long> productIds);
 
-  BigDecimal average(Long productId);
+  List<ProductReviewView> page(@Param("productId") Long productId, @Param("offset") long offset,
+                               @Param("size") int size);
 
-  int count(Long productId);
+  record SummaryRow(Long productId, BigDecimal averageRating, int reviewCount) {
+  }
 }

@@ -180,7 +180,9 @@ export class OrderComponent implements OnInit {
         switchMap((orders) =>
           forkJoin({
             orders: of(orders),
-            products: this.api.allProducts().pipe(catchError(() => of(undefined))),
+            products: this.api
+              .cartProducts(orders.map((order) => order.productId))
+              .pipe(catchError(() => of(undefined))),
             stocks: this.api.productAvailability(orders.map((order) => order.productId)).pipe(catchError(() => of({}))),
           }),
         ),
@@ -194,15 +196,14 @@ export class OrderComponent implements OnInit {
       .subscribe({
         next: ({ orders, products, stocks }) => {
           if (version !== this.cartVersion) return;
-          const catalog = new Map(products?.map((product) => [product.id, product]));
-          this.catalogIds = products ? new Set(catalog.keys()) : undefined;
+          this.catalogIds = products ? new Set(Object.keys(products).map(Number)) : undefined;
           this.stocks = stocks;
           const productIds = new Set(orders.map((item) => item.productId));
           for (const id of this.unselectedProducts) {
             if (!productIds.has(id)) this.unselectedProducts.delete(id);
           }
           this.customerOrders = orders.map((order) => {
-            const product = catalog.get(order.productId);
+            const product = products?.[order.productId];
             if (!product) return order;
             return {
               ...order,

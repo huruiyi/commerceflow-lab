@@ -105,7 +105,7 @@
 
 | 方向 | 依据与处理时机 | 验收重点 |
 | --- | --- | --- |
-| 11 搜索、评分、购物车和店铺查询 | 公开店铺按店分页，[Elasticsearch 商品搜索](architecture/CATALOG-SERVICE-EVOLUTION-PLAN.md#7-elasticsearch-商品搜索) 已通过隔离的显示、停机回退与恢复验收，待日常发布。商品列表评分聚合和购物车商品批量读取继续保留为待办。[商品聚合](../services/commerce-service/src/main/java/vip/fairy/commerceflow/commerce/catalog/application/ProductCatalogService.java) · [购物车组件](../web/commerce-portal/angular/src/app/order/order.component.ts) | 列表读取评分摘要，评论明细分页，购物车按已有商品批量读取。用固定规模样本记录 SQL、下游调用数及 P95。 |
+| 11 搜索、评分、购物车和店铺查询（隔离已验收） | 公开店铺按店分页，[Elasticsearch 商品搜索](architecture/CATALOG-SERVICE-EVOLUTION-PLAN.md#7-elasticsearch-商品搜索) 已通过显示、停机回退与恢复验收。列表批量读取评分摘要、评论分页和购物车定向批量查询已通过隔离验收。发布该批时一并锁定目录服务、商城服务和门户。 | Chrome 校验评论分页、503 重试、购物车现价与原快照，以及 105 条购物车分批读取。固定样本的评分搜索 P95 为 24.79 ms，5 条购物车 P95 为 21.55 ms，已记录 SQL 和下游请求数。[验收记录](IMPLEMENTED.md#253-2026-11-23-商品评分分页与购物车批量读取) |
 | 12 列表和交互质量 | 补齐列表筛选恢复、空与错状态、稳定详情链接、窄屏、键盘焦点和图表文本说明。物流模拟器回调列表范围为最近 500 条，后续支持服务端检索历史死信。[物流管理台](../simulators/logistics-platform/web/src/App.vue) | 两角色和两店分别确认数据范围。分页、状态和数量一致。常用流程在键盘、窄屏及中英文切换后可完成，旧回调可按业务号查找并用原命令恢复。 |
 | 13 业务台账维护 | 用增长样本测量订单、结算、发票、售后和库存流水的查询与导出成本。历史订单商品、归属、金额按既有快照继续可查。 | 对照快照与现行账本，候选索引或分批查询达成约定性能目标；全量与分页统计可核对，导出无跨店数据。基础设施与保留策略见 [架构路线图](architecture/README.md)。 |
 

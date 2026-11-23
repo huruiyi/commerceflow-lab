@@ -42,12 +42,33 @@ public class ProductController {
     return catalog.list(lang != null ? lang : acceptLanguage);
   }
 
+  @PostMapping("/lookup")
+  Map<Long, ProductCatalogService.Listing> lookup(@RequestBody List<Long> ids,
+                                                  @RequestParam(required = false) String lang,
+                                                  @RequestHeader(value = "Accept-Language", required = false)
+                                                  String acceptLanguage) {
+    if (ids.size() > 100 || ids.stream().anyMatch(id -> id == null || id < 1)) {
+      throw new IllegalArgumentException("Invalid product IDs");
+    }
+    return catalog.lookup(ids.stream().distinct().toList(), lang != null ? lang : acceptLanguage);
+  }
+
   @GetMapping("/{productId}")
   ProductResponse detail(@PathVariable Long productId,
                          @RequestParam(required = false) String lang,
                          @RequestHeader(value = "Accept-Language", required = false)
                          String acceptLanguage) {
     return catalog.detail(productId, lang != null ? lang : acceptLanguage);
+  }
+
+  @GetMapping("/{productId}/reviews")
+  ProductCatalogService.ReviewPage reviews(@PathVariable Long productId,
+                                           @RequestParam(defaultValue = "0") int page,
+                                           @RequestParam(defaultValue = "5") int size) {
+    if (page < 0 || size < 1 || size > 20) {
+      throw new IllegalArgumentException("Invalid review page");
+    }
+    return catalog.reviewPage(productId, page, size);
   }
 
   @GetMapping("/search")

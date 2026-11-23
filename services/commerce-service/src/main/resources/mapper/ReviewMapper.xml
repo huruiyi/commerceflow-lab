@@ -16,30 +16,25 @@
     ]]>
   </select>
 
-  <select id="reviews" resultType="vip.fairy.commerceflow.commerce.review.domain.ProductReviewView">
+  <select id="page" resultType="vip.fairy.commerceflow.commerce.review.domain.ProductReviewView">
     <![CDATA[
       SELECT r.id, r.product_id, r.customer_id, r.rating, r.comment, r.created_at,
              CONCAT(u.first_name, ' ', u.last_name) AS reviewer_name
       FROM product_reviews r
       JOIN app_users u ON u.id = r.customer_id
       WHERE r.product_id = #{productId}
-      ORDER BY r.created_at DESC
+      ORDER BY r.created_at DESC, r.id DESC
+      LIMIT #{size} OFFSET #{offset}
     ]]>
   </select>
 
-  <select id="average" resultType="java.math.BigDecimal">
-    <![CDATA[
-      SELECT COALESCE(AVG(rating), 0)
-      FROM product_reviews
-      WHERE product_id = #{productId}
-    ]]>
-  </select>
-
-  <select id="count" resultType="java.lang.Integer">
-    <![CDATA[
-      SELECT COUNT(*)
-      FROM product_reviews
-      WHERE product_id = #{productId}
-    ]]>
+  <select id="summaries" resultType="vip.fairy.commerceflow.commerce.review.infrastructure.ReviewMapper$SummaryRow">
+    SELECT product_id, AVG(rating) AS average_rating, COUNT(*) AS review_count
+    FROM product_reviews
+    WHERE product_id IN
+    <foreach collection="productIds" item="id" open="(" separator="," close=")">
+      #{id}
+    </foreach>
+    GROUP BY product_id
   </select>
 </mapper>
