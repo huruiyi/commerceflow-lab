@@ -34,7 +34,7 @@
 当前仓库的商品目录和公开店铺通过 `GET /api/products/search` 分页，返回 `products`、`total`、`page` 和 `size`。
 页码从 0 开始，默认每页 12 件。商品只来自当前对外开放的店铺。公开店铺页以当前店铺的 `merchantId`
 查询。目录可再传入 `q`、`lang`、`minPrice`、`maxPrice` 和 `sort`。
-目录 V7 候选增加 `sku`，格式为 `颜色=红;尺寸=M`，最多四项不同规格。规格名和值去除首尾空白并忽略大小写。
+目录 V7 的 `sku` 指定规格条件，格式为 `颜色=红;尺寸=M`，最多四项不同规格。规格名和值去除首尾空白并忽略大小写。
 同一启用 SKU 必须同时满足所有规格和价格条件。商品只返回一次，候选商品卡使用
 `minimumSkuPrice` 和 `maximumSkuPrice` 展示全部可售 SKU 的价格范围。
 
@@ -42,7 +42,7 @@
 `GET /api/products/{productId}/reviews` 返回 `reviews`、`total`、`page`、`size`，
 从第 0 页起算，默认 5 条，最大 20 条，按评价时间和评价 ID 倒序。商品不可对外展示时返回 404。
 
-2026-11-24 第 1 批发布后，日常公开店铺使用带 `merchantId` 的搜索分页。日常目录为 Flyway V5，搜索优先读取 Elasticsearch，故障时回退到 MySQL。独立商详首屏展示详情内嵌的最新评价，随后翻页调用独立评价接口。
+2026-11-24 第 1 批发布后，日常公开店铺使用带 `merchantId` 的搜索分页。日常目录为 Flyway V7，搜索优先读取 Elasticsearch，故障时回退到 MySQL。独立商详首屏展示详情内嵌的最新评价，随后翻页调用独立评价接口。
 
 日常购物车以 `POST /api/products/lookup?lang=zh-CN` 读取当前商品名和价格。请求体是最多 100 个商品 ID 的数组，
 响应按商品 ID 提供 `name` 和 `price`。不存在、已下架或店铺未开放的商品不出现在映射中。
@@ -58,7 +58,7 @@
 SKU 创建接受 `requestId`、`code`、`specifications`、`unitPrice` 和 `status`。编码在店内唯一，规格组合在商品内唯一。
 已创建 SKU 可通过 `expectedVersion` 修改编码、价格及状态。默认 SKU 的售价与状态沿用商品编辑入口。
 
-目录 V7 候选在商详返回 `skus`。选定规格后，门户用该行的 `stockProductId` 查询可售量，
+目录 V7 在商详返回 `skus`。选定规格后，门户用该行的 `stockProductId` 查询可售量，
 并在 `POST /api/cart/items` 提交公开商品的 `productId`、`skuId` 与 `quantity`。
 省略 `skuId` 时仍按原商品号购买默认销售单元。SKU 不属于该商品或不可售时返回 404。
 购物车和订单行的 `productId` 为具体销售单元的库存编号。成交时冻结商品名中的规格值及单价，
@@ -96,9 +96,9 @@ SKU 创建接受 `requestId`、`code`、`specifications`、`unitPrice` 和 `stat
 V72 在单条复核下提供 `GET /reconciliation/reviews/{review}/disposition`（沿用上述平台账单前缀）。
 向其 `/receipts` 发送 `POST` 关联原业务回执，提交 `requestId` 和 `receipt`。向其 `/closure` 发送 `POST` 重新对账和结案，提交 `requestId` 和 `reason`。
 已确认的库存、打款或发票差异须通过对应业务核验回执，重算后相应差异消失才可结案。无需处置须重新对账并记录结案依据。
-同一操作者以相同请求号和内容重试可读回原结果。无回执、来源暂不可用或结果仍有差异时，保持待处理并返回 409。日常商城目前使用 V71。
+同一操作者以相同请求号和内容重试可读回原结果。无回执、来源暂不可用或结果仍有差异时，保持待处理并返回 409。日常商城已升至 V72。
 
-V72 候选提供 `GET /api/admin/exception-work` 和 `GET /api/merchant/exception-work`。
+V72 提供 `GET /api/admin/exception-work` 和 `GET /api/merchant/exception-work`。
 返回 `rows`、`total`、`page`、`size`，页码从 0 开始，默认每页 20 条，最大 100 条。
 可以按 `kind`（`STATEMENT_DIFFERENCE`、`RETURN_WORK`）、`priority`（`HIGH`、`NORMAL`）、
 `state`（`OPEN`、`WAITING_EVIDENCE`、`CLOSED`）和 `orderId` 筛选。平台可按 `merchantId` 筛选，商家视图固定为当前店铺。
