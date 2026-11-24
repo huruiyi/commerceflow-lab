@@ -110,10 +110,12 @@ public class CatalogSearchService {
     }
     if (request.merchantIds().isEmpty()) return new Page(List.of(), 0, 0, request.size());
     var spec = skuSearch.selection(request.sku());
+    var attributes = CatalogSkuSearch.filters(request.attributes(), 6).entrySet().stream()
+      .map(entry -> new AttributeFilter(entry.getKey(), entry.getValue())).toList();
     Criteria criteria = new Criteria(text, match.equals("phrase") && !text.isEmpty() ? List.of(text) : terms,
       match, excluded, CatalogApplicationService.locale(request.locale()), request.sort(),
       request.merchantIds(), request.ratedIds(), request.minPrice(), request.maxPrice(), request.size(), 0,
-      spec.tokens(), spec.json(), request.includeSkuFacets());
+      spec.tokens(), spec.json(), request.includeSkuFacets(), attributes);
     var backend = elasticsearch.getIfAvailable();
     if (backend != null) {
       var page = backend.search(criteria, request.page());
@@ -124,13 +126,18 @@ public class CatalogSearchService {
     int page = (int) Math.min(request.page(), (total - 1) / request.size());
     var results = store.search(criteria.atOffset((long) page * request.size()));
     var facets = criteria.includeSkuFacets() ? store.skuFacets(criteria) : List.<Facet>of();
-    return withRanges(new Page(results, total, page, request.size(), Map.of(), facets));
+    var attributeFacets = criteria.includeSkuFacets() ? store.attributeFacets(criteria) : List.<Facet>of();
+    return withRanges(new Page(results, total, page, request.size(), Map.of(), facets, attributeFacets));
   }
 
   private Page withRanges(Page page) {
-    var facets = page.skuFacets().stream().filter(Facet::selectable)
+    return new Page(page.products(), page.total(), page.page(), page.size(), skuSearch.ranges(page.products()),
+      orderedFacets(page.skuFacets()), orderedFacets(page.attributeFacets()));
+  }
+
+  private static List<Facet> orderedFacets(List<Facet> facets) {
+    return facets.stream().filter(Facet::selectable)
       .sorted(Comparator.comparing(Facet::name).thenComparing(Facet::value)).toList();
-    return new Page(page.products(), page.total(), page.page(), page.size(), skuSearch.ranges(page.products()), facets);
   }
 
   private static List<String> words(String text) {
@@ -143,25 +150,29 @@ public class CatalogSearchService {
 
   public record Request(String query, String locale, String sort, List<Long> merchantIds, List<Long> ratedIds,
                         BigDecimal minPrice, BigDecimal maxPrice, int page, int size, String sku,
-                        String match, String exclude, boolean includeSkuFacets) {
+                        String match, String exclude, boolean includeSkuFacets, String attributes) {
   }
 
   public record Criteria(String query, List<String> terms, String match, List<String> excluded,
                          String locale, String sort, List<Long> merchantIds, List<Long> ratedIds,
                          BigDecimal minPrice, BigDecimal maxPrice, int size, long offset,
-                         List<String> skuTokens, String skuJson, boolean includeSkuFacets) {
+                         List<String> skuTokens, String skuJson, boolean includeSkuFacets,
+                         List<AttributeFilter> attributes) {
 
     Criteria atOffset(long value) {
       return new Criteria(query, terms, match, excluded, locale, sort, merchantIds, ratedIds, minPrice, maxPrice,
-        size, value, skuTokens, skuJson, includeSkuFacets);
+        size, value, skuTokens, skuJson, includeSkuFacets, attributes);
     }
   }
 
+  public record AttributeFilter(String name, String value) {
+  }
+
   public record Page(List<CatalogProductV1> products, long total, int page, int size, Map<Long, PriceRange> skuRanges,
-                     List<Facet> skuFacets) {
+                     List<Facet> skuFacets, List<Facet> attributeFacets) {
 
     public Page(List<CatalogProductV1> products, long total, int page, int size) {
-      this(products, total, page, size, Map.of(), List.of());
+      this(products, total, page, size, Map.of(), List.of(), List.of());
     }
   }
 

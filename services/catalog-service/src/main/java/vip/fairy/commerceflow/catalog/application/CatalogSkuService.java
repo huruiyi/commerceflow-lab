@@ -75,18 +75,9 @@ public class CatalogSkuService {
   public CatalogSkuV1 create(long merchant, long productId, CatalogSkuV1.Create request) {
     var product = lockOwned(merchant, productId);
     var code = code(request.code(), null);
-    var display = new TreeMap<String, String>();
-    var canonical = new TreeMap<String, String>();
-    request.specifications().forEach((name, value) -> {
-      String key = name.strip();
-      String normalized = key.toLowerCase(Locale.ROOT);
-      if (canonical.putIfAbsent(normalized, value.strip().toLowerCase(Locale.ROOT)) != null) {
-        throw new IllegalArgumentException("Duplicate specification name");
-      }
-      display.put(key, value.strip());
-    });
-    String specKey = digest(json.writeValueAsString(canonical));
-    String specification = json.writeValueAsString(display);
+    var specs = specifications(request.specifications());
+    String specKey = specs.key();
+    String specification = specs.json();
     String fingerprint = digest(json.writeValueAsString(
       List.of(productId, code, specification, request.unitPrice().stripTrailingZeros(), request.status())));
     String requestId = request.requestId().toString();
@@ -104,6 +95,23 @@ public class CatalogSkuService {
     return view(skus.findRequest(merchant, requestId), product);
   }
 
+  private Specifications specifications(Map<String, String> input) {
+    var display = new TreeMap<String, String>();
+    var canonical = new TreeMap<String, String>();
+    input.forEach((name, value) -> {
+      String key = name.strip();
+      String normalized = key.toLowerCase(Locale.ROOT);
+      if (canonical.putIfAbsent(normalized, value.strip().toLowerCase(Locale.ROOT)) != null) {
+        throw new IllegalArgumentException("Duplicate specification name");
+      }
+      display.put(key, value.strip());
+    });
+    return new Specifications(digest(json.writeValueAsString(canonical)), json.writeValueAsString(display));
+  }
+
+  private record Specifications(String key, String json) {
+  }
+
   @Transactional
   public CatalogSkuV1 update(long merchant, long productId, long skuId, CatalogSkuV1.Update request) {
     var product = lockOwned(merchant, productId);
@@ -117,10 +125,15 @@ public class CatalogSkuService {
     if (!row.defaultSku() && request.unitPrice().signum() <= 0) {
       throw new IllegalArgumentException("SKU price must be positive");
     }
+    if (request.specifications() != null && !row.defaultSku()) {
+      throw new IllegalArgumentException("Specifications of existing variant SKUs are fixed");
+    }
+    var specs = request.specifications() == null ? null : specifications(request.specifications());
     int updated;
     try {
       updated = skus.update(skuId, request.expectedVersion(), code, row.defaultSku() ? null : request.unitPrice(),
-        row.defaultSku() ? null : request.status().name());
+        row.defaultSku() ? null : request.status().name(), specs == null ? null : specs.key(),
+        specs == null ? null : specs.json());
     } catch (DuplicateKeyException duplicate) {
       throw new CatalogVersionConflictException("SKU code already exists in this store");
     }
@@ -136,8 +149,8 @@ public class CatalogSkuService {
         }
         catalog.publishSku(products.selectById(variant.getId()), latest.lifecycleStatus(), false);
       }
-      catalog.reprojectListing(product);
     }
+    if (!row.defaultSku() || specs != null) catalog.reprojectListing(product);
     return view(skus.find(merchant, productId, skuId), product);
   }
 

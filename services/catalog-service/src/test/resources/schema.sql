@@ -18,6 +18,7 @@ CREATE TABLE products (
   create_request_id CHAR(36),
   create_fingerprint CHAR(64),
   listing_product_id BIGINT,
+  monitor_profile VARCHAR(4000),
   UNIQUE (merchant_id,create_request_id)
 );
 

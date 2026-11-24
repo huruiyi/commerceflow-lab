@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 import vip.fairy.commerceflow.catalog.api.CatalogProductV1;
+import vip.fairy.commerceflow.catalog.application.CatalogSearchService.AttributeFilter;
 import vip.fairy.commerceflow.catalog.application.CatalogSearchService.Criteria;
 import vip.fairy.commerceflow.catalog.application.CatalogSkuSearch.Facet;
 
@@ -31,7 +32,7 @@ class CatalogElasticsearchClientTest {
             "sum_other_doc_count":0,"buckets":[
               {"key":"[\\"color\\",\\"red\\"]","doc_count":2,"products":{"doc_count":1}}
             ]
-          }}}}}
+          }}},"attribute_facets":{"sum_other_doc_count":0,"buckets":[]}}}
           """.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "application/json");
         exchange.sendResponseHeaders(200, response.length);
@@ -43,13 +44,16 @@ class CatalogElasticsearchClientTest {
       var client = new CatalogElasticsearchClient(json, "http://127.0.0.1:" + server.getAddress().getPort(),
         "commerceflow-test");
       var criteria = new Criteria("", List.of(), "all", List.of(), "en", "default", List.of(4L), List.of(),
-        null, BigDecimal.valueOf(100), 12, 0, List.of("[\"color\",\"red\"]"), "{\"color\":\"red\"}", true);
+        null, BigDecimal.valueOf(100), 12, 0, List.of("[\"color\",\"red\"]"), "{\"color\":\"red\"}", true,
+        List.of(new AttributeFilter("brand", "cedar")));
 
       var page = client.search(1, criteria, 0).orElseThrow();
 
       assertThat(page.skuFacets()).containsExactly(new Facet("color", "red", 1));
       var body = json.readTree(request.get());
-      var nested = body.path("query").path("bool").path("filter").get(2).path("nested");
+      assertThat(body.path("query").path("bool").path("filter").get(2).path("term").path("attributes").asText())
+        .isEqualTo("[\"brand\",\"cedar\"]");
+      var nested = body.path("query").path("bool").path("filter").get(3).path("nested");
       var eligible = body.path("aggs").path("sku_facets").path("aggs").path("eligible");
       assertThat(eligible.path("filter")).isEqualTo(nested.path("query"));
       assertThat(eligible.path("aggs").path("values").path("aggs").path("products").has("reverse_nested")).isTrue();
@@ -78,7 +82,7 @@ class CatalogElasticsearchClientTest {
       var client = new CatalogElasticsearchClient(json, url, "commerceflow-test");
       var product = new CatalogProductV1(1, 1L, 2L, "咖啡 café", "", "", null, "", "", "ACTIVE", 1, null);
       var document = new CatalogElasticsearchClient.Document(1, 2, 0, true, "", "", "", "", "", "",
-        Map.of("zh-CN", product), List.of());
+        Map.of("zh-CN", product), List.of(), List.of());
 
       client.write(1, List.of(document), true);
 

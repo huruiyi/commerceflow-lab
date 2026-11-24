@@ -1,12 +1,16 @@
 import { Component, computed, inject, input, output } from '@angular/core';
 import { CatalogSkuFacet } from '../services/api.service';
 import { I18nService } from '../services/i18n.service';
-import { invalidCatalogSku } from './catalog-query';
+import { invalidCatalogAttributes, invalidCatalogSku } from './catalog-query';
 
 const facetLabels = new Map([
   ['brand', 'catalogFacetBrand'],
   ['screen size', 'catalogFacetScreenSize'],
   ['resolution', 'catalogFacetResolution'],
+  ['panel', 'catalogFacetPanel'],
+  ['refresh rate', 'catalogFacetRefresh'],
+  ['port', 'catalogFacetPort'],
+  ['package', 'catalogFacetPackage'],
 ]);
 
 interface FacetOption {
@@ -15,23 +19,24 @@ interface FacetOption {
 }
 
 @Component({
-  selector: 'app-catalog-sku-facets',
+  selector: 'app-catalog-facets',
   templateUrl: './catalog-sku-facets.component.html',
   styleUrl: './catalog-sku-facets.component.css',
 })
 export class CatalogSkuFacetsComponent {
   readonly facets = input<readonly CatalogSkuFacet[]>([]);
-  readonly sku = input<string>();
+  readonly selection = input<string>();
+  readonly kind = input<'attributes' | 'sku'>('sku');
   readonly loading = input(false);
-  readonly skuChange = output<string>();
+  readonly selectionChange = output<string>();
   readonly i18n = inject(I18nService);
 
   readonly selected = computed(() => {
-    const sku = this.sku();
-    if (invalidCatalogSku(sku)) return new Map<string, string>();
+    const selection = this.selection();
+    if (this.invalid(selection)) return new Map<string, string>();
 
     return new Map(
-      (sku ?? '')
+      (selection ?? '')
         .split(';')
         .filter((entry) => entry.trim())
         .map((entry) => {
@@ -62,7 +67,11 @@ export class CatalogSkuFacetsComponent {
     const ordered = new Map<string, FacetOption[]>();
     for (const name of facetLabels.keys()) {
       const options = groups.get(name);
-      if (options) ordered.set(name, options);
+      if (!options) continue;
+      if (name === 'screen size' || name === 'refresh rate') {
+        options.sort((left, right) => Number(left.value) - Number(right.value));
+      }
+      ordered.set(name, options);
     }
     return new Map([...ordered, ...groups]);
   });
@@ -72,17 +81,37 @@ export class CatalogSkuFacetsComponent {
     return key ? this.i18n.t(key) : name;
   }
 
+  get groupLabel(): string {
+    return this.i18n.t(this.kind() === 'attributes' ? 'catalogAttributes' : 'catalogSkuFilter');
+  }
+
+  get clearLabel(): string {
+    return this.i18n.t(this.kind() === 'attributes' ? 'catalogClearAttributes' : 'catalogClearSku');
+  }
+
+  valueLabel(name: string, value: string): string {
+    if (name === 'package') return this.i18n.catalogPackage(value);
+    if (name === 'screen size') return value + '″';
+    if (name === 'refresh rate') return value + ' Hz';
+    if (name === 'panel' || name === 'port') return value.toUpperCase();
+    return value;
+  }
+
+  private invalid(value?: string): boolean {
+    return this.kind() === 'attributes' ? invalidCatalogAttributes(value) : invalidCatalogSku(value);
+  }
+
   cannotApply(name: string, value: string): boolean {
     if (this.loading()) return true;
     const selected = this.selected();
-    return selected.get(name) !== value && invalidCatalogSku(this.updatedSku(name, value));
+    return selected.get(name) !== value && this.invalid(this.updatedSelection(name, value));
   }
 
   change(name: string, value: string): void {
-    if (!this.cannotApply(name, value)) this.skuChange.emit(this.updatedSku(name, value));
+    if (!this.cannotApply(name, value)) this.selectionChange.emit(this.updatedSelection(name, value));
   }
 
-  private updatedSku(name: string, value: string): string {
+  private updatedSelection(name: string, value: string): string {
     const selected = new Map(this.selected());
     if (selected.get(name) === value) {
       selected.delete(name);

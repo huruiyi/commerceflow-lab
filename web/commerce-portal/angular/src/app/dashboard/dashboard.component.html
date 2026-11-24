@@ -39,11 +39,18 @@
         }
       </ul>
     }
-    <app-catalog-sku-facets
-      [facets]="skuFacets"
-      [sku]="filters.sku"
+    <app-catalog-facets
+      kind="attributes"
+      [facets]="attributeFacets"
+      [selection]="filters.attributes"
       [loading]="loading"
-      (skuChange)="changeSku($event)"
+      (selectionChange)="changeAttributes($event)"
+    />
+    <app-catalog-facets
+      [facets]="skuFacets"
+      [selection]="filters.sku"
+      [loading]="loading"
+      (selectionChange)="changeSku($event)"
     />
     @if (loading) {
       <p class="catalog-state" role="status">{{ 'catalogSearching' | t }}</p>

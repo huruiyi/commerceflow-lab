@@ -41,7 +41,8 @@ export class CatalogSearchFormComponent {
       Number(Boolean(exclude.trim())) +
       Number(merchantId !== null) +
       Number(minPrice !== null || maxPrice !== null) +
-      Number(Boolean(sku))
+      Number(Boolean(sku)) +
+      Number(Boolean(this.draft().attributes))
     );
   }
 

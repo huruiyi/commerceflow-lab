@@ -54,6 +54,14 @@
     ORDER BY product_id,id
   </select>
 
+  <select id="specifiedDefaults"
+          resultType="vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogSkuMapper$Row">
+    SELECT <include refid="columns"/> FROM catalog_product_skus
+    WHERE default_sku=TRUE AND stock_product_id IS NOT NULL AND JSON_LENGTH(specifications)&gt;0 AND product_id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    ORDER BY product_id
+  </select>
+
   <update id="bindStock">
     UPDATE catalog_product_skus SET stock_product_id=#{stockProductId} WHERE id=#{sku} AND stock_product_id IS NULL
   </update>
@@ -67,7 +75,9 @@
 
   <update id="update">
     UPDATE catalog_product_skus
-    SET code=#{code},unit_price=#{unitPrice},lifecycle_status=#{lifecycleStatus},business_version=business_version+1
+    SET code=#{code},unit_price=#{unitPrice},lifecycle_status=#{lifecycleStatus},
+      spec_key=COALESCE(#{specKey},spec_key),specifications=COALESCE(#{specifications},specifications),
+      business_version=business_version+1
     WHERE id=#{sku} AND business_version=#{version}
   </update>
 </mapper>

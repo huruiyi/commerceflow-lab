@@ -209,6 +209,14 @@ export class StoresComponent {
     this.navigateCatalog({ ...this.catalog, sku, page: 0 });
   }
 
+  get selectedAttributes(): string | undefined {
+    return this.catalog.attributes;
+  }
+
+  changeAttributes(attributes: string): void {
+    this.navigateCatalog({ ...this.catalog, attributes, page: 0 });
+  }
+
   changePage(page: number): void {
     this.navigateCatalog({ ...this.catalog, page });
   }

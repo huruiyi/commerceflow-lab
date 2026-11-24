@@ -94,11 +94,22 @@
     <foreach collection="excluded" item="term">
       AND LOCATE(#{term}, d.searchable) = 0
     </foreach>
+    <foreach collection="attributes" item="attr">
+      AND EXISTS (
+        SELECT 1 FROM catalog_monitor_attribute_values a
+        WHERE a.product_id=d.product_id AND a.name=#{attr.name}
+          AND a.value COLLATE utf8mb4_0900_bin = #{attr.value}
+      )
+    </foreach>
   </sql>
 
   <sql id="searchScope">
     <include refid="searchSource"/>
     <include refid="productFilters"/>
+    <include refid="skuScope"/>
+  </sql>
+
+  <sql id="skuScope">
     <if test="minPrice != null or maxPrice != null or skuJson != null">
       AND ((<include refid="defaultSkuMatches"/>) OR EXISTS (
         SELECT 1 FROM catalog_product_skus sku WHERE <include refid="variantSkuMatches"/>
@@ -107,21 +118,27 @@
   </sql>
 
   <sql id="defaultSkuMatches">
-    <choose>
-      <when test="skuJson != null">FALSE</when>
-      <otherwise>
-        TRUE
-        <if test="minPrice != null">AND d.unit_price &gt;= #{minPrice}</if>
-        <if test="maxPrice != null">AND d.unit_price &lt;= #{maxPrice}</if>
-      </otherwise>
-    </choose>
+    TRUE
+    <if test="skuJson != null">
+      AND EXISTS (
+        SELECT 1 FROM catalog_product_skus base_sku
+        WHERE base_sku.default_product_id=d.product_id AND base_sku.stock_product_id IS NOT NULL
+          AND JSON_CONTAINS(LOWER(base_sku.specifications),#{skuJson})
+      )
+    </if>
+    <if test="minPrice != null">AND d.unit_price &gt;= #{minPrice}</if>
+    <if test="maxPrice != null">AND d.unit_price &lt;= #{maxPrice}</if>
   </sql>
 
   <sql id="variantSkuMatches">
     sku.product_id=d.product_id AND sku.default_sku=FALSE
       AND sku.lifecycle_status='ACTIVE' AND sku.stock_product_id IS NOT NULL
-    <if test="minPrice != null">AND sku.unit_price &gt;= #{minPrice}</if>
-    <if test="maxPrice != null">AND sku.unit_price &lt;= #{maxPrice}</if>
+    <include refid="skuFilters"/>
+  </sql>
+
+  <sql id="skuFilters">
+    <if test="minPrice != null">AND COALESCE(sku.unit_price,d.unit_price) &gt;= #{minPrice}</if>
+    <if test="maxPrice != null">AND COALESCE(sku.unit_price,d.unit_price) &lt;= #{maxPrice}</if>
     <if test="skuJson != null">AND JSON_CONTAINS(LOWER(sku.specifications),#{skuJson})</if>
   </sql>
 
@@ -139,10 +156,28 @@
         USING utf8mb4) COLLATE utf8mb4_0900_bin AS value,
       COUNT(DISTINCT d.product_id) AS product_count
     <include refid="searchSource"/>
-    JOIN catalog_product_skus sku ON <include refid="variantSkuMatches"/>
+    JOIN catalog_product_skus sku ON sku.product_id=d.product_id AND sku.stock_product_id IS NOT NULL
+      AND (sku.default_sku=TRUE OR sku.lifecycle_status='ACTIVE')
+      <include refid="skuFilters"/>
     JOIN JSON_TABLE(JSON_KEYS(LOWER(sku.specifications)), '$[*]' COLUMNS (name VARCHAR(64) PATH '$')) spec
     <include refid="productFilters"/>
     GROUP BY 1, 2
+  </select>
+
+  <select id="attributeFacets" resultType="vip.fairy.commerceflow.catalog.application.CatalogSkuSearch$Facet">
+    SELECT a.name, a.value COLLATE utf8mb4_0900_bin AS value, COUNT(DISTINCT d.product_id) AS product_count
+    <include refid="searchSource"/>
+    JOIN catalog_monitor_attribute_values a ON a.product_id=d.product_id
+    <include refid="productFilters"/>
+    <include refid="skuScope"/>
+    GROUP BY 1, 2
+  </select>
+
+  <select id="attributeValues"
+          resultType="vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogSearchMapper$AttributeValue">
+    SELECT product_id,name,value FROM catalog_monitor_attribute_values WHERE product_id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    ORDER BY product_id,name,value COLLATE utf8mb4_0900_bin
   </select>
 
   <select id="count" resultType="long">

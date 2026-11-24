@@ -160,6 +160,27 @@ describe('DashboardComponent', () => {
     expect(TestBed.inject(Router).url).toBe('/dashboard?q=laptop');
   });
 
+  it('keeps product attributes and sales specifications separate in search and detail links', async () => {
+    await harness.navigateByUrl('/dashboard?q=monitor&sku=package%3Dstandard&page=1', DashboardComponent);
+    const root = harness.routeNativeElement!;
+    const component = harness.routeDebugElement!.componentInstance as DashboardComponent;
+    component.changeAttributes('screen size=27;resolution=2560 × 1440');
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(search.calls.mostRecent().args[0]).toEqual({
+      q: 'monitor',
+      sort: 'default',
+      page: 0,
+      size: 12,
+      includeSkuFacets: 'true',
+      sku: 'package=standard',
+      attributes: 'screen size=27;resolution=2560 × 1440',
+    });
+    const link = TestBed.inject(Router).parseUrl(root.querySelector('.product-card')!.getAttribute('href')!);
+    expect(link.queryParams['sku']).toBe('package=standard');
+    expect(link.queryParams['attributes']).toBe('screen size=27;resolution=2560 × 1440');
+  });
+
   it('expands advanced search and submits its fields with the keyword', async () => {
     await harness.navigateByUrl('/dashboard?q=monitor&page=1', DashboardComponent);
     const root = harness.routeNativeElement!;

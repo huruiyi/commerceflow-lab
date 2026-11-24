@@ -167,11 +167,11 @@ export class ProductDetailComponent implements OnInit {
   }
 
   skuLabel(sku: CatalogSku): string {
-    return sku.defaultSku
-      ? this.i18n.t('catalogSkuDefaultOption')
-      : Object.entries(sku.specifications)
-          .map(([key, value]) => key + ': ' + value)
-          .join(' / ');
+    const specifications = Object.entries(sku.specifications);
+    if (!specifications.length) return this.i18n.t('catalogSkuDefaultOption');
+    return specifications
+      .map(([key, value]) => (key === 'package' ? this.i18n.catalogPackage(value) : key + ': ' + value))
+      .join(' / ');
   }
 
   selectSku(skuId: number): void {

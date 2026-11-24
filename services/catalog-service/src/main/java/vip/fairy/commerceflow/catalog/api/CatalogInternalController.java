@@ -71,6 +71,13 @@ public class CatalogInternalController {
     return catalog.updateProfile(merchantId, productId, request, correlationId, causationId);
   }
 
+  @PutMapping("/merchant/products/{productId}/monitor-profile")
+  CatalogProductV1 updateMonitorProfile(@RequestHeader(MERCHANT_HEADER) Long merchantId,
+                                        @PathVariable Long productId,
+                                        @Valid @RequestBody CatalogMonitorProfile.Update request) {
+    return catalog.updateMonitorProfile(merchantId, productId, request);
+  }
+
   @PutMapping("/merchant/products/{productId}/price")
   CatalogProductV1 updatePrice(@RequestHeader(MERCHANT_HEADER) Long merchantId,
                                @PathVariable Long productId,

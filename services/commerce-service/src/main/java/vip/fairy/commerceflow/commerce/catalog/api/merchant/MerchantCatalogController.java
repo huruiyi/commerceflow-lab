@@ -1,6 +1,7 @@
 package vip.fairy.commerceflow.commerce.catalog.api.merchant;
 
 import jakarta.validation.Valid;
+import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogMonitorProfile;
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogProductV1;
 import vip.fairy.commerceflow.commerce.catalog.application.MerchantCatalogService;
 import vip.fairy.commerceflow.commerce.shared.application.CurrentActorIdResolver;
@@ -48,6 +49,13 @@ public class MerchantCatalogController {
                                  Authentication authentication) {
     return catalog.updateProfile(currentActors.requireId(authentication), productId, request,
       correlationId, causationId);
+  }
+
+  @PutMapping("/{productId}/monitor-profile")
+  CatalogProductV1 updateMonitorProfile(@PathVariable Long productId,
+                                        @Valid @RequestBody CatalogMonitorProfile.Update request,
+                                        Authentication authentication) {
+    return catalog.updateMonitorProfile(currentActors.requireId(authentication), productId, request);
   }
 
   @PutMapping("/{productId}/price")

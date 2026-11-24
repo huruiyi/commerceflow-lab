@@ -26,6 +26,9 @@ public interface ProductMapper extends BaseMapper<Product> {
   int updateStatus(@Param("merchantId") Long merchantId, @Param("productId") Long productId,
                    @Param("expectedVersion") long expectedVersion, @Param("status") String status);
 
+  int updateMonitorProfile(@Param("merchantId") Long merchantId, @Param("productId") Long productId,
+                           @Param("expectedVersion") long expectedVersion, @Param("profile") String profile);
+
   int advanceVersion(@Param("merchantId") Long merchantId, @Param("productId") Long productId,
                      @Param("expectedVersion") long expectedVersion);
 }

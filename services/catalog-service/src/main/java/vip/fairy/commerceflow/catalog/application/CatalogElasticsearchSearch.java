@@ -126,6 +126,12 @@ public class CatalogElasticsearchSearch {
   private List<Document> documents(List<Long> ids) {
     var source = readProducts(ids);
     var options = skuSearch.options(ids);
+    var defaults = skuSearch.specifiedDefaults(ids);
+    var attributes = new HashMap<Long, List<String>>();
+    for (var attr : search.attributeValues(ids)) {
+      attributes.computeIfAbsent(attr.productId(), key -> new ArrayList<>())
+        .add(client.attributeToken(attr.name(), attr.value()));
+    }
     var localized = new HashMap<Long, Map<String, ProductTranslation>>();
     for (var row : translations.selectList(new LambdaQueryWrapper<ProductTranslation>()
       .in(ProductTranslation::getProductId, ids))) {
@@ -136,7 +142,7 @@ public class CatalogElasticsearchSearch {
     for (var id : ids) {
       var product = source.get(id);
       if (product == null || !"ACTIVE".equals(product.getLifecycleStatus())) {
-        documents.add(new Document(id, 0, 0, false, "", "", "", "", "", "", Map.of(), List.of()));
+        documents.add(new Document(id, 0, 0, false, "", "", "", "", "", "", Map.of(), List.of(), List.of()));
       } else {
         var variants = localized.getOrDefault(id, Map.of());
         var zh = CatalogProductV1.from(product, variants.get("zh-CN"));
@@ -145,11 +151,12 @@ public class CatalogElasticsearchSearch {
         String enText = fullText(en);
         long cents = CatalogElasticsearchClient.cents(product.getPrice());
         var sellable = new ArrayList<Option>();
-        sellable.add(new Option(cents, List.of()));
+        sellable.add(new Option(cents, defaults.getOrDefault(id, List.of())));
         sellable.addAll(options.getOrDefault(id, List.of()));
         documents.add(new Document(id, product.getMerchantId(), CatalogElasticsearchClient.cents(product.getPrice()),
           true, zhText, enText, CatalogElasticsearchClient.normalize(zh.name()),
-          CatalogElasticsearchClient.normalize(en.name()), zhText, enText, Map.of("zh-CN", zh, "en", en), sellable));
+          CatalogElasticsearchClient.normalize(en.name()), zhText, enText, Map.of("zh-CN", zh, "en", en), sellable,
+          attributes.getOrDefault(id, List.of())));
       }
     }
     return documents;

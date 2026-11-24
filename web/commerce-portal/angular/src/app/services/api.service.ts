@@ -204,6 +204,7 @@ export interface CatalogSkuFacet {
 
 export interface CatalogSearchPage {
   skuFacets: CatalogSkuFacet[];
+  attributeFacets: CatalogSkuFacet[];
   products: Product[];
   total: number;
   page: number;

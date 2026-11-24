@@ -8,6 +8,7 @@ import vip.fairy.commerceflow.commerce.catalog.api.merchant.CatalogPriceUpdateRe
 import vip.fairy.commerceflow.commerce.catalog.api.merchant.CatalogProfileUpdateRequest;
 import vip.fairy.commerceflow.commerce.catalog.api.merchant.CatalogStatusUpdateRequest;
 import vip.fairy.commerceflow.commerce.catalog.api.merchant.CatalogTranslationUpdateRequest;
+import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogMonitorProfile;
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogProductV1;
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogSkuV1;
 import vip.fairy.commerceflow.commerce.catalog.domain.ProductLifecycleStatus;
@@ -53,6 +54,11 @@ public class MerchantCatalogService {
                                         CatalogProfileUpdateRequest request,
                                         String correlationId, String causationId) {
     return catalog.updateProfile(merchantId, productId, request, correlationId, causationId);
+  }
+
+  public CatalogProductV1 updateMonitorProfile(Long merchantId, Long productId,
+                                                CatalogMonitorProfile.Update request) {
+    return catalog.updateMonitorProfile(merchantId, productId, request);
   }
 
   public CatalogProductV1 updatePrice(Long merchantId, Long productId,

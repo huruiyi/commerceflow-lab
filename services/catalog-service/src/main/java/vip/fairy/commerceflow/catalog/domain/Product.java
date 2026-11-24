@@ -40,6 +40,8 @@ public class Product {
   private String createFingerprint;
   /** 内部 SKU 销售单元所属的公开商品。为空时本行即为公开商品。 */
   private Long listingProductId;
+  /** SPU 的固定显示器参数 JSON。独立库存销售单元不复制该资料。 */
+  private String monitorProfile;
 
   protected Product() {
   }
@@ -95,6 +97,10 @@ public class Product {
   public String getLifecycleStatus() { return lifecycleStatus; }
   public long getBusinessVersion() { return businessVersion; }
   public Instant getUpdatedAt() { return updatedAt; }
+  public String getMonitorProfile() {
+    return monitorProfile;
+  }
+
   public Long getListingProductId() {
     return listingProductId;
   }

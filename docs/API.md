@@ -47,15 +47,18 @@
 `q` 与 `exclude` 各限 120 个字符、12 个不同词。公开 API 对未知匹配模式或超限输入返回 400。
 Elasticsearch 和 MySQL 回退使用相同的匹配条件，相关性排序由各自的引擎计算。
 
-目录 V7 的 `sku` 指定规格条件，格式为 `颜色=红;尺寸=M`，最多四项不同规格。规格名和值去除首尾空白并忽略大小写。
+目录 V8 将属性和销售规格分成两个参数，均使用以分号分隔的 `name=value`。名称和值忽略大小写并去除首尾空白。
+商品层的 `attributes` 支持最多六项固定属性，可用 `screen size=27;resolution=2560 × 1440` 查询 27 英寸 QHD。
+其余显示器属性名为 `brand`、`panel`、`refresh rate` 和 `port`。尺寸用英寸数值，刷新率用 Hz 数值。
+销售层的 `sku` 支持最多四项规格，例如 `package=stand-bundle`。旧链接中的商品属性不会从 `sku` 映射到 `attributes`。
 同一启用 SKU 必须同时满足所有规格和价格条件。商品只返回一次，候选商品卡使用
 `minimumSkuPrice` 和 `maximumSkuPrice` 展示全部可售 SKU 的价格范围。
 
-传入 `includeSkuFacets=true` 时，`skuFacets` 返回 `name`、`value` 和 `productCount`，例如
-`{"name":"颜色","value":"红","productCount":3}`。省略参数时数组为空。
+传入 `includeSkuFacets=true` 时，`attributeFacets` 和 `skuFacets` 分别返回商品属性和销售规格的 `name`、`value`、`productCount`。
+省略参数时两个数组为空。属性和值均按符合当前全部条件的商品去重。
 规格值按匹配整批查询的商品去重，当前页码和排序不会改变计数。关键词、排除词、语言、店铺、价格及全部已选规格都会参与筛选，
 其中价格、已选规格和待计数的规格值必须出现在同一条可售 SKU 上。
-规格名和值遵循 `sku` 的大小写规则。可点击选项使用旧链接的 `name=value;name=value` 格式，含分隔符且无法用该格式表达的值不出现在选项中。
+可点击选项使用对应参数的 `name=value;name=value` 格式，含分隔符且无法用该格式表达的名和值不出现在选项中。
 Elasticsearch 使用嵌套 SKU 聚合及商品级去重。聚合超过 2,000 个规格值、结果不完整或 Elasticsearch 不可用时，
 改由 MySQL 返回搜索页及完整计数。
 
@@ -77,7 +80,12 @@ Elasticsearch 使用嵌套 SKU 聚合及商品级去重。聚合超过 2,000 个
 `POST /api/admin/catalog-search/rebuild` 触发原索引重建流程。
 
 SKU 创建接受 `requestId`、`code`、`specifications`、`unitPrice` 和 `status`。编码在店内唯一，规格组合在商品内唯一。
-已创建 SKU 可通过 `expectedVersion` 修改编码、价格及状态。默认 SKU 的售价与状态沿用商品编辑入口。
+已创建 SKU 可通过 `expectedVersion` 修改编码、价格及状态。默认 SKU 的售价与状态沿用商品编辑入口，
+可在改 SKU 时提交 `specifications` 命名默认销售组合，已创建的非默认 SKU 规格保持固定。
+
+V8 的 `PUT /api/merchant/catalog/v1/products/{productId}/monitor-profile` 接受 `expectedVersion` 和 `profile`。
+`profile` 包含 `brand`、`screenSizeInches`、`widthPixels`、`heightPixels`、`panel`、`refreshRateHz` 和 `ports`。
+商家目录及公开商详返回 `monitorProfile`，商详另返回独立的销售 SKU。
 
 目录 V7 在商详返回 `skus`。选定规格后，门户用该行的 `stockProductId` 查询可售量，
 并在 `POST /api/cart/items` 提交公开商品的 `productId`、`skuId` 与 `quantity`。

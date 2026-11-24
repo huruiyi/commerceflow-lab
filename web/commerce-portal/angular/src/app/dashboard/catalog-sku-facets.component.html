@@ -1,5 +1,5 @@
 @if (groups().size) {
-  <section class="sku-facets" [attr.aria-label]="i18n.t('catalogSkuFilter')" [attr.aria-busy]="loading()">
+  <section class="sku-facets" [attr.aria-label]="groupLabel" [attr.aria-busy]="loading()">
     @for (group of groups(); track group[0]) {
       <fieldset class="sku-facet" [attr.data-spec]="group[0]">
         <legend>{{ label(group[0]) }}</legend>
@@ -12,7 +12,7 @@
               [attr.aria-disabled]="cannotApply(group[0], option.value)"
               (click)="change(group[0], option.value)"
             >
-              {{ option.value }}
+              {{ valueLabel(group[0], option.value) }}
               @if (option.productCount !== null) {
                 <span class="sku-count">{{ option.productCount }}</span>
               }
@@ -22,8 +22,8 @@
       </fieldset>
     }
     @if (selected().size) {
-      <button type="button" class="sku-clear" [disabled]="loading()" (click)="skuChange.emit('')">
-        {{ i18n.t('catalogClearSku') }}
+      <button type="button" class="sku-clear" [disabled]="loading()" (click)="selectionChange.emit('')">
+        {{ clearLabel }}
       </button>
     }
   </section>

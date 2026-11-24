@@ -503,6 +503,14 @@ const en: Record<string, string> = {
   catalogFacetBrand: 'Brand',
   catalogFacetScreenSize: 'Screen size',
   catalogFacetResolution: 'Resolution',
+  catalogAttributes: 'Product attributes',
+  catalogClearAttributes: 'Clear product attributes',
+  catalogFacetPanel: 'Panel',
+  catalogFacetRefresh: 'Refresh rate',
+  catalogFacetPort: 'Port',
+  catalogFacetPackage: 'Package',
+  catalogPackageStandard: 'Standard',
+  catalogPackageStand: 'With monitor arm',
   catalogAppliedFilters: 'Applied filters',
   catalogMinPriceFilter: 'Min. {price}',
   catalogMaxPriceFilter: 'Max. {price}',
@@ -1460,6 +1468,14 @@ const zh: Record<string, string> = {
   catalogFacetBrand: '品牌',
   catalogFacetScreenSize: '屏幕尺寸',
   catalogFacetResolution: '分辨率',
+  catalogAttributes: '商品属性',
+  catalogClearAttributes: '清除商品属性',
+  catalogFacetPanel: '面板',
+  catalogFacetRefresh: '刷新率',
+  catalogFacetPort: '接口',
+  catalogFacetPackage: '套餐',
+  catalogPackageStandard: '标配',
+  catalogPackageStand: '含支架套装',
   catalogAppliedFilters: '已应用的筛选',
   catalogMinPriceFilter: '最低 {price}',
   catalogMaxPriceFilter: '最高 {price}',
@@ -1965,6 +1981,12 @@ export class I18nService {
     let value = (this.state() === 'zh-CN' ? zh : en)[key] || key;
     for (const [name, replacement] of Object.entries(params || {}))
       value = value.replace(`{${name}}`, String(replacement));
+    return value;
+  }
+
+  catalogPackage(value: string): string {
+    if (value === 'standard') return this.t('catalogPackageStandard');
+    if (value === 'stand-bundle') return this.t('catalogPackageStand');
     return value;
   }
 

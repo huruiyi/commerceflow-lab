@@ -29,7 +29,8 @@ public record CatalogSkuV1(long skuId, long productId, String code, Map<String, 
     @Positive long expectedVersion,
     @NotBlank @Size(max = 64) String code,
     @NotNull @DecimalMin("0.00") @Digits(integer = 10, fraction = 2) BigDecimal unitPrice,
-    @NotNull ProductLifecycleStatus status
+    @NotNull ProductLifecycleStatus status,
+    @Size(max = 4) Map<@NotBlank @Size(max = 32) String, @NotBlank @Size(max = 48) String> specifications
   ) {
   }
 }

@@ -15,6 +15,7 @@ import vip.fairy.commerceflow.commerce.catalog.api.merchant.CatalogProfileUpdate
 import vip.fairy.commerceflow.commerce.catalog.api.merchant.CatalogStatusUpdateRequest;
 import vip.fairy.commerceflow.commerce.catalog.api.merchant.CatalogTranslationUpdateRequest;
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogProductSnapshotV1;
+import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogMonitorProfile;
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogProductV1;
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogSkuV1;
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogSnapshotBatchRequest;
@@ -107,11 +108,11 @@ public class CatalogServiceClient {
 
   public record SearchRequest(String query, String locale, String sort, List<Long> merchantIds, List<Long> ratedIds,
                               BigDecimal minPrice, BigDecimal maxPrice, int page, int size, String sku,
-                              String match, String exclude, boolean includeSkuFacets) {
+                              String match, String exclude, boolean includeSkuFacets, String attributes) {
   }
 
   public record SearchPage(List<CatalogProductV1> products, long total, int page, int size,
-                           Map<Long, PriceRange> skuRanges, List<SkuFacet> skuFacets) {
+                           Map<Long, PriceRange> skuRanges, List<SkuFacet> skuFacets, List<SkuFacet> attributeFacets) {
   }
 
   public record SkuFacet(String name, String value, long productCount) {
@@ -224,6 +225,11 @@ public class CatalogServiceClient {
                                         CatalogProfileUpdateRequest request,
                                         String correlationId, String causationId) {
     return put(merchantId, productId, "profile", request, correlationId, causationId);
+  }
+
+  public CatalogProductV1 updateMonitorProfile(Long merchantId, Long productId,
+                                                CatalogMonitorProfile.Update request) {
+    return put(merchantId, productId, "monitor-profile", request, null, null);
   }
 
   public CatalogProductV1 updatePrice(Long merchantId, Long productId,

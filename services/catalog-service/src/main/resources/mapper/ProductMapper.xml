@@ -4,7 +4,7 @@
 <mapper namespace="vip.fairy.commerceflow.catalog.infrastructure.persistence.ProductMapper">
   <select id="selectForMerchant" resultType="vip.fairy.commerceflow.catalog.domain.Product">
     SELECT id,name,brief,description,price,image_url,thumbnail_url,merchant_id,
-           lifecycle_status,business_version,updated_at
+           lifecycle_status,business_version,updated_at,monitor_profile
     FROM products WHERE merchant_id=#{merchantId} AND listing_product_id IS NULL ORDER BY id
   </select>
   <select id="lockListing" resultType="vip.fairy.commerceflow.catalog.domain.Product">
@@ -22,6 +22,11 @@
   <update id="updateStatus">
     UPDATE products SET lifecycle_status=#{status},business_version=business_version+1
     WHERE id=#{productId} AND merchant_id=#{merchantId} AND business_version=#{expectedVersion}
+  </update>
+  <update id="updateMonitorProfile">
+    UPDATE products SET monitor_profile=#{profile},business_version=business_version+1
+    WHERE id=#{productId} AND merchant_id=#{merchantId} AND business_version=#{expectedVersion}
+      AND listing_product_id IS NULL
   </update>
   <update id="advanceVersion">
     UPDATE products SET business_version=business_version+1

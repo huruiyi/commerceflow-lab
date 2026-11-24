@@ -9,6 +9,7 @@ import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.catalog.api.CatalogPriceUpdateRequest;
 import vip.fairy.commerceflow.catalog.api.CatalogCreateProductRequest;
 import vip.fairy.commerceflow.catalog.api.CatalogProductSnapshotV1;
+import vip.fairy.commerceflow.catalog.api.CatalogMonitorProfile;
 import vip.fairy.commerceflow.catalog.api.CatalogProductV1;
 import vip.fairy.commerceflow.catalog.api.CatalogProfileUpdateRequest;
 import vip.fairy.commerceflow.catalog.api.CatalogStatusUpdateRequest;
@@ -25,6 +26,7 @@ import java.util.HexFormat;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -60,7 +62,27 @@ public class CatalogApplicationService {
 
   public CatalogProductV1 detail(Long productId, String requestedLocale) {
     Product product = active(productId);
-    return CatalogProductV1.from(product, translation(productId, locale(requestedLocale)));
+    return CatalogProductV1.from(product, translation(productId, locale(requestedLocale)))
+      .withMonitorProfile(monitorProfile(product));
+  }
+
+  private CatalogMonitorProfile monitorProfile(Product product) {
+    var data = product.getMonitorProfile();
+    return data == null ? null : mapper.readValue(data, CatalogMonitorProfile.class);
+  }
+
+  @Transactional
+  public CatalogProductV1 updateMonitorProfile(Long merchantId, Long productId, CatalogMonitorProfile.Update request) {
+    var product = owned(merchantId, productId);
+    var profile = request.profile();
+    var ports = profile.ports().stream().map(String::strip).map(port -> port.toUpperCase(Locale.ROOT))
+      .distinct().sorted().toList();
+    var clean = new CatalogMonitorProfile(profile.brand().strip(), profile.screenSizeInches(), profile.widthPixels(),
+      profile.heightPixels(), profile.panel().strip().toUpperCase(Locale.ROOT), profile.refreshRateHz(), ports);
+    requireUpdated(products.updateMonitorProfile(merchantId, productId, request.expectedVersion(),
+      mapper.writeValueAsString(clean)));
+    return changed(owned(merchantId, productId), CatalogProductEventType.PRODUCT_PROFILE_UPDATED, null, null, null)
+      .withMonitorProfile(clean);
   }
 
   public List<CatalogProductV1> lookup(List<Long> productIds, String requestedLocale) {
@@ -92,7 +114,7 @@ public class CatalogApplicationService {
 
   public List<CatalogProductV1> merchantList(Long merchantId) {
     return products.selectForMerchant(merchantId).stream()
-      .map(product -> CatalogProductV1.from(product, null)).toList();
+      .map(product -> CatalogProductV1.from(product, null).withMonitorProfile(monitorProfile(product))).toList();
   }
 
   @Transactional

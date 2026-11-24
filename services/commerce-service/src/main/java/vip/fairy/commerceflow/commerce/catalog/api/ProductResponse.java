@@ -1,5 +1,6 @@
 package vip.fairy.commerceflow.commerce.catalog.api;
 
+import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogMonitorProfile;
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogProductV1;
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogSkuV1;
 
@@ -10,7 +11,7 @@ public record ProductResponse(Long id, String name, String brief, String descrip
                               BigDecimal price, String imageUrl, String thumbnailUrl,
                               BigDecimal averageRating, int reviewCount, List<CatalogReviewResponse> reviews,
                               Long merchantId, List<CatalogSkuV1> skus, BigDecimal minimumSkuPrice,
-                              BigDecimal maximumSkuPrice) {
+                              BigDecimal maximumSkuPrice, CatalogMonitorProfile monitorProfile) {
   public static ProductResponse from(CatalogProductV1 product,
                                      BigDecimal averageRating,
                                      int reviewCount,
@@ -20,16 +21,17 @@ public record ProductResponse(Long id, String name, String brief, String descrip
       product.unitPrice(), product.imageUrl(), product.thumbnailUrl(),
       averageRating,
       reviewCount,
-      reviews, product.merchantId(), List.of(), null, null);
+      reviews, product.merchantId(), List.of(), null, null, product.monitorProfile());
   }
 
   public ProductResponse withSkus(List<CatalogSkuV1> variants) {
     return new ProductResponse(id, name, brief, description, price, imageUrl, thumbnailUrl,
-      averageRating, reviewCount, reviews, merchantId, variants == null ? List.of() : variants, null, null);
+      averageRating, reviewCount, reviews, merchantId, variants == null ? List.of() : variants,
+      null, null, monitorProfile);
   }
 
   public ProductResponse withSkuRange(BigDecimal min, BigDecimal max) {
     return new ProductResponse(id, name, brief, description, price, imageUrl, thumbnailUrl,
-      averageRating, reviewCount, reviews, merchantId, skus, min, max);
+      averageRating, reviewCount, reviews, merchantId, skus, min, max, monitorProfile);
   }
 }

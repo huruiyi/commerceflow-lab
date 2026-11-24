@@ -28,7 +28,13 @@ public class CatalogSkuSearch {
   }
 
   Selection selection(String filter) {
-    if (filter == null || filter.isBlank()) return new Selection(List.of(), null);
+    var fields = filters(filter, 4);
+    return fields.isEmpty() ? new Selection(List.of(), null)
+      : new Selection(tokens(fields), json.writeValueAsString(fields));
+  }
+
+  static Map<String, String> filters(String filter, int maxFields) {
+    if (filter == null || filter.isBlank()) return Map.of();
     if (filter.length() > 360) throw new IllegalArgumentException("Specification filter is too long");
     var fields = new TreeMap<String, String>();
     for (String entry : filter.split(";", -1)) {
@@ -36,11 +42,11 @@ public class CatalogSkuSearch {
       if (pair.length != 2 || pair[0].isBlank() || pair[1].isBlank()) {
         throw new IllegalArgumentException("Specification filters use name=value");
       }
-      if (fields.putIfAbsent(normalize(pair[0]), normalize(pair[1])) != null || fields.size() > 4) {
-        throw new IllegalArgumentException("Use up to four distinct specification filters");
+      if (fields.putIfAbsent(normalize(pair[0]), normalize(pair[1])) != null || fields.size() > maxFields) {
+        throw new IllegalArgumentException("Too many or duplicate specification filters");
       }
     }
-    return new Selection(tokens(fields), json.writeValueAsString(fields));
+    return fields;
   }
 
   Map<Long, List<Option>> options(List<Long> products) {
@@ -52,6 +58,15 @@ public class CatalogSkuSearch {
         .add(new Option(CatalogElasticsearchClient.cents(sku.unitPrice()), tokens(specs)));
     }
     return options;
+  }
+
+  Map<Long, List<String>> specifiedDefaults(List<Long> products) {
+    if (products.isEmpty()) return Map.of();
+    var defaults = new HashMap<Long, List<String>>();
+    for (var sku : skus.specifiedDefaults(products)) {
+      defaults.put(sku.productId(), tokens(json.readValue(sku.specifications(), SPECIFICATIONS)));
+    }
+    return defaults;
   }
 
   Map<Long, PriceRange> ranges(List<CatalogProductV1> products) {

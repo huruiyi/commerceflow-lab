@@ -41,7 +41,7 @@ public class CatalogElasticsearchClient {
        "active":{"type":"boolean"},"textZh":{"type":"wildcard"},"textEn":{"type":"wildcard"},
        "nameZh":{"type":"wildcard"},"nameEn":{"type":"wildcard"},
        "relevanceZh":{"type":"text","analyzer":"cjk"},"relevanceEn":{"type":"text","analyzer":"standard"},
-       "products":{"type":"object","enabled":false},
+       "products":{"type":"object","enabled":false},"attributes":{"type":"keyword"},
        "skus":{"type":"nested","properties":{"priceCents":{"type":"long"},"specifications":{"type":"keyword"}}}
      }}}
     """;
@@ -134,6 +134,8 @@ public class CatalogElasticsearchClient {
 
     var response = execute(generation, criteria, offset, criteria.includeSkuFacets());
     var facets = criteria.includeSkuFacets() ? readSkuFacets(response) : List.<Facet>of();
+    var attributes = criteria.includeSkuFacets()
+      ? readFacets(response.path("aggregations").path("attribute_facets"), false) : List.<Facet>of();
     var hits = response.path("hits");
     long total = hits.path("total").path("value").asLong();
     int page = total == 0 ? 0 : (int) Math.min(requestedPage, (total - 1) / criteria.size());
@@ -145,35 +147,44 @@ public class CatalogElasticsearchClient {
       var product = hit.path("_source").path("products").path(criteria.locale());
       products.add(json.treeToValue(product, CatalogProductV1.class));
     }
-    return Optional.of(new Page(products, total, page, criteria.size(), Map.of(), facets));
+    return Optional.of(new Page(products, total, page, criteria.size(), Map.of(), facets, attributes));
   }
 
   private JsonNode execute(long generation, Criteria criteria, long offset, boolean includeSkuFacets) {
     var request = new HashMap<String, Object>(Map.of("query", query(criteria), "sort", sort(criteria),
       "track_total_hits", true, "from", offset, "size", criteria.size(), "_source", List.of("products")));
-    if (includeSkuFacets) request.put("aggs", skuFacetAggregation(criteria));
+    if (includeSkuFacets) {
+      var aggs = skuFacetAggregation(criteria);
+      request.put("aggs", Map.of("sku_facets", aggs, "attribute_facets", Map.of("terms", facetTerms("attributes"))));
+    }
     return searchResponse(generation, request);
   }
 
   private Map<String, Object> skuFacetAggregation(Criteria criteria) {
-    var values = Map.of("terms", Map.of("field", "skus.specifications", "size", FACET_BUCKET_LIMIT,
-        "order", Map.of("_key", "asc")),
+    var values = Map.of("terms", facetTerms("skus.specifications"),
       "aggs", Map.of("products", Map.of("reverse_nested", Map.of())));
     var eligible = Map.of("filter", Map.of("bool", Map.of("filter", skuFilters(criteria))),
       "aggs", Map.of("values", values));
-    return Map.of("sku_facets", Map.of("nested", Map.of("path", "skus"), "aggs", Map.of("eligible", eligible)));
+    return Map.of("nested", Map.of("path", "skus"), "aggs", Map.of("eligible", eligible));
+  }
+
+  private Map<String, Object> facetTerms(String field) {
+    return Map.of("field", field, "size", FACET_BUCKET_LIMIT, "order", Map.of("_key", "asc"));
   }
 
   private List<Facet> readSkuFacets(JsonNode response) {
-    var values = response.path("aggregations").path("sku_facets").path("eligible").path("values");
+    return readFacets(response.path("aggregations").path("sku_facets").path("eligible").path("values"), true);
+  }
+
+  private List<Facet> readFacets(JsonNode values, boolean nested) {
     if (!values.path("buckets").isArray() || values.path("sum_other_doc_count").asLong(-1) != 0) {
-      throw new RestClientException("Elasticsearch returned incomplete SKU facets");
+      throw new RestClientException("Elasticsearch returned incomplete product facets");
     }
     List<Facet> facets = new ArrayList<>();
     for (var bucket : values.path("buckets")) {
       var spec = json.readTree(bucket.path("key").asText());
-      facets.add(new Facet(spec.get(0).asText(), spec.get(1).asText(),
-        bucket.path("products").path("doc_count").asLong()));
+      var count = (nested ? bucket.path("products") : bucket).path("doc_count").asLong();
+      facets.add(new Facet(spec.get(0).asText(), spec.get(1).asText(), count));
     }
     return facets;
   }
@@ -194,6 +205,9 @@ public class CatalogElasticsearchClient {
     List<Map<String, Object>> filters = new ArrayList<>();
     filters.add(Map.of("term", Map.of("active", true)));
     filters.add(Map.of("terms", Map.of("merchantId", criteria.merchantIds())));
+    for (var attribute : criteria.attributes()) {
+      filters.add(Map.of("term", Map.of("attributes", attributeToken(attribute.name(), attribute.value()))));
+    }
     var sku = skuFilters(criteria);
     if (!sku.isEmpty()) {
       filters.add(Map.of("nested", Map.of("path", "skus", "query", Map.of("bool", Map.of("filter", sku)))));
@@ -272,6 +286,10 @@ public class CatalogElasticsearchClient {
     return "/" + prefix + "-" + generation;
   }
 
+  public String attributeToken(String name, String value) {
+    return json.writeValueAsString(List.of(name, value));
+  }
+
   public static String normalize(String value) {
     return Normalizer.normalize(value, Normalizer.Form.NFD).replaceAll("\\p{M}+", "").toLowerCase(Locale.ROOT);
   }
@@ -283,7 +301,7 @@ public class CatalogElasticsearchClient {
   /** 搜索字段与返回给门户的两种语言快照。 */
   public record Document(long productId, long merchantId, long priceCents, boolean active, String textZh, String textEn,
                          String nameZh, String nameEn, String relevanceZh, String relevanceEn,
-                         Map<String, CatalogProductV1> products, List<Option> skus) {
+                         Map<String, CatalogProductV1> products, List<Option> skus, List<String> attributes) {
   }
 
   /** Elasticsearch 返回的原始文档编号及内容，用于索引核对。 */

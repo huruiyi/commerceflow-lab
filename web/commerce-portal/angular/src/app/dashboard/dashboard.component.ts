@@ -19,7 +19,7 @@ import {
   readCatalogQuery,
 } from './catalog-query';
 
-type FilterField = 'q' | 'exclude' | 'merchantId' | 'minPrice' | 'maxPrice' | 'sku';
+type FilterField = 'q' | 'exclude' | 'merchantId' | 'minPrice' | 'maxPrice';
 
 @Component({
   standalone: false,
@@ -32,6 +32,7 @@ export class DashboardComponent implements OnInit {
   readonly sorts = catalogSortOptions;
   products: Product[] = [];
   skuFacets: CatalogSkuFacet[] = [];
+  attributeFacets: CatalogSkuFacet[] = [];
   stores: CatalogStore[] = [];
   storeNames = new Map<number, string>();
   total = 0;
@@ -66,7 +67,7 @@ export class DashboardComponent implements OnInit {
   get hasFilters(): boolean {
     const { q, sku, merchantId, minPrice, maxPrice, sort } = this.filters;
     return (
-      Boolean(q || sku || this.filters.exclude) ||
+      Boolean(q || sku || this.filters.exclude || this.filters.attributes) ||
       merchantId !== null ||
       minPrice !== null ||
       maxPrice !== null ||
@@ -75,7 +76,7 @@ export class DashboardComponent implements OnInit {
   }
 
   get appliedFilters(): { field: FilterField; text: string }[] {
-    const { q, sku, merchantId, minPrice, maxPrice } = this.filters;
+    const { q, merchantId, minPrice, maxPrice } = this.filters;
     const applied: { field: FilterField; text: string }[] = [];
     if (q) {
       const mode = this.matchOptions.find((option) => option.value === this.filters.match)!;
@@ -84,7 +85,6 @@ export class DashboardComponent implements OnInit {
     if (this.filters.exclude) {
       applied.push({ field: 'exclude', text: `${this.i18n.t('catalogExclude')} · ${this.filters.exclude}` });
     }
-    if (sku) applied.push({ field: 'sku', text: sku });
     if (merchantId !== null) {
       const text = this.storeNames.get(merchantId) ?? this.i18n.t('catalogStoreNumber', { id: merchantId });
       applied.push({ field: 'merchantId', text });
@@ -171,7 +171,7 @@ export class DashboardComponent implements OnInit {
   removeFilter(field: FilterField): void {
     this.updateQuery({
       ...this.filters,
-      [field]: field === 'q' || field === 'sku' || field === 'exclude' ? '' : null,
+      [field]: field === 'q' || field === 'exclude' ? '' : null,
       page: 0,
     });
   }
@@ -182,6 +182,10 @@ export class DashboardComponent implements OnInit {
 
   changeSku(sku: string): void {
     this.updateQuery({ ...this.filters, sku, page: 0 });
+  }
+
+  changeAttributes(attributes: string): void {
+    this.updateQuery({ ...this.filters, attributes, page: 0 });
   }
 
   changePage(page: number): void {
@@ -198,6 +202,7 @@ export class DashboardComponent implements OnInit {
     ) {
       this.products = [];
       this.skuFacets = [];
+      this.attributeFacets = [];
       this.total = 0;
       this.loading = false;
       this.searchFailed = false;
@@ -211,7 +216,8 @@ export class DashboardComponent implements OnInit {
       .searchProducts(params)
       .pipe(timeout(8000), takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ products, total, page: effectivePage, skuFacets }) => {
+        next: ({ products, total, page: effectivePage, skuFacets, attributeFacets }) => {
+          this.attributeFacets = attributeFacets ?? [];
           this.skuFacets = skuFacets ?? [];
           this.products = products;
           this.total = total;
@@ -222,6 +228,7 @@ export class DashboardComponent implements OnInit {
         error: () => {
           this.products = [];
           this.skuFacets = [];
+          this.attributeFacets = [];
           this.total = 0;
           this.loading = false;
           this.searchFailed = true;

@@ -33,6 +33,34 @@
             <span>{{ i18n.t('catalogReviewCount', { count: reviewTotal }) }}</span>
           </a>
         }
+        @if (item.monitorProfile; as monitor) {
+          <dl class="monitor-attributes" [attr.aria-label]="'catalogAttributes' | t">
+            <div>
+              <dt>{{ 'catalogFacetBrand' | t }}</dt>
+              <dd>{{ monitor.brand }}</dd>
+            </div>
+            <div>
+              <dt>{{ 'catalogFacetScreenSize' | t }}</dt>
+              <dd>{{ monitor.screenSizeInches }}″</dd>
+            </div>
+            <div>
+              <dt>{{ 'catalogFacetResolution' | t }}</dt>
+              <dd>{{ monitor.widthPixels }} × {{ monitor.heightPixels }}</dd>
+            </div>
+            <div>
+              <dt>{{ 'catalogFacetPanel' | t }}</dt>
+              <dd>{{ monitor.panel }}</dd>
+            </div>
+            <div>
+              <dt>{{ 'catalogFacetRefresh' | t }}</dt>
+              <dd>{{ monitor.refreshRateHz }} Hz</dd>
+            </div>
+            <div>
+              <dt>{{ 'catalogFacetPort' | t }}</dt>
+              <dd>{{ monitor.ports.join(' · ') }}</dd>
+            </div>
+          </dl>
+        }
         <p class="product-price">{{ unitPrice | trcurrency }}</p>
         @if (item.description) {
           <p class="product-description">{{ item.description }}</p>

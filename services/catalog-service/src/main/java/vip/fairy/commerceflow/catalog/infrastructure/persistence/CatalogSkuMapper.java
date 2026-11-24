@@ -22,12 +22,15 @@ public interface CatalogSkuMapper {
 
   List<Row> activeVariants(@Param("ids") List<Long> ids);
 
+  List<Row> specifiedDefaults(@Param("ids") List<Long> ids);
+
   int bindStock(@Param("sku") long sku, @Param("stockProductId") long stockProductId);
 
   void insert(Row sku);
 
   int update(@Param("sku") long sku, @Param("version") long version, @Param("code") String code,
-             @Param("unitPrice") BigDecimal unitPrice, @Param("lifecycleStatus") String lifecycleStatus);
+             @Param("unitPrice") BigDecimal unitPrice, @Param("lifecycleStatus") String lifecycleStatus,
+             @Param("specKey") String specKey, @Param("specifications") String specifications);
 
   /** 目录 SKU、版本及现有库存销售单元的绑定。 */
   record Row(Long id, long productId, long merchantId, String code, String specKey, String specifications,

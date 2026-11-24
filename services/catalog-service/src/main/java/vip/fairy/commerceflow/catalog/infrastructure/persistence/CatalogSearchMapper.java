@@ -22,6 +22,12 @@ public interface CatalogSearchMapper {
   void copyDocuments(@Param("generation") long generation, @Param("products") List<Long> products);
   long count(Criteria criteria);
   List<Facet> skuFacets(Criteria criteria);
+  List<Facet> attributeFacets(Criteria criteria);
+  List<AttributeValue> attributeValues(@Param("ids") List<Long> ids);
+
+  /** 供搜索投影读取的商品属性名及规范值。 */
+  record AttributeValue(long productId, String name, String value) {
+  }
   List<CatalogProductV1> search(Criteria criteria);
 
   /** 当前代次和已受理的重建请求。 */

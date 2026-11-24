@@ -286,11 +286,18 @@
         </select>
       </label>
     </div>
-    <app-catalog-sku-facets
-      [facets]="productPage()?.skuFacets ?? []"
-      [sku]="selectedSku"
+    <app-catalog-facets
+      kind="attributes"
+      [facets]="productPage()?.attributeFacets ?? []"
+      [selection]="selectedAttributes"
       [loading]="productsLoading()"
-      (skuChange)="changeSku($event)"
+      (selectionChange)="changeAttributes($event)"
+    />
+    <app-catalog-facets
+      [facets]="productPage()?.skuFacets ?? []"
+      [selection]="selectedSku"
+      [loading]="productsLoading()"
+      (selectionChange)="changeSku($event)"
     />
     @if (productsLoading()) {
       <p role="status">{{ i18n.t('storeProductsLoading') }}</p>

@@ -74,6 +74,7 @@ public class ProductController {
   @GetMapping("/search")
   ProductCatalogService.SearchPage search(@RequestParam(defaultValue = "") String q,
                                          @RequestParam(required = false) String sku,
+                                         @RequestParam(required = false) String attributes,
                                          @RequestParam(defaultValue = "all") String match,
                                          @RequestParam(required = false) String exclude,
                                          @RequestParam(required = false) String lang,
@@ -85,6 +86,6 @@ public class ProductController {
                                          @RequestParam(defaultValue = "12") int size,
                                          @RequestParam(defaultValue = "false") boolean includeSkuFacets) {
     return catalog.search(q, lang, sort, merchantId, minPrice, maxPrice, page, size,
-      sku, match, exclude, includeSkuFacets);
+      sku, match, exclude, includeSkuFacets, attributes);
   }
 }

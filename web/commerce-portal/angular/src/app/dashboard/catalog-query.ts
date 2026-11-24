@@ -22,6 +22,7 @@ export interface CatalogQuery {
   exclude: string;
   q: string;
   sku?: string;
+  attributes?: string;
   merchantId: number | null;
   minPrice: number | null;
   maxPrice: number | null;
@@ -36,6 +37,7 @@ export function readCatalogQuery(params: ParamMap): CatalogQuery {
     exclude: params.get('exclude')?.trim() ?? '',
     q: params.get('q')?.trim() ?? '',
     sku: params.get('sku')?.trim() || undefined,
+    attributes: params.get('attributes')?.trim() || undefined,
     merchantId: readPositiveId(params.get('merchantId')),
     minPrice: readPrice(params.get('minPrice')),
     maxPrice: readPrice(params.get('maxPrice')),
@@ -50,6 +52,7 @@ export function catalogQueryParams(query: CatalogQuery): Params {
     ...(query.match !== 'all' ? { match: query.match } : {}),
     ...(query.exclude.trim() ? { exclude: query.exclude.trim() } : {}),
     ...(query.sku ? { sku: query.sku } : {}),
+    ...(query.attributes ? { attributes: query.attributes } : {}),
     merchantId: query.merchantId,
     minPrice: query.minPrice,
     maxPrice: query.maxPrice,
@@ -64,6 +67,7 @@ export function catalogSearchParams(query: CatalogQuery, size: number): Record<s
   if (query.match !== 'all') params['match'] = query.match;
   if (query.exclude) params['exclude'] = query.exclude;
   if (query.sku) params['sku'] = query.sku.trim();
+  if (query.attributes) params['attributes'] = query.attributes;
   if (merchantId !== null) params['merchantId'] = merchantId;
   if (minPrice !== null) params['minPrice'] = minPrice;
   if (maxPrice !== null) params['maxPrice'] = maxPrice;
@@ -84,12 +88,20 @@ export function invalidCatalogKeyword(value: string): boolean {
 }
 
 export function invalidCatalogSku(value = ''): boolean {
+  return invalidCatalogSelection(value, 4);
+}
+
+export function invalidCatalogAttributes(value = ''): boolean {
+  return invalidCatalogSelection(value, 6);
+}
+
+function invalidCatalogSelection(value: string, limit: number): boolean {
   if (!value.trim()) return false;
   const fields = value.split(';');
   const names = fields.map((field) => field.split('=', 1)[0].trim().toLowerCase());
   return (
     value.length > 360 ||
-    fields.length > 4 ||
+    fields.length > limit ||
     new Set(names).size !== fields.length ||
     fields.some((field) => !/^\s*[^=;\s][^=;]*=\s*\S.*$/u.test(field))
   );

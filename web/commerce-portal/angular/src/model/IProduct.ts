@@ -15,6 +15,17 @@ export interface Product {
   skus?: CatalogSku[];
   minimumSkuPrice?: number | null;
   maximumSkuPrice?: number | null;
+  monitorProfile?: CatalogMonitorProfile | null;
+}
+
+export interface CatalogMonitorProfile {
+  brand: string;
+  screenSizeInches: number;
+  widthPixels: number;
+  heightPixels: number;
+  panel: string;
+  refreshRateHz: number;
+  ports: string[];
 }
 
 export interface ProductReview {
