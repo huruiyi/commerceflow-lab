@@ -272,18 +272,82 @@
     </a>
     <h1 id="public-store-title">{{ value.name }}</h1>
     <p *ngIf="value.description" class="public-store-description">{{ value.description }}</p>
+    <form
+      class="public-store-filters"
+      role="search"
+      [attr.aria-label]="i18n.t('searchProducts')"
+      (ngSubmit)="applyCatalog()"
+    >
+      <label>
+        {{ i18n.t('catalogKeyword') }}
+        <input
+          class="form-control"
+          type="search"
+          name="q"
+          maxlength="120"
+          [(ngModel)]="catalogDraft.q"
+          [attr.aria-invalid]="invalidKeyword ? 'true' : null"
+        />
+      </label>
+      <label>
+        {{ i18n.t('catalogMinPrice') }}
+        <input
+          class="form-control"
+          type="number"
+          name="minPrice"
+          min="0"
+          step="0.01"
+          [(ngModel)]="catalogDraft.minPrice"
+          [attr.aria-invalid]="invalidPrice ? 'true' : null"
+        />
+      </label>
+      <label>
+        {{ i18n.t('catalogMaxPrice') }}
+        <input
+          class="form-control"
+          type="number"
+          name="maxPrice"
+          min="0"
+          step="0.01"
+          [(ngModel)]="catalogDraft.maxPrice"
+          [attr.aria-invalid]="invalidPrice ? 'true' : null"
+        />
+      </label>
+      <label>
+        {{ i18n.t('catalogSort') }}
+        <select class="form-select" name="sort" [(ngModel)]="catalogDraft.sort">
+          @for (option of catalogSorts; track option.value) {
+            <option [value]="option.value">{{ i18n.t(option.label) }}</option>
+          }
+        </select>
+      </label>
+      <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-primary" type="submit" [disabled]="invalidPrice || invalidKeyword">
+          {{ i18n.t('search') }}
+        </button>
+        <button class="btn btn-outline-secondary" type="button" (click)="resetCatalog()">
+          {{ i18n.t('catalogResetFilters') }}
+        </button>
+      </div>
+      @if (invalidPrice || invalidKeyword) {
+        <p class="text-danger mb-0" role="alert">
+          {{ i18n.t(invalidPrice ? 'catalogInvalidPriceRange' : 'catalogInvalidKeyword') }}
+        </p>
+      }
+    </form>
     @if (productsLoading()) {
       <p role="status">{{ i18n.t('storeProductsLoading') }}</p>
     } @else if (productsFailed()) {
       <p role="alert">{{ i18n.t('storeProductsFailed') }}</p>
+      <button class="btn btn-outline-secondary" type="button" (click)="reloadProducts()">
+        {{ i18n.t('retry') }}
+      </button>
     } @else if (productPage(); as page) {
+      <p role="status">{{ i18n.t('searchResults', { count: page.total }) }}</p>
       @if (page.products.length) {
         <div class="public-store-products">
           @for (product of page.products; track product.id) {
-            <app-catalog-product-card
-              [item]="product"
-              [queryParams]="{ storeId: value.merchantId, storePage: page.page || null }"
-            />
+            <app-catalog-product-card [item]="product" [queryParams]="productBackParams(value.merchantId, page.page)" />
           }
         </div>
       } @else {

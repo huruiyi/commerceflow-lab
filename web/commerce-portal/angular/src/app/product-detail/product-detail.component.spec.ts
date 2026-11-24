@@ -100,6 +100,16 @@ describe('ProductDetailComponent', () => {
     );
   });
 
+  it('restores the store filters and omits the unrelated store filter from the catalogue', async () => {
+    await harness.navigateByUrl(
+      '/products/1?storeId=4&storePage=2&q=coffee&minPrice=0&maxPrice=20&sort=price-desc&merchantId=99',
+      ProductDetailComponent,
+    );
+    expect(harness.routeNativeElement?.querySelector('.product-context a')?.getAttribute('href')).toBe(
+      '/stores/4?q=coffee&minPrice=0&maxPrice=20&sort=price-desc&page=2',
+    );
+  });
+
   it('preserves details on an inventory 503 and distinguishes the product becoming unavailable', async () => {
     detail.and.returnValues(
       of(product),

@@ -13,6 +13,9 @@
           class="form-control"
           name="q"
           type="search"
+          maxlength="120"
+          [attr.aria-invalid]="invalidKeyword ? 'true' : null"
+          [attr.aria-describedby]="invalidKeyword ? 'catalog-keyword-error' : null"
           [placeholder]="'catalogKeywordHint' | t"
           [(ngModel)]="draft.q"
         />
@@ -73,13 +76,18 @@
       </div>
     </div>
     <div class="filter-actions">
-      <button type="submit" class="btn catalog-primary" [disabled]="invalidPrice">{{ 'search' | t }}</button>
+      <button type="submit" class="btn catalog-primary" [disabled]="invalidPrice || invalidKeyword">
+        {{ 'search' | t }}
+      </button>
       <button type="button" class="btn catalog-secondary" (click)="clearFilters()">
         {{ 'catalogResetFilters' | t }}
       </button>
     </div>
     @if (invalidPrice) {
       <p id="catalog-price-error" class="filter-error">{{ 'catalogInvalidPriceRange' | t }}</p>
+    }
+    @if (invalidKeyword) {
+      <p id="catalog-keyword-error" class="filter-error">{{ 'catalogInvalidKeyword' | t }}</p>
     }
   </form>
 

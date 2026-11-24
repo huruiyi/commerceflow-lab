@@ -6,7 +6,16 @@ import { Product } from 'src/model/IProduct';
 import { ApiService, CatalogStore } from '../services/api.service';
 import { I18nService } from '../services/i18n.service';
 import { SeoService } from '../services/seo.service';
-import { CatalogQuery, CatalogSort, catalogQueryParams, readCatalogQuery } from './catalog-query';
+import {
+  CatalogQuery,
+  CatalogSort,
+  catalogQueryParams,
+  catalogSearchParams,
+  catalogSortOptions,
+  invalidCatalogKeyword,
+  invalidCatalogPrice,
+  readCatalogQuery,
+} from './catalog-query';
 
 type FilterField = 'q' | 'merchantId' | 'minPrice' | 'maxPrice';
 
@@ -18,12 +27,7 @@ type FilterField = 'q' | 'merchantId' | 'minPrice' | 'maxPrice';
 })
 export class DashboardComponent implements OnInit {
   readonly size = 12;
-  readonly sorts: { value: CatalogSort; label: string }[] = [
-    { value: 'default', label: 'catalogDefaultSort' },
-    { value: 'price-asc', label: 'catalogPriceAscending' },
-    { value: 'price-desc', label: 'catalogPriceDescending' },
-    { value: 'rating', label: 'catalogRatingDescending' },
-  ];
+  readonly sorts = catalogSortOptions;
   products: Product[] = [];
   stores: CatalogStore[] = [];
   storeNames = new Map<number, string>();
@@ -87,12 +91,11 @@ export class DashboardComponent implements OnInit {
   }
 
   get invalidPrice(): boolean {
-    const { minPrice, maxPrice } = this.draft;
-    return (
-      (minPrice !== null && minPrice < 0) ||
-      (maxPrice !== null && maxPrice < 0) ||
-      (minPrice !== null && maxPrice !== null && minPrice > maxPrice)
-    );
+    return invalidCatalogPrice(this.draft);
+  }
+
+  get invalidKeyword(): boolean {
+    return invalidCatalogKeyword(this.draft.q);
   }
 
   ngOnInit(): void {
@@ -123,7 +126,7 @@ export class DashboardComponent implements OnInit {
   }
 
   applyFilters(): void {
-    if (this.invalidPrice) return;
+    if (this.invalidPrice || this.invalidKeyword) return;
     this.updateQuery({ ...this.draft, q: this.draft.q.trim(), page: 0 });
   }
 
@@ -147,11 +150,15 @@ export class DashboardComponent implements OnInit {
 
   loadProducts(): void {
     this.searchRequest?.unsubscribe();
-    const { q, sort, page, merchantId, minPrice, maxPrice } = this.filters;
-    const params: Record<string, string | number> = { q, sort, page, size: this.size };
-    if (merchantId !== null) params['merchantId'] = merchantId;
-    if (minPrice !== null) params['minPrice'] = minPrice;
-    if (maxPrice !== null) params['maxPrice'] = maxPrice;
+    if (invalidCatalogPrice(this.filters) || invalidCatalogKeyword(this.filters.q)) {
+      this.products = [];
+      this.total = 0;
+      this.loading = false;
+      this.searchFailed = false;
+      this.changeDetector.markForCheck();
+      return;
+    }
+    const params = catalogSearchParams(this.filters, this.size);
     this.loading = true;
     this.searchFailed = false;
     this.searchRequest = this.api

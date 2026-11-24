@@ -1610,6 +1610,12 @@ PowerShell 7 的 `verify-merchant-operations.ps1 -Chapter Operations` 串联仓�
 
 隔离 Chrome 157 验证管理权限、新增与上下架、价格增量、缺失和多余文档及字段不一致。暂停隔离 Elasticsearch 时能读到待同步事件时间，搜索经 MySQL 返回更新价格。恢复后积压归零，重建切换后 8 个商品的索引核对一致。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/catalog-sku-1795482170754/step1-evidence.json`。
 
+### 2.85 2026-11-24 全站与店内搜索
+
+店内复用全站搜索的关键词、价格范围及排序参数，店铺范围固定为当前公开店铺。筛选结果写入 URL，从商品详情返回时恢复原店铺、价格、排序和页码。MySQL 回退的关键词匹配使用相同的大小写与重音字符语义，输入中的百分号和下划线按字面匹配。
+
+隔离 Chrome 157 使用两家店铺、14 件同关键词商品复验全站和店内范围。店铺 5 的 13 件商品以 12＋1 分页，末页刷新和详情返回一致。关闭 Elasticsearch 后，中文检索、英文重音词及价格排序的全部商品编号一致。门户 54 项测试通过。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/catalog-sku-1795482170754/step2-evidence.json`。
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

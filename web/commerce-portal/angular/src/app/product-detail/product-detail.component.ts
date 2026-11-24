@@ -65,9 +65,10 @@ export class ProductDetailComponent implements OnInit {
 
   get returnQueryParams(): Params {
     const params = this.route.snapshot.queryParamMap;
+    const query = readCatalogQuery(params);
     return this.returnStore
-      ? { page: readPage(params.get('storePage')) || null }
-      : catalogQueryParams(readCatalogQuery(params));
+      ? catalogQueryParams({ ...query, merchantId: null, page: readPage(params.get('storePage')) })
+      : catalogQueryParams(query);
   }
 
   get signInQueryParams(): Params {

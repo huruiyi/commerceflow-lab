@@ -82,7 +82,8 @@
     <if test="minPrice != null">AND d.unit_price &gt;= #{minPrice}</if>
     <if test="maxPrice != null">AND d.unit_price &lt;= #{maxPrice}</if>
     <foreach collection="terms" item="term">
-      AND LOCATE(#{term},d.searchable)&gt;0
+      AND d.searchable LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(#{term}, '!', '!!'), '%', '!%'), '_', '!_'), '%')
+        ESCAPE '!'
     </foreach>
   </sql>
 

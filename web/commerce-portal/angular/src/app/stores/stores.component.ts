@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, NavigationEnd, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, NavigationEnd, Params, Router, RouterLink } from '@angular/router';
 import {
   catchError,
   distinctUntilChanged,
@@ -14,11 +14,20 @@ import {
   merge,
   Observable,
   startWith,
+  Subject,
   switchMap,
 } from 'rxjs';
 import { CatalogProductCardComponent } from '../dashboard/catalog-product-card.component';
+import {
+  CatalogQuery,
+  catalogQueryParams,
+  catalogSearchParams,
+  catalogSortOptions,
+  invalidCatalogKeyword,
+  invalidCatalogPrice,
+  readCatalogQuery,
+} from '../dashboard/catalog-query';
 import { ListPaginationComponent } from '../list-pagination/list-pagination.component';
-import { readPage } from '../list-pagination/page-query';
 import { ApiService, CatalogSearchPage } from '../services/api.service';
 import { I18nService } from '../services/i18n.service';
 
@@ -76,6 +85,11 @@ export class StoresComponent {
   readonly productsLoading = signal(false);
   readonly productsFailed = signal(false);
   private readonly pageSize = 12;
+  private readonly productRetry = new Subject<void>();
+  private productAttempt = 0;
+  private catalog = readCatalogQuery(this.route.snapshot.queryParamMap);
+  catalogDraft = { ...this.catalog };
+  readonly catalogSorts = catalogSortOptions;
   readonly busy = signal(false);
   readonly message = signal('');
   readonly actionFailed = signal(false);
@@ -107,19 +121,37 @@ export class StoresComponent {
           takeUntilDestroyed(),
         )
         .subscribe((value) => this.store.set(value));
-      merge(this.router.events.pipe(filter((event) => event instanceof NavigationEnd)), this.i18n.localeChanged)
+      merge(
+        this.router.events.pipe(filter((event) => event instanceof NavigationEnd)),
+        this.i18n.localeChanged,
+        this.productRetry,
+      )
         .pipe(
           startWith(null),
           map(() => ({
             merchantId: Number(this.route.snapshot.paramMap.get('id')),
-            page: readPage(this.route.snapshot.queryParamMap.get('page')),
+            query: readCatalogQuery(this.route.snapshot.queryParamMap),
             locale: this.i18n.locale(),
+            attempt: this.productAttempt,
           })),
-          distinctUntilChanged((a, b) => a.merchantId === b.merchantId && a.page === b.page && a.locale === b.locale),
-          switchMap(({ merchantId, page }) => {
+          distinctUntilChanged(
+            (a, b) =>
+              a.merchantId === b.merchantId &&
+              a.locale === b.locale &&
+              a.attempt === b.attempt &&
+              JSON.stringify(a.query) === JSON.stringify(b.query),
+          ),
+          switchMap(({ merchantId, query }) => {
+            if (JSON.stringify(this.catalog) !== JSON.stringify(query)) this.catalogDraft = { ...query };
+            this.catalog = query;
+            if (invalidCatalogPrice(query) || invalidCatalogKeyword(query.q)) {
+              this.productPage.set(null);
+              this.productsFailed.set(false);
+              return EMPTY;
+            }
             this.productsLoading.set(true);
             this.productsFailed.set(false);
-            return this.api.searchProducts({ merchantId, page, size: this.pageSize }).pipe(
+            return this.api.searchProducts(catalogSearchParams({ ...query, merchantId }, this.pageSize)).pipe(
               catchError(() => {
                 this.productPage.set(null);
                 this.productsFailed.set(true);
@@ -145,10 +177,44 @@ export class StoresComponent {
   }
 
   changePage(page: number): void {
+    this.navigateCatalog({ ...this.catalog, page });
+  }
+
+  get invalidPrice(): boolean {
+    return invalidCatalogPrice(this.catalogDraft);
+  }
+
+  get invalidKeyword(): boolean {
+    return invalidCatalogKeyword(this.catalogDraft.q);
+  }
+
+  applyCatalog(): void {
+    if (this.invalidPrice || this.invalidKeyword) return;
+    this.navigateCatalog({ ...this.catalogDraft, q: this.catalogDraft.q.trim(), page: 0 });
+  }
+
+  resetCatalog(): void {
+    this.catalogDraft = { q: '', merchantId: null, minPrice: null, maxPrice: null, sort: 'default', page: 0 };
+    this.navigateCatalog(this.catalogDraft);
+  }
+
+  reloadProducts(): void {
+    this.productAttempt++;
+    this.productRetry.next();
+  }
+
+  productBackParams(storeId: number, page: number): Params {
+    return {
+      ...catalogQueryParams({ ...this.catalog, merchantId: null, page: 0 }),
+      storeId,
+      storePage: page || null,
+    };
+  }
+
+  private navigateCatalog(query: CatalogQuery): void {
     void this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: { page: page || null },
-      queryParamsHandling: 'merge',
+      queryParams: catalogQueryParams({ ...query, merchantId: null }),
     });
   }
 

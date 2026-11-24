@@ -360,3 +360,14 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+.public-store-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  align-items: end;
+  gap: 0.75rem;
+  margin-block: 1rem;
+}
+
+.public-store-filters label:first-child {
+  min-width: 0;
+}
