@@ -272,111 +272,20 @@
     </a>
     <h1 id="public-store-title">{{ value.name }}</h1>
     <p *ngIf="value.description" class="public-store-description">{{ value.description }}</p>
-    <form
-      class="public-store-filters"
-      role="search"
-      [attr.aria-label]="i18n.t('searchProducts')"
-      (ngSubmit)="applyCatalog()"
-    >
-      <label>
-        {{ i18n.t('catalogKeyword') }}
-        <input
-          class="form-control"
-          type="search"
-          name="q"
-          maxlength="120"
-          [(ngModel)]="catalogDraft.q"
-          [attr.aria-invalid]="invalidKeyword ? 'true' : null"
-        />
-      </label>
-      <label>
-        {{ i18n.t('catalogMatchMode') }}
-        <select class="form-select" name="match" [(ngModel)]="catalogDraft.match">
-          @for (option of matchOptions; track option.value) {
-            <option [value]="option.value">{{ i18n.t(option.label) }}</option>
-          }
-        </select>
-      </label>
-      <label>
-        {{ i18n.t('catalogExclude') }}
-        <input
-          class="form-control"
-          type="search"
-          name="exclude"
-          maxlength="120"
-          [(ngModel)]="catalogDraft.exclude"
-          [attr.aria-invalid]="invalidExclude ? 'true' : null"
-          [attr.aria-describedby]="invalidExclude ? 'store-exclude-error' : null"
-        />
-      </label>
-      <label>
-        {{ i18n.t('catalogMinPrice') }}
-        <input
-          class="form-control"
-          type="number"
-          name="minPrice"
-          min="0"
-          step="0.01"
-          [(ngModel)]="catalogDraft.minPrice"
-          [attr.aria-invalid]="invalidPrice ? 'true' : null"
-        />
-      </label>
-      <label>
-        {{ i18n.t('catalogMaxPrice') }}
-        <input
-          class="form-control"
-          type="number"
-          name="maxPrice"
-          min="0"
-          step="0.01"
-          [(ngModel)]="catalogDraft.maxPrice"
-          [attr.aria-invalid]="invalidPrice ? 'true' : null"
-        />
-      </label>
+    <app-catalog-search-form [draft]="catalogDraft" (searched)="applyCatalog()" (cleared)="resetCatalog()" />
+    <div class="public-store-toolbar">
+      @if (productPage(); as page) {
+        <p role="status">{{ i18n.t('searchResults', { count: page.total }) }}</p>
+      }
       <label>
         {{ i18n.t('catalogSort') }}
-        <select class="form-select" name="sort" [(ngModel)]="catalogDraft.sort">
+        <select class="form-select" [ngModel]="selectedSort" (ngModelChange)="changeSort($event)">
           @for (option of catalogSorts; track option.value) {
             <option [value]="option.value">{{ i18n.t(option.label) }}</option>
           }
         </select>
       </label>
-      <label>
-        {{ i18n.t('catalogSkuFilter') }}
-        <input
-          class="form-control"
-          name="sku"
-          maxlength="360"
-          [placeholder]="i18n.t('catalogSkuFilterHint')"
-          [attr.aria-invalid]="invalidSku ? 'true' : null"
-          [attr.aria-describedby]="invalidSku ? 'store-sku-error' : null"
-          [(ngModel)]="catalogDraft.sku"
-        />
-      </label>
-      <div class="d-flex flex-wrap gap-2">
-        <button
-          class="btn btn-primary"
-          type="submit"
-          [disabled]="invalidPrice || invalidKeyword || invalidExclude || invalidSku"
-        >
-          {{ i18n.t('search') }}
-        </button>
-        <button class="btn btn-outline-secondary" type="button" (click)="resetCatalog()">
-          {{ i18n.t('catalogResetFilters') }}
-        </button>
-      </div>
-      @if (invalidExclude) {
-        <p id="store-exclude-error" class="text-danger mb-0" role="alert">{{ i18n.t('catalogInvalidExclude') }}</p>
-      }
-      @if (invalidSku) {
-        <p id="store-sku-error" class="text-danger mb-0" role="alert">{{ i18n.t('catalogInvalidSku') }}</p>
-      }
-      @if (invalidPrice || invalidKeyword) {
-        <p class="text-danger mb-0" role="alert">
-          {{ i18n.t(invalidPrice ? 'catalogInvalidPriceRange' : 'catalogInvalidKeyword') }}
-        </p>
-      }
-    </form>
+    </div>
     <app-catalog-sku-facets
       [facets]="productPage()?.skuFacets ?? []"
       [sku]="selectedSku"
@@ -391,7 +300,6 @@
         {{ i18n.t('retry') }}
       </button>
     } @else if (productPage(); as page) {
-      <p role="status">{{ i18n.t('searchResults', { count: page.total }) }}</p>
       @if (page.products.length) {
         <div class="public-store-products">
           @for (product of page.products; track product.id) {

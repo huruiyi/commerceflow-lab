@@ -3,6 +3,12 @@ import { CatalogSkuFacet } from '../services/api.service';
 import { I18nService } from '../services/i18n.service';
 import { invalidCatalogSku } from './catalog-query';
 
+const facetLabels = new Map([
+  ['brand', 'catalogFacetBrand'],
+  ['screen size', 'catalogFacetScreenSize'],
+  ['resolution', 'catalogFacetResolution'],
+]);
+
 interface FacetOption {
   value: string;
   productCount: number | null;
@@ -53,8 +59,18 @@ export class CatalogSkuFacetsComponent {
       if (!options.some((option) => option.value === value)) options.unshift({ value, productCount: null });
       groups.set(name, options);
     }
-    return groups;
+    const ordered = new Map<string, FacetOption[]>();
+    for (const name of facetLabels.keys()) {
+      const options = groups.get(name);
+      if (options) ordered.set(name, options);
+    }
+    return new Map([...ordered, ...groups]);
   });
+
+  label(name: string): string {
+    const key = facetLabels.get(name);
+    return key ? this.i18n.t(key) : name;
+  }
 
   cannotApply(name: string, value: string): boolean {
     if (this.loading()) return true;

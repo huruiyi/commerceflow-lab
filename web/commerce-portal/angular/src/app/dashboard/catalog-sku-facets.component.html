@@ -1,8 +1,8 @@
 @if (groups().size) {
   <section class="sku-facets" [attr.aria-label]="i18n.t('catalogSkuFilter')" [attr.aria-busy]="loading()">
     @for (group of groups(); track group[0]) {
-      <fieldset class="sku-facet">
-        <legend>{{ group[0] }}</legend>
+      <fieldset class="sku-facet" [attr.data-spec]="group[0]">
+        <legend>{{ label(group[0]) }}</legend>
         <div class="sku-values">
           @for (option of group[1]; track option.value) {
             <button

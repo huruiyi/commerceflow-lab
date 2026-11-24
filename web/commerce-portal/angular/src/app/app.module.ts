@@ -17,6 +17,7 @@ import { DashboardComponent } from './dashboard/dashboard.component';
 import { CatalogImageComponent } from './dashboard/catalog-image.component';
 import { CatalogProductCardComponent } from './dashboard/catalog-product-card.component';
 import { CatalogSkuFacetsComponent } from './dashboard/catalog-sku-facets.component';
+import { CatalogSearchFormComponent } from './dashboard/catalog-search-form.component';
 import { ProductDetailComponent } from './product-detail/product-detail.component';
 import { NavbarComponent } from './inc/navbar/navbar.component';
 import { ErrorpageComponent } from './errorpage/errorpage.component';
@@ -92,6 +93,7 @@ import { InventoryReconciliationAdminComponent } from './inventory-reconciliatio
     CatalogImageComponent,
     CatalogProductCardComponent,
     CatalogSkuFacetsComponent,
+    CatalogSearchFormComponent,
     ListPaginationComponent,
     HlmBadge,
     HlmSpinner,

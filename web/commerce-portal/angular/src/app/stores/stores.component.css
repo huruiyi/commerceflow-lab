@@ -360,14 +360,37 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
-.public-store-filters {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
-  align-items: end;
-  gap: 0.75rem;
-  margin-block: 1rem;
+.public-store-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.625rem 1rem;
+  margin: 1.1rem 0 0.75rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid #dce5df;
 }
 
-.public-store-filters label:first-child {
-  min-width: 0;
+.public-store-toolbar p {
+  margin: 0;
+  color: #253e32;
+  font-size: 0.95rem;
+  font-weight: 670;
+}
+
+.public-store-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin-inline-start: auto;
+  color: #52615b;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.public-store-toolbar .form-select {
+  min-height: 2.5rem;
+  border-color: #c9d7cf;
+  font-size: 0.875rem;
 }

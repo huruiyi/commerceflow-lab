@@ -1,0 +1,144 @@
+@let edit = draft();
+<form class="search-panel" role="search" [attr.aria-label]="i18n.t('searchProducts')" (ngSubmit)="search()">
+  <div class="search-row">
+    <div class="search-bar">
+      <label for="catalog-keyword" class="visually-hidden">{{ i18n.t('catalogKeyword') }}</label>
+      <i class="bi bi-search search-icon" aria-hidden="true"></i>
+      <input
+        id="catalog-keyword"
+        name="q"
+        type="search"
+        maxlength="120"
+        [placeholder]="i18n.t('catalogKeywordHint')"
+        [attr.aria-invalid]="invalidKeyword ? 'true' : null"
+        [attr.aria-describedby]="invalidKeyword ? 'catalog-keyword-error' : null"
+        [(ngModel)]="edit.q"
+      />
+      <button
+        class="search-submit"
+        type="submit"
+        [disabled]="invalidKeyword || invalidExclude || invalidPrice || invalidSku"
+      >
+        {{ i18n.t('search') }}
+      </button>
+    </div>
+    <div class="search-actions">
+      <button
+        class="search-filters"
+        type="button"
+        [attr.aria-expanded]="advancedOpen()"
+        aria-controls="catalog-advanced"
+        (click)="advancedOpen.set(!advancedOpen())"
+      >
+        <i class="bi bi-sliders2" aria-hidden="true"></i>
+        {{ i18n.t('catalogAdvancedFilters') }}
+        @if (activeAdvancedCount) {
+          <span class="filter-count">{{ activeAdvancedCount }}</span>
+        }
+        <i class="bi bi-chevron-down filter-chevron" aria-hidden="true"></i>
+      </button>
+      @if (hasDraft) {
+        <button class="search-reset" type="button" (click)="clear()">{{ i18n.t('catalogResetFilters') }}</button>
+      }
+    </div>
+  </div>
+  @if (invalidKeyword) {
+    <p id="catalog-keyword-error" class="filter-error" role="alert">{{ i18n.t('catalogInvalidKeyword') }}</p>
+  }
+  <div id="catalog-advanced" class="advanced-panel" [hidden]="!advancedOpen()">
+    <div class="advanced-grid">
+      <label>
+        {{ i18n.t('catalogMatchMode') }}
+        <select class="form-select" name="match" [(ngModel)]="edit.match">
+          @for (option of matchOptions; track option.value) {
+            <option [value]="option.value">{{ i18n.t(option.label) }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        {{ i18n.t('catalogExclude') }}
+        <input
+          class="form-control"
+          name="exclude"
+          type="search"
+          maxlength="120"
+          [(ngModel)]="edit.exclude"
+          [attr.aria-invalid]="invalidExclude ? 'true' : null"
+          [attr.aria-describedby]="invalidExclude ? 'catalog-exclude-error' : null"
+        />
+      </label>
+      @if (stores(); as options) {
+        <label>
+          {{ i18n.t('catalogStoreFilter') }}
+          <select class="form-select" name="merchantId" [(ngModel)]="edit.merchantId">
+            <option [ngValue]="null">{{ i18n.t('catalogAllStores') }}</option>
+            @if (edit.merchantId !== null && unknownStore(edit.merchantId)) {
+              <option [ngValue]="edit.merchantId">{{ i18n.t('catalogStoreNumber', { id: edit.merchantId }) }}</option>
+            }
+            @for (store of options; track store.merchantId) {
+              <option [ngValue]="store.merchantId">{{ store.name }}</option>
+            }
+          </select>
+        </label>
+      }
+      <div class="price-fields">
+        <label>
+          {{ i18n.t('catalogMinPrice') }}
+          <input
+            class="form-control"
+            name="minPrice"
+            type="number"
+            inputmode="decimal"
+            min="0"
+            step="0.01"
+            [(ngModel)]="edit.minPrice"
+            [attr.aria-invalid]="invalidPrice ? 'true' : null"
+            [attr.aria-describedby]="invalidPrice ? 'catalog-price-error' : null"
+          />
+        </label>
+        <label>
+          {{ i18n.t('catalogMaxPrice') }}
+          <input
+            class="form-control"
+            name="maxPrice"
+            type="number"
+            inputmode="decimal"
+            min="0"
+            step="0.01"
+            [(ngModel)]="edit.maxPrice"
+            [attr.aria-invalid]="invalidPrice ? 'true' : null"
+            [attr.aria-describedby]="invalidPrice ? 'catalog-price-error' : null"
+          />
+        </label>
+      </div>
+      <label class="sku-input">
+        {{ i18n.t('catalogSkuExpression') }}
+        <input
+          class="form-control"
+          name="sku"
+          maxlength="360"
+          [placeholder]="i18n.t('catalogSkuFilterHint')"
+          [(ngModel)]="edit.sku"
+          [attr.aria-invalid]="invalidSku ? 'true' : null"
+          [attr.aria-describedby]="invalidSku ? 'catalog-sku-error' : null"
+        />
+      </label>
+    </div>
+    @if (invalidExclude) {
+      <p id="catalog-exclude-error" class="filter-error" role="alert">{{ i18n.t('catalogInvalidExclude') }}</p>
+    }
+    @if (invalidPrice) {
+      <p id="catalog-price-error" class="filter-error" role="alert">{{ i18n.t('catalogInvalidPriceRange') }}</p>
+    }
+    @if (invalidSku) {
+      <p id="catalog-sku-error" class="filter-error" role="alert">{{ i18n.t('catalogInvalidSku') }}</p>
+    }
+    <button
+      class="search-submit advanced-submit"
+      type="submit"
+      [disabled]="invalidKeyword || invalidExclude || invalidPrice || invalidSku"
+    >
+      {{ i18n.t('catalogApplyFilters') }}
+    </button>
+  </div>
+</form>

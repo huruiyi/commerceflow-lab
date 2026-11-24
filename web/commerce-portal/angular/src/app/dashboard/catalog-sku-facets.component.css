@@ -1,10 +1,11 @@
 .sku-facets {
   display: grid;
-  gap: 0.65rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 0.75rem 1rem;
   margin-block: 0.75rem;
-  padding: 0.75rem 1rem;
+  padding: 0.95rem 1rem;
   border: 1px solid #dce5df;
-  border-radius: 0.75rem;
+  border-radius: 0.9rem;
   background: #fff;
   color: #172723;
 }
@@ -32,17 +33,30 @@
   max-width: 100%;
   padding: 0.28rem 0.6rem;
   border: 1px solid #c9d7cf;
-  border-radius: 0.375rem;
+  border-radius: 1rem;
   background: #fff;
   color: #174b3b;
   font-size: 0.875rem;
   overflow-wrap: anywhere;
 }
 
-.sku-value:hover,
-.sku-value[aria-pressed='true'] {
+.sku-facet[data-spec='brand'] .sku-value {
+  text-transform: capitalize;
+}
+
+.sku-value:hover {
   border-color: #17664d;
   background: #edf4ee;
+}
+
+.sku-value[aria-pressed='true'] {
+  border-color: #17664d;
+  background: #17664d;
+  color: #fff;
+}
+
+.sku-value[aria-pressed='true'] .sku-count {
+  color: #daeee2;
 }
 
 .sku-value[aria-disabled='true'] {
@@ -57,6 +71,7 @@
 }
 
 .sku-clear {
+  grid-column: 1 / -1;
   justify-self: start;
   padding: 0.2rem 0;
   border: 0;

@@ -38,7 +38,6 @@ export class DashboardComponent implements OnInit {
   displayPage = 0;
   loading = true;
   searchFailed = false;
-  mobileFiltersOpen = false;
   filters: CatalogQuery;
   draft: CatalogQuery;
   private searchRequest?: Subscription;
@@ -146,7 +145,6 @@ export class DashboardComponent implements OnInit {
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
       this.filters = readCatalogQuery(params);
       this.draft = { ...this.filters };
-      if (this.invalidPrice || this.invalidSku || this.invalidExclude) this.mobileFiltersOpen = true;
       this.loadProducts();
     });
   }
@@ -167,7 +165,6 @@ export class DashboardComponent implements OnInit {
       sort: 'default',
       page: 0,
     };
-    this.mobileFiltersOpen = false;
     this.updateQuery(this.draft);
   }
 

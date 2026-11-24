@@ -19,12 +19,13 @@ import {
 } from 'rxjs';
 import { CatalogProductCardComponent } from '../dashboard/catalog-product-card.component';
 import { CatalogSkuFacetsComponent } from '../dashboard/catalog-sku-facets.component';
+import { CatalogSearchFormComponent } from '../dashboard/catalog-search-form.component';
 import {
   CatalogQuery,
+  CatalogSort,
   catalogQueryParams,
   catalogSearchParams,
   catalogSortOptions,
-  catalogMatchOptions,
   invalidCatalogKeyword,
   invalidCatalogPrice,
   invalidCatalogSku,
@@ -50,6 +51,7 @@ interface Store {
     ListPaginationComponent,
     CatalogProductCardComponent,
     CatalogSkuFacetsComponent,
+    CatalogSearchFormComponent,
   ],
   templateUrl: './stores.component.html',
   styleUrl: './stores.component.css',
@@ -191,6 +193,14 @@ export class StoresComponent {
     this.requestedStorePage.set(page);
   }
 
+  get selectedSort(): CatalogSort {
+    return this.catalog.sort;
+  }
+
+  changeSort(sort: CatalogSort): void {
+    this.navigateCatalog({ ...this.catalog, sort, page: 0 });
+  }
+
   get selectedSku(): string | undefined {
     return this.catalog.sku;
   }
@@ -210,8 +220,6 @@ export class StoresComponent {
   get invalidKeyword(): boolean {
     return invalidCatalogKeyword(this.catalogDraft.q);
   }
-
-  readonly matchOptions = catalogMatchOptions;
 
   get invalidExclude(): boolean {
     return invalidCatalogKeyword(this.catalogDraft.exclude);

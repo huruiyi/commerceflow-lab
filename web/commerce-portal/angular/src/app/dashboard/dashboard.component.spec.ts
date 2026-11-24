@@ -7,6 +7,7 @@ import { Product } from 'src/model/IProduct';
 import { DashboardComponent } from './dashboard.component';
 import { CatalogProductCardComponent } from './catalog-product-card.component';
 import { CatalogSkuFacetsComponent } from './catalog-sku-facets.component';
+import { CatalogSearchFormComponent } from './catalog-search-form.component';
 import { ListPaginationComponent } from '../list-pagination/list-pagination.component';
 import { TranslatePipe } from '../pipes/translate.pipe';
 import { ApiService } from '../services/api.service';
@@ -45,6 +46,7 @@ describe('DashboardComponent', () => {
         ListPaginationComponent,
         CatalogProductCardComponent,
         CatalogSkuFacetsComponent,
+        CatalogSearchFormComponent,
       ],
       declarations: [DashboardComponent, TranslatePipe],
       providers: [
@@ -156,6 +158,32 @@ describe('DashboardComponent', () => {
     root.querySelector<HTMLButtonElement>('.sku-clear')!.click();
     await harness.fixture.whenStable();
     expect(TestBed.inject(Router).url).toBe('/dashboard?q=laptop');
+  });
+
+  it('expands advanced search and submits its fields with the keyword', async () => {
+    await harness.navigateByUrl('/dashboard?q=monitor&page=1', DashboardComponent);
+    const root = harness.routeNativeElement!;
+    const panel = root.querySelector<HTMLElement>('#catalog-advanced')!;
+    const toggle = root.querySelector<HTMLButtonElement>('.search-filters')!;
+    expect(panel.hidden).toBeTrue();
+    toggle.click();
+    harness.detectChanges();
+    expect(panel.hidden).toBeFalse();
+    const exclude = panel.querySelector<HTMLInputElement>('[name=exclude]')!;
+    exclude.value = 'curved';
+    exclude.dispatchEvent(new Event('input', { bubbles: true }));
+    root.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(panel.hidden).toBeTrue();
+    expect(search.calls.mostRecent().args[0]).toEqual({
+      q: 'monitor',
+      sort: 'default',
+      page: 0,
+      size: 12,
+      exclude: 'curved',
+      includeSkuFacets: 'true',
+    });
   });
 
   it('rejects invalid draft prices and resets applied filters', async () => {
