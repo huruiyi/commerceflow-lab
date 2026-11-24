@@ -56,7 +56,7 @@
           <td>{{ item.commission | currency: 'CNY' }}</td>
           <td>{{ item.payable | currency: 'CNY' }}</td>
           <td>
-            <button type="button" class="btn btn-sm btn-outline-primary" [disabled]="busy()" (click)="detail(item)">
+            <button type="button" class="btn btn-sm btn-outline-primary" [disabled]="busy()" (click)="detail(item.id)">
               查看 / View
             </button>
           </td>
@@ -84,7 +84,7 @@
       </button>
     </div>
     @if (reconciliationPath(); as path) {
-      <app-statement-reconciliation [path]="path" [allowReview]="admin" />
+      <app-statement-reconciliation [path]="path" [allowReview]="admin" [focusedReview]="focusedReview()" />
     }
     @if (periodComparisonPath(); as path) {
       <app-statement-period-comparison [path]="path" />

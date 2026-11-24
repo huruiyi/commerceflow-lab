@@ -51,6 +51,11 @@
     <p class="alert alert-warning" role="alert">{{ saveError() }}</p>
   }
   <h5 class="h6">复核记录 / Review history</h5>
+  @if (filterReview()) {
+    <button class="btn btn-sm btn-outline-secondary mb-2" type="button" [disabled]="loading()" (click)="showAllReviews()">
+      查看全部复核 / View all reviews
+    </button>
+  }
   @if (historyError()) {
     <p role="alert">
       暂时无法读取复核记录 / Review history unavailable

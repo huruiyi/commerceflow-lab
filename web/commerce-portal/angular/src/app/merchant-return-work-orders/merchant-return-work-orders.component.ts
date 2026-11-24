@@ -34,6 +34,8 @@ export class MerchantReturnWorkOrdersComponent implements OnInit {
   private readonly account = inject(AccountService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  readonly admin = this.route.snapshot.data['admin'] === true;
+  private readonly merchantId = this.admin ? Number(this.route.snapshot.paramMap.get('id')) : undefined;
   tickets: ReturnWorkTicket[] = [];
   readonly statuses = ['OPEN', 'WAITING_EVIDENCE', 'APPROVED', 'REJECTED'];
   page = 0;
@@ -65,10 +67,10 @@ export class MerchantReturnWorkOrdersComponent implements OnInit {
         this.detail = this.evidence = undefined;
         this.notice = this.note = '';
         this.quantity = undefined;
-        this.pending = caseId ? this.readPending(caseId) : undefined;
+        this.pending = caseId && !this.admin ? this.readPending(caseId) : undefined;
         if (caseId) this.checkResult();
       });
-    this.refresh();
+    if (!this.admin) this.refresh();
   }
 
   applyCriteria(criteria: AfterSaleListCriteria): void {
@@ -97,7 +99,7 @@ export class MerchantReturnWorkOrdersComponent implements OnInit {
     this.loadingDetail = true;
     this.error = '';
     this.detailRequest = this.api
-      .returnWorkOrder(id)
+      .returnWorkOrder(id, this.merchantId)
       .pipe(
         takeUntilDestroyed(this.destroy),
         finalize(() => {
@@ -124,7 +126,7 @@ export class MerchantReturnWorkOrdersComponent implements OnInit {
     if (!id) return;
     this.evidenceError = false;
     this.api
-      .returnWorkEvidence(id)
+      .returnWorkEvidence(id, this.merchantId)
       .pipe(takeUntilDestroyed(this.destroy))
       .subscribe({
         next: (evidence) => {
@@ -143,7 +145,7 @@ export class MerchantReturnWorkOrdersComponent implements OnInit {
 
   decide(action: WorkAction): void {
     const ticket = this.detail?.ticket;
-    if (!ticket || this.pending || this.busy || !this.note.trim()) return;
+    if (this.admin || !ticket || this.pending || this.busy || !this.note.trim()) return;
     const quantity = action === 'APPROVE' ? this.quantity : undefined;
     this.send({ caseId: ticket.caseId, requestId: crypto.randomUUID(), action, note: this.note.trim(), quantity });
   }

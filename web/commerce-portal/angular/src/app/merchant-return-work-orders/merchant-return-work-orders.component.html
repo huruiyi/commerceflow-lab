@@ -1,20 +1,24 @@
 <section class="container py-4">
   <header class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
     <h2 class="mb-0">{{ 'returnWorkOrders' | t }}</h2>
-    <button class="btn btn-outline-primary" type="button" [disabled]="busy" (click)="refresh()">
+    <button *ngIf="!admin" class="btn btn-outline-primary" type="button" [disabled]="busy" (click)="refresh()">
       {{ 'returnWorkRefresh' | t }}
     </button>
+    <a *ngIf="admin" routerLink="/admin/exception-work" class="btn btn-outline-secondary">
+      {{ 'exceptionWork' | t }}
+    </a>
   </header>
   <app-after-sale-search
+    *ngIf="!admin"
     [busy]="busy"
     [statuses]="statuses"
     statusKey="returnWork_"
     (changed)="applyCriteria($event)"
   />
   <p *ngIf="error" class="text-danger" role="alert">{{ error | t }}</p>
-  <p *ngIf="!tickets.length && !busy && !error">{{ 'returnWorkEmpty' | t }}</p>
+  <p *ngIf="!admin && !tickets.length && !busy && !error">{{ 'returnWorkEmpty' | t }}</p>
   <div class="row g-3">
-    <div class="col-md-5">
+    <div *ngIf="!admin" class="col-md-5">
       <div class="list-group">
         <button
           *ngFor="let item of tickets"
@@ -37,7 +41,7 @@
       />
     </div>
     <p *ngIf="loadingDetail" class="col-md-7" role="status">{{ 'loading' | t }}</p>
-    <div *ngIf="detail as selected" class="col-md-7">
+    <div *ngIf="detail as selected" [class]="admin ? 'col-12' : 'col-md-7'">
       <article class="border rounded p-3">
         <h3 class="h5">{{ 'order' | t }} {{ selected.ticket.orderId }}</h3>
         <p *ngIf="notice" role="status">{{ notice | t }}</p>
@@ -70,7 +74,11 @@
           </small>
         </p>
         <p *ngIf="selected.ticket.refundNumber">{{ 'afterSaleRefundNumber' | t }} {{ selected.ticket.refundNumber }}</p>
-        <div *ngIf="['OPEN', 'WAITING_EVIDENCE'].includes(selected.ticket.phase)" class="border-top pt-3">
+        <div *ngIf="admin && evidence as proof" class="border-top pt-3">
+          {{ 'returnWorkQualified' | t }} {{ proof.qualifiedQuantity }} · {{ proof.id }}
+        </div>
+        <p *ngIf="admin && evidenceError" role="alert">{{ 'returnWorkEvidenceUnavailable' | t }}</p>
+        <div *ngIf="!admin && ['OPEN', 'WAITING_EVIDENCE'].includes(selected.ticket.phase)" class="border-top pt-3">
           <button
             *ngIf="selected.ticket.warehouseStatus !== 'REJECTED'"
             class="btn btn-sm btn-outline-primary"

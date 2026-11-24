@@ -63,6 +63,7 @@ export class SettlementsComponent {
   readonly pending = signal<AdminListPage<Entry> | null>(null);
   readonly selected = signal<string | undefined>(undefined);
   readonly reconciliationPath = signal<string | undefined>(undefined);
+  readonly focusedReview = signal<string | null>(null);
   readonly periodComparisonPath = signal<string | undefined>(undefined);
   readonly payouts = signal<Payout[]>([]);
   readonly busy = signal(false);
@@ -73,7 +74,11 @@ export class SettlementsComponent {
   private payoutRequest?: { fingerprint: string; id: string };
 
   constructor() {
-    this.reload();
+    this.reload('', false, () => {
+      const statement = this.route.snapshot.queryParamMap.get('statement');
+      const review = this.admin ? this.route.snapshot.queryParamMap.get('review') : null;
+      if (statement) this.detail(statement, true, review);
+    });
   }
 
   enable(): void {
@@ -94,8 +99,8 @@ export class SettlementsComponent {
     });
   }
 
-  detail(value: Statement): void {
-    const path = `${this.statementPath}/${value.id}`;
+  detail(id: string, showReconciliation = false, review: string | null = null): void {
+    const path = `${this.statementPath}/${encodeURIComponent(id)}`;
     this.run(
       forkJoin({
         entries: this.readPage<Entry>(path + '/entries', 0),
@@ -105,16 +110,18 @@ export class SettlementsComponent {
         this.reconciliationPath.set(undefined);
         this.periodComparisonPath.set(undefined);
         this.payoutReason = '';
-        this.selected.set(value.id);
+        this.selected.set(id);
+        this.focusedReview.set(review);
         this.entries.set(details.entries);
         this.payouts.set(details.payouts);
+        if (showReconciliation) this.reconcile();
       },
     );
   }
 
   reconcile(): void {
     const id = this.selected();
-    if (id) this.reconciliationPath.set(`${this.statementPath}/${id}/reconciliation`);
+    if (id) this.reconciliationPath.set(`${this.statementPath}/${encodeURIComponent(id)}/reconciliation`);
   }
 
   comparePeriods(): void {
@@ -148,7 +155,7 @@ export class SettlementsComponent {
     );
   }
 
-  reload(notice = '', reset = false): void {
+  reload(notice = '', reset = false, loaded?: () => void): void {
     this.run(
       forkJoin({
         statements: this.readPage<Statement>(this.statementPath, reset ? 0 : (this.statements()?.page ?? 0)),
@@ -158,6 +165,7 @@ export class SettlementsComponent {
         this.statements.set(value.statements);
         this.pending.set(value.pending);
         this.message.set(notice);
+        loaded?.();
       },
     );
   }

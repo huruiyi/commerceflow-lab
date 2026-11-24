@@ -50,6 +50,12 @@ public class MerchantReconciliationController {
     return reviews.list(merchantId, id.toString(), page, size);
   }
 
+  @GetMapping("/api/admin/stores/{merchantId}/statements/{id}/reconciliation/reviews/{review}")
+  @PreAuthorize("hasRole('ADMIN')")
+  StatementDifferenceReview review(@PathVariable long merchantId, @PathVariable UUID id, @PathVariable UUID review) {
+    return reviews.get(merchantId, id.toString(), review.toString());
+  }
+
   @PostMapping("/api/admin/stores/{merchantId}/statements/{id}/reconciliation/reviews")
   @PreAuthorize("hasRole('ADMIN')")
   StatementDifferenceReview recordReview(Authentication actor, @PathVariable long merchantId, @PathVariable UUID id,

@@ -208,6 +208,7 @@
     />
     @if (allowReview()) {
       <app-statement-difference-reviews
+        [focusedReview]="focusedReview()"
         [path]="path() + '/reviews'"
         [targets]="reviewTargets()"
         [labels]="labels"

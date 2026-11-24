@@ -857,7 +857,56 @@ class CommerceFlowIntegrationTest {
     mvc.perform(closure).andExpect(status().isOk()).andExpect(jsonPath("$.record.receipt").value(recovery));
     mvc.perform(get(disposition, merchant, statement, review).session(merchantActor.session()))
       .andExpect(status().isForbidden());
+    mvc.perform(get("/api/merchant/exception-work").session(merchantActor.session())
+        .param("kind", "STATEMENT_DIFFERENCE").param("state", "CLOSED"))
+      .andExpect(status().isOk()).andExpect(jsonPath("$.rows[0].sourceId").value(review));
     assertEquals(2, payoutAttempts.attempts(statement).size());
+  }
+
+  @Test
+  @Transactional
+  void exceptionWorkScopesStoresDeduplicatesAndLocatesOriginalRecords() throws Exception {
+    long merchant = users.selectOne(Wrappers.<AppUser>lambdaQuery().eq(AppUser::getEmail, "merchant@example.com")).getId();
+    long adminId = users.selectOne(Wrappers.<AppUser>lambdaQuery().eq(AppUser::getEmail, "admin@example.com")).getId();
+    if (settlementLedger.account(merchant) == null) settlementLedger.enable(merchant, 500);
+    String statement = UUID.randomUUID().toString();
+    String latest = UUID.randomUUID().toString();
+    Instant cutoff = Instant.parse("2025-01-02T00:00:00Z");
+    settlementLedger.freeze(new Statement(statement, merchant, cutoff.minusSeconds(3600), cutoff, BigDecimal.TEN,
+      BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.TEN, adminId));
+    String insertReview = """
+      INSERT INTO merchant_statement_difference_reviews(request_id,statement_id,merchant_id,difference_kind,
+        evidence_reference,decision,reason,reviewed_by,reviewed_at)
+      VALUES (?,?,?,'PAYOUT_FAILED','fixture','CONFIRMED','Administrator detail',?,?)
+      """;
+    jdbc.update(insertReview, UUID.randomUUID().toString(), statement, merchant, adminId, cutoff.minusSeconds(1));
+    jdbc.update(insertReview, latest, statement, merchant, adminId, cutoff);
+    String foreignCase = UUID.randomUUID().toString();
+    jdbc.update("""
+      INSERT INTO line_after_sales(id,order_id,order_line_id,product_id,customer_id,merchant_id,quantity,
+        merchandise_amount,shipping_amount,currency,kind,status,reason)
+      VALUES (?,904321,1,1,1,?,1,10,0,'CNY','RETURN','REVIEW_REQUIRED','Customer fixture')
+      """, foreignCase, merchant + 500);
+    jdbc.update("INSERT INTO return_exception_work_orders(case_id,warehouse_status) VALUES (?,'FAILED')", foreignCase);
+    CsrfContext owner = login("merchant@example.com", false);
+    CsrfContext admin = login("admin@example.com", false);
+
+    mvc.perform(get("/api/merchant/exception-work").session(owner.session()).param("merchantId", "" + (merchant + 500)))
+      .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1))
+      .andExpect(jsonPath("$.rows[0].sourceId").value(latest))
+      .andExpect(jsonPath("$.rows[0].reason").doesNotExist()).andExpect(jsonPath("$.rows[0].reviewedBy").doesNotExist());
+    mvc.perform(get("/api/admin/exception-work").session(owner.session())).andExpect(status().isForbidden());
+    mvc.perform(get("/api/admin/exception-work").session(admin.session()).param("priority", "HIGH").param("size", "1"))
+      .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(2)).andExpect(jsonPath("$.rows.length()").value(1));
+    mvc.perform(get("/api/admin/exception-work").session(admin.session()).param("orderId", "904321").param("kind", "RETURN_WORK"))
+      .andExpect(status().isOk()).andExpect(jsonPath("$.rows[0].sourceId").value(foreignCase));
+    mvc.perform(get("/api/admin/stores/{shop}/return-work-orders/{id}", merchant, foreignCase).session(admin.session()))
+      .andExpect(status().isNotFound());
+    mvc.perform(get("/api/admin/stores/{shop}/return-work-orders/{id}", merchant + 500, foreignCase).session(admin.session()))
+      .andExpect(status().isOk()).andExpect(jsonPath("$.ticket.caseId").value(foreignCase));
+    mvc.perform(get("/api/admin/stores/{shop}/statements/{statement}/reconciliation/reviews/{id}",
+        merchant, statement, latest).session(admin.session()))
+      .andExpect(status().isOk()).andExpect(jsonPath("$.requestId").value(latest));
   }
 
   @Test

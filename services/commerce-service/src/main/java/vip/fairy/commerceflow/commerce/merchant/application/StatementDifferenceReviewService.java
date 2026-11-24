@@ -16,6 +16,7 @@ import vip.fairy.commerceflow.commerce.merchant.domain.StatementDifferenceReview
 import vip.fairy.commerceflow.commerce.merchant.infrastructure.StatementDifferenceReviewMapper;
 import vip.fairy.commerceflow.commerce.shared.api.AdminListPage;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
+import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
 
 @Service
 public class StatementDifferenceReviewService {
@@ -36,6 +37,16 @@ public class StatementDifferenceReviewService {
     long total = reviews.count(merchant, statement);
     int page = AdminListPage.availablePage(requestedPage, total, size);
     return new AdminListPage<>(reviews.page(merchant, statement, size, (long) page * size), total, page, size);
+  }
+
+  @Transactional(readOnly = true)
+  public StatementDifferenceReview get(long merchant, String statement, String reviewId) {
+    reports.requireStatement(merchant, statement);
+    var review = reviews.find(reviewId);
+    if (review == null || review.merchantId() != merchant || !statement.equals(review.statementId())) {
+      throw new ResourceNotFoundException("Statement difference review not found");
+    }
+    return review;
   }
 
   @Transactional(isolation = Isolation.READ_COMMITTED)

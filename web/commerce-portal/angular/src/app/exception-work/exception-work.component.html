@@ -1,0 +1,97 @@
+<section class="container py-4" [attr.aria-busy]="busy()">
+  <header class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h2 class="mb-0">异常待办 / Exception work</h2>
+    <button type="button" class="btn btn-outline-secondary" [disabled]="busy()" (click)="load()">刷新 / Refresh</button>
+  </header>
+  <form class="d-flex flex-wrap align-items-end gap-3 mb-4" #filter="ngForm" (ngSubmit)="apply()">
+    <label class="form-label mb-0">
+      类型 / Type
+      <select class="form-select" name="kind" [(ngModel)]="kind">
+        <option value="">全部类型 / All types</option>
+        <option value="STATEMENT_DIFFERENCE">{{ kinds.STATEMENT_DIFFERENCE }}</option>
+        <option value="RETURN_WORK">{{ kinds.RETURN_WORK }}</option>
+      </select>
+    </label>
+    <label class="form-label mb-0">
+      优先级 / Priority
+      <select class="form-select" name="priority" [(ngModel)]="priority">
+        <option value="">全部优先级 / All priorities</option>
+        <option value="HIGH">{{ priorities.HIGH }}</option>
+        <option value="NORMAL">{{ priorities.NORMAL }}</option>
+      </select>
+    </label>
+    <label class="form-label mb-0">
+      状态 / Status
+      <select class="form-select" name="state" [(ngModel)]="state">
+        <option value="">全部状态 / All statuses</option>
+        <option value="OPEN">{{ states.OPEN }}</option>
+        <option value="WAITING_EVIDENCE">{{ states.WAITING_EVIDENCE }}</option>
+        <option value="CLOSED">{{ states.CLOSED }}</option>
+      </select>
+    </label>
+    @if (admin) {
+      <label class="form-label mb-0">
+        店铺编号 / Store ID
+        <input class="form-control" type="number" min="1" name="merchantId" [(ngModel)]="merchantId" />
+      </label>
+    }
+    <label class="form-label mb-0">
+      订单编号 / Order ID
+      <input class="form-control" type="number" min="1" name="orderId" [(ngModel)]="orderId" />
+    </label>
+    <button type="submit" class="btn btn-primary" [disabled]="busy() || filter.invalid">筛选 / Filter</button>
+  </form>
+  @if (failed()) {
+    <p class="alert alert-warning" role="alert">暂时无法读取异常待办 / Exception work is unavailable</p>
+  } @else if (result(); as value) {
+    @if (value.rows.length) {
+      <div class="table-responsive">
+        <table class="table align-middle">
+          <thead>
+            <tr>
+              <th scope="col">类型 / Type</th>
+              <th scope="col">异常 / Exception</th>
+              @if (admin) {
+                <th scope="col">店铺 / Store</th>
+              }
+              <th scope="col">订单 / Order</th>
+              <th scope="col">优先级 / Priority</th>
+              <th scope="col">状态 / Status</th>
+              <th scope="col">更新时间 / Updated</th>
+              <th scope="col">原单 / Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of value.rows; track item.kind + item.sourceId) {
+              <tr [attr.data-source-id]="item.sourceId">
+                <td>{{ kinds[item.kind] }}</td>
+                <td>{{ reason(item) }}</td>
+                @if (admin) {
+                  <td>{{ item.merchantId }}</td>
+                }
+                <td>{{ item.orderId ?? '—' }}</td>
+                <td>
+                  <span [class.fw-semibold]="item.priority === 'HIGH'">{{ priorities[item.priority] }}</span>
+                </td>
+                <td>{{ states[item.state] }}</td>
+                <td>{{ item.updatedAt | date: 'medium' }}</td>
+                <td><a [routerLink]="source(item)" [queryParams]="sourceParams(item)">查看原单 / View source</a></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-list-pagination
+        [page]="value.page"
+        [totalPages]="pages()"
+        [loading]="busy()"
+        label="异常待办分页 / Exception work pages"
+        (pageChange)="load($event)"
+      />
+    } @else {
+      <p role="status">暂无匹配的异常待办 / No matching exceptions</p>
+    }
+  } @else {
+    <p role="status">读取异常待办 / Loading exception work</p>
+  }
+</section>

@@ -3,7 +3,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, DestroyRef, inject, input, OnInit, output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { finalize } from 'rxjs';
+import { finalize, map } from 'rxjs';
 import { ListPaginationComponent } from '../list-pagination/list-pagination.component';
 import { StatementDifferenceDispositionComponent } from './statement-difference-disposition.component';
 
@@ -51,6 +51,7 @@ export class StatementDifferenceReviewsComponent implements OnInit {
   readonly reportPage = input.required<number>();
   readonly reportSize = input.required<number>();
   readonly reportBusy = input(false);
+  readonly focusedReview = input<string | null>(null);
   readonly reloadReport = output<void>();
 
   readonly history = signal<History | null>(null);
@@ -64,6 +65,7 @@ export class StatementDifferenceReviewsComponent implements OnInit {
   readonly saved = signal(false);
   readonly saveError = signal('');
   readonly activeReview = signal('');
+  readonly filterReview = signal<string | null>(null);
   readonly decisions: Record<Decision, string> = {
     CONFIRMED: '确认差异 / Confirm discrepancy',
     NO_ACTION: '无需处置 / No action',
@@ -78,21 +80,35 @@ export class StatementDifferenceReviewsComponent implements OnInit {
   private readonly destroy = inject(DestroyRef);
 
   ngOnInit(): void {
+    this.filterReview.set(this.focusedReview());
     this.loadHistory();
+  }
+
+  showAllReviews(): void {
+    this.filterReview.set(null);
+    this.loadHistory(0);
   }
 
   loadHistory(page = this.historyPage): void {
     this.historyPage = page;
     this.historyError.set(false);
     this.loading.set(true);
-    this.http
-      .get<History>(this.path(), { params: { page } })
+    const id = this.filterReview();
+    const request = id
+      ? this.http
+          .get<Review>(this.path() + '/' + encodeURIComponent(id))
+          .pipe(map((review): History => ({ rows: [review], total: 1, page: 0, size: 1 })))
+      : this.http.get<History>(this.path(), { params: { page } });
+    request
       .pipe(
         takeUntilDestroyed(this.destroy),
         finalize(() => this.loading.set(false)),
       )
       .subscribe({
-        next: (value) => this.history.set(value),
+        next: (value) => {
+          this.history.set(value);
+          if (id) this.activeReview.set(id);
+        },
         error: () => this.historyError.set(true),
       });
   }
@@ -120,7 +136,7 @@ export class StatementDifferenceReviewsComponent implements OnInit {
           this.selected = null;
           this.reason = '';
           this.saved.set(true);
-          this.loadHistory(0);
+          this.showAllReviews();
         },
         error: (error: HttpErrorResponse) => {
           if (error.status === 409) {

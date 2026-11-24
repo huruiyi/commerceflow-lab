@@ -15,21 +15,19 @@ import vip.fairy.commerceflow.commerce.merchant.domain.StatementDifferenceReview
 import vip.fairy.commerceflow.commerce.merchant.domain.StatementDifferenceReview.Decision;
 import vip.fairy.commerceflow.commerce.merchant.infrastructure.MerchantPayoutMapper;
 import vip.fairy.commerceflow.commerce.merchant.infrastructure.StatementDifferenceDispositionMapper;
-import vip.fairy.commerceflow.commerce.merchant.infrastructure.StatementDifferenceReviewMapper;
 import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
-import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
 
 @Service
 public class StatementDifferenceDispositionService {
 
-  private final StatementDifferenceReviewMapper reviews;
+  private final StatementDifferenceReviewService reviews;
   private final StatementDifferenceDispositionMapper dispositions;
   private final StatementReconciliationService reports;
   private final MerchantPayoutMapper payouts;
   private final StocktakeDispositionV1 stocktakes;
   private final SettlementInvoiceV1 invoices;
 
-  StatementDifferenceDispositionService(StatementDifferenceReviewMapper reviews,
+  StatementDifferenceDispositionService(StatementDifferenceReviewService reviews,
                                          StatementDifferenceDispositionMapper dispositions,
                                          StatementReconciliationService reports, MerchantPayoutMapper payouts,
                                          StocktakeDispositionV1 stocktakes, SettlementInvoiceV1 invoices) {
@@ -43,12 +41,12 @@ public class StatementDifferenceDispositionService {
 
   @Transactional(readOnly = true)
   public View get(long merchant, String statement, String reviewId) {
-    return view(require(merchant, statement, reviewId), dispositions.find(reviewId));
+    return view(reviews.get(merchant, statement, reviewId), dispositions.find(reviewId));
   }
 
   @Transactional(isolation = Isolation.READ_COMMITTED)
   public View link(long merchant, String statement, String reviewId, long actor, String requestId, String receipt) {
-    var review = require(merchant, statement, reviewId);
+    var review = reviews.get(merchant, statement, reviewId);
     if (review.decision() != Decision.CONFIRMED) throw new BusinessRuleException("This review needs no correction");
     var existing = dispositions.find(reviewId);
     if (existing != null) return linkedReplay(review, existing, actor, requestId, receipt);
@@ -66,7 +64,7 @@ public class StatementDifferenceDispositionService {
 
   @Transactional(isolation = Isolation.READ_COMMITTED)
   public View close(long merchant, String statement, String reviewId, long actor, String requestId, String reason) {
-    var review = require(merchant, statement, reviewId);
+    var review = reviews.get(merchant, statement, reviewId);
     var existing = dispositions.find(reviewId);
     if (existing != null && existing.closedAt() != null) {
       return closureReplay(review, existing, actor, requestId, reason);
@@ -109,15 +107,6 @@ public class StatementDifferenceDispositionService {
       && Objects.equals(attempt.merchantId(), review.merchantId()) && review.statementId().equals(attempt.statementId())
       && attempt.resolvedAt() != null && !attempt.resolvedAt().isBefore(review.reviewedAt())
       && (!"PAYOUT_FAILED".equals(review.differenceKind()) || attempt.recoveryOf().equals(review.evidenceReference()));
-  }
-
-  private StatementDifferenceReview require(long merchant, String statement, String reviewId) {
-    reports.requireStatement(merchant, statement);
-    var review = reviews.find(reviewId);
-    if (review == null || review.merchantId() != merchant || !statement.equals(review.statementId())) {
-      throw new ResourceNotFoundException("Statement difference review not found");
-    }
-    return review;
   }
 
   private static View linkedReplay(StatementDifferenceReview review, StatementDifferenceDisposition record,

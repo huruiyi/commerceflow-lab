@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.operations.infrastructure.ExceptionWorkMapper">
+  <sql id="work">
+    WITH ranked_reviews AS (
+      SELECT request_id,merchant_id,statement_id,order_id,difference_kind,decision,reviewed_at,
+        ROW_NUMBER() OVER (
+          PARTITION BY merchant_id,statement_id,order_id,order_line_id,difference_kind,evidence_reference
+          ORDER BY reviewed_at DESC,request_id DESC
+        ) AS review_rank
+      FROM merchant_statement_difference_reviews
+      <where>
+        <if test="merchant != null">AND merchant_id=#{merchant}</if>
+        <if test="filter.orderId != null">AND order_id=#{filter.orderId}</if>
+      </where>
+    ), work AS (
+      SELECT 'STATEMENT_DIFFERENCE' AS kind,r.request_id AS source_id,r.merchant_id,r.statement_id,r.order_id,
+        r.difference_kind AS reason_code,
+        CASE WHEN r.difference_kind IN ('PAYOUT_FAILED','PAYOUT_AMOUNT','MULTIPLE_PAYOUTS','PAYOUT_CURRENCY')
+          THEN 'HIGH' ELSE 'NORMAL' END AS priority,
+        CASE WHEN d.closed_at IS NOT NULL THEN 'CLOSED'
+          WHEN d.receipt IS NULL THEN 'WAITING_EVIDENCE' ELSE 'OPEN' END AS state,
+        COALESCE(d.closed_at,d.linked_at,r.reviewed_at) AS updated_at
+      FROM ranked_reviews r LEFT JOIN merchant_statement_difference_dispositions d ON d.review_id=r.request_id
+      WHERE r.review_rank=1 AND r.decision='CONFIRMED'
+      UNION ALL
+      SELECT 'RETURN_WORK',w.case_id,s.merchant_id,NULL,s.order_id,w.warehouse_status,
+        CASE WHEN w.warehouse_status IN ('SHORT_RECEIVED','FAILED') THEN 'HIGH' ELSE 'NORMAL' END,
+        CASE WHEN w.phase IN ('APPROVED','REJECTED') THEN 'CLOSED' ELSE w.phase END,w.updated_at
+      FROM return_exception_work_orders w JOIN line_after_sales s ON s.id=w.case_id
+      <where>
+        <if test="merchant != null">AND s.merchant_id=#{merchant}</if>
+        <if test="filter.orderId != null">AND s.order_id=#{filter.orderId}</if>
+      </where>
+    )
+  </sql>
+
+  <sql id="filters">
+    <where>
+      <if test="filter.kind != null">AND kind=#{filter.kind}</if>
+      <if test="filter.priority != null">AND priority=#{filter.priority}</if>
+      <if test="filter.state != null">AND state=#{filter.state}</if>
+    </where>
+  </sql>
+
+  <select id="count" resultType="long">
+    <include refid="work"/>
+    SELECT COUNT(*) FROM work
+    <include refid="filters"/>
+  </select>
+
+  <select id="page" resultType="vip.fairy.commerceflow.commerce.operations.domain.ExceptionWork">
+    <include refid="work"/>
+    SELECT kind,source_id,merchant_id,statement_id,order_id,reason_code,priority,state,updated_at FROM work
+    <include refid="filters"/>
+    ORDER BY CASE WHEN state='CLOSED' THEN 1 ELSE 0 END,CASE WHEN priority='HIGH' THEN 0 ELSE 1 END,
+      updated_at DESC,kind,source_id
+    LIMIT #{size} OFFSET #{offset}
+  </select>
+</mapper>

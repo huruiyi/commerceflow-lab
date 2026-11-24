@@ -454,12 +454,17 @@ export class ApiService {
     });
   }
 
-  returnWorkOrder(caseId: string): Observable<ReturnWorkDetail> {
-    return this.http.get<ReturnWorkDetail>('/api/merchant/return-work-orders/' + caseId);
+  returnWorkOrder(caseId: string, merchantId?: number): Observable<ReturnWorkDetail> {
+    return this.http.get<ReturnWorkDetail>(this.returnWorkPath(caseId, merchantId));
   }
 
-  returnWorkEvidence(caseId: string): Observable<ReturnWorkEvidence | null> {
-    return this.http.get<ReturnWorkEvidence | null>('/api/merchant/return-work-orders/' + caseId + '/evidence');
+  returnWorkEvidence(caseId: string, merchantId?: number): Observable<ReturnWorkEvidence | null> {
+    return this.http.get<ReturnWorkEvidence | null>(this.returnWorkPath(caseId, merchantId) + '/evidence');
+  }
+
+  private returnWorkPath(caseId: string, merchantId?: number): string {
+    const prefix = merchantId === undefined ? '/api/merchant' : `/api/admin/stores/${merchantId}`;
+    return prefix + '/return-work-orders/' + encodeURIComponent(caseId);
   }
 
   decideReturnWork(

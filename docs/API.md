@@ -80,6 +80,14 @@ V72 在单条复核下提供 `GET /reconciliation/reviews/{review}/disposition`�
 已确认的库存、打款或发票差异须通过对应业务核验回执，重算后相应差异消失才可结案。无需处置须重新对账并记录结案依据。
 同一操作者以相同请求号和内容重试可读回原结果。无回执、来源暂不可用或结果仍有差异时，保持待处理并返回 409。日常商城目前使用 V71。
 
+V72 候选提供 `GET /api/admin/exception-work` 和 `GET /api/merchant/exception-work`。
+返回 `rows`、`total`、`page`、`size`，页码从 0 开始，默认每页 20 条，最大 100 条。
+可以按 `kind`（`STATEMENT_DIFFERENCE`、`RETURN_WORK`）、`priority`（`HIGH`、`NORMAL`）、
+`state`（`OPEN`、`WAITING_EVIDENCE`、`CLOSED`）和 `orderId` 筛选。平台可按 `merchantId` 筛选，商家视图固定为当前店铺。
+账单条目只取同一差异最新的确认记录，售后条目直接读取原工单阶段。两个入口均只读，商家列表只含业务标识和状态。
+平台可通过 `GET /api/admin/stores/{merchantId}/statements/{id}/reconciliation/reviews/{review}` 定位单条复核，
+也可用 `GET /api/admin/stores/{merchantId}/return-work-orders/{caseId}` 和其 `/evidence` 读取原售后工单及仓库凭证。
+
 跨期对账使用 `GET /api/merchant/settlement/statements/{id}/period-comparison`，平台使用
 `GET /api/admin/stores/{merchantId}/statements/{id}/period-comparison`。指定本期冻结账单，
 返回与其起点相接的上期账单 `previous`（首期为 `null`）、本期 `current` 和本期退款冲正分页。

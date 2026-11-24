@@ -66,6 +66,22 @@ public class ReturnWorkOrderService {
     return evidence(value);
   }
 
+  public Evidence readEvidence(long merchantId, String id) {
+    var ticket = detail(merchantId, id).ticket();
+    if (!"SHORT_RECEIVED".equals(ticket.warehouseStatus()) && !"FAILED".equals(ticket.warehouseStatus())) return null;
+    var receipts = warehouse.warehouseEvidence(merchantId, List.of(ticket.orderId()))
+      .orElseThrow(() -> new BusinessRuleException("Warehouse evidence is unavailable"));
+    return receipts.returns().stream().filter(row -> id.equals(row.returnId())
+        && Objects.equals(ticket.outboundId(), row.outboundId()) && row.orderLineId() == ticket.orderLineId()
+        && Objects.equals(ticket.warehouseId(), row.warehouseId())
+        && row.expectedQuantity() == ticket.requestedQuantity()
+        && Objects.equals(ticket.receivedQuantity(), row.receivedQuantity())
+        && ticket.warehouseStatus().equals(row.status())
+        && row.supplementId() != null)
+      .map(row -> new Evidence(row.supplementId(), row.qualifiedQuantity(), null, row.supplementAt()))
+      .findFirst().orElse(null);
+  }
+
   @Transactional
   public Detail decide(long merchantId, String id, String requestId, String action, String note, Integer quantity) {
     var value = cases.lock(id);

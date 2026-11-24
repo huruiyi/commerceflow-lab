@@ -77,6 +77,26 @@ const routes: Routes = [
     data: { roles: ['MERCHANT'] },
   },
   {
+    path: 'admin/stores/:id/return-work-orders',
+    component: MerchantReturnWorkOrdersComponent,
+    canActivate: [AuthGuard],
+    data: { admin: true, roles: ['ADMIN'] },
+  },
+  {
+    path: 'admin/exception-work',
+    loadComponent: () =>
+      import('./exception-work/exception-work.component').then((module) => module.ExceptionWorkComponent),
+    canActivate: [AuthGuard],
+    data: { admin: true, roles: ['ADMIN'] },
+  },
+  {
+    path: 'merchant/exception-work',
+    loadComponent: () =>
+      import('./exception-work/exception-work.component').then((module) => module.ExceptionWorkComponent),
+    canActivate: [AuthGuard],
+    data: { roles: ['MERCHANT'] },
+  },
+  {
     path: 'merchant/inventory',
     component: MerchantInventoryComponent,
     canActivate: [AuthGuard],
