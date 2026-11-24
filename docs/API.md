@@ -66,7 +66,7 @@ Elasticsearch 使用嵌套 SKU 聚合及商品级去重。聚合超过 2,000 个
 `GET /api/products/{productId}/reviews` 返回 `reviews`、`total`、`page`、`size`，
 从第 0 页起算，默认 5 条，最大 20 条，按评价时间和评价 ID 倒序。商品不可对外展示时返回 404。
 
-2026-11-24 第 1 批发布后，日常公开店铺使用带 `merchantId` 的搜索分页。日常目录为 Flyway V7，搜索优先读取 Elasticsearch，故障时回退到 MySQL。独立商详首屏展示详情内嵌的最新评价，随后翻页调用独立评价接口。
+日常公开店铺使用带 `merchantId` 的搜索分页。2026-11-25 日常目录沿原卷升级至 Flyway V8，搜索优先读取 Elasticsearch，故障时回退到 MySQL。独立商详首屏展示详情内嵌的最新评价，随后翻页调用独立评价接口。
 
 日常购物车以 `POST /api/products/lookup?lang=zh-CN` 读取当前商品名和价格。请求体是最多 100 个商品 ID 的数组，
 响应按商品 ID 提供 `name` 和 `price`。不存在、已下架或店铺未开放的商品不出现在映射中。

@@ -1728,6 +1728,29 @@ Chrome 核对全站和店内的规格选择、第二页、商详回跳、旧链�
 
 验收期间 Elasticsearch 成功读取 30 次，回退 0 次。43 条索引文档逐项核对无差异，待同步事件为 0。镜像锁、导入清单、Chrome 截图和验收记录位于 `%LOCALAPPDATA%/CommerceFlow/releases/search-ui-daily-1795551121005/`。
 
+### 2.95 2026-11-25 商品属性与显示器套餐
+
+目录 V8 将早期四款演示显示器的品牌、尺寸及分辨率放入 SPU 固定属性，补充面板、刷新率及接口。原 SKU 和库存编号继续绑定。
+新链接用 `attributes` 筛固定参数，`sku` 筛套餐等销售规格。MySQL 与 Elasticsearch 索引从同一份规范化的商品属性投影读取。
+显示器属性可从商家商品 API 写入和从商详读取。此次按新契约交付，旧 `sku` 中的商品属性没有映射。
+
+演示商家新增 Cedar Play 27（165 Hz）与 Lumen Connect 27（100 Hz、USB-C），均为 27 英寸 2560 × 1440。两张商品图由内置 ImageGen 生成。
+Cedar Play 27 的标配为 1,199 元、18 件，含支架套装为 1,499 元、7 件。Lumen Connect 27 为 1,399 元、12 件。
+`scripts/commerce/seed-monitor-catalog.ps1` 可在已更新的目标门户导入，重复运行保留商品、销售单元编号及库存。
+
+在独立 V7 数据副本上按 Flyway 升到 V8，四款旧商品及销售单元编号和库存绑定一致。迁移保持商品事件版本，下一次价格事件使对应库存版本从 5 连续推进到 6。
+Elasticsearch 9.5.6 和停机后的 MySQL 回退分别通过同样的 11 组 API 检查，商品结果、商品属性计数及销售规格计数一致。索引逐项核对 53 条文档，无差异。
+Chrome 从全站和店内筛出三款 27 英寸 QHD，打开详情切换套餐，核对价格库存，再向购物车加入两个独立库存销售单元并核对 2,698 元商品小计。测试购物车条目已移除。
+
+目录和商城 73 项测试、门户 58 项测试及最终候选镜像的快速回归通过。隔离运行、候选镜像和截图位于
+`%LOCALAPPDATA%/CommerceFlow/releases/monitor-spu-isolated-20261125/`。
+
+2026-11-25 日常依次发布目录服务 `6464fcf19436`、商城服务 `95caefaeb3ca` 和门户 `bb160b29a05b`。目录数据库容器与 `fairy-commerceflow_catalog-db-data` 原卷沿用，Flyway 从 V7 升至 V8。发布前的 V7 逻辑备份已在独立 MySQL 容器恢复核对。四款旧样品及各自原销售单元的编号、价格和库存绑定一致，另 42 个日常容器及 19 个日常 Compose 卷的清单一致。三枚原应用镜像已保留。
+
+店铺 5 新增 Cedar Play 27（商品 80，SKU 72、73，库存销售单元 80、81）和 Lumen Connect 27（商品 82，SKU 74，库存销售单元 82）。六张 WebP 的门户响应与源文件校验和一致。日常 Chrome 在全站与店内筛出三款 27 英寸 QHD，选择 Cedar 后显示两款。Cedar Play 27 两款套餐的可售量分别为 18 和 7，Lumen Connect 27 为 12。两款套餐各加入购物车一件，报价商品小计为 2,698 元。测试行已移除，原购物车商品行核对一致。
+
+日常 11 组搜索请求通过，实测 Elasticsearch 成功读取 10 次，回退 0 次。46 条索引文档逐项核对无差异，待同步事件为 0。备份及校验和、镜像锁、导入清单、Chrome 截图和 API 验收位于 `%LOCALAPPDATA%/CommerceFlow/releases/monitor-spu-daily-1795554191488/`。
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。
