@@ -17,9 +17,7 @@
             <a routerLink="/admin/inventory-reconciliation">库存对账与盘点 / Inventory reconciliation and stocktake</a>
           }
           @case ('PAYOUT') {
-            <button class="btn btn-link p-0" type="button" (click)="focusPayout()">
-              原打款处理 / Original payout
-            </button>
+            <button class="btn btn-link p-0" type="button" (click)="focusPayout()">原打款处理 / Original payout</button>
           }
           @case ('INVOICE') {
             <a [routerLink]="['/admin/invoices', orderId()]">原发票复核 / Original invoice review</a>

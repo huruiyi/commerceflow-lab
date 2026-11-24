@@ -232,3 +232,12 @@ docker exec $isolatedBroker /opt/kafka/bin/kafka-console-consumer.sh --bootstrap
    看板上的计数反映服务整体状态，单笔处理结果以各自账本为准。V52 未完成行以
    `order_cancellation_completion.completed_at IS NULL` 查询；订单服务取消协议告警使用订单库
    `order_process_managers` 的恢复状态。
+
+### 冻结账单与售后异常恢复
+
+| 现象 | 定位和恢复 |
+| --- | --- |
+| 账单可打开，库存或仓库凭证不可用 | 检查对应来源的健康检查及签名配置，再用原订单和出库号对照库存出库行与 WMS 实发回执。恢复来源后刷新同一账单，检查两项可用性及同一出库编号。历史订单的 WMS 回执可能为空，留存与来源停机不同的对账状态。 |
+| 部分退货停在入库或缺补充质检 | 用售后单号对照原出库号、WMS 实收和补充质检、支付退款单、库存行回补。确认原工单有权继续后，在原售后入口恢复；按售后单号查退款和库存入账的唯一记录，回到异常待办核对阶段。 |
+| 打款迟迟未确认或已失败 | 用账单号和尝试号查商家打款记录及模拟渠道回执。渠道已受理时使用同一请求等待查询补偿。渠道确认失败后从原打款入口恢复，关单前核对渠道成功金额及尝试号与复核关联。 |
+| 红票或通知回执积压 | 用退款单号查红票请求号和渠道回执，观察 `commerceflow_invoice_pending_oldest_seconds`。用事件 ID 查 PostgreSQL Inbox、投递与供应商请求号，结合 `commerceflow_notification_delivery_pending`、`commerceflow_notification_delivery_oldest_seconds` 和 `commerceflow_notification_consumer_lag` 确认恢复。供应商已受理时核对原请求号，回执缺失时使用现有查询或恢复入口。 |

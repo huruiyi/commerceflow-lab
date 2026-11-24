@@ -39,6 +39,7 @@ import vip.fairy.commerceflow.commerce.logistics.application.LogisticsNotificati
 import vip.fairy.commerceflow.commerce.logistics.application.LogisticsGatewayClient;
 import vip.fairy.commerceflow.commerce.logistics.application.contract.LogisticsFulfillmentV1;
 import vip.fairy.commerceflow.commerce.logistics.application.contract.LogisticsFulfillmentV1.Command;
+import vip.fairy.commerceflow.commerce.merchant.application.contract.v1.SettlementRefundV1;
 import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.Entry;
 import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.Statement;
 import vip.fairy.commerceflow.commerce.merchant.domain.MerchantPayout;
@@ -124,6 +125,7 @@ import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.when;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ActiveProfiles("test")
 @SpringBootTest(properties = {
@@ -225,6 +227,9 @@ class CommerceFlowIntegrationTest {
 
   @Autowired
   SettlementMapper settlementLedger;
+
+  @Autowired
+  SettlementRefundV1 settlementRefunds;
 
   @Autowired
   MerchantPayoutMapper payoutAttempts;
@@ -907,6 +912,35 @@ class CommerceFlowIntegrationTest {
     mvc.perform(get("/api/admin/stores/{shop}/statements/{statement}/reconciliation/reviews/{id}",
         merchant, statement, latest).session(admin.session()))
       .andExpect(status().isOk()).andExpect(jsonPath("$.requestId").value(latest));
+  }
+
+  @Test
+  @Transactional
+  void settlementUsesApprovedReturnAmountAndPreservesLegacyRefundAmounts() {
+    long order = 904322L;
+    long merchant = 5L;
+    String partial = UUID.randomUUID().toString();
+    String legacy = UUID.randomUUID().toString();
+    String insert = """
+      INSERT INTO line_after_sales(id,order_id,order_line_id,product_id,customer_id,merchant_id,quantity,
+        merchandise_amount,shipping_amount,currency,kind,status,reason,approved_quantity,approved_merchandise_amount)
+      VALUES (?,?,1,1,1,?,?,?,?,'CNY','RETURN','COMPLETED','Return',?,?)
+      """;
+    jdbc.update(insert, partial, order, merchant, 2, new BigDecimal("184.99"), BigDecimal.ZERO,
+      1, new BigDecimal("92.49"));
+    jdbc.update(insert, legacy, order, merchant, 1, new BigDecimal("80.00"), new BigDecimal("8.00"), null, null);
+    var locked = settlementRefunds.lockEvidence(order);
+    var reported = settlementRefunds.evidence(merchant, order);
+    assertEquals(2, locked.size());
+    assertEquals(2, reported.size());
+    assertTrue(reported.containsAll(locked));
+    var approved = reported.stream().filter(refund -> partial.equals(refund.id())).findFirst().orElseThrow();
+    var unchanged = reported.stream().filter(refund -> legacy.equals(refund.id())).findFirst().orElseThrow();
+    assertEquals(1, approved.quantity());
+    assertEquals(new BigDecimal("92.49"), approved.merchandise());
+    assertEquals(new BigDecimal("0.00"), approved.freight());
+    assertEquals(new BigDecimal("80.00"), unchanged.merchandise());
+    assertEquals(new BigDecimal("8.00"), unchanged.freight());
   }
 
   @Test

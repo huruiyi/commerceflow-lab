@@ -81,6 +81,33 @@ pwsh -File ./scripts/verify-all.ps1 -CleanupOnSuccess
 
 新卷初始化使用履约空库覆盖文件。演示库存同时写入商品总账和默认仓，保证报价与实际仓库预占使用一致的库存。
 
+### 4.4 商家运营组合回归
+
+在仓库根目录用 PowerShell 7 启动隔离项目。组合章节绑定检查门户、支付、物流、仓库和消息模拟器的端口及 Compose 标签。它会创建测试店铺、触发受控故障和重启隔离服务。
+
+```powershell
+. ./scripts/lib/release-acceptance.ps1
+Invoke-IsolatedAcceptance -SimulatorAdmin -MessagingFaults -CleanupOnSuccess -Verify {
+  param($Target)
+  $endpoints = $Target.Endpoints
+  $arguments = @{
+    Chapter = 'Operations'
+    ProjectName = $Target.Project
+    BaseUrl = $endpoints['commerce-portal-angular'].Url
+    PaymentBaseUrl = $endpoints['payment-simulator-web'].Url
+    LogisticsUrl = $endpoints['logistics-simulator-service'].Url
+    WarehouseBaseUrl = $endpoints['warehouse-simulator-web'].Url
+    MessagingBaseUrl = $endpoints['messaging-simulator-web'].Url
+    NotificationDatabase = 'PostgreSQL'
+  }
+  & ./scripts/commerce/verify-merchant-operations.ps1 @arguments
+}
+```
+
+输出包含正常出库和短发、补充质检、退款及红票、冻结账单、打款回执和异常结案的关联号。重点核对同一退货的实发、实收、合格件数、退款金额和红票引用，以及恢复后的单笔库存入账和成功打款。通知验收包含渠道接收后超时、查询恢复与重放。新卷报告初始归档为空。复用历史副本时核对记录中的五笔历史归档。
+
+同卷回退先锁定商城和门户的原镜像与候选、卷名、Flyway 版本、处置行和渠道回执，验证冷备可恢复后先把门户切回原镜像，再切商城。以原路径读取冻结账单和复核历史，然后先切回候选商城，再切候选门户。两次切换均核对 MySQL 容器及卷身份，恢复后确认处置回执、结案及待办可读。验收证据记录镜像 ID、备份校验和、全表基线及清理清单。
+
 ## 5. 改动类型与必跑门禁
 
 | 改动范围 | 最低门禁 | 附加门禁 |

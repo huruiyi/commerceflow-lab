@@ -26,7 +26,7 @@ public class SettlementRefundQuery implements SettlementRefundV1 {
   }
 
   private static Refund refund(LineAfterSale value) {
-    return new Refund(value.id(), value.orderLineId(), value.status(), value.merchandiseAmount(),
+    return new Refund(value.id(), value.orderLineId(), value.status(), value.executableMerchandiseAmount(),
       value.shippingAmount(), value.refundNumber(), value.executableQuantity());
   }
 }

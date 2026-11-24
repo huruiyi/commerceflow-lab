@@ -1,7 +1,7 @@
 #requires -Version 7.0
 param(
   [ValidateSet('Store','Settlement','Payout','Packages','Search','Warehouses','WmsOutbound','WmsReturn',
-    'ReturnWork','Offsite')][string]$Chapter='Store',
+    'ReturnWork','Offsite','Operations')][string]$Chapter='Store',
   [string]$BaseUrl='http://localhost:14200',
   [string]$PaymentBaseUrl='http://localhost:14201',
   [string]$LogisticsUrl='http://localhost:18083',
@@ -14,24 +14,40 @@ param(
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '../lib/checkout-verification.ps1')
 $isolated=$ProjectName-ne'fairy-commerceflow'
-if($isolated -and ($ProjectName-notmatch '^fairy-commerceflow-merchant-isolated-' -or
+$combined=$Chapter-eq'Operations'
+$verifyOffsite=$Chapter-in'Offsite','Operations'
+$isolatedPattern=if($combined){'^fairy-commerceflow-(merchant-isolated|acceptance)-[a-z0-9-]+$'}else{
+  '^fairy-commerceflow-merchant-isolated-'
+}
+if($combined -and !$isolated){throw 'Operations requires a dedicated isolated Compose project'}
+if($isolated -and ($ProjectName-notmatch $isolatedPattern -or
     !([uri]$BaseUrl).IsLoopback -or ([uri]$BaseUrl).Port-eq14200 -or
     !([uri]$PaymentBaseUrl).IsLoopback -or ([uri]$PaymentBaseUrl).Port-eq14201 -or
     !([uri]$LogisticsUrl).IsLoopback -or ([uri]$LogisticsUrl).Port-eq18083)){
   throw 'Invalid isolated merchant benchmark project'
 }
-$warehouseChapters=@('WmsOutbound','WmsReturn','ReturnWork','Offsite','Packages','Warehouses','Settlement')
+$warehouseChapters=@('WmsOutbound','WmsReturn','ReturnWork','Offsite','Packages','Warehouses','Settlement','Operations')
 if($Chapter-in$warehouseChapters -and (!([uri]$WarehouseBaseUrl).IsLoopback -or
     ($isolated -and ([uri]$WarehouseBaseUrl).Port-eq18118))){
   throw 'Invalid warehouse acceptance endpoint'
 }
 
-if($Chapter-eq'Offsite' -and (!([uri]$MessagingBaseUrl).IsLoopback -or
+if($verifyOffsite -and (!([uri]$MessagingBaseUrl).IsLoopback -or
     ($isolated -and ([uri]$MessagingBaseUrl).Port-eq18119))){
   throw 'Invalid messaging acceptance endpoint'
 }
 
 . "$PSScriptRoot/../fulfillment/merchant-command.ps1"
+
+function Assert-OperationsEndpoint([string]$Service,[int]$ContainerPort,[string]$Url){
+  $target="$ProjectName-$Service-1"
+  $label=docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}/{{index .Config.Labels "com.docker.compose.service"}}' $target
+  if($LASTEXITCODE -or $label-ne"$ProjectName/$Service"){throw "Unexpected isolated service $Service"}
+  $binding=docker port $target "$ContainerPort/tcp"
+  if($LASTEXITCODE -or $binding-cne([uri]$Url).Authority -or ([uri]$Url).Port-lt20000){
+    throw "Unexpected isolated endpoint for $Service"
+  }
+}
 
 function Sql([string]$Service,[string]$Database,[string]$Query){
   $name=if($isolated){"$ProjectName-$Service-1"}else{"$ProjectName-$Service"}
@@ -84,6 +100,7 @@ function Archives {
   $orders=@(Sql order-db orders "SELECT CONCAT(id,'/',inventory_status,'/',total_amount) FROM shop_orders WHERE id IN (465,479,480,497,498) ORDER BY id")
   $commands=@(Sql commerce-db commerceflow "SELECT CONCAT(order_id,'/',status,'/',attempts,'/',payload_fingerprint) FROM inventory_command_delivery_outbox WHERE command_id IN ('order:465:reserve','order:479:reserve','order:480:reserve','order:497:reserve','order:498:reserve') ORDER BY order_id")
   $movements=Sql inventory-db inventory 'SELECT COUNT(*) FROM inventory_movements WHERE order_id IN (465,479,480,497,498)'
+  if($combined -and !$orders.Count -and !$commands.Count -and $movements-eq'0'){return 'FRESH'}
   if($orders.Count-ne5 -or $commands.Count-ne5 -or @($orders-notmatch'/TEST_DATA_ARCHIVED/').Count -or
       @($commands-notmatch'/CLOSED/5/').Count -or $movements-ne'0'){throw 'Missing five preserved archives'}
   ($orders+$commands+$movements)-join'|'
@@ -531,6 +548,14 @@ function Verify-WmsOutbound($shop){
       docker restart $wms|Out-Null
       if($LASTEXITCODE){throw 'Could not restart isolated warehouse'}
       $null=Wait-Value {if((docker inspect --format '{{.State.Health.Status}}' $wms)-eq'healthy'){$true}} 'WMS did not restart'
+      $null=Wait-Value {
+        try{
+          $recovered=Warehouse-Api "?orderId=$id&jobId=$($task.id)"
+          if($recovered.Count-eq1 -and $recovered[0].actual[0].quantity-eq1){$true}
+        }catch [System.Threading.Tasks.TaskCanceledException]{
+          $null
+        }
+      } 'Warehouse Web did not read the original dispatch after restart'
       if((Confirm-WarehousePackage $task 1).actual[0].quantity-ne1){throw 'Warehouse receipt changed after restart'}
       Warehouse-Api "/$($task.id)/result" Put @{warehouseId=1;lines=@(@{orderLineId=$line;quantity=0})} 409
     }finally{
@@ -814,12 +839,22 @@ function Verify-ReturnWork($shop){
     if($value.packages[0].status-eq'DELIVERED' -and $value.logisticsDeliveredAt){$value}
   } 'Expected dispatched package delivery'
   Api $buyer "/api/purchase-orders/$id/receive" Post @{}|Out-Null
+  if($combined){
+    $invoicePath="/api/purchase-orders/$id/invoices"
+    $null=Api $buyer $invoicePath Post
+    $blue=Wait-Value {
+      $invoice=Api $buyer $invoicePath
+      if($invoice.status-eq'ISSUED' -and $invoice.issue.invoiceNo -and $invoice.issue.amount-eq$order.totalAmount){
+        $invoice.issue
+      }
+    } 'Original blue invoice did not reach confirmed issue'
+  }
   $caseUrl="/api/purchase-orders/$id/after-sales"
   $line=$order.items[0].id
   $request=@{orderLineId=$line;quantity=2;warehouseId=2;outboundId=$outbound;
     requestId=[guid]::NewGuid();reason='Return two items from the original package'}
   $sale=Api $buyer $caseUrl Post $request
-  if($Chapter-eq'Offsite' -and $isolated){
+  if($verifyOffsite -and $isolated){
     $eventId="offsite-work:$($sale.id)"
     $sms=Message-RequestId $eventId SMS
     $mail=Message-RequestId $eventId EMAIL
@@ -834,6 +869,10 @@ function Verify-ReturnWork($shop){
   $key=$sale.id
   $workUrl="/api/merchant/return-work-orders/$key"
   $actionUrl="$workUrl/actions"
+  if($combined){
+    $queue=Api $shop.actor "/api/merchant/exception-work?kind=RETURN_WORK&state=OPEN&orderId=$id"
+    if($queue.total-ne1 -or $queue.rows[0].sourceId-ne$key){throw 'Original return missing from open queue'}
+  }
   if($ticket.phase-ne'OPEN' -or $ticket.outboundId-ne$outbound -or $ticket.warehouseId-ne2 -or
       $ticket.requestedQuantity-ne2 -or $ticket.receivedQuantity-ne1){throw 'Work order lost its warehouse evidence'}
   $approve=@{requestId=[guid]::NewGuid();action='APPROVE';quantity=1;note='Approve the single qualified item'}
@@ -882,6 +921,14 @@ function Verify-ReturnWork($shop){
   }
   $done=Wait-ReturnCase $sale COMPLETED SHORT_RECEIVED
   $resolved=Api $shop.actor $workUrl
+  if($combined){
+    $queue=Api $shop.actor "/api/merchant/exception-work?kind=RETURN_WORK&state=CLOSED&orderId=$id"
+    if($queue.total-ne1 -or $queue.rows[0].sourceId-ne$key){throw 'Original return was not closed in the queue'}
+    $red=Wait-Value {
+      $invoice=Api $buyer $invoicePath
+      if($invoice.effectiveAmount-eq($order.totalAmount-92.49)){$invoice}
+    } 'Partial return did not generate the matching red invoice'
+  }
   $credit=Sql inventory-db inventory "SELECT CONCAT(warehouse_id,'/',outbound_id,'/',quantity) FROM inventory_line_credits WHERE case_id='$key'"
   $movement=Sql inventory-db inventory "SELECT CONCAT(COUNT(*),'/',SUM(quantity)) FROM inventory_movements WHERE order_id=$id AND warehouse_id=2 AND movement_type='RETURN_RESTOCKED'"
   $payment=Sql payment-db payments "SELECT refunded_amount FROM payment_records WHERE order_id=$id AND status='SUCCESS'"
@@ -926,7 +973,13 @@ function Verify-ReturnWork($shop){
   }
   $result=@{partialOrder=$id;deniedOrder=$other.id;workOrder=$key;warehouse=2;approved=1;refund=92.49;
     remainingRefund=92.50;freight=12.01;restockRecoveryVerified=$isolated}
-  if($Chapter-eq'Offsite'){
+  if($combined){
+    $result.blueInvoice=$blue.invoiceNo
+    $result.effectiveInvoice=$red.effectiveAmount
+    $result.outboundId=$outbound
+    $result.refundNumber=$done.refundNumber
+  }
+  if($verifyOffsite){
     $owner=Sql payment-db payments "SELECT customer_id FROM refund_records WHERE refund_number='$($done.refundNumber)'"
     $result.refundNotice=Assert-Offsite REFUND_SUCCEEDED $done.refundNumber $id $owner
     $result.workNotice=Assert-Offsite RETURN_WORK_OPENED $key $id $shop.id $isolated
@@ -1200,12 +1253,16 @@ function Start-PayoutRecovery($shop,[string]$Path,[string]$FailedId){
   return $id
 }
 
-function Verify-Payout($shop,$product){
+function Verify-Payout($shop,$product,$statement,$order){
   $base="/api/admin/stores/$($shop.id)"
-  Api $admin "$base/settlement" Put @{commissionBps=500}|Out-Null
-  $order=Complete-Order $shop $product 1
-  $statement=Api $admin "$base/statements" Post @{requestId=[guid]::NewGuid()}
-  Assert-Statement $statement 80 0 4 76
+  if(!$statement){
+    Api $admin "$base/settlement" Put @{commissionBps=500}|Out-Null
+    $order=Complete-Order $shop $product 1
+    $statement=Api $admin "$base/statements" Post @{requestId=[guid]::NewGuid()}
+    Assert-Statement $statement 80 0 4 76
+  }
+  $amount=[decimal]$statement.payable
+  $expected=$amount.ToString('0.00',[Globalization.CultureInfo]::InvariantCulture)
   $reference=$statement.id
   $path="$base/statements/$reference/payouts"
   Reject $shop.actor $path Post @{requestId=[guid]::NewGuid()} @(403)
@@ -1216,12 +1273,26 @@ function Verify-Payout($shop,$product){
     if((Sql payment-simulator-db payment_platform "SELECT status FROM channel_payouts WHERE attempt_id='$($failed.id)'")-ne'FAILED'){
       throw 'The channel did not confirm the failed payout'
     }
+    if($combined){
+      $reviews="$base/statements/$reference/reconciliation/reviews"
+      $review=Api $admin $reviews Post @{
+        requestId=[guid]::NewGuid();page=0;size=10;decision='CONFIRMED';reason='Original channel confirmed the failed payout'
+        target=@{kind='PAYOUT_FAILED';reference=$failed.id;expected=$amount}
+      }
+      $disposition="$reviews/$($review.requestId)/disposition"
+      $closure=@{requestId=[guid]::NewGuid();reason='Original channel confirmed the recovered amount'}
+      Reject $admin "$disposition/closure" Post $closure @(409)
+      Reject $admin "$disposition/receipts" Post @{requestId=[guid]::NewGuid();receipt=$failed.id} @(409)
+      Reject $shop.actor $disposition Get $null @(403)
+      $queue=Api $shop.actor '/api/merchant/exception-work?kind=STATEMENT_DIFFERENCE&state=WAITING_EVIDENCE'
+      if($queue.total-ne1 -or $queue.rows[0].sourceId-ne$review.requestId){throw 'Missing confirmed payout exception'}
+    }
     $id=Start-PayoutRecovery $shop $path $failed.id
   }else{
     $id=(Api $admin $path Post @{requestId=[guid]::NewGuid()}).id
   }
   $success=Wait-Payout $shop $reference $id 'SUCCEEDED'
-  if($success.amount-ne76 -or !$success.channelPayoutNo -or
+  if($success.amount-ne$amount -or !$success.channelPayoutNo -or
       (Api $admin $path Post @{requestId=[guid]::NewGuid()}).id-ne$id){
     throw 'Successful payout did not protect the original statement'
   }
@@ -1238,15 +1309,75 @@ function Verify-Payout($shop,$product){
     $wrong=Invoke-WebRequest "$BaseUrl/api/payout-notifications" @fake
     if($wrong.StatusCode-ne401){throw 'Unauthenticated payout callback was accepted'}
   }
+  if($combined){
+    $link=@{requestId=[guid]::NewGuid();receipt=$id}
+    $linked=Api $admin "$disposition/receipts" Post $link
+    $closed=Api $admin "$disposition/closure" Post $closure
+    $replay=Api $admin "$disposition/closure" Post $closure
+    $queue=Api $shop.actor '/api/merchant/exception-work?kind=STATEMENT_DIFFERENCE&state=CLOSED'
+    if($linked.status-ne'EVIDENCE_LINKED' -or $closed.status-ne'CLOSED' -or $closed.record.receipt-ne$id -or
+        $replay.record.closedAt-ne$closed.record.closedAt -or $queue.total-ne1 -or $queue.rows[0].sourceId-ne$review.requestId){
+      throw 'Payout receipt, disposition replay or queue closure did not reconcile'
+    }
+  }
   $channel=Sql payment-simulator-db payment_platform "SELECT CONCAT(COUNT(*),'/',SUM(amount)) FROM channel_payouts WHERE statement_id='$reference' AND status='SUCCEEDED'"
-  if($channel-ne'1/76.00' -or
-      (Sql payment-db payments "SELECT CONCAT(amount,'/',refunded_amount) FROM payment_records WHERE order_id=$($order.id) AND status='SUCCESS'")-ne'80.00/0.00'){
+  if($channel-ne"1/$expected" -or (!$combined -and
+      (Sql payment-db payments "SELECT CONCAT(amount,'/',refunded_amount) FROM payment_records WHERE order_id=$($order.id) AND status='SUCCESS'")-ne'80.00/0.00')){
     throw 'Payout, payment and original statement do not reconcile'
   }
   [ordered]@{order=$order.id;statement=$reference;attempt=$id;channel=$success.channelPayoutNo;amount=$success.amount;
-    failureAndRecovery=$isolated;duplicateCallback=$isolated;successfulChannelRows=1}
+    failureAndRecovery=$isolated;duplicateCallback=$isolated;successfulChannelRows=1;review=$review.requestId}
 }
 
+function Verify-OperationsStatement($shop,$returned){
+  $id=[long]$returned.partialOrder
+  $orderPath="/api/purchase-orders/$id"
+  Sql commerce-db commerceflow "UPDATE scheduled_tasks SET due_at=TIMESTAMPADD(SECOND,-1,UTC_TIMESTAMP(6)),
+    primary_trigger_snapshot='DATABASE' WHERE task_type='AUTO_COMPLETE' AND task_key='order:$id' AND status='SCHEDULED'"|Out-Null
+  $order=Wait-Value {
+    $value=Api $buyer $orderPath
+    if($value.status-eq'COMPLETED'){$value}
+  } 'Returned order did not complete'
+  $base="/api/admin/stores/$($shop.id)/statements"
+  $statement=Test-FreezeRecovery $shop $base @{requestId=[guid]::NewGuid()}
+  if(!$statement.id){throw 'Returned order was not frozen'}
+  $uri="/api/merchant/settlement/statements/$($statement.id)/reconciliation"
+  $proof=Wait-Value {
+    $report=Api $shop.actor $uri
+    $check=$report.orders|Where-Object orderId -eq $id
+    if($check.fulfillment.inventoryAvailable -and $check.fulfillment.warehouseAvailable){$check}
+  } "Both fulfillment sources were not ready for returned order $id"
+  $dispatch=$proof.fulfillment.dispatches|Where-Object outboundId -eq $returned.outboundId
+  $inventory=$proof.fulfillment.inventory|Where-Object outboundId -eq $returned.outboundId
+  $arrival=$proof.fulfillment.returns|Where-Object {$_.receipt.returnId-eq$returned.workOrder}
+  if($inventory.quantity-ne2 -or $dispatch.actual[0].quantity-ne2 -or !$arrival.receipt.supplementId -or
+      $arrival.receipt.receivedQuantity-ne1 -or $arrival.receipt.qualifiedQuantity-ne1 -or $arrival.refundedQuantity-ne1){
+    throw "Inventory, dispatch and return do not reconcile for order ${id}: $($returned|ConvertTo-Json -Compress -Depth 5)"
+  }
+  if($proof.refundNumbers-notcontains$returned.refundNumber -or [decimal]$proof.refundedAmount-ne[decimal]$returned.refund -or
+      $proof.blueInvoiceNumber-ne$returned.blueInvoice -or !$proof.redInvoiceNumbers.Count -or
+      [decimal]$proof.netInvoice-ne[decimal]$returned.effectiveInvoice -or
+      $proof.differences.Count -or $proof.fulfillment.differences.Count){
+    throw "Refund, invoice and statement do not reconcile for order ${id}: $($returned|ConvertTo-Json -Compress -Depth 5)"
+  }
+  $payout=Verify-Payout $shop $null $statement $order
+  @{statement=$statement.id;order=$id;payment=$proof.paymentNumber;refund=$returned.refundNumber;
+    redInvoices=$proof.redInvoiceNumbers;dispatched=$dispatch.actual[0].quantity;
+    received=$arrival.receipt.receivedQuantity;qualified=$arrival.receipt.qualifiedQuantity;payout=$payout}
+}
+
+if($combined){
+  Assert-OperationsEndpoint commerce-portal-angular 80 $BaseUrl
+  Assert-OperationsEndpoint payment-simulator-web 80 $PaymentBaseUrl
+  Assert-OperationsEndpoint logistics-simulator-service 8080 $LogisticsUrl
+  Assert-OperationsEndpoint warehouse-simulator-web 80 $WarehouseBaseUrl
+  Assert-OperationsEndpoint messaging-simulator-web 80 $MessagingBaseUrl
+  $messaging=docker inspect "$ProjectName-messaging-simulator-service-1" | ConvertFrom-Json
+  if($LASTEXITCODE -or $messaging.Config.Labels.'com.docker.compose.project'-cne$ProjectName -or
+      $messaging.Config.Env-cnotcontains'MESSAGING_FAULTS_ENABLED=true'){
+    throw 'Operations requires isolated messaging fault injection'
+  }
+}
 $archive=Archives
 $buyer=Session 'demo@example.com'
 $original=Session 'merchant@example.com'
@@ -1258,6 +1389,32 @@ if($baselineShop.status-ne'ACTIVE' -or $baselineProduct.merchantId-ne$baselineSh
 $shop=Open-FixtureStore
 $otherShop=$null
 try{
+  if($combined){
+    if(!(Api $admin '/api/auth/me').invoiceEnabled){throw 'Operations requires the isolated invoice service'}
+    if(!(Api $buyer '/api/addresses/selected').addressId){
+      $address=Api $buyer '/api/addresses' Post @{
+        recipientName='Acceptance Customer';phone='13800000000';countryCode='CN';stateProvince='Shanghai'
+        city='Shanghai';district='Pudong';addressLine1='1 Isolated Lab Road';postalCode='200120';label='Acceptance'
+        isDefault=$true
+      }
+      $null=Api $buyer "/api/addresses/$($address.id)/select" Put @{}
+    }
+    Write-Host 'Verifying normal and short warehouse dispatch'
+    $otherShop=Open-FixtureStore
+    $outbounds=Verify-WmsOutbound $otherShop
+    Write-Host 'Verifying return evidence, refund, red invoice and notification recovery'
+    $null=Api $admin "/api/admin/stores/$($shop.id)/settlement" Put @{commissionBps=500}
+    $returned=Verify-ReturnWork $shop
+    Write-Host 'Verifying statement recovery, payout and exception closure'
+    $statement=Verify-OperationsStatement $shop $returned
+    if((Archives)-ne$archive){throw 'Historical archives changed'}
+    $actualCart=@(Api $buyer '/api/cart' | Sort-Object id | ForEach-Object {"$($_.id)/$($_.productId)/$($_.quantity)"}) -join '|'
+    if($actualCart-ne$originalCart){throw 'Pre-existing cart items changed'}
+    [ordered]@{chapter=$Chapter;project=$ProjectName;outbounds=$outbounds;afterSale=$returned;statement=$statement;
+      archiveBaseline=if($archive-eq'FRESH'){'empty'}else{'five preserved orders'};cartUnchanged=$true}|
+      ConvertTo-Json -Depth 9
+    return
+  }
   if($Chapter-in'Warehouses','WmsOutbound','WmsReturn','ReturnWork','Offsite'){
     $result=switch($Chapter){
       'WmsReturn' { Verify-WmsReturn $shop }

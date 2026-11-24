@@ -12,7 +12,11 @@ public record LineAfterSale(String id, Long orderId, Long orderLineId, Long prod
     return approvedQuantity == null ? quantity : approvedQuantity;
   }
 
+  public BigDecimal executableMerchandiseAmount() {
+    return approvedMerchandiseAmount == null ? merchandiseAmount : approvedMerchandiseAmount;
+  }
+
   public BigDecimal total() {
-    return (approvedMerchandiseAmount == null ? merchandiseAmount : approvedMerchandiseAmount).add(shippingAmount);
+    return executableMerchandiseAmount().add(shippingAmount);
   }
 }

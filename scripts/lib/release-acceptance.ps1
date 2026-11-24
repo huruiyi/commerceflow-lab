@@ -21,11 +21,12 @@ function Assert-AcceptanceHealth($Target) {
 function Invoke-IsolatedAcceptance {
   param(
     [string]$BaseUrl, [switch]$SkipBuild, [switch]$Full, [string]$ProjectName,
-    [switch]$CleanupOnSuccess, [switch]$SimulatorAdmin,
+    [switch]$CleanupOnSuccess, [switch]$SimulatorAdmin, [switch]$MessagingFaults,
     [ValidateRange(30, 420)][int]$WaitSeconds = 420,
     [ValidateSet('rabbitmq','rocketmq')][string[]]$BrokerProfiles,
     [scriptblock]$Initialize, [scriptblock]$Verify, [scriptblock]$Cleanup
   )
+  if ($MessagingFaults -and !$SimulatorAdmin) { throw 'MessagingFaults requires SimulatorAdmin' }
 
   $requestedPort = 0
   if ($BaseUrl) {
@@ -190,6 +191,12 @@ function Invoke-IsolatedAcceptance {
         'payment-simulator-service' {
           $yaml.Add('    environment:')
           $yaml.Add("      PAYMENT_CHECKOUT_BASE_URL: $($endpoints['payment-simulator-web'].Url)")
+        }
+        'messaging-simulator-service' {
+          if ($MessagingFaults) {
+            $yaml.Add('    environment:')
+            $yaml.Add('      MESSAGING_FAULTS_ENABLED: "true"')
+          }
         }
       }
     }
