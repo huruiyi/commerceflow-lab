@@ -1,82 +1,57 @@
-<section class="container py-4" [attr.aria-busy]="busy()">
-  <a routerLink="/merchant/products">返回商品 / Products</a>
-  <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-    <h1 class="h4 mb-0">SKU 管理 / SKU management · #{{ productId }}</h1>
-    <div class="d-flex gap-2">
-      <button class="btn btn-outline-secondary" type="button" [disabled]="busy()" (click)="load()">
-        刷新 / Refresh
+<section class="sku-page" [attr.aria-busy]="busy()" aria-labelledby="sku-title">
+  <a class="sku-back" routerLink="/merchant/products">
+    <i class="bi bi-arrow-left" aria-hidden="true"></i>{{ i18n.t('catalogBackToResults') }}
+  </a>
+
+  <header class="sku-panel sku-heading">
+    <div class="sku-identity">
+      @if (product(); as item) {
+        <app-catalog-image [primary]="item.thumbnailUrl" [secondary]="item.imageUrl" />
+      }
+      <div>
+        <h1 id="sku-title">{{ i18n.t('merchantSkuHeading') }}</h1>
+        <p>
+          @if (product(); as item) {
+            <span>{{ item.name }}</span>
+          }
+          <small>#{{ productId }}</small>
+        </p>
+      </div>
+    </div>
+    <div class="sku-actions">
+      <button hlmBtn variant="outline" type="button" [disabled]="busy()" (click)="load()">
+        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>{{ i18n.t('merchantRefresh') }}
       </button>
-      <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="open()">添加 SKU / Add SKU</button>
+      <button hlmBtn type="button" [disabled]="busy()" (click)="open()">
+        <i class="bi bi-plus-lg" aria-hidden="true"></i>{{ i18n.t('merchantSkuAdd') }}
+      </button>
     </div>
   </header>
+
   @if (saved()) {
-    <p role="status" class="text-success">SKU 已保存 / SKU saved</p>
-  }
-  @if (error()) {
-    <p role="alert" class="alert alert-warning">{{ error() }}</p>
-  }
-  @if (skus().length) {
-    <div class="table-responsive">
-      <table class="table align-middle">
-        <thead>
-          <tr>
-            <th scope="col">SKU 编码 / SKU code</th>
-            <th scope="col">规格 / Specifications</th>
-            <th scope="col">售价 / Price</th>
-            <th scope="col">库存商品号 / Stock product ID</th>
-            <th scope="col">状态 / Status</th>
-            <th scope="col">操作 / Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (sku of skus(); track sku.skuId) {
-            <tr [attr.data-sku-id]="sku.skuId">
-              <td>
-                {{ sku.code }}
-                @if (sku.defaultSku) {
-                  <small>默认 / Default</small>
-                }
-              </td>
-              <td>
-                @for (specification of sku.specifications | keyvalue; track specification.key) {
-                  <span class="d-block">{{ specification.key }} · {{ specification.value }}</span>
-                } @empty {
-                  —
-                }
-              </td>
-              <td>{{ sku.unitPrice | currency: 'CNY' }}</td>
-              <td>
-                @if (sku.stockProductId; as stockId) {
-                  <a routerLink="/merchant/inventory">#{{ stockId }}</a>
-                } @else {
-                  —
-                }
-              </td>
-              <td>{{ sku.status === 'ACTIVE' ? '启用 / Active' : '停用 / Inactive' }}</td>
-              <td>
-                <button class="btn btn-sm btn-outline-primary" type="button" [disabled]="busy()" (click)="open(sku)">
-                  编辑 / Edit
-                </button>
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
+    <div hlmAlert role="status">
+      <i class="bi bi-check2-circle" aria-hidden="true"></i><span>{{ i18n.t('merchantSkuSaved') }}</span>
     </div>
   }
+  @if (error()) {
+    <div hlmAlert variant="destructive" role="alert">{{ error() }}</div>
+  }
+
   @if (formOpen()) {
-    <form #skuForm="ngForm" class="border rounded p-3" (ngSubmit)="save()">
-      <h2 class="h5">{{ editing() ? '编辑 SKU / Edit SKU' : '添加 SKU / Add SKU' }}</h2>
-      <fieldset [disabled]="busy()">
-        <div class="row g-3 mb-3">
-          <label class="col-md-4">
-            SKU 编码 / SKU code
+    <form #skuForm="ngForm" class="sku-panel sku-editor" (ngSubmit)="save()" aria-labelledby="sku-form-title">
+      <header class="sku-section-heading">
+        <h2 id="sku-form-title" tabindex="-1">{{ i18n.t(editing() ? 'merchantSkuEdit' : 'merchantSkuAdd') }}</h2>
+      </header>
+      <fieldset class="sku-form-fields" [disabled]="busy()">
+        <div class="sku-field-grid">
+          <label>
+            {{ i18n.t('merchantSkuCode') }}
             <input class="form-control" [(ngModel)]="code" name="code" maxlength="64" required />
           </label>
-          <label class="col-md-4">
-            售价 / Price (CNY)
+          <label>
+            {{ i18n.t('unitPrice') }} (CNY)
             <input
-              class="form-control"
+              class="form-control sku-number"
               type="number"
               [min]="editing()?.defaultSku ? 0 : 0.01"
               step="0.01"
@@ -86,65 +61,152 @@
               [readonly]="editing()?.defaultSku"
             />
           </label>
-          <label class="col-md-4">
-            状态 / Status
+          <label>
+            {{ i18n.t('status') }}
             <select class="form-select" [(ngModel)]="status" name="status" [disabled]="editing()?.defaultSku === true">
-              <option value="ACTIVE">启用 / Active</option>
-              <option value="INACTIVE">停用 / Inactive</option>
+              <option value="ACTIVE">{{ i18n.t('merchantSkuActive') }}</option>
+              <option value="INACTIVE">{{ i18n.t('merchantSkuInactive') }}</option>
             </select>
           </label>
         </div>
         @if (editing()?.defaultSku) {
-          <p class="text-secondary">
-            默认 SKU 的售价与状态在商品编辑页维护 / Edit the product to change the default SKU price and status.
-          </p>
-        } @else if (!editing()) {
-          @for (specification of specifications; track $index) {
-            <div class="d-flex flex-wrap gap-2 align-items-end mb-2">
-              <label>
-                规格名 / Name
-                <input
-                  class="form-control"
-                  name="specName{{ $index }}"
-                  maxlength="32"
-                  [(ngModel)]="specification.name"
-                  required
-                />
-              </label>
-              <label>
-                规格值 / Value
-                <input
-                  class="form-control"
-                  name="specValue{{ $index }}"
-                  maxlength="48"
-                  [(ngModel)]="specification.value"
-                  required
-                />
-              </label>
-              <button
-                class="btn btn-outline-secondary"
-                type="button"
-                [disabled]="specifications.length === 1"
-                (click)="removeSpecification($index)"
-              >
-                移除 / Remove
-              </button>
-            </div>
-          }
-          <button
-            class="btn btn-sm btn-outline-secondary mb-3"
-            type="button"
-            [disabled]="specifications.length >= 4"
-            (click)="addSpecification()"
-          >
-            添加规格 / Add specification
-          </button>
+          <p class="sku-hint">{{ i18n.t('merchantSkuDefaultHint') }}</p>
+        } @else if (editing(); as current) {
+          <dl class="sku-specs">
+            @for (spec of current.specifications | keyvalue; track spec.key) {
+              <div>
+                <dt>{{ spec.key }}</dt>
+                <dd>{{ spec.value }}</dd>
+              </div>
+            }
+          </dl>
+        } @else {
+          <div class="sku-spec-editor">
+            @for (specification of specifications; track $index) {
+              <div class="sku-spec-row">
+                <label>
+                  {{ i18n.t('merchantSkuSpecName') }}
+                  <input
+                    class="form-control"
+                    name="specName{{ $index }}"
+                    maxlength="32"
+                    [(ngModel)]="specification.name"
+                    required
+                  />
+                </label>
+                <label>
+                  {{ i18n.t('merchantSkuSpecValue') }}
+                  <input
+                    class="form-control"
+                    name="specValue{{ $index }}"
+                    maxlength="48"
+                    [(ngModel)]="specification.value"
+                    required
+                  />
+                </label>
+                <button
+                  hlmBtn
+                  variant="ghost"
+                  type="button"
+                  [disabled]="specifications.length === 1"
+                  (click)="removeSpecification($index)"
+                >
+                  {{ i18n.t('remove') }}
+                </button>
+              </div>
+            }
+            <button
+              hlmBtn
+              variant="outline"
+              type="button"
+              [disabled]="specifications.length >= 4"
+              (click)="addSpecification()"
+            >
+              <i class="bi bi-plus-lg" aria-hidden="true"></i>{{ i18n.t('merchantSkuAddSpec') }}
+            </button>
+          </div>
         }
-        <div class="d-flex gap-2">
-          <button class="btn btn-primary" type="submit" [disabled]="skuForm.invalid">保存 / Save</button>
-          <button class="btn btn-outline-secondary" type="button" (click)="formOpen.set(false)">取消 / Cancel</button>
+        <div class="sku-actions sku-form-actions">
+          <button hlmBtn variant="outline" type="button" (click)="formOpen.set(false)">{{ i18n.t('cancel') }}</button>
+          <button hlmBtn type="submit" [disabled]="skuForm.invalid">{{ i18n.t('merchantSkuSave') }}</button>
         </div>
       </fieldset>
     </form>
   }
+
+  <section class="sku-panel sku-list" aria-labelledby="sku-list-title">
+    <header class="sku-section-heading">
+      <h2 id="sku-list-title">{{ i18n.t('merchantSkuList') }}</h2>
+    </header>
+    @if (skus().length) {
+      <table class="sku-table" role="table">
+        <thead role="rowgroup">
+          <tr role="row">
+            <th scope="col" role="columnheader">{{ i18n.t('merchantSkuCode') }}</th>
+            <th scope="col" role="columnheader">{{ i18n.t('merchantSkuSpecs') }}</th>
+            <th scope="col" role="columnheader">{{ i18n.t('unitPrice') }}</th>
+            <th scope="col" role="columnheader">{{ i18n.t('merchantStockId') }}</th>
+            <th scope="col" role="columnheader">{{ i18n.t('status') }}</th>
+            <th scope="col" role="columnheader">{{ i18n.t('action') }}</th>
+          </tr>
+        </thead>
+        <tbody role="rowgroup">
+          @for (sku of skus(); track sku.skuId) {
+            <tr [attr.data-sku-id]="sku.skuId" role="row">
+              <th scope="row" class="sku-code" role="rowheader">
+                <strong>{{ sku.code }}</strong>
+                @if (sku.defaultSku) {
+                  <small>{{ i18n.t('catalogSkuDefaultOption') }}</small>
+                }
+              </th>
+              <td class="sku-specs-cell" [class.sku-specs-default]="sku.defaultSku" role="cell">
+                <span class="sku-mobile-label">{{ i18n.t('merchantSkuSpecs') }}</span>
+                @if (!sku.defaultSku) {
+                  <dl class="sku-specs">
+                    @for (spec of sku.specifications | keyvalue; track spec.key) {
+                      <div>
+                        <dt>{{ spec.key }}</dt>
+                        <dd>{{ spec.value }}</dd>
+                      </div>
+                    }
+                  </dl>
+                } @else {
+                  <span class="sku-muted">—</span>
+                }
+              </td>
+              <td role="cell">
+                <span class="sku-mobile-label">{{ i18n.t('unitPrice') }}</span>
+                <strong class="sku-number">{{
+                  sku.unitPrice | currency: 'CNY' : (i18n.locale() === 'zh-CN' ? 'symbol-narrow' : 'symbol')
+                }}</strong>
+              </td>
+              <td role="cell">
+                <span class="sku-mobile-label">{{ i18n.t('merchantStockId') }}</span>
+                @if (sku.stockProductId; as stockId) {
+                  <a class="sku-stock-link sku-number" routerLink="/merchant/inventory">#{{ stockId }}</a>
+                } @else {
+                  <span class="sku-muted">—</span>
+                }
+              </td>
+              <td role="cell">
+                <span class="sku-mobile-label">{{ i18n.t('status') }}</span>
+                <span class="sku-status" [class.is-active]="sku.status === 'ACTIVE'">
+                  {{ i18n.t(sku.status === 'ACTIVE' ? 'merchantSkuActive' : 'merchantSkuInactive') }}
+                </span>
+              </td>
+              <td class="sku-row-actions" role="cell">
+                <button hlmBtn variant="outline" size="sm" type="button" [disabled]="busy()" (click)="open(sku)">
+                  {{ i18n.t('edit') }}
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    } @else if (busy()) {
+      <p class="sku-list-message" role="status">{{ i18n.t('loading') }}</p>
+    } @else if (!error()) {
+      <p class="sku-list-message">{{ i18n.t('merchantSkuEmpty') }}</p>
+    }
+  </section>
 </section>

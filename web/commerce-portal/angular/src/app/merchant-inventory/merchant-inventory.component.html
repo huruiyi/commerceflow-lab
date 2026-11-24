@@ -5,7 +5,7 @@
       <p>{{ 'inventoryHelp' | t }}</p>
     </div>
     <button hlmBtn variant="outline" type="button" (click)="load()">
-      <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>{{ 'refreshStatus' | t }}
+      <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>{{ 'merchantInventoryRefresh' | t }}
     </button>
   </header>
 
@@ -30,14 +30,16 @@
         <thead role="rowgroup">
           <tr role="row">
             <th scope="col" role="columnheader">{{ 'productName' | t }}</th>
-            <th scope="col" role="columnheader">{{ 'availableStock' | t }}</th>
-            <th scope="col" role="columnheader">{{ 'reservedStock' | t }}</th>
-            <th scope="col" role="columnheader">{{ 'soldStock' | t }}</th>
-            <th scope="col" role="columnheader">{{ 'action' | t }}</th>
+            <th class="inventory-number" scope="col" role="columnheader">{{ 'availableStock' | t }}</th>
+            <th class="inventory-number" scope="col" role="columnheader">{{ 'reservedStock' | t }}</th>
+            <th class="inventory-number" scope="col" role="columnheader">{{ 'soldStock' | t }}</th>
+            <th class="inventory-action" scope="col" role="columnheader">{{ 'action' | t }}</th>
           </tr>
         </thead>
         <tbody role="rowgroup">
-          <ng-container *ngFor="let item of items">
+          @for (item of items; track item.productId) {
+            @let isExpanded = expanded.has(item.productId);
+            @let detailId = 'inventory-detail-' + item.productId;
             <tr class="inventory-stock-row" role="row">
               <td class="inventory-product" role="cell">
                 <div class="product-cell">
@@ -49,33 +51,39 @@
               </td>
               <td class="inventory-number" role="cell">
                 <span class="inventory-mobile-label">{{ 'availableStock' | t }}</span>
-                <span hlmBadge variant="secondary">{{ item.stockAvailable }}</span>
+                <strong class="inventory-available" [class.is-empty]="item.stockAvailable === 0">
+                  {{ item.stockAvailable | number: '1.0-0' }}
+                </strong>
               </td>
               <td class="inventory-number" role="cell">
                 <span class="inventory-mobile-label">{{ 'reservedStock' | t }}</span>
-                <span hlmBadge variant="outline">{{ item.stockReserved }}</span>
+                <span>{{ item.stockReserved | number: '1.0-0' }}</span>
               </td>
               <td class="inventory-number" role="cell">
                 <span class="inventory-mobile-label">{{ 'soldStock' | t }}</span>
-                <span>{{ item.stockSold }}</span>
+                <span>{{ item.stockSold | number: '1.0-0' }}</span>
               </td>
               <td class="inventory-action" role="cell">
                 <button
                   hlmBtn
-                  variant="outline"
+                  class="inventory-toggle"
+                  variant="ghost"
                   size="sm"
                   type="button"
                   (click)="toggle(item)"
-                  [attr.aria-expanded]="expanded.has(item.productId)"
+                  [attr.aria-expanded]="isExpanded"
+                  [attr.aria-controls]="isExpanded ? detailId : null"
                 >
-                  {{ expanded.has(item.productId) ? ('hideDetails' | t) : ('inventoryManage' | t) }}
+                  {{ (isExpanded ? 'hideDetails' : 'inventoryManage') | t }}
+                  <i class="bi bi-chevron-down" aria-hidden="true"></i>
                 </button>
               </td>
             </tr>
-            <tr *ngIf="expanded.has(item.productId)" class="inventory-detail-row" role="row">
+            <tr *ngIf="isExpanded" class="inventory-detail-row" [id]="detailId" role="row">
               <td colspan="5" role="cell">
                 <div class="inventory-detail">
-                  <form (ngSubmit)="adjust(item)">
+                  <form class="inventory-subcard adjustment-form" (ngSubmit)="adjust(item)">
+                    <h3>{{ 'merchantInventoryAdjustment' | t }}</h3>
                     <label>
                       {{ 'fulfillmentWarehouse' | t }}
                       <select
@@ -121,32 +129,38 @@
                       {{ saving.has(item.productId) ? ('savingInventory' | t) : ('applyInventoryAdjustment' | t) }}
                     </button>
                   </form>
-                  <section class="movement-list">
-                    <h3>{{ 'inventoryMovements' | t }}</h3>
+                  @let currentPage = movementPages[item.productId];
+                  @let isLoading = loadingMovements.has(item.productId);
+                  <section
+                    class="inventory-subcard movement-list"
+                    [attr.aria-labelledby]="'inventory-movements-' + item.productId"
+                    [attr.aria-busy]="isLoading"
+                  >
+                    <h3 [id]="'inventory-movements-' + item.productId">{{ 'inventoryMovements' | t }}</h3>
                     @if (failedMovements.has(item.productId)) {
                       <div role="alert" class="movement-empty">
                         {{ 'requestFailed' | t }}
                         <button
                           type="button"
                           class="btn btn-sm btn-outline-secondary"
-                          (click)="loadMovements(item.productId, movementPages[item.productId]?.page)"
+                          (click)="retryMovements(item.productId)"
                         >
                           {{ 'retry' | t }}
                         </button>
                       </div>
-                    } @else if (loadingMovements.has(item.productId)) {
+                    } @else if (isLoading && !currentPage) {
                       <p role="status" class="movement-empty">{{ 'loading' | t }}</p>
                     }
-                    @if (movementPages[item.productId]; as page) {
+                    @if (currentPage; as page) {
                       <app-list-pagination
                         class="admin-pagination"
                         [page]="page.page"
                         [totalPages]="movementPageCount(page)"
                         [label]="'inventoryMovements' | t"
-                        [loading]="loadingMovements.has(item.productId) || saving.has(item.productId)"
+                        [loading]="isLoading || saving.has(item.productId)"
                         (pageChange)="loadMovements(item.productId, $event)"
                       />
-                      @if (!page.rows.length && !loadingMovements.has(item.productId)) {
+                      @if (!page.rows.length) {
                         <p class="movement-empty">{{ 'noInventoryMovements' | t }}</p>
                       }
                       <ol>
@@ -169,7 +183,7 @@
                 </div>
               </td>
             </tr>
-          </ng-container>
+          }
         </tbody>
       </table>
     </div>

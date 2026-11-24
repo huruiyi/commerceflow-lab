@@ -1,19 +1,30 @@
 import { CurrencyPipe, KeyValuePipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { afterNextRender, Component, DestroyRef, ElementRef, inject, Injector, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { HlmAlertImports } from '@spartan-ng/helm/alert';
+import { HlmButton } from '@spartan-ng/helm/button';
 import { finalize, Observable } from 'rxjs';
 import { CatalogSku } from 'src/model/ICatalogSku';
+import { CatalogImageComponent } from '../dashboard/catalog-image.component';
+import { ApiService, MerchantProduct } from '../services/api.service';
+import { I18nService } from '../services/i18n.service';
 
 @Component({
-  imports: [CurrencyPipe, KeyValuePipe, FormsModule, RouterLink],
+  imports: [CurrencyPipe, KeyValuePipe, FormsModule, RouterLink, HlmButton, HlmAlertImports, CatalogImageComponent],
   templateUrl: './merchant-skus.component.html',
+  styleUrl: './merchant-skus.component.css',
 })
 export class MerchantSkusComponent {
   private readonly http = inject(HttpClient);
   private readonly destroy = inject(DestroyRef);
+  private readonly host: ElementRef<HTMLElement> = inject(ElementRef);
+  private readonly injector = inject(Injector);
+  private readonly api = inject(ApiService);
+  readonly i18n = inject(I18nService);
+  readonly product = signal<MerchantProduct | undefined>(undefined);
   readonly productId = Number(inject(ActivatedRoute).snapshot.paramMap.get('id'));
   private readonly endpoint = `/api/merchant/catalog/v1/products/${this.productId}/skus`;
   readonly skus = signal<CatalogSku[]>([]);
@@ -30,6 +41,13 @@ export class MerchantSkusComponent {
 
   constructor() {
     this.load();
+    this.api
+      .merchantProducts()
+      .pipe(takeUntilDestroyed(this.destroy))
+      .subscribe({
+        next: (items) => this.product.set(items.find((item) => item.productId === this.productId)),
+        error: () => this.product.set(undefined),
+      });
   }
 
   load(): void {
@@ -45,6 +63,9 @@ export class MerchantSkusComponent {
     this.formOpen.set(true);
     this.saved.set(false);
     this.error.set('');
+    afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('#sku-form-title')?.focus(), {
+      injector: this.injector,
+    });
   }
 
   addSpecification(): void {
@@ -72,7 +93,7 @@ export class MerchantSkusComponent {
         specs.some(([name, value]) => !name || !value) ||
         new Set(specs.map(([name]) => name.toLowerCase())).size !== specs.length
       ) {
-        this.error.set('请填写完整且不重复的规格 / Enter distinct specification names and values.');
+        this.error.set(this.i18n.t('merchantSkuInvalidSpecs'));
         return;
       }
       const body = { ...fields, specifications: Object.fromEntries(specs) };
@@ -101,7 +122,7 @@ export class MerchantSkusComponent {
       )
       .subscribe({
         next,
-        error: (error) => this.error.set(error.error?.message || '操作未完成 / Request failed'),
+        error: (error) => this.error.set(error.error?.message || this.i18n.t('requestFailed')),
       });
   }
 }

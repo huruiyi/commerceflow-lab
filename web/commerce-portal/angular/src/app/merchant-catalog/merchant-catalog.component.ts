@@ -1,7 +1,10 @@
 import { afterNextRender, Component, DestroyRef, ElementRef, inject, Injector, OnInit, signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { finalize, Observable } from 'rxjs';
+import { concatMap, finalize, from, last, tap } from 'rxjs';
 import { ApiService, MerchantProduct, ShippingTemplate } from '../services/api.service';
+
+type ProductUpdate = { area: 'profile' | 'price' | 'status'; value: object };
 
 @Component({
   standalone: false,
@@ -19,11 +22,14 @@ export class MerchantCatalogComponent implements OnInit {
   readonly loadFailed = signal(false);
   readonly saving = signal(false);
   readonly saveFailed = signal(false);
+  readonly productSaveError = signal<{ partial: boolean; conflict: boolean } | null>(null);
   readonly saved = signal(false);
   draft?: MerchantProduct;
+  creationOpen = false;
   creation = { name: '', description: '', unitPrice: 0.01, imageUrl: '' };
   private createRequest?: { key: string; content: string };
   shipping?: ShippingTemplate;
+  shippingDraft?: ShippingTemplate;
   readonly shippingBusy = signal(false);
   readonly shippingError = signal('');
   readonly shippingSaved = signal(false);
@@ -44,6 +50,26 @@ export class MerchantCatalogComponent implements OnInit {
       });
   }
 
+  editShipping(): void {
+    if (!this.shipping || this.shippingBusy()) return;
+    this.shippingDraft = {
+      defaultFee: this.shipping.defaultFee,
+      regions: this.shipping.regions.map((region) => ({ ...region })),
+    };
+    this.shippingError.set('');
+    this.shippingSaved.set(false);
+  }
+
+  cancelShipping(): void {
+    this.shippingDraft = undefined;
+    this.shippingError.set('');
+  }
+
+  trimShippingLeadingZeros(input: HTMLInputElement): void {
+    const amount = input.value.replace(/^0+(?=\d)/u, '');
+    if (amount !== input.value) input.value = amount;
+  }
+
   saveShipping(template: ShippingTemplate): void {
     if (this.shippingBusy()) return;
     this.shippingBusy.set(true);
@@ -58,6 +84,7 @@ export class MerchantCatalogComponent implements OnInit {
       .subscribe({
         next: (updated) => {
           this.shipping = updated;
+          this.shippingDraft = undefined;
           this.shippingSaved.set(true);
         },
         error: () => this.shippingError.set('shippingSaveFailed'),
@@ -66,6 +93,7 @@ export class MerchantCatalogComponent implements OnInit {
 
   ngOnInit(): void {
     this.load();
+    this.loadShipping();
   }
 
   load(): void {
@@ -90,6 +118,7 @@ export class MerchantCatalogComponent implements OnInit {
   edit(product: MerchantProduct, focus = false): void {
     this.draft = { ...product };
     this.saveFailed.set(false);
+    this.productSaveError.set(null);
     this.saved.set(false);
     if (focus) {
       afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('#merchant-edit-title')?.focus(), {
@@ -115,37 +144,78 @@ export class MerchantCatalogComponent implements OnInit {
           this.products.update((items) => [...items.filter((item) => item.productId !== product.productId), product]);
           this.creation = { name: '', description: '', unitPrice: 0.01, imageUrl: '' };
           this.createRequest = undefined;
+          this.creationOpen = false;
           this.edit(product, true);
         },
         error: () => this.saveFailed.set(true),
       });
   }
 
-  save(area: 'profile' | 'price' | 'status', product: MerchantProduct): void {
-    if (this.saving() || this.loading()) return;
-    const expectedVersion = product.businessVersion;
-    const { name, brief, description, imageUrl, thumbnailUrl, unitPrice, lifecycleStatus } = product;
-    const updates: Record<typeof area, object> = {
-      profile: { expectedVersion, name, brief, description, imageUrl, thumbnailUrl },
-      price: { expectedVersion, unitPrice },
-      status: { expectedVersion, status: lifecycleStatus },
-    };
+  hasProductChanges(product: MerchantProduct): boolean {
+    return this.productUpdates(product).length > 0;
+  }
+
+  saveProduct(product: MerchantProduct): void {
+    if (this.saving() || this.loading() || this.productSaveError()?.conflict) return;
+    const updates = this.productUpdates(product);
+    if (!updates.length) return;
+
+    const startingVersion = product.businessVersion;
+    let latest = product;
     this.saving.set(true);
-    this.saveFailed.set(false);
+    this.productSaveError.set(null);
     this.saved.set(false);
-    const request: Observable<MerchantProduct> = this.api.updateMerchantProduct(product.productId, area, updates[area]);
-    request
+    from(updates)
       .pipe(
+        concatMap(({ area, value }) =>
+          this.api.updateMerchantProduct(product.productId, area, {
+            ...value,
+            expectedVersion: latest.businessVersion,
+          }),
+        ),
+        tap((updated) => {
+          latest = updated;
+          product.businessVersion = updated.businessVersion;
+          this.products.update((items) => items.map((item) => (item.productId === updated.productId ? updated : item)));
+        }),
+        last(),
         takeUntilDestroyed(this.destroyRef),
         finalize(() => this.saving.set(false)),
       )
       .subscribe({
         next: (updated) => {
-          this.products.update((items) => items.map((item) => (item.productId === updated.productId ? updated : item)));
-          this.draft = { ...product, businessVersion: updated.businessVersion };
+          this.draft = { ...updated };
           this.saved.set(true);
         },
-        error: () => this.saveFailed.set(true),
+        error: (error: unknown) =>
+          this.productSaveError.set({
+            partial: latest.businessVersion !== startingVersion,
+            conflict: error instanceof HttpErrorResponse && error.status === 409,
+          }),
       });
+  }
+
+  private productUpdates(product: MerchantProduct): ProductUpdate[] {
+    const original = this.products().find((item) => item.productId === product.productId);
+    if (!original) return [];
+
+    const profile = {
+      name: product.name.trim(),
+      brief: product.brief.trim(),
+      description: product.description.trim(),
+      imageUrl: product.imageUrl.trim(),
+      thumbnailUrl: product.thumbnailUrl.trim(),
+    };
+    const updates: ProductUpdate[] = [];
+    if ((Object.keys(profile) as (keyof typeof profile)[]).some((field) => profile[field] !== original[field])) {
+      updates.push({ area: 'profile', value: profile });
+    }
+    if (product.unitPrice !== original.unitPrice) {
+      updates.push({ area: 'price', value: { unitPrice: product.unitPrice } });
+    }
+    if (product.lifecycleStatus !== original.lifecycleStatus) {
+      updates.push({ area: 'status', value: { status: product.lifecycleStatus } });
+    }
+    return updates;
   }
 }

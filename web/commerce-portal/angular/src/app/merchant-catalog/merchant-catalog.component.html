@@ -1,43 +1,62 @@
 <header class="catalog-heading">
   <h1>{{ 'merchantProducts' | t }}</h1>
 </header>
-<details class="catalog-panel catalog-create">
-  <summary>{{ 'merchantProductAdd' | t }}</summary>
-  <form #createForm="ngForm" (ngSubmit)="create()" class="catalog-create-form">
-    <label
-      >{{ 'productName' | t }}
-      <input class="form-control" name="newName" [(ngModel)]="creation.name" maxlength="160" required />
-    </label>
-    <label
-      >{{ 'description' | t }}
-      <input class="form-control" name="newDescription" [(ngModel)]="creation.description" maxlength="2000" required />
-    </label>
-    <label
-      >{{ 'unitPrice' | t }}
-      <input
-        class="form-control"
-        name="newPrice"
-        [(ngModel)]="creation.unitPrice"
-        type="number"
-        min="0.01"
-        step="0.01"
-        required
-      />
-    </label>
-    <label
-      >{{ 'imageUrl' | t }}
-      <input class="form-control" name="newImage" [(ngModel)]="creation.imageUrl" maxlength="500" required />
-    </label>
-    <div class="catalog-create-actions">
-      <button class="btn btn-primary" [disabled]="createForm.invalid || saving()">
-        {{ 'createMerchantProduct' | t }}
-      </button>
-    </div>
-  </form>
-  <p *ngIf="saveFailed() && !draft" role="alert" class="catalog-save-error">{{ 'merchantProductSaveFailed' | t }}</p>
-</details>
 <section class="catalog-panel" aria-labelledby="catalog-list-title" [attr.aria-busy]="loading()">
-  <h2 class="catalog-section-title" id="catalog-list-title">{{ 'merchantProductList' | t }}</h2>
+  <header class="catalog-list-heading">
+    <h2 id="catalog-list-title">{{ 'merchantProductList' | t }}</h2>
+    <button
+      hlmBtn
+      [variant]="creationOpen ? 'outline' : 'default'"
+      type="button"
+      [attr.aria-expanded]="creationOpen"
+      aria-controls="catalog-create"
+      [disabled]="saving()"
+      (click)="creationOpen = !creationOpen"
+    >
+      <i class="bi" [class.bi-plus-lg]="!creationOpen" [class.bi-x-lg]="creationOpen" aria-hidden="true"></i>
+      {{ (creationOpen ? 'close' : 'merchantProductAdd') | t }}
+    </button>
+  </header>
+  <div class="catalog-create" id="catalog-create" [hidden]="!creationOpen">
+    <form #createForm="ngForm" (ngSubmit)="create()" class="catalog-create-form">
+      <label
+        >{{ 'productName' | t }}
+        <input class="form-control" name="newName" [(ngModel)]="creation.name" maxlength="160" required />
+      </label>
+      <label
+        >{{ 'description' | t }}
+        <input
+          class="form-control"
+          name="newDescription"
+          [(ngModel)]="creation.description"
+          maxlength="2000"
+          required
+        />
+      </label>
+      <label
+        >{{ 'unitPrice' | t }}
+        <input
+          class="form-control"
+          name="newPrice"
+          [(ngModel)]="creation.unitPrice"
+          type="number"
+          min="0.01"
+          step="0.01"
+          required
+        />
+      </label>
+      <label
+        >{{ 'imageUrl' | t }}
+        <input class="form-control" name="newImage" [(ngModel)]="creation.imageUrl" maxlength="500" required />
+      </label>
+      <div class="catalog-create-actions">
+        <button hlmBtn type="submit" [disabled]="createForm.invalid || saving()">
+          {{ 'createMerchantProduct' | t }}
+        </button>
+      </div>
+    </form>
+    <p *ngIf="saveFailed() && !draft" role="alert" class="catalog-save-error">{{ 'merchantProductSaveFailed' | t }}</p>
+  </div>
   <p *ngIf="loading()" class="catalog-message" role="status">{{ 'merchantProductsLoading' | t }}</p>
   <div *ngIf="loadFailed()" class="catalog-message" role="alert">
     {{ 'merchantProductsLoadFailed' | t }}
@@ -60,7 +79,10 @@
         {{ (item.lifecycleStatus === 'ACTIVE' ? 'catalogActive' : 'catalogInactive') | t }}
       </span>
       <button
-        class="btn btn-sm btn-outline-primary"
+        hlmBtn
+        class="catalog-row-action"
+        variant="ghost"
+        size="sm"
         type="button"
         (click)="edit(item, true)"
         [disabled]="saving() || loading()"
@@ -70,171 +92,283 @@
     </li>
   </ul>
 </section>
-<section *ngIf="draft as product" class="catalog-panel catalog-editor">
-  <header class="catalog-editor-heading">
-    <div>
-      <h2 id="merchant-edit-title" tabindex="-1">{{ 'editMerchantProduct' | t }}</h2>
-      <p>{{ product.name }}</p>
-      <a [routerLink]="['/merchant/products', product.productId, 'skus']">SKU 管理 / SKUs</a>
+<section *ngIf="draft as product" class="catalog-panel product-editor" aria-labelledby="merchant-edit-title">
+  <header class="product-editor-heading">
+    <div class="product-editor-identity">
+      <app-catalog-image [primary]="product.thumbnailUrl" [secondary]="product.imageUrl" />
+      <div>
+        <h2 id="merchant-edit-title" tabindex="-1">{{ 'editMerchantProduct' | t }}</h2>
+        <p>
+          <span>{{ product.name }}</span><small>#{{ product.productId }}</small>
+        </p>
+      </div>
     </div>
-    <button type="button" class="btn btn-sm btn-outline-secondary" (click)="draft = undefined" [disabled]="saving()">
-      {{ 'close' | t }}
-    </button>
+    <div class="product-editor-actions">
+      <a hlmBtn variant="outline" [routerLink]="['/merchant/products', product.productId, 'skus']">
+        <i class="bi bi-box-seam" aria-hidden="true"></i>{{ 'merchantSkuHeading' | t }}
+      </a>
+      <button hlmBtn variant="ghost" type="button" (click)="draft = undefined" [disabled]="saving()">
+        <i class="bi bi-x-lg" aria-hidden="true"></i>{{ 'close' | t }}
+      </button>
+    </div>
   </header>
-  <p *ngIf="saved()" class="text-success" role="status">{{ 'merchantProductSaved' | t }}</p>
-  <div *ngIf="saveFailed()" class="alert alert-danger" role="alert">
-    {{ 'merchantProductSaveFailed' | t }}
-    <button type="button" class="btn btn-outline-danger" (click)="load()">{{ 'reloadMerchantProduct' | t }}</button>
-  </div>
-  <form #profile="ngForm" (ngSubmit)="save('profile', product)" class="mb-3">
-    <fieldset class="row g-2" [disabled]="saving() || loading()">
-      <label class="col-md-6"
-        >{{ 'productName' | t }}
-        <input class="form-control" name="name" [(ngModel)]="product.name" required maxlength="160" />
-      </label>
-      <label class="col-md-6"
-        >{{ 'catalogBrief' | t }}
-        <input class="form-control" name="brief" [(ngModel)]="product.brief" required maxlength="300" />
-      </label>
-      <label class="col-12"
-        >{{ 'catalogDescription' | t }}
-        <textarea
-          class="form-control"
-          name="description"
-          [(ngModel)]="product.description"
-          required
-          maxlength="2000"
-        ></textarea>
-      </label>
-      <label class="col-md-6"
-        >{{ 'catalogImageUrl' | t }}
-        <input class="form-control" name="imageUrl" [(ngModel)]="product.imageUrl" required maxlength="500" />
-      </label>
-      <label class="col-md-6"
-        >{{ 'catalogThumbnailUrl' | t }}
-        <input class="form-control" name="thumbnailUrl" [(ngModel)]="product.thumbnailUrl" required maxlength="500" />
-      </label>
-      <div class="col-12">
-        <button class="btn btn-primary" type="submit" [disabled]="profile.invalid">
-          {{ 'saveCatalogProfile' | t }}
-        </button>
+  @let hasChanges = hasProductChanges(product);
+  <form
+    class="product-editor-content"
+    #productForm="ngForm"
+    [attr.aria-busy]="saving()"
+    (ngSubmit)="productForm.valid && saveProduct(product)"
+  >
+    <fieldset class="product-editor-group" [disabled]="saving() || loading()">
+      <legend>{{ 'merchantCatalogProfile' | t }}</legend>
+      <div class="product-profile-fields">
+        <label>
+          {{ 'merchantCatalogName' | t }}
+          <input class="form-control" name="name" [(ngModel)]="product.name" required maxlength="160" />
+        </label>
+        <label>
+          {{ 'catalogBrief' | t }}
+          <input class="form-control" name="brief" [(ngModel)]="product.brief" required maxlength="300" />
+        </label>
+        <label class="profile-full-width">
+          {{ 'catalogDescription' | t }}
+          <textarea
+            class="form-control"
+            name="description"
+            rows="2"
+            [(ngModel)]="product.description"
+            required
+            maxlength="2000"
+          ></textarea>
+        </label>
+        <label>
+          {{ 'catalogImageUrl' | t }}
+          <input class="form-control" name="imageUrl" [(ngModel)]="product.imageUrl" required maxlength="500" />
+        </label>
+        <label>
+          {{ 'catalogThumbnailUrl' | t }}
+          <input class="form-control" name="thumbnailUrl" [(ngModel)]="product.thumbnailUrl" required maxlength="500" />
+        </label>
       </div>
     </fieldset>
-  </form>
-  <form #price="ngForm" (ngSubmit)="save('price', product)" class="mb-3">
-    <fieldset class="d-flex flex-wrap gap-2 align-items-end" [disabled]="saving() || loading()">
-      <label
-        >{{ 'unitPrice' | t }} (CNY)
-        <input
-          class="form-control"
-          name="unitPrice"
-          type="number"
-          [(ngModel)]="product.unitPrice"
-          required
-          min="0.01"
-          step="0.01"
-        />
-      </label>
-      <button class="btn btn-primary" type="submit" [disabled]="price.invalid">{{ 'saveCatalogPrice' | t }}</button>
+
+    <fieldset class="product-editor-group" [disabled]="saving() || loading()">
+      <legend>{{ 'merchantCatalogListing' | t }}</legend>
+      <div class="product-listing-fields">
+        <div class="product-listing-field">
+          <label for="catalog-unit-price">{{ 'merchantCatalogPrice' | t }}</label>
+          <div class="catalog-money-input">
+            <input
+              class="form-control"
+              id="catalog-unit-price"
+              type="number"
+              name="unitPrice"
+              [(ngModel)]="product.unitPrice"
+              aria-describedby="catalog-price-currency"
+              required
+              min="0.01"
+              step="0.01"
+            />
+            <span id="catalog-price-currency">CNY</span>
+          </div>
+        </div>
+
+        <div class="product-listing-field">
+          <label for="catalog-lifecycle-status">{{ 'merchantCatalogStatus' | t }}</label>
+          <select
+            class="form-select"
+            id="catalog-lifecycle-status"
+            name="lifecycleStatus"
+            [(ngModel)]="product.lifecycleStatus"
+          >
+            <option value="ACTIVE">{{ 'catalogActive' | t }}</option>
+            <option value="INACTIVE">{{ 'catalogInactive' | t }}</option>
+          </select>
+        </div>
+      </div>
     </fieldset>
-  </form>
-  <form (ngSubmit)="save('status', product)">
-    <fieldset class="d-flex flex-wrap gap-2 align-items-end" [disabled]="saving() || loading()">
-      <label
-        >{{ 'status' | t }}
-        <select class="form-select" name="lifecycleStatus" [(ngModel)]="product.lifecycleStatus">
-          <option value="ACTIVE">{{ 'catalogActive' | t }}</option>
-          <option value="INACTIVE">{{ 'catalogInactive' | t }}</option>
-        </select>
-      </label>
-      <button class="btn btn-primary" type="submit">{{ 'saveCatalogStatus' | t }}</button>
-    </fieldset>
+    <footer class="product-editor-footer">
+      @if (productSaveError(); as failure) {
+        <div class="product-save-error" role="alert">
+          {{ (failure.partial ? 'merchantProductPartiallySaved' : 'merchantProductUpdateFailed') | t }}
+          @if (failure.conflict) {
+            {{ 'merchantProductVersionConflict' | t }}
+          }
+        </div>
+        @if (failure.conflict) {
+          <button hlmBtn variant="outline" size="sm" type="button" (click)="load()" [disabled]="loading()">
+            {{ 'reloadMerchantProduct' | t }}
+          </button>
+        }
+      } @else if (saved() && !hasChanges) {
+        <span class="product-saved" role="status">
+          <i class="bi bi-check2-circle" aria-hidden="true"></i>{{ 'merchantProductSaved' | t }}
+        </span>
+      }
+      <button
+        hlmBtn
+        class="product-save"
+        type="submit"
+        [disabled]="!productForm.valid || !hasChanges || saving() || loading() || productSaveError()?.conflict"
+      >
+        {{ (saving() ? 'savingMerchantProduct' : 'saveMerchantProduct') | t }}
+      </button>
+    </footer>
   </form>
 </section>
 
-<section class="catalog-panel catalog-editor">
-  <h2>{{ 'shippingTemplate' | t }}</h2>
-  <p *ngIf="shippingError()" class="text-danger" role="alert">{{ shippingError() | t }}</p>
-  <p *ngIf="shippingSaved()" class="text-success" role="status">{{ 'shippingSaved' | t }}</p>
-  <button
-    *ngIf="!shipping"
-    class="btn btn-outline-primary"
-    type="button"
-    (click)="loadShipping()"
-    [disabled]="shippingBusy()"
-  >
-    {{ 'editShippingTemplate' | t }}
-  </button>
-
-  <form *ngIf="shipping as template" #rates="ngForm" (ngSubmit)="saveShipping(template)">
+<section
+  class="catalog-panel shipping-editor"
+  aria-labelledby="shipping-editor-title"
+  [attr.aria-busy]="shippingBusy()"
+>
+  <form #rates="ngForm" (ngSubmit)="shippingDraft && saveShipping(shippingDraft)">
     <fieldset [disabled]="shippingBusy()">
-      <label class="d-block mb-3">
-        {{ 'defaultShippingFee' | t }}
-        <input
-          class="form-control w-auto"
-          name="defaultFee"
-          [(ngModel)]="template.defaultFee"
-          type="number"
-          min="0"
-          max="9999999999.99"
-          step="0.01"
-          required
-        />
-      </label>
-      <div class="row g-2 align-items-end mb-3" *ngFor="let region of template.regions; let index = index">
-        <label class="col-sm-2">
-          {{ 'shippingCountryCode' | t }}
-          <input
-            class="form-control"
-            name="country-{{ index }}"
-            [(ngModel)]="region.countryCode"
-            required
-            pattern="[A-Za-z]{2}"
-            maxlength="2"
-          />
-        </label>
-        <label class="col-sm-4">
-          {{ 'shippingProvince' | t }}
-          <input
-            class="form-control"
-            name="province-{{ index }}"
-            [(ngModel)]="region.stateProvince"
-            required
-            maxlength="100"
-          />
-        </label>
-        <label class="col-sm-3">
-          {{ 'shippingFee' | t }}
-          <input
-            class="form-control"
-            name="fee-{{ index }}"
-            [(ngModel)]="region.fee"
-            type="number"
-            min="0"
-            max="9999999999.99"
-            step="0.01"
-            required
-          />
-        </label>
-        <div class="col-sm-3">
-          <button class="btn btn-outline-danger" type="button" (click)="template.regions.splice(index, 1)">
-            {{ 'remove' | t }}
+      <header class="shipping-heading">
+        @if (shippingDraft; as template) {
+          <div class="shipping-default">
+            <h2 id="shipping-editor-title">
+              <label for="shipping-default-fee">{{ 'defaultShippingFee' | t }}</label>
+            </h2>
+            <input
+              class="form-control shipping-amount"
+              #defaultFeeInput
+              id="shipping-default-fee"
+              name="defaultFee"
+              [(ngModel)]="template.defaultFee"
+              (input)="trimShippingLeadingZeros(defaultFeeInput)"
+              type="number"
+              min="0"
+              max="9999999999.99"
+              step="0.01"
+              aria-describedby="shipping-default-currency"
+              required
+            />
+            <span id="shipping-default-currency">CNY</span>
+          </div>
+          <button
+            hlmBtn
+            class="shipping-add"
+            variant="outline"
+            size="sm"
+            type="button"
+            [disabled]="template.regions.length >= 50"
+            (click)="template.regions.push({ countryCode: 'CN', stateProvince: '', fee: 0 })"
+          >
+            <i class="bi bi-plus-lg" aria-hidden="true"></i>{{ 'addShippingRegion' | t }}
           </button>
+        } @else if (shipping; as savedTemplate) {
+          <div class="shipping-default">
+            <h2 id="shipping-editor-title">{{ 'defaultShippingFee' | t }}</h2>
+            <strong class="shipping-value">{{ savedTemplate.defaultFee | trcurrency }}</strong>
+          </div>
+          <button hlmBtn variant="outline" type="button" (click)="editShipping()">
+            <i class="bi bi-pencil" aria-hidden="true"></i>{{ 'editShippingTemplate' | t }}
+          </button>
+        } @else {
+          <h2 id="shipping-editor-title">{{ 'shippingTemplate' | t }}</h2>
+          @if (shippingBusy()) {
+            <span class="shipping-loading" role="status">{{ 'loading' | t }}</span>
+          } @else if (shippingError()) {
+            <button hlmBtn variant="outline" type="button" (click)="loadShipping()">{{ 'retry' | t }}</button>
+          }
+        }
+      </header>
+
+      @if (shippingError()) {
+        <div hlmAlert variant="destructive" class="shipping-message" role="alert">{{ shippingError() | t }}</div>
+      }
+
+      @if (shippingSaved()) {
+        <p class="shipping-message shipping-saved" role="status">{{ 'shippingSaved' | t }}</p>
+      }
+
+      @if (shippingDraft ?? shipping; as template) {
+        @if (template.regions.length) {
+          <div class="shipping-body">
+            <section class="shipping-regions" [attr.aria-label]="'shippingRegionRates' | t">
+              <div class="shipping-region-head" aria-hidden="true">
+                <span>{{ 'shippingCountryCode' | t }}</span>
+                <span>{{ 'shippingProvince' | t }}</span>
+                <span>{{ 'shippingFee' | t }}</span>
+              </div>
+
+              @for (region of template.regions; track region; let index = $index) {
+                <div class="shipping-region-row" [class.shipping-region-preview]="!shippingDraft">
+                  @if (shippingDraft) {
+                    <label>
+                      <span class="shipping-field-label">{{ 'shippingCountryCode' | t }}</span>
+                      <input
+                        class="form-control shipping-country"
+                        name="country-{{ index }}"
+                        [(ngModel)]="region.countryCode"
+                        required
+                        pattern="[A-Za-z]{2}"
+                        maxlength="2"
+                      />
+                    </label>
+                    <label>
+                      <span class="shipping-field-label">{{ 'shippingProvince' | t }}</span>
+                      <input
+                        class="form-control"
+                        name="province-{{ index }}"
+                        [(ngModel)]="region.stateProvince"
+                        required
+                        maxlength="100"
+                      />
+                    </label>
+                    <label>
+                      <span class="shipping-field-label">{{ 'shippingFee' | t }}</span>
+                      <input
+                        class="form-control shipping-amount"
+                        #regionFeeInput
+                        name="fee-{{ index }}"
+                        [(ngModel)]="region.fee"
+                        (input)="trimShippingLeadingZeros(regionFeeInput)"
+                        type="number"
+                        min="0"
+                        max="9999999999.99"
+                        step="0.01"
+                        required
+                      />
+                    </label>
+                    <button
+                      hlmBtn
+                      class="shipping-remove"
+                      variant="ghost"
+                      size="sm"
+                      type="button"
+                      (click)="template.regions.splice(index, 1)"
+                    >
+                      {{ 'remove' | t }}
+                    </button>
+                  } @else {
+                    <div>
+                      <span class="shipping-field-label">{{ 'shippingCountryCode' | t }}</span>
+                      {{ region.countryCode }}
+                    </div>
+                    <div>
+                      <span class="shipping-field-label">{{ 'shippingProvince' | t }}</span>
+                      {{ region.stateProvince }}
+                    </div>
+                    <div>
+                      <span class="shipping-field-label">{{ 'shippingFee' | t }}</span>
+                      <strong class="shipping-amount">{{ region.fee | trcurrency }}</strong>
+                    </div>
+                  }
+                </div>
+              }
+            </section>
+          </div>
+        }
+      }
+
+      @if (shippingDraft) {
+        <div class="shipping-footer">
+          <button hlmBtn variant="outline" type="button" (click)="cancelShipping()">{{ 'cancel' | t }}</button>
+          <button hlmBtn type="submit" [disabled]="rates.invalid">{{ 'saveShippingTemplate' | t }}</button>
         </div>
-      </div>
-      <div class="d-flex flex-wrap gap-2">
-        <button
-          class="btn btn-outline-secondary"
-          type="button"
-          [disabled]="template.regions.length >= 50"
-          (click)="template.regions.push({ countryCode: 'CN', stateProvince: '', fee: 0 })"
-        >
-          {{ 'addShippingRegion' | t }}
-        </button>
-        <button class="btn btn-primary" type="submit" [disabled]="rates.invalid">
-          {{ 'saveShippingTemplate' | t }}
-        </button>
-      </div>
+      }
     </fieldset>
   </form>
 </section>

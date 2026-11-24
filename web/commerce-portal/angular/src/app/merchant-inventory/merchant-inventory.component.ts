@@ -15,7 +15,7 @@ export class MerchantInventoryComponent implements OnInit {
   items: MerchantInventoryItem[] = [];
   movementPages: Record<number, AdminListPage<InventoryMovement> | undefined> = {};
   readonly loadingMovements = new Set<number>();
-  readonly failedMovements = new Set<number>();
+  readonly failedMovements = new Map<number, number>();
   expanded = new Set<number>();
   delta: Record<number, number | null> = {};
   reason: Record<number, string> = {};
@@ -42,6 +42,9 @@ export class MerchantInventoryComponent implements OnInit {
     this.api.merchantInventory().subscribe({
       next: (items) => {
         this.items = items;
+        for (const { productId } of items) {
+          if (this.expanded.has(productId)) this.loadMovements(productId, this.movementPages[productId]?.page);
+        }
         this.error = '';
         this.changeDetector.markForCheck();
       },
@@ -96,8 +99,12 @@ export class MerchantInventoryComponent implements OnInit {
       )
       .subscribe({
         next: (value) => (this.movementPages[productId] = value),
-        error: () => this.failedMovements.add(productId),
+        error: () => this.failedMovements.set(productId, page),
       });
+  }
+
+  retryMovements(productId: number): void {
+    this.loadMovements(productId, this.failedMovements.get(productId));
   }
 
   movementPageCount(page: AdminListPage<InventoryMovement>): number {
