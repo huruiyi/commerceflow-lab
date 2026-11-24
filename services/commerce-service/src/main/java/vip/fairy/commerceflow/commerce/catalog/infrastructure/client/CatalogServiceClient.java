@@ -17,6 +17,7 @@ import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogProductSnapshotV1;
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogProductV1;
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogSnapshotBatchRequest;
 import vip.fairy.commerceflow.commerce.catalog.application.CatalogServiceUnavailableException;
+import vip.fairy.commerceflow.commerce.catalog.application.ProductCatalogService.SearchComparison;
 import vip.fairy.commerceflow.commerce.catalog.application.ProductCatalogService.SearchStatus;
 import vip.fairy.commerceflow.commerce.shared.application.OptimisticVersionConflictException;
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
@@ -82,6 +83,20 @@ public class CatalogServiceClient {
     try {
       return request.uri(URI.create(baseUrl + target)).headers(headers -> sign(headers, method, target))
         .retrieve().body(SearchStatus.class);
+    } catch (RuntimeException exception) {
+      throw translated(exception);
+    }
+  }
+
+  public SearchComparison compareSearchIndex(long afterId, Long generation) {
+    String target = SEARCH + "/index/comparison?afterId=" + afterId;
+    if (generation != null) target += "&generation=" + generation;
+    String signedTarget = target;
+    try {
+      return client.get().uri(URI.create(baseUrl + signedTarget))
+        .headers(headers -> sign(headers, "GET", signedTarget)).retrieve().body(SearchComparison.class);
+    } catch (HttpClientErrorException.BadRequest exception) {
+      throw new IllegalArgumentException("Invalid index comparison cursor", exception);
     } catch (RuntimeException exception) {
       throw translated(exception);
     }

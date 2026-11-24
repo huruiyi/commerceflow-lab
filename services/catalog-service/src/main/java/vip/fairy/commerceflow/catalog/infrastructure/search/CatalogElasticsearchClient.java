@@ -112,6 +112,18 @@ public class CatalogElasticsearchClient {
     client.post().uri(index(generation) + "/_refresh").retrieve().toBodilessEntity();
   }
 
+  public List<IndexedDocument> documentsAfter(long generation, long afterId, int size) {
+    var request = Map.of("query", Map.of("range", Map.of("productId", Map.of("gt", afterId))),
+      "sort", List.of(Map.of("productId", "asc")), "size", size);
+    return searchHits(generation, request).path("hits").valueStream()
+      .map(hit -> new IndexedDocument(hit.path("_id").asText(), hit.path("_source"))).toList();
+  }
+
+  public boolean matches(IndexedDocument indexed, Document expected) {
+    return indexed.id().equals(Long.toString(expected.productId()))
+      && indexed.source().equals(json.readTree(json.writeValueAsString(expected)));
+  }
+
   public Optional<Page> search(long generation, Criteria criteria, int requestedPage) {
     long offset = (long) requestedPage * criteria.size();
     if (offset + criteria.size() > RESULT_WINDOW) return Optional.empty();
@@ -133,6 +145,10 @@ public class CatalogElasticsearchClient {
   private JsonNode execute(long generation, Criteria criteria, long offset) {
     var request = Map.of("query", query(criteria), "sort", sort(criteria), "track_total_hits", true,
       "from", offset, "size", criteria.size(), "_source", List.of("products"));
+    return searchHits(generation, request);
+  }
+
+  private JsonNode searchHits(long generation, Map<String, Object> request) {
     var result = client.post().uri(index(generation) + "/_search").contentType(MediaType.APPLICATION_JSON)
       .body(json.writeValueAsString(request)).retrieve().body(String.class);
     if (result == null) throw new RestClientException("Missing Elasticsearch search response");
@@ -207,5 +223,18 @@ public class CatalogElasticsearchClient {
   public record Document(long productId, long merchantId, long priceCents, boolean active, String textZh, String textEn,
                          String nameZh, String nameEn, String relevanceZh, String relevanceEn,
                          Map<String, CatalogProductV1> products) {
+  }
+
+  /** Elasticsearch 返回的原始文档编号及内容，用于索引核对。 */
+  public record IndexedDocument(String id, JsonNode source) {
+
+    public long productId() {
+      return source.path("productId").asLong();
+    }
+
+    public Long businessVersion() {
+      var version = source.path("products").path("zh-CN").path("businessVersion");
+      return version.isIntegralNumber() ? version.asLong() : null;
+    }
   }
 }

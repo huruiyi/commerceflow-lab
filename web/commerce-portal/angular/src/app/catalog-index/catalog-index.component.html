@@ -1,0 +1,61 @@
+<section class="container py-4" [attr.aria-busy]="busy()">
+  <h1 class="h4 mb-3">商品索引 / Catalog index</h1>
+  <div class="d-flex flex-wrap gap-2 mb-3">
+    <button class="btn btn-outline-secondary" type="button" [disabled]="busy()" (click)="refresh()">
+      刷新状态 / Refresh
+    </button>
+    <button class="btn btn-primary" type="button" [disabled]="busy() || !status()?.elasticsearch" (click)="compare()">
+      核对商品 / Reconcile products
+    </button>
+    <button class="btn btn-outline-secondary" type="button" [disabled]="busy()" (click)="rebuild()">
+      重建索引 / Rebuild index
+    </button>
+  </div>
+  @if (failed()) {
+    <p role="alert" class="alert alert-warning">操作未完成，请重试 / Request failed. Try again.</p>
+  }
+  @if (status()?.elasticsearch; as index) {
+    <dl class="row mb-3">
+      <dt class="col-sm-4">状态 / Status</dt>
+      <dd class="col-sm-8">{{ labels[index.phase] || index.phase }}</dd>
+      <dt class="col-sm-4">索引代次 / Index generation</dt>
+      <dd class="col-sm-8">{{ index.generation }}</dd>
+      <dt class="col-sm-4">待同步数 / Pending events</dt>
+      <dd class="col-sm-8">{{ index.pending }}</dd>
+      <dt class="col-sm-4">最早待同步事件 / Oldest pending event</dt>
+      <dd class="col-sm-8">{{ (index.oldestAt | date: 'medium') || '—' }}</dd>
+    </dl>
+  }
+  @if (comparison(); as result) {
+    <p role="status">{{ labels[result.status] || result.status }} · {{ result.checked }} 件 / products</p>
+    @if (result.differences.length) {
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th scope="col">商品编号 / Product ID</th>
+              <th scope="col">差异 / Difference</th>
+              <th scope="col">目录版本 / Catalog version</th>
+              <th scope="col">索引版本 / Index version</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of result.differences; track row.productId) {
+              <tr>
+                <td>{{ row.productId }}</td>
+                <td>{{ labels[row.reason] || row.reason }}</td>
+                <td>{{ row.expectedVersion ?? '—' }}</td>
+                <td>{{ row.indexedVersion ?? '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+    @if (result.nextAfterId !== null) {
+      <button class="btn btn-outline-secondary" type="button" [disabled]="busy()" (click)="compare(true)">
+        核对下一批 / Check next batch
+      </button>
+    }
+  }
+</section>

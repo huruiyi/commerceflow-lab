@@ -35,6 +35,7 @@ const roleLinks: Record<string, PortalLink[]> = {
     { path: '/merchant/store', label: 'ownStore', icon: 'shop' },
   ],
   ADMIN: [
+    { path: '/admin/catalog-index', label: 'catalogIndex', icon: 'database-check' },
     { path: '/admin/stores', label: 'storeReview', icon: 'shop' },
     { path: '/admin/inventory-reconciliation', label: 'warehouseReconciliation', icon: 'boxes' },
     { path: '/admin/exchanges', label: 'platformExchanges', icon: 'arrow-left-right' },

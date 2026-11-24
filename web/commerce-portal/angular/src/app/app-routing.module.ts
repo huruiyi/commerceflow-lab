@@ -25,6 +25,13 @@ import { PaymentLedgerReportsComponent } from './payment-ledger-reports/payment-
 import { InventoryReconciliationAdminComponent } from './inventory-reconciliation/inventory-reconciliation.component';
 
 const routes: Routes = [
+  {
+    path: 'admin/catalog-index',
+    loadComponent: () =>
+      import('./catalog-index/catalog-index.component').then((module) => module.CatalogIndexComponent),
+    canActivate: [AuthGuard],
+    data: { roles: ['ADMIN'] },
+  },
   { path: '', component: LoginComponent }, //LoginGuard
   { path: 'dashboard', component: DashboardComponent, canActivate: [AuthGuard] },
   { path: 'products/:id', component: ProductDetailComponent },

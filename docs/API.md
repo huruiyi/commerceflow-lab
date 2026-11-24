@@ -46,6 +46,11 @@
 
 日常店铺、评价、购物车的 Chrome 实测和 Elasticsearch 索引核对见[第 1 批日常发布记录](IMPLEMENTED.md#268-2026-11-24-第-1-批商品目录日常发布)。
 
+管理员通过 `GET /api/admin/catalog-search` 读取目录及 Elasticsearch 代次、同步阶段、待同步数和最早待同步时间。
+`GET /api/admin/catalog-search/comparison` 按商品编号逐批对照 MySQL 和 Elasticsearch，返回已核对数量以及缺失、多余和内容不一致的商品。
+每批带 `generation`，翻页时把 `nextAfterId` 作为 `afterId` 传入。代次切换时返回 `RESTART`，积压中的核对返回 `CATCHING_UP`。
+`POST /api/admin/catalog-search/rebuild` 触发原索引重建流程。
+
 顾客订单详情中的 `payment.idempotencyKey` 对应原支付提交。门户按原键核对支付单，结果未知时
 保留渠道和原参数，手动重试复用原键。取消用原订单和取消原因重试，订单侧完成和审计分别使用
 `finish-cancellation:{id}`、`audit-cancellation:{id}`。顾客开票按订单查原申请号，回执迟到时

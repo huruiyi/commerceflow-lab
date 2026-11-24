@@ -66,7 +66,20 @@ public class CatalogSearchService {
 
   public Status status() {
     var state = store.state();
-    return new Status(state.generation(), state.rebuildRequested(), state.rebuiltAt(), store.pendingCount());
+    var backend = elasticsearch.getIfAvailable();
+    var status = backend == null ? new CatalogElasticsearchSearch.IndexStatus("DISABLED", 0, 0, null)
+      : backend.status(state);
+    return new Status(state.generation(), state.rebuildRequested(), state.rebuiltAt(), store.pendingCount(), status);
+  }
+
+  @Transactional(readOnly = true, isolation = Isolation.READ_COMMITTED)
+  public CatalogElasticsearchSearch.Comparison compare(long afterId, Long generation) {
+    if (afterId < 0 || (afterId > 0 && generation == null) || (generation != null && generation <= 0)) {
+      throw new IllegalArgumentException("Invalid index comparison cursor");
+    }
+    var backend = elasticsearch.getIfAvailable();
+    return backend == null ? new CatalogElasticsearchSearch.Comparison("DISABLED", 0, 0, null, List.of())
+      : backend.compare(afterId, generation);
   }
 
   @Transactional(readOnly = true)
@@ -117,6 +130,7 @@ public class CatalogSearchService {
   public record Page(List<CatalogProductV1> products, long total, int page, int size) {
   }
 
-  public record Status(long generation, boolean rebuildRequested, Instant rebuiltAt, long pending) {
+  public record Status(long generation, boolean rebuildRequested, Instant rebuiltAt, long pending,
+                       CatalogElasticsearchSearch.IndexStatus elasticsearch) {
   }
 }

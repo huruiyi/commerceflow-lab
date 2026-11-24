@@ -4,7 +4,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import vip.fairy.commerceflow.catalog.application.CatalogElasticsearchSearch.Comparison;
 import vip.fairy.commerceflow.catalog.application.CatalogSearchService;
 
 @RestController
@@ -25,6 +27,12 @@ public class CatalogSearchController {
   @GetMapping("/index")
   CatalogSearchService.Status status() {
     return search.status();
+  }
+
+  @GetMapping("/index/comparison")
+  Comparison comparison(@RequestParam(defaultValue = "0") long afterId,
+                        @RequestParam(required = false) Long generation) {
+    return search.compare(afterId, generation);
   }
 
   @PostMapping("/index/rebuild")

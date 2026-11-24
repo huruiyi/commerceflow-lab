@@ -55,7 +55,22 @@ public class ProductCatalogService implements CatalogProductLookup, CatalogCache
     return catalog.searchStatus(rebuild);
   }
 
-  public record SearchStatus(long generation, boolean rebuildRequested, Instant rebuiltAt, long pending) {
+  public SearchComparison compareSearchIndex(long afterId, Long generation) {
+    return catalog.compareSearchIndex(afterId, generation);
+  }
+
+  public record SearchStatus(long generation, boolean rebuildRequested, Instant rebuiltAt, long pending,
+                             SearchIndexStatus elasticsearch) {
+  }
+
+  public record SearchIndexStatus(String phase, long generation, long pending, Instant oldestAt) {
+  }
+
+  public record SearchComparison(String status, long generation, int checked, Long nextAfterId,
+                                 List<SearchDifference> differences) {
+  }
+
+  public record SearchDifference(long productId, String reason, Long expectedVersion, Long indexedVersion) {
   }
 
   @Override

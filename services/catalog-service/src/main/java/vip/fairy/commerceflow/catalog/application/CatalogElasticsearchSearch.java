@@ -3,11 +3,15 @@ package vip.fairy.commerceflow.catalog.application;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeSet;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -30,6 +34,7 @@ import vip.fairy.commerceflow.catalog.infrastructure.persistence.ProductMapper;
 import vip.fairy.commerceflow.catalog.infrastructure.persistence.ProductTranslationMapper;
 import vip.fairy.commerceflow.catalog.infrastructure.search.CatalogElasticsearchClient;
 import vip.fairy.commerceflow.catalog.infrastructure.search.CatalogElasticsearchClient.Document;
+import vip.fairy.commerceflow.catalog.infrastructure.search.CatalogElasticsearchClient.IndexedDocument;
 
 @Service
 @ConditionalOnProperty(name = "commerceflow.catalog-search.elasticsearch.enabled", havingValue = "true")
@@ -45,7 +50,7 @@ public class CatalogElasticsearchSearch {
   private final TransactionTemplate transactions;
   private final Counter reads;
   private final Counter fallbacks;
-  private boolean synchronizationFailed;
+  private volatile boolean synchronizationFailed;
 
   public CatalogElasticsearchSearch(CatalogElasticsearchClient client, CatalogElasticsearchMapper state,
                                     CatalogSearchMapper search, ProductMapper products,
@@ -144,6 +149,85 @@ public class CatalogElasticsearchSearch {
 
   private String fullText(CatalogProductV1 item) {
     return CatalogElasticsearchClient.normalize(String.join(" ", item.name(), item.brief(), item.description()));
+  }
+
+  public IndexStatus status(CatalogSearchMapper.State catalog) {
+    var indexed = state.state();
+    var backlog = state.backlog();
+    String phase;
+    try {
+      if (synchronizationFailed) {
+        phase = "UNAVAILABLE";
+      } else if (catalog.rebuildRequested() || indexed.catalogGeneration() != catalog.generation()) {
+        phase = "BUILDING";
+      } else if (indexed.generation() == 0) {
+        phase = "INITIALIZING";
+      } else if (!client.exists(indexed.generation())) {
+        phase = "UNAVAILABLE";
+      } else {
+        phase = backlog.pending() == 0 ? "READY" : "CATCHING_UP";
+      }
+    } catch (RestClientException unavailable) {
+      phase = "UNAVAILABLE";
+    }
+    return new IndexStatus(phase, indexed.generation(), backlog.pending(), backlog.oldestAt());
+  }
+
+  public Comparison compare(long afterId, Long generation) {
+    int size = CatalogElasticsearchMapper.PAGE_SIZE;
+    var indexed = state.state();
+    long current = indexed.generation();
+    if (generation != null && generation != current) return new Comparison("RESTART", current, 0, null, List.of());
+    if (current == 0) return new Comparison("INITIALIZING", current, 0, null, List.of());
+    try {
+      var ids = state.productIdsAfter(afterId);
+      var actual = client.documentsAfter(current, afterId, size);
+      long boundary = Math.min(ids.size() == size ? ids.getLast() : Long.MAX_VALUE,
+        actual.size() == size ? actual.getLast().productId() : Long.MAX_VALUE);
+      var expected = ids.isEmpty() ? Map.<Long, Document>of()
+        : documents(ids).stream().collect(Collectors.toMap(Document::productId, Function.identity()));
+      var byId = actual.stream().collect(Collectors.groupingBy(IndexedDocument::productId));
+      var keys = new TreeSet<>(expected.keySet());
+      keys.addAll(byId.keySet());
+      var mismatches = new ArrayList<Difference>();
+      int checked = 0;
+      for (long id : keys.headSet(boundary, true)) {
+        var source = expected.get(id);
+        var hits = byId.getOrDefault(id, List.of());
+        String reason = difference(source, hits);
+        if (reason != null) {
+          var product = source == null ? null : source.products().get("zh-CN");
+          mismatches.add(new Difference(id, reason, product == null ? null : product.businessVersion(),
+            hits.isEmpty() ? null : hits.getFirst().businessVersion()));
+        }
+        checked++;
+      }
+      long latest = state.state().generation();
+      if (latest != current) {
+        return new Comparison("RESTART", latest, 0, null, List.of());
+      }
+      String status = state.hasPending() ? "CATCHING_UP" : "CHECKED";
+      return new Comparison(status, current, checked, boundary == Long.MAX_VALUE ? null : boundary, mismatches);
+    } catch (RestClientException | JacksonException unavailable) {
+      return new Comparison("UNAVAILABLE", current, 0, null, List.of());
+    }
+  }
+
+  private String difference(Document expected, List<IndexedDocument> indexed) {
+    if (expected == null) return "EXTRA";
+    if (indexed.isEmpty()) return "MISSING";
+    if (indexed.size() != 1 || !client.matches(indexed.getFirst(), expected)) return "DIFFERENT";
+    return null;
+  }
+
+  public record IndexStatus(String phase, long generation, long pending, Instant oldestAt) {
+  }
+
+  public record Comparison(String status, long generation, int checked, Long nextAfterId,
+                           List<Difference> differences) {
+  }
+
+  public record Difference(long productId, String reason, Long expectedVersion, Long indexedVersion) {
   }
 
   public Optional<Page> search(Criteria criteria, int requestedPage) {
