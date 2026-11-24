@@ -87,6 +87,13 @@ public class CatalogSkuSearch {
   public record PriceRange(BigDecimal min, BigDecimal max) {
   }
 
+  public record Facet(String name, String value, long productCount) {
+
+    boolean selectable() {
+      return !name.contains("=") && !name.contains(";") && !value.contains(";");
+    }
+  }
+
   record Selection(List<String> tokens, String json) {
   }
 }

@@ -69,21 +69,19 @@
     <include refid="activeProducts"/>
   </insert>
 
-  <sql id="searchScope">
+  <sql id="searchSource">
     FROM catalog_search_documents d
     JOIN catalog_search_state s ON s.singleton_id=1 AND s.generation=d.generation
     JOIN products p ON p.id=d.product_id AND p.lifecycle_status='ACTIVE'
+  </sql>
+
+  <sql id="productFilters">
     WHERE (d.locale=#{locale} OR (d.locale='' AND NOT EXISTS (
       SELECT 1 FROM catalog_search_documents t
       WHERE t.generation=d.generation AND t.product_id=d.product_id AND t.locale=#{locale}
     )))
     AND d.merchant_id IN
     <foreach collection="merchantIds" item="merchant" open="(" separator="," close=")">#{merchant}</foreach>
-    <if test="minPrice != null or maxPrice != null or skuJson != null">
-      AND ((<include refid="defaultSkuMatches"/>) OR EXISTS (
-        SELECT 1 FROM catalog_product_skus sku WHERE <include refid="variantSkuMatches"/>
-      ))
-    </if>
     <foreach collection="terms" item="term" index="i" open=" AND (" close=")">
       <if test="i > 0">
         <choose>
@@ -96,6 +94,16 @@
     <foreach collection="excluded" item="term">
       AND LOCATE(#{term}, d.searchable) = 0
     </foreach>
+  </sql>
+
+  <sql id="searchScope">
+    <include refid="searchSource"/>
+    <include refid="productFilters"/>
+    <if test="minPrice != null or maxPrice != null or skuJson != null">
+      AND ((<include refid="defaultSkuMatches"/>) OR EXISTS (
+        SELECT 1 FROM catalog_product_skus sku WHERE <include refid="variantSkuMatches"/>
+      ))
+    </if>
   </sql>
 
   <sql id="defaultSkuMatches">
@@ -124,6 +132,18 @@
         9999999999.99)
     )
   </sql>
+
+  <select id="skuFacets" resultType="vip.fairy.commerceflow.catalog.application.CatalogSkuSearch$Facet">
+    SELECT CONVERT(spec.name USING utf8mb4) COLLATE utf8mb4_0900_bin AS name,
+      CONVERT(JSON_UNQUOTE(JSON_EXTRACT(LOWER(sku.specifications), CONCAT('$.', JSON_QUOTE(spec.name))))
+        USING utf8mb4) COLLATE utf8mb4_0900_bin AS value,
+      COUNT(DISTINCT d.product_id) AS product_count
+    <include refid="searchSource"/>
+    JOIN catalog_product_skus sku ON <include refid="variantSkuMatches"/>
+    JOIN JSON_TABLE(JSON_KEYS(LOWER(sku.specifications)), '$[*]' COLUMNS (name VARCHAR(64) PATH '$')) spec
+    <include refid="productFilters"/>
+    GROUP BY 1, 2
+  </select>
 
   <select id="count" resultType="long">
     SELECT COUNT(*) <include refid="searchScope"/>

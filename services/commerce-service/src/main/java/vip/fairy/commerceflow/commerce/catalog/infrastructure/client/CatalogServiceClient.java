@@ -107,11 +107,14 @@ public class CatalogServiceClient {
 
   public record SearchRequest(String query, String locale, String sort, List<Long> merchantIds, List<Long> ratedIds,
                               BigDecimal minPrice, BigDecimal maxPrice, int page, int size, String sku,
-                              String match, String exclude) {
+                              String match, String exclude, boolean includeSkuFacets) {
   }
 
   public record SearchPage(List<CatalogProductV1> products, long total, int page, int size,
-                           Map<Long, PriceRange> skuRanges) {
+                           Map<Long, PriceRange> skuRanges, List<SkuFacet> skuFacets) {
+  }
+
+  public record SkuFacet(String name, String value, long productCount) {
   }
 
   public record PriceRange(BigDecimal min, BigDecimal max) {

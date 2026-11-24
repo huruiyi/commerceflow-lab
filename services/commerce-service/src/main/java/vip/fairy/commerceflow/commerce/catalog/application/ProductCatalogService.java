@@ -40,13 +40,13 @@ public class ProductCatalogService implements CatalogProductLookup, CatalogCache
 
   public SearchPage search(String query, String locale, String sort, Long merchantId,
                            BigDecimal minPrice, BigDecimal maxPrice, int page, int size, String sku,
-                           String match, String exclude) {
+                           String match, String exclude, boolean includeSkuFacets) {
     var active = stores.activeMerchantIds();
     List<Long> merchants = merchantId == null ? List.copyOf(active)
       : active.contains(merchantId) ? List.of(merchantId) : List.of();
     var result = catalog.search(new CatalogServiceClient.SearchRequest(query, locale, sort, merchants,
       "rating".equals(sort) ? reviews.ratedProductIds() : List.of(), minPrice, maxPrice, page, size,
-      sku, match, exclude));
+      sku, match, exclude, includeSkuFacets));
     var products = withRatings(result.products());
     if (result.skuRanges() != null && !result.skuRanges().isEmpty()) {
       products = products.stream().map(product -> {
@@ -54,10 +54,12 @@ public class ProductCatalogService implements CatalogProductLookup, CatalogCache
         return range == null ? product : product.withSkuRange(range.min(), range.max());
       }).toList();
     }
-    return new SearchPage(products, result.total(), result.page(), result.size());
+    var facets = result.skuFacets() == null ? List.<CatalogServiceClient.SkuFacet>of() : result.skuFacets();
+    return new SearchPage(products, result.total(), result.page(), result.size(), facets);
   }
 
-  public record SearchPage(List<ProductResponse> products, long total, int page, int size) {
+  public record SearchPage(List<ProductResponse> products, long total, int page, int size,
+                           List<CatalogServiceClient.SkuFacet> skuFacets) {
   }
 
   public SearchStatus searchStatus(boolean rebuild) {

@@ -82,7 +82,9 @@ public class ProductController {
                                          @RequestParam(required = false) BigDecimal minPrice,
                                          @RequestParam(required = false) BigDecimal maxPrice,
                                          @RequestParam(defaultValue = "0") int page,
-                                         @RequestParam(defaultValue = "12") int size) {
-    return catalog.search(q, lang, sort, merchantId, minPrice, maxPrice, page, size, sku, match, exclude);
+                                         @RequestParam(defaultValue = "12") int size,
+                                         @RequestParam(defaultValue = "false") boolean includeSkuFacets) {
+    return catalog.search(q, lang, sort, merchantId, minPrice, maxPrice, page, size,
+      sku, match, exclude, includeSkuFacets);
   }
 }

@@ -51,6 +51,14 @@ Elasticsearch 和 MySQL 回退使用相同的匹配条件，相关性排序由�
 同一启用 SKU 必须同时满足所有规格和价格条件。商品只返回一次，候选商品卡使用
 `minimumSkuPrice` 和 `maximumSkuPrice` 展示全部可售 SKU 的价格范围。
 
+传入 `includeSkuFacets=true` 时，`skuFacets` 返回 `name`、`value` 和 `productCount`，例如
+`{"name":"颜色","value":"红","productCount":3}`。省略参数时数组为空。
+规格值按匹配整批查询的商品去重，当前页码和排序不会改变计数。关键词、排除词、语言、店铺、价格及全部已选规格都会参与筛选，
+其中价格、已选规格和待计数的规格值必须出现在同一条可售 SKU 上。
+规格名和值遵循 `sku` 的大小写规则。可点击选项使用旧链接的 `name=value;name=value` 格式，含分隔符且无法用该格式表达的值不出现在选项中。
+Elasticsearch 使用嵌套 SKU 聚合及商品级去重。聚合超过 2,000 个规格值、结果不完整或 Elasticsearch 不可用时，
+改由 MySQL 返回搜索页及完整计数。
+
 商品列表和搜索返回 `averageRating`、`reviewCount`，其中 `reviews` 为空数组。详情内嵌最新 5 条评价。
 `GET /api/products/{productId}/reviews` 返回 `reviews`、`total`、`page`、`size`，
 从第 0 页起算，默认 5 条，最大 20 条，按评价时间和评价 ID 倒序。商品不可对外展示时返回 404。

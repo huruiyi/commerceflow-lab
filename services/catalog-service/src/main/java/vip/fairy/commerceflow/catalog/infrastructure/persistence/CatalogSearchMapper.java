@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import org.apache.ibatis.annotations.Param;
 import vip.fairy.commerceflow.catalog.api.CatalogProductV1;
+import vip.fairy.commerceflow.catalog.application.CatalogSkuSearch.Facet;
 import vip.fairy.commerceflow.catalog.application.CatalogSearchService.Criteria;
 
 public interface CatalogSearchMapper {
@@ -20,6 +21,7 @@ public interface CatalogSearchMapper {
   void deleteDocuments(@Param("generation") long generation, @Param("products") List<Long> products);
   void copyDocuments(@Param("generation") long generation, @Param("products") List<Long> products);
   long count(Criteria criteria);
+  List<Facet> skuFacets(Criteria criteria);
   List<CatalogProductV1> search(Criteria criteria);
 
   /** 当前代次和已受理的重建请求。 */

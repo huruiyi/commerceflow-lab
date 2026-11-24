@@ -24,6 +24,7 @@ import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.catalog.api.CatalogProductV1;
 import vip.fairy.commerceflow.catalog.application.CatalogSearchService.Criteria;
 import vip.fairy.commerceflow.catalog.application.CatalogSearchService.Page;
+import vip.fairy.commerceflow.catalog.application.CatalogSkuSearch.Facet;
 import vip.fairy.commerceflow.catalog.application.CatalogSkuSearch.Option;
 
 @Component
@@ -31,6 +32,7 @@ import vip.fairy.commerceflow.catalog.application.CatalogSkuSearch.Option;
 public class CatalogElasticsearchClient {
 
   private static final int RESULT_WINDOW = 10_000;
+  private static final int FACET_BUCKET_LIMIT = 2_000;
   private static final MediaType NDJSON = MediaType.parseMediaType("application/x-ndjson");
   private static final String INDEX_MAPPING = """
     {"settings":{"number_of_shards":1,"number_of_replicas":0},
@@ -117,7 +119,7 @@ public class CatalogElasticsearchClient {
   public List<IndexedDocument> documentsAfter(long generation, long afterId, int size) {
     var request = Map.of("query", Map.of("range", Map.of("productId", Map.of("gt", afterId))),
       "sort", List.of(Map.of("productId", "asc")), "size", size);
-    return searchHits(generation, request).path("hits").valueStream()
+    return searchResponse(generation, request).path("hits").path("hits").valueStream()
       .map(hit -> new IndexedDocument(hit.path("_id").asText(), hit.path("_source"))).toList();
   }
 
@@ -130,27 +132,53 @@ public class CatalogElasticsearchClient {
     long offset = (long) requestedPage * criteria.size();
     if (offset + criteria.size() > RESULT_WINDOW) return Optional.empty();
 
-    var response = execute(generation, criteria, offset);
-    long total = response.path("total").path("value").asLong();
+    var response = execute(generation, criteria, offset, criteria.includeSkuFacets());
+    var facets = criteria.includeSkuFacets() ? readSkuFacets(response) : List.<Facet>of();
+    var hits = response.path("hits");
+    long total = hits.path("total").path("value").asLong();
     int page = total == 0 ? 0 : (int) Math.min(requestedPage, (total - 1) / criteria.size());
     if (total > 0 && page != requestedPage) {
-      response = execute(generation, criteria, (long) page * criteria.size());
+      hits = execute(generation, criteria, (long) page * criteria.size(), false).path("hits");
     }
     List<CatalogProductV1> products = new ArrayList<>();
-    for (var hit : response.path("hits")) {
+    for (var hit : hits.path("hits")) {
       var product = hit.path("_source").path("products").path(criteria.locale());
       products.add(json.treeToValue(product, CatalogProductV1.class));
     }
-    return Optional.of(new Page(products, total, page, criteria.size()));
+    return Optional.of(new Page(products, total, page, criteria.size(), Map.of(), facets));
   }
 
-  private JsonNode execute(long generation, Criteria criteria, long offset) {
-    var request = Map.of("query", query(criteria), "sort", sort(criteria), "track_total_hits", true,
-      "from", offset, "size", criteria.size(), "_source", List.of("products"));
-    return searchHits(generation, request);
+  private JsonNode execute(long generation, Criteria criteria, long offset, boolean includeSkuFacets) {
+    var request = new HashMap<String, Object>(Map.of("query", query(criteria), "sort", sort(criteria),
+      "track_total_hits", true, "from", offset, "size", criteria.size(), "_source", List.of("products")));
+    if (includeSkuFacets) request.put("aggs", skuFacetAggregation(criteria));
+    return searchResponse(generation, request);
   }
 
-  private JsonNode searchHits(long generation, Map<String, Object> request) {
+  private Map<String, Object> skuFacetAggregation(Criteria criteria) {
+    var values = Map.of("terms", Map.of("field", "skus.specifications", "size", FACET_BUCKET_LIMIT,
+        "order", Map.of("_key", "asc")),
+      "aggs", Map.of("products", Map.of("reverse_nested", Map.of())));
+    var eligible = Map.of("filter", Map.of("bool", Map.of("filter", skuFilters(criteria))),
+      "aggs", Map.of("values", values));
+    return Map.of("sku_facets", Map.of("nested", Map.of("path", "skus"), "aggs", Map.of("eligible", eligible)));
+  }
+
+  private List<Facet> readSkuFacets(JsonNode response) {
+    var values = response.path("aggregations").path("sku_facets").path("eligible").path("values");
+    if (!values.path("buckets").isArray() || values.path("sum_other_doc_count").asLong(-1) != 0) {
+      throw new RestClientException("Elasticsearch returned incomplete SKU facets");
+    }
+    List<Facet> facets = new ArrayList<>();
+    for (var bucket : values.path("buckets")) {
+      var spec = json.readTree(bucket.path("key").asText());
+      facets.add(new Facet(spec.get(0).asText(), spec.get(1).asText(),
+        bucket.path("products").path("doc_count").asLong()));
+    }
+    return facets;
+  }
+
+  private JsonNode searchResponse(long generation, Map<String, Object> request) {
     var result = client.post().uri(index(generation) + "/_search").contentType(MediaType.APPLICATION_JSON)
       .body(json.writeValueAsString(request)).retrieve().body(String.class);
     if (result == null) throw new RestClientException("Missing Elasticsearch search response");
@@ -158,7 +186,7 @@ public class CatalogElasticsearchClient {
     if (parsed.path("timed_out").asBoolean() || parsed.path("_shards").path("failed").asInt() != 0) {
       throw new RestClientException("Elasticsearch returned incomplete catalog results");
     }
-    return parsed.path("hits");
+    return parsed;
   }
 
   private Map<String, Object> query(Criteria criteria) {
