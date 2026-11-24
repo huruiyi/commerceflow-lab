@@ -63,7 +63,7 @@
 第 07 项扩展上述只读响应。逐单的 `fulfillment` 包含库存出库行、WMS 计划与实发、WMS 实收及质检回执。
 库存和 WMS 按商家及当页订单批量查询。实发与库存出库按出库单、仓库、订单行和商品核对件数。
 退货回执保留原出库号和售后单号，可关联退款单及已完成退款的件数。库存及 WMS 可用性各自返回，查询失败保留资金报告。
-日常商城与门户已发布该响应，库存与 WMS 配套服务待更新。店铺 8 抽检中两个凭证可用性字段均为 `false`。
+日常商城、门户和两项凭证服务均已发布。店铺 8 抽检中两项凭证来源均可用，已读取库存出库记录，抽检的旧订单未返回对应的 WMS 回执。
 逐单增加支付确认时间、退款金额与成功时间、正红票金额和引用，门户在原冻结账单详情中展示。打款尝试增加渠道确认时间。
 
 平台管理员可通过 `GET /api/admin/stores/{merchantId}/statements/{id}/reconciliation/reviews`
@@ -74,6 +74,11 @@
 结论可选 `CONFIRMED` 或 `NO_ACTION`，依据须为 1 至 300 个字符。
 服务端复算证据，证据变化时返回 409。同一管理员重试相同请求返回原记录，请求号冲突返回 409。
 复核只追加结论、差异快照、操作人和时间。商家访问复核接口返回 403，店铺与账单错配返回 404。
+
+V72 在单条复核下提供 `GET /reconciliation/reviews/{review}/disposition`（沿用上述平台账单前缀）。
+向其 `/receipts` 发送 `POST` 关联原业务回执，提交 `requestId` 和 `receipt`。向其 `/closure` 发送 `POST` 重新对账和结案，提交 `requestId` 和 `reason`。
+已确认的库存、打款或发票差异须通过对应业务核验回执，重算后相应差异消失才可结案。无需处置须重新对账并记录结案依据。
+同一操作者以相同请求号和内容重试可读回原结果。无回执、来源暂不可用或结果仍有差异时，保持待处理并返回 409。日常商城目前使用 V71。
 
 跨期对账使用 `GET /api/merchant/settlement/statements/{id}/period-comparison`，平台使用
 `GET /api/admin/stores/{merchantId}/statements/{id}/period-comparison`。指定本期冻结账单，

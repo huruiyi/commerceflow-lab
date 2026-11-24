@@ -1,0 +1,66 @@
+<div class="border rounded p-2 mt-2" [attr.aria-busy]="busy()">
+  @if (error()) {
+    <p role="alert" class="text-danger">{{ error() }}</p>
+    @if (!state()) {
+      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="load()">重试 / Retry</button>
+    }
+  }
+  @if (state(); as item) {
+    @if (item.status === 'CLOSED') {
+      <p class="text-success mb-1">已结案 / Closed</p>
+      <p class="mb-1">{{ item.record?.closureReason }}</p>
+      <small>#{{ item.record?.closedBy }} · {{ item.record?.closedAt | date: 'medium' }}</small>
+    } @else {
+      @if (!noAction() && item.status === 'OPEN') {
+        @switch (item.route) {
+          @case ('STOCKTAKE') {
+            <a routerLink="/admin/inventory-reconciliation">库存对账与盘点 / Inventory reconciliation and stocktake</a>
+          }
+          @case ('PAYOUT') {
+            <button class="btn btn-link p-0" type="button" (click)="focusPayout()">
+              原打款处理 / Original payout
+            </button>
+          }
+          @case ('INVOICE') {
+            <a [routerLink]="['/admin/invoices', orderId()]">原发票复核 / Original invoice review</a>
+          }
+        }
+        @if (item.route !== 'MANUAL') {
+          <form class="mt-2" (ngSubmit)="link()">
+            <label class="d-block">
+              原业务回执号 / Original operation reference
+              <input class="form-control" name="receipt" [(ngModel)]="receipt" maxlength="128" required />
+            </label>
+            <button class="btn btn-sm btn-outline-primary mt-2" type="submit" [disabled]="busy() || !receipt.trim()">
+              关联回执 / Link receipt
+            </button>
+          </form>
+        } @else {
+          <p class="mb-0">待核对原业务凭证 / Original evidence requires follow-up</p>
+        }
+      }
+      @if (noAction() || item.status === 'EVIDENCE_LINKED') {
+        <form class="mt-2" (ngSubmit)="close()">
+          <label class="d-block">
+            结案依据 / Closure reason
+            <textarea
+              class="form-control"
+              name="reason"
+              [(ngModel)]="reason"
+              maxlength="300"
+              rows="2"
+              required
+            ></textarea>
+          </label>
+          <button class="btn btn-sm btn-primary mt-2" type="submit" [disabled]="busy() || !reason.trim()">
+            重新对账并结案 / Recheck and close
+          </button>
+        </form>
+      }
+    }
+    @if (item.record?.receipt; as receipt) {
+      <p class="mb-0 mt-2">原业务回执 / Original operation reference {{ receipt }}</p>
+      <small>#{{ item.record.linkedBy }} · {{ item.record.linkedAt | date: 'medium' }}</small>
+    }
+  }
+</div>

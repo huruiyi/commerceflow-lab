@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.commerce.merchant.infrastructure.StatementDifferenceDispositionMapper">
+  <select id="find" resultType="vip.fairy.commerceflow.commerce.merchant.domain.StatementDifferenceDisposition">
+    SELECT review_id,receipt_request_id,receipt,linked_by,linked_at,closure_request_id,
+      closed_by,closed_at,closure_reason
+    FROM merchant_statement_difference_dispositions
+    WHERE review_id=#{reviewId}
+  </select>
+
+  <insert id="insert">
+    INSERT INTO merchant_statement_difference_dispositions (
+      review_id,receipt_request_id,receipt,linked_by,linked_at,closure_request_id,closed_by,closed_at,closure_reason
+    ) VALUES (
+      #{reviewId},#{receiptRequestId},#{receipt},#{linkedBy},#{linkedAt},#{closureRequestId},#{closedBy},
+      #{closedAt},#{closureReason}
+    )
+  </insert>
+
+  <update id="close">
+    UPDATE merchant_statement_difference_dispositions
+    SET closure_request_id=#{requestId},closed_by=#{actor},closed_at=CURRENT_TIMESTAMP(6),closure_reason=#{reason}
+    WHERE review_id=#{reviewId} AND receipt_request_id IS NOT NULL AND closed_at IS NULL
+  </update>
+</mapper>

@@ -41,6 +41,8 @@ import vip.fairy.commerceflow.commerce.logistics.application.contract.LogisticsF
 import vip.fairy.commerceflow.commerce.logistics.application.contract.LogisticsFulfillmentV1.Command;
 import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.Entry;
 import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.Statement;
+import vip.fairy.commerceflow.commerce.merchant.domain.MerchantPayout;
+import vip.fairy.commerceflow.commerce.merchant.infrastructure.MerchantPayoutMapper;
 import vip.fairy.commerceflow.commerce.merchant.infrastructure.SettlementMapper;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandRouter;
 import vip.fairy.commerceflow.commerce.notification.application.CustomerNotificationCommandV1;
@@ -223,6 +225,9 @@ class CommerceFlowIntegrationTest {
 
   @Autowired
   SettlementMapper settlementLedger;
+
+  @Autowired
+  MerchantPayoutMapper payoutAttempts;
   @MockitoBean
   PaymentOrchestrationV1 paymentOrchestration;
   @MockitoBean
@@ -803,6 +808,56 @@ class CommerceFlowIntegrationTest {
       .andExpect(jsonPath("$.rows[0].reason").value("Checked settlement rollup"));
     mvc.perform(get(path, adminId, statement).session(admin.session())).andExpect(status().isNotFound());
     assertEquals(0, settlementLedger.statement(statement).payable().compareTo(BigDecimal.TEN));
+  }
+
+  @Test
+  @Transactional
+  void payoutDifferenceClosesOnlyAfterTheOriginalRecoveryIsConfirmed() throws Exception {
+    long merchant = users.selectOne(Wrappers.<AppUser>lambdaQuery().eq(AppUser::getEmail, "merchant@example.com")).getId();
+    long adminId = users.selectOne(Wrappers.<AppUser>lambdaQuery().eq(AppUser::getEmail, "admin@example.com")).getId();
+    if (settlementLedger.account(merchant) == null) settlementLedger.enable(merchant, 500);
+    String statement = UUID.randomUUID().toString();
+    String original = UUID.randomUUID().toString();
+    String recovery = UUID.randomUUID().toString();
+    String review = UUID.randomUUID().toString();
+    Instant cutoff = Instant.parse("2025-01-02T00:00:00Z");
+    settlementLedger.freeze(new Statement(statement, merchant, cutoff.minusSeconds(3600), cutoff, BigDecimal.TEN,
+      BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.TEN, adminId));
+    payoutAttempts.insert(new MerchantPayout(original, statement, merchant, BigDecimal.TEN, "CNY", "REQUESTED",
+      true, adminId, null, null, null, null, null));
+    payoutAttempts.observe(original, "FAILED", "failed-" + original, Instant.now());
+    CsrfContext admin = login("admin@example.com", false);
+    CsrfContext merchantActor = login("merchant@example.com", false);
+    String path = "/api/admin/stores/{merchantId}/statements/{id}/reconciliation/reviews";
+    String decision = """
+      {"requestId":"%s","page":0,"size":10,"target":{"kind":"PAYOUT_FAILED","reference":"%s",
+        "expected":10},"decision":"CONFIRMED","reason":"Original payout failed"}
+      """.formatted(review, original);
+    mvc.perform(post(path, merchant, statement).session(admin.session()).cookie(admin.cookie())
+        .header("X-XSRF-TOKEN", admin.token()).contentType("application/json").content(decision))
+      .andExpect(status().isOk());
+    String disposition = path + "/{review}/disposition";
+    var closure = post(disposition + "/closure", merchant, statement, review).session(admin.session())
+      .cookie(admin.cookie()).header("X-XSRF-TOKEN", admin.token()).contentType("application/json")
+      .content(("""
+        {"requestId":"%s","reason":"Channel reported success for the original recovery"}
+        """).formatted(UUID.randomUUID()));
+    mvc.perform(closure).andExpect(status().isConflict());
+    String receipt = """
+      {"requestId":"%s","receipt":"%s"}
+      """.formatted(UUID.randomUUID(), recovery);
+    var link = post(disposition + "/receipts", merchant, statement, review).session(admin.session())
+      .cookie(admin.cookie()).header("X-XSRF-TOKEN", admin.token()).contentType("application/json").content(receipt);
+    mvc.perform(link).andExpect(status().isConflict());
+    payoutAttempts.insert(new MerchantPayout(recovery, statement, merchant, BigDecimal.TEN, "CNY", "REQUESTED",
+      false, adminId, null, null, null, original, "Retry original payout"));
+    payoutAttempts.observe(recovery, "SUCCEEDED", "paid-" + recovery, Instant.now().plusSeconds(1));
+    mvc.perform(link).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("EVIDENCE_LINKED"));
+    mvc.perform(closure).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CLOSED"));
+    mvc.perform(closure).andExpect(status().isOk()).andExpect(jsonPath("$.record.receipt").value(recovery));
+    mvc.perform(get(disposition, merchant, statement, review).session(merchantActor.session()))
+      .andExpect(status().isForbidden());
+    assertEquals(2, payoutAttempts.attempts(statement).size());
   }
 
   @Test

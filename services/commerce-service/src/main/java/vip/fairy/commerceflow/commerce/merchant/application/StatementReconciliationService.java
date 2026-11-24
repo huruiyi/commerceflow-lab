@@ -9,6 +9,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,8 @@ import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.RefundOrigin;
 import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.RefundRollup;
 import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.Rollup;
 import vip.fairy.commerceflow.commerce.merchant.domain.Settlement.Statement;
+import vip.fairy.commerceflow.commerce.merchant.domain.StatementDifferenceDisposition.Route;
+import vip.fairy.commerceflow.commerce.merchant.domain.StatementDifferenceReview;
 import vip.fairy.commerceflow.commerce.merchant.infrastructure.MerchantPayoutMapper;
 import vip.fairy.commerceflow.commerce.merchant.infrastructure.SettlementMapper;
 import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.SettlementOrderV1;
@@ -31,6 +34,7 @@ import vip.fairy.commerceflow.commerce.payment.application.contract.v1.InvoiceFu
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentOrchestrationV1;
 import vip.fairy.commerceflow.commerce.payment.application.contract.v1.PaymentQueryV1;
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
+import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 
 @Service
 public class StatementReconciliationService {
@@ -72,6 +76,8 @@ public class StatementReconciliationService {
       if (settled.size() > 1) differences.add(new Difference("MULTIPLE_PAYOUTS", statementId, null, paidOut));
       settled.stream().filter(payout -> !"CNY".equals(payout.currency()))
         .forEach(payout -> differences.add(new Difference("PAYOUT_CURRENCY", payout.id(), null, payout.amount())));
+    } else if (!payoutRefs.isEmpty() && "FAILED".equals(payoutRefs.getFirst().status())) {
+      differences.add(new Difference("PAYOUT_FAILED", payoutRefs.getFirst().id(), statement.payable(), null));
     }
     var orderIds = ledger.statementOrderIds(statementId, merchant, (long) page * size, size);
     List<OrderCheck> checks = new ArrayList<>();
@@ -83,6 +89,61 @@ public class StatementReconciliationService {
     }
     return new Report(statement, rollup.payable(), paidOut, payoutRefs, differences, checks,
       rollup.orderCount(), page, size, Instant.now());
+  }
+
+  boolean corrected(StatementDifferenceReview review) {
+    var route = Route.forKind(review.differenceKind());
+    if (review.orderId() == null) {
+      return reconcile(review.merchantId(), review.statementId(), 0, 1).differences().stream()
+        .noneMatch(difference -> relevant(review, route, difference));
+    }
+    var order = reviewedOrder(review);
+    if (route == Route.STOCKTAKE) {
+      return requireFulfillment(order).differences().stream().noneMatch(difference ->
+        difference.orderLineId() == review.orderLineId() && difference.outboundId().equals(review.evidenceReference()));
+    }
+    if (route == Route.INVOICE && order.invoiceDetails() == null) {
+      throw new BusinessRuleException("Invoice evidence is unavailable");
+    }
+    return order.differences().stream().noneMatch(difference -> relevant(review, route, difference));
+  }
+
+  Optional<Long> stockProduct(StatementDifferenceReview review) {
+    var proof = requireFulfillment(reviewedOrder(review));
+    var posted = proof.inventory().stream()
+      .filter(line -> line.orderLineId() == review.orderLineId()
+        && line.outboundId().equals(review.evidenceReference()))
+      .map(line -> line.productId()).findFirst();
+    return posted.or(() -> proof.dispatches().stream()
+      .filter(dispatch -> dispatch.outboundId().equals(review.evidenceReference()))
+      .flatMap(dispatch -> dispatch.planned().stream())
+      .filter(line -> line.orderLineId() == review.orderLineId())
+      .map(line -> line.productId()).findFirst());
+  }
+
+  private OrderCheck reviewedOrder(StatementDifferenceReview review) {
+    var ids = List.of(review.orderId());
+    var entries = ledger.statementOrderEntries(review.statementId(), review.merchantId(), ids);
+    if (entries.isEmpty()) throw new BusinessRuleException("Order is outside the frozen statement");
+    var account = ledger.account(review.merchantId());
+    var check = checkOrder(review.merchantId(), review.orderId(), account, entries,
+      fulfillment.load(review.merchantId(), ids));
+    if (check.fulfillment() == null) throw new BusinessRuleException("Order evidence is unavailable");
+    return check;
+  }
+
+  private static FulfillmentCheck requireFulfillment(OrderCheck order) {
+    var proof = order.fulfillment();
+    if (!proof.inventoryAvailable() || !proof.warehouseAvailable()) {
+      throw new BusinessRuleException("Inventory or warehouse evidence is unavailable");
+    }
+    return proof;
+  }
+
+  private static boolean relevant(StatementDifferenceReview review, Route route, Difference difference) {
+    if (route == Route.INVOICE || route == Route.PAYOUT) return route == Route.forKind(difference.kind());
+    return review.differenceKind().equals(difference.kind())
+      && review.evidenceReference().equals(difference.reference());
   }
 
   @Transactional(readOnly = true)

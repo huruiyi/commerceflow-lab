@@ -1,5 +1,6 @@
 package vip.fairy.commerceflow.commerce.invoice.application;
 
+import java.time.Instant;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
 import vip.fairy.commerceflow.commerce.invoice.application.contract.v1.SettlementInvoiceV1;
@@ -26,6 +27,14 @@ public class SettlementInvoiceQuery implements SettlementInvoiceV1 {
       .findFirst()
       .map(issue -> new Tickets(ticket(issue), journal.includedRefunds(issue.requestId()),
         confirmed.stream().filter(attempt -> attempt.kind() == Kind.RED).map(SettlementInvoiceQuery::ticket).toList()));
+  }
+
+  @Override
+  public boolean reviewed(long merchantId, long orderId, String requestId, Instant reviewedAt) {
+    var action = journal.reviewAction(orderId, requestId);
+    return action != null && !action.createdAt().isBefore(reviewedAt)
+      && journal.attempts(orderId).stream().anyMatch(attempt -> attempt.kind() == Kind.ISSUE
+        && Long.valueOf(merchantId).equals(attempt.merchantId()));
   }
 
   private static Ticket ticket(Attempt attempt) {

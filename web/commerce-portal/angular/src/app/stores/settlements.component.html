@@ -100,7 +100,7 @@
       />
       <ng-container *ngTemplateOutlet="ledger; context: { $implicit: page.rows }"></ng-container>
     }
-    <h3 class="h5">模拟打款 / Simulated payouts</h3>
+    <h3 id="statement-payouts" class="h5" tabindex="-1">模拟打款 / Simulated payouts</h3>
     <ul class="list-group mb-3" *ngIf="payouts().length">
       <li class="list-group-item" *ngFor="let item of payouts()">
         {{ item.status }} · {{ item.amount | currency: 'CNY' }}

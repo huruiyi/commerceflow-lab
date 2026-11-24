@@ -74,6 +74,21 @@
             · {{ row.expectedValue ?? '—' }} → {{ row.observedValue ?? '—' }}
             <div>{{ row.reason }}</div>
             <small>复核人 / Reviewer {{ row.reviewedBy }} · {{ row.reviewedAt | date: 'medium' }}</small>
+            <button
+              class="btn btn-sm btn-outline-secondary ms-2"
+              type="button"
+              [attr.aria-expanded]="activeReview() === row.requestId"
+              (click)="activeReview.set(activeReview() === row.requestId ? '' : row.requestId)"
+            >
+              差异处置 / Disposition
+            </button>
+            @if (activeReview() === row.requestId) {
+              <app-statement-difference-disposition
+                [path]="path() + '/' + row.requestId + '/disposition'"
+                [orderId]="row.orderId"
+                [noAction]="row.decision === 'NO_ACTION'"
+              />
+            }
           </li>
         }
       </ul>

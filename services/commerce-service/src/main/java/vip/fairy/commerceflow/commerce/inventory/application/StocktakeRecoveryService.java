@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.DeliveredInventoryOrderV1;
+import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.StocktakeDispositionV1;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.StocktakeV1;
 import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
 import vip.fairy.commerceflow.commerce.inventory.infrastructure.DeliveryRecoveryView;
@@ -19,7 +20,7 @@ import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
 import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
 
 @Service
-public class StocktakeRecoveryService {
+public class StocktakeRecoveryService implements StocktakeDispositionV1 {
 
   private final StocktakeReviewMapper reviews;
   private final InventoryCommandDeliveryMapper deliveries;
@@ -59,6 +60,19 @@ public class StocktakeRecoveryService {
 
   public Review get(String reference) {
     return view(require(reviews.find(reference)));
+  }
+
+  @Override
+  public boolean applied(String reference, long orderId, long productId, Instant reviewedAt) {
+    var row = reviews.find(reference);
+    if (row == null || row.receipt() == null) return false;
+    var proposal = decode(row);
+    return proposal.productId() == productId && proposal.commandIds().stream()
+      .map(deliveries::byCommandId)
+      .anyMatch(delivery -> delivery != null && Long.valueOf(orderId).equals(delivery.orderId())
+        && "CLOSED".equals(delivery.status())
+        && delivery.recoveryReason() != null && delivery.recoveryReason().startsWith("Stocktake " + reference + ";")
+        && delivery.recoveredAt() != null && !delivery.recoveredAt().isBefore(reviewedAt));
   }
 
   @Transactional

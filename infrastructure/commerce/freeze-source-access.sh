@@ -33,7 +33,8 @@ grant_statements=$(root_mysql -e "
     CASE WHEN table_name IN ('checkout_receipts','payment_report_merchant_grants',
       'merchant_statement_difference_reviews') THEN '' ELSE ', UPDATE' END,
     CASE WHEN table_name IN ('checkout_receipts','payment_report_merchant_grants',
-      'order_cancellation_completion','cart_repurchase_requests','merchant_statement_difference_reviews')
+      'order_cancellation_completion','cart_repurchase_requests','merchant_statement_difference_reviews',
+      'merchant_statement_difference_dispositions')
       THEN '' ELSE ', DELETE' END,
     ' ON \`commerceflow\`.\`',
     table_name,

@@ -5,6 +5,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs';
 import { ListPaginationComponent } from '../list-pagination/list-pagination.component';
+import { StatementDifferenceDispositionComponent } from './statement-difference-disposition.component';
 
 export interface ReviewTarget {
   orderId: number | null;
@@ -40,7 +41,7 @@ interface History {
 
 @Component({
   selector: 'app-statement-difference-reviews',
-  imports: [DatePipe, FormsModule, ListPaginationComponent],
+  imports: [DatePipe, FormsModule, ListPaginationComponent, StatementDifferenceDispositionComponent],
   templateUrl: './statement-difference-reviews.component.html',
 })
 export class StatementDifferenceReviewsComponent implements OnInit {
@@ -62,6 +63,7 @@ export class StatementDifferenceReviewsComponent implements OnInit {
   readonly saving = signal(false);
   readonly saved = signal(false);
   readonly saveError = signal('');
+  readonly activeReview = signal('');
   readonly decisions: Record<Decision, string> = {
     CONFIRMED: '确认差异 / Confirm discrepancy',
     NO_ACTION: '无需处置 / No action',

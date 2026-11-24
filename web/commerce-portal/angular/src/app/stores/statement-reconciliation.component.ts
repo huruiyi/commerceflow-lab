@@ -141,6 +141,7 @@ export class StatementReconciliationComponent implements OnInit {
     STATEMENT_PAYABLE: '账单应结 / Statement payable',
     SETTLEMENT_ACCOUNT_MISSING: '结算账户查不到 / Settlement account missing',
     PAYOUT_AMOUNT: '打款金额 / Payout amount',
+    PAYOUT_FAILED: '打款失败 / Payout failed',
     PAYOUT_CURRENCY: '打款币种 / Payout currency',
     MULTIPLE_PAYOUTS: '多次成功打款 / Multiple payouts',
     ORDER_MISSING: '订单查不到 / Order missing',

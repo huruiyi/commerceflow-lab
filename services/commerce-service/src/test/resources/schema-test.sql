@@ -862,6 +862,17 @@ CREATE TABLE merchant_statement_difference_reviews (
   reviewed_by BIGINT NOT NULL,
   reviewed_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
 );
+CREATE TABLE merchant_statement_difference_dispositions (
+  review_id CHAR(36) PRIMARY KEY REFERENCES merchant_statement_difference_reviews(request_id),
+  receipt_request_id CHAR(36),
+  receipt VARCHAR(128),
+  linked_by BIGINT,
+  linked_at TIMESTAMP(6),
+  closure_request_id CHAR(36),
+  closed_by BIGINT,
+  closed_at TIMESTAMP(6),
+  closure_reason VARCHAR(300)
+);
 CREATE TABLE merchant_settlement_entries (
   source_key VARCHAR(100) PRIMARY KEY,
   merchant_id BIGINT NOT NULL,
