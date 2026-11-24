@@ -167,6 +167,12 @@
         }
       </ul>
     }
+    <app-catalog-sku-facets
+      [facets]="skuFacets"
+      [sku]="filters.sku"
+      [loading]="loading"
+      (skuChange)="changeSku($event)"
+    />
     @if (loading) {
       <p class="catalog-state" role="status">{{ 'catalogSearching' | t }}</p>
     } @else if (searchFailed) {

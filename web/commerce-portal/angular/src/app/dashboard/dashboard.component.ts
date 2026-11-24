@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Params, Router } from '@angular/router';
 import { Subscription, timeout } from 'rxjs';
 import { Product } from 'src/model/IProduct';
-import { ApiService, CatalogStore } from '../services/api.service';
+import { ApiService, CatalogSkuFacet, CatalogStore } from '../services/api.service';
 import { I18nService } from '../services/i18n.service';
 import { SeoService } from '../services/seo.service';
 import {
@@ -31,6 +31,7 @@ export class DashboardComponent implements OnInit {
   readonly size = 12;
   readonly sorts = catalogSortOptions;
   products: Product[] = [];
+  skuFacets: CatalogSkuFacet[] = [];
   stores: CatalogStore[] = [];
   storeNames = new Map<number, string>();
   total = 0;
@@ -182,6 +183,10 @@ export class DashboardComponent implements OnInit {
     this.updateQuery({ ...this.filters, sort, page: 0 });
   }
 
+  changeSku(sku: string): void {
+    this.updateQuery({ ...this.filters, sku, page: 0 });
+  }
+
   changePage(page: number): void {
     this.updateQuery({ ...this.filters, page });
   }
@@ -195,6 +200,7 @@ export class DashboardComponent implements OnInit {
       invalidCatalogSku(this.filters.sku)
     ) {
       this.products = [];
+      this.skuFacets = [];
       this.total = 0;
       this.loading = false;
       this.searchFailed = false;
@@ -208,7 +214,8 @@ export class DashboardComponent implements OnInit {
       .searchProducts(params)
       .pipe(timeout(8000), takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ products, total, page: effectivePage }) => {
+        next: ({ products, total, page: effectivePage, skuFacets }) => {
+          this.skuFacets = skuFacets ?? [];
           this.products = products;
           this.total = total;
           this.displayPage = effectivePage;
@@ -217,6 +224,7 @@ export class DashboardComponent implements OnInit {
         },
         error: () => {
           this.products = [];
+          this.skuFacets = [];
           this.total = 0;
           this.loading = false;
           this.searchFailed = true;

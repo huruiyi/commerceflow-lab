@@ -18,6 +18,7 @@ import {
   switchMap,
 } from 'rxjs';
 import { CatalogProductCardComponent } from '../dashboard/catalog-product-card.component';
+import { CatalogSkuFacetsComponent } from '../dashboard/catalog-sku-facets.component';
 import {
   CatalogQuery,
   catalogQueryParams,
@@ -42,7 +43,14 @@ interface Store {
 
 @Component({
   selector: 'app-stores',
-  imports: [CommonModule, FormsModule, RouterLink, ListPaginationComponent, CatalogProductCardComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    RouterLink,
+    ListPaginationComponent,
+    CatalogProductCardComponent,
+    CatalogSkuFacetsComponent,
+  ],
   templateUrl: './stores.component.html',
   styleUrl: './stores.component.css',
 })
@@ -181,6 +189,14 @@ export class StoresComponent {
 
   changeStorePage(page: number): void {
     this.requestedStorePage.set(page);
+  }
+
+  get selectedSku(): string | undefined {
+    return this.catalog.sku;
+  }
+
+  changeSku(sku: string): void {
+    this.navigateCatalog({ ...this.catalog, sku, page: 0 });
   }
 
   changePage(page: number): void {

@@ -196,7 +196,14 @@ export interface MerchantProduct {
   businessVersion: number;
 }
 
+export interface CatalogSkuFacet {
+  name: string;
+  value: string;
+  productCount: number;
+}
+
 export interface CatalogSearchPage {
+  skuFacets: CatalogSkuFacet[];
   products: Product[];
   total: number;
   page: number;

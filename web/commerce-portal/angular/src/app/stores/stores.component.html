@@ -377,6 +377,12 @@
         </p>
       }
     </form>
+    <app-catalog-sku-facets
+      [facets]="productPage()?.skuFacets ?? []"
+      [sku]="selectedSku"
+      [loading]="productsLoading()"
+      (skuChange)="changeSku($event)"
+    />
     @if (productsLoading()) {
       <p role="status">{{ i18n.t('storeProductsLoading') }}</p>
     } @else if (productsFailed()) {

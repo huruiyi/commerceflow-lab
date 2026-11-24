@@ -1,0 +1,30 @@
+@if (groups().size) {
+  <section class="sku-facets" [attr.aria-label]="i18n.t('catalogSkuFilter')" [attr.aria-busy]="loading()">
+    @for (group of groups(); track group[0]) {
+      <fieldset class="sku-facet">
+        <legend>{{ group[0] }}</legend>
+        <div class="sku-values">
+          @for (option of group[1]; track option.value) {
+            <button
+              type="button"
+              class="sku-value"
+              [attr.aria-pressed]="selected().get(group[0]) === option.value"
+              [attr.aria-disabled]="cannotApply(group[0], option.value)"
+              (click)="change(group[0], option.value)"
+            >
+              {{ option.value }}
+              @if (option.productCount !== null) {
+                <span class="sku-count">{{ option.productCount }}</span>
+              }
+            </button>
+          }
+        </div>
+      </fieldset>
+    }
+    @if (selected().size) {
+      <button type="button" class="sku-clear" [disabled]="loading()" (click)="skuChange.emit('')">
+        {{ i18n.t('catalogClearSku') }}
+      </button>
+    }
+  </section>
+}

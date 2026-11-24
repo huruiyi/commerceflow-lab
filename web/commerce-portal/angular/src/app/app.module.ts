@@ -16,6 +16,7 @@ import { LoginComponent } from './login/login.component';
 import { DashboardComponent } from './dashboard/dashboard.component';
 import { CatalogImageComponent } from './dashboard/catalog-image.component';
 import { CatalogProductCardComponent } from './dashboard/catalog-product-card.component';
+import { CatalogSkuFacetsComponent } from './dashboard/catalog-sku-facets.component';
 import { ProductDetailComponent } from './product-detail/product-detail.component';
 import { NavbarComponent } from './inc/navbar/navbar.component';
 import { ErrorpageComponent } from './errorpage/errorpage.component';
@@ -90,6 +91,7 @@ import { InventoryReconciliationAdminComponent } from './inventory-reconciliatio
     HlmButton,
     CatalogImageComponent,
     CatalogProductCardComponent,
+    CatalogSkuFacetsComponent,
     ListPaginationComponent,
     HlmBadge,
     HlmSpinner,

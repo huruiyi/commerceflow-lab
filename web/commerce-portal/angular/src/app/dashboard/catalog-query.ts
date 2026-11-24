@@ -60,7 +60,7 @@ export function catalogQueryParams(query: CatalogQuery): Params {
 
 export function catalogSearchParams(query: CatalogQuery, size: number): Record<string, string | number> {
   const { q, sort, page, merchantId, minPrice, maxPrice } = query;
-  const params: Record<string, string | number> = { q, sort, page, size };
+  const params: Record<string, string | number> = { q, sort, page, size, includeSkuFacets: 'true' };
   if (query.match !== 'all') params['match'] = query.match;
   if (query.exclude) params['exclude'] = query.exclude;
   if (query.sku) params['sku'] = query.sku.trim();

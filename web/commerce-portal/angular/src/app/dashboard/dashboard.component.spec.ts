@@ -6,6 +6,7 @@ import { of } from 'rxjs';
 import { Product } from 'src/model/IProduct';
 import { DashboardComponent } from './dashboard.component';
 import { CatalogProductCardComponent } from './catalog-product-card.component';
+import { CatalogSkuFacetsComponent } from './catalog-sku-facets.component';
 import { ListPaginationComponent } from '../list-pagination/list-pagination.component';
 import { TranslatePipe } from '../pipes/translate.pipe';
 import { ApiService } from '../services/api.service';
@@ -28,11 +29,23 @@ describe('DashboardComponent', () => {
   };
 
   beforeEach(async () => {
-    search = jasmine
-      .createSpy('searchProducts')
-      .and.returnValue(of({ products: [product], total: 14, page: 1, size: 12 }));
+    search = jasmine.createSpy('searchProducts').and.returnValue(
+      of({
+        products: [product],
+        total: 14,
+        page: 1,
+        size: 12,
+        skuFacets: [{ name: 'color', value: 'red', productCount: 2 }],
+      }),
+    );
     await TestBed.configureTestingModule({
-      imports: [FormsModule, RouterModule, ListPaginationComponent, CatalogProductCardComponent],
+      imports: [
+        FormsModule,
+        RouterModule,
+        ListPaginationComponent,
+        CatalogProductCardComponent,
+        CatalogSkuFacetsComponent,
+      ],
       declarations: [DashboardComponent, TranslatePipe],
       providers: [
         provideRouter([{ path: 'dashboard', component: DashboardComponent }]),
@@ -47,7 +60,7 @@ describe('DashboardComponent', () => {
 
   it('uses the server search total and effective page in its links', async () => {
     const component = await harness.navigateByUrl('/dashboard', DashboardComponent);
-    expect(search).toHaveBeenCalledWith({ q: '', sort: 'default', page: 0, size: 12 });
+    expect(search).toHaveBeenCalledWith({ q: '', sort: 'default', page: 0, size: 12, includeSkuFacets: 'true' });
     expect(component.totalPages).toBe(2);
     expect(component.displayPage).toBe(1);
     expect(harness.routeNativeElement?.querySelector('.product-card')?.getAttribute('href')).toBe('/products/1?page=1');
@@ -66,6 +79,7 @@ describe('DashboardComponent', () => {
       sort: 'rating',
       page: 1,
       size: 12,
+      includeSkuFacets: 'true',
     });
     const link = harness.routeNativeElement?.querySelector('.product-card')?.getAttribute('href');
     expect(TestBed.inject(Router).parseUrl(link ?? '').queryParams).toEqual({
@@ -86,6 +100,7 @@ describe('DashboardComponent', () => {
       sort: 'rating',
       page: 0,
       size: 12,
+      includeSkuFacets: 'true',
     });
   });
 
@@ -103,6 +118,7 @@ describe('DashboardComponent', () => {
       sort: 'default',
       page: 0,
       size: 12,
+      includeSkuFacets: 'true',
     });
     const link = harness.routeNativeElement?.querySelector('.product-card')?.getAttribute('href');
     expect(TestBed.inject(Router).parseUrl(link ?? '').queryParams).toEqual({
@@ -118,6 +134,30 @@ describe('DashboardComponent', () => {
     expect(component.invalidExclude).toBeTrue();
   });
 
+  it('applies a counted SKU option and clears it while preserving the keyword', async () => {
+    await harness.navigateByUrl('/dashboard?q=laptop&page=1', DashboardComponent);
+    const root = harness.routeNativeElement!;
+    const red = root.querySelector<HTMLButtonElement>('.sku-value')!;
+    expect(red.textContent).toContain('2');
+    red.click();
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(search.calls.mostRecent().args[0]).toEqual({
+      q: 'laptop',
+      sort: 'default',
+      page: 0,
+      size: 12,
+      sku: 'color=red',
+      includeSkuFacets: 'true',
+    });
+    expect(red.getAttribute('aria-pressed')).toBe('true');
+    const link = root.querySelector('.product-card')?.getAttribute('href');
+    expect(TestBed.inject(Router).parseUrl(link ?? '').queryParams['sku']).toBe('color=red');
+    root.querySelector<HTMLButtonElement>('.sku-clear')!.click();
+    await harness.fixture.whenStable();
+    expect(TestBed.inject(Router).url).toBe('/dashboard?q=laptop');
+  });
+
   it('rejects invalid draft prices and resets applied filters', async () => {
     const component = await harness.navigateByUrl('/dashboard?q=notebook&page=1', DashboardComponent);
     component.draft.minPrice = 200;
@@ -129,6 +169,12 @@ describe('DashboardComponent', () => {
     component.clearFilters();
     await harness.fixture.whenStable();
     expect(TestBed.inject(Router).url).toBe('/dashboard');
-    expect(search.calls.mostRecent().args[0]).toEqual({ q: '', sort: 'default', page: 0, size: 12 });
+    expect(search.calls.mostRecent().args[0]).toEqual({
+      q: '',
+      sort: 'default',
+      page: 0,
+      size: 12,
+      includeSkuFacets: 'true',
+    });
   });
 });
