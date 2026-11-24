@@ -16,6 +16,7 @@ import vip.fairy.commerceflow.catalog.api.CatalogTranslationUpdateRequest;
 import vip.fairy.commerceflow.catalog.domain.Product;
 import vip.fairy.commerceflow.catalog.domain.ProductTranslation;
 import vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogEventOutboxMapper;
+import vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogSkuMapper;
 import vip.fairy.commerceflow.catalog.infrastructure.persistence.ProductMapper;
 import vip.fairy.commerceflow.catalog.infrastructure.persistence.ProductTranslationMapper;
 
@@ -37,13 +38,15 @@ public class CatalogApplicationService {
   private final ProductMapper products;
   private final ProductTranslationMapper translations;
   private final CatalogEventOutboxMapper outbox;
+  private final CatalogSkuMapper skus;
   private final ObjectMapper mapper;
 
   public CatalogApplicationService(ProductMapper products, ProductTranslationMapper translations,
-                                   CatalogEventOutboxMapper outbox, ObjectMapper mapper) {
+                                   CatalogEventOutboxMapper outbox, CatalogSkuMapper skus, ObjectMapper mapper) {
     this.products = products;
     this.translations = translations;
     this.outbox = outbox;
+    this.skus = skus;
     this.mapper = mapper;
   }
 
@@ -116,6 +119,7 @@ public class CatalogApplicationService {
       }
       return CatalogProductV1.from(existing, null);
     }
+    skus.insertDefault(product.getId(), merchantId);
     return changed(owned(merchantId, product.getId()), CatalogProductEventType.PRODUCT_CREATED,
       null, key, key);
   }

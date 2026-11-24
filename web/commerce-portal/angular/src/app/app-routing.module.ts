@@ -115,6 +115,13 @@ const routes: Routes = [
     canActivate: [AuthGuard],
     data: { roles: ['MERCHANT'] },
   },
+  {
+    path: 'merchant/products/:id/skus',
+    loadComponent: () =>
+      import('./merchant-catalog/merchant-skus.component').then((module) => module.MerchantSkusComponent),
+    canActivate: [AuthGuard],
+    data: { roles: ['MERCHANT'] },
+  },
   { path: 'profile', component: ProfileComponent, canActivate: [AuthGuard] },
   { path: 'users', component: UsersComponent, canActivate: [AuthGuard], data: { roles: ['ADMIN'] } },
   {

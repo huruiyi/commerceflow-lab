@@ -4,6 +4,7 @@ import vip.fairy.commerceflow.commerce.catalog.api.merchant.CatalogCreateProduct
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
@@ -15,6 +16,7 @@ import vip.fairy.commerceflow.commerce.catalog.api.merchant.CatalogStatusUpdateR
 import vip.fairy.commerceflow.commerce.catalog.api.merchant.CatalogTranslationUpdateRequest;
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogProductSnapshotV1;
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogProductV1;
+import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogSkuV1;
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogSnapshotBatchRequest;
 import vip.fairy.commerceflow.commerce.catalog.application.CatalogServiceUnavailableException;
 import vip.fairy.commerceflow.commerce.catalog.application.ProductCatalogService.SearchComparison;
@@ -144,6 +146,42 @@ public class CatalogServiceClient {
         .headers(headers -> merchant(headers, "GET", target, merchantId, null, null))
         .retrieve().body(CatalogProductV1[].class);
       return body == null ? List.of() : Arrays.asList(body);
+    } catch (RuntimeException exception) {
+      throw translated(exception);
+    }
+  }
+
+  public List<CatalogSkuV1> listSkus(long merchantId, long productId) {
+    String target = "/internal/v1/merchant/products/" + productId + "/skus";
+    try {
+      var body = client.get().uri(URI.create(baseUrl + target))
+        .headers(headers -> merchant(headers, "GET", target, merchantId, null, null))
+        .retrieve().body(CatalogSkuV1[].class);
+      return body == null ? List.of() : Arrays.asList(body);
+    } catch (RuntimeException exception) {
+      throw translated(exception);
+    }
+  }
+
+  public CatalogSkuV1 createSku(long merchantId, long productId, CatalogSkuV1.Create request) {
+    return writeSku(HttpMethod.POST, merchantId, "/internal/v1/merchant/products/" + productId + "/skus", request);
+  }
+
+  public CatalogSkuV1 updateSku(long merchantId, long productId, long skuId, CatalogSkuV1.Update request) {
+    String target = "/internal/v1/merchant/products/" + productId + "/skus/" + skuId;
+    return writeSku(HttpMethod.PUT, merchantId, target, request);
+  }
+
+  private CatalogSkuV1 writeSku(HttpMethod method, long merchantId, String target, Object request) {
+    try {
+      return client.method(method).uri(URI.create(baseUrl + target))
+        .headers(headers -> merchant(headers, method.name(), target, merchantId, null, null))
+        .body(request).retrieve().body(CatalogSkuV1.class);
+    } catch (HttpClientErrorException.BadRequest invalid) {
+      throw new IllegalArgumentException("Invalid SKU fields", invalid);
+    } catch (HttpClientErrorException.Conflict conflict) {
+      throw new OptimisticVersionConflictException("CATALOG_SKU_CONFLICT",
+        "SKU code or specification already exists, or the SKU version changed");
     } catch (RuntimeException exception) {
       throw translated(exception);
     }

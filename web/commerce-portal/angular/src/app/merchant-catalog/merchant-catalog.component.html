@@ -75,6 +75,7 @@
     <div>
       <h2 id="merchant-edit-title" tabindex="-1">{{ 'editMerchantProduct' | t }}</h2>
       <p>{{ product.name }}</p>
+      <a [routerLink]="['/merchant/products', product.productId, 'skus']">SKU 管理 / SKUs</a>
     </div>
     <button type="button" class="btn btn-sm btn-outline-secondary" (click)="draft = undefined" [disabled]="saving()">
       {{ 'close' | t }}

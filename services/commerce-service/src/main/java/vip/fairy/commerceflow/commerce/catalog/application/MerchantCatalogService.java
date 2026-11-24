@@ -9,6 +9,8 @@ import vip.fairy.commerceflow.commerce.catalog.api.merchant.CatalogProfileUpdate
 import vip.fairy.commerceflow.commerce.catalog.api.merchant.CatalogStatusUpdateRequest;
 import vip.fairy.commerceflow.commerce.catalog.api.merchant.CatalogTranslationUpdateRequest;
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogProductV1;
+import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogSkuV1;
+import vip.fairy.commerceflow.commerce.catalog.domain.ProductLifecycleStatus;
 import vip.fairy.commerceflow.commerce.catalog.infrastructure.client.CatalogServiceClient;
 
 import java.util.List;
@@ -31,6 +33,20 @@ public class MerchantCatalogService {
 
   public List<CatalogProductV1> list(Long merchantId) {
     return catalog.merchantList(merchantId);
+  }
+
+  public List<CatalogSkuV1> listSkus(long merchant, long productId) {
+    return catalog.listSkus(merchant, productId);
+  }
+
+  public CatalogSkuV1 createSku(long merchant, long productId, CatalogSkuV1.Create request) {
+    stores.requireActive(merchant, false);
+    return catalog.createSku(merchant, productId, request);
+  }
+
+  public CatalogSkuV1 updateSku(long merchant, long productId, long skuId, CatalogSkuV1.Update request) {
+    if (request.status() == ProductLifecycleStatus.ACTIVE) stores.requireActive(merchant, false);
+    return catalog.updateSku(merchant, productId, skuId, request);
   }
 
   public CatalogProductV1 updateProfile(Long merchantId, Long productId,

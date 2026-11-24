@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogSkuMapper">
+  <sql id="columns">
+    id,product_id,merchant_id,code,spec_key,specifications,default_sku,unit_price,lifecycle_status,
+    business_version,request_id,create_fingerprint,stock_product_id
+  </sql>
+
+  <insert id="backfillDefaults">
+    INSERT INTO catalog_product_skus(product_id,merchant_id,code,spec_key,specifications,default_sku,stock_product_id)
+    SELECT p.id,p.merchant_id,CONCAT('DEFAULT-',p.id),SHA2('{}',256),'{}',TRUE,p.id
+    FROM products p LEFT JOIN catalog_product_skus s ON s.default_product_id=p.id
+    WHERE s.id IS NULL
+    ON DUPLICATE KEY UPDATE business_version=catalog_product_skus.business_version
+  </insert>
+
+  <insert id="insertDefault">
+    INSERT INTO catalog_product_skus(product_id,merchant_id,code,spec_key,specifications,default_sku,stock_product_id)
+    VALUES (#{product},#{merchant},CONCAT('DEFAULT-',#{product}),SHA2('{}',256),'{}',TRUE,#{product})
+    ON DUPLICATE KEY UPDATE business_version=catalog_product_skus.business_version
+  </insert>
+
+  <select id="list" resultType="vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogSkuMapper$Row">
+    SELECT <include refid="columns"/> FROM catalog_product_skus
+    WHERE merchant_id=#{merchant} AND product_id=#{product} ORDER BY default_sku DESC,id
+  </select>
+
+  <select id="find" resultType="vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogSkuMapper$Row">
+    SELECT <include refid="columns"/> FROM catalog_product_skus
+    WHERE merchant_id=#{merchant} AND product_id=#{product} AND id=#{sku}
+  </select>
+
+  <select id="findRequest"
+          resultType="vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogSkuMapper$Row">
+    SELECT <include refid="columns"/> FROM catalog_product_skus
+    WHERE merchant_id=#{merchant} AND request_id=#{requestId}
+  </select>
+
+  <insert id="insert">
+    INSERT INTO catalog_product_skus(product_id,merchant_id,code,spec_key,specifications,default_sku,
+      unit_price,lifecycle_status,request_id,create_fingerprint)
+    VALUES (#{productId},#{merchantId},#{code},#{specKey},#{specifications},FALSE,
+      #{unitPrice},#{lifecycleStatus},#{requestId},#{createFingerprint})
+  </insert>
+
+  <update id="update">
+    UPDATE catalog_product_skus
+    SET code=#{code},unit_price=#{unitPrice},lifecycle_status=#{lifecycleStatus},business_version=business_version+1
+    WHERE id=#{sku} AND business_version=#{version}
+  </update>
+</mapper>

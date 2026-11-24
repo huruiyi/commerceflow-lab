@@ -1616,6 +1616,12 @@ PowerShell 7 的 `verify-merchant-operations.ps1 -Chapter Operations` 串联仓�
 
 隔离 Chrome 157 使用两家店铺、14 件同关键词商品复验全站和店内范围。店铺 5 的 13 件商品以 12＋1 分页，末页刷新和详情返回一致。关闭 Elasticsearch 后，中文检索、英文重音词及价格排序的全部商品编号一致。门户 54 项测试通过。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/catalog-sku-1795482170754/step2-evidence.json`。
 
+### 2.86 2026-11-24 商家 SKU 管理
+
+目录 V6 在同一隔离 MySQL 卷为 36 件存量商品建立默认 SKU，原商品标识、状态、价格和业务版本摘要一致。新商品在创建事务中登记默认 SKU。默认 SKU 延用商品价格与状态，规格 SKU 分别持有编码、规格组合、售价和状态。
+
+Chrome 157 从商家商品入口新增规格，通过 API 验证原请求重试、跨店隔离、重复编码、规范化规格去重和版本冲突。用日常原目录镜像 `4c1787bdcdf5` 在同一 V6 卷读回旧商品，重新切回候选后 38 条 SKU 仍保留。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/catalog-sku-1795482170754/step3-evidence.json` 和同目录的 `step3-rollback.json`。
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

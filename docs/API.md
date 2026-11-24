@@ -26,6 +26,7 @@
 | 商家账号 | `POST /api/users/merchants` | ADMIN |
 | 店铺 | `GET /api/stores/{id}`、`GET/PUT /api/merchant/store`、`GET /api/admin/stores`、`PUT /api/admin/stores/{id}/status` | 公开店铺 / 商家本人 / 管理员 |
 | 新建商品 | `POST /api/merchant/catalog/v1/products` | 已启用店铺的商家 |
+| 商品 SKU | `GET/POST /api/merchant/catalog/v1/products/{productId}/skus`、`PUT /api/merchant/catalog/v1/products/{productId}/skus/{skuId}` | MERCHANT，仅本店商品 |
 | 商家应结 | `PUT /api/admin/stores/{merchantId}/settlement`、`GET/POST /api/admin/stores/{merchantId}/statements`、`GET /api/merchant/settlement/statements` | 管理员开通和冻结，商家读本店 |
 | 商家打款 | `GET/POST /api/admin/stores/{merchantId}/statements/{id}/payouts`、`GET /api/merchant/settlement/statements/{id}/payouts` | 管理员发起，商家读本店 |
 | 定时任务治理 | `GET/PUT/DELETE /api/admin/scheduling/policies...`、`GET/POST /api/admin/scheduling/tasks...` | ADMIN |
@@ -50,6 +51,9 @@
 `GET /api/admin/catalog-search/comparison` 按商品编号逐批对照 MySQL 和 Elasticsearch，返回已核对数量以及缺失、多余和内容不一致的商品。
 每批带 `generation`，翻页时把 `nextAfterId` 作为 `afterId` 传入。代次切换时返回 `RESTART`，积压中的核对返回 `CATCHING_UP`。
 `POST /api/admin/catalog-search/rebuild` 触发原索引重建流程。
+
+SKU 创建接受 `requestId`、`code`、`specifications`、`unitPrice` 和 `status`。编码在店内唯一，规格组合在商品内唯一。
+已创建 SKU 可通过 `expectedVersion` 修改编码、价格及状态。默认 SKU 的售价与状态沿用商品编辑入口。
 
 顾客订单详情中的 `payment.idempotencyKey` 对应原支付提交。门户按原键核对支付单，结果未知时
 保留渠道和原参数，手动重试复用原键。取消用原订单和取消原因重试，订单侧完成和审计分别使用

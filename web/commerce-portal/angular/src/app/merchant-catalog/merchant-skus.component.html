@@ -1,0 +1,142 @@
+<section class="container py-4" [attr.aria-busy]="busy()">
+  <a routerLink="/merchant/products">返回商品 / Products</a>
+  <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h1 class="h4 mb-0">SKU 管理 / SKU management · #{{ productId }}</h1>
+    <div class="d-flex gap-2">
+      <button class="btn btn-outline-secondary" type="button" [disabled]="busy()" (click)="load()">
+        刷新 / Refresh
+      </button>
+      <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="open()">添加 SKU / Add SKU</button>
+    </div>
+  </header>
+  @if (saved()) {
+    <p role="status" class="text-success">SKU 已保存 / SKU saved</p>
+  }
+  @if (error()) {
+    <p role="alert" class="alert alert-warning">{{ error() }}</p>
+  }
+  @if (skus().length) {
+    <div class="table-responsive">
+      <table class="table align-middle">
+        <thead>
+          <tr>
+            <th scope="col">SKU 编码 / SKU code</th>
+            <th scope="col">规格 / Specifications</th>
+            <th scope="col">售价 / Price</th>
+            <th scope="col">状态 / Status</th>
+            <th scope="col">操作 / Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (sku of skus(); track sku.skuId) {
+            <tr [attr.data-sku-id]="sku.skuId">
+              <td>
+                {{ sku.code }}
+                @if (sku.defaultSku) {
+                  <small>默认 / Default</small>
+                }
+              </td>
+              <td>
+                @for (specification of sku.specifications | keyvalue; track specification.key) {
+                  <span class="d-block">{{ specification.key }} · {{ specification.value }}</span>
+                } @empty {
+                  —
+                }
+              </td>
+              <td>{{ sku.unitPrice | currency: 'CNY' }}</td>
+              <td>{{ sku.status === 'ACTIVE' ? '启用 / Active' : '停用 / Inactive' }}</td>
+              <td>
+                <button class="btn btn-sm btn-outline-primary" type="button" [disabled]="busy()" (click)="open(sku)">
+                  编辑 / Edit
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+  @if (formOpen()) {
+    <form #skuForm="ngForm" class="border rounded p-3" (ngSubmit)="save()">
+      <h2 class="h5">{{ editing() ? '编辑 SKU / Edit SKU' : '添加 SKU / Add SKU' }}</h2>
+      <fieldset [disabled]="busy()">
+        <div class="row g-3 mb-3">
+          <label class="col-md-4">
+            SKU 编码 / SKU code
+            <input class="form-control" [(ngModel)]="code" name="code" maxlength="64" required />
+          </label>
+          <label class="col-md-4">
+            售价 / Price (CNY)
+            <input
+              class="form-control"
+              type="number"
+              [min]="editing()?.defaultSku ? 0 : 0.01"
+              step="0.01"
+              [(ngModel)]="unitPrice"
+              name="unitPrice"
+              required
+              [readonly]="editing()?.defaultSku"
+            />
+          </label>
+          <label class="col-md-4">
+            状态 / Status
+            <select class="form-select" [(ngModel)]="status" name="status" [disabled]="editing()?.defaultSku === true">
+              <option value="ACTIVE">启用 / Active</option>
+              <option value="INACTIVE">停用 / Inactive</option>
+            </select>
+          </label>
+        </div>
+        @if (editing()?.defaultSku) {
+          <p class="text-secondary">
+            默认 SKU 的售价与状态在商品编辑页维护 / Edit the product to change the default SKU price and status.
+          </p>
+        } @else if (!editing()) {
+          @for (specification of specifications; track $index) {
+            <div class="d-flex flex-wrap gap-2 align-items-end mb-2">
+              <label>
+                规格名 / Name
+                <input
+                  class="form-control"
+                  name="specName{{ $index }}"
+                  maxlength="32"
+                  [(ngModel)]="specification.name"
+                  required
+                />
+              </label>
+              <label>
+                规格值 / Value
+                <input
+                  class="form-control"
+                  name="specValue{{ $index }}"
+                  maxlength="48"
+                  [(ngModel)]="specification.value"
+                  required
+                />
+              </label>
+              <button
+                class="btn btn-outline-secondary"
+                type="button"
+                [disabled]="specifications.length === 1"
+                (click)="removeSpecification($index)"
+              >
+                移除 / Remove
+              </button>
+            </div>
+          }
+          <button
+            class="btn btn-sm btn-outline-secondary mb-3"
+            type="button"
+            [disabled]="specifications.length >= 4"
+            (click)="addSpecification()"
+          >
+            添加规格 / Add specification
+          </button>
+        }
+        <div class="d-flex gap-2">
+          <button class="btn btn-primary" type="submit" [disabled]="skuForm.invalid">保存 / Save</button>
+          <button class="btn btn-outline-secondary" type="button" (click)="formOpen.set(false)">取消 / Cancel</button>
+        </div>
+      </fieldset>
+    </form>
+  }
+</section>
