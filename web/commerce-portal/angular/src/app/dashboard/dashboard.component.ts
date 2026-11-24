@@ -14,10 +14,11 @@ import {
   catalogSortOptions,
   invalidCatalogKeyword,
   invalidCatalogPrice,
+  invalidCatalogSku,
   readCatalogQuery,
 } from './catalog-query';
 
-type FilterField = 'q' | 'merchantId' | 'minPrice' | 'maxPrice';
+type FilterField = 'q' | 'merchantId' | 'minPrice' | 'maxPrice' | 'sku';
 
 @Component({
   standalone: false,
@@ -62,14 +63,15 @@ export class DashboardComponent implements OnInit {
   }
 
   get hasFilters(): boolean {
-    const { q, merchantId, minPrice, maxPrice, sort } = this.filters;
-    return Boolean(q) || merchantId !== null || minPrice !== null || maxPrice !== null || sort !== 'default';
+    const { q, sku, merchantId, minPrice, maxPrice, sort } = this.filters;
+    return Boolean(q || sku) || merchantId !== null || minPrice !== null || maxPrice !== null || sort !== 'default';
   }
 
   get appliedFilters(): { field: FilterField; text: string }[] {
-    const { q, merchantId, minPrice, maxPrice } = this.filters;
+    const { q, sku, merchantId, minPrice, maxPrice } = this.filters;
     const applied: { field: FilterField; text: string }[] = [];
     if (q) applied.push({ field: 'q', text: q });
+    if (sku) applied.push({ field: 'sku', text: sku });
     if (merchantId !== null) {
       const text = this.storeNames.get(merchantId) ?? this.i18n.t('catalogStoreNumber', { id: merchantId });
       applied.push({ field: 'merchantId', text });
@@ -98,6 +100,10 @@ export class DashboardComponent implements OnInit {
     return invalidCatalogKeyword(this.draft.q);
   }
 
+  get invalidSku(): boolean {
+    return invalidCatalogSku(this.draft.sku);
+  }
+
   ngOnInit(): void {
     this.updateTitle();
     this.i18n.localeChanged.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
@@ -120,14 +126,14 @@ export class DashboardComponent implements OnInit {
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
       this.filters = readCatalogQuery(params);
       this.draft = { ...this.filters };
-      if (this.invalidPrice) this.mobileFiltersOpen = true;
+      if (this.invalidPrice || this.invalidSku) this.mobileFiltersOpen = true;
       this.loadProducts();
     });
   }
 
   applyFilters(): void {
-    if (this.invalidPrice || this.invalidKeyword) return;
-    this.updateQuery({ ...this.draft, q: this.draft.q.trim(), page: 0 });
+    if (this.invalidPrice || this.invalidKeyword || this.invalidSku) return;
+    this.updateQuery({ ...this.draft, q: this.draft.q.trim(), sku: this.draft.sku?.trim(), page: 0 });
   }
 
   clearFilters(): void {
@@ -137,7 +143,7 @@ export class DashboardComponent implements OnInit {
   }
 
   removeFilter(field: FilterField): void {
-    this.updateQuery({ ...this.filters, [field]: field === 'q' ? '' : null, page: 0 });
+    this.updateQuery({ ...this.filters, [field]: field === 'q' || field === 'sku' ? '' : null, page: 0 });
   }
 
   changeSort(sort: CatalogSort): void {
@@ -150,7 +156,11 @@ export class DashboardComponent implements OnInit {
 
   loadProducts(): void {
     this.searchRequest?.unsubscribe();
-    if (invalidCatalogPrice(this.filters) || invalidCatalogKeyword(this.filters.q)) {
+    if (
+      invalidCatalogPrice(this.filters) ||
+      invalidCatalogKeyword(this.filters.q) ||
+      invalidCatalogSku(this.filters.sku)
+    ) {
       this.products = [];
       this.total = 0;
       this.loading = false;

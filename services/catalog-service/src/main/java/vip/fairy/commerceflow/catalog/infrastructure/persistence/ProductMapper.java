@@ -9,6 +9,8 @@ import java.util.List;
 
 public interface ProductMapper extends BaseMapper<Product> {
 
+  Product lockListing(long productId);
+
   List<Product> selectForMerchant(Long merchantId);
 
   Product findCreation(@Param("merchantId") Long merchantId, @Param("requestId") String requestId);

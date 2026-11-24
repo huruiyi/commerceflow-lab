@@ -79,12 +79,42 @@
     )))
     AND d.merchant_id IN
     <foreach collection="merchantIds" item="merchant" open="(" separator="," close=")">#{merchant}</foreach>
-    <if test="minPrice != null">AND d.unit_price &gt;= #{minPrice}</if>
-    <if test="maxPrice != null">AND d.unit_price &lt;= #{maxPrice}</if>
+    <if test="minPrice != null or maxPrice != null or skuJson != null">
+      AND ((<include refid="defaultSkuMatches"/>) OR EXISTS (
+        SELECT 1 FROM catalog_product_skus sku WHERE <include refid="variantSkuMatches"/>
+      ))
+    </if>
     <foreach collection="terms" item="term">
       AND d.searchable LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(#{term}, '!', '!!'), '%', '!%'), '_', '!_'), '%')
         ESCAPE '!'
     </foreach>
+  </sql>
+
+  <sql id="defaultSkuMatches">
+    <choose>
+      <when test="skuJson != null">FALSE</when>
+      <otherwise>
+        TRUE
+        <if test="minPrice != null">AND d.unit_price &gt;= #{minPrice}</if>
+        <if test="maxPrice != null">AND d.unit_price &lt;= #{maxPrice}</if>
+      </otherwise>
+    </choose>
+  </sql>
+
+  <sql id="variantSkuMatches">
+    sku.product_id=d.product_id AND sku.default_sku=FALSE
+      AND sku.lifecycle_status='ACTIVE' AND sku.stock_product_id IS NOT NULL
+    <if test="minPrice != null">AND sku.unit_price &gt;= #{minPrice}</if>
+    <if test="maxPrice != null">AND sku.unit_price &lt;= #{maxPrice}</if>
+    <if test="skuJson != null">AND JSON_CONTAINS(LOWER(sku.specifications),#{skuJson})</if>
+  </sql>
+
+  <sql id="matchingSkuPrice">
+    LEAST(
+      CASE WHEN <include refid="defaultSkuMatches"/> THEN d.unit_price ELSE 9999999999.99 END,
+      COALESCE((SELECT MIN(sku.unit_price) FROM catalog_product_skus sku WHERE <include refid="variantSkuMatches"/>),
+        9999999999.99)
+    )
   </sql>
 
   <select id="count" resultType="long">
@@ -97,8 +127,8 @@
     <include refid="searchScope"/>
     ORDER BY
     <choose>
-      <when test="sort == 'price-asc'">d.unit_price ASC,</when>
-      <when test="sort == 'price-desc'">d.unit_price DESC,</when>
+      <when test="sort == 'price-asc'"><include refid="matchingSkuPrice"/> ASC,</when>
+      <when test="sort == 'price-desc'"><include refid="matchingSkuPrice"/> DESC,</when>
       <when test="sort == 'rating' and !ratedIds.isEmpty()">
         NULLIF(FIELD(d.product_id,
         <foreach collection="ratedIds" item="rated" separator=",">#{rated}</foreach>

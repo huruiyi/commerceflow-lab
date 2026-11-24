@@ -10,7 +10,7 @@
     INSERT INTO catalog_product_skus(product_id,merchant_id,code,spec_key,specifications,default_sku,stock_product_id)
     SELECT p.id,p.merchant_id,CONCAT('DEFAULT-',p.id),SHA2('{}',256),'{}',TRUE,p.id
     FROM products p LEFT JOIN catalog_product_skus s ON s.default_product_id=p.id
-    WHERE s.id IS NULL
+    WHERE p.listing_product_id IS NULL AND s.id IS NULL
     ON DUPLICATE KEY UPDATE business_version=catalog_product_skus.business_version
   </insert>
 
@@ -35,6 +35,28 @@
     SELECT <include refid="columns"/> FROM catalog_product_skus
     WHERE merchant_id=#{merchant} AND request_id=#{requestId}
   </select>
+
+  <select id="unbound" resultType="vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogSkuMapper$Row">
+    SELECT <include refid="columns"/> FROM catalog_product_skus
+    WHERE default_sku=FALSE AND stock_product_id IS NULL ORDER BY product_id,id LIMIT 25
+  </select>
+
+  <select id="forStockIds" resultType="vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogSkuMapper$Row">
+    SELECT <include refid="columns"/> FROM catalog_product_skus WHERE default_sku=FALSE AND stock_product_id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+  </select>
+
+  <select id="activeVariants"
+          resultType="vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogSkuMapper$Row">
+    SELECT <include refid="columns"/> FROM catalog_product_skus
+    WHERE default_sku=FALSE AND lifecycle_status='ACTIVE' AND stock_product_id IS NOT NULL AND product_id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    ORDER BY product_id,id
+  </select>
+
+  <update id="bindStock">
+    UPDATE catalog_product_skus SET stock_product_id=#{stockProductId} WHERE id=#{sku} AND stock_product_id IS NULL
+  </update>
 
   <insert id="insert">
     INSERT INTO catalog_product_skus(product_id,merchant_id,code,spec_key,specifications,default_sku,

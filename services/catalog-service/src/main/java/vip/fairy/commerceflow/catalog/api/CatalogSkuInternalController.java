@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import vip.fairy.commerceflow.catalog.application.CatalogSkuService;
 
 @RestController
-@RequestMapping("/internal/v1/merchant/products/{productId}/skus")
+@RequestMapping("/internal/v1")
 public class CatalogSkuInternalController {
 
   private final CatalogSkuService skus;
@@ -22,18 +22,23 @@ public class CatalogSkuInternalController {
     this.skus = skus;
   }
 
-  @GetMapping
+  @GetMapping("/products/{productId}/skus")
+  List<CatalogSkuV1> sellable(@PathVariable long productId) {
+    return skus.sellable(productId);
+  }
+
+  @GetMapping("/merchant/products/{productId}/skus")
   List<CatalogSkuV1> list(@RequestHeader("X-Merchant-Id") long merchant, @PathVariable long productId) {
     return skus.list(merchant, productId);
   }
 
-  @PostMapping
+  @PostMapping("/merchant/products/{productId}/skus")
   CatalogSkuV1 create(@RequestHeader("X-Merchant-Id") long merchant, @PathVariable long productId,
                       @RequestBody @Valid CatalogSkuV1.Create request) {
     return skus.create(merchant, productId, request);
   }
 
-  @PutMapping("/{skuId}")
+  @PutMapping("/merchant/products/{productId}/skus/{skuId}")
   CatalogSkuV1 update(@RequestHeader("X-Merchant-Id") long merchant, @PathVariable long productId,
                       @PathVariable long skuId, @RequestBody @Valid CatalogSkuV1.Update request) {
     return skus.update(merchant, productId, skuId, request);

@@ -4,6 +4,7 @@ import org.springframework.stereotype.Service;
 import vip.fairy.commerceflow.commerce.catalog.api.CatalogReviewResponse;
 import vip.fairy.commerceflow.commerce.catalog.api.ProductResponse;
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogProductV1;
+import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogSkuV1;
 import vip.fairy.commerceflow.commerce.catalog.infrastructure.client.CatalogServiceClient;
 import vip.fairy.commerceflow.commerce.merchant.application.contract.v1.StoreTradeV1;
 import vip.fairy.commerceflow.commerce.review.application.ProductReviewCatalogQuery;
@@ -38,14 +39,20 @@ public class ProductCatalogService implements CatalogProductLookup, CatalogCache
   }
 
   public SearchPage search(String query, String locale, String sort, Long merchantId,
-                           BigDecimal minPrice, BigDecimal maxPrice, int page, int size) {
+                           BigDecimal minPrice, BigDecimal maxPrice, int page, int size, String sku) {
     var active = stores.activeMerchantIds();
     List<Long> merchants = merchantId == null ? List.copyOf(active)
       : active.contains(merchantId) ? List.of(merchantId) : List.of();
     var result = catalog.search(new CatalogServiceClient.SearchRequest(query, locale, sort, merchants,
-      "rating".equals(sort) ? reviews.ratedProductIds() : List.of(), minPrice, maxPrice, page, size));
-    return new SearchPage(withRatings(result.products()),
-      result.total(), result.page(), result.size());
+      "rating".equals(sort) ? reviews.ratedProductIds() : List.of(), minPrice, maxPrice, page, size, sku));
+    var products = withRatings(result.products());
+    if (result.skuRanges() != null && !result.skuRanges().isEmpty()) {
+      products = products.stream().map(product -> {
+        var range = result.skuRanges().get(product.id());
+        return range == null ? product : product.withSkuRange(range.min(), range.max());
+      }).toList();
+    }
+    return new SearchPage(products, result.total(), result.page(), result.size());
   }
 
   public record SearchPage(List<ProductResponse> products, long total, int page, int size) {
@@ -82,6 +89,14 @@ public class ProductCatalogService implements CatalogProductLookup, CatalogCache
   }
 
   @Override
+  public ProductSnapshot requireSku(Long productId, Long skuId) {
+    Long stockId = catalog.sellableSkus(productId).stream()
+      .filter(sku -> skuId.equals(sku.skuId())).map(CatalogSkuV1::stockProductId).findFirst()
+      .orElseThrow(() -> new ResourceNotFoundException("Sellable SKU not found"));
+    return require(stockId);
+  }
+
+  @Override
   public Map<Long, ProductSnapshot> snapshots(List<Long> productIds) {
     Map<Long, ProductSnapshot> snapshots = new HashMap<>();
     for (int start = 0; start < productIds.size(); start += 100) {
@@ -98,7 +113,7 @@ public class ProductCatalogService implements CatalogProductLookup, CatalogCache
     var product = activeProduct(productId, requestedLocale);
     var summary = reviewSummary(productId);
     return ProductResponse.from(product, summary.averageRating(), summary.reviewCount(),
-      reviewItems(productId, 0, DETAIL_REVIEW_SIZE, summary.reviewCount()));
+      reviewItems(productId, 0, DETAIL_REVIEW_SIZE, summary.reviewCount())).withSkus(catalog.sellableSkus(productId));
   }
 
   public ReviewPage reviewPage(Long productId, int page, int size) {

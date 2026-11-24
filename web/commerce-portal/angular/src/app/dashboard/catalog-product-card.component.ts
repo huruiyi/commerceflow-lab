@@ -137,7 +137,12 @@ export class CatalogProductCardComponent {
   readonly item = input.required<Product>();
   readonly storeName = input('');
   readonly queryParams = input<Params>({});
-  protected readonly price = computed(() =>
-    new Intl.NumberFormat(this.i18n.locale(), { style: 'currency', currency: 'CNY' }).format(this.item().price),
-  );
+  protected readonly price = computed(() => {
+    const currency = new Intl.NumberFormat(this.i18n.locale(), { style: 'currency', currency: 'CNY' });
+    const { price, minimumSkuPrice, maximumSkuPrice } = this.item();
+    if (minimumSkuPrice != null && maximumSkuPrice != null && minimumSkuPrice !== maximumSkuPrice) {
+      return currency.format(minimumSkuPrice) + ' – ' + currency.format(maximumSkuPrice);
+    }
+    return currency.format(minimumSkuPrice ?? price);
+  });
 }

@@ -30,16 +30,28 @@ public class CatalogSkuService {
   private final ProductMapper products;
   private final CatalogSkuMapper skus;
   private final ObjectMapper json;
+  private final CatalogApplicationService catalog;
 
-  CatalogSkuService(ProductMapper products, CatalogSkuMapper skus, ObjectMapper json) {
+  CatalogSkuService(ProductMapper products, CatalogSkuMapper skus, ObjectMapper json,
+                    CatalogApplicationService catalog) {
     this.products = products;
     this.skus = skus;
     this.json = json;
+    this.catalog = catalog;
   }
 
   @Scheduled(initialDelayString = "5s", fixedDelayString = "30s")
+  @Transactional(isolation = Isolation.READ_COMMITTED)
   public void backfillImportedProducts() {
     skus.backfillDefaults();
+    for (var unbound : skus.unbound()) {
+      var listing = lockOwned(unbound.merchantId(), unbound.productId());
+      var row = skus.find(unbound.merchantId(), unbound.productId(), unbound.id());
+      if (row.stockProductId() == null) {
+        materialize(row, listing);
+        catalog.reprojectListing(listing);
+      }
+    }
   }
 
   @Transactional(readOnly = true)
@@ -48,9 +60,20 @@ public class CatalogSkuService {
     return skus.list(merchant, productId).stream().map(row -> view(row, product)).toList();
   }
 
+  @Transactional(readOnly = true)
+  public List<CatalogSkuV1> sellable(long productId) {
+    var product = products.selectById(productId);
+    if (product == null || product.getListingProductId() != null || !"ACTIVE".equals(product.getLifecycleStatus())) {
+      return List.of();
+    }
+    return skus.list(product.getMerchantId(), productId).stream()
+      .filter(row -> row.stockProductId() != null && (row.defaultSku() || "ACTIVE".equals(row.lifecycleStatus())))
+      .map(row -> view(row, product)).toList();
+  }
+
   @Transactional(isolation = Isolation.READ_COMMITTED)
   public CatalogSkuV1 create(long merchant, long productId, CatalogSkuV1.Create request) {
-    var product = owned(merchant, productId);
+    var product = lockOwned(merchant, productId);
     var code = code(request.code(), null);
     var display = new TreeMap<String, String>();
     var canonical = new TreeMap<String, String>();
@@ -75,12 +98,15 @@ public class CatalogSkuService {
     } catch (DuplicateKeyException duplicate) {
       return replay(skus.findRequest(merchant, requestId), fingerprint, product);
     }
+    var inserted = skus.findRequest(merchant, requestId);
+    materialize(inserted, product);
+    catalog.reprojectListing(product);
     return view(skus.findRequest(merchant, requestId), product);
   }
 
   @Transactional
   public CatalogSkuV1 update(long merchant, long productId, long skuId, CatalogSkuV1.Update request) {
-    var product = owned(merchant, productId);
+    var product = lockOwned(merchant, productId);
     var row = skus.find(merchant, productId, skuId);
     if (row == null) throw new ResourceNotFoundException("SKU not found");
     String code = code(request.code(), row.code());
@@ -99,7 +125,32 @@ public class CatalogSkuService {
       throw new CatalogVersionConflictException("SKU code already exists in this store");
     }
     if (updated != 1) throw new CatalogVersionConflictException("SKU changed since it was read");
+    if (!row.defaultSku()) {
+      var latest = skus.find(merchant, productId, skuId);
+      if (latest.stockProductId() == null) {
+        materialize(latest, product);
+      } else {
+        var variant = products.selectById(latest.stockProductId());
+        if (products.updatePrice(merchant, variant.getId(), variant.getBusinessVersion(), latest.unitPrice()) != 1) {
+          throw new CatalogVersionConflictException("SKU stock identity changed");
+        }
+        catalog.publishSku(products.selectById(variant.getId()), latest.lifecycleStatus(), false);
+      }
+      catalog.reprojectListing(product);
+    }
     return view(skus.find(merchant, productId, skuId), product);
+  }
+
+  private void materialize(Row row, Product listing) {
+    var specifications = json.readValue(row.specifications(), SPECS);
+    String caption = String.join(" / ", specifications.values());
+    String productName = truncate(listing.getName(), 77) + " · " + truncate(caption, 78);
+    var variant = Product.variant(listing, productName, row.unitPrice());
+    products.insert(variant);
+    if (skus.bindStock(row.id(), variant.getId()) != 1) {
+      throw new CatalogVersionConflictException("SKU stock identity changed");
+    }
+    catalog.publishSku(variant, row.lifecycleStatus(), true);
   }
 
   private CatalogSkuV1 replay(Row row, String fingerprint, Product product) {
@@ -110,11 +161,23 @@ public class CatalogSkuService {
   }
 
   private Product owned(long merchant, long productId) {
-    var product = products.selectById(productId);
-    if (product == null || !Long.valueOf(merchant).equals(product.getMerchantId())) {
+    return requireListing(merchant, products.selectById(productId));
+  }
+
+  private Product lockOwned(long merchant, long productId) {
+    return requireListing(merchant, products.lockListing(productId));
+  }
+
+  private Product requireListing(long merchant, Product product) {
+    if (product == null || product.getListingProductId() != null
+      || !Long.valueOf(merchant).equals(product.getMerchantId())) {
       throw new ResourceNotFoundException("Product not found");
     }
     return product;
+  }
+
+  private static String truncate(String text, int limit) {
+    return text.substring(0, text.offsetByCodePoints(0, Math.min(text.codePointCount(0, text.length()), limit)));
   }
 
   private CatalogSkuV1 view(Row row, Product product) {

@@ -25,6 +25,7 @@ import tools.jackson.core.JacksonException;
 import vip.fairy.commerceflow.catalog.api.CatalogProductV1;
 import vip.fairy.commerceflow.catalog.application.CatalogSearchService.Criteria;
 import vip.fairy.commerceflow.catalog.application.CatalogSearchService.Page;
+import vip.fairy.commerceflow.catalog.application.CatalogSkuSearch.Option;
 import vip.fairy.commerceflow.catalog.domain.Product;
 import vip.fairy.commerceflow.catalog.domain.ProductTranslation;
 import vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogElasticsearchMapper;
@@ -47,6 +48,7 @@ public class CatalogElasticsearchSearch {
   private final CatalogSearchMapper search;
   private final ProductMapper products;
   private final ProductTranslationMapper translations;
+  private final CatalogSkuSearch skuSearch;
   private final TransactionTemplate transactions;
   private final Counter reads;
   private final Counter fallbacks;
@@ -54,13 +56,14 @@ public class CatalogElasticsearchSearch {
 
   public CatalogElasticsearchSearch(CatalogElasticsearchClient client, CatalogElasticsearchMapper state,
                                     CatalogSearchMapper search, ProductMapper products,
-                                    ProductTranslationMapper translations,
+                                    ProductTranslationMapper translations, CatalogSkuSearch skuSearch,
                                     PlatformTransactionManager transactionManager, MeterRegistry metrics) {
     this.client = client;
     this.state = state;
     this.search = search;
     this.products = products;
     this.translations = translations;
+    this.skuSearch = skuSearch;
     this.transactions = new TransactionTemplate(transactionManager);
     this.transactions.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
     this.reads = metrics.counter("commerceflow.catalog.search.elasticsearch.reads");
@@ -122,6 +125,7 @@ public class CatalogElasticsearchSearch {
 
   private List<Document> documents(List<Long> ids) {
     var source = readProducts(ids);
+    var options = skuSearch.options(ids);
     var localized = new HashMap<Long, Map<String, ProductTranslation>>();
     for (var row : translations.selectList(new LambdaQueryWrapper<ProductTranslation>()
       .in(ProductTranslation::getProductId, ids))) {
@@ -132,16 +136,20 @@ public class CatalogElasticsearchSearch {
     for (var id : ids) {
       var product = source.get(id);
       if (product == null || !"ACTIVE".equals(product.getLifecycleStatus())) {
-        documents.add(new Document(id, 0, 0, false, "", "", "", "", "", "", Map.of()));
+        documents.add(new Document(id, 0, 0, false, "", "", "", "", "", "", Map.of(), List.of()));
       } else {
         var variants = localized.getOrDefault(id, Map.of());
         var zh = CatalogProductV1.from(product, variants.get("zh-CN"));
         var en = CatalogProductV1.from(product, variants.get("en"));
         String zhText = fullText(zh);
         String enText = fullText(en);
+        long cents = CatalogElasticsearchClient.cents(product.getPrice());
+        var sellable = new ArrayList<Option>();
+        sellable.add(new Option(cents, List.of()));
+        sellable.addAll(options.getOrDefault(id, List.of()));
         documents.add(new Document(id, product.getMerchantId(), CatalogElasticsearchClient.cents(product.getPrice()),
           true, zhText, enText, CatalogElasticsearchClient.normalize(zh.name()),
-          CatalogElasticsearchClient.normalize(en.name()), zhText, enText, Map.of("zh-CN", zh, "en", en)));
+          CatalogElasticsearchClient.normalize(en.name()), zhText, enText, Map.of("zh-CN", zh, "en", en), sellable));
       }
     }
     return documents;

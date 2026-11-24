@@ -5,7 +5,10 @@
   <select id="selectForMerchant" resultType="vip.fairy.commerceflow.catalog.domain.Product">
     SELECT id,name,brief,description,price,image_url,thumbnail_url,merchant_id,
            lifecycle_status,business_version,updated_at
-    FROM products WHERE merchant_id=#{merchantId} ORDER BY id
+    FROM products WHERE merchant_id=#{merchantId} AND listing_product_id IS NULL ORDER BY id
+  </select>
+  <select id="lockListing" resultType="vip.fairy.commerceflow.catalog.domain.Product">
+    SELECT * FROM products WHERE id=#{productId} AND listing_product_id IS NULL FOR UPDATE
   </select>
   <update id="updateProfile">
     UPDATE products SET name=#{name},brief=#{brief},description=#{description},

@@ -33,12 +33,31 @@
             <span>{{ i18n.t('catalogReviewCount', { count: reviewTotal }) }}</span>
           </a>
         }
-        <p class="product-price">{{ item.price | trcurrency }}</p>
+        <p class="product-price">{{ unitPrice | trcurrency }}</p>
         @if (item.description) {
           <p class="product-description">{{ item.description }}</p>
         }
 
         <div class="purchase-panel">
+          @if (item.skus && item.skus.length > 1) {
+            <div>
+              <label for="product-sku">{{ 'catalogSkuSelect' | t }}</label>
+              <select
+                #skuSelect
+                id="product-sku"
+                class="form-select"
+                [value]="selectedSku?.skuId ?? ''"
+                [disabled]="basketLoading"
+                (change)="selectSku(+skuSelect.value)"
+              >
+                @for (sku of item.skus; track sku.skuId) {
+                  <option [value]="sku.skuId" [selected]="sku.skuId === selectedSku?.skuId">
+                    {{ skuLabel(sku) }}
+                  </option>
+                }
+              </select>
+            </div>
+          }
           @if (account.userProfile()) {
             <div class="stock-status">
               @if (stockLoading) {
@@ -101,7 +120,7 @@
               </div>
               <div class="subtotal">
                 <span>{{ 'subtotal' | t }}</span>
-                <strong>{{ item.price * selectedQuantity | trcurrency }}</strong>
+                <strong>{{ unitPrice * selectedQuantity | trcurrency }}</strong>
               </div>
             </div>
             <button

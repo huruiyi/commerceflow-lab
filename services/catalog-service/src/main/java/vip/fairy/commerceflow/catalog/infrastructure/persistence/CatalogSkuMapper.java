@@ -16,6 +16,14 @@ public interface CatalogSkuMapper {
 
   Row findRequest(@Param("merchant") long merchant, @Param("requestId") String requestId);
 
+  List<Row> unbound();
+
+  List<Row> forStockIds(@Param("ids") List<Long> ids);
+
+  List<Row> activeVariants(@Param("ids") List<Long> ids);
+
+  int bindStock(@Param("sku") long sku, @Param("stockProductId") long stockProductId);
+
   void insert(Row sku);
 
   int update(@Param("sku") long sku, @Param("version") long version, @Param("code") String code,

@@ -1,3 +1,5 @@
+import { CatalogSku } from './ICatalogSku';
+
 export interface Product {
   id: number;
   merchantId?: number;
@@ -10,6 +12,9 @@ export interface Product {
   averageRating: number;
   reviewCount: number;
   reviews: ProductReview[];
+  skus?: CatalogSku[];
+  minimumSkuPrice?: number | null;
+  maximumSkuPrice?: number | null;
 }
 
 export interface ProductReview {

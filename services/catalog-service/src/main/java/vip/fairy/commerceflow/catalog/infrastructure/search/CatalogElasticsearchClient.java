@@ -24,6 +24,7 @@ import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.catalog.api.CatalogProductV1;
 import vip.fairy.commerceflow.catalog.application.CatalogSearchService.Criteria;
 import vip.fairy.commerceflow.catalog.application.CatalogSearchService.Page;
+import vip.fairy.commerceflow.catalog.application.CatalogSkuSearch.Option;
 
 @Component
 @ConditionalOnProperty(name = "commerceflow.catalog-search.elasticsearch.enabled", havingValue = "true")
@@ -38,7 +39,8 @@ public class CatalogElasticsearchClient {
        "active":{"type":"boolean"},"textZh":{"type":"wildcard"},"textEn":{"type":"wildcard"},
        "nameZh":{"type":"wildcard"},"nameEn":{"type":"wildcard"},
        "relevanceZh":{"type":"text","analyzer":"cjk"},"relevanceEn":{"type":"text","analyzer":"standard"},
-       "products":{"type":"object","enabled":false}
+       "products":{"type":"object","enabled":false},
+       "skus":{"type":"nested","properties":{"priceCents":{"type":"long"},"specifications":{"type":"keyword"}}}
      }}}
     """;
   private static final String RATING_SCRIPT = """
@@ -164,10 +166,10 @@ public class CatalogElasticsearchClient {
     List<Map<String, Object>> filters = new ArrayList<>();
     filters.add(Map.of("term", Map.of("active", true)));
     filters.add(Map.of("terms", Map.of("merchantId", criteria.merchantIds())));
-    Map<String, Long> range = new HashMap<>();
-    if (criteria.minPrice() != null) range.put("gte", cents(criteria.minPrice()));
-    if (criteria.maxPrice() != null) range.put("lte", cents(criteria.maxPrice()));
-    if (!range.isEmpty()) filters.add(Map.of("range", Map.of("priceCents", range)));
+    var sku = skuFilters(criteria);
+    if (!sku.isEmpty()) {
+      filters.add(Map.of("nested", Map.of("path", "skus", "query", Map.of("bool", Map.of("filter", sku)))));
+    }
     for (String term : criteria.terms()) {
       filters.add(substring("text" + language, term));
     }
@@ -182,8 +184,8 @@ public class CatalogElasticsearchClient {
   private List<Map<String, Object>> sort(Criteria criteria) {
     List<Map<String, Object>> sort = new ArrayList<>();
     switch (criteria.sort()) {
-      case "price-asc" -> sort.add(Map.of("priceCents", "asc"));
-      case "price-desc" -> sort.add(Map.of("priceCents", "desc"));
+      case "price-asc" -> sort.add(skuSort(criteria, "asc"));
+      case "price-desc" -> sort.add(skuSort(criteria, "desc"));
       case "rating" -> {
         if (!criteria.ratedIds().isEmpty()) {
           Map<String, Integer> ranks = new HashMap<>();
@@ -200,6 +202,26 @@ public class CatalogElasticsearchClient {
     }
     sort.add(Map.of("productId", "asc"));
     return sort;
+  }
+
+  private Map<String, Object> skuSort(Criteria criteria, String order) {
+    var nested = new HashMap<String, Object>();
+    nested.put("path", "skus");
+    var filters = skuFilters(criteria);
+    if (!filters.isEmpty()) nested.put("filter", Map.of("bool", Map.of("filter", filters)));
+    return Map.of("skus.priceCents", Map.of("order", order, "mode", "min", "nested", nested));
+  }
+
+  private List<Map<String, Object>> skuFilters(Criteria criteria) {
+    List<Map<String, Object>> filters = new ArrayList<>();
+    Map<String, Long> range = new HashMap<>();
+    if (criteria.minPrice() != null) range.put("gte", cents(criteria.minPrice()));
+    if (criteria.maxPrice() != null) range.put("lte", cents(criteria.maxPrice()));
+    if (!range.isEmpty()) filters.add(Map.of("range", Map.of("skus.priceCents", range)));
+    for (String token : criteria.skuTokens()) {
+      filters.add(Map.of("term", Map.of("skus.specifications", token)));
+    }
+    return filters;
   }
 
   private Map<String, Object> substring(String field, String value) {
@@ -222,7 +244,7 @@ public class CatalogElasticsearchClient {
   /** 搜索字段与返回给门户的两种语言快照。 */
   public record Document(long productId, long merchantId, long priceCents, boolean active, String textZh, String textEn,
                          String nameZh, String nameEn, String relevanceZh, String relevanceEn,
-                         Map<String, CatalogProductV1> products) {
+                         Map<String, CatalogProductV1> products, List<Option> skus) {
   }
 
   /** Elasticsearch 返回的原始文档编号及内容，用于索引核对。 */

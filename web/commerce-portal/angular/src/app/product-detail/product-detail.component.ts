@@ -4,6 +4,7 @@ import { ChangeDetectorRef, Component, DestroyRef, OnInit } from '@angular/core'
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Params, Router } from '@angular/router';
 import { catchError, distinctUntilChanged, EMPTY, map, of, Subscription, switchMap, timeout } from 'rxjs';
+import { CatalogSku } from 'src/model/ICatalogSku';
 import { Product, ProductReview } from 'src/model/IProduct';
 import { catalogQueryParams, readCatalogQuery, readPositiveId } from '../dashboard/catalog-query';
 import { readPage } from '../list-pagination/page-query';
@@ -30,12 +31,14 @@ export class ProductDetailComponent implements OnInit {
   loadingReviews = false;
   failedReviewPage?: number;
   selectedQuantity = 1;
+  selectedSku?: CatalogSku;
   stock?: StockAvailability;
   stockLoading = false;
   basketLoading = false;
   basketError = '';
   private productId: number | null = null;
   private detailRequest?: Subscription;
+  private skuStockRequest?: Subscription;
   private reviewRequest?: Subscription;
   private basketRequest?: Subscription;
 
@@ -75,6 +78,10 @@ export class ProductDetailComponent implements OnInit {
     return { returnUrl: this.router.url };
   }
 
+  get unitPrice(): number {
+    return this.selectedSku?.unitPrice ?? this.product?.price ?? 0;
+  }
+
   get canAddToBasket(): boolean {
     return (
       this.isCustomer &&
@@ -97,6 +104,7 @@ export class ProductDetailComponent implements OnInit {
       .subscribe((id) => {
         this.productId = id;
         this.product = undefined;
+        this.selectedSku = undefined;
         this.selectedQuantity = 1;
         this.basketRequest?.unsubscribe();
         this.basketLoading = false;
@@ -107,6 +115,7 @@ export class ProductDetailComponent implements OnInit {
 
   loadProductDetail(): void {
     this.detailRequest?.unsubscribe();
+    this.skuStockRequest?.unsubscribe();
     this.reviewRequest?.unsubscribe();
     const id = this.productId;
     this.loadingReviews = false;
@@ -138,6 +147,11 @@ export class ProductDetailComponent implements OnInit {
         }),
         switchMap((product) => {
           this.product = product;
+          const options = product.skus ?? [];
+          this.selectedSku =
+            options.length > 1
+              ? (options.find((sku) => sku.skuId === this.selectedSku?.skuId) ?? options[0])
+              : undefined;
           this.reviews = product.reviews.slice(0, REVIEW_PAGE_SIZE);
           this.reviewPage = 0;
           this.reviewTotal = product.reviewCount;
@@ -145,19 +159,36 @@ export class ProductDetailComponent implements OnInit {
           this.setPageTitle(product);
           this.changeDetector.markForCheck();
           if (!authenticated) return of(undefined);
-          return this.api.productAvailability([id]).pipe(
-            timeout(PRODUCT_QUERY_TIMEOUT_MS),
-            map((stocks) => stocks[id]),
-            catchError(() => of(undefined)),
-          );
+          return this.availability(this.selectedSku?.stockProductId ?? id);
         }),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe((stock) => {
-        this.stock = stock?.listed ? stock : undefined;
-        this.stockLoading = false;
-        this.changeDetector.markForCheck();
-      });
+      .subscribe((stock) => this.updateStock(stock));
+  }
+
+  skuLabel(sku: CatalogSku): string {
+    return sku.defaultSku
+      ? this.i18n.t('catalogSkuDefaultOption')
+      : Object.entries(sku.specifications)
+          .map(([key, value]) => key + ': ' + value)
+          .join(' / ');
+  }
+
+  selectSku(skuId: number): void {
+    const sku = this.product?.skus?.find((option) => option.skuId === skuId);
+    if (!sku || sku === this.selectedSku) return;
+    this.selectedSku = sku;
+    this.selectedQuantity = 1;
+    this.basketError = '';
+    if (!this.account.userProfile() || sku.stockProductId === null) return;
+
+    this.detailRequest?.unsubscribe();
+    this.skuStockRequest?.unsubscribe();
+    this.stock = undefined;
+    this.stockLoading = true;
+    this.skuStockRequest = this.availability(sku.stockProductId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((stock) => this.updateStock(stock));
   }
 
   loadReviews(page: number): void {
@@ -206,8 +237,10 @@ export class ProductDetailComponent implements OnInit {
     if (!this.canAddToBasket || !this.product) return;
     this.basketError = '';
     this.basketLoading = true;
-    this.basketRequest = this.api
-      .addOrder(this.product.id, this.selectedQuantity)
+    const request = this.selectedSku
+      ? this.api.addOrder(this.product.id, this.selectedQuantity, this.selectedSku.skuId)
+      : this.api.addOrder(this.product.id, this.selectedQuantity);
+    this.basketRequest = request
       .pipe(
         switchMap(() => this.router.navigate(['/cart'])),
         takeUntilDestroyed(this.destroyRef),
@@ -223,6 +256,20 @@ export class ProductDetailComponent implements OnInit {
           this.changeDetector.markForCheck();
         },
       });
+  }
+
+  private availability(stockProductId: number) {
+    return this.api.productAvailability([stockProductId]).pipe(
+      timeout(PRODUCT_QUERY_TIMEOUT_MS),
+      map((stocks) => stocks[stockProductId]),
+      catchError(() => of(undefined)),
+    );
+  }
+
+  private updateStock(stock?: StockAvailability): void {
+    this.stock = stock?.listed ? stock : undefined;
+    this.stockLoading = false;
+    this.changeDetector.markForCheck();
   }
 
   private setPageTitle(product?: Product): void {

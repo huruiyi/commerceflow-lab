@@ -65,9 +65,7 @@ public class CatalogApplicationService {
 
   public List<CatalogProductV1> lookup(List<Long> productIds, String requestedLocale) {
     var ids = new LinkedHashSet<>(productIds);
-    var found = products.selectList(new LambdaQueryWrapper<Product>()
-      .in(Product::getId, ids)
-      .eq(Product::getLifecycleStatus, "ACTIVE"));
+    var found = sellable(products.selectBatchIds(ids));
     String locale = locale(requestedLocale);
     Map<Long, ProductTranslation> localized = Map.of();
     if ("zh-CN".equals(locale) && !found.isEmpty()) {
@@ -84,8 +82,7 @@ public class CatalogApplicationService {
 
   public List<CatalogProductSnapshotV1> snapshots(List<Long> productIds) {
     List<Long> uniqueIds = new LinkedHashSet<>(productIds).stream().toList();
-    Map<Long, Product> found = products.selectBatchIds(uniqueIds).stream()
-      .filter(product -> "ACTIVE".equals(product.getLifecycleStatus()))
+    Map<Long, Product> found = sellable(products.selectBatchIds(uniqueIds)).stream()
       .collect(Collectors.toMap(Product::getId, Function.identity()));
     if (found.size() != uniqueIds.size()) {
       throw new ResourceNotFoundException("One or more active products were not found");
@@ -190,17 +187,45 @@ public class CatalogApplicationService {
     }
   }
 
+  void publishSku(Product variant, String status, boolean created) {
+    var type = created ? CatalogProductEventType.PRODUCT_CREATED : CatalogProductEventType.PRODUCT_PRICE_CHANGED;
+    append(CatalogProductEventV1.from(variant, type, null, null, null, status));
+  }
+
+  void reprojectListing(Product listing) {
+    requireUpdated(products.advanceVersion(listing.getMerchantId(), listing.getId(), listing.getBusinessVersion()));
+    changed(owned(listing.getMerchantId(), listing.getId()), CatalogProductEventType.PRODUCT_PROFILE_UPDATED,
+      null, null, null);
+  }
+
   private Product active(Long productId) {
     Product product = products.selectById(productId);
-    if (product == null || !"ACTIVE".equals(product.getLifecycleStatus())) {
+    if (product == null) {
       throw new ResourceNotFoundException("Product not found");
     }
-    return product;
+    return sellable(List.of(product)).stream().findFirst()
+      .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+  }
+
+  private List<Product> sellable(List<Product> rows) {
+    var aliases = rows.stream().filter(row -> row.getListingProductId() != null).toList();
+    if (aliases.isEmpty()) {
+      return rows.stream().filter(row -> "ACTIVE".equals(row.getLifecycleStatus())).toList();
+    }
+    var activeListings = products.selectBatchIds(aliases.stream().map(Product::getListingProductId).distinct().toList())
+      .stream().filter(row -> "ACTIVE".equals(row.getLifecycleStatus()))
+      .map(Product::getId).collect(Collectors.toSet());
+    var activeSkus = skus.forStockIds(aliases.stream().map(Product::getId).toList()).stream()
+      .filter(row -> "ACTIVE".equals(row.lifecycleStatus()) && activeListings.contains(row.productId()))
+      .map(CatalogSkuMapper.Row::stockProductId).collect(Collectors.toSet());
+    return rows.stream().filter(row -> row.getListingProductId() == null
+        ? "ACTIVE".equals(row.getLifecycleStatus()) : activeSkus.contains(row.getId()))
+      .map(Product::asSellable).toList();
   }
 
   private Product owned(Long merchantId, Long productId) {
     Product product = products.selectById(productId);
-    if (product == null || !merchantId.equals(product.getMerchantId())) {
+    if (product == null || product.getListingProductId() != null || !merchantId.equals(product.getMerchantId())) {
       throw new ResourceNotFoundException("Product not found");
     }
     return product;

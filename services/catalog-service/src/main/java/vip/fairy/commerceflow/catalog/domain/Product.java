@@ -38,6 +38,8 @@ public class Product {
   private String createRequestId;
   /** Digest of the original registration fields, independent of subsequent edits. */
   private String createFingerprint;
+  /** 内部 SKU 销售单元所属的公开商品。为空时本行即为公开商品。 */
+  private Long listingProductId;
 
   protected Product() {
   }
@@ -61,6 +63,27 @@ public class Product {
     return createFingerprint;
   }
 
+  public static Product variant(Product listing, String name, BigDecimal price) {
+    var variant = new Product(listing.merchantId, null, null, name, listing.description, price, listing.imageUrl);
+    variant.listingProductId = listing.id;
+    variant.brief = listing.brief;
+    variant.thumbnailUrl = listing.thumbnailUrl;
+    return variant;
+  }
+
+  public Product asSellable() {
+    if (listingProductId == null) return this;
+    var copy = new Product(merchantId, null, null, name, description, price, imageUrl);
+    copy.id = id;
+    copy.listingProductId = listingProductId;
+    copy.brief = brief;
+    copy.thumbnailUrl = thumbnailUrl;
+    copy.lifecycleStatus = "ACTIVE";
+    copy.businessVersion = businessVersion;
+    copy.updatedAt = updatedAt;
+    return copy;
+  }
+
   public Long getId() { return id; }
   public String getName() { return name; }
   public String getBrief() { return brief; }
@@ -72,4 +95,7 @@ public class Product {
   public String getLifecycleStatus() { return lifecycleStatus; }
   public long getBusinessVersion() { return businessVersion; }
   public Instant getUpdatedAt() { return updatedAt; }
+  public Long getListingProductId() {
+    return listingProductId;
+  }
 }

@@ -34,6 +34,9 @@
 当前仓库的商品目录和公开店铺通过 `GET /api/products/search` 分页，返回 `products`、`total`、`page` 和 `size`。
 页码从 0 开始，默认每页 12 件。商品只来自当前对外开放的店铺。公开店铺页以当前店铺的 `merchantId`
 查询。目录可再传入 `q`、`lang`、`minPrice`、`maxPrice` 和 `sort`。
+目录 V7 候选增加 `sku`，格式为 `颜色=红;尺寸=M`，最多四项不同规格。规格名和值去除首尾空白并忽略大小写。
+同一启用 SKU 必须同时满足所有规格和价格条件。商品只返回一次，候选商品卡使用
+`minimumSkuPrice` 和 `maximumSkuPrice` 展示全部可售 SKU 的价格范围。
 
 商品列表和搜索返回 `averageRating`、`reviewCount`，其中 `reviews` 为空数组。详情内嵌最新 5 条评价。
 `GET /api/products/{productId}/reviews` 返回 `reviews`、`total`、`page`、`size`，
@@ -54,6 +57,12 @@
 
 SKU 创建接受 `requestId`、`code`、`specifications`、`unitPrice` 和 `status`。编码在店内唯一，规格组合在商品内唯一。
 已创建 SKU 可通过 `expectedVersion` 修改编码、价格及状态。默认 SKU 的售价与状态沿用商品编辑入口。
+
+目录 V7 候选在商详返回 `skus`。选定规格后，门户用该行的 `stockProductId` 查询可售量，
+并在 `POST /api/cart/items` 提交公开商品的 `productId`、`skuId` 与 `quantity`。
+省略 `skuId` 时仍按原商品号购买默认销售单元。SKU 不属于该商品或不可售时返回 404。
+购物车和订单行的 `productId` 为具体销售单元的库存编号。成交时冻结商品名中的规格值及单价，
+履约、退货和库存流水继续使用原订单行与库存编号。
 
 顾客订单详情中的 `payment.idempotencyKey` 对应原支付提交。门户按原键核对支付单，结果未知时
 保留渠道和原参数，手动重试复用原键。取消用原订单和取消原因重试，订单侧完成和审计分别使用

@@ -308,8 +308,9 @@ export class ApiService {
     return requests.length ? forkJoin(requests).pipe(map((batches) => Object.assign({}, ...batches))) : of({});
   }
 
-  addOrder(productId: number, quantity: number): Observable<OrderList> {
+  addOrder(productId: number, quantity: number, skuId?: number): Observable<OrderList> {
     const request: CreateOrderRequest = { productId, quantity, note: 'Created from the Angular demo' };
+    if (skuId !== undefined) request.skuId = skuId;
     return this.http.post<OrderList>('/api/cart/items', request);
   }
 

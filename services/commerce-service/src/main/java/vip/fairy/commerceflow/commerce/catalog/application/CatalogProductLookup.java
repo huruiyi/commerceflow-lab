@@ -8,6 +8,8 @@ public interface CatalogProductLookup {
 
   ProductSnapshot require(Long productId);
 
+  ProductSnapshot requireSku(Long productId, Long skuId);
+
   Map<Long, ProductSnapshot> snapshots(List<Long> productIds);
 
   record ProductSnapshot(Long id, Long merchantId, String name, BigDecimal price, String thumbnailUrl) {

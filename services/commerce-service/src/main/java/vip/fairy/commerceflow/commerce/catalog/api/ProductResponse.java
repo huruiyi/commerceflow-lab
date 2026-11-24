@@ -1,6 +1,7 @@
 package vip.fairy.commerceflow.commerce.catalog.api;
 
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogProductV1;
+import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogSkuV1;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -8,7 +9,8 @@ import java.util.List;
 public record ProductResponse(Long id, String name, String brief, String description,
                               BigDecimal price, String imageUrl, String thumbnailUrl,
                               BigDecimal averageRating, int reviewCount, List<CatalogReviewResponse> reviews,
-                              Long merchantId) {
+                              Long merchantId, List<CatalogSkuV1> skus, BigDecimal minimumSkuPrice,
+                              BigDecimal maximumSkuPrice) {
   public static ProductResponse from(CatalogProductV1 product,
                                      BigDecimal averageRating,
                                      int reviewCount,
@@ -18,6 +20,16 @@ public record ProductResponse(Long id, String name, String brief, String descrip
       product.unitPrice(), product.imageUrl(), product.thumbnailUrl(),
       averageRating,
       reviewCount,
-      reviews, product.merchantId());
+      reviews, product.merchantId(), List.of(), null, null);
+  }
+
+  public ProductResponse withSkus(List<CatalogSkuV1> variants) {
+    return new ProductResponse(id, name, brief, description, price, imageUrl, thumbnailUrl,
+      averageRating, reviewCount, reviews, merchantId, variants == null ? List.of() : variants, null, null);
+  }
+
+  public ProductResponse withSkuRange(BigDecimal min, BigDecimal max) {
+    return new ProductResponse(id, name, brief, description, price, imageUrl, thumbnailUrl,
+      averageRating, reviewCount, reviews, merchantId, skus, min, max);
   }
 }

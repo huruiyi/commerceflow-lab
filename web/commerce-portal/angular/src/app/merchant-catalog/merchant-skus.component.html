@@ -23,6 +23,7 @@
             <th scope="col">SKU 编码 / SKU code</th>
             <th scope="col">规格 / Specifications</th>
             <th scope="col">售价 / Price</th>
+            <th scope="col">库存商品号 / Stock product ID</th>
             <th scope="col">状态 / Status</th>
             <th scope="col">操作 / Actions</th>
           </tr>
@@ -44,6 +45,13 @@
                 }
               </td>
               <td>{{ sku.unitPrice | currency: 'CNY' }}</td>
+              <td>
+                @if (sku.stockProductId; as stockId) {
+                  <a routerLink="/merchant/inventory">#{{ stockId }}</a>
+                } @else {
+                  —
+                }
+              </td>
               <td>{{ sku.status === 'ACTIVE' ? '启用 / Active' : '停用 / Inactive' }}</td>
               <td>
                 <button class="btn btn-sm btn-outline-primary" type="button" [disabled]="busy()" (click)="open(sku)">

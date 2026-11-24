@@ -35,6 +35,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Component
@@ -105,10 +106,14 @@ public class CatalogServiceClient {
   }
 
   public record SearchRequest(String query, String locale, String sort, List<Long> merchantIds, List<Long> ratedIds,
-                              BigDecimal minPrice, BigDecimal maxPrice, int page, int size) {
+                              BigDecimal minPrice, BigDecimal maxPrice, int page, int size, String sku) {
   }
 
-  public record SearchPage(List<CatalogProductV1> products, long total, int page, int size) {
+  public record SearchPage(List<CatalogProductV1> products, long total, int page, int size,
+                           Map<Long, PriceRange> skuRanges) {
+  }
+
+  public record PriceRange(BigDecimal min, BigDecimal max) {
   }
 
   public CatalogProductV1 detail(Long productId, String locale) {
@@ -158,6 +163,19 @@ public class CatalogServiceClient {
         .headers(headers -> merchant(headers, "GET", target, merchantId, null, null))
         .retrieve().body(CatalogSkuV1[].class);
       return body == null ? List.of() : Arrays.asList(body);
+    } catch (RuntimeException exception) {
+      throw translated(exception);
+    }
+  }
+
+  public List<CatalogSkuV1> sellableSkus(long productId) {
+    String target = "/internal/v1/products/" + productId + "/skus";
+    try {
+      var body = client.get().uri(URI.create(baseUrl + target))
+        .headers(headers -> sign(headers, "GET", target)).retrieve().body(CatalogSkuV1[].class);
+      return body == null ? List.of() : Arrays.asList(body);
+    } catch (HttpClientErrorException.NotFound unavailableOnOriginal) {
+      return List.of();
     } catch (RuntimeException exception) {
       throw translated(exception);
     }

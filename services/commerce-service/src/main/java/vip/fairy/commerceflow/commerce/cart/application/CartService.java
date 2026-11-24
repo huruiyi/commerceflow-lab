@@ -26,7 +26,8 @@ public class CartService {
 
   @Transactional
   public OrderResponse add(AppUser user, OrderRequest request) {
-    CatalogProductLookup.ProductSnapshot product = products.require(request.getProductId());
+    CatalogProductLookup.ProductSnapshot product = request.getSkuId() == null
+      ? products.require(request.getProductId()) : products.requireSku(request.getProductId(), request.getSkuId());
     carts.ensureCart(user.getId());
     Long cartId = carts.cartId(user.getId());
     carts.add(

@@ -74,9 +74,21 @@
           />
         </label>
       </div>
+      <label>
+        {{ 'catalogSkuFilter' | t }}
+        <input
+          class="form-control"
+          name="sku"
+          maxlength="360"
+          [placeholder]="'catalogSkuFilterHint' | t"
+          [attr.aria-invalid]="invalidSku ? 'true' : null"
+          [attr.aria-describedby]="invalidSku ? 'catalog-sku-error' : null"
+          [(ngModel)]="draft.sku"
+        />
+      </label>
     </div>
     <div class="filter-actions">
-      <button type="submit" class="btn catalog-primary" [disabled]="invalidPrice || invalidKeyword">
+      <button type="submit" class="btn catalog-primary" [disabled]="invalidPrice || invalidKeyword || invalidSku">
         {{ 'search' | t }}
       </button>
       <button type="button" class="btn catalog-secondary" (click)="clearFilters()">
@@ -85,6 +97,9 @@
     </div>
     @if (invalidPrice) {
       <p id="catalog-price-error" class="filter-error">{{ 'catalogInvalidPriceRange' | t }}</p>
+    }
+    @if (invalidSku) {
+      <p id="catalog-sku-error" class="filter-error" role="alert">{{ 'catalogInvalidSku' | t }}</p>
     }
     @if (invalidKeyword) {
       <p id="catalog-keyword-error" class="filter-error">{{ 'catalogInvalidKeyword' | t }}</p>

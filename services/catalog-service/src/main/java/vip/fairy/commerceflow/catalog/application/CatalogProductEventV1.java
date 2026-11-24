@@ -20,10 +20,15 @@ public record CatalogProductEventV1(int schemaVersion, String eventId, String ev
   public static CatalogProductEventV1 from(Product product, CatalogProductEventType type,
                                            String locale, String correlationId,
                                            String causationId) {
+    return from(product, type, locale, correlationId, causationId, product.getLifecycleStatus());
+  }
+
+  static CatalogProductEventV1 from(Product product, CatalogProductEventType type, String locale, String correlationId,
+                                    String causationId, String lifecycleStatus) {
     return new CatalogProductEventV1(VERSION, UUID.randomUUID().toString(), type.name(),
       Instant.now(), product.getId(), product.getMerchantId(), product.getBusinessVersion(),
       product.getName(), product.getBrief(), product.getDescription(), product.getPrice(),
-      product.getImageUrl(), product.getThumbnailUrl(), product.getLifecycleStatus(), locale,
+      product.getImageUrl(), product.getThumbnailUrl(), lifecycleStatus, locale,
       normalized(correlationId), normalized(causationId));
   }
 

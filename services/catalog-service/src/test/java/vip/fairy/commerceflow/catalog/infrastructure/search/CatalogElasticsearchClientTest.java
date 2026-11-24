@@ -35,7 +35,7 @@ class CatalogElasticsearchClientTest {
       var client = new CatalogElasticsearchClient(json, url, "commerceflow-test");
       var product = new CatalogProductV1(1, 1L, 2L, "咖啡 café", "", "", null, "", "", "ACTIVE", 1, null);
       var document = new CatalogElasticsearchClient.Document(1, 2, 0, true, "", "", "", "", "", "",
-        Map.of("zh-CN", product));
+        Map.of("zh-CN", product), List.of());
 
       client.write(1, List.of(document), true);
 

@@ -25,6 +25,7 @@ import {
   catalogSortOptions,
   invalidCatalogKeyword,
   invalidCatalogPrice,
+  invalidCatalogSku,
   readCatalogQuery,
 } from '../dashboard/catalog-query';
 import { ListPaginationComponent } from '../list-pagination/list-pagination.component';
@@ -144,7 +145,7 @@ export class StoresComponent {
           switchMap(({ merchantId, query }) => {
             if (JSON.stringify(this.catalog) !== JSON.stringify(query)) this.catalogDraft = { ...query };
             this.catalog = query;
-            if (invalidCatalogPrice(query) || invalidCatalogKeyword(query.q)) {
+            if (invalidCatalogPrice(query) || invalidCatalogKeyword(query.q) || invalidCatalogSku(query.sku)) {
               this.productPage.set(null);
               this.productsFailed.set(false);
               return EMPTY;
@@ -188,9 +189,18 @@ export class StoresComponent {
     return invalidCatalogKeyword(this.catalogDraft.q);
   }
 
+  get invalidSku(): boolean {
+    return invalidCatalogSku(this.catalogDraft.sku);
+  }
+
   applyCatalog(): void {
-    if (this.invalidPrice || this.invalidKeyword) return;
-    this.navigateCatalog({ ...this.catalogDraft, q: this.catalogDraft.q.trim(), page: 0 });
+    if (this.invalidPrice || this.invalidKeyword || this.invalidSku) return;
+    this.navigateCatalog({
+      ...this.catalogDraft,
+      q: this.catalogDraft.q.trim(),
+      sku: this.catalogDraft.sku?.trim(),
+      page: 0,
+    });
   }
 
   resetCatalog(): void {

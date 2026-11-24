@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import vip.fairy.commerceflow.catalog.api.CatalogProductV1;
+import vip.fairy.commerceflow.catalog.application.CatalogSkuSearch.PriceRange;
 import vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogSearchMapper;
 
 @Service
@@ -20,12 +22,15 @@ public class CatalogSearchService {
   private final CatalogSearchMapper store;
   private final ObjectProvider<CatalogElasticsearchSearch> elasticsearch;
   private final boolean indexingEnabled;
+  private final CatalogSkuSearch skuSearch;
 
   public CatalogSearchService(CatalogSearchMapper store, ObjectProvider<CatalogElasticsearchSearch> elasticsearch,
+                              CatalogSkuSearch skuSearch,
                               @Value("${commerceflow.catalog-search.indexing-enabled:true}") boolean indexingEnabled) {
     this.store = store;
     this.elasticsearch = elasticsearch;
     this.indexingEnabled = indexingEnabled;
+    this.skuSearch = skuSearch;
   }
 
   @Scheduled(
@@ -97,17 +102,24 @@ public class CatalogSearchService {
       throw new IllegalArgumentException("Invalid product search terms or price range");
     }
     if (request.merchantIds().isEmpty()) return new Page(List.of(), 0, 0, request.size());
+    var spec = skuSearch.selection(request.sku());
     Criteria criteria = new Criteria(text, terms, CatalogApplicationService.locale(request.locale()), request.sort(),
-      request.merchantIds(), request.ratedIds(), request.minPrice(), request.maxPrice(), request.size(), 0);
+      request.merchantIds(), request.ratedIds(), request.minPrice(), request.maxPrice(), request.size(), 0,
+      spec.tokens(), spec.json());
     var backend = elasticsearch.getIfAvailable();
     if (backend != null) {
       var page = backend.search(criteria, request.page());
-      if (page.isPresent()) return page.get();
+      if (page.isPresent()) return withRanges(page.get());
     }
     long total = store.count(criteria);
     if (total == 0) return new Page(List.of(), 0, 0, request.size());
     int page = (int) Math.min(request.page(), (total - 1) / request.size());
-    return new Page(store.search(criteria.atOffset((long) page * request.size())), total, page, request.size());
+    var results = store.search(criteria.atOffset((long) page * request.size()));
+    return withRanges(new Page(results, total, page, request.size()));
+  }
+
+  private Page withRanges(Page page) {
+    return new Page(page.products(), page.total(), page.page(), page.size(), skuSearch.ranges(page.products()));
   }
 
   private boolean invalidPrice(BigDecimal price) {
@@ -115,19 +127,24 @@ public class CatalogSearchService {
   }
 
   public record Request(String query, String locale, String sort, List<Long> merchantIds, List<Long> ratedIds,
-                        BigDecimal minPrice, BigDecimal maxPrice, int page, int size) {
+                        BigDecimal minPrice, BigDecimal maxPrice, int page, int size, String sku) {
   }
 
   public record Criteria(String query, List<String> terms, String locale, String sort,
                          List<Long> merchantIds, List<Long> ratedIds, BigDecimal minPrice, BigDecimal maxPrice,
-                         int size, long offset) {
+                         int size, long offset, List<String> skuTokens, String skuJson) {
 
     Criteria atOffset(long value) {
-      return new Criteria(query, terms, locale, sort, merchantIds, ratedIds, minPrice, maxPrice, size, value);
+      return new Criteria(query, terms, locale, sort, merchantIds, ratedIds, minPrice, maxPrice, size, value,
+        skuTokens, skuJson);
     }
   }
 
-  public record Page(List<CatalogProductV1> products, long total, int page, int size) {
+  public record Page(List<CatalogProductV1> products, long total, int page, int size, Map<Long, PriceRange> skuRanges) {
+
+    public Page(List<CatalogProductV1> products, long total, int page, int size) {
+      this(products, total, page, size, Map.of());
+    }
   }
 
   public record Status(long generation, boolean rebuildRequested, Instant rebuiltAt, long pending,
