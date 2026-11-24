@@ -34,6 +34,19 @@
 当前仓库的商品目录和公开店铺通过 `GET /api/products/search` 分页，返回 `products`、`total`、`page` 和 `size`。
 页码从 0 开始，默认每页 12 件。商品只来自当前对外开放的店铺。公开店铺页以当前店铺的 `merchantId`
 查询。目录可再传入 `q`、`lang`、`minPrice`、`maxPrice` 和 `sort`。
+全站与店内共用高级检索参数。查询在所选语言的商品名称、简介和描述中按字面匹配。
+
+| 参数 | 行为 |
+| --- | --- |
+| `match=all` | 默认值，`q` 中所有以空白分隔的关键词都要出现，顺序不限。 |
+| `match=any` | 至少命中 `q` 中的一个词。 |
+| `match=phrase` | 连续匹配去除首尾空白后的整段 `q`，保留词序和内部空格。 |
+| `exclude` | 排除含任一指定词的商品。可单独使用，也可与上述模式、店铺、价格及 SKU 组合。 |
+
+例如 `GET /api/products/search?lang=en&q=coffee%20tea&match=any&exclude=decaf&sort=price-asc`。
+`q` 与 `exclude` 各限 120 个字符、12 个不同词。公开 API 对未知匹配模式或超限输入返回 400。
+Elasticsearch 和 MySQL 回退使用相同的匹配条件，相关性排序由各自的引擎计算。
+
 目录 V7 的 `sku` 指定规格条件，格式为 `颜色=红;尺寸=M`，最多四项不同规格。规格名和值去除首尾空白并忽略大小写。
 同一启用 SKU 必须同时满足所有规格和价格条件。商品只返回一次，候选商品卡使用
 `minimumSkuPrice` 和 `maximumSkuPrice` 展示全部可售 SKU 的价格范围。

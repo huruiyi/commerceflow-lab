@@ -23,6 +23,7 @@ import {
   catalogQueryParams,
   catalogSearchParams,
   catalogSortOptions,
+  catalogMatchOptions,
   invalidCatalogKeyword,
   invalidCatalogPrice,
   invalidCatalogSku,
@@ -145,7 +146,12 @@ export class StoresComponent {
           switchMap(({ merchantId, query }) => {
             if (JSON.stringify(this.catalog) !== JSON.stringify(query)) this.catalogDraft = { ...query };
             this.catalog = query;
-            if (invalidCatalogPrice(query) || invalidCatalogKeyword(query.q) || invalidCatalogSku(query.sku)) {
+            if (
+              invalidCatalogPrice(query) ||
+              invalidCatalogKeyword(query.q) ||
+              invalidCatalogKeyword(query.exclude) ||
+              invalidCatalogSku(query.sku)
+            ) {
               this.productPage.set(null);
               this.productsFailed.set(false);
               return EMPTY;
@@ -189,12 +195,18 @@ export class StoresComponent {
     return invalidCatalogKeyword(this.catalogDraft.q);
   }
 
+  readonly matchOptions = catalogMatchOptions;
+
+  get invalidExclude(): boolean {
+    return invalidCatalogKeyword(this.catalogDraft.exclude);
+  }
+
   get invalidSku(): boolean {
     return invalidCatalogSku(this.catalogDraft.sku);
   }
 
   applyCatalog(): void {
-    if (this.invalidPrice || this.invalidKeyword || this.invalidSku) return;
+    if (this.invalidPrice || this.invalidKeyword || this.invalidExclude || this.invalidSku) return;
     this.navigateCatalog({
       ...this.catalogDraft,
       q: this.catalogDraft.q.trim(),
@@ -204,7 +216,16 @@ export class StoresComponent {
   }
 
   resetCatalog(): void {
-    this.catalogDraft = { q: '', merchantId: null, minPrice: null, maxPrice: null, sort: 'default', page: 0 };
+    this.catalogDraft = {
+      q: '',
+      match: 'all',
+      exclude: '',
+      merchantId: null,
+      minPrice: null,
+      maxPrice: null,
+      sort: 'default',
+      page: 0,
+    };
     this.navigateCatalog(this.catalogDraft);
   }
 

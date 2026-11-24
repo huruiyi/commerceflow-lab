@@ -33,6 +33,26 @@
     </button>
     <div id="catalog-advanced" class="advanced-filters" [class.is-open]="mobileFiltersOpen">
       <label>
+        {{ 'catalogMatchMode' | t }}
+        <select class="form-select" name="match" [(ngModel)]="draft.match">
+          @for (option of matchOptions; track option.value) {
+            <option [value]="option.value">{{ option.label | t }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        {{ 'catalogExclude' | t }}
+        <input
+          class="form-control"
+          type="search"
+          name="exclude"
+          maxlength="120"
+          [(ngModel)]="draft.exclude"
+          [attr.aria-invalid]="invalidExclude ? 'true' : null"
+          [attr.aria-describedby]="invalidExclude ? 'catalog-exclude-error' : null"
+        />
+      </label>
+      <label>
         {{ 'catalogStoreFilter' | t }}
         <select class="form-select" name="merchantId" [(ngModel)]="draft.merchantId">
           <option [ngValue]="null">{{ 'catalogAllStores' | t }}</option>
@@ -88,7 +108,11 @@
       </label>
     </div>
     <div class="filter-actions">
-      <button type="submit" class="btn catalog-primary" [disabled]="invalidPrice || invalidKeyword || invalidSku">
+      <button
+        type="submit"
+        class="btn catalog-primary"
+        [disabled]="invalidPrice || invalidKeyword || invalidExclude || invalidSku"
+      >
         {{ 'search' | t }}
       </button>
       <button type="button" class="btn catalog-secondary" (click)="clearFilters()">
@@ -97,6 +121,9 @@
     </div>
     @if (invalidPrice) {
       <p id="catalog-price-error" class="filter-error">{{ 'catalogInvalidPriceRange' | t }}</p>
+    }
+    @if (invalidExclude) {
+      <p id="catalog-exclude-error" class="filter-error" role="alert">{{ 'catalogInvalidExclude' | t }}</p>
     }
     @if (invalidSku) {
       <p id="catalog-sku-error" class="filter-error" role="alert">{{ 'catalogInvalidSku' | t }}</p>

@@ -290,6 +290,26 @@
         />
       </label>
       <label>
+        {{ i18n.t('catalogMatchMode') }}
+        <select class="form-select" name="match" [(ngModel)]="catalogDraft.match">
+          @for (option of matchOptions; track option.value) {
+            <option [value]="option.value">{{ i18n.t(option.label) }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        {{ i18n.t('catalogExclude') }}
+        <input
+          class="form-control"
+          type="search"
+          name="exclude"
+          maxlength="120"
+          [(ngModel)]="catalogDraft.exclude"
+          [attr.aria-invalid]="invalidExclude ? 'true' : null"
+          [attr.aria-describedby]="invalidExclude ? 'store-exclude-error' : null"
+        />
+      </label>
+      <label>
         {{ i18n.t('catalogMinPrice') }}
         <input
           class="form-control"
@@ -334,13 +354,20 @@
         />
       </label>
       <div class="d-flex flex-wrap gap-2">
-        <button class="btn btn-primary" type="submit" [disabled]="invalidPrice || invalidKeyword || invalidSku">
+        <button
+          class="btn btn-primary"
+          type="submit"
+          [disabled]="invalidPrice || invalidKeyword || invalidExclude || invalidSku"
+        >
           {{ i18n.t('search') }}
         </button>
         <button class="btn btn-outline-secondary" type="button" (click)="resetCatalog()">
           {{ i18n.t('catalogResetFilters') }}
         </button>
       </div>
+      @if (invalidExclude) {
+        <p id="store-exclude-error" class="text-danger mb-0" role="alert">{{ i18n.t('catalogInvalidExclude') }}</p>
+      }
       @if (invalidSku) {
         <p id="store-sku-error" class="text-danger mb-0" role="alert">{{ i18n.t('catalogInvalidSku') }}</p>
       }

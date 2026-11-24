@@ -39,12 +39,14 @@ public class ProductCatalogService implements CatalogProductLookup, CatalogCache
   }
 
   public SearchPage search(String query, String locale, String sort, Long merchantId,
-                           BigDecimal minPrice, BigDecimal maxPrice, int page, int size, String sku) {
+                           BigDecimal minPrice, BigDecimal maxPrice, int page, int size, String sku,
+                           String match, String exclude) {
     var active = stores.activeMerchantIds();
     List<Long> merchants = merchantId == null ? List.copyOf(active)
       : active.contains(merchantId) ? List.of(merchantId) : List.of();
     var result = catalog.search(new CatalogServiceClient.SearchRequest(query, locale, sort, merchants,
-      "rating".equals(sort) ? reviews.ratedProductIds() : List.of(), minPrice, maxPrice, page, size, sku));
+      "rating".equals(sort) ? reviews.ratedProductIds() : List.of(), minPrice, maxPrice, page, size,
+      sku, match, exclude));
     var products = withRatings(result.products());
     if (result.skuRanges() != null && !result.skuRanges().isEmpty()) {
       products = products.stream().map(product -> {

@@ -84,9 +84,17 @@
         SELECT 1 FROM catalog_product_skus sku WHERE <include refid="variantSkuMatches"/>
       ))
     </if>
-    <foreach collection="terms" item="term">
-      AND d.searchable LIKE CONCAT('%', REPLACE(REPLACE(REPLACE(#{term}, '!', '!!'), '%', '!%'), '_', '!_'), '%')
-        ESCAPE '!'
+    <foreach collection="terms" item="term" index="i" open=" AND (" close=")">
+      <if test="i > 0">
+        <choose>
+          <when test="match == 'any'">OR</when>
+          <otherwise>AND</otherwise>
+        </choose>
+      </if>
+      LOCATE(#{term}, d.searchable) &gt; 0
+    </foreach>
+    <foreach collection="excluded" item="term">
+      AND LOCATE(#{term}, d.searchable) = 0
     </foreach>
   </sql>
 

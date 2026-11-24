@@ -11,7 +11,15 @@ export const catalogSortOptions: { value: CatalogSort; label: string }[] = [
   { value: 'rating', label: 'catalogRatingDescending' },
 ];
 
+export const catalogMatchOptions = [
+  { value: 'all', label: 'catalogMatchAll' },
+  { value: 'any', label: 'catalogMatchAny' },
+  { value: 'phrase', label: 'catalogMatchPhrase' },
+] as const;
+
 export interface CatalogQuery {
+  match: (typeof catalogMatchOptions)[number]['value'];
+  exclude: string;
   q: string;
   sku?: string;
   merchantId: number | null;
@@ -24,6 +32,8 @@ export interface CatalogQuery {
 export function readCatalogQuery(params: ParamMap): CatalogQuery {
   const sort = catalogSorts.find((value) => value === params.get('sort')) ?? 'default';
   return {
+    match: catalogMatchOptions.find((option) => option.value === params.get('match'))?.value ?? 'all',
+    exclude: params.get('exclude')?.trim() ?? '',
     q: params.get('q')?.trim() ?? '',
     sku: params.get('sku')?.trim() || undefined,
     merchantId: readPositiveId(params.get('merchantId')),
@@ -36,7 +46,9 @@ export function readCatalogQuery(params: ParamMap): CatalogQuery {
 
 export function catalogQueryParams(query: CatalogQuery): Params {
   return {
-    q: query.q || null,
+    q: query.q.trim() || null,
+    ...(query.match !== 'all' ? { match: query.match } : {}),
+    ...(query.exclude.trim() ? { exclude: query.exclude.trim() } : {}),
     ...(query.sku ? { sku: query.sku } : {}),
     merchantId: query.merchantId,
     minPrice: query.minPrice,
@@ -49,6 +61,8 @@ export function catalogQueryParams(query: CatalogQuery): Params {
 export function catalogSearchParams(query: CatalogQuery, size: number): Record<string, string | number> {
   const { q, sort, page, merchantId, minPrice, maxPrice } = query;
   const params: Record<string, string | number> = { q, sort, page, size };
+  if (query.match !== 'all') params['match'] = query.match;
+  if (query.exclude) params['exclude'] = query.exclude;
   if (query.sku) params['sku'] = query.sku.trim();
   if (merchantId !== null) params['merchantId'] = merchantId;
   if (minPrice !== null) params['minPrice'] = minPrice;

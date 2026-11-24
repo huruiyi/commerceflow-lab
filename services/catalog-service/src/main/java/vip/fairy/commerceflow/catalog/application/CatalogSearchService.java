@@ -90,20 +90,26 @@ public class CatalogSearchService {
   @Transactional(readOnly = true)
   public Page search(Request request) {
     String text = request.query() == null ? "" : request.query().strip();
-    if (text.length() > 120 || request.page() < 0 || request.size() < 1 || request.size() > 48
+    String exclude = request.exclude() == null ? "" : request.exclude().strip();
+    String match = request.match() == null ? "all" : request.match();
+    if (!Set.of("all", "any", "phrase").contains(match) || exclude.length() > 120 || text.length() > 120
+        || request.page() < 0 || request.size() < 1 || request.size() > 48
         || request.sort() == null || !Set.of("default", "price-asc", "price-desc", "rating").contains(request.sort())
         || request.merchantIds() == null || request.ratedIds() == null) {
       throw new IllegalArgumentException("Invalid product search parameters");
     }
-    List<String> terms = text.isEmpty() ? List.of() : Arrays.stream(text.split("(?U)\\s+")).distinct().toList();
-    if (terms.size() > 12 || invalidPrice(request.minPrice()) || invalidPrice(request.maxPrice())
+    List<String> terms = words(text);
+    List<String> excluded = words(exclude);
+    if (terms.size() > 12 || excluded.size() > 12
+        || invalidPrice(request.minPrice()) || invalidPrice(request.maxPrice())
         || (request.minPrice() != null && request.maxPrice() != null
           && request.minPrice().compareTo(request.maxPrice()) > 0)) {
       throw new IllegalArgumentException("Invalid product search terms or price range");
     }
     if (request.merchantIds().isEmpty()) return new Page(List.of(), 0, 0, request.size());
     var spec = skuSearch.selection(request.sku());
-    Criteria criteria = new Criteria(text, terms, CatalogApplicationService.locale(request.locale()), request.sort(),
+    Criteria criteria = new Criteria(text, match.equals("phrase") && !text.isEmpty() ? List.of(text) : terms,
+      match, excluded, CatalogApplicationService.locale(request.locale()), request.sort(),
       request.merchantIds(), request.ratedIds(), request.minPrice(), request.maxPrice(), request.size(), 0,
       spec.tokens(), spec.json());
     var backend = elasticsearch.getIfAvailable();
@@ -122,21 +128,27 @@ public class CatalogSearchService {
     return new Page(page.products(), page.total(), page.page(), page.size(), skuSearch.ranges(page.products()));
   }
 
+  private static List<String> words(String text) {
+    return text.isEmpty() ? List.of() : Arrays.stream(text.split("(?U)\\s+")).distinct().toList();
+  }
+
   private boolean invalidPrice(BigDecimal price) {
     return price != null && (price.signum() < 0 || price.stripTrailingZeros().scale() > 2);
   }
 
   public record Request(String query, String locale, String sort, List<Long> merchantIds, List<Long> ratedIds,
-                        BigDecimal minPrice, BigDecimal maxPrice, int page, int size, String sku) {
+                        BigDecimal minPrice, BigDecimal maxPrice, int page, int size, String sku,
+                        String match, String exclude) {
   }
 
-  public record Criteria(String query, List<String> terms, String locale, String sort,
-                         List<Long> merchantIds, List<Long> ratedIds, BigDecimal minPrice, BigDecimal maxPrice,
-                         int size, long offset, List<String> skuTokens, String skuJson) {
+  public record Criteria(String query, List<String> terms, String match, List<String> excluded,
+                         String locale, String sort, List<Long> merchantIds, List<Long> ratedIds,
+                         BigDecimal minPrice, BigDecimal maxPrice, int size, long offset,
+                         List<String> skuTokens, String skuJson) {
 
     Criteria atOffset(long value) {
-      return new Criteria(query, terms, locale, sort, merchantIds, ratedIds, minPrice, maxPrice, size, value,
-        skuTokens, skuJson);
+      return new Criteria(query, terms, match, excluded, locale, sort, merchantIds, ratedIds, minPrice, maxPrice,
+        size, value, skuTokens, skuJson);
     }
   }
 

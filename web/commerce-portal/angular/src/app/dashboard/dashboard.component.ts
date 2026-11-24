@@ -12,13 +12,14 @@ import {
   catalogQueryParams,
   catalogSearchParams,
   catalogSortOptions,
+  catalogMatchOptions,
   invalidCatalogKeyword,
   invalidCatalogPrice,
   invalidCatalogSku,
   readCatalogQuery,
 } from './catalog-query';
 
-type FilterField = 'q' | 'merchantId' | 'minPrice' | 'maxPrice' | 'sku';
+type FilterField = 'q' | 'exclude' | 'merchantId' | 'minPrice' | 'maxPrice' | 'sku';
 
 @Component({
   standalone: false,
@@ -64,13 +65,25 @@ export class DashboardComponent implements OnInit {
 
   get hasFilters(): boolean {
     const { q, sku, merchantId, minPrice, maxPrice, sort } = this.filters;
-    return Boolean(q || sku) || merchantId !== null || minPrice !== null || maxPrice !== null || sort !== 'default';
+    return (
+      Boolean(q || sku || this.filters.exclude) ||
+      merchantId !== null ||
+      minPrice !== null ||
+      maxPrice !== null ||
+      sort !== 'default'
+    );
   }
 
   get appliedFilters(): { field: FilterField; text: string }[] {
     const { q, sku, merchantId, minPrice, maxPrice } = this.filters;
     const applied: { field: FilterField; text: string }[] = [];
-    if (q) applied.push({ field: 'q', text: q });
+    if (q) {
+      const mode = this.matchOptions.find((option) => option.value === this.filters.match)!;
+      applied.push({ field: 'q', text: mode.value === 'all' ? q : `${this.i18n.t(mode.label)} · ${q}` });
+    }
+    if (this.filters.exclude) {
+      applied.push({ field: 'exclude', text: `${this.i18n.t('catalogExclude')} · ${this.filters.exclude}` });
+    }
     if (sku) applied.push({ field: 'sku', text: sku });
     if (merchantId !== null) {
       const text = this.storeNames.get(merchantId) ?? this.i18n.t('catalogStoreNumber', { id: merchantId });
@@ -100,6 +113,12 @@ export class DashboardComponent implements OnInit {
     return invalidCatalogKeyword(this.draft.q);
   }
 
+  readonly matchOptions = catalogMatchOptions;
+
+  get invalidExclude(): boolean {
+    return invalidCatalogKeyword(this.draft.exclude);
+  }
+
   get invalidSku(): boolean {
     return invalidCatalogSku(this.draft.sku);
   }
@@ -126,24 +145,37 @@ export class DashboardComponent implements OnInit {
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
       this.filters = readCatalogQuery(params);
       this.draft = { ...this.filters };
-      if (this.invalidPrice || this.invalidSku) this.mobileFiltersOpen = true;
+      if (this.invalidPrice || this.invalidSku || this.invalidExclude) this.mobileFiltersOpen = true;
       this.loadProducts();
     });
   }
 
   applyFilters(): void {
-    if (this.invalidPrice || this.invalidKeyword || this.invalidSku) return;
+    if (this.invalidPrice || this.invalidKeyword || this.invalidExclude || this.invalidSku) return;
     this.updateQuery({ ...this.draft, q: this.draft.q.trim(), sku: this.draft.sku?.trim(), page: 0 });
   }
 
   clearFilters(): void {
-    this.draft = { q: '', merchantId: null, minPrice: null, maxPrice: null, sort: 'default', page: 0 };
+    this.draft = {
+      q: '',
+      match: 'all',
+      exclude: '',
+      merchantId: null,
+      minPrice: null,
+      maxPrice: null,
+      sort: 'default',
+      page: 0,
+    };
     this.mobileFiltersOpen = false;
     this.updateQuery(this.draft);
   }
 
   removeFilter(field: FilterField): void {
-    this.updateQuery({ ...this.filters, [field]: field === 'q' || field === 'sku' ? '' : null, page: 0 });
+    this.updateQuery({
+      ...this.filters,
+      [field]: field === 'q' || field === 'sku' || field === 'exclude' ? '' : null,
+      page: 0,
+    });
   }
 
   changeSort(sort: CatalogSort): void {
@@ -159,6 +191,7 @@ export class DashboardComponent implements OnInit {
     if (
       invalidCatalogPrice(this.filters) ||
       invalidCatalogKeyword(this.filters.q) ||
+      invalidCatalogKeyword(this.filters.exclude) ||
       invalidCatalogSku(this.filters.sku)
     ) {
       this.products = [];

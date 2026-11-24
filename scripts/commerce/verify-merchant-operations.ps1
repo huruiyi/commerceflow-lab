@@ -195,6 +195,16 @@ function Verify-Search($shop,$other){
   $id=[long]$wireless.productId
   $matched=Product-Search '无线 键盘' $shop.id '&minPrice=80&maxPrice=80'
   if($matched.total-ne1 -or $matched.products[0].id-ne$id){throw 'Chinese AND, price or store filter failed'}
+  $any=Product-Search '耳机 键盘' $shop.id '&match=any'
+  if($any.total-ne3){throw 'Any-word search lost a match or escaped the store'}
+  $excluded=[uri]::EscapeDataString('有线 蓝牙')
+  $remaining=Product-Search '耳机 键盘' $shop.id "&match=any&exclude=$excluded"
+  if($remaining.total-ne1 -or $remaining.products[0].id-ne$headphones.productId){throw 'Exclusion must reject each word'}
+  $phrase=Product-Search "无线机械键盘 $($shop.suffix)" $shop.id '&match=phrase'
+  if($phrase.total-ne1 -or $phrase.products[0].id-ne$id){throw 'Exact phrase did not match'}
+  if((Product-Search '无线 键盘' $shop.id '&match=phrase').total-ne0){throw 'Phrase split into words'}
+  if((Product-Search '' $shop.id "&exclude=$excluded").total-ne1){throw 'Exclusion-only search failed'}
+  Reject $null '/api/products/search?q=test&match=unknown' Get $null @(400)
   $first=Product-Search '键盘' $shop.id '&sort=price-asc&size=1&page=0'
   $second=Product-Search '键盘' $shop.id '&sort=price-asc&size=1&page=1'
   if($first.total-ne2 -or $first.products[0].id-ne$id -or $second.products[0].id-ne$wired.productId){

@@ -89,6 +89,35 @@ describe('DashboardComponent', () => {
     });
   });
 
+  it('applies advanced matching and preserves it in product links', async () => {
+    const component = await harness.navigateByUrl('/dashboard?page=1', DashboardComponent);
+    component.draft.q = 'coffee tea';
+    component.draft.match = 'any';
+    component.draft.exclude = 'decaf';
+    component.applyFilters();
+    await harness.fixture.whenStable();
+    expect(search.calls.mostRecent().args[0]).toEqual({
+      q: 'coffee tea',
+      match: 'any',
+      exclude: 'decaf',
+      sort: 'default',
+      page: 0,
+      size: 12,
+    });
+    const link = harness.routeNativeElement?.querySelector('.product-card')?.getAttribute('href');
+    expect(TestBed.inject(Router).parseUrl(link ?? '').queryParams).toEqual({
+      q: 'coffee tea',
+      match: 'any',
+      exclude: 'decaf',
+      page: '1',
+    });
+    component.removeFilter('exclude');
+    await harness.fixture.whenStable();
+    expect(search.calls.mostRecent().args[0]['exclude']).toBeUndefined();
+    component.draft.exclude = Array.from({ length: 13 }, (_, i) => String(i)).join(' ');
+    expect(component.invalidExclude).toBeTrue();
+  });
+
   it('rejects invalid draft prices and resets applied filters', async () => {
     const component = await harness.navigateByUrl('/dashboard?q=notebook&page=1', DashboardComponent);
     component.draft.minPrice = 200;

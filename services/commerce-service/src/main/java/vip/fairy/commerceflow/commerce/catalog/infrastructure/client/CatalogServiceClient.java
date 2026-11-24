@@ -106,7 +106,8 @@ public class CatalogServiceClient {
   }
 
   public record SearchRequest(String query, String locale, String sort, List<Long> merchantIds, List<Long> ratedIds,
-                              BigDecimal minPrice, BigDecimal maxPrice, int page, int size, String sku) {
+                              BigDecimal minPrice, BigDecimal maxPrice, int page, int size, String sku,
+                              String match, String exclude) {
   }
 
   public record SearchPage(List<CatalogProductV1> products, long total, int page, int size,

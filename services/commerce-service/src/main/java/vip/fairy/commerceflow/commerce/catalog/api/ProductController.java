@@ -74,6 +74,8 @@ public class ProductController {
   @GetMapping("/search")
   ProductCatalogService.SearchPage search(@RequestParam(defaultValue = "") String q,
                                          @RequestParam(required = false) String sku,
+                                         @RequestParam(defaultValue = "all") String match,
+                                         @RequestParam(required = false) String exclude,
                                          @RequestParam(required = false) String lang,
                                          @RequestParam(defaultValue = "default") String sort,
                                          @RequestParam(required = false) Long merchantId,
@@ -81,6 +83,6 @@ public class ProductController {
                                          @RequestParam(required = false) BigDecimal maxPrice,
                                          @RequestParam(defaultValue = "0") int page,
                                          @RequestParam(defaultValue = "12") int size) {
-    return catalog.search(q, lang, sort, merchantId, minPrice, maxPrice, page, size, sku);
+    return catalog.search(q, lang, sort, merchantId, minPrice, maxPrice, page, size, sku, match, exclude);
   }
 }

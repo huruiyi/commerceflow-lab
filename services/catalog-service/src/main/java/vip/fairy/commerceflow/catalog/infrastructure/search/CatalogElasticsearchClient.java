@@ -170,15 +170,26 @@ public class CatalogElasticsearchClient {
     if (!sku.isEmpty()) {
       filters.add(Map.of("nested", Map.of("path", "skus", "query", Map.of("bool", Map.of("filter", sku)))));
     }
-    for (String term : criteria.terms()) {
-      filters.add(substring("text" + language, term));
+    String field = "text" + language;
+    var positive = criteria.terms().stream().map(term -> substring(field, term)).toList();
+    if (criteria.match().equals("any") && !positive.isEmpty()) {
+      filters.add(Map.of("bool", Map.of("should", positive, "minimum_should_match", 1)));
+    } else {
+      filters.addAll(positive);
     }
-    if (criteria.terms().isEmpty()) return Map.of("bool", Map.of("filter", filters));
-    var relevance = List.of(
-      Map.of("constant_score", Map.of("filter", substring("name" + language, criteria.terms().getFirst()), "boost", 5)),
-      Map.of("match", Map.of("relevance" + language, normalize(criteria.query())))
-    );
-    return Map.of("bool", Map.of("filter", filters, "should", relevance));
+    Map<String, Object> clauses = new HashMap<>();
+    clauses.put("filter", filters);
+    if (!criteria.excluded().isEmpty()) {
+      clauses.put("must_not", criteria.excluded().stream().map(term -> substring(field, term)).toList());
+    }
+    if (!positive.isEmpty()) {
+      var nameMatch = substring("name" + language, criteria.terms().getFirst());
+      clauses.put("should", List.of(
+        Map.of("constant_score", Map.of("filter", nameMatch, "boost", 5)),
+        Map.of("match", Map.of("relevance" + language, normalize(criteria.query())))
+      ));
+    }
+    return Map.of("bool", clauses);
   }
 
   private List<Map<String, Object>> sort(Criteria criteria) {
