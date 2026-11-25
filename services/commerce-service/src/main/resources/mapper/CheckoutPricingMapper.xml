@@ -2,8 +2,12 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="vip.fairy.commerceflow.commerce.ordering.infrastructure.CheckoutPricingMapper">
 
+  <select id="lockShippingMerchant" resultType="java.lang.Long">
+    SELECT id FROM app_users WHERE id = #{merchantId} FOR UPDATE
+  </select>
+
   <select id="rates" resultType="vip.fairy.commerceflow.commerce.ordering.application.ShippingTemplateService$Rate">
-    SELECT country_code, state_province, fee
+    SELECT country_code, state_province, fee, enabled
     FROM merchant_shipping_rates
     WHERE merchant_id = #{merchantId}
     ORDER BY country_code, state_province
@@ -13,7 +17,8 @@
     SELECT fee
     FROM merchant_shipping_rates
     WHERE merchant_id = #{merchantId}
-      AND ((country_code = #{countryCode} AND state_province = #{stateProvince}) OR country_code = '')
+      AND ((country_code = #{countryCode} AND state_province = #{stateProvince} AND enabled = TRUE)
+        OR country_code = '')
     ORDER BY country_code DESC
     LIMIT 1
   </select>
@@ -29,12 +34,29 @@
   </delete>
 
   <insert id="insertRegions">
-    INSERT INTO merchant_shipping_rates (merchant_id, country_code, state_province, fee)
+    INSERT INTO merchant_shipping_rates (merchant_id, country_code, state_province, fee, enabled)
     VALUES
     <foreach collection="rates" item="rate" separator=",">
-      (#{merchantId}, #{rate.countryCode}, #{rate.stateProvince}, #{rate.fee})
+      (#{merchantId}, #{rate.countryCode}, #{rate.stateProvince}, #{rate.fee}, #{rate.enabled})
     </foreach>
   </insert>
+
+  <update id="updateRegion">
+    UPDATE merchant_shipping_rates
+    SET country_code = #{rate.countryCode}, state_province = #{rate.stateProvince}, fee = #{rate.fee}
+    WHERE merchant_id = #{merchantId} AND country_code = #{countryCode} AND state_province = #{stateProvince}
+  </update>
+
+  <update id="setRegionEnabled">
+    UPDATE merchant_shipping_rates
+    SET enabled = #{enabled}
+    WHERE merchant_id = #{merchantId} AND country_code = #{countryCode} AND state_province = #{stateProvince}
+  </update>
+
+  <delete id="deleteRegion">
+    DELETE FROM merchant_shipping_rates
+    WHERE merchant_id = #{merchantId} AND country_code = #{countryCode} AND state_province = #{stateProvince}
+  </delete>
 
   <select id="receipt"
           resultType="vip.fairy.commerceflow.commerce.ordering.infrastructure.CheckoutPricingMapper$Receipt">

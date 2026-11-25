@@ -4,183 +4,282 @@
   aria-labelledby="shipping-editor-title"
   [attr.aria-busy]="shippingBusy()"
 >
+  @let locked = shippingBusy() || draft || defaultDraft !== undefined || pendingDelete;
   <header class="shipping-title">
-    <h2 id="shipping-editor-title">{{ i18n.t('shippingTemplate') }}</h2>
-    <p>{{ i18n.t('shippingTemplateHelp') }}</p>
+    <div>
+      <h2 id="shipping-editor-title">{{ i18n.t('shippingTemplate') }}</h2>
+      <p>{{ i18n.t('shippingTemplateHelp') }}</p>
+    </div>
+    @if (shipping; as template) {
+      <button hlmBtn type="button" [disabled]="!!locked || template.regions.length >= 50" (click)="editRegion()">
+        <i class="bi bi-plus-lg" aria-hidden="true"></i>{{ i18n.t('addShippingRegion') }}
+      </button>
+    }
   </header>
-  <form #rates="ngForm" (ngSubmit)="shippingDraft && saveShipping(shippingDraft)">
-    <fieldset [disabled]="shippingBusy()">
-      <header class="shipping-heading">
-        @if (shippingDraft; as template) {
-          <div class="shipping-default">
-            <label for="shipping-default-fee">{{ i18n.t('defaultShippingFee') }}</label>
+
+  @if (shipping; as template) {
+    <div class="shipping-heading">
+      @if (defaultDraft !== undefined) {
+        <form class="shipping-default" (ngSubmit)="saveDefault(defaultDraft)">
+          <label for="shipping-default-fee">{{ i18n.t('defaultShippingFee') }}</label>
+          <input
+            class="form-control shipping-amount"
+            id="shipping-default-fee"
+            name="defaultFee"
+            #defaultFeeInput
+            [(ngModel)]="defaultDraft"
+            (input)="trimShippingLeadingZeros(defaultFeeInput)"
+            type="number"
+            min="0"
+            max="9999999999.99"
+            step="0.01"
+            [disabled]="shippingBusy()"
+            required
+          />
+          <button hlmBtn size="sm" type="submit" [disabled]="shippingBusy() || !validFee(defaultDraft)">
+            {{ i18n.t('saveShippingTemplate') }}
+          </button>
+          <button hlmBtn variant="outline" size="sm" type="button" [disabled]="shippingBusy()" (click)="cancelEdit()">
+            {{ i18n.t('cancel') }}
+          </button>
+        </form>
+      } @else {
+        <div class="shipping-default">
+          <span>{{ i18n.t('defaultShippingFee') }}</span>
+          <strong class="shipping-value">{{ formatFee(template.defaultFee) }}</strong>
+          <button
+            hlmBtn
+            variant="outline"
+            size="sm"
+            type="button"
+            [disabled]="!!locked"
+            (click)="editDefault(template.defaultFee)"
+          >
+            {{ i18n.t('editDefaultShipping') }}
+          </button>
+        </div>
+      }
+    </div>
+  } @else if (shippingBusy()) {
+    <p class="shipping-message" role="status">{{ i18n.t('loading') }}</p>
+  } @else if (shippingError()) {
+    <div class="shipping-heading">
+      <button hlmBtn variant="outline" type="button" (click)="loadShipping()">{{ i18n.t('retry') }}</button>
+    </div>
+  }
+
+  @if (shippingError()) {
+    <div hlmAlert variant="destructive" class="shipping-message" role="alert">{{ i18n.t(shippingError()) }}</div>
+  }
+  @if (shippingSaved()) {
+    <p class="shipping-message shipping-saved" role="status">{{ i18n.t('shippingSaved') }}</p>
+  }
+  @if (draft && isDomestic(draft.rate.countryCode) && provincesFailed()) {
+    <p class="shipping-message" role="status">
+      {{ i18n.t('shippingProvincesUnavailable') }}
+      <button hlmBtn variant="outline" size="sm" type="button" (click)="loadProvinces()">{{ i18n.t('retry') }}</button>
+    </p>
+  }
+
+  @if (shipping; as template) {
+    <form #rateForm="ngForm" (ngSubmit)="draft && !rateForm.invalid && saveRegion(draft)">
+      <ng-template #rateFields>
+        @if (draft; as editing) {
+          <td>
+            <input
+              class="form-control shipping-country"
+              name="country"
+              [ngModel]="editing.rate.countryCode"
+              (ngModelChange)="setCountry(editing.rate, $event)"
+              [attr.aria-label]="i18n.t('shippingCountryCode')"
+              [disabled]="shippingBusy()"
+              pattern="[A-Za-z]{2}"
+              maxlength="2"
+              required
+            />
+          </td>
+          <td>
+            @if (isDomestic(editing.rate.countryCode)) {
+              <select
+                class="form-select shipping-province"
+                name="province"
+                [(ngModel)]="editing.rate.stateProvince"
+                [attr.aria-label]="i18n.t('shippingProvince')"
+                [disabled]="shippingBusy()"
+                required
+              >
+                <option value="">{{ i18n.t(provincesLoading() ? 'loading' : 'shippingChooseProvince') }}</option>
+                @if (editing.rate.stateProvince && !isKnownProvince(editing.rate.stateProvince)) {
+                  <option [value]="editing.rate.stateProvince">{{ editing.rate.stateProvince }}</option>
+                }
+                @for (province of provinces(); track province.code) {
+                  <option [value]="province.name">{{ province.name }}</option>
+                }
+              </select>
+            } @else {
+              <input
+                class="form-control shipping-province"
+                name="province"
+                [(ngModel)]="editing.rate.stateProvince"
+                [attr.aria-label]="i18n.t('shippingProvince')"
+                [disabled]="shippingBusy()"
+                maxlength="100"
+                required
+              />
+            }
+          </td>
+          <td>
             <input
               class="form-control shipping-amount"
-              #defaultFeeInput
-              id="shipping-default-fee"
-              name="defaultFee"
-              [(ngModel)]="template.defaultFee"
-              (input)="trimShippingLeadingZeros(defaultFeeInput)"
+              name="fee"
+              #regionFeeInput
+              [(ngModel)]="editing.rate.fee"
+              (input)="trimShippingLeadingZeros(regionFeeInput)"
+              [attr.aria-label]="i18n.t('shippingFee')"
+              [disabled]="shippingBusy()"
               type="number"
               min="0"
               max="9999999999.99"
               step="0.01"
-              aria-describedby="shipping-default-currency"
               required
             />
-            <span id="shipping-default-currency">CNY</span>
-          </div>
-          <button
-            hlmBtn
-            class="shipping-add"
-            variant="outline"
-            size="sm"
-            type="button"
-            [disabled]="template.regions.length >= 50"
-            (click)="template.regions.push({ countryCode: 'CN', stateProvince: '', fee: 0 })"
-          >
-            <i class="bi bi-plus-lg" aria-hidden="true"></i>{{ i18n.t('addShippingRegion') }}
-          </button>
-        } @else if (shipping; as savedTemplate) {
-          <div class="shipping-default">
-            <span class="shipping-label">{{ i18n.t('defaultShippingFee') }}</span>
-            <strong class="shipping-value">{{ formatFee(savedTemplate.defaultFee) }}</strong>
-          </div>
-          <button hlmBtn variant="outline" type="button" (click)="editShipping()">
-            <i class="bi bi-pencil" aria-hidden="true"></i>{{ i18n.t('editShippingTemplate') }}
-          </button>
-        } @else {
-          @if (shippingBusy()) {
-            <span class="shipping-loading" role="status">{{ i18n.t('loading') }}</span>
-          } @else if (shippingError()) {
-            <button hlmBtn variant="outline" type="button" (click)="loadShipping()">{{ i18n.t('retry') }}</button>
-          }
+          </td>
+          <td>
+            <span class="shipping-status" [class.shipping-enabled]="editing.original?.enabled !== false">
+              {{ i18n.t(editing.original?.enabled === false ? 'shippingDisabled' : 'shippingEnabled') }}
+            </span>
+          </td>
+          <td>
+            <div class="shipping-actions">
+              <button
+                hlmBtn
+                size="sm"
+                type="submit"
+                [disabled]="
+                  shippingBusy() ||
+                  rateForm.invalid ||
+                  !editing.rate.stateProvince.trim() ||
+                  !validFee(editing.rate.fee)
+                "
+              >
+                {{ i18n.t('saveShippingTemplate') }}
+              </button>
+              <button
+                hlmBtn
+                variant="outline"
+                size="sm"
+                type="button"
+                [disabled]="shippingBusy()"
+                (click)="cancelEdit()"
+              >
+                {{ i18n.t('cancel') }}
+              </button>
+            </div>
+          </td>
         }
-      </header>
+      </ng-template>
 
-      @if (shippingError()) {
-        <div hlmAlert variant="destructive" class="shipping-message" role="alert">{{ i18n.t(shippingError()) }}</div>
-      }
-
-      @if (shippingSaved()) {
-        <p class="shipping-message shipping-saved" role="status">{{ i18n.t('shippingSaved') }}</p>
-      }
-
-      @if (shippingDraft && provincesFailed()) {
-        <p class="shipping-message" role="status">
-          {{ i18n.t('shippingProvincesUnavailable') }}
-          <button hlmBtn variant="outline" size="sm" type="button" (click)="loadProvinces()">
-            {{ i18n.t('retry') }}
-          </button>
-        </p>
-      }
-
-      @if (shippingDraft ?? shipping; as template) {
-        @if (template.regions.length) {
-          <div class="shipping-body">
-            <section class="shipping-regions" [attr.aria-label]="i18n.t('shippingRegionRates')">
-              <div class="shipping-region-head" aria-hidden="true">
-                <span>{{ i18n.t('shippingCountryCode') }}</span>
-                <span>{{ i18n.t('shippingProvince') }}</span>
-                <span>{{ i18n.t('shippingFee') }}</span>
-              </div>
-
-              @for (region of template.regions; track region; let index = $index) {
-                <div class="shipping-region-row" [class.shipping-region-preview]="!shippingDraft">
-                  @if (shippingDraft) {
-                    <label>
-                      <span class="shipping-field-label">{{ i18n.t('shippingCountryCode') }}</span>
-                      <input
-                        class="form-control shipping-country"
-                        name="country-{{ index }}"
-                        [ngModel]="region.countryCode"
-                        (ngModelChange)="setCountry(region, $event)"
-                        required
-                        pattern="[A-Za-z]{2}"
-                        maxlength="2"
-                      />
-                    </label>
-                    <label>
-                      <span class="shipping-field-label">{{ i18n.t('shippingProvince') }}</span>
-                      @if (isDomestic(region.countryCode)) {
-                        <select
-                          class="form-select"
-                          name="province-{{ index }}"
-                          [(ngModel)]="region.stateProvince"
-                          required
+      <div class="shipping-table-wrap" role="region" [attr.aria-label]="i18n.t('shippingRegionRates')" tabindex="0">
+        <table class="shipping-table" [attr.aria-label]="i18n.t('shippingRegionRates')">
+          <thead>
+            <tr>
+              <th scope="col">{{ i18n.t('shippingCountryCode') }}</th>
+              <th scope="col">{{ i18n.t('shippingProvince') }}</th>
+              <th scope="col">{{ i18n.t('shippingFee') }}</th>
+              <th scope="col">{{ i18n.t('status') }}</th>
+              <th scope="col">{{ i18n.t('shippingActions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (draft && !draft.original) {
+              <tr class="shipping-edit-row">
+                <ng-container [ngTemplateOutlet]="rateFields" />
+              </tr>
+            }
+            @for (region of template.regions; track region.countryCode + ':' + region.stateProvince) {
+              <tr class="shipping-region-row" [class.shipping-edit-row]="draft?.original === region">
+                @if (draft?.original === region) {
+                  <ng-container [ngTemplateOutlet]="rateFields" />
+                } @else {
+                  <td>{{ region.countryCode }}</td>
+                  <td>{{ region.stateProvince }}</td>
+                  <td class="shipping-price">{{ formatFee(region.fee) }}</td>
+                  <td>
+                    <span class="shipping-status" [class.shipping-enabled]="region.enabled">
+                      {{ i18n.t(region.enabled ? 'shippingEnabled' : 'shippingDisabled') }}
+                    </span>
+                  </td>
+                  <td>
+                    <div class="shipping-actions">
+                      @if (pendingDelete === region) {
+                        <span>{{ i18n.t('shippingConfirmDelete') }}</span>
+                        <button
+                          hlmBtn
+                          variant="destructive"
+                          size="sm"
+                          type="button"
+                          [disabled]="shippingBusy()"
+                          (click)="deleteRegion(region)"
                         >
-                          <option value="">
-                            {{ i18n.t(provincesLoading() ? 'loading' : 'shippingChooseProvince') }}
-                          </option>
-                          @if (region.stateProvince && !isKnownProvince(region.stateProvince)) {
-                            <option [value]="region.stateProvince">{{ region.stateProvince }}</option>
-                          }
-                          @for (province of provinces(); track province.code) {
-                            <option [value]="province.name">{{ province.name }}</option>
-                          }
-                        </select>
+                          {{ i18n.t('shippingDeleteRate') }}
+                        </button>
+                        <button
+                          hlmBtn
+                          variant="outline"
+                          size="sm"
+                          type="button"
+                          [disabled]="shippingBusy()"
+                          (click)="cancelEdit()"
+                        >
+                          {{ i18n.t('cancel') }}
+                        </button>
                       } @else {
-                        <input
-                          class="form-control"
-                          name="province-{{ index }}"
-                          [(ngModel)]="region.stateProvince"
-                          required
-                          maxlength="100"
-                        />
+                        <button
+                          hlmBtn
+                          variant="outline"
+                          size="sm"
+                          type="button"
+                          [disabled]="!!locked"
+                          (click)="toggleRegion(region)"
+                        >
+                          {{ i18n.t(region.enabled ? 'shippingDisableRate' : 'shippingEnableRate') }}
+                        </button>
+                        <button
+                          hlmBtn
+                          variant="outline"
+                          size="sm"
+                          type="button"
+                          [disabled]="!!locked"
+                          (click)="editRegion(region)"
+                        >
+                          {{ i18n.t('edit') }}
+                        </button>
+                        <button
+                          class="shipping-delete"
+                          hlmBtn
+                          variant="outline"
+                          size="sm"
+                          type="button"
+                          [disabled]="!!locked"
+                          (click)="pendingDelete = region"
+                        >
+                          {{ i18n.t('delete') }}
+                        </button>
                       }
-                    </label>
-                    <label>
-                      <span class="shipping-field-label">{{ i18n.t('shippingFee') }}</span>
-                      <input
-                        class="form-control shipping-amount"
-                        #regionFeeInput
-                        name="fee-{{ index }}"
-                        [(ngModel)]="region.fee"
-                        (input)="trimShippingLeadingZeros(regionFeeInput)"
-                        type="number"
-                        min="0"
-                        max="9999999999.99"
-                        step="0.01"
-                        required
-                      />
-                    </label>
-                    <button
-                      hlmBtn
-                      class="shipping-remove"
-                      variant="ghost"
-                      size="sm"
-                      type="button"
-                      (click)="template.regions.splice(index, 1)"
-                    >
-                      {{ i18n.t('remove') }}
-                    </button>
-                  } @else {
-                    <div>
-                      <span class="shipping-field-label">{{ i18n.t('shippingCountryCode') }}</span>
-                      {{ region.countryCode }}
                     </div>
-                    <div>
-                      <span class="shipping-field-label">{{ i18n.t('shippingProvince') }}</span>
-                      {{ region.stateProvince }}
-                    </div>
-                    <div>
-                      <span class="shipping-field-label">{{ i18n.t('shippingFee') }}</span>
-                      <strong class="shipping-amount">{{ formatFee(region.fee) }}</strong>
-                    </div>
-                  }
-                </div>
+                  </td>
+                }
+              </tr>
+            } @empty {
+              @if (!draft) {
+                <tr>
+                  <td class="shipping-empty" colspan="5">{{ i18n.t('shippingNoRegions') }}</td>
+                </tr>
               }
-            </section>
-          </div>
-        }
-      }
-
-      @if (shippingDraft) {
-        <div class="shipping-footer">
-          <button hlmBtn variant="outline" type="button" (click)="cancelShipping()">{{ i18n.t('cancel') }}</button>
-          <button hlmBtn type="submit" [disabled]="rates.invalid">{{ i18n.t('saveShippingTemplate') }}</button>
-        </div>
-      }
-    </fieldset>
-  </form>
+            }
+          </tbody>
+        </table>
+      </div>
+    </form>
+  }
 </section>

@@ -187,6 +187,21 @@ V72 提供 `GET /api/admin/exception-work` 和 `GET /api/merchant/exception-work
 - 报价提交 `addressId`、`itemIds` 以及可选 `couponId`。确认订单提交同样的结算数据作为 `selection`，并带上 `quoteId`。活动关闭、券已锁定、商品门槛未满足或报价变动时，以服务端校验为准。
 - 订单详情返回 `couponId`、`discountAmount` 和 `items[].discountAmount`。分摊、核销和返还状态见 [结算与优惠券](features/CHECKOUT-COUPONS.md)。
 
+### 商家运费模板
+
+以下接口以 `/api/merchant/shipping-template` 为前缀，均返回当前模板。地区规则包含 `countryCode`、`stateProvince`、`fee` 和 `enabled`。
+
+| 方法与路径 | 操作 |
+| --- | --- |
+| `GET` | 查询默认运费和全部地区规则 |
+| `PUT /default-rate` | 提交 `fee` 修改默认运费 |
+| `POST /regions` | 提交国家、省州和金额，新增一条已启用规则 |
+| `PUT /regions` | 通过查询参数传原国家和省州，提交新的国家、省州和金额 |
+| `PATCH /regions` | 通过查询参数定位规则，提交 `enabled` 切换状态 |
+| `DELETE /regions` | 通过查询参数定位并删除规则 |
+
+已禁用的地区规则保留在模板中。结算按已启用的规则匹配，未匹配时使用默认运费。批量替换接口 `PUT /api/merchant/shipping-template` 支持原调用方式，未传状态时沿用相同地区的现有状态。
+
 ## 退货物流 API
 
 登记退货提交承运商 `carrier`、运单号 `trackingNumber` 和可选的顾客退回运费 `returnShippingCost`。签名回调及主动对账把渠道当前状态与轨迹投影到售后单。查询接口返回 `merchantShipmentNo`、`platformShipmentNo`、`carrier`、`trackingNumber`、`status`、`deliveredAt` 和 `events`。没有渠道绑定的历史退货查询返回空响应。商家验收提交 `accepted`、`receivedQuantity` 和 `note`。新登记退货尚未送达时返回状态冲突。

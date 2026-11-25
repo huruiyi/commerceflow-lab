@@ -959,6 +959,7 @@ CREATE TABLE merchant_shipping_rates (
   country_code VARCHAR(2) NOT NULL,
   state_province VARCHAR(100) NOT NULL,
   fee DECIMAL(12,2) NOT NULL,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
   PRIMARY KEY (merchant_id, country_code, state_province)
 );
 

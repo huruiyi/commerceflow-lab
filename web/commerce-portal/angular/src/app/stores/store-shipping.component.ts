@@ -1,15 +1,27 @@
 import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmButton } from '@spartan-ng/helm/button';
-import { finalize } from 'rxjs';
-import { ApiService, ShippingProvinceOption, ShippingRate, ShippingTemplate } from '../services/api.service';
+import { finalize, Observable } from 'rxjs';
+import {
+  ApiService,
+  ShippingProvinceOption,
+  ShippingRate,
+  ShippingRegionKey,
+  ShippingTemplate,
+} from '../services/api.service';
 import { I18nService } from '../services/i18n.service';
+
+interface ShippingDraft {
+  original?: ShippingRate;
+  rate: ShippingRegionKey & { fee: number | null };
+}
 
 @Component({
   selector: 'app-store-shipping',
-  imports: [FormsModule, HlmAlertImports, HlmButton],
+  imports: [FormsModule, HlmAlertImports, HlmButton, NgTemplateOutlet],
   templateUrl: './store-shipping.component.html',
   styleUrl: './store-shipping.component.css',
 })
@@ -18,7 +30,9 @@ export class StoreShippingComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   readonly i18n = inject(I18nService);
   shipping?: ShippingTemplate;
-  shippingDraft?: ShippingTemplate;
+  draft?: ShippingDraft;
+  defaultDraft: number | null | undefined;
+  pendingDelete?: ShippingRate;
   readonly shippingBusy = signal(false);
   readonly shippingError = signal('');
   readonly shippingSaved = signal(false);
@@ -49,7 +63,7 @@ export class StoreShippingComponent implements OnInit {
     return countryCode.trim().toUpperCase() === 'CN';
   }
 
-  setCountry(region: ShippingRate, value: string): void {
+  setCountry(region: ShippingRegionKey, value: string): void {
     if (region.countryCode.trim().toUpperCase() !== value.trim().toUpperCase()) region.stateProvince = '';
     region.countryCode = value;
   }
@@ -78,19 +92,23 @@ export class StoreShippingComponent implements OnInit {
       });
   }
 
-  editShipping(): void {
-    if (!this.shipping || this.shippingBusy()) return;
-    this.shippingDraft = {
-      defaultFee: this.shipping.defaultFee,
-      regions: this.shipping.regions.map((region) => ({ ...region })),
-    };
+  editRegion(region?: ShippingRate): void {
+    this.draft = { original: region, rate: region ? { ...region } : { countryCode: 'CN', stateProvince: '', fee: 0 } };
     this.shippingError.set('');
     this.shippingSaved.set(false);
     this.loadProvinces();
   }
 
-  cancelShipping(): void {
-    this.shippingDraft = undefined;
+  editDefault(fee: number): void {
+    this.defaultDraft = fee;
+    this.shippingError.set('');
+    this.shippingSaved.set(false);
+  }
+
+  cancelEdit(): void {
+    this.draft = undefined;
+    this.defaultDraft = undefined;
+    this.pendingDelete = undefined;
     this.shippingError.set('');
   }
 
@@ -99,13 +117,35 @@ export class StoreShippingComponent implements OnInit {
     if (amount !== input.value) input.value = amount;
   }
 
-  saveShipping(template: ShippingTemplate): void {
+  validFee(fee: number | null): fee is number {
+    return fee !== null && Number.isFinite(fee) && fee >= 0 && fee <= 9999999999.99 && Number(fee.toFixed(2)) === fee;
+  }
+
+  saveDefault(fee: number | null): void {
+    if (this.validFee(fee)) this.mutate(this.api.saveDefaultShippingRate(fee));
+  }
+
+  saveRegion(draft: ShippingDraft): void {
+    const { countryCode, stateProvince, fee } = draft.rate;
+    if (!stateProvince.trim() || !this.validFee(fee)) return;
+    const rate = { countryCode, stateProvince, fee };
+    this.mutate(draft.original ? this.api.editShippingRate(draft.original, rate) : this.api.addShippingRate(rate));
+  }
+
+  toggleRegion(region: ShippingRate): void {
+    this.mutate(this.api.setShippingRateEnabled(region, !region.enabled));
+  }
+
+  deleteRegion(region: ShippingRate): void {
+    this.mutate(this.api.deleteShippingRate(region));
+  }
+
+  private mutate(request: Observable<ShippingTemplate>): void {
     if (this.shippingBusy()) return;
     this.shippingBusy.set(true);
     this.shippingError.set('');
     this.shippingSaved.set(false);
-    this.api
-      .saveShippingTemplate(template)
+    request
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         finalize(() => this.shippingBusy.set(false)),
@@ -113,7 +153,7 @@ export class StoreShippingComponent implements OnInit {
       .subscribe({
         next: (updated) => {
           this.shipping = updated;
-          this.shippingDraft = undefined;
+          this.cancelEdit();
           this.shippingSaved.set(true);
         },
         error: () => this.shippingError.set('shippingSaveFailed'),

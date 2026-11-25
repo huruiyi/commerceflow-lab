@@ -1,18 +1,24 @@
 package vip.fairy.commerceflow.commerce.ordering.application;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vip.fairy.commerceflow.commerce.ordering.infrastructure.CheckoutPricingMapper;
+import vip.fairy.commerceflow.commerce.shared.application.BusinessRuleException;
+import vip.fairy.commerceflow.commerce.shared.application.ResourceNotFoundException;
 
 @Service
 public class ShippingTemplateService {
+
+  private static final int MAX_REGIONS = 50;
 
   private static final Map<String, String> AUTONOMOUS_REGION_NAMES = Map.of(
     "内蒙古自治区", "内蒙古", "广西壮族自治区", "广西", "西藏自治区", "西藏",
@@ -39,15 +45,20 @@ public class ShippingTemplateService {
 
   @Transactional
   public Template replace(Long merchantId, Template template) {
+    pricing.lockShippingMerchant(merchantId);
+    Map<List<String>, Boolean> existing = new HashMap<>();
+    for (Rate rate : get(merchantId).regions()) {
+      existing.put(List.of(rate.countryCode(), rate.stateProvince()), rate.enabled());
+    }
     Set<List<String>> regions = new HashSet<>();
     List<Rate> rates = template.regions().stream().map(rate -> {
-      String country = normalize(rate.countryCode());
-      String province = normalize(rate.stateProvince());
-      if (!country.matches("[A-Z]{2}") || province.isEmpty() || province.length() > 100
-          || !regions.add(List.of(country, province))) {
+      Rate normalized = normalizeRate(rate);
+      List<String> key = List.of(normalized.countryCode(), normalized.stateProvince());
+      if (!regions.add(key)) {
         throw new IllegalArgumentException("Use distinct country and province rules");
       }
-      return new Rate(country, province, rate.fee());
+      boolean enabled = rate.enabled() == null ? existing.getOrDefault(key, true) : rate.enabled();
+      return new Rate(normalized.countryCode(), normalized.stateProvince(), normalized.fee(), enabled);
     }).toList();
     pricing.saveDefault(merchantId, template.defaultFee());
     pricing.deleteRegions(merchantId);
@@ -55,6 +66,58 @@ public class ShippingTemplateService {
       pricing.insertRegions(merchantId, rates);
     }
     return new Template(template.defaultFee(), rates);
+  }
+
+  @Transactional
+  public Template updateDefault(Long merchantId, BigDecimal fee) {
+    pricing.lockShippingMerchant(merchantId);
+    pricing.saveDefault(merchantId, fee);
+    return get(merchantId);
+  }
+
+  @Transactional
+  public Template addRegion(Long merchantId, Rate rate) {
+    pricing.lockShippingMerchant(merchantId);
+    if (get(merchantId).regions().size() >= MAX_REGIONS) {
+      throw new BusinessRuleException("The shipping template has reached the regional rate limit");
+    }
+    Rate normalized = normalizeRate(rate);
+    try {
+      pricing.insertRegions(merchantId,
+        List.of(new Rate(normalized.countryCode(), normalized.stateProvince(), normalized.fee(), true)));
+    } catch (DuplicateKeyException conflict) {
+      throw new BusinessRuleException("A shipping rate already exists for this country and province");
+    }
+    return get(merchantId);
+  }
+
+  @Transactional
+  public Template updateRegion(Long merchantId, String country, String province, Rate replacement) {
+    pricing.lockShippingMerchant(merchantId);
+    RegionKey key = regionKey(country, province);
+    try {
+      Rate rate = normalizeRate(replacement);
+      requireRegion(pricing.updateRegion(merchantId, key.countryCode(), key.stateProvince(), rate));
+    } catch (DuplicateKeyException conflict) {
+      throw new BusinessRuleException("A shipping rate already exists for this country and province");
+    }
+    return get(merchantId);
+  }
+
+  @Transactional
+  public Template setRegionEnabled(Long merchantId, String country, String province, boolean enabled) {
+    pricing.lockShippingMerchant(merchantId);
+    RegionKey key = regionKey(country, province);
+    requireRegion(pricing.setRegionEnabled(merchantId, key.countryCode(), key.stateProvince(), enabled));
+    return get(merchantId);
+  }
+
+  @Transactional
+  public Template deleteRegion(Long merchantId, String country, String province) {
+    pricing.lockShippingMerchant(merchantId);
+    RegionKey key = regionKey(country, province);
+    requireRegion(pricing.deleteRegion(merchantId, key.countryCode(), key.stateProvince()));
+    return get(merchantId);
   }
 
   public BigDecimal fee(Long merchantId, String countryCode, String province) {
@@ -71,7 +134,7 @@ public class ShippingTemplateService {
     String provinceKey = domesticProvinceKey(name);
     BigDecimal matchingAlias = template.defaultFee();
     for (Rate rate : template.regions()) {
-      if (!"CN".equals(rate.countryCode())) continue;
+      if (!"CN".equals(rate.countryCode()) || !Boolean.TRUE.equals(rate.enabled())) continue;
       if (rate.stateProvince().equals(name)) return rate.fee();
       if (domesticProvinceKey(rate.stateProvince()).equals(provinceKey)) matchingAlias = rate.fee();
     }
@@ -87,10 +150,33 @@ public class ShippingTemplateService {
     return value.strip().toUpperCase(Locale.ROOT);
   }
 
+  private Rate normalizeRate(Rate rate) {
+    RegionKey key = regionKey(rate.countryCode(), rate.stateProvince());
+    return new Rate(key.countryCode(), key.stateProvince(), rate.fee(), rate.enabled());
+  }
+
+  private RegionKey regionKey(String countryCode, String stateProvince) {
+    String country = normalize(countryCode);
+    String province = normalize(stateProvince);
+    if (!country.matches("[A-Z]{2}") || province.isEmpty() || province.length() > 100) {
+      throw new IllegalArgumentException("Use a two-letter country code and a province or state");
+    }
+    return new RegionKey(country, province);
+  }
+
+  private void requireRegion(int changed) {
+    if (changed == 0) {
+      throw new ResourceNotFoundException("Shipping rate not found");
+    }
+  }
+
+  private record RegionKey(String countryCode, String stateProvince) {
+  }
+
   public record Template(
     @jakarta.validation.constraints.NotNull @jakarta.validation.constraints.PositiveOrZero
     @jakarta.validation.constraints.Digits(integer = 10, fraction = 2) BigDecimal defaultFee,
-    @jakarta.validation.constraints.NotNull @jakarta.validation.constraints.Size(max = 50)
+    @jakarta.validation.constraints.NotNull @jakarta.validation.constraints.Size(max = MAX_REGIONS)
     List<@jakarta.validation.constraints.NotNull @jakarta.validation.Valid Rate> regions
   ) {
   }
@@ -102,7 +188,9 @@ public class ShippingTemplateService {
     @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max = 100) String stateProvince,
     /** 每单运费，单位为人民币元。 */
     @jakarta.validation.constraints.NotNull @jakarta.validation.constraints.PositiveOrZero
-    @jakarta.validation.constraints.Digits(integer = 10, fraction = 2) BigDecimal fee
+    @jakarta.validation.constraints.Digits(integer = 10, fraction = 2) BigDecimal fee,
+    /** 是否参与地区运费匹配。 */
+    Boolean enabled
   ) {
   }
 }

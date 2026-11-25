@@ -173,10 +173,17 @@ export interface CheckoutQuote {
   totalAmount: number;
 }
 
-export interface ShippingRate {
+export interface ShippingRegionKey {
   countryCode: string;
   stateProvince: string;
+}
+
+export interface ShippingRateInput extends ShippingRegionKey {
   fee: number;
+}
+
+export interface ShippingRate extends ShippingRateInput {
+  enabled: boolean;
 }
 
 export interface ShippingTemplate {
@@ -533,8 +540,34 @@ export class ApiService {
       .pipe(map(({ rows }) => rows.filter((region) => region.level === 1)));
   }
 
-  saveShippingTemplate(template: ShippingTemplate): Observable<ShippingTemplate> {
-    return this.http.put<ShippingTemplate>('/api/merchant/shipping-template', template);
+  saveDefaultShippingRate(fee: number): Observable<ShippingTemplate> {
+    return this.http.put<ShippingTemplate>('/api/merchant/shipping-template/default-rate', { fee });
+  }
+
+  addShippingRate(rate: ShippingRateInput): Observable<ShippingTemplate> {
+    return this.http.post<ShippingTemplate>('/api/merchant/shipping-template/regions', rate);
+  }
+
+  editShippingRate(region: ShippingRegionKey, rate: ShippingRateInput): Observable<ShippingTemplate> {
+    return this.http.put<ShippingTemplate>('/api/merchant/shipping-template/regions', rate, {
+      params: { countryCode: region.countryCode, stateProvince: region.stateProvince },
+    });
+  }
+
+  setShippingRateEnabled(region: ShippingRegionKey, enabled: boolean): Observable<ShippingTemplate> {
+    return this.http.patch<ShippingTemplate>(
+      '/api/merchant/shipping-template/regions',
+      { enabled },
+      {
+        params: { countryCode: region.countryCode, stateProvince: region.stateProvince },
+      },
+    );
+  }
+
+  deleteShippingRate(region: ShippingRegionKey): Observable<ShippingTemplate> {
+    return this.http.delete<ShippingTemplate>('/api/merchant/shipping-template/regions', {
+      params: { countryCode: region.countryCode, stateProvince: region.stateProvince },
+    });
   }
 
   searchOrders(criteria: OrderSearchCriteria, merchant = false): Observable<OrderSearchPage> {
