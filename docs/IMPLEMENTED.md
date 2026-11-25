@@ -1785,6 +1785,8 @@ Chrome 核对了管理员登录、当前版本、差异比对、从岑岭县下�
 
 隔离环境从 MySQL V72 升级后，Chrome 验证了历史规则保留、单行保存、取消删除及启用状态刷新。结算验证了中国省份简称和境外省州匹配，禁用或删除后使用默认运费。验收文件位于 `%LOCALAPPDATA%/CommerceFlow/releases/shipping-table-1795647838023/`。
 
+日常 Docker 发布使用商城镜像 `0b081db58bf2` 和门户镜像 `d2961b1f930f`，沿用现有 MySQL 卷从 V72 升到 V73。核对了升级前 9 条运费记录的地区、金额和启用状态，保留全部 20 个原有数据卷。Chrome 验证了逐行编辑入口、新增选区及删除确认，日常验收取消草稿。结算按现有默认运费报价 1,212 元。发布和验收文件位于 `%LOCALAPPDATA%/CommerceFlow/releases/shipping-table-daily-1795649733240/`。
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。
