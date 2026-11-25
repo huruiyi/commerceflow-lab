@@ -1,6 +1,8 @@
 package vip.fairy.commerceflow.catalog.api;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -52,6 +54,18 @@ public class CatalogInternalController {
   @GetMapping("/merchant/products")
   List<CatalogProductV1> merchantList(@RequestHeader(MERCHANT_HEADER) Long merchantId) {
     return catalog.merchantList(merchantId);
+  }
+
+  @GetMapping("/merchant/products/page")
+  CatalogProductV1.Page merchantPage(@RequestHeader(MERCHANT_HEADER) Long merchantId,
+                                     @RequestParam(defaultValue = "0") @Min(0) int page,
+                                     @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size) {
+    return catalog.merchantPage(merchantId, page, size);
+  }
+
+  @GetMapping("/merchant/products/{productId}")
+  CatalogProductV1 merchantDetail(@RequestHeader(MERCHANT_HEADER) Long merchantId, @PathVariable Long productId) {
+    return catalog.merchantDetail(merchantId, productId);
   }
 
   @PostMapping("/merchant/products")

@@ -1,6 +1,8 @@
 package vip.fairy.commerceflow.commerce.catalog.api.merchant;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogMonitorProfile;
 import vip.fairy.commerceflow.commerce.catalog.api.v1.CatalogProductV1;
 import vip.fairy.commerceflow.commerce.catalog.application.MerchantCatalogService;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -34,6 +37,18 @@ public class MerchantCatalogController {
   @GetMapping
   List<CatalogProductV1> list(Authentication authentication) {
     return catalog.list(currentActors.requireId(authentication));
+  }
+
+  @GetMapping("/page")
+  CatalogProductV1.Page page(@RequestParam(defaultValue = "0") @Min(0) int page,
+                             @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size,
+                             Authentication authentication) {
+    return catalog.page(currentActors.requireId(authentication), page, size);
+  }
+
+  @GetMapping("/{productId}")
+  CatalogProductV1 detail(@PathVariable Long productId, Authentication authentication) {
+    return catalog.detail(currentActors.requireId(authentication), productId);
   }
 
   @PostMapping

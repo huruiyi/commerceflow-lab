@@ -114,7 +114,27 @@ public class CatalogApplicationService {
 
   public List<CatalogProductV1> merchantList(Long merchantId) {
     return products.selectForMerchant(merchantId).stream()
-      .map(product -> CatalogProductV1.from(product, null).withMonitorProfile(monitorProfile(product))).toList();
+      .map(this::merchantProduct).toList();
+  }
+
+  @Transactional(readOnly = true)
+  public CatalogProductV1.Page merchantPage(Long merchantId, int requestedPage, int size) {
+    long total = products.countForMerchant(merchantId);
+    if (total == 0) {
+      return new CatalogProductV1.Page(List.of(), 0, 0, size);
+    }
+    int page = (int) Math.min(requestedPage, (total - 1) / size);
+    var rows = products.selectPageForMerchant(merchantId, size, (long) page * size).stream()
+      .map(this::merchantProduct).toList();
+    return new CatalogProductV1.Page(rows, total, page, size);
+  }
+
+  public CatalogProductV1 merchantDetail(Long merchantId, Long productId) {
+    return merchantProduct(owned(merchantId, productId));
+  }
+
+  private CatalogProductV1 merchantProduct(Product product) {
+    return CatalogProductV1.from(product, null).withMonitorProfile(monitorProfile(product));
   }
 
   @Transactional

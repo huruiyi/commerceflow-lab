@@ -184,6 +184,12 @@ export interface ShippingTemplate {
   regions: ShippingRate[];
 }
 
+export interface ShippingProvinceOption {
+  code: string;
+  name: string;
+  level: number;
+}
+
 export interface MerchantProduct {
   productId: number;
   name: string;
@@ -519,6 +525,14 @@ export class ApiService {
     return this.http.get<ShippingTemplate>('/api/merchant/shipping-template');
   }
 
+  shippingProvinces(): Observable<ShippingProvinceOption[]> {
+    return this.http
+      .get<{ rows: ShippingProvinceOption[] }>('/api/reference-data/datasets/cn-administrative-divisions/nodes', {
+        params: { size: 100 },
+      })
+      .pipe(map(({ rows }) => rows.filter((region) => region.level === 1)));
+  }
+
   saveShippingTemplate(template: ShippingTemplate): Observable<ShippingTemplate> {
     return this.http.put<ShippingTemplate>('/api/merchant/shipping-template', template);
   }
@@ -588,8 +602,14 @@ export class ApiService {
     return this.http.get<MerchantInventoryItem[]>('/api/merchant/inventory');
   }
 
-  merchantProducts(): Observable<MerchantProduct[]> {
-    return this.http.get<MerchantProduct[]>('/api/merchant/catalog/v1/products');
+  merchantProductPage(page: number): Observable<AdminListPage<MerchantProduct>> {
+    return this.http.get<AdminListPage<MerchantProduct>>('/api/merchant/catalog/v1/products/page', {
+      params: { page },
+    });
+  }
+
+  merchantProduct(id: number): Observable<MerchantProduct> {
+    return this.http.get<MerchantProduct>(`/api/merchant/catalog/v1/products/${id}`);
   }
 
   createMerchantProduct(request: object): Observable<MerchantProduct> {

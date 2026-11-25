@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: reference-data-service
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://127.0.0.1:5432/reference_data}
+    username: ${DATABASE_USERNAME:reference_data}
+    password: ${DATABASE_PASSWORD:}
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 102MB
+  mvc:
+    problemdetails:
+      enabled: true
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  mapper-locations: classpath:/mapper/*.xml
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+commerceflow:
+  reference-data:
+    identity-base-url: ${REFERENCE_DATA_IDENTITY_BASE_URL:http://127.0.0.1:18080}

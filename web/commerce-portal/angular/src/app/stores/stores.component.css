@@ -4,9 +4,7 @@
 }
 
 .store-merchant {
-  max-width: 52rem;
   min-width: 0;
-  margin-inline: auto;
   color: var(--cf-ink);
 }
 

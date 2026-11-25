@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.reference.catalog.ReferenceMapper">
+  <sql id="releaseColumns">
+    id, dataset_key, version, source_url, source_revision, sha256, created_by, created_at, published_at, row_count
+  </sql>
+  <select id="datasets" resultType="vip.fairy.commerceflow.reference.catalog.ReferenceContracts$Dataset">
+    SELECT dataset_key, name, current_release_id FROM reference_datasets ORDER BY dataset_key
+  </select>
+  <select id="dataset" resultType="vip.fairy.commerceflow.reference.catalog.ReferenceContracts$Dataset">
+    SELECT dataset_key, name, current_release_id FROM reference_datasets WHERE dataset_key = #{dataset}
+  </select>
+  <select id="lockDataset" resultType="vip.fairy.commerceflow.reference.catalog.ReferenceContracts$Dataset">
+    SELECT dataset_key, name, current_release_id FROM reference_datasets WHERE dataset_key = #{dataset} FOR UPDATE
+  </select>
+  <select id="release" resultType="vip.fairy.commerceflow.reference.catalog.ReferenceContracts$Release">
+    SELECT <include refid="releaseColumns"/> FROM reference_releases WHERE dataset_key = #{dataset} AND id = #{id}
+  </select>
+  <select id="findVersion" resultType="vip.fairy.commerceflow.reference.catalog.ReferenceContracts$Release">
+    SELECT <include refid="releaseColumns"/> FROM reference_releases
+    WHERE dataset_key = #{dataset} AND version = #{version}
+  </select>
+  <select id="releases" resultType="vip.fairy.commerceflow.reference.catalog.ReferenceContracts$Release">
+    SELECT <include refid="releaseColumns"/> FROM reference_releases WHERE dataset_key = #{dataset}
+    <if test="before != null">AND id &lt; #{before}</if>
+    ORDER BY id DESC LIMIT 50
+  </select>
+  <select id="insertRelease" resultType="long" affectData="true" flushCache="true">
+    INSERT INTO reference_releases(dataset_key, version, source_url, source_revision, sha256, created_by)
+    VALUES (#{dataset}, #{version}, #{sourceUrl}, #{sourceRevision}, #{sha256}, #{actor})
+    RETURNING id
+  </select>
+  <insert id="insertNodes">
+    INSERT INTO reference_nodes(release_id, code, parent_code, level, name, source_metadata) VALUES
+    <foreach collection="nodes" item="node" separator=",">
+      (#{id}, #{node.code}, #{node.parentCode}, #{node.level}, #{node.name},
+       CAST(#{node.sourceMetadata,jdbcType=VARCHAR} AS JSONB))
+    </foreach>
+  </insert>
+  <select id="invalidParent" resultType="string">
+    SELECT child.code
+    FROM reference_nodes child
+    LEFT JOIN reference_nodes parent
+      ON parent.release_id = child.release_id AND parent.code = child.parent_code
+    WHERE child.release_id = #{id} AND child.level &gt; 1
+      AND (
+        parent.code IS NULL
+        <choose>
+          <when test="allowSkippedLevel">OR parent.level &gt;= child.level</when>
+          <otherwise>OR parent.level != child.level - 1</otherwise>
+        </choose>
+      )
+    LIMIT 1
+  </select>
+  <update id="recordCount">
+    UPDATE reference_releases SET row_count = #{count} WHERE id = #{id}
+  </update>
+  <select id="nodes" resultType="vip.fairy.commerceflow.reference.catalog.ReferenceContracts$Node">
+    SELECT code, parent_code, level, name, CAST(source_metadata AS TEXT) AS source_metadata
+    FROM reference_nodes WHERE release_id = #{id}
+    <choose>
+      <when test="parent != null">AND parent_code = #{parent}</when>
+      <when test="query == null and !flat">AND parent_code IS NULL</when>
+    </choose>
+    <if test="query != null">AND (strpos(name, #{query}) &gt; 0 OR strpos(code, #{query}) = 1)</if>
+    <if test="after != null">AND code &gt; #{after}</if>
+    ORDER BY code LIMIT #{limit}
+  </select>
+  <select id="node" resultType="vip.fairy.commerceflow.reference.catalog.ReferenceContracts$Node">
+    SELECT code, parent_code, level, name, CAST(source_metadata AS TEXT) AS source_metadata
+    FROM reference_nodes WHERE release_id = #{id} AND code = #{code}
+  </select>
+  <sql id="changes">
+    FROM (SELECT code, parent_code, level, name FROM reference_nodes WHERE release_id = #{current,jdbcType=BIGINT}) old
+    FULL JOIN (SELECT code, parent_code, level, name FROM reference_nodes WHERE release_id = #{draft}) candidate
+      ON candidate.code = old.code
+    WHERE (old.name, old.parent_code, old.level) IS DISTINCT FROM
+          (candidate.name, candidate.parent_code, candidate.level)
+  </sql>
+  <select id="changeCounts" resultType="vip.fairy.commerceflow.reference.catalog.ReferenceContracts$ChangeCounts">
+    SELECT COUNT(*) FILTER (WHERE old.code IS NULL) AS added,
+           COUNT(*) FILTER (WHERE old.code IS NOT NULL AND candidate.code IS NOT NULL) AS changed,
+           COUNT(*) FILTER (WHERE candidate.code IS NULL) AS removed
+    <include refid="changes"/>
+  </select>
+  <select id="changeSample" resultType="vip.fairy.commerceflow.reference.catalog.ReferenceContracts$Change">
+    SELECT COALESCE(old.code, candidate.code) AS code,
+           CASE WHEN old.code IS NULL THEN 'ADDED' WHEN candidate.code IS NULL THEN 'REMOVED'
+                ELSE 'CHANGED' END AS kind,
+           old.name AS previous_name, candidate.name AS next_name,
+           old.parent_code AS previous_parent_code, candidate.parent_code AS next_parent_code,
+           old.level AS previous_level, candidate.level AS next_level
+    <include refid="changes"/>
+    ORDER BY code LIMIT 40
+  </select>
+  <update id="markPublished">
+    UPDATE reference_releases SET published_at = COALESCE(published_at, CURRENT_TIMESTAMP) WHERE id = #{id}
+  </update>
+  <update id="activate">
+    UPDATE reference_datasets SET current_release_id = #{id} WHERE dataset_key = #{dataset}
+  </update>
+  <insert id="recordPublication">
+    INSERT INTO reference_publications(dataset_key, release_id, previous_release_id, published_by)
+    VALUES (#{dataset}, #{id}, #{previous}, #{actor})
+  </insert>
+  <select id="publications" resultType="vip.fairy.commerceflow.reference.catalog.ReferenceContracts$Publication">
+    SELECT id, release_id, previous_release_id, published_by, published_at
+    FROM reference_publications WHERE dataset_key = #{dataset}
+    <if test="before != null">AND id &lt; #{before}</if>
+    ORDER BY id DESC LIMIT 50
+  </select>
+</mapper>

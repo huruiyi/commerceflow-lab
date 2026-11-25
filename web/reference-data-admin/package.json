@@ -1,0 +1,27 @@
+{
+  "name": "reference-data-admin",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "format:check": "prettier --check \"src/**/*.{vue,ts,css}\" \"*.{json,ts,html}\""
+  },
+  "dependencies": {
+    "@ant-design/icons-vue": "7.0.1",
+    "@commerceflow/simulator-admin": "file:../packages/simulator-admin",
+    "ant-design-vue": "4.0.0-rc.6",
+    "vue": "3.5.45",
+    "vxe-pc-ui": "4.20.41",
+    "vxe-table": "4.23.18"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "@vitejs/plugin-vue": "6.0.10",
+    "prettier": "3.10.1",
+    "typescript": "6.0.3",
+    "vite": "8.3.8",
+    "vue-tsc": "3.3.14"
+  }
+}

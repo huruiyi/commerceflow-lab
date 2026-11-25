@@ -13,6 +13,11 @@ public interface ProductMapper extends BaseMapper<Product> {
 
   List<Product> selectForMerchant(Long merchantId);
 
+  long countForMerchant(@Param("merchantId") Long merchantId);
+
+  List<Product> selectPageForMerchant(@Param("merchantId") Long merchantId, @Param("size") int size,
+                                      @Param("offset") long offset);
+
   Product findCreation(@Param("merchantId") Long merchantId, @Param("requestId") String requestId);
 
   int updateProfile(@Param("merchantId") Long merchantId, @Param("productId") Long productId,

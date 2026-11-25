@@ -1,8 +1,11 @@
 import { afterNextRender, Component, DestroyRef, ElementRef, inject, Injector, OnInit, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { concatMap, finalize, from, last, tap } from 'rxjs';
-import { ApiService, MerchantProduct, ShippingTemplate } from '../services/api.service';
+import { ActivatedRoute, Router } from '@angular/router';
+import { concatMap, distinctUntilChanged, finalize, from, last, map, Subscription, tap } from 'rxjs';
+import { readPage } from '../list-pagination/page-query';
+import { ApiService, MerchantProduct } from '../services/api.service';
+import { I18nService } from '../services/i18n.service';
 
 type ProductUpdate = { area: 'profile' | 'price' | 'status'; value: object };
 
@@ -17,114 +20,99 @@ export class MerchantCatalogComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly host: ElementRef<HTMLElement> = inject(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private pageRequest?: Subscription;
+  private original?: MerchantProduct;
+  readonly i18n = inject(I18nService);
   readonly products = signal<MerchantProduct[]>([]);
+  readonly page = signal(0);
+  readonly total = signal(0);
+  readonly totalPages = signal(0);
   readonly loading = signal(true);
   readonly loadFailed = signal(false);
   readonly saving = signal(false);
   readonly saveFailed = signal(false);
   readonly productSaveError = signal<{ partial: boolean; conflict: boolean } | null>(null);
+  readonly productReloadFailed = signal(false);
   readonly saved = signal(false);
   draft?: MerchantProduct;
   creationOpen = false;
   creation = { name: '', description: '', unitPrice: 0.01, imageUrl: '' };
   private createRequest?: { key: string; content: string };
-  shipping?: ShippingTemplate;
-  shippingDraft?: ShippingTemplate;
-  readonly shippingBusy = signal(false);
-  readonly shippingError = signal('');
-  readonly shippingSaved = signal(false);
-
-  loadShipping(): void {
-    if (this.shippingBusy()) return;
-    this.shippingBusy.set(true);
-    this.shippingError.set('');
-    this.api
-      .shippingTemplate()
-      .pipe(
-        takeUntilDestroyed(this.destroyRef),
-        finalize(() => this.shippingBusy.set(false)),
-      )
-      .subscribe({
-        next: (template) => (this.shipping = template),
-        error: () => this.shippingError.set('requestFailed'),
-      });
-  }
-
-  editShipping(): void {
-    if (!this.shipping || this.shippingBusy()) return;
-    this.shippingDraft = {
-      defaultFee: this.shipping.defaultFee,
-      regions: this.shipping.regions.map((region) => ({ ...region })),
-    };
-    this.shippingError.set('');
-    this.shippingSaved.set(false);
-  }
-
-  cancelShipping(): void {
-    this.shippingDraft = undefined;
-    this.shippingError.set('');
-  }
-
-  trimShippingLeadingZeros(input: HTMLInputElement): void {
-    const amount = input.value.replace(/^0+(?=\d)/u, '');
-    if (amount !== input.value) input.value = amount;
-  }
-
-  saveShipping(template: ShippingTemplate): void {
-    if (this.shippingBusy()) return;
-    this.shippingBusy.set(true);
-    this.shippingError.set('');
-    this.shippingSaved.set(false);
-    this.api
-      .saveShippingTemplate(template)
-      .pipe(
-        takeUntilDestroyed(this.destroyRef),
-        finalize(() => this.shippingBusy.set(false)),
-      )
-      .subscribe({
-        next: (updated) => {
-          this.shipping = updated;
-          this.shippingDraft = undefined;
-          this.shippingSaved.set(true);
-        },
-        error: () => this.shippingError.set('shippingSaveFailed'),
-      });
-  }
 
   ngOnInit(): void {
-    this.load();
-    this.loadShipping();
+    this.route.queryParamMap
+      .pipe(
+        map((params) => readPage(params.get('page'))),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((page) => this.load(page));
   }
 
-  load(): void {
+  load(page = readPage(this.route.snapshot.queryParamMap.get('page'))): void {
+    this.pageRequest?.unsubscribe();
     this.loading.set(true);
     this.loadFailed.set(false);
-    this.api
-      .merchantProducts()
+    this.pageRequest = this.api
+      .merchantProductPage(page)
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         finalize(() => this.loading.set(false)),
       )
       .subscribe({
-        next: (items) => {
-          this.products.set(items);
-          if (this.draft) this.draft = items.find((item) => item.productId === this.draft?.productId);
-          if (this.draft) this.edit(this.draft);
+        next: (result) => {
+          this.products.set(result.rows);
+          this.page.set(result.page);
+          this.total.set(result.total);
+          this.totalPages.set(Math.ceil(result.total / result.size));
+          if (page !== result.page) this.changePage(result.page, true);
         },
         error: () => this.loadFailed.set(true),
       });
   }
 
+  changePage(page: number, replaceUrl = false): void {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { page: page || null },
+      queryParamsHandling: 'merge',
+      replaceUrl,
+    });
+  }
+
   edit(product: MerchantProduct, focus = false): void {
+    this.original = product;
     this.draft = { ...product };
     this.saveFailed.set(false);
     this.productSaveError.set(null);
+    this.productReloadFailed.set(false);
     this.saved.set(false);
     if (focus) {
       afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('#merchant-edit-title')?.focus(), {
         injector: this.injector,
       });
     }
+  }
+
+  reloadProduct(productId: number): void {
+    if (this.saving()) return;
+    this.saving.set(true);
+    this.productReloadFailed.set(false);
+    this.api
+      .merchantProduct(productId)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.saving.set(false)),
+      )
+      .subscribe({
+        next: (product) => {
+          this.products.update((items) => items.map((item) => (item.productId === productId ? product : item)));
+          this.edit(product);
+        },
+        error: () => this.productReloadFailed.set(true),
+      });
   }
 
   create(): void {
@@ -141,11 +129,11 @@ export class MerchantCatalogComponent implements OnInit {
       )
       .subscribe({
         next: (product) => {
-          this.products.update((items) => [...items.filter((item) => item.productId !== product.productId), product]);
           this.creation = { name: '', description: '', unitPrice: 0.01, imageUrl: '' };
           this.createRequest = undefined;
           this.creationOpen = false;
           this.edit(product, true);
+          this.load();
         },
         error: () => this.saveFailed.set(true),
       });
@@ -175,6 +163,7 @@ export class MerchantCatalogComponent implements OnInit {
         ),
         tap((updated) => {
           latest = updated;
+          this.original = updated;
           product.businessVersion = updated.businessVersion;
           this.products.update((items) => items.map((item) => (item.productId === updated.productId ? updated : item)));
         }),
@@ -196,8 +185,8 @@ export class MerchantCatalogComponent implements OnInit {
   }
 
   private productUpdates(product: MerchantProduct): ProductUpdate[] {
-    const original = this.products().find((item) => item.productId === product.productId);
-    if (!original) return [];
+    const original = this.original;
+    if (!original || original.productId !== product.productId) return [];
 
     const profile = {
       name: product.name.trim(),

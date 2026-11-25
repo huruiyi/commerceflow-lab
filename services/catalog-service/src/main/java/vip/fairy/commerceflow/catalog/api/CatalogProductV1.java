@@ -6,6 +6,7 @@ import vip.fairy.commerceflow.catalog.domain.ProductTranslation;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 public record CatalogProductV1(int schemaVersion, Long productId, Long merchantId,
                                String name, String brief, String description,
@@ -14,6 +15,9 @@ public record CatalogProductV1(int schemaVersion, Long productId, Long merchantI
                                CatalogMonitorProfile monitorProfile) {
 
   public static final int VERSION = 1;
+
+  public record Page(List<CatalogProductV1> rows, long total, int page, int size) {
+  }
 
   @AutomapConstructor
   public CatalogProductV1(int schemaVersion, Long productId, Long merchantId,

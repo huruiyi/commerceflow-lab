@@ -2,10 +2,24 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
   "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="vip.fairy.commerceflow.catalog.infrastructure.persistence.ProductMapper">
-  <select id="selectForMerchant" resultType="vip.fairy.commerceflow.catalog.domain.Product">
+  <sql id="merchantListings">
+    FROM products WHERE merchant_id=#{merchantId} AND listing_product_id IS NULL
+  </sql>
+  <sql id="selectMerchantListings">
     SELECT id,name,brief,description,price,image_url,thumbnail_url,merchant_id,
            lifecycle_status,business_version,updated_at,monitor_profile
-    FROM products WHERE merchant_id=#{merchantId} AND listing_product_id IS NULL ORDER BY id
+    <include refid="merchantListings"/>
+    ORDER BY id
+  </sql>
+  <select id="selectForMerchant" resultType="vip.fairy.commerceflow.catalog.domain.Product">
+    <include refid="selectMerchantListings"/>
+  </select>
+  <select id="countForMerchant" resultType="long">
+    SELECT COUNT(*) <include refid="merchantListings"/>
+  </select>
+  <select id="selectPageForMerchant" resultType="vip.fairy.commerceflow.catalog.domain.Product">
+    <include refid="selectMerchantListings"/>
+    LIMIT #{size} OFFSET #{offset}
   </select>
   <select id="lockListing" resultType="vip.fairy.commerceflow.catalog.domain.Product">
     SELECT * FROM products WHERE id=#{productId} AND listing_product_id IS NULL FOR UPDATE

@@ -161,6 +161,28 @@ public class CatalogServiceClient {
     }
   }
 
+  public CatalogProductV1.Page merchantPage(Long merchantId, int page, int size) {
+    String target = "/internal/v1/merchant/products/page?page=" + page + "&size=" + size;
+    try {
+      return client.get().uri(URI.create(baseUrl + target))
+        .headers(headers -> merchant(headers, "GET", target, merchantId, null, null))
+        .retrieve().body(CatalogProductV1.Page.class);
+    } catch (RuntimeException exception) {
+      throw translated(exception);
+    }
+  }
+
+  public CatalogProductV1 merchantDetail(Long merchantId, Long productId) {
+    String target = "/internal/v1/merchant/products/" + productId;
+    try {
+      return client.get().uri(URI.create(baseUrl + target))
+        .headers(headers -> merchant(headers, "GET", target, merchantId, null, null))
+        .retrieve().body(CatalogProductV1.class);
+    } catch (RuntimeException exception) {
+      throw translated(exception);
+    }
+  }
+
   public List<CatalogSkuV1> listSkus(long merchantId, long productId) {
     String target = "/internal/v1/merchant/products/" + productId + "/skus";
     try {

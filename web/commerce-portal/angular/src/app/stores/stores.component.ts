@@ -34,6 +34,7 @@ import {
 import { ListPaginationComponent } from '../list-pagination/list-pagination.component';
 import { ApiService, CatalogSearchPage } from '../services/api.service';
 import { I18nService } from '../services/i18n.service';
+import { StoreShippingComponent } from './store-shipping.component';
 
 interface Store {
   merchantId: number;
@@ -52,6 +53,7 @@ interface Store {
     CatalogProductCardComponent,
     CatalogSkuFacetsComponent,
     CatalogSearchFormComponent,
+    StoreShippingComponent,
   ],
   templateUrl: './stores.component.html',
   styleUrl: './stores.component.css',

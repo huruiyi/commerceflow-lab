@@ -36,6 +36,14 @@ public class MerchantCatalogService {
     return catalog.merchantList(merchantId);
   }
 
+  public CatalogProductV1.Page page(Long merchantId, int page, int size) {
+    return catalog.merchantPage(merchantId, page, size);
+  }
+
+  public CatalogProductV1 detail(Long merchantId, Long productId) {
+    return catalog.merchantDetail(merchantId, productId);
+  }
+
   public List<CatalogSkuV1> listSkus(long merchant, long productId) {
     return catalog.listSkus(merchant, productId);
   }

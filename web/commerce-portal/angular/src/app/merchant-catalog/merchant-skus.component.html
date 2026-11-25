@@ -1,5 +1,5 @@
 <section class="sku-page" [attr.aria-busy]="busy()" aria-labelledby="sku-title">
-  <a class="sku-back" routerLink="/merchant/products">
+  <a class="sku-back" routerLink="/merchant/products" [queryParams]="{ page: listPage || null }">
     <i class="bi bi-arrow-left" aria-hidden="true"></i>{{ i18n.t('catalogBackToResults') }}
   </a>
 

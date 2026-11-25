@@ -1,0 +1,55 @@
+services:
+  reference-data-db:
+    container_name: fairy-commerceflow-reference-data-db
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: reference_data
+      POSTGRES_USER: ${REFERENCE_DATA_DB_USER:-reference_data}
+      POSTGRES_PASSWORD: ${REFERENCE_DATA_DB_PASSWORD:-local-reference-data-password}
+    volumes:
+      - reference-data-postgresql-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB -h 127.0.0.1"]
+      interval: 4s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  reference-data-service:
+    container_name: fairy-commerceflow-reference-data-service
+    build:
+      context: ./services/reference-data-service
+    environment:
+      DATABASE_URL: jdbc:postgresql://reference-data-db:5432/reference_data
+      DATABASE_USERNAME: ${REFERENCE_DATA_DB_USER:-reference_data}
+      DATABASE_PASSWORD: ${REFERENCE_DATA_DB_PASSWORD:-local-reference-data-password}
+      REFERENCE_DATA_IDENTITY_BASE_URL: http://commerce-service:8080
+    ports:
+      - "127.0.0.1:${REFERENCE_DATA_API_PORT:-18101}:8080"
+    depends_on:
+      reference-data-db:
+        condition: service_healthy
+      commerce-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  reference-data-admin:
+    container_name: fairy-commerceflow-reference-data-admin
+    build:
+      context: ./web/reference-data-admin
+      additional_contexts:
+        simulator-admin: ./web/packages/simulator-admin
+    ports:
+      - "127.0.0.1:${REFERENCE_DATA_ADMIN_PORT:-14209}:80"
+    depends_on:
+      reference-data-service:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  reference-data-postgresql-data:

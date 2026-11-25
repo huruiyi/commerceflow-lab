@@ -61,6 +61,7 @@
     } @else if (actionFailed()) {
       <button class="btn btn-outline-secondary" type="button" (click)="loadStore()">{{ i18n.t('retry') }}</button>
     }
+    <app-store-shipping />
   </ng-container>
   @if (mode === 'admin') {
     <header class="store-heading">

@@ -1,0 +1,95 @@
+.reference-workspace {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  padding: 1rem;
+  align-content: start;
+}
+
+.reference-loading {
+  padding: 2rem;
+  text-align: center;
+}
+
+.reference-heading,
+.reference-controls,
+.reference-parent-path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.reference-heading > div:first-child {
+  flex: 1 1 18rem;
+}
+
+.reference-heading h1,
+.reference-heading p {
+  margin: 0;
+}
+
+.reference-heading h1 {
+  font-size: 1.35rem;
+}
+
+.reference-heading p {
+  margin-top: 0.25rem;
+}
+
+.reference-controls {
+  margin-bottom: 0.875rem;
+}
+
+.reference-controls .ant-input-search {
+  max-width: 24rem;
+}
+
+.reference-controls .ant-select {
+  min-width: 12rem;
+  max-width: 100%;
+}
+
+.reference-parent-path {
+  margin-bottom: 0.75rem;
+}
+
+.reference-form .ant-form-item {
+  margin-bottom: 0.875rem;
+}
+
+.reference-file {
+  display: block;
+  width: 100%;
+}
+
+.reference-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.reference-stats .ant-tag {
+  margin: 0;
+}
+
+.reference-checksum {
+  font-family: ui-monospace, monospace;
+  overflow-wrap: anywhere;
+}
+
+.region-levels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 1rem;
+}
+
+.region-level {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.region-result {
+  margin-top: 1rem;
+}

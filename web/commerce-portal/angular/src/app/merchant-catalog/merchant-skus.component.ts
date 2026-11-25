@@ -9,6 +9,7 @@ import { HlmButton } from '@spartan-ng/helm/button';
 import { finalize, Observable } from 'rxjs';
 import { CatalogSku } from 'src/model/ICatalogSku';
 import { CatalogImageComponent } from '../dashboard/catalog-image.component';
+import { readPage } from '../list-pagination/page-query';
 import { ApiService, MerchantProduct } from '../services/api.service';
 import { I18nService } from '../services/i18n.service';
 
@@ -25,7 +26,9 @@ export class MerchantSkusComponent {
   private readonly api = inject(ApiService);
   readonly i18n = inject(I18nService);
   readonly product = signal<MerchantProduct | undefined>(undefined);
-  readonly productId = Number(inject(ActivatedRoute).snapshot.paramMap.get('id'));
+  private readonly route = inject(ActivatedRoute);
+  readonly productId = Number(this.route.snapshot.paramMap.get('id'));
+  readonly listPage = readPage(this.route.snapshot.queryParamMap.get('page'));
   private readonly endpoint = `/api/merchant/catalog/v1/products/${this.productId}/skus`;
   readonly skus = signal<CatalogSku[]>([]);
   readonly busy = signal(false);
@@ -42,10 +45,10 @@ export class MerchantSkusComponent {
   constructor() {
     this.load();
     this.api
-      .merchantProducts()
+      .merchantProduct(this.productId)
       .pipe(takeUntilDestroyed(this.destroy))
       .subscribe({
-        next: (items) => this.product.set(items.find((item) => item.productId === this.productId)),
+        next: (product) => this.product.set(product),
         error: () => this.product.set(undefined),
       });
   }

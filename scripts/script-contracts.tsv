@@ -1,4 +1,5 @@
 # entry relative to scripts/	PowerShell parameters in order
+reference-data/verify-reference-data.ps1	BaseUrl,Dataset,Version,ExpectedRows,ChildCode,ParentCode
 operations/verify-alerting.ps1	PrometheusUrl,AlertmanagerUrl,WebhookUrl,MaxWaitSeconds,SkipStart,PaymentOrchestrationUrl
 operations/verify-notification-alert-workflow.ps1	MaxWaitSeconds,NotificationImage
 operations/verify-project-navigation.ps1	BaseUrl,MaxWaitSeconds,ProjectName,ComposeFile

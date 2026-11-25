@@ -79,6 +79,10 @@ Elasticsearch 使用嵌套 SKU 聚合及商品级去重。聚合超过 2,000 个
 每批带 `generation`，翻页时把 `nextAfterId` 作为 `afterId` 传入。代次切换时返回 `RESTART`，积压中的核对返回 `CATCHING_UP`。
 `POST /api/admin/catalog-search/rebuild` 触发原索引重建流程。
 
+商家商品页使用 `GET /api/merchant/catalog/v1/products/page`。页码从 0 开始，默认每页 10 件，`size` 可取 1–100。
+服务器按商品编号升序返回当前店铺的 `rows`、`total`、`page` 和 `size`，超过末页时返回最后一个有效页。
+列表包含已上架和已下架的商品。SKU 维护使用 `GET /api/merchant/catalog/v1/products/{productId}` 单独读取商品。
+
 SKU 创建接受 `requestId`、`code`、`specifications`、`unitPrice` 和 `status`。编码在店内唯一，规格组合在商品内唯一。
 已创建 SKU 可通过 `expectedVersion` 修改编码、价格及状态。默认 SKU 的售价与状态沿用商品编辑入口，
 可在改 SKU 时提交 `specifications` 命名默认销售组合，已创建的非默认 SKU 规格保持固定。
@@ -329,6 +333,27 @@ Angular 管理员可从导航栏“定时任务”进入 `/admin/scheduling` 操
 | 收银台 | `GET /api/checkout/{token}`、`POST /api/checkout/{token}/complete` | 模拟收银台 |
 
 商城后端调用渠道交易接口时使用 App ID、时间戳、Nonce、请求体摘要和 RSA/HMAC 签名。完整协议、安全实验和生产边界见 [高级模拟支付](reference/ADVANCED-PAYMENT.md)。
+
+## 基础数据 API
+
+`reference-data-service` 使用独立 PostgreSQL 库。管理后台复用与支付管理相同的 Vue Vben Admin 组件，登录使用商城平台管理员账号。
+
+| 路径 | 用途 |
+| --- | --- |
+| `GET /api/reference-data/datasets` | 数据集及当前发布指针 |
+| `GET /api/reference-data/datasets/{dataset}/versions/current` | 当前版本、来源和记录数 |
+| `GET /api/reference-data/datasets/{dataset}/nodes` | 查询根节点或按 `parentCode` 查询直属下级。支持 `q`、`after`、`size`，全量同步用 `flat=true`，跨页时固定 `releaseId` |
+| `GET /api/reference-data/datasets/{dataset}/nodes/{code}` | 读取单条记录，可指定已发布的 `releaseId` |
+| `GET /api/admin/reference-data/datasets/{dataset}/versions` | 管理员查阅版本 |
+| `POST /api/admin/reference-data/datasets/{dataset}/versions` | 通过 `multipart/form-data` 上传 `file`，附带 `version`、`sourceUrl`、`sourceRevision` |
+| `GET /api/admin/reference-data/datasets/{dataset}/versions/{id}/comparison` | 比较候选版本与当前版本，返回变更数量和样例 |
+| `POST /api/admin/reference-data/datasets/{dataset}/versions/{id}/publish` | 提交 `expectedCurrentReleaseId` 切换发布指针 |
+
+本次中国行政区划数据集 `cn-administrative-divisions` 从用户提供的 `regions.sql` 转换，版号为 `mca-2026-11-25`。源文件包含 41,952 条记录，按层级为 34、333、2,847、38,738 条。原始类型、代码、名称路径及父级字段通过 `sourceMetadata` 返回。节点使用 6 位或 9 位代码，源文件标记为「资料暂缺」的台湾省使用内部键 `unassigned-tw`。直属下级按源文件的实际关系返回。
+
+使用 `node scripts/reference-data/export-mca-divisions.cjs <regions.sql> <新输出目录>` 生成 CSV 和验收清单。使用 `scripts/reference-data/import-release.ps1` 或管理后台导入。Compose 定义位于 `infrastructure/compose/compose.reference-data.yaml`。
+
+管理后台「区划联动」固定已发布的数据版本，再按照直属父级查询下一级。商城运费模板的中国地区选项查询同一数据集的省级节点，保存时使用标准省级名称。结算优先匹配现有规则中的省州原名，再匹配常用省级简称。无地区规则匹配时使用默认运费。
 
 ## 错误响应
 
