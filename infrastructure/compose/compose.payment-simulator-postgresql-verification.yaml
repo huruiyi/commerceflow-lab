@@ -16,32 +16,40 @@ services:
       retries: 45
 
   rollback:
-    extends: original
-    volumes:
-      - rollback-data:/var/lib/mysql
+    extends:
+      file: infrastructure/compose/compose.payment-simulator-rollback.yaml
+      service: payment-simulator-db-rollback
+    container_name: !reset null
+    restart: "no"
+    command: ["--innodb-use-native-aio=OFF", "--log-bin-trust-function-creators=1"]
 
   postgres:
-    image: postgres:17.11-alpine
+    extends:
+      file: infrastructure/compose/compose.payment-simulator-postgresql.yaml
+      service: payment-simulator-db-postgresql
+    container_name: !reset null
+    restart: "no"
+
+  roles:
+    extends:
+      file: infrastructure/compose/compose.payment-simulator-postgresql.yaml
+      service: payment-simulator-postgresql-roles
+    depends_on: !reset {}
     environment:
-      POSTGRES_DB: payment_platform
-      POSTGRES_PASSWORD: payment-isolated-postgresql
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "payment_platform"]
-      interval: 2s
-      timeout: 3s
-      retries: 45
+      PGHOST: postgres
+    volumes: !override
+      - ./infrastructure/payment-simulator/postgresql-roles.sql:/roles.sql:ro
 
   migrator:
-    image: redgate/flyway:12.4.0
+    extends:
+      file: infrastructure/compose/compose.payment-simulator-postgresql.yaml
+      service: payment-simulator-postgresql-migrator
+    depends_on: !reset {}
     environment:
       FLYWAY_URL: jdbc:postgresql://postgres:5432/payment_platform
-      FLYWAY_USER: postgres
-      FLYWAY_PASSWORD: payment-isolated-postgresql
-    volumes:
+    volumes: !override
       - ./simulators/payment-platform/service/src/main/resources/db/postgresql:/flyway/sql:ro
-    command: ["-target=1", "migrate"]
+      - ./infrastructure/payment-simulator/postgresql-after-migrate.sql:/flyway/callbacks/afterMigrate.sql:ro
 
   redis:
     image: redis:7.4-alpine
@@ -54,6 +62,7 @@ services:
       PAYMENT_DATABASE_USERNAME: ${PAYMENT_SIMULATOR_REHEARSAL_USER:-postgres}
       PAYMENT_DATABASE_PASSWORD: ${PAYMENT_SIMULATOR_REHEARSAL_PASSWORD:-payment-isolated-postgresql}
       SPRING_PROFILES_ACTIVE: ${PAYMENT_SIMULATOR_REHEARSAL_PROFILE:-postgresql}
+      SPRING_FLYWAY_ENABLED: ${PAYMENT_SIMULATOR_REHEARSAL_FLYWAY:-false}
       PAYMENT_CREDENTIAL_MASTER_KEY: ${PAYMENT_CREDENTIAL_MASTER_KEY:-bG9jYWwtZGVtby1rZXktMTIzNDU2Nzg5MC1hYmNkZWY=}
       REDIS_HOST: redis
       PAYMENT_CHECKOUT_BASE_URL: http://simulator:8080
@@ -86,5 +95,5 @@ networks:
 
 volumes:
   original-data:
-  rollback-data:
-  postgres-data:
+  payment-simulator-rollback-data:
+  payment-simulator-postgresql-data:

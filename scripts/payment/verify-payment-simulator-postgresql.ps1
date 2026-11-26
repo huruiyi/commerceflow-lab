@@ -14,11 +14,14 @@ $project = 'fairy-commerceflow-payment-simulator-pg-' + [guid]::NewGuid().ToStri
 $evidence = (New-Item -ItemType Directory (Join-Path $EvidenceDirectory $project)).FullName
 $compose = @('compose', '--project-directory', $root, '-p', $project, '-f',
   (Join-Path $root 'infrastructure/compose/compose.payment-simulator-postgresql-verification.yaml'))
-$env:PAYMENT_SIMULATOR_REHEARSAL_IMAGE = $CandidateImage
-$env:PAYMENT_SIMULATOR_REHEARSAL_URL = 'jdbc:postgresql://postgres:5432/payment_platform'
-$env:PAYMENT_SIMULATOR_REHEARSAL_USER = 'postgres'
-$env:PAYMENT_SIMULATOR_REHEARSAL_PASSWORD = 'payment-isolated-postgresql'
-$env:PAYMENT_SIMULATOR_REHEARSAL_PROFILE = 'postgresql'
+$env:PAYMENT_SIMULATOR_PG_ADMIN_PASSWORD = 'payment-isolated-postgresql'
+$env:PAYMENT_SIMULATOR_PG_MIGRATOR_PASSWORD = 'payment-isolated-migrator'
+$env:PAYMENT_SIMULATOR_PG_RUNTIME_PASSWORD = 'payment-isolated-runtime'
+$env:PAYMENT_SIMULATOR_ROLLBACK_PASSWORD = 'payment-isolated'
+$env:PAYMENT_SIMULATOR_ROLLBACK_ROOT_PASSWORD = 'payment-isolated-root'
+$env:PAYMENT_SIMULATOR_PG_IMAGE = $CandidateImage
+$env:PAYMENT_SIMULATOR_ROLLBACK_IMAGE = $BaselineImage
+$env:PAYMENT_SIMULATOR_REHEARSAL_IMAGE = $BaselineImage
 
 function MySql([string]$Service, [string]$Query) {
   docker @compose exec -T $Service sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -NB payment_platform -e "$1"' sh $Query
@@ -39,8 +42,27 @@ function Transfer([string]$Direction, [string]$Name) {
   Get-Content $manifest -Raw | ConvertFrom-Json
 }
 
+function Start-Simulator([string]$Database) {
+  if ($Database -eq 'postgres') {
+    $env:PAYMENT_SIMULATOR_REHEARSAL_IMAGE = $CandidateImage
+    $env:PAYMENT_SIMULATOR_REHEARSAL_URL = 'jdbc:postgresql://postgres:5432/payment_platform'
+    $env:PAYMENT_SIMULATOR_REHEARSAL_USER = 'payment_simulator_runtime'
+    $env:PAYMENT_SIMULATOR_REHEARSAL_PASSWORD = $env:PAYMENT_SIMULATOR_PG_RUNTIME_PASSWORD
+    $env:PAYMENT_SIMULATOR_REHEARSAL_PROFILE = 'postgresql'
+    $env:PAYMENT_SIMULATOR_REHEARSAL_FLYWAY = 'false'
+  } else {
+    $env:PAYMENT_SIMULATOR_REHEARSAL_IMAGE = $BaselineImage
+    $env:PAYMENT_SIMULATOR_REHEARSAL_URL = "jdbc:mysql://${Database}:3306/payment_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+    $env:PAYMENT_SIMULATOR_REHEARSAL_USER = 'payment'
+    $env:PAYMENT_SIMULATOR_REHEARSAL_PASSWORD = 'payment-isolated'
+    $env:PAYMENT_SIMULATOR_REHEARSAL_PROFILE = 'default'
+    $env:PAYMENT_SIMULATOR_REHEARSAL_FLYWAY = 'true'
+  }
+  docker @compose up -d --no-deps --wait simulator | Out-Host
+}
+
+docker @compose config --quiet
 try {
-  docker @compose config --quiet
   docker @compose up -d --wait original rollback postgres redis fixture | Out-Host
   Restore-MySql original $backup
   $history = @(MySql original 'SELECT concat_ws(''|'',version,checksum,success) FROM flyway_schema_history ORDER BY installed_rank')
@@ -50,15 +72,35 @@ try {
   docker @compose exec -T original sh -ec 'export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; mysqldump -uroot --no-tablespaces --set-gtid-purged=OFF --no-data --skip-triggers payment_platform && mysqldump -uroot --no-tablespaces --set-gtid-purged=OFF --no-create-info --skip-triggers payment_platform flyway_schema_history' > $schema
   docker @compose exec -T original sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysqldump -uroot --no-tablespaces --set-gtid-purged=OFF --no-data --no-create-info --triggers payment_platform' > $triggers
   Restore-MySql rollback $schema
-  docker @compose run --rm --no-deps migrator | Out-Host
+  Start-Simulator original
+  $queued = docker @compose exec -T fixture node rehearsal.mjs queue-payout
+  $queued | Set-Content (Join-Path $evidence 'forward-pending-api.json')
+  $queuedId = [guid]($queued | ConvertFrom-Json).attemptId
+  docker @compose stop simulator | Out-Host
+  $sourceRetry = MySql original "SELECT DATE_FORMAT(next_notify_at, '%Y-%m-%d %H:%i:%s.%f') FROM channel_payouts WHERE attempt_id='$queuedId' AND notified_at IS NULL AND status='SUCCEEDED'"
+  if (!$sourceRetry) { throw 'Original MySQL has no pending payout retry' }
+  docker @compose run --rm --no-deps roles | Out-Host
+  docker @compose run --rm --no-deps migrator -target=1 migrate | Out-Host
   $forward = @(Transfer ToPostgreSQL forward)
   $compared = @(Transfer Compare forward-repeat)
   if (Compare-Object $forward $compared -Property table, rows, sha256, nextIdentity) { throw 'Forward manifests differ' }
 
-  docker @compose up -d --no-deps --wait simulator | Out-Host
+  $pgForwardRetry = Pg "SELECT to_char(next_notify_at,'YYYY-MM-DD HH24:MI:SS.US') FROM channel_payouts WHERE attempt_id='$queuedId' AND notified_at IS NULL AND status='SUCCEEDED'"
+  if ($pgForwardRetry -cne $sourceRetry) { throw 'Forward payout retry timestamp changed during copy' }
+  docker @compose run --rm --no-deps migrator | Out-Host
   if ((Pg "SELECT string_agg(version, ',' ORDER BY version) FROM flyway_schema_history WHERE success") -cne '1,2') {
     throw 'Unexpected PostgreSQL Flyway history'
   }
+  if ((Pg (Get-Content "$root/infrastructure/payment-simulator/verify-runtime.sql" -Raw)) -cne 't') {
+    throw 'PostgreSQL runtime grants are invalid'
+  }
+  Pg 'ALTER ROLE payment_simulator_runtime LOGIN' | Out-Null
+  Start-Simulator postgres
+  if ((Pg "SELECT EXISTS (SELECT FROM pg_stat_activity WHERE usename='payment_simulator_runtime' AND datname='payment_platform')") -cne 't') {
+    throw 'The PostgreSQL application is not connected through the restricted role'
+  }
+  $forwardResumed = docker @compose exec -T fixture node rehearsal.mjs resume-payout $queued
+  $forwardResumed | Set-Content (Join-Path $evidence 'forward-payout-resumed.json')
   $raw = docker @compose exec -T fixture node rehearsal.mjs exercise
   $raw | Set-Content (Join-Path $evidence 'postgresql-api.json')
   $api = $raw | ConvertFrom-Json
@@ -70,6 +112,7 @@ try {
     throw 'Unexpected channel transaction or refund identifier'
   }
   docker @compose stop simulator | Out-Host
+  Pg 'ALTER ROLE payment_simulator_runtime NOLOGIN' | Out-Null
   $pgRows = @(Pg "SELECT concat_ws('|',status,(paid_at IS NOT NULL)::text,(closed_at IS NOT NULL)::text) FROM channel_transaction WHERE channel_transaction_no='$paymentNo';
     SELECT concat_ws('|',status,(paid_at IS NOT NULL)::text,(closed_at IS NOT NULL)::text) FROM channel_transaction WHERE channel_transaction_no='$closeNo';
     SELECT concat_ws('|',status,amount,channel_transaction_no) FROM channel_refund WHERE channel_refund_no='$refundNo';
@@ -80,6 +123,8 @@ try {
   $pgRows | Set-Content (Join-Path $evidence 'postgresql-ledger.tsv')
   $pgRetry = Pg "SELECT to_char(next_notify_at,'YYYY-MM-DD HH24:MI:SS.US') FROM channel_payouts WHERE attempt_id='$payoutId'"
   $reverse = @(Transfer ToMySQL reverse)
+  $reverseCompared = @(Transfer CompareRollback reverse-repeat)
+  if (Compare-Object $reverse $reverseCompared -Property table, rows, sha256, nextIdentity) { throw 'Reverse manifests differ' }
   $backRetry = MySql rollback "SELECT DATE_FORMAT(next_notify_at, '%Y-%m-%d %H:%i:%s.%f') FROM channel_payouts WHERE attempt_id='$payoutId'"
   if (!$pgRetry -or $pgRetry -cne $backRetry) { throw 'Payout retry timestamp changed during rollback copy' }
   if (Compare-Object $history @(MySql rollback 'SELECT concat_ws(''|'',version,checksum,success) FROM flyway_schema_history ORDER BY installed_rank') -CaseSensitive) {
@@ -95,12 +140,7 @@ try {
   $PSNativeCommandUseErrorActionPreference = $true
   if (!$auditRejected) { throw 'PostgreSQL audit history did not reject an update' }
 
-  $env:PAYMENT_SIMULATOR_REHEARSAL_IMAGE = $BaselineImage
-  $env:PAYMENT_SIMULATOR_REHEARSAL_URL = 'jdbc:mysql://rollback:3306/payment_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC'
-  $env:PAYMENT_SIMULATOR_REHEARSAL_USER = 'payment'
-  $env:PAYMENT_SIMULATOR_REHEARSAL_PASSWORD = 'payment-isolated'
-  $env:PAYMENT_SIMULATOR_REHEARSAL_PROFILE = 'default'
-  docker @compose up -d --no-deps --wait simulator | Out-Host
+  Start-Simulator rollback
   $resumed = docker @compose exec -T fixture node rehearsal.mjs resume $raw
   $resumed | Set-Content (Join-Path $evidence 'rollback-api.json')
   [ordered]@{
@@ -108,6 +148,9 @@ try {
     backupSha256 = (Get-FileHash -LiteralPath $backup).Hash
     forward = $forward
     reverse = $reverse
+    runtimeRole = 'payment_simulator_runtime'
+    originalPayoutNextRetry = $sourceRetry
+    forwardPayout = $forwardResumed | ConvertFrom-Json
     payoutNextRetry = $pgRetry
     callbacks = $resumed | ConvertFrom-Json
   } | ConvertTo-Json -Depth 10 | Set-Content (Join-Path $evidence 'result.json')

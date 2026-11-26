@@ -55,6 +55,7 @@ async function until(check, label) {
 function serve() {
   const seen = new Map();
   const acceptedPayouts = new Set();
+  const acceptedRefunds = new Set();
   createServer(async (req, res) => {
     if (req.url === '/state') {
       res.end(JSON.stringify(Object.fromEntries(seen)));
@@ -63,6 +64,12 @@ function serve() {
     const allow = /^\/allow-payout\/([a-f0-9-]{36})$/.exec(req.url);
     if (allow && req.method === 'POST') {
       acceptedPayouts.add(allow[1]);
+      res.end('{}');
+      return;
+    }
+    const allowRefund = /^\/allow-refund\/(CR[A-F0-9]{32})$/.exec(req.url);
+    if (allowRefund && req.method === 'POST') {
+      acceptedRefunds.add(allowRefund[1]);
       res.end('{}');
       return;
     }
@@ -83,7 +90,10 @@ function serve() {
     const data = JSON.parse(raw);
     const key = data.channelTransactionNo ?? data.channelRefundNo ?? data.attemptId;
     const history = seen.get(key) ?? [];
-    const status = (payout ? acceptedPayouts.has(key) : history.length >= (kind === 'refund' ? 2 : 1)) ? 200 : 503;
+    const accepted = payout ? acceptedPayouts.has(key)
+      : kind === 'refund' ? acceptedRefunds.has(key) || history.length >= 2
+        : history.length > 0;
+    const status = accepted ? 200 : 503;
     history.push({ status, data });
     seen.set(key, history);
     res.writeHead(status).end();
@@ -157,6 +167,11 @@ async function exercise() {
     assert.equal(item.data.currency, 'CNY');
   }
   assert.deepEqual(refundDelivered.map(item => item.status), [503, 503, 200]);
+  const pendingRefundRequest = {...refundRequest, merchantRefundNo: 'pg-refund-pending-' + suffix,
+    amount: 7.25, faultScenario: 'NOTIFY_LOST'};
+  const pendingRefund = await request('POST', refundPath, pendingRefundRequest);
+  assert.equal(pendingRefund.status, 'SUCCEEDED');
+  assert.equal((await control('/state'))[pendingRefund.channelRefundNo], undefined);
 
   const payout = await submitPayout();
   const completedPayout = await submitPayout();
@@ -174,6 +189,7 @@ async function exercise() {
     close: {request: closeRequest.merchantRequestNo, number: closed.channelTransactionNo},
     refund: {request: refundRequest.merchantRefundNo, number: refund.channelRefundNo,
       callbacks: refundDelivered.map(item => item.status)},
+    pendingRefund: {request: pendingRefundRequest.merchantRefundNo, number: pendingRefund.channelRefundNo},
     payout, pgPayout,
   }));
 }
@@ -199,7 +215,23 @@ async function resume(saved) {
   const refund = await request('GET', refundPath + '?merchantRefundNo=' + saved.refund.request);
   assert.equal(refund.channelRefundNo, saved.refund.number);
   assert.equal(refund.status, 'SUCCEEDED');
-  console.log(JSON.stringify(await acceptPayout(saved.payout)));
+  const pending = saved.pendingRefund;
+  const outstanding = await request('GET', refundPath + '?merchantRefundNo=' + pending.request);
+  assert.equal(outstanding.channelRefundNo, pending.number);
+  assert.equal(outstanding.status, 'SUCCEEDED');
+  assert.equal(outstanding.amount, 7.25);
+  assert.equal((await control('/state'))[pending.number], undefined);
+  await control('/allow-refund/' + pending.number, 'POST');
+  const resent = await request('POST', refundPath + '/' + pending.request + '/notify');
+  assert.equal(resent.channelRefundNo, pending.number);
+  const receipt = (await control('/state'))[pending.number];
+  assert.equal(receipt.length, 1);
+  assert.equal(receipt[0].status, 200);
+  assert.equal(receipt[0].data.merchantRefundNo, pending.request);
+  assert.equal(receipt[0].data.channelRefundNo, pending.number);
+  assert.equal(receipt[0].data.amount, 7.25);
+  assert.equal(receipt[0].data.status, 'SUCCEEDED');
+  console.log(JSON.stringify({payout: await acceptPayout(saved.payout), refund: pending}));
 }
 
 async function acceptPayout(saved) {
@@ -222,6 +254,13 @@ async function acceptPayout(saved) {
 
 const [mode, result] = process.argv.slice(2);
 if (mode === 'serve') serve();
+else if (mode === 'queue-payout') {
+  const payout = await submitPayout();
+  await until(async () => (await control('/state'))[payout.attemptId]?.some(item => item.status === 503),
+    'the original MySQL payout callback to fail');
+  console.log(JSON.stringify(payout));
+}
+else if (mode === 'resume-payout') console.log(JSON.stringify(await acceptPayout(JSON.parse(result))));
 else if (mode === 'exercise') await exercise();
 else if (mode === 'resume') await resume(JSON.parse(result));
 else throw new Error('Unknown rehearsal phase.');

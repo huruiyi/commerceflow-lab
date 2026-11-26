@@ -3,7 +3,7 @@ import { transferLedger } from '../lib/mysql-postgresql-ledger.mjs';
 
 const [project, direction, manifestPath] = process.argv.slice(2);
 if (!/^fairy-commerceflow-payment-simulator-pg-[a-f0-9]{12}$/.test(project)
-    || !['ToPostgreSQL', 'ToMySQL', 'Compare'].includes(direction) || !manifestPath) {
+    || !['ToPostgreSQL', 'ToMySQL', 'Compare', 'CompareRollback'].includes(direction) || !manifestPath) {
   throw new Error('Expected an isolated payment simulator project, direction and manifest path.');
 }
 
@@ -22,10 +22,17 @@ function database(service, volume, directory) {
   return id;
 }
 
-const mysqlService = direction === 'ToMySQL' ? 'rollback' : 'original';
+const mysqlService = ['ToMySQL', 'CompareRollback'].includes(direction) ? 'rollback' : 'original';
+const mysqlVolume = mysqlService === 'rollback' ? 'payment-simulator-rollback-data' : 'original-data';
+const pgContainer = database('postgres', 'payment-simulator-postgresql-data', '/var/lib/postgresql/data');
+const fenced = execFileSync('docker', ['exec', pgContainer, 'psql', '-U', 'postgres', '-d', 'payment_platform',
+  '-XAtq', '-v', 'ON_ERROR_STOP=1', '-c',
+  "SELECT NOT rolcanlogin AND NOT EXISTS (SELECT FROM pg_stat_activity WHERE usename='payment_simulator_runtime') "
+  + "FROM pg_roles WHERE rolname='payment_simulator_runtime'"], { encoding: 'utf8' }).trim();
+if (fenced !== 't') throw new Error('Fence the isolated PostgreSQL runtime account before copying.');
+
 transferLedger({
-  direction, manifestPath, schema: 'public', tableCount: 17,
-  mysqlContainer: database(mysqlService, mysqlService + '-data', '/var/lib/mysql'),
-  mysqlDatabase: 'payment_platform', pgContainer: database('postgres', 'postgres-data', '/var/lib/postgresql/data'),
-  pgDatabase: 'payment_platform',
+  direction: direction === 'CompareRollback' ? 'Compare' : direction, manifestPath, schema: 'public', tableCount: 17,
+  mysqlContainer: database(mysqlService, mysqlVolume, '/var/lib/mysql'),
+  mysqlDatabase: 'payment_platform', pgContainer, pgDatabase: 'payment_platform',
 });
