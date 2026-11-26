@@ -20,27 +20,37 @@ $compose = @('compose','-p',$project,'--project-directory',$root,
   '-f',(Join-Path $root 'infrastructure/compose/compose.order-postgresql-verification.yaml'))
 $env:ORDER_VERIFICATION_INVENTORY_IMAGE = $InventoryImage
 $env:ORDER_VERIFICATION_PAYMENT_IMAGE = $PaymentImage
+$postgres = 'order-db-postgresql'
+$env:ORDER_PG_IMAGE = $CandidateImage
+$env:ORDER_ROLLBACK_IMAGE = $BaselineImage
+foreach ($key in 'ORDER_PG_ADMIN_PASSWORD','ORDER_PG_MIGRATOR_PASSWORD','ORDER_PG_RUNTIME_PASSWORD',
+  'ORDER_ROLLBACK_PASSWORD','ORDER_ROLLBACK_ROOT_PASSWORD') {
+  Set-Item "Env:$key" ([Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(24)))
+}
 
 function DatabaseSettings([string]$Service) {
   if ($Service -eq 'postgres') {
     $env:ORDER_VERIFICATION_IMAGE = $CandidateImage
-    $env:ORDER_VERIFICATION_DATABASE = 'jdbc:postgresql://postgres:5432/orders'
-    $env:ORDER_VERIFICATION_USER = 'postgres'
-    $env:ORDER_VERIFICATION_PASSWORD = 'order-isolated-postgresql'
+    $env:ORDER_VERIFICATION_DATABASE = "jdbc:postgresql://${postgres}:5432/orders"
+    $env:ORDER_VERIFICATION_USER = 'order_runtime'
+    $env:ORDER_VERIFICATION_PASSWORD = $env:ORDER_PG_RUNTIME_PASSWORD
     $env:ORDER_VERIFICATION_PROFILE = 'postgresql'
+    $env:ORDER_VERIFICATION_FLYWAY = 'false'
   } else {
     $env:ORDER_VERIFICATION_IMAGE = $BaselineImage
     $env:ORDER_VERIFICATION_DATABASE = "jdbc:mysql://${Service}:3306/orders?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
     $env:ORDER_VERIFICATION_USER = 'orders'
-    $env:ORDER_VERIFICATION_PASSWORD = 'order-isolated-runtime'
+    $env:ORDER_VERIFICATION_PASSWORD = if ($Service -eq 'original') { 'order-isolated-runtime' } else { $env:ORDER_ROLLBACK_PASSWORD }
     $env:ORDER_VERIFICATION_PROFILE = 'default'
+    $env:ORDER_VERIFICATION_FLYWAY = 'true'
   }
 }
 
 function Query([string]$Service,[string]$Sql) {
   if ($Service -in 'postgres','inventory-db') {
     $database = if ($Service -eq 'postgres') { 'orders' } else { 'inventory' }
-    docker @compose exec -T $Service psql -U postgres -d $database -XAtq -v ON_ERROR_STOP=1 -c $Sql
+    $container = if ($Service -eq 'postgres') { $postgres } else { 'inventory-db' }
+    docker @compose exec -T $container psql -U postgres -d $database -XAtq -v ON_ERROR_STOP=1 -c $Sql
   } else {
     $database = if ($Service -eq 'payment-db') { 'payments' } else { 'orders' }
     docker @compose exec -T $Service sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot --default-character-set=utf8mb4 -NBr "$1" -e "$2"' sh $database $Sql
@@ -73,6 +83,26 @@ function Assert-Process([string]$Service,[long]$Order,[string]$Expected) {
   $actual = Query $Service $sql
   if ($actual -cne $Expected) { throw "Cancellation state $Order at $Service differs: $actual" }
   "$Service|$Order|$actual" | Add-Content "$evidence/process-states.tsv"
+}
+
+function Pending-Deadline([string]$Service,[long]$Order) {
+  $time = if ($Service -eq 'postgres') {
+    "to_char(result_deadline_at AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS.US')"
+  } else { "DATE_FORMAT(result_deadline_at,'%Y-%m-%d %H:%i:%s.%f')" }
+  $prefix = if ($Service -eq 'postgres') { '' } else { "SET time_zone='+00:00'; " }
+  $due = Query $Service "$($prefix)SELECT $time FROM order_process_managers WHERE order_id=$Order AND status='WAITING_RESULT'"
+  if ($due -notmatch '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}$') { throw "Missing exact pending deadline at $Service." }
+  $due
+}
+
+function Copy-Ledger([string]$Direction) {
+  $ledger = Join-Path $PSScriptRoot 'order-postgresql-ledger.mjs'
+  $stem = if ($Direction -eq 'ToPostgreSQL') { 'forward' } else { 'reverse' }
+  node $ledger $project $Direction "$evidence/$stem.json"
+  node $ledger $project $Direction "$evidence/$stem-repeat.json"
+  if ((Get-FileHash "$evidence/$stem.json").Hash -cne (Get-FileHash "$evidence/$stem-repeat.json").Hash) {
+    throw "Order ledger parity differs on the $stem retry."
+  }
 }
 
 function Assert-Downstream($Order,$Payment,$Release) {
@@ -109,7 +139,7 @@ if ($historical.orders.Count -lt 2 -or $historical.cancel.orderId -le 0) { throw
 $statusSql = "SELECT concat_ws('|',status,inventory_status,count(*)) FROM shop_orders GROUP BY status,inventory_status ORDER BY status,inventory_status"
 DatabaseSettings original
 try {
-  docker @compose up -d --wait original postgres inventory-db verifier | Out-Host
+  docker @compose up -d --wait original $postgres inventory-db verifier | Out-Host
   Restore-MySql original $backup
   $historySql = "SELECT concat_ws('|',version,checksum,success) FROM flyway_schema_history ORDER BY installed_rank"
   $mysqlHistory = @(Query original $historySql)
@@ -118,6 +148,10 @@ try {
   }
   $mysqlHistory | Set-Content "$evidence/mysql-history.tsv"
   Query original $statusSql | Set-Content "$evidence/original-statuses.tsv"
+  Query original "SELECT concat_ws('|',(SELECT count(*) FROM shop_orders),(SELECT count(*) FROM shop_orders WHERE status='CANCELLING'),
+    (SELECT count(*) FROM order_process_managers WHERE status IN ('WAITING_RESULT','WAITING_RECONCILIATION')),
+    (SELECT count(*) FROM order_command_outbox WHERE status='PENDING'),(SELECT count(*) FROM order_result_inbox))" |
+    Set-Content "$evidence/restored-daily-counts.tsv"
   $keySql = "SELECT concat_ws('|',message_id,processing_status) FROM order_remote_message_inbox WHERE message_id IN
     ('finish-cancellation:$([long]$historical.cancel.orderId)','audit-cancellation:$([long]$historical.cancel.orderId)') ORDER BY message_id"
   if ((Query original $keySql) -join ',' -cne ($historical.cancel.orderReceipts -join ',')) { throw 'Historical cancellation commands differ from source receipts.' }
@@ -126,7 +160,8 @@ try {
   docker @compose up -d --wait rollback | Out-Host
   Restore-MySql rollback $schema
   if (Compare-Object $mysqlHistory @(Query rollback $historySql) -SyncWindow 0) { throw 'Rollback migration history differs.' }
-  docker @compose run --rm --no-deps migrator | Out-Host
+  docker @compose run --rm --no-deps order-postgresql-roles | Out-Host
+  docker @compose run --rm --no-deps order-postgresql-migrator -target=1 migrate | Out-Host
   docker @compose up -d --wait payment-db | Out-Host
   docker @compose up -d --wait payment inventory | Out-Host
   Query inventory-db "BEGIN;
@@ -141,11 +176,29 @@ try {
   $complete = 'COMPLETED|COMPLETED|NONE|0|2|2'
   Assert-Process original $forward.orderId $waitingInventory
   docker @compose stop order | Out-Host
-  $ledger = Join-Path $PSScriptRoot 'order-postgresql-ledger.mjs'
-  node $ledger $project ToPostgreSQL "$evidence/forward.json"
+  Query original 'SET PERSIST super_read_only=ON'
+  $forwardDue = Pending-Deadline original $forward.orderId
+  Copy-Ledger ToPostgreSQL
   Assert-Process postgres $forward.orderId $waitingInventory
+  if ((Pending-Deadline postgres $forward.orderId) -cne $forwardDue) { throw 'PostgreSQL altered the waiting deadline.' }
+  "forward|$forwardDue" | Set-Content "$evidence/process-deadlines.tsv"
 
+  docker @compose run --rm --no-deps order-postgresql-migrator | Out-Host
+  if ((Query postgres (Get-Content "$root/infrastructure/order/verify-runtime.sql" -Raw)) -cne 't') { throw 'Order runtime grants differ.' }
+  $expiry = Query postgres "BEGIN; SET LOCAL ROLE order_runtime;
+    INSERT INTO order_internal_request_replay(request_id,source_service,content_fingerprint,expires_at)
+    VALUES ('order-rehearsal-acl-active','commerce-service',repeat('a',64),statement_timestamp()+interval '5 minutes'),
+           ('order-rehearsal-acl-expired','commerce-service',repeat('a',64),statement_timestamp()-interval '5 minutes');
+    WITH removed AS (DELETE FROM order_internal_request_replay WHERE request_id IN ('order-rehearsal-acl-active','order-rehearsal-acl-expired')
+      RETURNING request_id) SELECT request_id FROM removed;
+    ROLLBACK;"
+  if ($expiry -cne 'order-rehearsal-acl-expired') { throw 'Order role did not preserve the active request replay record.' }
+  $expiry | Set-Content "$evidence/replay-policy.txt"
+  Query postgres 'ALTER ROLE order_runtime LOGIN'
   Start-Order postgres
+  if ((Query postgres "SELECT EXISTS (SELECT FROM pg_stat_activity WHERE usename='order_runtime' AND datname='orders')") -cne 't') {
+    throw 'Order service did not use the restricted runtime role.'
+  }
   if ((Query postgres "SELECT string_agg(version,',' ORDER BY installed_rank) FROM flyway_schema_history WHERE success") -cne '1,2') {
     throw 'Expected the PostgreSQL V2 migration.'
   }
@@ -158,6 +211,7 @@ try {
   if ((Query postgres "SELECT count(*) FROM order_events WHERE order_id=$([long]$store.order.orderId) AND event_type='ORDER_CREATED'") -cne '1') {
     throw 'Concurrent create added an extra order event.'
   }
+  $package = Scenario package-completion
   $metrics = docker @compose exec -T verifier node -e "fetch('http://order:8080/actuator/prometheus').then(r=>r.text()).then(t=>console.log(t.split('\n').filter(s=>s.startsWith('commerceflow_order_')).join('\n')))"
   if ($metrics -cnotcontains 'commerceflow_order_metrics_refresh_success 1.0') { throw 'Order metrics did not refresh.' }
   $metrics | Set-Content "$evidence/postgres-metrics.txt"
@@ -166,9 +220,17 @@ try {
   $waitingPayment = 'WAITING_RESULT|INVENTORY_CONFIRMED|PAYMENT|2|0|1'
   Assert-Process postgres $reverse.orderId $waitingPayment
   docker @compose stop order | Out-Host
-  docker @compose exec -T postgres pg_dump -U postgres -d orders -Fc > "$evidence/order-postgresql.dump"
-  node $ledger $project ToMySQL "$evidence/reverse.json"
+  Query postgres 'ALTER ROLE order_runtime NOLOGIN'
+  Query postgres "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename='order_runtime'" | Out-Null
+  $reverseDue = Pending-Deadline postgres $reverse.orderId
+  docker @compose exec -T $postgres pg_dump -U postgres -d orders -Fc > "$evidence/order-postgresql.dump"
+  Copy-Ledger ToMySQL
   Assert-Process rollback $reverse.orderId $waitingPayment
+  if ((Pending-Deadline rollback $reverse.orderId) -cne $reverseDue) { throw 'MySQL rollback altered the waiting deadline.' }
+  "reverse|$reverseDue" | Add-Content "$evidence/process-deadlines.tsv"
+  $shippedPackage = Query rollback "SELECT concat_ws('|',status,inventory_status,tracking_number)
+    FROM shop_orders WHERE id=$([long]$package.orderId)"
+  if ($shippedPackage -cne "SHIPPED|COMMITTED|$($package.trackingNumber)") { throw 'The shipped package did not survive reverse copy.' }
   if ((Query rollback $keySql) -join ',' -cne ($historical.cancel.orderReceipts -join ',')) { throw 'Historical cancellation commands changed after reverse copy.' }
   Start-Order rollback
   $reverseDone = Scenario rollback
@@ -183,11 +245,11 @@ try {
     project=$project; sourceBackupSha256=(Get-FileHash $backup).Hash; postgresFlyway='2'
     forward=(Get-Content "$evidence/forward.json" -Raw | ConvertFrom-Json)
     reverse=(Get-Content "$evidence/reverse.json" -Raw | ConvertFrom-Json)
-    forwardOrder=$forward.orderId; storeOrder=$store.order.orderId; reverseOrder=$reverse.orderId
+    forwardOrder=$forward.orderId; storeOrder=$store.order.orderId; reverseOrder=$reverse.orderId; packageOrder=$package.orderId
     realHistoricalOrders=$reverseDone.matched
   } | ConvertTo-Json -Depth 6 | Tee-Object "$evidence/result.json"
 } catch {
-  docker @compose logs --no-color order original rollback postgres payment inventory > "$evidence/failure.log"
+  docker @compose logs --no-color order original rollback $postgres payment inventory > "$evidence/failure.log"
   throw
 } finally {
   docker @compose down | Out-Host

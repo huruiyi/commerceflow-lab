@@ -16,32 +16,32 @@ services:
       retries: 45
 
   rollback:
-    extends: original
-    volumes:
-      - rollback-data:/var/lib/mysql
+    extends:
+      file: infrastructure/compose/compose.order-rollback.yaml
+      service: order-db-rollback
+    container_name: !reset null
+    command: ["--innodb-use-native-aio=OFF"]
 
-  postgres:
-    image: postgres:17.11-alpine
-    environment:
-      POSTGRES_DB: orders
-      POSTGRES_PASSWORD: order-isolated-postgresql
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "orders"]
-      interval: 2s
-      timeout: 3s
-      retries: 45
+  order-db-postgresql:
+    extends:
+      file: infrastructure/compose/compose.order-postgresql.yaml
+      service: order-db-postgresql
+    container_name: !reset null
 
-  migrator:
-    image: redgate/flyway:12.4.0
-    environment:
-      FLYWAY_URL: jdbc:postgresql://postgres:5432/orders
-      FLYWAY_USER: postgres
-      FLYWAY_PASSWORD: order-isolated-postgresql
-    volumes:
+  order-postgresql-roles:
+    extends:
+      file: infrastructure/compose/compose.order-postgresql.yaml
+      service: order-postgresql-roles
+    volumes: !override
+      - ./infrastructure/order/postgresql-roles.sql:/roles.sql:ro
+
+  order-postgresql-migrator:
+    extends:
+      file: infrastructure/compose/compose.order-postgresql.yaml
+      service: order-postgresql-migrator
+    volumes: !override
       - ./services/order-service/src/main/resources/db/postgresql:/flyway/sql:ro
-    command: ["-target=1", "migrate"]
+      - ./infrastructure/order/postgresql-after-migrate.sql:/flyway/callbacks/afterMigrate.sql:ro
 
   order:
     image: ${ORDER_VERIFICATION_IMAGE:?Set the isolated order verification image}
@@ -50,10 +50,12 @@ services:
       DATABASE_USERNAME: ${ORDER_VERIFICATION_USER:?Set the isolated orders account}
       DATABASE_PASSWORD: ${ORDER_VERIFICATION_PASSWORD:?Set the isolated orders password}
       SPRING_PROFILES_ACTIVE: ${ORDER_VERIFICATION_PROFILE:-default}
+      SPRING_FLYWAY_ENABLED: ${ORDER_VERIFICATION_FLYWAY:-true}
       ORDER_ACCEPTING_TRAFFIC: "true"
       ORDER_SHADOW_ENABLED: "false"
       ORDER_INTERNAL_SECRET: order-rehearsal-commerce
       PAYMENT_ORDER_INTERNAL_SECRET: order-rehearsal-payment
+      FULFILLMENT_ORDER_SECRET: order-rehearsal-fulfillment
     healthcheck: &app-health
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health/readiness"]
       interval: 2s
@@ -123,7 +125,7 @@ networks:
 
 volumes:
   original-data:
-  rollback-data:
-  postgres-data:
+  order-rollback-data:
+  order-postgresql-data:
   payment-data:
   inventory-data:

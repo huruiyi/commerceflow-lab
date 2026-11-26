@@ -17,7 +17,8 @@ async function post(service, path, input, expected = 200, sender = 'commerce-ser
   const timestamp = String(Math.floor(Date.now() / 1000));
   const body = JSON.stringify(input);
   const contentHash = createHash('sha256').update(body).digest('hex');
-  const secret = service === 'order' ? 'order-rehearsal-commerce' : `order-rehearsal-${service}-api`;
+  const secret = service === 'order' ? `order-rehearsal-${sender === 'fulfillment-service' ? 'fulfillment' : 'commerce'}`
+    : `order-rehearsal-${service}-api`;
   const signature = createHmac('sha256', secret)
     .update(['POST', path, timestamp, requestId, contentHash].join('\n')).digest('hex');
   const response = await fetch(`http://${service}:8080${path}`, { method: 'POST', body,
@@ -67,7 +68,7 @@ async function inventoryCommand(orderId, commandType, items, commandId, causatio
   return result;
 }
 
-async function createOrder(suffix, parallel = false) {
+async function createOrder(suffix, { parallel = false, reserve = true } = {}) {
   const orderNumber = `ORD-PG-REHEARSAL-${suffix}`;
   const input = { orderNumber, customerId, actorId: customerId, totalAmount: 12, currency: 'CNY',
     paymentDueAt: new Date(Date.now() + 30 * 60000).toISOString(), shippingFee: 2, discountAmount: 0,
@@ -80,10 +81,11 @@ async function createOrder(suffix, parallel = false) {
   const order = rows[0];
   assert(order.id > 0 && rows.every(row => row.id === order.id));
   assert.equal(order.productSubtotal, 10);
-  const reserve = await inventoryCommand(order.id, 'RESERVE', stock, `order-rehearsal:${order.id}:reserve`);
+  if (!reserve) return { orderId: order.id, orderNumber };
+  const reservation = await inventoryCommand(order.id, 'RESERVE', stock, `order-rehearsal:${order.id}:reserve`);
   await mutate(order.id, 'UPDATE_INVENTORY_STATUS', { fromStatus: 'WAITING_RESERVATION', toStatus: 'RESERVED' },
     `order-rehearsal-${order.id}:reserve-status`);
-  return { orderId: order.id, orderNumber, reserve };
+  return { orderId: order.id, orderNumber, reserve: reservation };
 }
 
 async function paymentClose(order, commandId = uuid(order.command.commandId + ':payment-orchestration')) {
@@ -148,7 +150,7 @@ if (phase === 'forward-hold') {
   await orderState(forward.orderId, 'CANCELLED', 'RELEASED');
   console.log(JSON.stringify({ forward, release, matched }));
 } else if (phase === 'store-cancellation') {
-  const order = await createOrder('STORE', true);
+  const order = await createOrder('STORE', { parallel: true });
   const criteria = { keyword: 'CAFE BOOK', status: 'PENDING_PAYMENT', size: 10, page: 0, productIds: [] };
   const found = await orderCall('/store/search', { customerId, criteria });
   assert(found.orders.some(row => row.id === order.orderId));
@@ -167,6 +169,28 @@ if (phase === 'forward-hold') {
   await mutate(id, 'UPDATE_INVENTORY_STATUS', { fromStatus: 'RESERVED', toStatus: 'RELEASED' });
   await orderState(id, 'CANCELLED', 'RELEASED');
   console.log(JSON.stringify({ order, payment, release }));
+} else if (phase === 'package-completion') {
+  const { orderId } = await createOrder('PACKAGE', { reserve: false });
+  await mutate(orderId, 'UPDATE_STATUS', { fromStatus: 'PENDING_PAYMENT', toStatus: 'PAID' });
+  await mutate(orderId, 'UPDATE_INVENTORY_STATUS', { fromStatus: 'WAITING_RESERVATION', toStatus: 'COMMITTED' });
+  await mutate(orderId, 'MERCHANT_CONFIRM', { actorId: merchantId });
+  const lines = (await orderCall('/store/query', { type: 'ITEMS', orderId })).items;
+  assert.equal(lines.length, 1);
+  const packageId = uuid(`order-rehearsal-${orderId}:package`);
+  const plan = { packageId, orderId, merchantId, warehouseId: 1, carrier: 'Rehearsal Carrier',
+    trackingNumber: 'PG-PACKAGE-' + orderId, lines: [{ orderLineId: lines[0].id, quantity: 1 }] };
+  function packageCall(action, body) {
+    return post('order', orderPath + '/store/packages/' + action, body, 200, 'fulfillment-service');
+  }
+  assert.equal((await packageCall('reserve', plan)).accepted, true);
+  assert.equal((await packageCall('actual', plan)).recorded, true);
+  const finish = { packageId, orderId, merchantId };
+  assert.equal((await packageCall('finish', finish)).finished, true);
+  const completed = await orderState(orderId, 'SHIPPED', 'COMMITTED');
+  assert.equal(completed.carrier, plan.carrier);
+  assert.equal(completed.trackingNumber, plan.trackingNumber);
+  assert(completed.shippedAt);
+  console.log(JSON.stringify({ orderId, packageId, trackingNumber: completed.trackingNumber }));
 } else if (phase === 'reverse-hold') {
   const state = JSON.parse(readFileSync(statePath, 'utf8'));
   const order = await beginProtocol('REVERSE');
