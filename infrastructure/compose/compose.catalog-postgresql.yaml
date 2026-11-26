@@ -1,0 +1,59 @@
+services:
+  catalog-db-postgresql:
+    container_name: fairy-commerceflow-catalog-db-postgresql
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: catalog
+      POSTGRES_PASSWORD: ${CATALOG_PG_ADMIN_PASSWORD:?Set the catalog PostgreSQL admin password}
+    volumes:
+      - catalog-postgresql-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "catalog"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    restart: unless-stopped
+
+  catalog-postgresql-roles:
+    image: postgres:17.11-alpine
+    environment:
+      PGPASSWORD: ${CATALOG_PG_ADMIN_PASSWORD:?Set the catalog PostgreSQL admin password}
+      CATALOG_PG_MIGRATOR_PASSWORD: ${CATALOG_PG_MIGRATOR_PASSWORD:?Set the catalog migration password}
+      CATALOG_PG_RUNTIME_PASSWORD: ${CATALOG_PG_RUNTIME_PASSWORD:?Set the catalog runtime password}
+    volumes:
+      - ./infrastructure/catalog/postgresql-roles.sql:/roles.sql:ro
+    command: ["psql", "-Xq", "-h", "catalog-db-postgresql", "-U", "postgres", "-d", "catalog", "-f", "/roles.sql"]
+    depends_on:
+      catalog-db-postgresql:
+        condition: service_healthy
+
+  catalog-postgresql-migrator:
+    image: redgate/flyway:12.4.0
+    environment:
+      FLYWAY_URL: jdbc:postgresql://catalog-db-postgresql:5432/catalog
+      FLYWAY_SCHEMAS: catalog
+      FLYWAY_USER: catalog_migrator
+      FLYWAY_PASSWORD: ${CATALOG_PG_MIGRATOR_PASSWORD:?Set the catalog migration password}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql,filesystem:/flyway/callbacks
+    volumes:
+      - ./services/catalog-service/src/main/resources/db/postgresql:/flyway/sql:ro
+      - ./infrastructure/catalog/postgresql-after-migrate.sql:/flyway/callbacks/afterMigrate.sql:ro
+    command: ["migrate"]
+    depends_on:
+      catalog-postgresql-roles:
+        condition: service_completed_successfully
+
+  catalog-service:
+    image: ${CATALOG_PG_IMAGE:?Set the verified catalog candidate image}
+    environment:
+      DATABASE_URL: jdbc:postgresql://catalog-db-postgresql:5432/catalog?currentSchema=catalog
+      DATABASE_USERNAME: catalog_runtime
+      DATABASE_PASSWORD: ${CATALOG_PG_RUNTIME_PASSWORD:?Set the catalog runtime password}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
+    depends_on: !override
+      catalog-postgresql-migrator:
+        condition: service_completed_successfully
+
+volumes:
+  catalog-postgresql-data:
