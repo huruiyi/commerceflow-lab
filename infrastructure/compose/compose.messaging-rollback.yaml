@@ -1,0 +1,29 @@
+services:
+  messaging-simulator-db-rollback:
+    container_name: fairy-commerceflow-messaging-simulator-db-rollback
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: messaging_platform
+      MYSQL_USER: ${MESSAGING_DATABASE_USERNAME:-messaging}
+      MYSQL_PASSWORD: ${MESSAGING_DATABASE_PASSWORD:-messaging-password}
+      MYSQL_ROOT_PASSWORD: ${MESSAGING_ROLLBACK_ROOT_PASSWORD:?Set the rollback MySQL admin password}
+    volumes:
+      - messaging-rollback-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    restart: unless-stopped
+
+  messaging-simulator-service:
+    image: ${MESSAGING_ROLLBACK_IMAGE:?Set the original messaging provider image}
+    environment:
+      MESSAGING_DATABASE_URL: jdbc:mysql://messaging-simulator-db-rollback:3306/messaging_platform?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=UTC
+      MESSAGING_FAULTS_ENABLED: "false"
+    depends_on: !override
+      messaging-simulator-db-rollback:
+        condition: service_healthy
+
+volumes:
+  messaging-rollback-data:

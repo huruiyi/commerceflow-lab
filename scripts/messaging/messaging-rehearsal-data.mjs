@@ -1,10 +1,13 @@
-// Copy the two provider tables between quiesced rehearsal databases, keeping each engine's Flyway history.
+// Copy the provider tables, keeping each engine's Flyway history and the original MySQL volume.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 const [project, phase] = process.argv.slice(2);
-if (!/^fairy-commerceflow-messaging-isolated-[a-f0-9]{12}$/.test(project)) throw Error('Invalid rehearsal scope');
 const daily = 'fairy-commerceflow';
+const release = ['release-forward','release-reverse'].includes(phase);
+if (!/^fairy-commerceflow-messaging-isolated-[a-f0-9]{12}$/.test(project) && !(release && project === daily)) {
+  throw Error('Invalid messaging migration scope');
+}
 const fields = {
   messaging_deliveries: ['request_id','provider_id','channel','recipient_mask','reference','fingerprint','outcome',
     'status','accepted_at','ready_at','finished_at'],
@@ -24,9 +27,10 @@ function db(service, scope = project) {
 }
 function sql(conn, statement) {
   const dbName = 'messaging_platform';
-  const args = conn.pg ? ['psql','-U','messaging','-d',dbName,'-XAtq','-v','ON_ERROR_STOP=1'] :
+  const args = conn.pg ? ['psql','-U',release ? 'postgres' : 'messaging','-d',dbName,'-XAtq','-v','ON_ERROR_STOP=1'] :
     ['sh','-ec','MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot --default-character-set=utf8mb4 -BNr "$1"','sh',dbName];
-  return docker(['exec','-i',conn.id,...args], (conn.pg ? "SET TIME ZONE 'UTC';\n" : "SET time_zone='+00:00';\n")+statement);
+  const path = release && conn.pg ? 'SET search_path TO messaging_platform;\n' : '';
+  return docker(['exec','-i',conn.id,...args], path + (conn.pg ? "SET TIME ZONE 'UTC';\n" : "SET time_zone='+00:00';\n")+statement);
 }
 function snapshot(conn) {
   const schema = conn.pg ? 'current_schema()' : 'DATABASE()';
@@ -54,15 +58,28 @@ const links = {
   seed:['messaging-simulator-db','messaging-simulator-db'],
   forward:['messaging-simulator-db','messaging-simulator-db-postgresql'],
   reverse:['messaging-simulator-db-postgresql','rollback-db'],
+  'release-forward':['messaging-simulator-db','messaging-simulator-db-postgresql'],
+  'release-reverse':['messaging-simulator-db-postgresql','messaging-simulator-db-rollback'],
 };
 if (!Object.hasOwn(links,phase)) throw Error('Unknown migration phase');
 const [source,target] = links[phase];
 const from = db(source,phase === 'seed' ? daily : project);
 const to = db(target);
+if (release) {
+  const provider = docker(['ps','-q','--filter','label=com.docker.compose.project='+project,
+    '--filter','label=com.docker.compose.service=messaging-simulator-service']);
+  if (provider) throw Error('Stop the provider before the final copy');
+  const frozen = from.pg ? sql(from, "SELECT NOT rolcanlogin AND NOT EXISTS (SELECT FROM pg_stat_activity WHERE usename='messaging_runtime') FROM pg_roles WHERE rolname='messaging_runtime'") :
+    sql(from, 'SELECT @@GLOBAL.super_read_only');
+  if (frozen !== (from.pg ? 't' : '1')) throw Error('Source ledger is still writable by the provider');
+}
 const sourceRows = snapshot(from);
-if (snapshot(to).length) throw Error('Expected an empty rehearsal destination');
+const digest = rows => createHash('sha256').update(JSON.stringify(rows)).digest('hex');
+const priorRows = snapshot(to);
+const identical = digest(priorRows) === digest(sourceRows);
+if (priorRows.length && !identical) throw Error('Destination contains different rows. Preserve it and use an empty destination.');
 const statements = ['BEGIN;'];
-for (const [table,...row] of sourceRows) {
+for (const [table,...row] of identical ? [] : sourceRows) {
   const values = fields[table].map((c,i) => {
     const literal = value(to,row[i]);
     return to.pg && c.endsWith('_at') ? 'CAST('+literal+' AS timestamptz)' : literal;
@@ -71,7 +88,6 @@ for (const [table,...row] of sourceRows) {
 }
 statements.push('COMMIT;');
 sql(to,statements.join('\n'));
-const digest = rows => createHash('sha256').update(JSON.stringify(rows)).digest('hex');
 if (digest(snapshot(to)) !== digest(sourceRows)) throw Error('Copied rows differ');
 console.log(JSON.stringify({phase, deliveries:sourceRows.filter(r=>r[0]==='messaging_deliveries').length,
   faults:sourceRows.filter(r=>r[0]==='messaging_faults').length,sha256:digest(sourceRows)}));

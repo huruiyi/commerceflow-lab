@@ -79,5 +79,6 @@ commerce/verify-coupons.ps1	BaseUrl,PaymentBaseUrl,ProjectName
 commerce/verify-merchant-operations.ps1	Chapter,BaseUrl,PaymentBaseUrl,LogisticsUrl,ProjectName,WarehouseBaseUrl,MessagingBaseUrl,NotificationDatabase
 messaging/verify-messaging-simulator.ps1	BaseUrl,ProjectName
 messaging/verify-messaging-postgresql.ps1	CandidateImage,BaselineImage,WithDailySnapshot
+messaging/verify-messaging-release.ps1	BackupPath,ReleaseEnvFile,EvidenceDirectory
 invoice/verify-invoice-simulator.ps1	MaxWaitSeconds
 invoice/verify-commerce-invoices.ps1	SkipBuild,MaxWaitSeconds,PlaywrightModule,ScreenshotDirectory

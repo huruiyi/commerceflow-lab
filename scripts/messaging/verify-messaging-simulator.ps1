@@ -30,17 +30,21 @@ function Container([string]$Service){
 
 function Sql([string]$Query){
   if ($postgresql) {
-    return docker exec (Container messaging-simulator-db-postgresql) psql -U messaging -d messaging_platform -XAtq -v ON_ERROR_STOP=1 -c $Query
+    return docker exec -e 'PGOPTIONS=-c default_transaction_read_only=on -c search_path=messaging_platform,public' (Container $dbService) sh -ec 'exec psql -U "${POSTGRES_USER:-postgres}" -d messaging_platform -XAtq -v ON_ERROR_STOP=1 -c "$1"' sh $Query
   }
-  docker exec (Container messaging-simulator-db) sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -NB messaging_platform -e "$1"' sh $Query
+  docker exec (Container $dbService) sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -NB messaging_platform -e "$1"' sh $Query
 }
 
 $url = docker inspect (Container messaging-simulator-service) --format '{{range .Config.Env}}{{println .}}{{end}}' |
   Where-Object { $_ -like 'MESSAGING_DATABASE_URL=*' }
-$postgresql = $url -like 'MESSAGING_DATABASE_URL=jdbc:postgresql://messaging-simulator-db-postgresql:5432/messaging_platform*'
-if (!$postgresql -and $url -notlike 'MESSAGING_DATABASE_URL=jdbc:mysql://messaging-simulator-db:3306/messaging_platform*') {
+if ($url -match '^MESSAGING_DATABASE_URL=jdbc:postgresql://(messaging-simulator-db-postgresql):5432/messaging_platform(?:\?|$)') {
+  $postgresql = $true
+} elseif ($url -match '^MESSAGING_DATABASE_URL=jdbc:mysql://(messaging-simulator-db(?:-rollback)?):3306/messaging_platform(?:\?|$)') {
+  $postgresql = $false
+} else {
   throw 'Unexpected messaging ledger binding'
 }
+$dbService = $Matches[1]
 $session=Json-Body (Request GET '/api/admin/session' $null 200)
 if([bool]$session.faultsEnabled-ne$isolated){throw 'Unexpected fault injection mode'}
 Request GET '/api/admin/deliveries?channel=SMS' $null 401 None|Out-Null

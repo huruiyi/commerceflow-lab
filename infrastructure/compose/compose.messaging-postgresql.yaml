@@ -1,0 +1,59 @@
+services:
+  messaging-simulator-db-postgresql:
+    container_name: fairy-commerceflow-messaging-simulator-db-postgresql
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: messaging_platform
+      POSTGRES_PASSWORD: ${MESSAGING_PG_ADMIN_PASSWORD:?Set the messaging PostgreSQL admin password}
+    volumes:
+      - messaging-postgresql-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "messaging_platform"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    restart: unless-stopped
+
+  messaging-postgresql-roles:
+    image: postgres:17.11-alpine
+    environment:
+      PGPASSWORD: ${MESSAGING_PG_ADMIN_PASSWORD:?Set the messaging PostgreSQL admin password}
+      MESSAGING_PG_MIGRATOR_PASSWORD: ${MESSAGING_PG_MIGRATOR_PASSWORD:?Set the messaging migration password}
+      MESSAGING_PG_RUNTIME_PASSWORD: ${MESSAGING_PG_RUNTIME_PASSWORD:?Set the messaging runtime password}
+    volumes:
+      - ./infrastructure/messaging/postgresql-roles.sql:/roles.sql:ro
+    command: ["psql", "-Xq", "-h", "messaging-simulator-db-postgresql", "-U", "postgres", "-d", "messaging_platform", "-f", "/roles.sql"]
+    depends_on:
+      messaging-simulator-db-postgresql:
+        condition: service_healthy
+
+  messaging-postgresql-migrator:
+    image: redgate/flyway:12.4.0
+    environment:
+      FLYWAY_URL: jdbc:postgresql://messaging-simulator-db-postgresql:5432/messaging_platform
+      FLYWAY_SCHEMAS: messaging_platform
+      FLYWAY_USER: messaging_migrator
+      FLYWAY_PASSWORD: ${MESSAGING_PG_MIGRATOR_PASSWORD:?Set the messaging migration password}
+    volumes:
+      - ./simulators/messaging-platform/service/src/main/resources/db/postgresql:/flyway/sql:ro
+      - ./infrastructure/messaging/postgresql-after-migrate.sql:/flyway/callbacks/afterMigrate.sql:ro
+    command: ["-locations=filesystem:/flyway/sql,filesystem:/flyway/callbacks", "migrate"]
+    depends_on:
+      messaging-postgresql-roles:
+        condition: service_completed_successfully
+
+  messaging-simulator-service:
+    image: ${MESSAGING_PG_IMAGE:?Set the verified messaging candidate image}
+    environment:
+      MESSAGING_DATABASE_URL: jdbc:postgresql://messaging-simulator-db-postgresql:5432/messaging_platform?currentSchema=messaging_platform
+      MESSAGING_DATABASE_USERNAME: messaging_runtime
+      MESSAGING_DATABASE_PASSWORD: ${MESSAGING_PG_RUNTIME_PASSWORD:?Set the messaging runtime password}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
+      MESSAGING_FAULTS_ENABLED: "false"
+    depends_on: !override
+      messaging-postgresql-migrator:
+        condition: service_completed_successfully
+
+volumes:
+  messaging-postgresql-data:

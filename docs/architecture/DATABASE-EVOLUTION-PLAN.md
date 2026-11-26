@@ -49,7 +49,60 @@ pwsh scripts/messaging/verify-messaging-postgresql.ps1 -CandidateImage commercef
 
 候选镜像使用 `postgresql` Spring Profile 选择 PostgreSQL 迁移和 Mapper；MySQL 使用默认 Profile。演练结束后服务停止，三个隔离卷保留，项目名和两次迁移摘要写入输出。
 
-2026-11-26 已完成带日常快照的演练，正向迁入 46 条投递，反向恢复 55 条投递。日常切换仍待准备账号、卷、最后一批投递的同步及发布窗口。[回执与恢复验收](../IMPLEMENTED.md#2104-2026-11-26-站外消息模拟库-postgresql-隔离验收)
+2026-11-26 已完成带日常快照的演练，正向迁入 46 条投递，反向恢复 55 条投递。随后使用日常发布配置与原生备份复验了停写期间的最终同步，账号、目标卷和回退卷均已准备。[回执与恢复验收](../IMPLEMENTED.md#2104-2026-11-26-站外消息模拟库-postgresql-隔离验收)
+
+### 站外消息模拟库日常发布窗口
+
+本机发布目录 `%LOCALAPPDATA%/CommerceFlow/releases/messaging-pg-ready-1795670404` 已保存 MySQL 一致性备份、SHA-256、原版与候选镜像 ID、Compose 参数、角色凭据及回退表结构。日常 PostgreSQL 17.11 已使用卷 `fairy-commerceflow_messaging-postgresql-data` 建立 V1。独立回退卷 `fairy-commerceflow_messaging-rollback-data` 含 MySQL V1/V2 的结构和迁移历史，业务表为空，实例平时停止。原 MySQL 卷为 `fairy-commerceflow_messaging-simulator-db-data`。
+
+`messaging_migrator` 持有业务 schema 并执行 Flyway。服务使用 `messaging_runtime`，关闭进程内 Flyway 和故障注入。该账号可读和新增投递，只可更新 `status`、`finished_at` 两列。构建发布配置时叠加消息服务当前的 Compose 文件、仓库 `.env` 和发布目录的 `standby.env`，保留原端点与签名密钥。服务切换期间，通知服务将供应商暂不可用的请求留待重试。
+
+**窗口前复验。** 在仓库根目录用 PowerShell 7.4+ 运行。备份及数据库凭据留在本机发布目录。校验镜像 ID、卷和备份哈希。以下加载的三个参数数组分别对应原服务、PostgreSQL 和回退服务。
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $true
+$release = Join-Path $env:LOCALAPPDATA 'CommerceFlow/releases/messaging-pg-ready-1795670404'
+$old = Get-Content "$release/original-args.json" -Raw | ConvertFrom-Json
+$pg = Get-Content "$release/daily-pg-args.json" -Raw | ConvertFrom-Json
+$back = Get-Content "$release/rollback-args.json" -Raw | ConvertFrom-Json
+$binding = Get-Content "$release/release-binding.json" -Raw | ConvertFrom-Json
+if ((docker inspect fairy-commerceflow-messaging-simulator-service --format '{{.Image}}') -ne $binding.providerImage -or
+    (docker image inspect $binding.candidateTag --format '{{.Id}}') -ne $binding.candidateImage) { throw '消息服务镜像已变化' }
+if ((Get-FileHash "$release/messaging-backup.sql").Hash -ne (Get-Content "$release/mysql-backup-sha256.json" -Raw | ConvertFrom-Json).Hash) { throw '备份哈希不一致' }
+pwsh scripts/messaging/verify-messaging-release.ps1 -BackupPath "$release/messaging-backup.sql" -ReleaseEnvFile "$release/standby.env" -EvidenceDirectory $release
+```
+
+**窗口内切换。** 本轮数据量小，停写后一次复制最终全量，包含备份之后新增、更新和已消耗的故障设置。记录窗口开始时通知库的待发送数及已有供应商回执。停消息服务，持久化原库只读，再保存此刻的完整备份并同步。复制入口要求服务已停、源库已锁定，目标为空或全字段摘要已一致。
+
+```powershell
+$stamp = Get-Date -Format yyyyMMdd-HHmmss
+$mysql = 'fairy-commerceflow-messaging-simulator-db'
+$target = 'fairy-commerceflow-messaging-simulator-db-postgresql'
+docker @old stop messaging-simulator-service
+docker exec $mysql sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -e "SET PERSIST super_read_only=ON"'
+docker exec $mysql sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysqldump -uroot --single-transaction --no-tablespaces --set-gtid-purged=OFF --skip-lock-tables --hex-blob --routines --events --triggers messaging_platform' > "$release/frozen-$stamp.sql"
+node scripts/messaging/messaging-rehearsal-data.mjs fairy-commerceflow release-forward | Tee-Object "$release/forward-$stamp.json"
+docker @pg up -d --no-deps --no-build --wait messaging-simulator-service
+```
+
+启动后核对服务健康、受限账号的实际连接，以及历史通知与供应商的请求号、供应商编号、渠道与状态。日常直接送测短信和邮件可运行 `pwsh scripts/messaging/verify-messaging-simulator.ps1`。同步检查通知库中窗口内待投递记录能否恢复，记录新增回执。若在新服务首次启动之前中断，确认 PostgreSQL 没有写入方后，可在原 MySQL 执行 `SET PERSIST super_read_only=OFF` 和 `SET PERSIST read_only=OFF` 并通过原配置恢复旧版服务。新服务启动后按下列流程保留所有后续写入。
+
+**切换后回退。** 停止供应商、封住 PostgreSQL 运行账号并断开其残留连接。备份 PostgreSQL，把最终账本复制到独立 MySQL 回退卷。原 MySQL 继续只读。下面沿用前文参数，单独执行时先重新加载参数并设置目标容器名。
+
+```powershell
+$stamp = Get-Date -Format yyyyMMdd-HHmmss
+$target = 'fairy-commerceflow-messaging-simulator-db-postgresql'
+docker @pg stop messaging-simulator-service
+docker exec $target psql -U postgres -d messaging_platform -v ON_ERROR_STOP=1 -c 'ALTER ROLE messaging_runtime NOLOGIN'
+docker exec $target psql -U postgres -d messaging_platform -v ON_ERROR_STOP=1 -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename='messaging_runtime'"
+docker exec $target pg_dump -U postgres -d messaging_platform -Fc > "$release/postgresql-$stamp.dump"
+docker @back start --wait messaging-simulator-db-rollback
+node scripts/messaging/messaging-rehearsal-data.mjs fairy-commerceflow release-reverse | Tee-Object "$release/reverse-$stamp.json"
+docker @back up -d --no-deps --no-build --wait messaging-simulator-service
+```
+
+回退后用旧版服务读取切换前后各一笔回执，核对消息状态及供应商编号，再观察通知服务重试收敛。若复制发现非空目标与源摘要不同，将保留两端数据并报错。此时核对项目、卷和写入记录后，在独立空目标恢复相应表结构再重试。[发布准备验收](../IMPLEMENTED.md#2105-2026-11-26-站外消息模拟库日常发布准备)
 
 ### 核心商城的启动与回退
 
