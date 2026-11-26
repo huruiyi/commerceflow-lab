@@ -44,6 +44,12 @@ pwsh -File scripts/payment/verify-payment-simulator-postgresql.ps1 `
 
 V1 建立与 MySQL 对应的 17 张业务表、16 个外键、10 个自增序列和追加式审计约束。复制历史账本后应用 V2。V2 只为空库初始化后台账号、角色及审计链。演练逐表对照历史与回迁数据，回退 MySQL 在账本复制后恢复原审计触发器。回调接收器校验应用实际生成的签名。支付通知遇到 503 后通过原收银台交易重试，退款结果落库后通过原退款号补发，打款回调使用数据库保存的下次投递时间自动重试。[支付渠道隔离验收](../IMPLEMENTED.md#2129-2026-11-26-支付渠道模拟库-postgresql-隔离验收)
 
+### 支付渠道模拟库日常发布准备
+
+准备目录为 `%LOCALAPPDATA%/CommerceFlow/releases/payment-simulator-pg-ready-1795699510/`。日常模拟器和支付编排分别继续使用各自的原 MySQL。目标卷 `fairy-commerceflow_payment-simulator-postgresql-data` 已应用 PostgreSQL 17.11 V1 空结构。迁移账号 `payment_simulator_migrator` 管理结构和 Flyway，应用账号 `payment_simulator_runtime` 在备用库保持禁用登录。独立回退卷 `fairy-commerceflow_payment-simulator-rollback-data` 已验证可启动，保留 V7 空账本、七条原 Flyway 记录及两个审计触发器，回退容器停止。
+
+日常 Compose 覆盖、候选和原镜像绑定、备份摘要及权限实测均记录在准备目录。隔离复验使用同一组迁移与授权 SQL，应用以受限账号连接。正式窗口需重新核对原库、镜像、备份和配置，并保存冻结点的待发回调及计划重试时间。若正式运行后回退，先保存 PostgreSQL 最新账本，再在独立 MySQL 卷接续，并用原打款号和原退款号核对投递。回迁复制时暂停业务写入，完成数据校验后加载审计触发器并恢复旧版应用。[支付渠道发布准备验收](../IMPLEMENTED.md#2130-2026-11-26-支付渠道模拟库日常发布准备)
+
 ### 订单服务 PostgreSQL 隔离演练
 
 从日常订单 MySQL V12 的单事务原生备份恢复订单账本。PostgreSQL 17.11 V1 保留订单金额生成列、16 张业务表、10 个外键和 5 个自增序列，V2 为全新环境初始化水位。正反向复制均核对逐表全字段摘要及下一自增值。`postgresql` 配置用于订单执行模式，MySQL 影子复制路径继续使用原配置。

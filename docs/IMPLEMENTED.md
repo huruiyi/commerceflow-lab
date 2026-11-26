@@ -2068,6 +2068,16 @@ PostgreSQL 17.11 目标卷 `fairy-commerceflow_order-postgresql-data` 已应用 
 
 日常支付渠道模拟器仍使用原 MySQL，原库导出在去除导出时间后完全一致，52 个日常运行容器 ID 一致。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/payment-simulator-pg-rehearsal-1795698665/`，全程验收项目为 `fairy-commerceflow-payment-simulator-pg-1e5b2bfca077`。[隔离复测步骤](architecture/DATABASE-EVOLUTION-PLAN.md#支付渠道模拟库-postgresql-隔离演练)
 
+### 2.130 2026-11-26 支付渠道模拟库日常发布准备
+
+PostgreSQL 17.11 目标卷 `fairy-commerceflow_payment-simulator-postgresql-data` 已应用 V1 空结构。迁移账号管理结构和 Flyway，受限账号 `payment_simulator_runtime` 在日常备用库保持禁用登录。实测应用角色无法创建表、改写交易或退款金额、改写打款编号、删除审计记录，且无权读取签名防重记录和 Flyway 历史。独立 MySQL 回退卷实测启动健康，空账本含七条原 Flyway 记录和两个审计触发器，回退实例已停止。
+
+最新日常 MySQL V7 备份含 619 笔渠道交易、144 笔退款、1 笔打款，备份采集时无待发打款。两笔历史支付、一笔历史关单和一笔历史退款与支付编排逐笔对平。隔离环境在正向复制前生成待发打款，正向同步 17 表 2,366 行，反向回迁 17 表 2,398 行。逐表全字段摘要、10 个下一自增值及两次重复校验一致。
+
+一笔打款从隔离 MySQL 迁入后，PostgreSQL 用同一打款号自动补投。另一笔在 PostgreSQL 留待回迁，MySQL V7 旧版用原打款号补投成功。两个方向均保留精确到微秒的原计划重试时间，各录得一次成功回执。另有一笔 7.25 元退款已成功但故意漏发，回迁后使用同一商户退款号及渠道退款号补发，接收方验签成功。隔离 PostgreSQL 以实际受限账号复验并发支付、重复关单、退款和回调重试。原生归档在独立空库恢复，17 张表、10 个下一自增值、16 个外键及待发打款和退款状态一致。
+
+日常模拟器保持 MySQL V7，原库导出去除导出时间后完全一致，52 个原日常运行容器 ID 一致。11 项服务测试、95 项脚本契约和代码质量检查通过。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/payment-simulator-pg-ready-1795699510/`，完整复验项目为 `fairy-commerceflow-payment-simulator-pg-545b2c6481b8`。[日常发布准备与回退说明](architecture/DATABASE-EVOLUTION-PLAN.md#支付渠道模拟库日常发布准备)
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。
