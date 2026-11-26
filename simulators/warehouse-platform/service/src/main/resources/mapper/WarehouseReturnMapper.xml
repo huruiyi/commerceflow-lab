@@ -14,6 +14,13 @@
     ON DUPLICATE KEY UPDATE return_id=return_id
   </insert>
 
+  <insert id="insert" databaseId="postgresql">
+    INSERT INTO warehouse_returns (
+      return_id,outbound_id,order_id,order_line_id,warehouse_id,tracking_number,expected_quantity
+    ) VALUES (#{returnId},#{outboundId},#{orderId},#{orderLineId},#{warehouseId},#{trackingNumber},#{expectedQuantity})
+    ON CONFLICT (return_id) DO NOTHING
+  </insert>
+
   <select id="lock" resultType="vip.fairy.commerceflow.warehouse.WarehouseReturns$Receipt">
     SELECT <include refid="fields"/> FROM warehouse_returns WHERE return_id=#{id} FOR UPDATE
   </select>
