@@ -42,7 +42,62 @@ $legacy = docker inspect fairy-commerceflow-inventory-service --format '{{.Confi
 pwsh scripts/inventory/verify-inventory-postgresql.ps1 -BackupPath "$release/inventory-mysql.sql" -CandidateImage commerceflow-inventory-pg:rehearsal -BaselineImage $legacy -EvidenceDirectory $release
 ```
 
-正向迁移前，旧版在隔离 MySQL 预占 2 件，PostgreSQL 接续释放。再通过签名接口预占和提交 3 件，按订单行从仓库 1 部分出库 2 件，经 Kafka 收到一条出库事件，沿用原出库单退货回补 1 件。复验重复预占、释放、提交、出库和回补，以及缺货、错误出库单和超额回补。PostgreSQL 写入另一笔预占后停写，回迁到独立 MySQL V10，旧版释放该预占并读回出库与回补凭证。[库存隔离验收记录](../IMPLEMENTED.md#2123-2026-11-26-库存服务-postgresql-隔离验收)
+正向迁移前，旧版在隔离 MySQL 预占 2 件，PostgreSQL 接续释放。再通过签名接口预占和提交 3 件，按订单行从仓库 1 部分出库 2 件，沿用原出库单退货回补 1 件。复验重复预占、释放、提交、出库和回补，以及缺货、错误出库单和超额回补。发布准备演练在两个方向各留一条待投递出库事件，记录原事件号、原报文和下次重试时间。恢复隔离 Kafka 后，接管应用各补投原事件一次。回迁到独立 MySQL V10 后，旧版释放 PostgreSQL 创建的预占并读回出库与回补凭证。[库存隔离验收记录](../IMPLEMENTED.md#2123-2026-11-26-库存服务-postgresql-隔离验收) · [发布准备验收](../IMPLEMENTED.md#2124-2026-11-26-库存服务日常发布准备)
+
+### 库存服务日常发布窗口
+
+准备目录为 `%LOCALAPPDATA%/CommerceFlow/releases/inventory-pg-ready-1795694316/`。PostgreSQL 17.11 目标卷 `fairy-commerceflow_inventory-postgresql-data` 已应用 V1 空结构。`inventory_migrator` 持有结构，`inventory_runtime` 处于禁用登录状态，正式启用后可写入库存账本和更新投递状态。独立回退卷 `fairy-commerceflow_inventory-rollback-data` 已载入 MySQL V10 结构和十条原 Flyway 记录。回退实例暂停，日常仍用原 MySQL 和 Kafka。
+
+从仓库根目录加载已核对的 Compose 参数。切换前检查原应用和候选镜像 ID、备份摘要与 PostgreSQL 权限。备份及发布凭据保存在仓库外。
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $true
+$release = Join-Path $env:LOCALAPPDATA 'CommerceFlow/releases/inventory-pg-ready-1795694316'
+$binding = Get-Content "$release/release-binding.json" -Raw | ConvertFrom-Json
+$old = Get-Content "$release/original-args.json" -Raw | ConvertFrom-Json
+$pg = Get-Content "$release/postgresql-args.json" -Raw | ConvertFrom-Json
+$back = Get-Content "$release/rollback-args.json" -Raw | ConvertFrom-Json
+$source = 'fairy-commerceflow-inventory-db'
+$target = 'fairy-commerceflow-inventory-db-postgresql'
+if ((docker inspect fairy-commerceflow-inventory-service --format '{{.Image}}') -cne $binding.legacyId -or
+    (docker image inspect $binding.legacyTag --format '{{.Id}}') -cne $binding.legacyId -or
+    (docker image inspect $binding.candidateTag --format '{{.Id}}') -cne $binding.candidateId -or
+    (Get-FileHash "$release/inventory-mysql.sql").Hash -cne (Get-Content "$release/backup.sha256")) {
+    throw '库存镜像或备份与发布准备记录不一致'
+}
+if ((docker exec $target psql -U postgres -d inventory -XAtq -v ON_ERROR_STOP=1 -c (Get-Content infrastructure/inventory/verify-runtime.sql -Raw)) -cne 't') {
+    throw '库存账号权限已变化'
+}
+```
+
+正式切换时只停库存应用并持久冻结原 MySQL。记录冻结点的活动预占、分仓余额和未投递出库事件。复制十七张业务表和两个自增序列后再迁移 V2，以沿用迁入的仓库资料和待投递事件。保留现有 Kafka 主题和下游消费位置。
+
+```powershell
+$stamp = Get-Date -Format yyyyMMdd-HHmmss
+docker @old stop inventory-service
+docker exec $source sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -e "SET PERSIST super_read_only=ON"'
+docker exec $source sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysqldump -uroot --single-transaction --no-tablespaces --set-gtid-purged=OFF --skip-lock-tables --hex-blob inventory' > "$release/frozen-$stamp.sql"
+node scripts/inventory/inventory-postgresql-ledger.mjs fairy-commerceflow ToPostgreSQL "$release/forward-$stamp.json"
+docker @pg run --rm --no-deps inventory-postgresql-migrator
+docker exec $target psql -U postgres -d inventory -v ON_ERROR_STOP=1 -c 'ALTER ROLE inventory_runtime LOGIN'
+docker @pg up -d --no-deps --no-build --wait inventory-service
+```
+
+从 PostgreSQL 确认应用使用 `inventory_runtime`，核对冻结的活动预占和分仓余额，以原事件号检查待投递出库回执，再做一笔日常新交易。若应用启动前中止且确认目标无新增业务写入，禁用 PostgreSQL 运行账号，解除原 MySQL 的 `super_read_only` 和 `read_only`，用 `$old` 恢复库存应用。
+
+新应用已受理业务时，先停库存应用，禁用 PostgreSQL 运行账号并结束余留连接。归档最新 PostgreSQL 后反向复制到独立 MySQL 回退卷，原 MySQL 保持只读。已经写入的目标只允许同方向重试校验。回退后的应用继续使用现有 Kafka，按原事件号核对待投递记录。
+
+```powershell
+$stamp = Get-Date -Format yyyyMMdd-HHmmss
+docker @pg stop inventory-service
+docker exec $target psql -U postgres -d inventory -v ON_ERROR_STOP=1 -c 'ALTER ROLE inventory_runtime NOLOGIN'
+docker exec $target psql -U postgres -d inventory -v ON_ERROR_STOP=1 -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename='inventory_runtime'"
+docker exec $target pg_dump -U postgres -d inventory -Fc > "$release/postgresql-$stamp.dump"
+docker @back start --wait inventory-db-rollback
+node scripts/inventory/inventory-postgresql-ledger.mjs fairy-commerceflow ToMySQL "$release/reverse-$stamp.json"
+docker @back up -d --no-deps --no-build --wait inventory-service
+```
 
 ### 履约服务 PostgreSQL 隔离演练
 

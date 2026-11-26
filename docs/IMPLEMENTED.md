@@ -2010,6 +2010,16 @@ MySQL 和 PostgreSQL 各自通过发票专项回归。两边均核对了 9 条�
 
 日常库存仍运行在 MySQL V10，验收前后 50 个日常容器 ID 及原库导出数据摘要一致。候选镜像也通过 PostgreSQL 空库启动，并作为 MySQL V10 应用复跑同一组双向验收。库存镜像内 11 项测试、代码质量检查和 93 项脚本契约通过。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/inventory-pg-rehearsal-1795693576/`，旧版回退使用 `fairy-commerceflow-inventory-pg-5b66e8a2eede`，候选 MySQL 复验使用 `fairy-commerceflow-inventory-pg-44ca18821701`。[隔离复测步骤](architecture/DATABASE-EVOLUTION-PLAN.md#库存服务-postgresql-隔离演练)
 
+### 2.124 2026-11-26 库存服务日常发布准备
+
+日常 PostgreSQL 17.11 目标卷已应用 V1 空结构。迁移账号 `inventory_migrator` 持有结构，应用账号 `inventory_runtime` 只授予库存业务所需权限。实际检查确认应用角色不能创建结构、改写出库事件报文、删除库存流水或读取 Flyway 历史。备用库上的应用账号保持禁用登录。独立 MySQL 回退卷载入 V10 结构及十条与日常一致的 Flyway 记录，回退实例暂停。
+
+最新备份含 3 笔有效预占共 3 件、55 条分仓余额、54 条已投递出库事件，待投递为零。隔离正向复制 17 表 3,947 行，反向恢复 17 表 3,964 行。两个方向的全字段摘要和两个下一自增值一致，重试校验清单一致。三笔历史预占的编号、仓库、数量和版本在两个方向均一致，商品余额与分仓汇总对平。PostgreSQL 成功释放从 MySQL 带入的 2 件预占，回退后旧版释放 PostgreSQL 带入的 1 件预占，出库和回补凭证可读。
+
+在隔离 Kafka 暂停期间，分别为订单 9200755 和 9200752 生成一条待投递出库事件。迁移前后的原事件号、完整报文和下次重试时间一致。恢复 Kafka 后，PostgreSQL 候选补投 `outbound:b2e11d49-7316-4180-9992-0f32e7e571b1:9201755`，回退 MySQL 旧版补投 `outbound:5050266c-9138-46af-844d-89fb4f4bea08:9201752`，对应的 Kafka 分区每次只新增一条记录，两条出库事件均标记为已投递。PostgreSQL 原生归档在独立空库恢复，核对 17 表、两个自增值、分仓汇总及归档时的一笔待投递和一笔在途预占。
+
+日常库存仍用 MySQL V10，原库前后导出内容一致，50 个原日常容器 ID 一致。代码质量和 93 项脚本契约通过。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/inventory-pg-ready-1795694316/`，完整复验项目为 `fairy-commerceflow-inventory-pg-ce0a8d193427`。[日常发布与回退步骤](architecture/DATABASE-EVOLUTION-PLAN.md#库存服务日常发布窗口)
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。
