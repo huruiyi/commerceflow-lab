@@ -1,0 +1,58 @@
+services:
+  logistics-simulator-db-postgresql:
+    container_name: fairy-commerceflow-logistics-simulator-db-postgresql
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: logistics_platform
+      POSTGRES_PASSWORD: ${LOGISTICS_PG_ADMIN_PASSWORD:?Set the logistics PostgreSQL admin password}
+    volumes:
+      - logistics-postgresql-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "logistics_platform"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    restart: unless-stopped
+
+  logistics-postgresql-roles:
+    image: postgres:17.11-alpine
+    environment:
+      PGPASSWORD: ${LOGISTICS_PG_ADMIN_PASSWORD:?Set the logistics PostgreSQL admin password}
+      LOGISTICS_PG_MIGRATOR_PASSWORD: ${LOGISTICS_PG_MIGRATOR_PASSWORD:?Set the logistics migration password}
+      LOGISTICS_PG_RUNTIME_PASSWORD: ${LOGISTICS_PG_RUNTIME_PASSWORD:?Set the logistics runtime password}
+    volumes:
+      - ./infrastructure/logistics/postgresql-roles.sql:/roles.sql:ro
+    command: ["psql", "-Xq", "-h", "logistics-simulator-db-postgresql", "-U", "postgres", "-d", "logistics_platform", "-f", "/roles.sql"]
+    depends_on:
+      logistics-simulator-db-postgresql:
+        condition: service_healthy
+
+  logistics-postgresql-migrator:
+    image: redgate/flyway:12.4.0
+    environment:
+      FLYWAY_URL: jdbc:postgresql://logistics-simulator-db-postgresql:5432/logistics_platform
+      FLYWAY_SCHEMAS: logistics_platform
+      FLYWAY_USER: logistics_migrator
+      FLYWAY_PASSWORD: ${LOGISTICS_PG_MIGRATOR_PASSWORD:?Set the logistics migration password}
+    volumes:
+      - ./simulators/logistics-platform/service/src/main/resources/db/postgresql:/flyway/sql:ro
+      - ./infrastructure/logistics/postgresql-after-migrate.sql:/flyway/callbacks/afterMigrate.sql:ro
+    command: ["-locations=filesystem:/flyway/sql,filesystem:/flyway/callbacks", "migrate"]
+    depends_on:
+      logistics-postgresql-roles:
+        condition: service_completed_successfully
+
+  logistics-simulator-service:
+    image: ${LOGISTICS_PG_IMAGE:?Set the verified logistics candidate image}
+    environment:
+      LOGISTICS_DATABASE_URL: jdbc:postgresql://logistics-simulator-db-postgresql:5432/logistics_platform?currentSchema=logistics_platform
+      LOGISTICS_DATABASE_USERNAME: logistics_runtime
+      LOGISTICS_DATABASE_PASSWORD: ${LOGISTICS_PG_RUNTIME_PASSWORD:?Set the logistics runtime password}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
+    depends_on: !override
+      logistics-postgresql-migrator:
+        condition: service_completed_successfully
+
+volumes:
+  logistics-postgresql-data:
