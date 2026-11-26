@@ -1,0 +1,31 @@
+services:
+  logistics-simulator-db:
+    container_name: !reset null
+    ports: !reset []
+    command: ["--innodb-use-native-aio=OFF"]
+  logistics-simulator-service:
+    container_name: !reset null
+    ports: !reset []
+    networks:
+      default:
+        aliases: [logistics]
+    environment:
+      LOGISTICS_REQUEST_SECRET: rehearsal-request
+      LOGISTICS_CALLBACK_SECRET: rehearsal-callback
+      LOGISTICS_ADMIN_TOKEN: rehearsal-admin
+      LOGISTICS_APP_ID: commerceflow-storefront
+      LOGISTICS_AUTO_PROGRESS_ENABLED: "false"
+      LOGISTICS_CALLBACK_DELIVERY_ENABLED: "true"
+      LOGISTICS_CALLBACK_DELIVERY_SCAN_INTERVAL: 300ms
+      LOGISTICS_CALLBACK_DELIVERY_RETRY_DELAY: 10s
+      LOGISTICS_CALLBACK_DELIVERY_MAX_ATTEMPTS: "10"
+  receiver:
+    image: node:26.13.1-alpine3.24
+    command: ["node", "/test/receiver.mjs"]
+    volumes:
+      - ./scripts/fulfillment/logistics-rehearsal-receiver.mjs:/test/receiver.mjs:ro
+    environment:
+      CALLBACK_SECRET: rehearsal-callback
+networks:
+  default:
+    internal: true
