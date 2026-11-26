@@ -1,0 +1,58 @@
+# The rehearsal runner supplies a unique project, image and application binding for each phase.
+name: fairy-commerceflow-messaging-isolated-local
+x-mysql: &mysql
+  image: mysql:8.4
+  environment:
+    MYSQL_DATABASE: messaging_platform
+    MYSQL_USER: messaging
+    MYSQL_PASSWORD: rehearsal
+    MYSQL_ROOT_PASSWORD: rehearsal-root
+  healthcheck:
+    test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+    interval: 2s
+    timeout: 3s
+    retries: 60
+
+services:
+  messaging-simulator-db:
+    <<: *mysql
+    volumes:
+      - source:/var/lib/mysql
+  rollback-db:
+    <<: *mysql
+    volumes:
+      - rollback:/var/lib/mysql
+  messaging-simulator-db-postgresql:
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: messaging_platform
+      POSTGRES_USER: messaging
+      POSTGRES_PASSWORD: rehearsal
+    volumes:
+      - candidate:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "messaging", "-d", "messaging_platform"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+  messaging-simulator-service:
+    image: ${REHEARSAL_MESSAGING_IMAGE:?set the phase image}
+    ports:
+      - "127.0.0.1:${REHEARSAL_MESSAGING_PORT:?set a rehearsal loopback port}:8080"
+    environment:
+      MESSAGING_DATABASE_URL: ${REHEARSAL_MESSAGING_JDBC:?set the phase JDBC URL}
+      SPRING_PROFILES_ACTIVE: ${REHEARSAL_MESSAGING_PROFILE:-default}
+      MESSAGING_DATABASE_USERNAME: messaging
+      MESSAGING_DATABASE_PASSWORD: rehearsal
+      MESSAGING_ADMIN_TOKEN: ${MESSAGING_ADMIN_TOKEN:-demo-messaging-admin-token}
+      MESSAGING_SENDER_SECRET: ${MESSAGING_SENDER_SECRET:-demo-messaging-sender-secret}
+      MESSAGING_FAULTS_ENABLED: "true"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+volumes:
+  source:
+  rollback:
+  candidate:

@@ -19,58 +19,7 @@ if(!$script:adminToken){$script:adminToken='demo-messaging-admin-token'}
 $script:senderSecret=$env:MESSAGING_SENDER_SECRET
 if(!$script:senderSecret){$script:senderSecret='demo-messaging-sender-secret'}
 
-function Request([string]$Method,[string]$Path,$Body,[int]$Expected,[string]$Auth='Admin'){
-  $json=if($Body-is[string]){$Body}elseif($null-eq$Body){''}else{$Body|ConvertTo-Json -Compress}
-  $headers=@{}
-  if($Auth-eq'Admin'){$headers.Authorization="Bearer $script:adminToken"}
-  if($Auth-eq'Sender'){
-    $time=[datetimeoffset]::UtcNow.ToUnixTimeSeconds().ToString()
-    $nonce=[guid]::NewGuid().ToString()
-    $hash=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($json))).ToLowerInvariant()
-    $payload=[string]::Join([char]10,@($Method,$Path,$time,$nonce,$hash))
-    $signature=[Security.Cryptography.HMACSHA256]::HashData([Text.Encoding]::UTF8.GetBytes($script:senderSecret),
-      [Text.Encoding]::UTF8.GetBytes($payload))
-    $headers=@{'X-CommerceFlow-Timestamp'=$time;'X-CommerceFlow-Request-Id'=$nonce;
-      'X-CommerceFlow-Content-SHA256'=$hash;'X-CommerceFlow-Signature'=[Convert]::ToHexString($signature).ToLowerInvariant()}
-  }
-  $options=@{Method=$Method;Headers=$headers;SkipHttpErrorCheck=$true;TimeoutSec=12}
-  if($json){$options.Body=$json;$options.ContentType='application/json; charset=utf-8'}
-  $response=Invoke-WebRequest "$BaseUrl$Path" @options
-  if($response.StatusCode-ne$Expected){throw "Unexpected $($response.StatusCode) for $Method $Path, expected $Expected"}
-  $response
-}
-
-function Json-Body($response){
-  $response.Content|ConvertFrom-Json
-}
-
-function Command([string]$Channel){
-  $id=[guid]::NewGuid().ToString()
-  if($Channel-eq'SMS'){
-    return @{requestId=$id;channel=$Channel;recipient='+12025550100';reference="verify-$id";message='模拟短信'}
-  }
-  @{requestId=$id;channel=$Channel;recipient='demo@commerceflow.test';reference="verify-$id";
-    subject='消息验收';message='模拟邮件'}
-}
-
-function Send($command,[int]$Expected=200){
-  Request POST '/api/provider/v1/deliveries' $command $Expected Sender
-}
-
-function Lookup([string]$Id,[int]$Expected=200){
-  Request GET "/api/provider/v1/deliveries/$Id" $null $Expected Sender
-}
-
-function Wait-Delivery([string]$Id,[string]$Status){
-  $deadline=[datetimeoffset]::UtcNow.AddSeconds(25)
-  do{
-    $receipt=Json-Body (Lookup $Id)
-    if($receipt.status-eq$Status){return $receipt}
-    if($receipt.status-ne'ACCEPTED'){throw "Unexpected final delivery status: $($receipt.status)"}
-    Start-Sleep -Milliseconds 350
-  }while([datetimeoffset]::UtcNow-lt$deadline)
-  throw 'Delivery did not settle'
-}
+. "$PSScriptRoot/../lib/messaging-verification.ps1"
 
 function Container([string]$Service){
   $name=if($isolated){"$ProjectName-$Service-1"}else{"$ProjectName-$Service"}
@@ -80,9 +29,18 @@ function Container([string]$Service){
 }
 
 function Sql([string]$Query){
+  if ($postgresql) {
+    return docker exec (Container messaging-simulator-db-postgresql) psql -U messaging -d messaging_platform -XAtq -v ON_ERROR_STOP=1 -c $Query
+  }
   docker exec (Container messaging-simulator-db) sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -NB messaging_platform -e "$1"' sh $Query
 }
 
+$url = docker inspect (Container messaging-simulator-service) --format '{{range .Config.Env}}{{println .}}{{end}}' |
+  Where-Object { $_ -like 'MESSAGING_DATABASE_URL=*' }
+$postgresql = $url -like 'MESSAGING_DATABASE_URL=jdbc:postgresql://messaging-simulator-db-postgresql:5432/messaging_platform*'
+if (!$postgresql -and $url -notlike 'MESSAGING_DATABASE_URL=jdbc:mysql://messaging-simulator-db:3306/messaging_platform*') {
+  throw 'Unexpected messaging ledger binding'
+}
 $session=Json-Body (Request GET '/api/admin/session' $null 200)
 if([bool]$session.faultsEnabled-ne$isolated){throw 'Unexpected fault injection mode'}
 Request GET '/api/admin/deliveries?channel=SMS' $null 401 None|Out-Null
@@ -152,6 +110,6 @@ if($isolated){
 foreach($receipt in $cases.Values){
   $id=[guid]$receipt.requestId
   $rows=Sql "SELECT CONCAT(COUNT(*),'/',MAX(status),'/',MAX(provider_id)) FROM messaging_deliveries WHERE request_id='$id'"
-  if($rows-ne"1/$($receipt.status)/$($receipt.providerId)"){throw 'MySQL disagrees with API'}
+  if($rows-ne"1/$($receipt.status)/$($receipt.providerId)"){throw 'Provider ledger disagrees with API'}
 }
 [ordered]@{isolated=$isolated;cases=$cases;faultsEnabled=[bool]$session.faultsEnabled}|ConvertTo-Json -Depth 6

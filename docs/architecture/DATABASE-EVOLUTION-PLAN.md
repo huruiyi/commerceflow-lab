@@ -19,7 +19,7 @@
 
 ### 下一库的隔离候选
 
-日常核心商城切换后已验证一笔取消及一笔收货后退货。下一次隔离演练优先选站外消息模拟库 `messaging_platform`。它有两张业务表，负责短信和邮件的模拟供应商回执。请求 ID 和供应商 ID 分别受主键及唯一约束保护。演练时检查同一请求并发重放、同键不同内容、限流后重试，以及重启后原待投递记录能否继续并返回同一回执。
+站外消息模拟库 `messaging_platform` 有两张业务表，保存短信、邮件的模拟供应商回执及按请求设置的模拟故障。请求 ID 和供应商 ID 分别受主键及唯一约束保护。通知服务独立保存对应的请求号、供应商编号和送达状态。
 
 2026-11-26 已从十个日常 MySQL 实例核对表数、外键数，并检查各服务的迁移 SQL 与 Mapper。下表为隔离演练建议顺序。表数包含 Flyway 历史表。回退一列列出反向迁移后需要从外部系统同时对上的记录；每次演练完成后再决定对应日常窗口。
 
@@ -35,6 +35,21 @@
 | 8 订单服务 | 17 / 10 | 忽略重复插入、时间差计算 | 订单状态与取消命令、支付和库存的确认结果一致。 |
 | 9 支付渠道模拟服务 | 18 / 16 | 冲突更新、回调重试时间算术 | 支付与退款的渠道流水号、金额及回调状态与支付编排一致。 |
 | 10 支付编排服务 | 21 / 7 | 忽略重复插入、冲突更新、行锁 | 订单、渠道、退款、结算和待处理命令逐笔对账，回退后不能重复入账。 |
+
+### 站外消息模拟库隔离演练
+
+在仓库根目录使用以下命令构建候选镜像并演练。默认基线为日常使用的旧版消息模拟服务镜像。可用 `-BaselineImage` 指定本机的对应版本。需要本机 Docker、PowerShell 7 和 Node.js。
+
+```powershell
+docker build -t commerceflow-messaging-pg:rehearsal simulators/messaging-platform/service
+pwsh scripts/messaging/verify-messaging-postgresql.ps1 -CandidateImage commerceflow-messaging-pg:rehearsal -WithDailySnapshot
+```
+
+`-WithDailySnapshot` 从日常 MySQL 的同一只读事务读取两张表，并从通知库读取带供应商编号的终态回执。省略该参数时仅使用隔离样本。每次运行新建独立 Compose 项目，源 MySQL、目标 PostgreSQL 和回退 MySQL 各有独立卷。切换前停止项目内的消息服务，复制后按请求号顺序对比两表所有字段的 SHA-256，包括微秒时间、空值、内容指纹和故障设置。Flyway 历史分别由各自引擎生成。
+
+候选镜像使用 `postgresql` Spring Profile 选择 PostgreSQL 迁移和 Mapper；MySQL 使用默认 Profile。演练结束后服务停止，三个隔离卷保留，项目名和两次迁移摘要写入输出。
+
+2026-11-26 已完成带日常快照的演练，正向迁入 46 条投递，反向恢复 55 条投递。日常切换仍待准备账号、卷、最后一批投递的同步及发布窗口。[回执与恢复验收](../IMPLEMENTED.md#2104-2026-11-26-站外消息模拟库-postgresql-隔离验收)
 
 ### 核心商城的启动与回退
 
