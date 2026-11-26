@@ -2058,6 +2058,16 @@ PostgreSQL 17.11 目标卷 `fairy-commerceflow_order-postgresql-data` 已应用 
 
 原 MySQL 前后导出在去除导出时间后摘要一致，订单 757 只写入 PostgreSQL。切换后的 PostgreSQL 原生备份在隔离空库恢复，16 表 15,859 行的逐表摘要、5 个下一自增值、两个 Flyway 版本、10 个外键和新订单的取消状态均通过核对。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/order-pg-ready-1795696729/live-20261126-210503/`。[日常运行与回退](architecture/DATABASE-EVOLUTION-PLAN.md#订单服务日常发布窗口)
 
+### 2.129 2026-11-26 支付渠道模拟库 PostgreSQL 隔离验收
+
+最新日常 MySQL V7 备份恢复出 619 笔渠道交易、144 笔渠道退款和 1 笔打款。17 张业务表正向迁入 PostgreSQL 17.11 共 2,362 行，回迁独立 MySQL 共 2,391 行。逐表全字段摘要及 10 个下一自增值一致，重复执行正向校验结果一致。三笔历史支付或关单及一笔历史退款按渠道编号、金额、币种和状态与支付编排对平。回迁保留七条 Flyway 记录及其校验值，恢复两个 MySQL 审计触发器。PostgreSQL 上实测更新历史审计行被拒绝。
+
+四个并发支付创建请求沿用同一渠道交易号。支付宝模拟支付通知遇到 503 后，原收银台交易仍可重试，第二次取得回执后支付成功。微信待支付交易重复关单均为 `CLOSED`，已成功交易拒绝关单。12.75 元部分退款落库后，初次通知及第一次补发均收到 503，第二次补发沿用原退款号成功。重复退款不再扣减额度，超额退款被拒绝。修正了回调失败从接口被误报为 401 的问题，现返回 503。
+
+一笔打款的签名回调在 PostgreSQL 上两次收到 503，第三次成功并写入通知完成时间。另一笔回迁时仍待发，原打款号和微秒级重试时间保留，MySQL V7 旧版接续后收到一次成功回执，并读回迁入的支付、关单和退款状态。回调接收器独立校验签名。PostgreSQL 空库启动、候选镜像的 MySQL 基本回归、11 项服务测试、95 项脚本契约和代码质量检查均通过。
+
+日常支付渠道模拟器仍使用原 MySQL，原库导出在去除导出时间后完全一致，52 个日常运行容器 ID 一致。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/payment-simulator-pg-rehearsal-1795698665/`，全程验收项目为 `fairy-commerceflow-payment-simulator-pg-1e5b2bfca077`。[隔离复测步骤](architecture/DATABASE-EVOLUTION-PLAN.md#支付渠道模拟库-postgresql-隔离演练)
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

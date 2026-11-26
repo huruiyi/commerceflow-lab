@@ -11,7 +11,7 @@
 
 ### 下一库的隔离候选
 
-站外消息模拟库 `messaging_platform` 有两张业务表，保存短信、邮件的模拟供应商回执及按请求设置的模拟故障。请求 ID 和供应商 ID 分别受主键及唯一约束保护。通知服务独立保存对应的请求号、供应商编号和送达状态。
+支付渠道模拟库 `payment_platform` 保存模拟支付交易、退款、打款、签名防重和平台后台审计。支付编排库独立保存商城侧的资金状态，渠道交易号与退款号是对账键。
 
 2026-11-26 已从十个日常 MySQL 实例核对表数、外键数，并检查各服务的迁移 SQL 与 Mapper。下表为隔离演练建议顺序。表数包含 Flyway 历史表。回退一列列出反向迁移后需要从外部系统同时对上的记录；每次演练完成后再决定对应日常窗口。
 
@@ -27,6 +27,22 @@
 | 8 订单服务 | 17 / 10 | 忽略重复插入、时间差计算 | 订单状态与取消命令、支付和库存的确认结果一致。 |
 | 9 支付渠道模拟服务 | 18 / 16 | 冲突更新、回调重试时间算术 | 支付与退款的渠道流水号、金额及回调状态与支付编排一致。 |
 | 10 支付编排服务 | 21 / 7 | 忽略重复插入、冲突更新、行锁 | 订单、渠道、退款、结算和待处理命令逐笔对账，回退后不能重复入账。 |
+
+### 支付渠道模拟库 PostgreSQL 隔离演练
+
+在仓库根目录使用 PowerShell 7.4+、Node.js 24+ 及 Docker。准备日常支付渠道模拟 MySQL V7 的单事务原生备份，记录现役应用镜像 ID 并为它添加本地回退标签。隔离环境使用独立的 PostgreSQL、原始 MySQL 副本、回退 MySQL、Redis 和回调接收器，网络不对外开放。
+
+```powershell
+docker build -t commerceflow-payment-simulator-pg:rehearsal simulators/payment-platform/service
+$legacyId = docker inspect fairy-commerceflow-payment-simulator-service --format '{{.Image}}'
+docker tag $legacyId commerceflow-payment-simulator-pg:legacy
+pwsh -File scripts/payment/verify-payment-simulator-postgresql.ps1 `
+  -BackupPath "$release/payment-mysql.sql" `
+  -CandidateImage commerceflow-payment-simulator-pg:rehearsal `
+  -BaselineImage commerceflow-payment-simulator-pg:legacy -EvidenceDirectory $release
+```
+
+V1 建立与 MySQL 对应的 17 张业务表、16 个外键、10 个自增序列和追加式审计约束。复制历史账本后应用 V2。V2 只为空库初始化后台账号、角色及审计链。演练逐表对照历史与回迁数据，回退 MySQL 在账本复制后恢复原审计触发器。回调接收器校验应用实际生成的签名。支付通知遇到 503 后通过原收银台交易重试，退款结果落库后通过原退款号补发，打款回调使用数据库保存的下次投递时间自动重试。[支付渠道隔离验收](../IMPLEMENTED.md#2129-2026-11-26-支付渠道模拟库-postgresql-隔离验收)
 
 ### 订单服务 PostgreSQL 隔离演练
 
