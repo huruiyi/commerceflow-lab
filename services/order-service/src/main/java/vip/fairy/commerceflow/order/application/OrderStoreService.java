@@ -49,7 +49,9 @@ public class OrderStoreService {
       OrderView existing = store.findByNumber(request.orderNumber());
       if (existing != null) return existing;
       GeneratedOrderKey key = new GeneratedOrderKey();
-      store.insertOrder(request, key);
+      if (store.insertOrder(request, key) == 0) {
+        return store.findByNumber(request.orderNumber());
+      }
       Long orderId = key.getId();
       for (var item : request.items()) {
         store.insertItem(orderId, item);
@@ -127,13 +129,15 @@ public class OrderStoreService {
     String fingerprint = sha256(payload);
     return transactions.execute(status -> {
       var existing = store.lockMutation(mutation.mutationId());
+      if (existing == null && store.insertMutation(mutation.mutationId(), fingerprint) == 0) {
+        existing = store.lockMutation(mutation.mutationId());
+      }
       if (existing != null) {
         if (!fingerprint.equals(existing.payloadFingerprint())) {
           throw new ProtocolConflictException("Mutation id was reused with a different payload");
         }
         return mapper.readValue(existing.responsePayload(), MutationResult.class);
       }
-      store.insertMutation(mutation.mutationId(), fingerprint);
       MutationResult result = mutation.type() == MutationType.START_REFUND
         ? startRefund(mutation) : new MutationResult(apply(mutation));
       store.finishMutation(mutation.mutationId(), mapper.writeValueAsString(result));

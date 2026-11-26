@@ -32,6 +32,11 @@
     EXISTS (SELECT 1 FROM order_items own WHERE own.order_id = o.id AND own.merchant_id = #{merchantId})
   </sql>
 
+  <sql id="keywordMatches">LOCATE(LOWER(#{request.criteria.keyword}), LOWER(${field})) &gt; 0</sql>
+  <sql id="keywordMatches" databaseId="postgresql">
+    STRPOS(LOWER(unaccent(${field} COLLATE "C")), LOWER(unaccent(#{request.criteria.keyword}))) &gt; 0
+  </sql>
+
   <sql id="searchConditions">
     <where>
       <choose>
@@ -48,12 +53,12 @@
       <if test="request.criteria.orderNumber != null">AND o.order_number = #{request.criteria.orderNumber}</if>
       <if test="request.criteria.keyword != ''">
         AND (
-          LOCATE(LOWER(#{request.criteria.keyword}), LOWER(o.order_number)) &gt; 0
+          <include refid="keywordMatches"><property name="field" value="o.order_number"/></include>
           OR EXISTS (
             SELECT 1 FROM order_items item WHERE item.order_id = o.id
             <if test="request.merchantId != null">AND item.merchant_id = #{request.merchantId}</if>
             AND (
-              LOCATE(LOWER(#{request.criteria.keyword}), LOWER(item.product_name)) &gt; 0
+              <include refid="keywordMatches"><property name="field" value="item.product_name"/></include>
               <if test="!request.criteria.productIds.isEmpty()">
                 OR item.product_id IN
                 <foreach collection="request.criteria.productIds" item="productId" open="(" separator="," close=")">
@@ -63,10 +68,10 @@
             )
           )
           <if test="request.merchantId != null">
-            OR LOCATE(LOWER(#{request.criteria.keyword}), LOWER(o.tracking_number)) &gt; 0
+            OR <include refid="keywordMatches"><property name="field" value="o.tracking_number"/></include>
             OR EXISTS (
               SELECT 1 FROM order_shipping_addresses a WHERE a.order_id = o.id
-                AND LOCATE(LOWER(#{request.criteria.keyword}), LOWER(a.recipient_name)) &gt; 0
+                AND <include refid="keywordMatches"><property name="field" value="a.recipient_name"/></include>
             )
           </if>
         )
@@ -126,12 +131,21 @@
     WHERE message_id=#{mutationId} FOR UPDATE
   </select>
 
-  <insert id="insertOrder" useGeneratedKeys="true" keyProperty="key.id">
+  <sql id="newOrder">
     INSERT INTO shop_orders(order_number,customer_id,status,inventory_status,total_amount,
       currency,payment_due_at,created_at,updated_at,shipping_fee,discount_amount,coupon_id)
     VALUES (#{request.orderNumber},#{request.customerId},'PENDING_PAYMENT','WAITING_RESERVATION',
       #{request.totalAmount},#{request.currency},#{request.paymentDueAt},CURRENT_TIMESTAMP(6),CURRENT_TIMESTAMP(6),
       #{request.shippingFee},#{request.discountAmount},#{request.couponId})
+  </sql>
+
+  <insert id="insertOrder" useGeneratedKeys="true" keyProperty="key.id">
+    <include refid="newOrder"/>
+  </insert>
+
+  <insert id="insertOrder" databaseId="postgresql" useGeneratedKeys="true" keyProperty="key.id" keyColumn="id">
+    <include refid="newOrder"/>
+    ON CONFLICT (order_number) DO NOTHING
   </insert>
 
   <insert id="insertItem">
@@ -152,6 +166,12 @@
   <insert id="insertMutation">
     INSERT INTO order_remote_message_inbox(message_id,message_kind,payload_fingerprint,processing_status)
     VALUES (#{mutationId},'MUTATION',#{fingerprint},'RECEIVED')
+  </insert>
+
+  <insert id="insertMutation" databaseId="postgresql">
+    INSERT INTO order_remote_message_inbox(message_id,message_kind,payload_fingerprint,processing_status)
+    VALUES (#{mutationId},'MUTATION',#{fingerprint},'RECEIVED')
+    ON CONFLICT (message_id) DO NOTHING
   </insert>
 
   <update id="finishMutation">

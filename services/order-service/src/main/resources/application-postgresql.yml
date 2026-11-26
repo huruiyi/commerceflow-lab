@@ -1,0 +1,9 @@
+spring:
+  flyway:
+    locations: classpath:db/postgresql
+    baseline-on-migrate: false
+
+commerceflow:
+  order:
+    shadow:
+      enabled: false
