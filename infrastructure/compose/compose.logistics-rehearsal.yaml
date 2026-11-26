@@ -1,0 +1,77 @@
+services:
+  original:
+    image: mysql:8.4
+    command: ["--innodb-use-native-aio=OFF"]
+    environment: &mysql-settings
+      MYSQL_DATABASE: logistics_platform
+      MYSQL_USER: logistics
+      MYSQL_PASSWORD: rehearsal
+      MYSQL_ROOT_PASSWORD: rehearsal-root
+    volumes:
+      - original:/var/lib/mysql
+    healthcheck: &mysql-health
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_ROOT_PASSWORD mysql -uroot -h 127.0.0.1 -e 'SELECT 1'"]
+      interval: 2s
+      timeout: 3s
+      retries: 90
+  rollback:
+    image: mysql:8.4
+    command: ["--innodb-use-native-aio=OFF"]
+    environment: *mysql-settings
+    volumes:
+      - rollback:/var/lib/mysql
+    healthcheck: *mysql-health
+  postgres:
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: logistics_platform
+      POSTGRES_PASSWORD: rehearsal
+    volumes:
+      - candidate:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "logistics_platform"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+  schema:
+    image: redgate/flyway:12.4.0
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/logistics_platform
+      FLYWAY_USER: postgres
+      FLYWAY_PASSWORD: rehearsal
+    volumes:
+      - ./simulators/logistics-platform/service/src/main/resources/db/postgresql:/flyway/sql:ro
+    command: migrate
+  receiver:
+    image: node:26.13.1-alpine3.24
+    command: ["node", "/test/receiver.mjs"]
+    volumes:
+      - ./scripts/fulfillment/logistics-rehearsal-receiver.mjs:/test/receiver.mjs:ro
+    environment:
+      CALLBACK_SECRET: rehearsal-callback
+  logistics:
+    image: ${LOGISTICS_REHEARSAL_IMAGE:?Set the rehearsal application image}
+    environment:
+      SPRING_PROFILES_ACTIVE: ${LOGISTICS_REHEARSAL_PROFILE:-postgresql}
+      LOGISTICS_DATABASE_URL: ${LOGISTICS_REHEARSAL_JDBC:-jdbc:postgresql://postgres:5432/logistics_platform}
+      LOGISTICS_DATABASE_USERNAME: ${LOGISTICS_REHEARSAL_USER:-postgres}
+      LOGISTICS_DATABASE_PASSWORD: rehearsal
+      LOGISTICS_REQUEST_SECRET: rehearsal-request
+      LOGISTICS_CALLBACK_SECRET: rehearsal-callback
+      LOGISTICS_ADMIN_TOKEN: rehearsal-admin
+      LOGISTICS_AUTO_PROGRESS_ENABLED: "false"
+      LOGISTICS_CALLBACK_DELIVERY_SCAN_INTERVAL: 300ms
+      LOGISTICS_CALLBACK_DELIVERY_RETRY_DELAY: 10s
+      LOGISTICS_CALLBACK_DELIVERY_MAX_ATTEMPTS: 10
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      interval: 2s
+      timeout: 3s
+      retries: 90
+networks:
+  default:
+    internal: true
+volumes:
+  original:
+  rollback:
+  candidate:

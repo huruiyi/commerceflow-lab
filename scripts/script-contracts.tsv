@@ -82,5 +82,6 @@ messaging/verify-messaging-postgresql.ps1	CandidateImage,BaselineImage,WithDaily
 messaging/verify-messaging-release.ps1	BackupPath,ReleaseEnvFile,EvidenceDirectory
 fulfillment/verify-warehouse-postgresql.ps1	BackupPath,CandidateImage,BaselineImage,EvidenceDirectory,SkipBuild
 fulfillment/verify-warehouse-release.ps1	BackupPath,ReleaseEnvFile,EvidenceDirectory
+fulfillment/verify-logistics-postgresql.ps1	BackupPath,CandidateImage,BaselineImage,EvidenceDirectory
 invoice/verify-invoice-simulator.ps1	MaxWaitSeconds
 invoice/verify-commerce-invoices.ps1	SkipBuild,MaxWaitSeconds,PlaywrightModule,ScreenshotDirectory
