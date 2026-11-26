@@ -1,0 +1,63 @@
+services:
+  payment-simulator-db-postgresql:
+    container_name: fairy-commerceflow-payment-simulator-db-postgresql
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: payment_platform
+      POSTGRES_PASSWORD: ${PAYMENT_SIMULATOR_PG_ADMIN_PASSWORD:?Set the payment simulator PostgreSQL admin password}
+    volumes:
+      - payment-simulator-postgresql-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "payment_platform"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+    restart: unless-stopped
+
+  payment-simulator-postgresql-roles:
+    image: postgres:17.11-alpine
+    environment:
+      PGHOST: payment-simulator-db-postgresql
+      PGPASSWORD: ${PAYMENT_SIMULATOR_PG_ADMIN_PASSWORD:?Set the payment simulator PostgreSQL admin password}
+      PAYMENT_SIMULATOR_PG_MIGRATOR_PASSWORD: ${PAYMENT_SIMULATOR_PG_MIGRATOR_PASSWORD:?Set the payment simulator migrator password}
+      PAYMENT_SIMULATOR_PG_RUNTIME_PASSWORD: ${PAYMENT_SIMULATOR_PG_RUNTIME_PASSWORD:?Set the payment simulator runtime password}
+    volumes:
+      - ./infrastructure/payment-simulator/postgresql-roles.sql:/roles.sql:ro
+    command: ["psql", "-Xq", "-U", "postgres", "-d", "payment_platform", "-f", "/roles.sql"]
+    depends_on:
+      payment-simulator-db-postgresql:
+        condition: service_healthy
+
+  payment-simulator-postgresql-migrator:
+    image: redgate/flyway:12.4.0
+    environment:
+      FLYWAY_URL: jdbc:postgresql://payment-simulator-db-postgresql:5432/payment_platform
+      FLYWAY_SCHEMAS: public
+      FLYWAY_USER: payment_simulator_migrator
+      FLYWAY_PASSWORD: ${PAYMENT_SIMULATOR_PG_MIGRATOR_PASSWORD:?Set the payment simulator migrator password}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql,filesystem:/flyway/callbacks
+    volumes:
+      - ./simulators/payment-platform/service/src/main/resources/db/postgresql:/flyway/sql:ro
+      - ./infrastructure/payment-simulator/postgresql-after-migrate.sql:/flyway/callbacks/afterMigrate.sql:ro
+    command: ["migrate"]
+    depends_on:
+      payment-simulator-postgresql-roles:
+        condition: service_completed_successfully
+
+  payment-simulator-service:
+    build: !reset null
+    image: ${PAYMENT_SIMULATOR_PG_IMAGE:?Set the verified payment simulator candidate image}
+    pull_policy: never
+    environment:
+      PAYMENT_DATABASE_URL: jdbc:postgresql://payment-simulator-db-postgresql:5432/payment_platform
+      PAYMENT_DATABASE_USERNAME: payment_simulator_runtime
+      PAYMENT_DATABASE_PASSWORD: ${PAYMENT_SIMULATOR_PG_RUNTIME_PASSWORD:?Set the payment simulator runtime password}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
+    depends_on:
+      payment-simulator-db: !reset null
+      payment-simulator-db-postgresql:
+        condition: service_healthy
+
+volumes:
+  payment-simulator-postgresql-data:

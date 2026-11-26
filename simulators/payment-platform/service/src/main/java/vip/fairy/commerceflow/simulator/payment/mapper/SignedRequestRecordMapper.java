@@ -4,4 +4,6 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import vip.fairy.commerceflow.simulator.payment.domain.SignedRequestRecord;
 
 public interface SignedRequestRecordMapper extends BaseMapper<SignedRequestRecord> {
+
+  int recordRequest(SignedRequestRecord request);
 }

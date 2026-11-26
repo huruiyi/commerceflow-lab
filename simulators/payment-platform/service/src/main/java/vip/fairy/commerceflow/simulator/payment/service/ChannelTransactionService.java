@@ -1,6 +1,7 @@
 package vip.fairy.commerceflow.simulator.payment.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import vip.fairy.commerceflow.simulator.payment.domain.ChannelTransaction;
 import vip.fairy.commerceflow.simulator.payment.domain.PaymentMerchant;
 import vip.fairy.commerceflow.simulator.payment.mapper.ChannelTransactionMapper;
@@ -166,7 +167,7 @@ public class ChannelTransactionService {
       }
     }
     value.setUpdatedAt(LocalDateTime.now());
-    transactions.updateById(value);
+    storeOutcome(value);
     callbacks.send(value);
     return response(value);
   }
@@ -179,9 +180,19 @@ public class ChannelTransactionService {
       value.setStatus("CLOSED");
       value.setClosedAt(LocalDateTime.now());
       value.setUpdatedAt(LocalDateTime.now());
-      transactions.updateById(value);
+      storeOutcome(value);
     }
     return response(value);
+  }
+
+  private void storeOutcome(ChannelTransaction value) {
+    transactions.update(null, new LambdaUpdateWrapper<ChannelTransaction>()
+      .eq(ChannelTransaction::getId, value.getId())
+      .set(ChannelTransaction::getStatus, value.getStatus())
+      .set(ChannelTransaction::getFaultScenario, value.getFaultScenario())
+      .set(ChannelTransaction::getPaidAt, value.getPaidAt())
+      .set(ChannelTransaction::getClosedAt, value.getClosedAt())
+      .set(ChannelTransaction::getUpdatedAt, value.getUpdatedAt()));
   }
 
   private ChannelTransaction require(ChannelTransaction value) {

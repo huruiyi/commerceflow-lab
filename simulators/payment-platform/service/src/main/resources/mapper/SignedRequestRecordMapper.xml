@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.simulator.payment.mapper.SignedRequestRecordMapper">
+  <insert id="recordRequest">
+    INSERT INTO signed_request_record
+      (merchant_id, request_id, nonce, request_timestamp, body_sha256, signing_algorithm, request_path, created_at)
+    VALUES
+      (#{merchantId}, #{requestId}, #{nonce}, #{requestTimestamp}, #{bodySha256},
+       #{signingAlgorithm}, #{requestPath}, #{createdAt})
+  </insert>
+</mapper>

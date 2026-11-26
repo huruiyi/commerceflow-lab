@@ -105,7 +105,7 @@ public class RequestSignatureService {
       record.setSigningAlgorithm(headers.algorithm());
       record.setRequestPath(target);
       record.setCreatedAt(LocalDateTime.now());
-      records.insert(record);
+      records.recordRequest(record);
     } catch (DuplicateKeyException exception) {
       throw conflict("请求号或 Nonce 已使用，请勿重放请求");
     }
