@@ -364,11 +364,11 @@ Angular 管理员可从导航栏“定时任务”进入 `/admin/scheduling` 操
 | `GET /api/admin/reference-data/datasets/{dataset}/versions/{id}/comparison` | 比较候选版本与当前版本，返回变更数量和样例 |
 | `POST /api/admin/reference-data/datasets/{dataset}/versions/{id}/publish` | 提交 `expectedCurrentReleaseId` 切换发布指针 |
 
-本次中国行政区划数据集 `cn-administrative-divisions` 从用户提供的 `regions.sql` 转换，版号为 `mca-2026-11-25`。源文件包含 41,952 条记录，按层级为 34、333、2,847、38,738 条。原始类型、代码、名称路径及父级字段通过 `sourceMetadata` 返回。节点使用 6 位或 9 位代码，源文件标记为「资料暂缺」的台湾省使用内部键 `unassigned-tw`。直属下级按源文件的实际关系返回。
+本次中国行政区划数据集 `cn-administrative-divisions` 从用户提供的 `regions.sql` 转换，版号为 `mca-2026-11-25`。源文件包含 41,952 条记录，按层级为 34、333、2,847、38,738 条。原始类型、代码、名称路径及父级字段通过 `sourceMetadata` 返回。节点使用来源短码（例如北京 `11`、东城区 `110101`、东华门街道 `110101001`），源文件标记为「资料暂缺」的台湾省使用内部键 `unassigned-tw`。直属下级按源文件的实际关系返回。
 
-使用 `node scripts/reference-data/export-mca-divisions.cjs <regions.sql> <新输出目录>` 生成 CSV 和验收清单。使用 `scripts/reference-data/import-release.ps1` 或管理后台导入。Compose 定义位于 `infrastructure/compose/compose.reference-data.yaml`。
+使用 `node scripts/reference-data/export-mca-divisions.cjs scripts/reference-data/source/regions.sql <新输出目录>` 生成 CSV 和验收清单。使用 `scripts/reference-data/import-release.ps1` 或管理后台导入。Compose 定义位于 `infrastructure/compose/compose.reference-data.yaml`。
 
-管理后台「区划联动」固定已发布的数据版本，再按照直属父级查询下一级。商城运费模板的中国地区选项查询同一数据集的省级节点，保存时使用标准省级名称。结算优先匹配现有规则中的省州原名，再匹配常用省级简称。无地区规则匹配时使用默认运费。
+管理后台「区划联动」固定已发布的数据版本，再按照直属父级查询下一级。商城运费模板的中国地区选项查询同一数据集的省级节点，保存时使用标准省级名称。商城 V74 将同一店铺的中国省级简称和全称归为一个地区。单行新增或编辑与已有规则冲突时返回 409。结算用同一省名查询启用规则，未命中时取店铺默认运费。
 
 ## 错误响应
 

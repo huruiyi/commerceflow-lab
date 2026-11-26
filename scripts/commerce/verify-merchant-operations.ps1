@@ -1,7 +1,7 @@
 #requires -Version 7.0
 param(
   [ValidateSet('Store','Settlement','Payout','Packages','Search','Warehouses','WmsOutbound','WmsReturn',
-    'ReturnWork','Offsite','Operations')][string]$Chapter='Store',
+    'ReturnWork','Offsite','Operations','StatementCorrections')][string]$Chapter='Store',
   [string]$BaseUrl='http://localhost:14200',
   [string]$PaymentBaseUrl='http://localhost:14201',
   [string]$LogisticsUrl='http://localhost:18083',
@@ -14,7 +14,7 @@ param(
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '../lib/checkout-verification.ps1')
 $isolated=$ProjectName-ne'fairy-commerceflow'
-$combined=$Chapter-eq'Operations'
+$combined=$Chapter-in'Operations','StatementCorrections'
 $verifyOffsite=$Chapter-in'Offsite','Operations'
 $isolatedPattern=if($combined){'^fairy-commerceflow-(merchant-isolated|acceptance)-[a-z0-9-]+$'}else{
   '^fairy-commerceflow-merchant-isolated-'
@@ -26,7 +26,7 @@ if($isolated -and ($ProjectName-notmatch $isolatedPattern -or
     !([uri]$LogisticsUrl).IsLoopback -or ([uri]$LogisticsUrl).Port-eq18083)){
   throw 'Invalid isolated merchant benchmark project'
 }
-$warehouseChapters=@('WmsOutbound','WmsReturn','ReturnWork','Offsite','Packages','Warehouses','Settlement','Operations')
+$warehouseChapters=@('WmsOutbound','WmsReturn','ReturnWork','Offsite','Packages','Warehouses','Settlement','Operations','StatementCorrections')
 if($Chapter-in$warehouseChapters -and (!([uri]$WarehouseBaseUrl).IsLoopback -or
     ($isolated -and ([uri]$WarehouseBaseUrl).Port-eq18118))){
   throw 'Invalid warehouse acceptance endpoint'
@@ -1339,6 +1339,136 @@ function Verify-Payout($shop,$product,$statement,$order){
     failureAndRecovery=$isolated;duplicateCallback=$isolated;successfulChannelRows=1;review=$review.requestId}
 }
 
+function Verify-StocktakeBoundary($order,$outbound,$report){
+  $id=[long]$order.id
+  $line=[long]$order.items[0].id
+  $product=[long]$order.items[0].productId
+  $outbound=[guid]$outbound
+  $match="outbound_id='$outbound' AND order_line_id=$line AND product_id=$product"
+  $update="UPDATE inventory_outbound_lines SET quantity="
+  if((Sql inventory-db inventory "$update 3 WHERE $match AND quantity=2; SELECT ROW_COUNT()")-ne'1'){
+    throw 'Expected a unique two-unit outbound line for the isolated discrepancy'
+  }
+  try{
+    $check=(Api $admin $report).orders|Where-Object orderId -eq $id
+    $delta=$check.fulfillment.differences|Where-Object {
+      $_.kind-eq'INVENTORY_OUTBOUND_QUANTITY' -and $_.outboundId-eq$outbound -and $_.orderLineId-eq$line
+    }
+    if($delta.expected-ne2 -or $delta.observed-ne3){throw 'Wrong line or quantities in stock reconciliation'}
+    $review=Api $admin "$report/reviews" Post @{
+      requestId=[guid]::NewGuid();page=0;size=10;decision='CONFIRMED';reason='Two dispatched units versus three posted units'
+      target=@{orderId=$id;orderLineId=$line;kind=$delta.kind;reference=$outbound;expected=2;observed=3}
+    }
+    $path='/api/admin/inventory-command-recoveries/stocktakes'
+    $baseline=Api $admin "$path/baseline/$product"
+    $reference="statement-stock-$id"
+    $proposal=@{
+      reference=$reference;productId=$product;baseline=$baseline;countedAvailable=$baseline.available;
+      countedAt=[DateTimeOffset]::UtcNow.ToString('o');note='Compare stocktake eligibility for the shipped order'
+      commandIds=@("order:${id}:reserve")
+    }
+    try{
+      Api $admin $path Post $proposal|Out-Null
+      throw 'A completed reservation unexpectedly qualified for stocktake'
+    }catch{
+      if([int]$_.Exception.Response.StatusCode-ne409 -or
+          $_.ErrorDetails.Message-notmatch 'Stocktake requires outstanding delivered reservation cases'){throw}
+    }
+    $disposition="$report/reviews/$($review.requestId)/disposition"
+    Reject $admin "$disposition/receipts" Post @{requestId=[guid]::NewGuid();receipt=$reference} @(409)
+    Reject $admin "$disposition/closure" Post @{requestId=[guid]::NewGuid();reason='No itemized correction receipt'} @(409)
+    $view=Api $admin $disposition
+    if($view.status-ne'OPEN' -or $view.route-ne'STOCKTAKE'){throw 'Outstanding inventory evidence must remain open'}
+  }finally{
+    if((Sql inventory-db inventory "$update 2 WHERE $match AND quantity=3; SELECT ROW_COUNT()")-ne'1'){
+      throw 'Could not restore isolated inventory discrepancy fixture'
+    }
+  }
+  @{orderLine=$line;outbound="$outbound";expected=2;observed=3;review=$review.requestId;status=$view.status}
+}
+
+function Verify-StatementCorrections($shop){
+  $store="/api/admin/stores/$($shop.id)"
+  Api $shop.actor '/api/merchant/shipping-template' Put @{defaultFee=12.01;regions=@()}|Out-Null
+  Api $admin "$store/settlement" Put @{commissionBps=500}|Out-Null
+  $order=Warehouse-Order $shop -SingleWarehouse -SingleWarehouseId 2
+  $id=[long]$order.id
+  $outbound=Ship-Package $shop $order 2 COMPLETED 2
+  Delivery "CFL-PACKAGE-$outbound"
+  $null=Wait-Value {
+    if((Api $buyer "/api/purchase-orders/$id").logisticsDeliveredAt){$true}
+  } 'Warehouse shipment did not reach the customer'
+  Api $buyer "/api/purchase-orders/$id/receive" Post @{}|Out-Null
+  Sql commerce-db commerceflow "UPDATE scheduled_tasks SET due_at=TIMESTAMPADD(SECOND,-1,UTC_TIMESTAMP(6)),
+    primary_trigger_snapshot='DATABASE' WHERE task_type='AUTO_COMPLETE' AND task_key='order:$id' AND status='SCHEDULED'"|Out-Null
+  $null=Wait-Value {if((Api $buyer "/api/purchase-orders/$id").status-eq'COMPLETED'){$true}} 'Order did not complete'
+  $statement=Api $admin "$store/statements" Post @{requestId=[guid]::NewGuid()}
+  $report="$store/statements/$($statement.id)/reconciliation"
+  $invoice="/api/purchase-orders/$id/invoices"
+  Api $buyer $invoice Post|Out-Null
+  $blue=Wait-Value {(Api $buyer $invoice).issue.invoiceNo} 'Blue invoice was not confirmed'
+  if($blue-notmatch '^INV-[a-fA-F0-9-]{36}$'){throw 'Unexpected simulator invoice number'}
+
+  # Scope the injected channel failures to this blue ticket. The simulator issues all receipts.
+  $trigger="fixture_red_failure_$id"
+  Sql invoice-db invoice_platform "CREATE TRIGGER $trigger BEFORE UPDATE ON invoice_requests FOR EACH ROW
+    SET NEW.simulation=IF(NEW.original_invoice_no='$blue' AND NEW.status='ACCEPTED','FAIL',NEW.simulation)"|Out-Null
+  try{
+    $request=Api $buyer "/api/purchase-orders/$id/after-sales" Post @{
+      orderLineId=$order.items[0].id;quantity=1;warehouseId=2;outboundId=$outbound;
+      requestId=[guid]::NewGuid();reason='Return one item against the confirmed blue ticket'
+    }
+    $sale=Refund-Return $shop $request
+    $null=Wait-Value {
+      $view=Api $buyer $invoice
+      if($view.reviewReason-eq'RED_RETRIES_EXHAUSTED' -and @($view.redAttempts|Where-Object status -eq FAILED).Count-eq3){$true}
+    } 'Red channel failures did not reach invoice review'
+    $check=(Api $admin $report).orders|Where-Object orderId -eq $id
+    $missing=$check.differences|Where-Object { $_.kind-eq'RED_NOT_CONFIRMED' -and $_.reference-eq$sale.refundNumber }
+    if(!$missing -or $missing.expected-le0){throw 'Frozen statement did not detect the missing red ticket'}
+    $review=Api $admin "$report/reviews" Post @{
+      requestId=[guid]::NewGuid();page=0;size=10;decision='CONFIRMED';reason='Refund confirmed, red channel attempts exhausted'
+      target=@{kind=$missing.kind;reference=$missing.reference;expected=$missing.expected;orderId=$id}
+    }
+    $disposition="$report/reviews/$($review.requestId)/disposition"
+    $closure=@{requestId=[guid]::NewGuid();reason='Rechecked the original refund and the confirmed red ticket'}
+    Reject $admin "$disposition/closure" Post $closure @(409)
+  }finally{
+    Sql invoice-db invoice_platform "DROP TRIGGER $trigger"|Out-Null
+  }
+
+  $operator=Api $admin '/api/auth/me'
+  $actor=[long]$operator.id
+  $grant="SELECT $actor,id FROM roles WHERE code='INVOICE_OPERATIONS'"
+  if($actor-le0 -or $operator.email-ne'admin@example.com'){throw 'Unexpected isolated invoice operator'}
+  $added=Sql commerce-db commerceflow "INSERT IGNORE INTO user_roles(user_id,role_id) $grant; SELECT ROW_COUNT()"
+  try{
+    $action=@{requestId=[guid]::NewGuid();note='Verified original blue ticket and restored channel availability'}
+    $result=Api $admin "/api/admin/invoices/$id/review-actions" Post $action
+    if($result.actions.requestId-notcontains $action.requestId.ToString()){throw 'Missing original invoice review audit'}
+    $link=Api $admin "$disposition/receipts" Post @{requestId=[guid]::NewGuid();receipt=$action.requestId}
+    if($link.status-ne'EVIDENCE_LINKED'){throw 'Invoice review receipt was not linked'}
+    $red=Wait-Value {
+      $now=(Api $admin $report).orders|Where-Object orderId -eq $id
+      if($now.redInvoiceNumbers.Count-eq1 -and !$now.differences.Count -and
+          $now.netInvoice-eq($now.paidAmount-$missing.expected)){ $now.redInvoiceNumbers[0] }
+    } 'Rerun did not confirm the original refund amount'
+    $closed=Api $admin "$disposition/closure" Post $closure
+    $replay=Api $admin "$disposition/closure" Post $closure
+    if($closed.status-ne'CLOSED' -or $closed.record.closedAt-ne$replay.record.closedAt -or
+        $closed.record.receipt-ne$action.requestId.ToString()){throw 'Invoice closure or replay mismatch'}
+  }finally{
+    if($added-eq'1'){
+      Sql commerce-db commerceflow "DELETE ur FROM user_roles ur JOIN roles r ON r.id=ur.role_id
+        WHERE ur.user_id=$actor AND r.code='INVOICE_OPERATIONS'"|Out-Null
+    }
+  }
+  [ordered]@{order=$id;merchant=$shop.id;statement=$statement.id;outbound=$outbound;product=$order.items[0].productId;
+    orderLine=$order.items[0].id;blue=$blue;red=$red;refund=$sale.refundNumber;amount=$missing.expected;
+    review=$review.requestId;receipt=$closed.record.receipt;closedAt=$closed.record.closedAt;
+    inventory=(Verify-StocktakeBoundary $order $outbound $report)}
+}
+
 function Verify-OperationsStatement($shop,$returned){
   $id=[long]$returned.partialOrder
   $orderPath="/api/purchase-orders/$id"
@@ -1381,11 +1511,13 @@ if($combined){
   Assert-OperationsEndpoint payment-simulator-web 80 $PaymentBaseUrl
   Assert-OperationsEndpoint logistics-simulator-service 8080 $LogisticsUrl
   Assert-OperationsEndpoint warehouse-simulator-web 80 $WarehouseBaseUrl
-  Assert-OperationsEndpoint messaging-simulator-web 80 $MessagingBaseUrl
-  $messaging=docker inspect "$ProjectName-messaging-simulator-service-1" | ConvertFrom-Json
-  if($LASTEXITCODE -or $messaging.Config.Labels.'com.docker.compose.project'-cne$ProjectName -or
-      $messaging.Config.Env-cnotcontains'MESSAGING_FAULTS_ENABLED=true'){
-    throw 'Operations requires isolated messaging fault injection'
+  if($Chapter-eq'Operations'){
+    Assert-OperationsEndpoint messaging-simulator-web 80 $MessagingBaseUrl
+    $messaging=docker inspect "$ProjectName-messaging-simulator-service-1" | ConvertFrom-Json
+    if($LASTEXITCODE -or $messaging.Config.Labels.'com.docker.compose.project'-cne$ProjectName -or
+        $messaging.Config.Env-cnotcontains'MESSAGING_FAULTS_ENABLED=true'){
+      throw 'Operations requires isolated messaging fault injection'
+    }
   }
 }
 $archive=Archives
@@ -1408,6 +1540,10 @@ try{
         isDefault=$true
       }
       $null=Api $buyer "/api/addresses/$($address.id)/select" Put @{}
+    }
+    if($Chapter-eq'StatementCorrections'){
+      Verify-StatementCorrections $shop | ConvertTo-Json -Depth 6
+      return
     }
     Write-Host 'Verifying normal and short warehouse dispatch'
     $otherShop=Open-FixtureStore
