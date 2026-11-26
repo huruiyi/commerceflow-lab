@@ -4,10 +4,9 @@
 
 日常通知服务使用 PostgreSQL 17.11（`notification-db-postgresql` / `notification`）。原通知 MySQL
 数据库 `notification-db` 及其应用容器保留作回退，反向迁移前以 PostgreSQL 为唯一写入源。
-行政区划基础数据（`reference-data-db` / `reference_data`）、核心商城、站外消息和仓库模拟服务也已使用 PostgreSQL 17.11。2026-11-26 仓库切换后，以下 8 个业务库仍以 MySQL 8.4 为写入方。
+行政区划基础数据（`reference-data-db` / `reference_data`）、核心商城以及站外消息、仓库和物流模拟服务也已使用 PostgreSQL 17.11。2026-11-26 物流切换后，以下 7 个业务库仍以 MySQL 8.4 为写入方。
 
 - `payment-simulator-db` / `payment_platform`
-- `logistics-simulator-db` / `logistics_platform`
 - `catalog-db` / `catalog`
 - `inventory-db` / `inventory`
 - `order-db` / `orders`（已完成单一所有权 CUTOVER）
@@ -36,7 +35,7 @@
 
 ### 物流模拟库隔离演练
 
-日常物流服务使用 MySQL V7。演练在独立 Docker 内部网络运行，从日常单事务备份恢复一个源库，并另建 PostgreSQL 17.11 目标库和 MySQL 回退库。物流应用只与隔离网络中的数据库和签名回调接收端通信。服务停止后按外键顺序复制五张业务表，各引擎保留自己的 Flyway 历史。每张表单独核对行数、全字段摘要和下一自增值，包含轨迹顺序、回调载荷、重试时间、领取租约、审计信息和用于防止重复请求的 nonce。
+隔离演练使用切换前日常物流的 MySQL V7 备份。演练在独立 Docker 内部网络运行，从日常单事务备份恢复一个源库，并另建 PostgreSQL 17.11 目标库和 MySQL 回退库。物流应用只与隔离网络中的数据库和签名回调接收端通信。服务停止后按外键顺序复制五张业务表，各引擎保留自己的 Flyway 历史。每张表单独核对行数、全字段摘要和下一自增值，包含轨迹顺序、回调载荷、重试时间、领取租约、审计信息和用于防止重复请求的 nonce。
 
 在仓库根目录使用 PowerShell 7.4+、Node.js 24+ 及本机 Docker：
 
@@ -54,7 +53,9 @@ pwsh scripts/fulfillment/verify-logistics-postgresql.ps1 -BackupPath "$dir/logis
 
 ### 物流模拟库日常发布窗口
 
-准备目录为 `%LOCALAPPDATA%/CommerceFlow/releases/logistics-pg-ready-1795680814/`。日常物流继续写入原 MySQL V7，原卷为 `fairy-commerceflow_logistics-simulator-db-data`。目标卷 `fairy-commerceflow_logistics-postgresql-data` 已建立 PostgreSQL 17.11 V1 结构。独立回退卷 `fairy-commerceflow_logistics-rollback-data` 已恢复 MySQL 的表结构、索引、约束及七条迁移历史，回退实例平时停止。
+准备目录为 `%LOCALAPPDATA%/CommerceFlow/releases/logistics-pg-ready-1795680814/`。日常物流现写入 PostgreSQL 17.11 V1，使用卷 `fairy-commerceflow_logistics-postgresql-data`。原 MySQL V7 和卷 `fairy-commerceflow_logistics-simulator-db-data` 保持冻结时的只读状态。重新启动当前物流应用使用下文的 `$pg` 参数。[日常切换验收](../IMPLEMENTED.md#2112-2026-11-26-日常物流切换-postgresql)
+
+独立回退卷 `fairy-commerceflow_logistics-rollback-data` 已恢复 MySQL 的表结构、索引、约束及七条迁移历史，回退实例平时停止。
 
 发布参数沿用原物流服务的 Compose 文件、端口、签名密钥、回调和调度配置。`logistics_migrator` 持有业务 schema，应用以 `logistics_runtime` 连接，进程内 Flyway 已关闭。运行账号可建运单、追加轨迹和审计，只能更新 Mapper 所用的运单与投递状态字段；签名 nonce 仅可追加。
 
