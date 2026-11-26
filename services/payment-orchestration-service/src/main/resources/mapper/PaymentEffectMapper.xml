@@ -2,6 +2,13 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="vip.fairy.commerceflow.payment.infrastructure.persistence.PaymentEffectMapper">
 
+  <sql id="retryDelay">
+    <choose>
+      <when test="_databaseId == 'postgresql'">LEAST(attempts, 30) * INTERVAL '1' SECOND</when>
+      <otherwise>INTERVAL LEAST(attempts, 30) SECOND</otherwise>
+    </choose>
+  </sql>
+
   <update id="rejectRefundAdmission">
     UPDATE refund_records SET status='FAILED',failure_reason='ORDER_REFUND_ADMISSION_REJECTED',
       failed_at=CURRENT_TIMESTAMP(6),updated_at=CURRENT_TIMESTAMP(6)
@@ -31,7 +38,7 @@
 
   <update id="claimEffect">
     UPDATE payment_outbox SET status='PROCESSING', attempts=attempts+1, next_attempt_at=CURRENT_TIMESTAMP(6) +
-      INTERVAL 30 SECOND, last_error=NULL WHERE id=#{id} AND (status IN ('NEW', 'RETRY') OR
+      INTERVAL '30' SECOND, last_error=NULL WHERE id=#{id} AND (status IN ('NEW', 'RETRY') OR
       (status='PROCESSING' AND next_attempt_at&lt;CURRENT_TIMESTAMP(6)))
   </update>
 
@@ -45,8 +52,8 @@
   </update>
 
   <update id="retryEffect">
-    UPDATE payment_outbox SET status='RETRY', next_attempt_at=CURRENT_TIMESTAMP(6) + INTERVAL LEAST(attempts,
-      30) SECOND, last_error=#{error} WHERE id=#{id}
+    UPDATE payment_outbox SET status='RETRY', next_attempt_at=CURRENT_TIMESTAMP(6) + <include refid="retryDelay"/>,
+      last_error=#{error} WHERE id=#{id}
   </update>
 
   <select id="findRefundChannelData" resultType="map">
@@ -55,20 +62,24 @@
   </select>
 
   <insert id="insertRefundProcess">
-    INSERT IGNORE INTO payment_process_managers(process_id, order_id, process_type, status, command_id,
+    INSERT <if test="_databaseId != 'postgresql'">IGNORE </if>
+    INTO payment_process_managers(process_id, order_id, process_type, status, command_id,
       command_fingerprint, correlation_id, causation_id, traceparent, result_deadline_at, next_check_at,
       version, created_at, updated_at) VALUES (#{processId}, #{orderId}, 'REFUND_CREATE', 'WAITING_RESULT',
       #{commandId}, #{fingerprint}, #{correlationId}, #{causationId}, #{traceparent},
-      CURRENT_TIMESTAMP(6)+INTERVAL 5 MINUTE, CURRENT_TIMESTAMP(6)+INTERVAL 5 MINUTE, 0, CURRENT_TIMESTAMP(6),
+      CURRENT_TIMESTAMP(6)+INTERVAL '5' MINUTE, CURRENT_TIMESTAMP(6)+INTERVAL '5' MINUTE, 0, CURRENT_TIMESTAMP(6),
       CURRENT_TIMESTAMP(6))
+    <if test="_databaseId == 'postgresql'">ON CONFLICT DO NOTHING</if>
   </insert>
 
   <insert id="insertRefundCommand">
-    INSERT IGNORE INTO payment_command_outbox(command_id, process_id, order_id, command_type,
+    INSERT <if test="_databaseId != 'postgresql'">IGNORE </if>
+    INTO payment_command_outbox(command_id, process_id, order_id, command_type,
       payload_fingerprint, payload, status, attempts, next_attempt_at, result_deadline_at, correlation_id,
       causation_id, traceparent, created_at) VALUES (#{commandId}, #{processId}, #{orderId}, 'CREATE_REFUND',
-      #{fingerprint}, #{payload}, 'NEW', 0, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6)+INTERVAL 5 MINUTE,
+      #{fingerprint}, #{payload}, 'NEW', 0, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6)+INTERVAL '5' MINUTE,
       #{correlationId}, #{causationId}, #{traceparent}, CURRENT_TIMESTAMP(6))
+    <if test="_databaseId == 'postgresql'">ON CONFLICT DO NOTHING</if>
   </insert>
 
   <update id="markRefundProcessing">
@@ -78,7 +89,7 @@
 
   <update id="claimRefundCommand">
     UPDATE payment_command_outbox SET status='IN_FLIGHT', attempts=attempts+1,
-      next_attempt_at=CURRENT_TIMESTAMP(6)+INTERVAL 30 SECOND WHERE command_id=#{commandId} AND (status IN
+      next_attempt_at=CURRENT_TIMESTAMP(6)+INTERVAL '30' SECOND WHERE command_id=#{commandId} AND (status IN
       ('NEW', 'RETRY') OR (status='IN_FLIGHT' AND next_attempt_at&lt;CURRENT_TIMESTAMP(6)))
   </update>
 
@@ -97,8 +108,9 @@
   </update>
 
   <update id="retryRefundCommand">
-    UPDATE payment_command_outbox SET status='RETRY', next_attempt_at=CURRENT_TIMESTAMP(6)+INTERVAL
-      LEAST(attempts, 30) SECOND, last_error=#{error} WHERE command_id=#{commandId}
+    UPDATE payment_command_outbox SET status='RETRY',
+      next_attempt_at=CURRENT_TIMESTAMP(6) + <include refid="retryDelay"/>,
+      last_error=#{error} WHERE command_id=#{commandId}
   </update>
 
   <update id="markRefundInventoryRestored">

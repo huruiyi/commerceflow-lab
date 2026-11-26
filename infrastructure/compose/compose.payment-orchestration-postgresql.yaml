@@ -1,0 +1,63 @@
+services:
+  payment-db-postgresql:
+    container_name: fairy-commerceflow-payment-db-postgresql
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: payments
+      POSTGRES_PASSWORD: ${PAYMENT_ORCHESTRATION_PG_ADMIN_PASSWORD:?Set the payment orchestration PostgreSQL admin password}
+    volumes:
+      - payment-postgresql-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "payments"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+    restart: unless-stopped
+
+  payment-postgresql-roles:
+    image: postgres:17.11-alpine
+    environment:
+      PGHOST: payment-db-postgresql
+      PGPASSWORD: ${PAYMENT_ORCHESTRATION_PG_ADMIN_PASSWORD:?Set the payment orchestration PostgreSQL admin password}
+      PAYMENT_ORCHESTRATION_PG_MIGRATOR_PASSWORD: ${PAYMENT_ORCHESTRATION_PG_MIGRATOR_PASSWORD:?Set the payment orchestration migrator password}
+      PAYMENT_ORCHESTRATION_PG_RUNTIME_PASSWORD: ${PAYMENT_ORCHESTRATION_PG_RUNTIME_PASSWORD:?Set the payment orchestration runtime password}
+    volumes:
+      - ./infrastructure/payment/postgresql-roles.sql:/roles.sql:ro
+    command: ["psql", "-Xq", "-U", "postgres", "-d", "payments", "-f", "/roles.sql"]
+    depends_on:
+      payment-db-postgresql:
+        condition: service_healthy
+
+  payment-postgresql-migrator:
+    image: redgate/flyway:12.4.0
+    environment:
+      FLYWAY_URL: jdbc:postgresql://payment-db-postgresql:5432/payments
+      FLYWAY_SCHEMAS: public
+      FLYWAY_USER: payment_orchestration_migrator
+      FLYWAY_PASSWORD: ${PAYMENT_ORCHESTRATION_PG_MIGRATOR_PASSWORD:?Set the payment orchestration migrator password}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql,filesystem:/flyway/callbacks
+    volumes:
+      - ./services/payment-orchestration-service/src/main/resources/db/postgresql:/flyway/sql:ro
+      - ./infrastructure/payment/postgresql-after-migrate.sql:/flyway/callbacks/afterMigrate.sql:ro
+    command: ["migrate"]
+    depends_on:
+      payment-postgresql-roles:
+        condition: service_completed_successfully
+
+  payment-orchestration-service:
+    build: !reset null
+    image: ${PAYMENT_ORCHESTRATION_PG_IMAGE:?Set the verified payment orchestration candidate image}
+    pull_policy: never
+    environment:
+      DATABASE_URL: jdbc:postgresql://payment-db-postgresql:5432/payments
+      DATABASE_USERNAME: payment_orchestration_runtime
+      DATABASE_PASSWORD: ${PAYMENT_ORCHESTRATION_PG_RUNTIME_PASSWORD:?Set the payment orchestration runtime password}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
+    depends_on:
+      payment-db: !reset null
+      payment-db-postgresql:
+        condition: service_healthy
+
+volumes:
+  payment-postgresql-data:

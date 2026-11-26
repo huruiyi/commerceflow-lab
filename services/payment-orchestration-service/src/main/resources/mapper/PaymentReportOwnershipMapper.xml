@@ -13,6 +13,18 @@
       merchant_id = COALESCE(merchant_id, #{merchantId,jdbcType=BIGINT})
   </insert>
 
+  <insert id="remember" databaseId="postgresql">
+    INSERT INTO payment_report_order_ownership AS ownership (order_id, merchant_id, status)
+    VALUES (#{orderId}, #{merchantId,jdbcType=BIGINT}, #{status})
+    ON CONFLICT (order_id) DO UPDATE SET
+      status = CASE
+        WHEN ownership.status = 'CONFLICT' OR EXCLUDED.status = 'CONFLICT'
+          OR ownership.merchant_id &lt;&gt; EXCLUDED.merchant_id THEN 'CONFLICT'
+        ELSE EXCLUDED.status
+      END,
+      merchant_id = COALESCE(ownership.merchant_id, EXCLUDED.merchant_id)
+  </insert>
+
   <select id="orderIdsAfter" resultType="long">
     SELECT DISTINCT order_id
     FROM payment_records

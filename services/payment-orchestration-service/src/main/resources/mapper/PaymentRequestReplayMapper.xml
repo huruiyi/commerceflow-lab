@@ -8,6 +8,6 @@
 
   <insert id="insertRequest">
     INSERT INTO payment_internal_request_replay(request_id, source_service, content_fingerprint, expires_at)
-      VALUES (#{requestId}, #{service}, #{contentHash}, CURRENT_TIMESTAMP(6) + INTERVAL 5 MINUTE)
+      VALUES (#{requestId}, #{service}, #{contentHash}, CURRENT_TIMESTAMP(6) + INTERVAL '5' MINUTE)
   </insert>
 </mapper>

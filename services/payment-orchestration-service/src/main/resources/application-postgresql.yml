@@ -1,0 +1,6 @@
+spring:
+  datasource:
+    hikari:
+      connection-init-sql: SET TIME ZONE 'UTC'
+  flyway:
+    locations: classpath:db/postgresql

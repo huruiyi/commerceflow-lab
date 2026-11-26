@@ -2,6 +2,13 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="vip.fairy.commerceflow.payment.infrastructure.persistence.PaymentLedgerReportMapper">
 
+  <sql id="epoch">
+    <choose>
+      <when test="_databaseId == 'postgresql'">EXTRACT(EPOCH FROM ${column})</when>
+      <otherwise>UNIX_TIMESTAMP(${column})</otherwise>
+    </choose>
+  </sql>
+
   <sql id="orderOwnership">
     LEFT JOIN payment_report_order_ownership o ON o.order_id = p.order_id AND o.status = 'VERIFIED'
   </sql>
@@ -35,38 +42,46 @@
           #{day.startSecond} AS start_second, #{day.endSecond} AS end_second
       </foreach>
     ), ledger_facts AS (
-      SELECT UNIX_TIMESTAMP(p.created_at) AS occurred_second, p.channel, p.currency, p.status AS payment_status,
+      SELECT <include refid="epoch"><property name="column" value="p.created_at"/></include> AS occurred_second,
+        p.channel, p.currency, p.status AS payment_status,
         o.merchant_id IS NULL AS unattributed,
         1 AS created_count, 0 AS paid_count, 0.00 AS received_amount, 0 AS refund_count, 0.00 AS refunded_amount,
         CASE WHEN p.status = 'SUCCESS' AND p.paid_at IS NULL THEN 1 ELSE 0 END AS missing_paid_at_count,
         0 AS missing_refund_succeeded_at_count
       FROM payment_records p
       <include refid="orderOwnership"/>
-      WHERE UNIX_TIMESTAMP(p.created_at) &gt;= #{startSecond} AND UNIX_TIMESTAMP(p.created_at) &lt; #{endSecond}
+      WHERE <include refid="epoch"><property name="column" value="p.created_at"/></include> &gt;= #{startSecond}
+        AND <include refid="epoch"><property name="column" value="p.created_at"/></include> &lt; #{endSecond}
       <include refid="paymentFilters"/>
       UNION ALL
-      SELECT UNIX_TIMESTAMP(p.paid_at), p.channel, p.currency, NULL, o.merchant_id IS NULL,
+      SELECT <include refid="epoch"><property name="column" value="p.paid_at"/></include>,
+        p.channel, p.currency, NULL, o.merchant_id IS NULL,
         0, 1, p.amount, 0, 0.00, 0, 0
       FROM payment_records p
       <include refid="orderOwnership"/>
       WHERE p.status = 'SUCCESS'
-        AND UNIX_TIMESTAMP(p.paid_at) &gt;= #{startSecond} AND UNIX_TIMESTAMP(p.paid_at) &lt; #{endSecond}
+        AND <include refid="epoch"><property name="column" value="p.paid_at"/></include> &gt;= #{startSecond}
+        AND <include refid="epoch"><property name="column" value="p.paid_at"/></include> &lt; #{endSecond}
       <include refid="paymentFilters"/>
       UNION ALL
-      SELECT UNIX_TIMESTAMP(r.succeeded_at), p.channel, r.currency, NULL, o.merchant_id IS NULL,
+      SELECT <include refid="epoch"><property name="column" value="r.succeeded_at"/></include>,
+        p.channel, r.currency, NULL, o.merchant_id IS NULL,
         0, 0, 0.00, 1, r.amount, 0, 0
       FROM refund_records r JOIN payment_records p ON p.id = r.payment_id
       <include refid="orderOwnership"/>
       WHERE r.status = 'SUCCEEDED'
-        AND UNIX_TIMESTAMP(r.succeeded_at) &gt;= #{startSecond} AND UNIX_TIMESTAMP(r.succeeded_at) &lt; #{endSecond}
+        AND <include refid="epoch"><property name="column" value="r.succeeded_at"/></include> &gt;= #{startSecond}
+        AND <include refid="epoch"><property name="column" value="r.succeeded_at"/></include> &lt; #{endSecond}
       <include refid="refundFilters"/>
       UNION ALL
-      SELECT UNIX_TIMESTAMP(r.requested_at), p.channel, r.currency, NULL, o.merchant_id IS NULL,
+      SELECT <include refid="epoch"><property name="column" value="r.requested_at"/></include>,
+        p.channel, r.currency, NULL, o.merchant_id IS NULL,
         0, 0, 0.00, 0, 0.00, 0, 1
       FROM refund_records r JOIN payment_records p ON p.id = r.payment_id
       <include refid="orderOwnership"/>
       WHERE r.status = 'SUCCEEDED' AND r.succeeded_at IS NULL
-        AND UNIX_TIMESTAMP(r.requested_at) &gt;= #{startSecond} AND UNIX_TIMESTAMP(r.requested_at) &lt; #{endSecond}
+        AND <include refid="epoch"><property name="column" value="r.requested_at"/></include> &gt;= #{startSecond}
+        AND <include refid="epoch"><property name="column" value="r.requested_at"/></include> &lt; #{endSecond}
       <include refid="refundFilters"/>
     )
     SELECT d.report_date, f.channel, f.currency, f.payment_status, f.unattributed,

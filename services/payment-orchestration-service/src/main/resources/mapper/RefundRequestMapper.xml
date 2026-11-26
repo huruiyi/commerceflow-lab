@@ -48,7 +48,9 @@
   <insert id="insertRefundRequestedOutbox">
     INSERT INTO payment_outbox(event_id, aggregate_type, aggregate_id, event_type, topic, payload, status,
       attempts, next_attempt_at, last_error, created_at, published_at) VALUES (#{eventId}, 'REFUND',
-      #{refundNumber}, 'REFUND_REQUESTED', 'payment-result-events', #{payload}, 'NEW', 0, CURRENT_TIMESTAMP(6),
+      #{refundNumber}, 'REFUND_REQUESTED', 'payment-result-events',
+      <include refid="vip.fairy.commerceflow.payment.infrastructure.persistence.PaymentProtocolMapper.jsonPayload"/>,
+      'NEW', 0, CURRENT_TIMESTAMP(6),
       NULL, CURRENT_TIMESTAMP(6), NULL)
   </insert>
 

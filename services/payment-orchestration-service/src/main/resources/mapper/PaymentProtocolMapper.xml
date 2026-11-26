@@ -8,6 +8,17 @@
     <result property="expires_at" column="expires_at" javaType="java.sql.Timestamp"/>
   </resultMap>
 
+  <sql id="lockPayment">
+    FOR UPDATE<if test="_databaseId == 'postgresql'"> OF p</if>
+  </sql>
+
+  <sql id="jsonPayload">
+    <choose>
+      <when test="_databaseId == 'postgresql'">CAST(#{payload} AS JSONB)</when>
+      <otherwise>#{payload}</otherwise>
+    </choose>
+  </sql>
+
   <sql id="paymentProjection">
     SELECT p.*,m.merchant_no FROM payment_records p LEFT JOIN payment_merchant_accounts m ON m.id=p.merchant_account_id
   </sql>
@@ -19,8 +30,10 @@
   </resultMap>
 
   <insert id="ensureIdempotencyLock">
-    INSERT IGNORE INTO payment_idempotency_locks(idempotency_key, created_at) VALUES (#{key},
+    INSERT <if test="_databaseId != 'postgresql'">IGNORE </if>
+    INTO payment_idempotency_locks(idempotency_key, created_at) VALUES (#{key},
       CURRENT_TIMESTAMP(6))
+    <if test="_databaseId == 'postgresql'">ON CONFLICT DO NOTHING</if>
   </insert>
 
   <insert id="insertPayment">
@@ -37,7 +50,7 @@
       command_fingerprint, correlation_id, causation_id, traceparent, result_deadline_at, next_check_at,
       version, created_at, updated_at) VALUES (#{processId}, #{orderId}, 'PAYMENT_CREATE', 'WAITING_RESULT',
       #{commandId}, #{fingerprint}, #{correlationId}, #{causationId}, #{traceparent}, CURRENT_TIMESTAMP(6) +
-      INTERVAL 5 MINUTE, CURRENT_TIMESTAMP(6) + INTERVAL 5 MINUTE, 0, CURRENT_TIMESTAMP(6),
+      INTERVAL '5' MINUTE, CURRENT_TIMESTAMP(6) + INTERVAL '5' MINUTE, 0, CURRENT_TIMESTAMP(6),
       CURRENT_TIMESTAMP(6))
   </insert>
 
@@ -45,8 +58,8 @@
     INSERT INTO payment_command_outbox(command_id, process_id, order_id, command_type, payload_fingerprint,
       payload, status, attempts, next_attempt_at, result_deadline_at, correlation_id, causation_id,
       traceparent, created_at) VALUES (#{commandId}, #{processId}, #{orderId}, 'AWAIT_CHANNEL_RESULT',
-      #{fingerprint}, #{payload}, 'IN_FLIGHT', 1, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6) + INTERVAL 5
-      MINUTE, #{correlationId}, #{causationId}, #{traceparent}, CURRENT_TIMESTAMP(6))
+      #{fingerprint}, #{payload}, 'IN_FLIGHT', 1, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6) + INTERVAL '5' MINUTE,
+      #{correlationId}, #{causationId}, #{traceparent}, CURRENT_TIMESTAMP(6))
   </insert>
 
   <select id="latestPayment" resultMap="paymentRow">
@@ -68,7 +81,7 @@
   </select>
 
   <select id="lockOrderPayments" resultMap="paymentRow">
-    <include refid="paymentProjection"/> WHERE p.order_id=#{orderId} ORDER BY p.id FOR UPDATE
+    <include refid="paymentProjection"/> WHERE p.order_id=#{orderId} ORDER BY p.id <include refid="lockPayment"/>
   </select>
 
   <update id="closePendingPayment">
@@ -95,7 +108,8 @@
   </select>
 
   <select id="lockByChannelTransaction" resultMap="paymentRow">
-    <include refid="paymentProjection"/> WHERE p.channel_transaction_no=#{channelTransactionNo} FOR UPDATE
+    <include refid="paymentProjection"/> WHERE p.channel_transaction_no=#{channelTransactionNo}
+    <include refid="lockPayment"/>
   </select>
 
   <select id="findRefundNotification" resultType="map">
@@ -116,7 +130,7 @@
 
   <update id="retryProcess">
     UPDATE payment_process_managers SET status='WAITING_RESULT', result_deadline_at=CURRENT_TIMESTAMP(6) +
-      INTERVAL 5 MINUTE, next_check_at=CURRENT_TIMESTAMP(6), recovered_by=#{operator},
+      INTERVAL '5' MINUTE, next_check_at=CURRENT_TIMESTAMP(6), recovered_by=#{operator},
       recovery_reason=#{reason}, recovered_at=CURRENT_TIMESTAMP(6), updated_at=CURRENT_TIMESTAMP(6),
       version=version+1 WHERE process_id=#{processId} AND status IN ('RECONCILIATION_REQUIRED',
       'COMPENSATION_REQUIRED')
@@ -138,7 +152,7 @@
   </select>
 
   <select id="lockPaymentByNumber" resultMap="paymentRow">
-    <include refid="paymentProjection"/> WHERE p.payment_number=#{paymentNumber} FOR UPDATE
+    <include refid="paymentProjection"/> WHERE p.payment_number=#{paymentNumber} <include refid="lockPayment"/>
   </select>
 
   <update id="recordProcessFailure">
@@ -195,27 +209,32 @@
     INSERT INTO payment_notifications(payment_id, channel, notification_id, channel_transaction_no,
       signature_valid, processing_status, payload_digest, failure_reason, received_at, processed_at,
       raw_status, retry_count, next_retry_at) VALUES (#{paymentId}, #{channel}, #{notificationId},
-      #{channelTransactionNo}, 1, #{status}, #{digest}, #{failure}, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6),
+      #{channelTransactionNo}, TRUE, #{status}, #{digest}, #{failure}, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6),
       #{channelStatus}, 0, NULL)
   </insert>
 
   <insert id="insertRefundNotification">
     INSERT INTO refund_notifications(refund_id, channel, notification_id, channel_refund_no, signature_valid,
       processing_status, payload_digest, failure_reason, received_at, processed_at) VALUES (#{refundId},
-      #{channel}, #{notificationId}, #{channelRefundNo}, 1, #{status}, #{digest}, #{failure},
+      #{channel}, #{notificationId}, #{channelRefundNo}, TRUE, #{status}, #{digest}, #{failure},
       CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6))
   </insert>
 
   <insert id="insertResultOutbox">
-    INSERT IGNORE INTO payment_outbox(event_id, aggregate_type, aggregate_id, event_type, topic, payload,
+    INSERT <if test="_databaseId != 'postgresql'">IGNORE </if>
+    INTO payment_outbox(event_id, aggregate_type, aggregate_id, event_type, topic, payload,
       status, attempts, next_attempt_at, created_at, published_at) VALUES (#{eventId}, #{aggregateType},
-      #{aggregateId}, #{eventType}, #{topic}, #{payload}, 'NEW', 0, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6),
+      #{aggregateId}, #{eventType}, #{topic}, <include refid="jsonPayload"/>,
+      'NEW', 0, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6),
       NULL)
+    <if test="_databaseId == 'postgresql'">ON CONFLICT DO NOTHING</if>
   </insert>
 
   <insert id="insertCommandInbox">
-    INSERT IGNORE INTO payment_remote_message_inbox(message_id, message_kind, payload_fingerprint,
+    INSERT <if test="_databaseId != 'postgresql'">IGNORE </if>
+    INTO payment_remote_message_inbox(message_id, message_kind, payload_fingerprint,
       processing_status) VALUES (#{id}, #{kind}, #{fingerprint}, 'RECEIVED')
+    <if test="_databaseId == 'postgresql'">ON CONFLICT DO NOTHING</if>
   </insert>
 
   <select id="findCommandInbox" resultType="map">
@@ -229,12 +248,12 @@
   </update>
 
   <select id="findMerchant" resultType="map">
-    SELECT id, merchant_no FROM payment_merchant_accounts WHERE channel=#{channel} AND enabled=1
+    SELECT id, merchant_no FROM payment_merchant_accounts WHERE channel=#{channel} AND enabled=TRUE
   </select>
 
   <select id="findByIdempotency" resultMap="paymentRow">
     <include refid="paymentProjection"/> WHERE p.idempotency_key=#{key}
-    <if test="lock">FOR UPDATE</if>
+    <if test="lock"><include refid="lockPayment"/></if>
   </select>
 
   <select id="lockProcessIds" resultType="java.lang.String">
