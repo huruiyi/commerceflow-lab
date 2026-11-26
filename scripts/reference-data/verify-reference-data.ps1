@@ -1,11 +1,11 @@
 #requires -Version 7.0
 param(
   [Parameter(Mandatory)][uri]$BaseUrl,
-  [string]$Dataset = 'cn-statistical-divisions',
+  [string]$Dataset = 'cn-administrative-divisions',
   [Parameter(Mandatory)][string]$Version,
   [Parameter(Mandatory)][int]$ExpectedRows,
-  [string]$ChildCode = '110101001001',
-  [string]$ParentCode = '110101001'
+  [string]$ChildCode = '110101001',
+  [string]$ParentCode = '110101'
 )
 
 $ErrorActionPreference = 'Stop'

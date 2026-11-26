@@ -9,6 +9,11 @@ import RegionDemo from './RegionDemo.vue';
 
 const menu = [
   {
+    label: '概览',
+    icon: 'dashboard',
+    items: [{ key: 'overview', href: '#overview', label: '数据总览', icon: 'dashboard' }],
+  },
+  {
     label: '基础数据',
     icon: 'settings',
     items: [
@@ -20,8 +25,8 @@ const menu = [
   },
 ];
 
-const title = 'CommerceFlow Lab · 基础数据';
-const panel = ref('versions');
+const title = '基础数据管理';
+const panel = ref('overview');
 const session = ref<Session>();
 const checking = ref(true);
 const busy = ref(false);
@@ -42,7 +47,7 @@ function navigate(key: string) {
 
 function updatePanel() {
   const key = location.hash.slice(1);
-  panel.value = menu[0].items.some((item) => item.key === key) ? key : 'versions';
+  panel.value = menu.some((group) => group.items.some((item) => item.key === key)) ? key : 'overview';
 }
 
 onMounted(async () => {
@@ -128,7 +133,7 @@ async function logout() {
     <template #default="{ dark }">
       <a-config-provider :theme="{ algorithm: dark ? theme.darkAlgorithm : theme.defaultAlgorithm }">
         <RegionDemo v-if="panel === 'region-demo'" :key="revision" />
-        <Workspace v-else :key="revision" :panel="panel" />
+        <Workspace v-else :key="panel + ':' + revision" :panel="panel" />
       </a-config-provider>
     </template>
   </AdminShell>

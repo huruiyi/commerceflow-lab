@@ -6,13 +6,45 @@
   align-content: start;
 }
 
+.reference-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  gap: 0.5rem;
+  padding: 0;
+}
+
+.reference-datasets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 1rem;
+}
+
+.reference-pagination {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-top: 1px solid var(--sim-border);
+  border-radius: 0 0 8px 8px;
+  background: var(--sim-surface);
+}
+
+.reference-pagination span {
+  margin-inline-end: auto;
+  color: var(--sim-muted);
+}
+
 .reference-loading {
   padding: 2rem;
   text-align: center;
 }
 
 .reference-heading,
-.reference-controls,
 .reference-parent-path {
   display: flex;
   flex-wrap: wrap;
@@ -37,21 +69,8 @@
   margin-top: 0.25rem;
 }
 
-.reference-controls {
-  margin-bottom: 0.875rem;
-}
-
-.reference-controls .ant-input-search {
-  max-width: 24rem;
-}
-
-.reference-controls .ant-select {
-  min-width: 12rem;
-  max-width: 100%;
-}
-
 .reference-parent-path {
-  margin-bottom: 0.75rem;
+  flex-basis: 100%;
 }
 
 .reference-form .ant-form-item {

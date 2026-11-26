@@ -60,7 +60,7 @@ const pager = computed<VxeGridProps<Row>["pagerConfig"]>(() => ({
 }));
 
 const rows = computed(() =>
-  props.total === undefined
+  props.total === undefined && !slots.pagination
     ? props.rows.slice(
         (props.page - 1) * props.pageSize,
         props.page * props.pageSize,
@@ -86,7 +86,7 @@ const selectRow: VxeGridEvents.CellClick<Row> = ({ row, $event }) => {
 };
 const forwarded = computed(() =>
   Object.keys(slots).filter(
-    (name) => !["filters", "advancedFilters", "actions"].includes(name),
+    (name) => !["filters", "advancedFilters", "actions", "pagination"].includes(name),
   ),
 );
 </script>
@@ -159,7 +159,7 @@ const forwarded = computed(() =>
           :row-config="{ keyField: rowKey }"
           :row-class-name="rowClassName"
           :toolbar-config="toolbar"
-          :pager-config="pager"
+          :pager-config="$slots.pagination ? undefined : pager"
           :custom-config="{ storage: Boolean(id) }"
           align="center"
           show-overflow="tooltip"
@@ -182,5 +182,6 @@ const forwarded = computed(() =>
         </VxeGrid>
       </div>
     </section>
+    <slot name="pagination" />
   </div>
 </template>

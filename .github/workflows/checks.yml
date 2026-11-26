@@ -69,6 +69,7 @@ jobs:
       matrix:
         path:
           - web/commerce-portal/angular
+          - web/reference-data-admin
           - web/project-navigation
           - simulators/payment-platform/web
           - simulators/logistics-platform/web
