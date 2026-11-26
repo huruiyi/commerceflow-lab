@@ -1,0 +1,31 @@
+services:
+  warehouse-simulator-db-rollback:
+    container_name: fairy-commerceflow-warehouse-simulator-db-rollback
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: warehouse_platform
+      MYSQL_USER: warehouse
+      MYSQL_PASSWORD: ${WAREHOUSE_ROLLBACK_PASSWORD:?Set the rollback MySQL runtime password}
+      MYSQL_ROOT_PASSWORD: ${WAREHOUSE_ROLLBACK_ROOT_PASSWORD:?Set the rollback MySQL admin password}
+    volumes:
+      - warehouse-rollback-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    restart: unless-stopped
+
+  warehouse-simulator-service:
+    image: ${WAREHOUSE_ROLLBACK_IMAGE:?Set the original warehouse image}
+    environment:
+      WAREHOUSE_DATABASE_USERNAME: warehouse
+      WAREHOUSE_DATABASE_PASSWORD: ${WAREHOUSE_ROLLBACK_PASSWORD:?Set the rollback MySQL runtime password}
+      SPRING_PROFILES_ACTIVE: default
+      WAREHOUSE_DATABASE_URL: jdbc:mysql://warehouse-simulator-db-rollback:3306/warehouse_platform?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=UTC
+    depends_on: !override
+      warehouse-simulator-db-rollback:
+        condition: service_healthy
+
+volumes:
+  warehouse-rollback-data:
