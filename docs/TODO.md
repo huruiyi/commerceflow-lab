@@ -51,7 +51,8 @@
 - [x] 目录服务 PostgreSQL 应用层隔离验收通过。商品写入、翻译回退、SKU 筛选排序、库存事件重放、Elasticsearch 重建及 SQL 回退均已验证。[目录应用层验收](IMPLEMENTED.md#2117-2026-11-26-商品目录-postgresql-应用层隔离验收)
 - [x] 日常目录 PostgreSQL 目标卷、受限账号和独立回退卷已就绪。最新目录和库存备份复验通过，正向 260 行、反向 263 行逐表一致，两次待投递批次均沿用原事件号，SQL 与 Elasticsearch 代次接续成功。[目录发布准备验收](IMPLEMENTED.md#2118-2026-11-26-商品目录日常发布准备)
 - [x] 日常目录已切换 PostgreSQL，从停服到健康 20 秒。八表 257 行和三个自增序列一致，SQL 与 Elasticsearch 沿用第 4 代。新商品的八条事件均取得库存回执，切换后备份恢复通过。[日常目录切换验收](IMPLEMENTED.md#2119-2026-11-26-日常商品目录切换-postgresql)
-- [ ] 开始履约服务 PostgreSQL 隔离演练。从日常 MySQL 备份恢复履约命令和执行记录，核对已接收的发货命令、租约接续以及商城、仓库和物流回执。[逐库顺序与核对项](architecture/DATABASE-EVOLUTION-PLAN.md#下一库的隔离候选)
+- [x] 履约服务 PostgreSQL 隔离演练通过。正向同步九张业务表 609 行，反向恢复 612 行，两个自增序列一致。未到期租约得到保留，到期后沿用原物流命令取得回执，旧版读回两笔演练发货并受理新接单。[履约隔离验收](IMPLEMENTED.md#2120-2026-11-26-履约服务-postgresql-隔离验收)
+- [ ] 准备履约日常 PostgreSQL 受限账号、目标卷和独立 MySQL 回退卷。从最新备份复验最后一批在途任务、租约和审计记录。[履约隔离复测步骤](architecture/DATABASE-EVOLUTION-PLAN.md#履约服务-postgresql-隔离演练)
 
 | 批次 | 必须交付 | 完成条件 |
 | --- | --- | --- |

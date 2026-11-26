@@ -1974,6 +1974,16 @@ MySQL 和 PostgreSQL 各自通过发票专项回归。两边均核对了 9 条�
 
 原 MySQL 保留 46 个商品和 99 条历史事件，验收商品仅在 PostgreSQL。切换后的 PostgreSQL 原生备份已在独立空实例恢复，八张业务表 268 行、两条 Flyway 记录和三个下一自增值均与现役库一致。本机冻结备份、最终迁移清单、库存及搜索凭证位于 `%LOCALAPPDATA%/CommerceFlow/releases/catalog-pg-ready-1795689831/live-20261126-185836/`。[日常启动与回退](architecture/DATABASE-EVOLUTION-PLAN.md#商品目录日常发布窗口)
 
+### 2.120 2026-11-26 履约服务 PostgreSQL 隔离验收
+
+从日常 MySQL V4 原生备份恢复 102 条发货任务、160 条商家操作和两类恢复审计。历史订单 751、752、753 的发货命令、仓库出库单、商城物流桥命令、承运商、运单号和送达状态逐笔对上日常回执。加入一条在途发货后，九张业务表共 609 行及两个下一自增值逐项核对一致，PostgreSQL 候选启动后到达 Flyway V2。
+
+隔离签名服务先记录第一个运单回执并暂扣响应。旧服务在 `LOGISTICS` 步骤被终止，PostgreSQL 保留原租约持有人、到期时间和首次尝试次数。60 秒原租约有效时没有再次调用物流，到期后重试使用同一命令号和请求内容，取回同一运单回执。第二笔拆包使用仓库 2，临时 503 和待出库回执都沿用原出库单，取得实发回执后完成出库、运单和订单更新。两笔发货任务均完成，履约指标刷新成功。
+
+反向恢复 MySQL V4 的九张业务表共 612 行，逐表摘要、下一自增值及原 Flyway 历史一致。旧服务查到三笔历史单和两笔演练发货，并接受一笔新接单。PostgreSQL 原生归档在独立空实例恢复，九表行数、两个下一自增值、两条 Flyway 记录及两笔演练发货状态核对通过。空 PostgreSQL 和空 MySQL 启动检查、履约镜像内 2 项测试、代码质量与 92 项脚本契约均通过。
+
+日常履约继续使用 MySQL V4，隔离验收前后 49 个日常容器的 ID 一致。本机证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/fulfillment-pg-rehearsal-1795691093/`，完整复验项目为 `fairy-commerceflow-fulfillment-pg-4681d511e2fa`。[隔离复测步骤](architecture/DATABASE-EVOLUTION-PLAN.md#履约服务-postgresql-隔离演练)
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

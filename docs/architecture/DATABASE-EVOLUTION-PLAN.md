@@ -31,6 +31,20 @@
 | 9 支付渠道模拟服务 | 18 / 16 | 冲突更新、回调重试时间算术 | 支付与退款的渠道流水号、金额及回调状态与支付编排一致。 |
 | 10 支付编排服务 | 21 / 7 | 忽略重复插入、冲突更新、行锁 | 订单、渠道、退款、结算和待处理命令逐笔对账，回退后不能重复入账。 |
 
+### 履约服务 PostgreSQL 隔离演练
+
+从日常 MySQL V4 的单事务备份恢复九张业务表，另存取自日常订单 751、752、753 的履约、仓库、商城物流桥和物流模拟器回执。正向复制到 PostgreSQL 17.11 V1，按表核对全字段摘要和两个下一自增值，启动候选服务后应用 V2。V2 初始化空库运行模式和水位，迁入的现有配置及水位保留原值。PostgreSQL `postgresql` 配置用于 `EXECUTION` 模式，旧库的 `SHADOW` 模式继续在 MySQL 上运行。
+
+在仓库根目录使用 PowerShell 7.4+、Node.js 24+ 及本机 Docker。`$release` 指向备份与证据目录，其中 `fulfillment-mysql.sql` 为 MySQL 原生备份，同一目录保存 `daily-jobs.jsonl`、`daily-warehouse.jsonl`、`daily-commerce.jsonl` 和 `daily-logistics.jsonl`。源、目标、回退库各用一个独立卷，数据库端口仅在隔离网络内可达。
+
+```powershell
+docker build -t commerceflow-fulfillment-pg:rehearsal services/fulfillment-service
+$legacy = docker inspect fairy-commerceflow-fulfillment-service --format '{{.Config.Image}}'
+pwsh scripts/fulfillment/verify-fulfillment-postgresql.ps1 -BackupPath "$release/fulfillment-mysql.sql" -CandidateImage commerceflow-fulfillment-pg:rehearsal -BaselineImage $legacy -ReceiptDirectory $release -EvidenceDirectory $release
+```
+
+脚本在旧服务认领发货、签名下游收到物流请求后终止旧进程。候选先核对迁入的持有人、到期时间和尝试次数，等待原租约到期再用原物流命令接续。另用隔离签名服务演练第二个仓库的拆包、临时 503 和待出库回执。停止候选后归档 PostgreSQL，将九表写回单独的 MySQL V4，再用旧镜像读取历史及新增发货并受理新接单。运行结果、迁移清单和归档记录保存在本次隔离项目目录。[履约隔离验收记录](../IMPLEMENTED.md#2120-2026-11-26-履约服务-postgresql-隔离验收)
+
 ### 商品目录账本隔离演练
 
 使用日常 MySQL V8 的单事务原生备份。隔离 PostgreSQL 17.11 的 Flyway V1 建立八张业务表、三个自增序列及显示器属性视图。正向和反向复制均核对全字段摘要和下一自增值。反向恢复按外键关系先插入公开商品，再插入引用它的销售单元，回退库保留八条原 MySQL Flyway 记录。
