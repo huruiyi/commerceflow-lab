@@ -2,6 +2,9 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="vip.fairy.commerceflow.fulfillment.infrastructure.ExecutionMapper">
 
+  <sql id="statementClock">CURRENT_TIMESTAMP(6)</sql>
+  <sql id="statementClock" databaseId="postgresql">statement_timestamp()</sql>
+
   <update id="initializeMode">
     <choose>
       <when test="mode == 'EXECUTION'">
@@ -24,6 +27,26 @@
     </choose>
   </update>
 
+  <update id="initializeMode" databaseId="postgresql">
+    WITH initialized AS (
+      UPDATE fulfillment_runtime_mode AS runtime
+      SET mode=#{mode}
+      WHERE runtime.singleton_id=1 AND runtime.mode IS NULL
+        AND EXISTS (SELECT 1 FROM fulfillment_shadow_watermark AS watermark
+          WHERE watermark.singleton_id=runtime.singleton_id AND watermark.generation=0 AND watermark.source_sequence=0)
+        AND NOT EXISTS (SELECT 1 FROM fulfillment_shadow_quarantine)
+        AND NOT EXISTS (SELECT 1 FROM fulfillment_order_locks)
+        AND NOT EXISTS (SELECT 1 FROM fulfillment_command_ids)
+        AND NOT EXISTS (SELECT 1 FROM fulfillment_shipment_jobs)
+        AND NOT EXISTS (SELECT 1 FROM fulfillment_merchant_jobs)
+        AND NOT EXISTS (SELECT 1 FROM fulfillment_shipment_recoveries)
+        AND NOT EXISTS (SELECT 1 FROM fulfillment_merchant_recoveries)
+      RETURNING singleton_id
+    )
+    UPDATE fulfillment_shadow_watermark AS watermark SET generation=1
+    FROM initialized WHERE watermark.singleton_id=initialized.singleton_id
+  </update>
+
   <select id="mode" resultType="string">
     SELECT mode FROM fulfillment_runtime_mode WHERE singleton_id=1 FOR UPDATE
   </select>
@@ -36,10 +59,9 @@
           resultType="vip.fairy.commerceflow.fulfillment.infrastructure.FulfillmentRuntimeMetrics$Snapshot">
     SELECT COUNT(CASE WHEN status='PENDING' THEN 1 END) AS pending,
       COUNT(CASE WHEN status='REVIEW_REQUIRED' THEN 1 END) AS review_required,
-      COUNT(CASE WHEN status='PENDING' AND lease_until &lt;= CURRENT_TIMESTAMP(6) THEN 1 END) AS expired_leases,
-      COALESCE(TIMESTAMPDIFF(SECOND,
-        MIN(CASE WHEN status='PENDING' AND next_attempt_at &lt;= CURRENT_TIMESTAMP(6) THEN next_attempt_at END),
-        CURRENT_TIMESTAMP(6)),0) AS oldest_due_seconds,
+      COUNT(CASE WHEN status='PENDING' AND lease_until &lt;= <include refid="statementClock"/>
+        THEN 1 END) AS expired_leases,
+      <include refid="oldestDueSeconds"/> AS oldest_due_seconds,
       (SELECT COUNT(*) FROM fulfillment_shadow_quarantine) AS quarantined
     FROM (
       SELECT status,next_attempt_at,lease_until FROM fulfillment_shipment_jobs
@@ -50,6 +72,19 @@
     ) AS outstanding
   </select>
 
+  <sql id="oldestDueSeconds">
+    COALESCE(TIMESTAMPDIFF(SECOND,
+      MIN(CASE WHEN status='PENDING' AND next_attempt_at &lt;= <include refid="statementClock"/>
+        THEN next_attempt_at END),
+      <include refid="statementClock"/>),0)
+  </sql>
+
+  <sql id="oldestDueSeconds" databaseId="postgresql">
+    COALESCE(TRUNC(EXTRACT(EPOCH FROM (<include refid="statementClock"/> -
+      MIN(CASE WHEN status='PENDING' AND next_attempt_at &lt;= <include refid="statementClock"/>
+        THEN next_attempt_at END))))::bigint,0)
+  </sql>
+
   <insert id="lockOrder">
     INSERT INTO fulfillment_order_locks (order_id) VALUES (#{orderId})
     ON DUPLICATE KEY UPDATE order_id=order_id
@@ -58,6 +93,16 @@
   <insert id="reserveCommand">
     INSERT INTO fulfillment_command_ids (command_id,order_id) VALUES (#{commandId},#{orderId})
     ON DUPLICATE KEY UPDATE order_id=order_id
+  </insert>
+
+  <insert id="lockOrder" databaseId="postgresql">
+    INSERT INTO fulfillment_order_locks (order_id) VALUES (#{orderId})
+    ON CONFLICT (order_id) DO UPDATE SET order_id=EXCLUDED.order_id
+  </insert>
+
+  <insert id="reserveCommand" databaseId="postgresql">
+    INSERT INTO fulfillment_command_ids (command_id,order_id) VALUES (#{commandId},#{orderId})
+    ON CONFLICT (command_id) DO NOTHING
   </insert>
 
   <select id="commandOrder" resultType="java.lang.Long">
@@ -90,7 +135,7 @@
       <choose>
         <when test="operation.name() == 'SHIP'">
           SELECT 1 FROM fulfillment_shipment_jobs WHERE order_id=#{orderId}
-            AND (#{packageLines} IS NULL OR package_lines IS NULL)
+            AND (CAST(#{packageLines} AS CHAR) IS NULL OR package_lines IS NULL)
             AND NOT (<include refid="reservationRejected"/>)
         </when>
         <otherwise>
@@ -110,14 +155,14 @@
           (command_id,order_id,merchant_id,order_number,carrier,tracking_number,step,status,next_attempt_at,
            package_lines,warehouse_id)
         VALUES (#{commandId},#{orderId},#{merchantId},#{orderNumber},#{carrier},#{trackingNumber},
-          #{step},'PENDING',CURRENT_TIMESTAMP(6),#{packageLines},#{warehouseId})
+          #{step},'PENDING',<include refid="statementClock"/>,#{packageLines},#{warehouseId})
       </when>
       <otherwise>
         INSERT INTO fulfillment_merchant_jobs
           (command_id,order_id,merchant_id,operation,expected_version,carrier,tracking_number,detail,step,status,
             next_attempt_at)
         VALUES (#{commandId},#{orderId},#{merchantId},#{operation},COALESCE(#{expectedVersion},0),
-          #{carrier},#{trackingNumber},#{detail},#{step},'PENDING',CURRENT_TIMESTAMP(6))
+          #{carrier},#{trackingNumber},#{detail},#{step},'PENDING',<include refid="statementClock"/>)
       </otherwise>
     </choose>
   </insert>
@@ -143,12 +188,12 @@
   <select id="due" resultType="string">
     SELECT command_id FROM (
       SELECT command_id,next_attempt_at FROM fulfillment_shipment_jobs WHERE status='PENDING'
-        AND next_attempt_at &lt;= CURRENT_TIMESTAMP(6)
-        AND (lease_until IS NULL OR lease_until &lt;= CURRENT_TIMESTAMP(6))
+        AND next_attempt_at &lt;= <include refid="statementClock"/>
+        AND (lease_until IS NULL OR lease_until &lt;= <include refid="statementClock"/>)
       UNION ALL
       SELECT command_id,next_attempt_at FROM fulfillment_merchant_jobs WHERE status='PENDING'
-        AND next_attempt_at &lt;= CURRENT_TIMESTAMP(6)
-        AND (lease_until IS NULL OR lease_until &lt;= CURRENT_TIMESTAMP(6))
+        AND next_attempt_at &lt;= <include refid="statementClock"/>
+        AND (lease_until IS NULL OR lease_until &lt;= <include refid="statementClock"/>)
     ) AS pending ORDER BY next_attempt_at,command_id LIMIT 10
   </select>
 
@@ -160,43 +205,54 @@
   </sql>
 
   <sql id="lease">
-    command_id=#{task.commandId} AND owner_token=#{owner} AND lease_until &gt; CURRENT_TIMESTAMP(6)
+    command_id=#{task.commandId} AND owner_token=#{owner} AND lease_until &gt; <include refid="statementClock"/>
   </sql>
 
   <update id="claim">
     UPDATE <include refid="jobTable"/> SET owner_token=#{owner},
-      lease_until=TIMESTAMPADD(SECOND,60,CURRENT_TIMESTAMP(6)),attempts=attempts+1,updated_at=CURRENT_TIMESTAMP(6)
+      lease_until=<include refid="leaseDeadline"/>,attempts=attempts+1,
+      updated_at=<include refid="statementClock"/>
     WHERE command_id=#{task.commandId} AND status='PENDING' AND step=#{task.step}
-      AND next_attempt_at &lt;= CURRENT_TIMESTAMP(6)
-      AND (lease_until IS NULL OR lease_until &lt;= CURRENT_TIMESTAMP(6))
+      AND next_attempt_at &lt;= <include refid="statementClock"/>
+      AND (lease_until IS NULL OR lease_until &lt;= <include refid="statementClock"/>)
   </update>
+
+  <sql id="leaseDeadline">TIMESTAMPADD(SECOND,60,<include refid="statementClock"/>)</sql>
+  <sql id="leaseDeadline" databaseId="postgresql"><include refid="statementClock"/> + INTERVAL '60 seconds'</sql>
 
   <update id="advance">
     UPDATE <include refid="jobTable"/> SET step=#{step},attempts=0,last_error=NULL,
-      owner_token=NULL,lease_until=NULL,next_attempt_at=CURRENT_TIMESTAMP(6),updated_at=CURRENT_TIMESTAMP(6)
+      owner_token=NULL,lease_until=NULL,next_attempt_at=<include refid="statementClock"/>,
+      updated_at=<include refid="statementClock"/>
     WHERE <include refid="lease"/>
   </update>
 
   <update id="waitForWarehouse">
     UPDATE fulfillment_shipment_jobs
     SET attempts=0,last_error=NULL,owner_token=NULL,lease_until=NULL,
-      next_attempt_at=TIMESTAMPADD(SECOND,2,CURRENT_TIMESTAMP(6))
+      next_attempt_at=<include refid="warehousePollTime"/>
     WHERE <include refid="lease"/> AND step='WAREHOUSE'
   </update>
+  <sql id="warehousePollTime">TIMESTAMPADD(SECOND,2,<include refid="statementClock"/>)</sql>
+  <sql id="warehousePollTime" databaseId="postgresql"><include refid="statementClock"/> + INTERVAL '2 seconds'</sql>
 
   <update id="finish">
     UPDATE <include refid="jobTable"/> SET status=#{status},last_error=#{error},
-      owner_token=NULL,lease_until=NULL,updated_at=CURRENT_TIMESTAMP(6)
+      owner_token=NULL,lease_until=NULL,updated_at=<include refid="statementClock"/>
     WHERE <include refid="lease"/>
   </update>
 
   <update id="retry">
     UPDATE <include refid="jobTable"/>
     SET status=CASE WHEN attempts &gt;= 6 THEN 'REVIEW_REQUIRED' ELSE 'PENDING' END,
-      last_error=#{error},owner_token=NULL,lease_until=NULL,updated_at=CURRENT_TIMESTAMP(6),
-      next_attempt_at=TIMESTAMPADD(SECOND,LEAST(POWER(2,attempts),30),CURRENT_TIMESTAMP(6))
+      last_error=#{error},owner_token=NULL,lease_until=NULL,updated_at=<include refid="statementClock"/>,
+      next_attempt_at=<include refid="retryTime"/>
     WHERE <include refid="lease"/>
   </update>
+  <sql id="retryTime">TIMESTAMPADD(SECOND,LEAST(POWER(2,attempts),30),<include refid="statementClock"/>)</sql>
+  <sql id="retryTime" databaseId="postgresql">
+    <include refid="statementClock"/> + LEAST(POWER(2,attempts),30) * INTERVAL '1 second'
+  </sql>
 
   <select id="reviewable" resultType="string">
     SELECT command_id FROM (
@@ -214,7 +270,7 @@
 
   <update id="requeue">
     UPDATE <include refid="jobTable"/> SET status='PENDING',attempts=0,
-      next_attempt_at=CURRENT_TIMESTAMP(6),updated_at=CURRENT_TIMESTAMP(6)
+      next_attempt_at=<include refid="statementClock"/>,updated_at=<include refid="statementClock"/>
     WHERE command_id=#{task.commandId} AND status='REVIEW_REQUIRED' AND owner_token IS NULL AND lease_until IS NULL
   </update>
 

@@ -1,0 +1,7 @@
+spring:
+  flyway:
+    locations: classpath:db/postgresql
+
+commerceflow:
+  fulfillment:
+    mode: ${FULFILLMENT_RUNTIME_MODE:EXECUTION}

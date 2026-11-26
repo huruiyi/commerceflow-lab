@@ -1,10 +1,13 @@
 package vip.fairy.commerceflow.fulfillment.infrastructure;
 
+import java.util.Properties;
+
 import javax.sql.DataSource;
 
 import org.apache.ibatis.builder.xml.XMLMapperBuilder;
 import org.apache.ibatis.datasource.unpooled.UnpooledDataSource;
 import org.apache.ibatis.mapping.Environment;
+import org.apache.ibatis.mapping.VendorDatabaseIdProvider;
 import org.apache.ibatis.session.Configuration;
 import org.apache.ibatis.session.LocalCacheScope;
 import org.apache.ibatis.session.SqlSession;
@@ -27,9 +30,9 @@ public class ShadowDatabases {
                          @Value("${commerceflow.fulfillment.source-url}") String sourceUrl,
                          @Value("${commerceflow.fulfillment.order-url}") String orderUrl,
                          @Value("${commerceflow.fulfillment.reader-password}") String password) {
-    this.target = configure("shadow", target);
-    this.source = configure("commerce", reader(sourceUrl, password));
-    this.orders = configure("orders", reader(orderUrl, password));
+    this.target = configure("shadow", target, targetDatabaseId(target));
+    this.source = configure("commerce", reader(sourceUrl, password), null);
+    this.orders = configure("orders", reader(orderUrl, password), null);
   }
 
   public SqlSession source() {
@@ -44,9 +47,22 @@ public class ShadowDatabases {
     return orders.openSession(TransactionIsolationLevel.REPEATABLE_READ);
   }
 
-  private SqlSessionFactory configure(String name, DataSource dataSource) {
+  boolean postgresqlTarget() {
+    return "postgresql".equals(target.getConfiguration().getDatabaseId());
+  }
+
+  private String targetDatabaseId(DataSource dataSource) {
+    var provider = new VendorDatabaseIdProvider();
+    var names = new Properties();
+    names.setProperty("PostgreSQL", "postgresql");
+    provider.setProperties(names);
+    return provider.getDatabaseId(dataSource);
+  }
+
+  private SqlSessionFactory configure(String name, DataSource dataSource, String databaseId) {
     JdbcTransactionFactory transactions = new JdbcTransactionFactory();
     Configuration configuration = new Configuration(new Environment(name, transactions, dataSource));
+    configuration.setDatabaseId(databaseId);
     configuration.setMapUnderscoreToCamelCase(true);
     configuration.setArgNameBasedConstructorAutoMapping(true);
     configuration.setLocalCacheScope(LocalCacheScope.STATEMENT);

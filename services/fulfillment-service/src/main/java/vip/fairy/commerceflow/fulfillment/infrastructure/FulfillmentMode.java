@@ -25,6 +25,9 @@ public class FulfillmentMode implements ApplicationRunner {
     if (!"SHADOW".equals(configured) && !"EXECUTION".equals(configured)) {
       throw new IllegalStateException("Unknown fulfillment runtime mode");
     }
+    if (databases.postgresqlTarget() && !"EXECUTION".equals(configured)) {
+      throw new IllegalStateException("The PostgreSQL fulfillment target requires EXECUTION mode");
+    }
     try (var target = databases.target()) {
       ExecutionMapper mapper = target.getMapper(ExecutionMapper.class);
       if (!requirePromotedMode) mapper.initializeMode(configured);
