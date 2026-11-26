@@ -2090,6 +2090,32 @@ PostgreSQL 17.11 目标卷 `fairy-commerceflow_payment-simulator-postgresql-data
 
 两套原 MySQL 卷均持久强制只读，切换前后导出去除时间戳后完全一致。切换后两份 PostgreSQL 原生备份均在独立环境恢复并逐表校验，渠道库 17 表 2,369 行、编排库 20 表 11,982 行。9 项支付编排测试、96 项脚本契约和代码质量审计通过。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/payment-simulator-pg-ready-1795699510/live-20261126-213620/` 和 `%LOCALAPPDATA%/CommerceFlow/releases/payment-orchestration-pg-1795700179/live-20261126-215223/`。[日常运行与回退](architecture/DATABASE-EVOLUTION-PLAN.md#支付双库日常运行与回退)
 
+### 2.132 2026-11-27 PostgreSQL 切换后日常全链路回归
+
+回归前后逐一核对 JDBC 目标和对端 `pg_stat_activity`。按服务容器 IP 匹配到 13 个日常服务的实际客户端会话，数据库版本均为 PostgreSQL 17.11，服务均健康。
+
+| 服务 | 实际数据库 | 会话账号 |
+| --- | --- | --- |
+| 核心商城 | `commerceflow` | `commerce_runtime` |
+| 商品目录 | `catalog` | `catalog_runtime` |
+| 订单 | `orders` | `order_runtime` |
+| 库存 | `inventory` | `inventory_runtime` |
+| 履约 | `fulfillment` | `fulfillment_runtime` |
+| 支付编排 | `payments` | `payment_orchestration_runtime` |
+| 支付渠道模拟 | `payment_platform` | `payment_simulator_runtime` |
+| 仓库模拟 | `warehouse_platform` | `warehouse_runtime` |
+| 物流模拟 | `logistics_platform` | `logistics_runtime` |
+| 发票模拟 | `invoice_platform` | `invoice_runtime` |
+| 通知 | `notification` | `notification` |
+| 站外消息模拟 | `messaging_platform` | `messaging_runtime` |
+| 行政区划基础数据 | `reference_data` | `reference_data` |
+
+日常只新增订单 760，订单行 764 用支付宝模拟支付 1,301.90 元。仓库 1 实发 1 件，发货运单到达后顾客确认收货。原仓收到退货 1 件并通过质检，售后单完成，支付渠道退回商品款 89.90 元，原运费 1,212.00 元按本次商品退货规则保留。订单仍是 `RECEIVED`，售后单为 `COMPLETED`。支付编排与渠道的原交易号、退款号及金额相符，支付和退款签名回执各入账一次。
+
+出库单、发货和退货运单及原仓回补凭证逐项一致。商品总账和仓库 1 的可售、预占、已售余额依次为 `95/0/5 → 94/1/5 → 94/0/6 → 95/0/5`。Kafka `inventory-outbound-events` 分区 0 偏移量 55 读到唯一一条新出库事件，消息键和报文与库存已投递记录相同。退款短信、邮件均已送达，通知库和站外消息模拟库的两条回执一致。顾客原购物车和所选地址保留。
+
+12 套原 MySQL 卷、归一化原生导出 SHA-256 及原有只读状态前后一致。11 套保持强制只读，原通知 MySQL 保留此前的可写配置。54 个日常运行容器 ID 一致。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/postgresql-journey-20261127-020827/`。
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

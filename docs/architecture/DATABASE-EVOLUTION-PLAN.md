@@ -4,7 +4,7 @@
 
 日常通知服务使用 PostgreSQL 17.11（`notification-db-postgresql` / `notification`）。原通知 MySQL
 数据库 `notification-db` 及其应用容器保留作回退，反向迁移前以 PostgreSQL 为唯一写入源。
-行政区划基础数据（`reference-data-db` / `reference_data`）、核心商城、商品目录、履约、库存、订单、支付编排以及支付渠道、站外消息、仓库、物流和发票模拟服务均已使用 PostgreSQL 17.11。2026-11-26 日常支付双库完成最后一批切换，业务写入统一走 PostgreSQL。原 MySQL 数据留作历史核对和回退。[日常支付双库切换验收](../IMPLEMENTED.md#2131-2026-11-26-日常支付双库切换-postgresql)
+行政区划基础数据（`reference-data-db` / `reference_data`）、核心商城、商品目录、履约、库存、订单、支付编排以及支付渠道、站外消息、仓库、物流和发票模拟服务均已使用 PostgreSQL 17.11。2026-11-26 日常支付双库完成最后一批切换，原 MySQL 数据留作历史核对和回退。2026-11-27 核对了 13 个服务的实际连接，并用订单 760 对账完整交易路径。[日常支付双库切换验收](../IMPLEMENTED.md#2131-2026-11-26-日常支付双库切换-postgresql) · [切换后日常全链路回归](../IMPLEMENTED.md#2132-2026-11-27-postgresql-切换后日常全链路回归)
 
 ### 下一库的隔离候选
 
