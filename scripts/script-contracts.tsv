@@ -84,5 +84,6 @@ fulfillment/verify-warehouse-postgresql.ps1	BackupPath,CandidateImage,BaselineIm
 fulfillment/verify-warehouse-release.ps1	BackupPath,ReleaseEnvFile,EvidenceDirectory
 fulfillment/verify-logistics-postgresql.ps1	BackupPath,CandidateImage,BaselineImage,EvidenceDirectory
 fulfillment/verify-logistics-release.ps1	BackupPath,ReleaseEnvFile,EvidenceDirectory
-invoice/verify-invoice-simulator.ps1	MaxWaitSeconds
+invoice/verify-invoice-simulator.ps1	MaxWaitSeconds,PostgreSqlImage
+invoice/verify-invoice-postgresql.ps1	BackupPath,CommerceReceiptsPath,CandidateImage,BaselineImage,EvidenceDirectory
 invoice/verify-commerce-invoices.ps1	SkipBuild,MaxWaitSeconds,PlaywrightModule,ScreenshotDirectory

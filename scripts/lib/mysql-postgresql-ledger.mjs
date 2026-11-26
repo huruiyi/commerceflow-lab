@@ -43,6 +43,10 @@ export function transferLedger({direction, mysqlContainer, mysqlDatabase, pgCont
     FROM information_schema.columns WHERE table_schema=DATABASE() ORDER BY table_name,ordinal_position`));
   const foreignKeys = records(mysql(`SELECT JSON_ARRAY(table_name,referenced_table_name)
     FROM information_schema.key_column_usage WHERE table_schema=DATABASE() AND referenced_table_name IS NOT NULL`));
+  const selfReferences = direction === 'ToMySQL' ? records(mysql(`SELECT
+      JSON_ARRAY(table_name,constraint_name,column_name,referenced_column_name)
+    FROM information_schema.key_column_usage WHERE table_schema=DATABASE() AND table_name=referenced_table_name
+    ORDER BY table_name,constraint_name,ordinal_position`)) : [];
   if (direction === 'ToPostgreSQL') {
     const sourceTables = mysql("SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE() AND table_type='BASE TABLE' AND table_name<>'flyway_schema_history' ORDER BY table_name").split('\n');
     if (JSON.stringify(tables) !== JSON.stringify(sourceTables)) throw new Error('Source and destination business table sets differ.');
@@ -140,6 +144,39 @@ export function transferLedger({direction, mysqlContainer, mysqlDatabase, pgCont
       nextIdentity: snapshot.sequences.get(t) ?? null };
   }
 
+  function parentFirst(table, cols, rows) {
+    const constraints = new Map();
+    for (const [name, constraint, local, referenced] of selfReferences) {
+      if (name !== table) continue;
+      if (!constraints.has(constraint)) constraints.set(constraint, []);
+      constraints.get(constraint).push([cols.findIndex(c => c.name === local), cols.findIndex(c => c.name === referenced)]);
+    }
+    if (!constraints.size) return rows;
+    const parents = new Map(rows.map(row => [row, []]));
+    for (const columns of constraints.values()) {
+      const byKey = new Map(rows.map(row => [JSON.stringify(columns.map(([, parent]) => row[parent])), row]));
+      for (const row of rows) {
+        const key = columns.map(([child]) => row[child]);
+        if (key.includes(null)) continue;
+        const parent = byKey.get(JSON.stringify(key));
+        if (!parent) throw new Error('Missing self-referenced parent in ' + table);
+        if (parent !== row) parents.get(row).push(parent);
+      }
+    }
+    const visited = new Set();
+    const visiting = new Set();
+    function visit(row) {
+      if (visited.has(row)) return;
+      if (visiting.has(row)) throw new Error('Cyclic self-reference in ' + table);
+      visiting.add(row);
+      for (const parent of parents.get(row)) visit(parent);
+      visiting.delete(row);
+      visited.add(row);
+    }
+    for (const row of rows) visit(row);
+    return visited;
+  }
+
   const reverse = direction === 'ToMySQL';
   const source = snapshot(reverse ? 'pg' : 'mysql');
   if (direction !== 'Compare') {
@@ -158,7 +195,7 @@ export function transferLedger({direction, mysqlContainer, mysqlDatabase, pgCont
       const fields = included.map(c => quote + c.name + quote).join(', ');
       const rows = source.rows.get(table);
       if (!reverse && rows.length) sql.push(`COPY ${table} (${fields}) FROM STDIN;`);
-      for (const row of rows) {
+      for (const row of reverse ? parentFirst(table, cols, rows) : rows) {
         const values = included.map(c => {
           const v = row[c.i];
           if (v === null) return reverse ? 'NULL' : '\\N';

@@ -1,0 +1,35 @@
+services:
+  invoice-db-postgresql:
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: invoice_platform
+      POSTGRES_PASSWORD: invoice-verification-postgresql
+    volumes:
+      - invoice-postgresql-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "invoice_platform"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+
+  invoice-db-rollback:
+    extends:
+      file: compose.invoice-verification.yaml
+      service: invoice-db
+    volumes:
+      - invoice-rollback-data:/var/lib/mysql
+
+  invoice-simulator-service:
+    image: ${INVOICE_VERIFICATION_IMAGE:-commerceflow-invoice-pg:rehearsal}
+    environment:
+      SPRING_PROFILES_ACTIVE: ${INVOICE_VERIFICATION_PROFILE:-postgresql}
+      SPRING_DATASOURCE_URL: jdbc:${INVOICE_VERIFICATION_DATABASE:-postgresql://invoice-db-postgresql:5432}/invoice_platform
+      SPRING_DATASOURCE_USERNAME: ${INVOICE_VERIFICATION_USERNAME:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${INVOICE_VERIFICATION_PASSWORD:-invoice-verification-postgresql}
+    depends_on: !override
+      invoice-db-postgresql:
+        condition: service_healthy
+
+volumes:
+  invoice-postgresql-data:
+  invoice-rollback-data:

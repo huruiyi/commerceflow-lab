@@ -1,13 +1,18 @@
 #requires -Version 7.0
 param(
-  [int]$MaxWaitSeconds = 90
+  [int]$MaxWaitSeconds = 90,
+  [string]$PostgreSqlImage
 )
 
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 . (Join-Path $root 'scripts/lib/lifecycle-verification.ps1')
 $projectName = 'fairy-commerceflow-invoice-qa-' + [guid]::NewGuid().ToString('N').Substring(0, 10)
-$composeFile = Join-Path $root 'infrastructure/compose/compose.invoice-verification.yaml'
+$composeFiles = @('-f', (Join-Path $root 'infrastructure/compose/compose.invoice-verification.yaml'))
+if ($PostgreSqlImage) {
+  $env:INVOICE_VERIFICATION_IMAGE = $PostgreSqlImage
+  $composeFiles += @('-f', (Join-Path $root 'infrastructure/compose/compose.invoice-postgresql-verification.yaml'))
+}
 $requestSecret = 'invoice-isolated-request-secret-2026'
 $utf8 = [Text.Encoding]::UTF8
 $client = [Net.Http.HttpClient]::new()
@@ -15,7 +20,7 @@ $client.Timeout = [TimeSpan]::FromSeconds(15)
 $results = @{}
 
 function Invoke-Compose {
-  & docker compose -p $projectName -f $composeFile @args
+  & docker compose -p $projectName @composeFiles @args
   if ($LASTEXITCODE -ne 0) { throw "Docker Compose command failed for $projectName" }
 }
 
@@ -25,67 +30,7 @@ function Get-ServiceUrl([string]$Service) {
   return 'http://' + $binding
 }
 
-function Assert-Equal($Actual, $Expected, [string]$Context) {
-  if ($Actual -cne $Expected) { throw "${Context}: expected [$Expected], got [$Actual]" }
-}
-
-function Wait-For([scriptblock]$Condition, [string]$Description) {
-  $timer = [Diagnostics.Stopwatch]::StartNew()
-  do {
-    $value = & $Condition
-    if ($value) { return $value }
-    Start-Sleep -Milliseconds 200
-  } while ($timer.Elapsed.TotalSeconds -lt $MaxWaitSeconds)
-  throw "Timed out waiting for $Description"
-}
-
-function New-SignedRequest(
-  [string]$Method,
-  [string]$Path,
-  $Body,
-  [long]$Timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-) {
-  $json = if ($null -eq $Body) { '' } else { ConvertTo-Json -InputObject $Body -Compress -Depth 8 }
-  $canonical = "$Timestamp`n$Method`n$Path`n$json"
-  $hmac = [Security.Cryptography.HMACSHA256]::new($utf8.GetBytes($requestSecret))
-  try {
-    $signature = [BitConverter]::ToString($hmac.ComputeHash($utf8.GetBytes($canonical))).Replace('-', '').ToLowerInvariant()
-  } finally {
-    $hmac.Dispose()
-  }
-  $request = [Net.Http.HttpRequestMessage]::new($Method, $invoiceUrl + $Path)
-  $request.Headers.Add('X-Invoice-Timestamp', [string]$Timestamp)
-  $request.Headers.Add('X-Invoice-Signature', $signature)
-  if ($Method -eq 'POST') { $request.Content = [Net.Http.StringContent]::new($json, $utf8, 'application/json') }
-  return $request
-}
-
-function Read-Response([Net.Http.HttpResponseMessage]$Response) {
-  try {
-    $raw = $Response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
-    $body = if ($raw) { ConvertFrom-Json -InputObject $raw }
-    return @{ Status = [int]$Response.StatusCode; Body = $body }
-  } finally {
-    $Response.Dispose()
-  }
-}
-
-function Invoke-Invoice(
-  [string]$Method,
-  [string]$Path,
-  $Body = $null,
-  [int]$Expected = 200,
-  [long]$Timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-) {
-  $request = New-SignedRequest $Method $Path $Body $Timestamp
-  try {
-    $result = Read-Response ($client.SendAsync($request).GetAwaiter().GetResult())
-    Assert-Equal $result.Status $Expected "$Method $Path response code ($($result.Body | ConvertTo-Json -Compress))"
-    return $result.Body
-  } finally {
-    $request.Dispose()
-  }
-}
+. (Join-Path $root 'scripts/lib/invoice-verification.ps1')
 
 function Invoke-TimedSubmission([string]$Path, $Body) {
   $request = New-SignedRequest POST $Path $Body
@@ -136,8 +81,12 @@ function Assert-Replay([string]$Path, $Payload, $ExpectedResult) {
   }
 }
 
-function Invoke-MySql([string]$Sql) {
-  Invoke-Compose exec -T -e MYSQL_PWD=invoice-verification-password invoice-db mysql --batch --skip-column-names -uinvoice invoice_platform -e $Sql
+function Invoke-Ledger([string]$Sql) {
+  if ($PostgreSqlImage) {
+    Invoke-Compose exec -T invoice-db-postgresql psql -U postgres -d invoice_platform -XAtq -v ON_ERROR_STOP=1 -c $Sql
+  } else {
+    Invoke-Compose exec -T -e MYSQL_PWD=invoice-verification-password invoice-db mysql --batch --skip-column-names -uinvoice invoice_platform -e $Sql
+  }
 }
 
 function Get-ReceiptState {
@@ -147,7 +96,8 @@ function Get-ReceiptState {
 
 try {
   Write-Host "Starting isolated Compose project $projectName"
-  Invoke-Compose up -d --build | Out-Host
+  $buildOption = if ($PostgreSqlImage) { '--no-build' } else { '--build' }
+  Invoke-Compose up -d $buildOption invoice-simulator-service receipt-fixture | Out-Host
   $invoiceUrl = Get-ServiceUrl invoice-simulator-service
   $fixtureUrl = Get-ServiceUrl receipt-fixture
   Wait-Ready
@@ -245,13 +195,13 @@ try {
     $state = Get-ReceiptState
     $state['evt-red-full'] -and $state['evt-red-full'].deliveries -ge 2 -and !$state['evt-red-full'].acknowledged
   } 'red-full receipt attempted with receiver paused' | Out-Null
-  Assert-Equal (Invoke-MySql "SELECT COUNT(*) FROM invoice_receipts WHERE event_id = 'evt-red-full' AND delivered_at IS NULL") '1' 'receipt pending before restart'
+  Assert-Equal (Invoke-Ledger "SELECT COUNT(*) FROM invoice_receipts WHERE event_id = 'evt-red-full' AND delivered_at IS NULL") '1' 'receipt pending before restart'
 
   $restart = @{ applicationNo = 'APP-RESTART'; paymentNo = 'PAY-RESTART'; amount = 64; currency = 'CNY' }
   $null = Invoke-Invoice POST '/api/invoice-requests/issue-restart' $restart 202
-  Assert-Equal (Invoke-MySql "SELECT CONCAT(status, ':', COALESCE(invoice_no, 'NONE')) FROM invoice_requests WHERE request_id = 'issue-restart'") 'ACCEPTED:NONE' 'request pending before SIGKILL'
+  Assert-Equal (Invoke-Ledger "SELECT CONCAT(status, ':', COALESCE(invoice_no, 'NONE')) FROM invoice_requests WHERE request_id = 'issue-restart'") 'ACCEPTED:NONE' 'request pending before SIGKILL'
   Invoke-Compose kill -s SIGKILL invoice-simulator-service | Out-Host
-  Assert-Equal (Invoke-MySql "SELECT status FROM invoice_requests WHERE request_id = 'issue-restart'") 'ACCEPTED' 'request still pending after SIGKILL'
+  Assert-Equal (Invoke-Ledger "SELECT status FROM invoice_requests WHERE request_id = 'issue-restart'") 'ACCEPTED' 'request still pending after SIGKILL'
   Invoke-Compose up -d --no-deps invoice-simulator-service | Out-Host
   $invoiceUrl = Get-ServiceUrl invoice-simulator-service
   Wait-Ready
@@ -266,16 +216,17 @@ try {
     if ($state.Count -eq $eventCount -and !@($state.Values.Where({ !$_.acknowledged })).Count) { $state }
   } "$eventCount signed receipts acknowledged after redelivery"
   Wait-For {
-    (Invoke-MySql 'SELECT COUNT(*) FROM invoice_receipts WHERE delivered_at IS NOT NULL') -eq [string]$eventCount
+    (Invoke-Ledger 'SELECT COUNT(*) FROM invoice_receipts WHERE delivered_at IS NOT NULL') -eq [string]$eventCount
   } "$eventCount durable receipt acknowledgements" | Out-Null
 
-  $migrations = Get-VersionedMigrations (Join-Path $root 'simulators/invoice-platform/service/src/main/resources/db/migration')
+  $migrationFolder = if ($PostgreSqlImage) { 'postgresql' } else { 'migration' }
+  $migrations = Get-VersionedMigrations (Join-Path $root "simulators/invoice-platform/service/src/main/resources/db/$migrationFolder")
   $expectedHistory = $migrations | ForEach-Object { "$($_.version)|$($_.script)|1" }
-  $history = Invoke-MySql "SELECT CONCAT_WS('|', version, script, success) FROM flyway_schema_history WHERE version IS NOT NULL ORDER BY installed_rank"
+  $history = Invoke-Ledger "SELECT CONCAT_WS('|', version, script, CASE WHEN success THEN 1 ELSE 0 END) FROM flyway_schema_history WHERE version IS NOT NULL ORDER BY installed_rank"
   Assert-Equal ($history -join ', ') ($expectedHistory -join ', ') 'Invoice Flyway schema'
-  Assert-Equal (Invoke-MySql 'SELECT CONCAT((SELECT COUNT(*) FROM invoice_requests), ":",
-    (SELECT COUNT(*) FROM invoice_tickets), ":", (SELECT COUNT(*) FROM invoice_receipts))') '9:7:9' 'request/ticket/receipt counts'
-  Assert-Equal (Invoke-MySql "SELECT SUM(t.amount) FROM invoice_tickets t WHERE t.original_invoice_no = '$($issued.invoiceNo)'") '250.00' 'total red amount equals original invoice'
+  Assert-Equal (Invoke-Ledger "SELECT CONCAT_WS(':', (SELECT COUNT(*) FROM invoice_requests),
+    (SELECT COUNT(*) FROM invoice_tickets), (SELECT COUNT(*) FROM invoice_receipts))") '9:7:9' 'request/ticket/receipt counts'
+  Assert-Equal (Invoke-Ledger "SELECT SUM(t.amount) FROM invoice_tickets t WHERE t.original_invoice_no = '$($issued.invoiceNo)'") '250.00' 'total red amount equals original invoice'
   Write-Host 'request | state | reference | amount | currency | ticket | original | receipt | DB attempts | deliveries'
   foreach ($id in ($results.Keys | Sort-Object)) {
     $result = $results[$id]
@@ -284,17 +235,17 @@ try {
     if ($receipt.deliveries -lt 2) { throw "Expected redelivery for $id" }
     $event = $receipt.body | ConvertFrom-Json
     Assert-Equal ($event.result | ConvertTo-Json -Compress -Depth 8) ($result | ConvertTo-Json -Compress -Depth 8) "$id signed receipt equals query result"
-    $row = Invoke-MySql "SELECT CONCAT_WS('|', r.request_id, r.status, r.reference_no, r.amount, r.currency,
+    $row = Invoke-Ledger "SELECT CONCAT_WS('|', r.request_id, r.status, r.reference_no, r.amount, r.currency,
       COALESCE(t.invoice_no, '-'), COALESCE(r.original_invoice_no, '-'), e.event_id, e.attempts)
       FROM invoice_requests r LEFT JOIN invoice_tickets t ON t.request_id = r.request_id
       JOIN invoice_receipts e ON e.request_id = r.request_id
       WHERE r.request_id = '$id' AND e.delivered_at IS NOT NULL
         AND (t.invoice_no IS NULL OR (t.amount = r.amount AND t.currency = r.currency AND t.kind = r.kind
-             AND (t.original_invoice_no <=> r.original_invoice_no)))"
+             AND (COALESCE(t.original_invoice_no, '') = COALESCE(r.original_invoice_no, ''))))"
     $amount = ([decimal]$result.amount).ToString('F2', [Globalization.CultureInfo]::InvariantCulture)
     $expected = @($id, $result.status, $result.referenceNo, $amount, 'CNY',
       ($result.invoiceNo ?? '-'), ($result.originalInvoiceNo ?? '-'), "evt-$id") -join '|'
-    Assert-Equal (($row -split '\|')[0..7] -join '|') $expected "$id MySQL reconciliation"
+    Assert-Equal (($row -split '\|')[0..7] -join '|') $expected "$id ledger reconciliation"
     Write-Host "$row|$($receipt.deliveries)"
   }
   Write-Host "PASS: $eventCount terminal requests, 7 tickets, 9 signed receipt events. Red total 250.00 CNY, balance 0.00 CNY."
@@ -304,5 +255,6 @@ try {
 } finally {
   $client.Dispose()
   Invoke-Compose down | Out-Host
-  Write-Host "Retained isolated MySQL volume: ${projectName}_invoice-mysql-data"
+  $volume = if ($PostgreSqlImage) { 'invoice-postgresql-data' } else { 'invoice-mysql-data' }
+  Write-Host "Retained isolated volume: ${projectName}_$volume"
 }
