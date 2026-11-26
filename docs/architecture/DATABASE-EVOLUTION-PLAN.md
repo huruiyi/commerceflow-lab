@@ -29,6 +29,22 @@
 | 9 支付渠道模拟服务 | 18 / 16 | 冲突更新、回调重试时间算术 | 支付与退款的渠道流水号、金额及回调状态与支付编排一致。 |
 | 10 支付编排服务 | 21 / 7 | 忽略重复插入、冲突更新、行锁 | 订单、渠道、退款、结算和待处理命令逐笔对账，回退后不能重复入账。 |
 
+### 订单服务 PostgreSQL 隔离演练
+
+从日常订单 MySQL V12 的单事务原生备份恢复订单账本。PostgreSQL 17.11 V1 保留订单金额生成列、16 张业务表、10 个外键和 5 个自增序列，V2 为全新环境初始化水位。正反向复制均核对逐表全字段摘要及下一自增值。`postgresql` 配置用于订单执行模式，MySQL 影子复制路径继续使用原配置。
+
+在仓库根目录使用 PowerShell 7.4+、Node.js 24+ 及本机 Docker。`$release` 指向仓库外的证据目录，包含 `order-mysql.sql` 和 `historical-receipts.json`。证据中的 `orders` 保存待核对订单的 `id`、`orderNumber`、`status`、`inventoryStatus` 和 `totalAmount`，`cancel` 保存历史取消单 `orderId` 和原订单库 `orderReceipts`。订单库和支付、库存依赖各用独立卷，数据库和应用只在隔离网络内互通。
+
+```powershell
+docker build -t commerceflow-order-pg:rehearsal services/order-service
+$legacy = docker inspect fairy-commerceflow-order-service --format '{{.Config.Image}}'
+$inventory = docker inspect fairy-commerceflow-inventory-service --format '{{.Config.Image}}'
+$payment = docker inspect fairy-commerceflow-payment-orchestration-service --format '{{.Config.Image}}'
+pwsh scripts/orders/verify-order-postgresql.ps1 -BackupPath "$release/order-mysql.sql" -CandidateImage commerceflow-order-pg:rehearsal -BaselineImage $legacy -InventoryImage $inventory -PaymentImage $payment -HistoricalReceiptsPath "$release/historical-receipts.json" -EvidenceDirectory $release
+```
+
+隔离正向迁移时，取消流程已收到支付关闭回执，仍等待库存释放。反向迁移时，另一笔取消已收到库存释放回执，仍等待支付关闭。演练从独立支付、库存服务取得实际回执，再通过签名接口按原业务命令提交给接管的订单服务。另实测订单存储接口的并发下单、取消、请求重放和关键词搜索。核对订单取消终态、订单出站命令、结果收件记录、支付关闭回执与库存释放流水。[订单隔离验收记录](../IMPLEMENTED.md#2126-2026-11-26-订单服务-postgresql-隔离验收)
+
 ### 库存服务 PostgreSQL 隔离演练
 
 从日常 MySQL V10 的单事务原生备份恢复库存账本。PostgreSQL 17.11 V1 建立 17 张业务表、16 个外键及两个自增序列。V2 初始化空库的两个默认仓，保留迁入的仓库资料。迁移时保留商品库存和分仓库存、预占状态和版本、命令防重记录、出库单与出库事件、退货回补和原迁移水位。正反向均核对逐表全字段摘要和下一自增值。
