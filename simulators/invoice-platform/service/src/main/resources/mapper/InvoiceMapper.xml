@@ -48,6 +48,13 @@
   <select id="lockTicket" resultType="vip.fairy.commerceflow.simulator.invoice.InvoiceLedger$Ticket">
     SELECT <include refid="ticketColumns"/> FROM invoice_tickets WHERE invoice_no = #{invoiceNo} FOR UPDATE
   </select>
+  <select id="lockTicket" databaseId="postgresql" resultType="vip.fairy.commerceflow.simulator.invoice.InvoiceLedger$Ticket">
+    SELECT t.invoice_no, t.request_id, t.kind, t.original_invoice_no, t.amount, t.currency, t.issued_at
+    FROM invoice_tickets t
+    JOIN invoice_requests original ON original.request_id = t.request_id
+    WHERE t.invoice_no = #{invoiceNo}
+    FOR UPDATE OF original
+  </select>
   <select id="sumReservedRedAmounts" resultType="java.math.BigDecimal">
     SELECT COALESCE(SUM(amount), 0) FROM invoice_requests
     WHERE original_invoice_no = #{originalInvoiceNo} AND status IN ('ACCEPTED', 'SUCCEEDED')

@@ -1,0 +1,58 @@
+services:
+  invoice-db-postgresql:
+    container_name: fairy-commerceflow-invoice-db-postgresql
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: invoice_platform
+      POSTGRES_PASSWORD: ${INVOICE_PG_ADMIN_PASSWORD:?Set the invoice PostgreSQL admin password}
+    volumes:
+      - invoice-postgresql-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "invoice_platform"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    restart: unless-stopped
+
+  invoice-postgresql-roles:
+    image: postgres:17.11-alpine
+    environment:
+      PGPASSWORD: ${INVOICE_PG_ADMIN_PASSWORD:?Set the invoice PostgreSQL admin password}
+      INVOICE_PG_MIGRATOR_PASSWORD: ${INVOICE_PG_MIGRATOR_PASSWORD:?Set the invoice migration password}
+      INVOICE_PG_RUNTIME_PASSWORD: ${INVOICE_PG_RUNTIME_PASSWORD:?Set the invoice runtime password}
+    volumes:
+      - ${INVOICE_REPO_ROOT:-.}/infrastructure/invoice/postgresql-roles.sql:/roles.sql:ro
+    command: ["psql", "-Xq", "-h", "invoice-db-postgresql", "-U", "postgres", "-d", "invoice_platform", "-f", "/roles.sql"]
+    depends_on:
+      invoice-db-postgresql:
+        condition: service_healthy
+
+  invoice-postgresql-migrator:
+    image: redgate/flyway:12.4.0
+    environment:
+      FLYWAY_URL: jdbc:postgresql://invoice-db-postgresql:5432/invoice_platform
+      FLYWAY_SCHEMAS: invoice_platform
+      FLYWAY_USER: invoice_migrator
+      FLYWAY_PASSWORD: ${INVOICE_PG_MIGRATOR_PASSWORD:?Set the invoice migration password}
+    volumes:
+      - ${INVOICE_REPO_ROOT:-.}/simulators/invoice-platform/service/src/main/resources/db/postgresql:/flyway/sql:ro
+      - ${INVOICE_REPO_ROOT:-.}/infrastructure/invoice/postgresql-after-migrate.sql:/flyway/callbacks/afterMigrate.sql:ro
+    command: ["-locations=filesystem:/flyway/sql,filesystem:/flyway/callbacks", "migrate"]
+    depends_on:
+      invoice-postgresql-roles:
+        condition: service_completed_successfully
+
+  invoice-simulator-service:
+    image: ${INVOICE_PG_IMAGE:?Set the verified invoice candidate image}
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://invoice-db-postgresql:5432/invoice_platform?currentSchema=invoice_platform
+      SPRING_DATASOURCE_USERNAME: invoice_runtime
+      SPRING_DATASOURCE_PASSWORD: ${INVOICE_PG_RUNTIME_PASSWORD:?Set the invoice runtime password}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
+    depends_on: !override
+      invoice-postgresql-migrator:
+        condition: service_completed_successfully
+
+volumes:
+  invoice-postgresql-data:
