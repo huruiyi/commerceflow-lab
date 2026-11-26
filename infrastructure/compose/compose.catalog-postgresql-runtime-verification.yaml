@@ -1,0 +1,74 @@
+services:
+  catalog:
+    image: ${CATALOG_VERIFICATION_IMAGE:?Set the catalog candidate image}
+    environment:
+      SPRING_PROFILES_ACTIVE: postgresql
+      DATABASE_URL: jdbc:postgresql://postgres:5432/catalog
+      DATABASE_USERNAME: postgres
+      DATABASE_PASSWORD: catalog-isolated-postgresql
+      CATALOG_INTERNAL_SECRET: catalog-runtime-verification
+      INVENTORY_SERVICE_INTERNAL_URL: http://inventory:8080
+      COMMERCEFLOW_CATALOG_SEARCH_ELASTICSEARCH_ENABLED: "true"
+      COMMERCEFLOW_CATALOG_SEARCH_ELASTICSEARCH_URL: http://elastic:9200
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  inventory-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: inventory
+      MYSQL_USER: inventory
+      MYSQL_PASSWORD: catalog-runtime-inventory
+      MYSQL_ROOT_PASSWORD: catalog-runtime-inventory-root
+    volumes:
+      - inventory-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_ROOT_PASSWORD mysql -h127.0.0.1 -uroot inventory -e 'SELECT 1'"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  inventory:
+    image: ${CATALOG_VERIFICATION_INVENTORY_IMAGE:?Set the inventory image}
+    environment:
+      DATABASE_URL: jdbc:mysql://inventory-db:3306/inventory?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DATABASE_USERNAME: inventory
+      DATABASE_PASSWORD: catalog-runtime-inventory
+      CATALOG_INTERNAL_SECRET: catalog-runtime-verification
+      INVENTORY_ACCEPTING_TRAFFIC: "true"
+    depends_on:
+      inventory-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  elastic:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.6
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    mem_limit: 1500m
+    volumes:
+      - elastic-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9200/_cluster/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 40
+
+  verifier:
+    image: node:26.13.1-alpine3.24
+    command: ["tail", "-f", "/dev/null"]
+    volumes:
+      - ./scripts/commerce/catalog-postgresql-runtime-api.mjs:/verify.mjs:ro
+
+volumes:
+  inventory-data:
+  elastic-data:
