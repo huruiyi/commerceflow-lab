@@ -1966,6 +1966,14 @@ MySQL 和 PostgreSQL 各自通过发票专项回归。两边均核对了 9 条�
 
 代码质量、91 项脚本契约和隔离快速回归均通过。本机凭证位于 `%LOCALAPPDATA%/CommerceFlow/releases/catalog-pg-ready-1795689831/`，完整复验项目为 `fairy-commerceflow-catalog-release-b1be509b3860`。[正式切换与回退步骤](architecture/DATABASE-EVOLUTION-PLAN.md#商品目录日常发布窗口)
 
+### 2.119 2026-11-26 日常商品目录切换 PostgreSQL
+
+18:59 停止目录服务，冻结原 MySQL V8，并保存原生备份。八张业务表共 257 行，全字段摘要和三个下一自增值逐项一致。复制后应用 PostgreSQL 17.11 的 V2 迁移，从停服到新服务健康用时 20.0 秒。新服务以 `catalog_runtime` 连接，日常项目仅目录应用容器更换 ID。窗口内待投递事件为零，SQL 与 Elasticsearch 都沿用第 4 代，切换前后的 46 份索引文档均对比一致。
+
+切换后新建验收商品 83 及默认 SKU 75，核对创建重放、冲突请求、规格、价格、英文翻译、上架及搜索命中。商品在 43.25 元的上架状态下取得第 7 版库存快照，验收完成后下架并恢复为第 8 版不可售状态。八条目录事件均由库存首次投递确认，并记录 SQL 和 Elasticsearch 投影时间。原有 46 条库存快照保持一致，验收商品的可用、预占和已售数量均为零。现役 Elasticsearch 逐条核对 47 份文档，无版本或内容差异。日常商城英文搜索查到原商品 `Learning Laptop`，下架后的验收商品在公开搜索中为零条。
+
+原 MySQL 保留 46 个商品和 99 条历史事件，验收商品仅在 PostgreSQL。切换后的 PostgreSQL 原生备份已在独立空实例恢复，八张业务表 268 行、两条 Flyway 记录和三个下一自增值均与现役库一致。本机冻结备份、最终迁移清单、库存及搜索凭证位于 `%LOCALAPPDATA%/CommerceFlow/releases/catalog-pg-ready-1795689831/live-20261126-185836/`。[日常启动与回退](architecture/DATABASE-EVOLUTION-PLAN.md#商品目录日常发布窗口)
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

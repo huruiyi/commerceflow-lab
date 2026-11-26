@@ -4,10 +4,9 @@
 
 日常通知服务使用 PostgreSQL 17.11（`notification-db-postgresql` / `notification`）。原通知 MySQL
 数据库 `notification-db` 及其应用容器保留作回退，反向迁移前以 PostgreSQL 为唯一写入源。
-行政区划基础数据（`reference-data-db` / `reference_data`）、核心商城以及站外消息、仓库、物流和发票模拟服务也已使用 PostgreSQL 17.11。2026-11-26 发票切换后，以下 6 个业务库仍以 MySQL 8.4 为写入方。
+行政区划基础数据（`reference-data-db` / `reference_data`）、核心商城、商品目录以及站外消息、仓库、物流和发票模拟服务也已使用 PostgreSQL 17.11。2026-11-26 商品目录切换后，以下 5 个业务库以 MySQL 8.4 为写入方。
 
 - `payment-simulator-db` / `payment_platform`
-- `catalog-db` / `catalog`
 - `inventory-db` / `inventory`
 - `order-db` / `orders`（已完成单一所有权 CUTOVER）
 - `payment-db` / `payments`（支付编排）
@@ -56,7 +55,9 @@ PostgreSQL 的数据库搜索使用子串筛选，关键词匹配忽略大小写
 
 ### 商品目录日常发布窗口
 
-准备目录为 `%LOCALAPPDATA%/CommerceFlow/releases/catalog-pg-ready-1795689831/`。原目录由 MySQL V8 提供，原卷为 `fairy-commerceflow_catalog-db-data`。PostgreSQL 17.11 的 `fairy-commerceflow_catalog-postgresql-data` 已建立 V1 空账本。`catalog_migrator` 持有 schema，`catalog_runtime` 只能写入目录、库存事件和搜索投影所需的字段。允许删除待重建的 SQL 搜索文档。独立 MySQL 回退卷为 `fairy-commerceflow_catalog-rollback-data`，已载入 V8 结构、显示器属性视图和八条迁移记录。
+准备目录为 `%LOCALAPPDATA%/CommerceFlow/releases/catalog-pg-ready-1795689831/`。日常目录现在使用 PostgreSQL 17.11 V2 和 `fairy-commerceflow_catalog-postgresql-data`，原 MySQL V8 及 `fairy-commerceflow_catalog-db-data` 已强制只读。重启现役目录服务使用下文的 `$pg` 参数。[日常目录切换验收](../IMPLEMENTED.md#2119-2026-11-26-日常商品目录切换-postgresql)
+
+`catalog_migrator` 持有 schema，`catalog_runtime` 只能写入目录、库存事件和搜索投影所需的字段。允许删除待重建的 SQL 搜索文档。独立 MySQL 回退卷为 `fairy-commerceflow_catalog-rollback-data`，已载入 V8 结构、显示器属性视图和八条迁移记录。
 
 从仓库根目录加载锁定的镜像、备份及发布配置。隔离演练复用当前的目录候选、旧版目录和库存镜像，在独立库存和 Elasticsearch 上验证。
 
