@@ -52,6 +52,65 @@ pwsh scripts/fulfillment/verify-logistics-postgresql.ps1 -BackupPath "$dir/logis
 
 脚本通过物流 API 读取历史发货、退货各一单，然后创建两张新运单，按真实事件号比对轨迹和签名回执。接收端返回 HTTP 503 时产生待重试记录。一次在 PostgreSQL 上恢复，另一次在反向复制后由旧版 MySQL 服务恢复。结果目录保留两份逐表摘要和两次重试的事件号，隔离容器停止。
 
+### 物流模拟库日常发布窗口
+
+准备目录为 `%LOCALAPPDATA%/CommerceFlow/releases/logistics-pg-ready-1795680814/`。日常物流继续写入原 MySQL V7，原卷为 `fairy-commerceflow_logistics-simulator-db-data`。目标卷 `fairy-commerceflow_logistics-postgresql-data` 已建立 PostgreSQL 17.11 V1 结构。独立回退卷 `fairy-commerceflow_logistics-rollback-data` 已恢复 MySQL 的表结构、索引、约束及七条迁移历史，回退实例平时停止。
+
+发布参数沿用原物流服务的 Compose 文件、端口、签名密钥、回调和调度配置。`logistics_migrator` 持有业务 schema，应用以 `logistics_runtime` 连接，进程内 Flyway 已关闭。运行账号可建运单、追加轨迹和审计，只能更新 Mapper 所用的运单与投递状态字段；签名 nonce 仅可追加。
+
+从仓库根目录用 PowerShell 7.4+ 加载本机发布参数：
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $true
+$release = Join-Path $env:LOCALAPPDATA 'CommerceFlow/releases/logistics-pg-ready-1795680814'
+$old = Get-Content "$release/original-args.json" -Raw | ConvertFrom-Json
+$pg = Get-Content "$release/postgresql-args.json" -Raw | ConvertFrom-Json
+$back = Get-Content "$release/rollback-args.json" -Raw | ConvertFrom-Json
+$binding = Get-Content "$release/release-binding.json" -Raw | ConvertFrom-Json
+$source = 'fairy-commerceflow-logistics-simulator-db'
+$target = 'fairy-commerceflow-logistics-simulator-db-postgresql'
+```
+
+**切换前**核对镜像、源卷、备份摘要和账号权限。隔离复验入口使用同一份发布配置，在独立网络重放备份之后产生的最后一批事件：
+
+```powershell
+if ((docker inspect fairy-commerceflow-logistics-simulator-service --format '{{.Image}}') -ne $binding.originalId -or
+    (docker image inspect $binding.originalTag --format '{{.Id}}') -ne $binding.originalId -or
+    (docker image inspect $binding.candidateTag --format '{{.Id}}') -ne $binding.candidateId) { throw '物流镜像已变化' }
+if ((Get-FileHash "$release/logistics-backup.sql").Hash -ne (Get-Content "$release/backup.sha256")) { throw '备份摘要不同' }
+if ((docker exec $target psql -U postgres -d logistics_platform -XAtq -v ON_ERROR_STOP=1 -c (Get-Content infrastructure/logistics/verify-runtime.sql -Raw)) -ne 't') { throw '物流运行权限已变化' }
+pwsh scripts/fulfillment/verify-logistics-release.ps1 -BackupPath "$release/logistics-backup.sql" -ReleaseEnvFile "$release/standby.env" -EvidenceDirectory $release
+```
+
+**正式切换**只停止物流模拟服务，让签名请求和回调投递停止写入。固定原库只读并保存冻结备份，复制最终五张业务表和全部自增序列。每张表的摘要、行数和下一自增值一致后，再启动候选服务。
+
+```powershell
+$stamp = Get-Date -Format yyyyMMdd-HHmmss
+docker @old stop logistics-simulator-service
+docker exec $source sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -e "SET PERSIST super_read_only=ON"'
+docker exec $source sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysqldump -uroot --single-transaction --no-tablespaces --set-gtid-purged=OFF --skip-lock-tables --default-character-set=utf8mb4 --hex-blob --routines --events --triggers logistics_platform' > "$release/frozen-$stamp.sql"
+node scripts/fulfillment/logistics-rehearsal-data.mjs fairy-commerceflow release-forward "$release/forward-$stamp.json"
+docker @pg up -d --no-deps --no-build --wait logistics-simulator-service
+```
+
+核对受限账号的实际连接，再按商户运单号核对商城的发货、退货轨迹和物流事件号。对窗口内待投递的事件核对尝试次数、租约、审计和商城回执。如果在新应用启动前中断，确认目标无业务写入后，解除原 MySQL 的 `super_read_only` 和 `read_only`，用 `$old` 恢复原服务。
+
+**新应用启动后的回退**使用独立 MySQL 回退卷。停止物流应用，禁用 PostgreSQL 运行账号并断开残余连接，取原生备份，将最新账本反向复制后启动旧版。两个方向都核对项目和数据卷，目标已含数据时只接受逐表内容和序列均一致的重试。
+
+```powershell
+$stamp = Get-Date -Format yyyyMMdd-HHmmss
+docker @pg stop logistics-simulator-service
+docker exec $target psql -U postgres -d logistics_platform -v ON_ERROR_STOP=1 -c 'ALTER ROLE logistics_runtime NOLOGIN'
+docker exec $target psql -U postgres -d logistics_platform -v ON_ERROR_STOP=1 -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename='logistics_runtime'"
+docker exec $target pg_dump -U postgres -d logistics_platform -Fc > "$release/postgresql-$stamp.dump"
+docker @back start --wait logistics-simulator-db-rollback
+node scripts/fulfillment/logistics-rehearsal-data.mjs fairy-commerceflow release-reverse "$release/reverse-$stamp.json"
+docker @back up -d --no-deps --no-build --wait logistics-simulator-service
+```
+
+回退后按原事件号核对待重试回调由下一次尝试完成、签名回执与轨迹对应，再复核旧版可以推进切换后创建的运单。[发布准备验收](../IMPLEMENTED.md#2111-2026-11-26-物流模拟库日常发布准备)
+
 ### 仓库模拟库隔离演练
 
 从日常 MySQL V4 获取一致性备份。仓库模拟服务继续接收日常出库和退货，复测脚本只向新建的隔离 Compose 项目写入。PowerShell 7.4+ 保留原生备份字节，迁移工具使用 Node.js 24+。
