@@ -1,0 +1,130 @@
+services:
+  original:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: payments
+      MYSQL_USER: payments
+      MYSQL_PASSWORD: payments-isolated
+      MYSQL_ROOT_PASSWORD: payments-isolated-root
+    volumes:
+      - original-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_PASSWORD mysql -h127.0.0.1 -upayments payments -e 'SELECT 1'"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+
+  rollback:
+    extends:
+      file: infrastructure/compose/compose.payment-orchestration-rollback.yaml
+      service: payment-db-rollback
+    container_name: !reset null
+    restart: "no"
+
+  postgres:
+    extends:
+      file: infrastructure/compose/compose.payment-orchestration-postgresql.yaml
+      service: payment-db-postgresql
+    container_name: !reset null
+    restart: "no"
+
+  roles:
+    extends:
+      file: infrastructure/compose/compose.payment-orchestration-postgresql.yaml
+      service: payment-postgresql-roles
+    depends_on: !reset {}
+    environment:
+      PGHOST: postgres
+    volumes: !override
+      - ./infrastructure/payment/postgresql-roles.sql:/roles.sql:ro
+
+  migrator:
+    extends:
+      file: infrastructure/compose/compose.payment-orchestration-postgresql.yaml
+      service: payment-postgresql-migrator
+    depends_on: !reset {}
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/payments
+    volumes: !override
+      - ./services/payment-orchestration-service/src/main/resources/db/postgresql:/flyway/sql:ro
+      - ./infrastructure/payment/postgresql-after-migrate.sql:/flyway/callbacks/afterMigrate.sql:ro
+
+  orchestrator:
+    image: ${PAYMENT_ORCHESTRATION_REHEARSAL_IMAGE:?Set the rehearsal payment image}
+    pull_policy: never
+    environment:
+      DATABASE_URL: ${PAYMENT_ORCHESTRATION_REHEARSAL_URL:-jdbc:postgresql://postgres:5432/payments}
+      DATABASE_USERNAME: ${PAYMENT_ORCHESTRATION_REHEARSAL_USER:-payment_orchestration_runtime}
+      DATABASE_PASSWORD: ${PAYMENT_ORCHESTRATION_REHEARSAL_PASSWORD:-payments-isolated-runtime}
+      SPRING_PROFILES_ACTIVE: ${PAYMENT_ORCHESTRATION_REHEARSAL_PROFILE:-postgresql}
+      SPRING_FLYWAY_ENABLED: ${PAYMENT_ORCHESTRATION_REHEARSAL_FLYWAY:-false}
+      PAYMENT_ACCEPTING_TRAFFIC: "true"
+      PAYMENT_EFFECTS_ENABLED: "true"
+      PAYMENT_SHADOW_ENABLED: "false"
+      PAYMENT_PLATFORM_BASE_URL: http://channel:8080
+      ORDER_SERVICE_BASE_URL: http://fixture:8080
+      INVENTORY_SERVICE_BASE_URL: http://fixture:8080
+      COMMERCEFLOW_OFFSITE_URL: http://fixture:8080
+    healthcheck: &app-health
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+
+  channel-db:
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: payment_platform
+      POSTGRES_PASSWORD: payments-isolated-channel
+    volumes:
+      - channel-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "payment_platform"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+
+  channel-redis:
+    image: redis:7.4-alpine
+
+  channel:
+    image: ${PAYMENT_ORCHESTRATION_REHEARSAL_CHANNEL_IMAGE:?Set the verified channel simulator image}
+    pull_policy: never
+    environment:
+      SPRING_PROFILES_ACTIVE: postgresql
+      PAYMENT_DATABASE_URL: jdbc:postgresql://channel-db:5432/payment_platform
+      PAYMENT_DATABASE_USERNAME: postgres
+      PAYMENT_DATABASE_PASSWORD: payments-isolated-channel
+      REDIS_HOST: channel-redis
+      PAYMENT_CHECKOUT_BASE_URL: http://channel:8080
+      PAYMENT_CALLBACK_URL: http://orchestrator:8080/api/payment-notifications/callback
+      REFUND_CALLBACK_URL: http://orchestrator:8080/api/refund-notifications/callback
+      PAYOUT_CALLBACK_URL: http://fixture:8080/unused
+    healthcheck: *app-health
+    depends_on:
+      channel-db:
+        condition: service_healthy
+      channel-redis:
+        condition: service_started
+
+  fixture:
+    image: node:24-alpine
+    working_dir: /verify
+    volumes:
+      - ./scripts/payment/payment-orchestration-postgresql-api.mjs:/verify/rehearsal.mjs:ro
+    command: ["node", "rehearsal.mjs", "serve"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/state"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+networks:
+  default:
+    internal: true
+
+volumes:
+  original-data:
+  payment-postgresql-data:
+  payment-rollback-data:
+  channel-data:

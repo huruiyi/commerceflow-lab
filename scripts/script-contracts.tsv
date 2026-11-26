@@ -93,4 +93,5 @@ commerce/verify-catalog-postgresql-ledger.ps1	BackupPath,EvidenceDirectory
 commerce/verify-catalog-postgresql-runtime.ps1	BackupPath,CandidateImage,InventoryImage,EvidenceDirectory
 commerce/verify-catalog-postgresql-release.ps1	BackupPath,InventoryBackupPath,ReleaseEnvFile,EvidenceDirectory
 payment/verify-payment-simulator-postgresql.ps1	BackupPath,CandidateImage,BaselineImage,EvidenceDirectory
+payment/verify-payment-orchestration-postgresql.ps1	BackupPath,CandidateImage,BaselineImage,ChannelImage,EvidenceDirectory
 invoice/verify-commerce-invoices.ps1	SkipBuild,MaxWaitSeconds,PlaywrightModule,ScreenshotDirectory
