@@ -16,32 +16,32 @@ services:
       retries: 45
 
   rollback:
-    extends: original
-    volumes:
-      - rollback-data:/var/lib/mysql
+    extends:
+      file: infrastructure/compose/compose.inventory-rollback.yaml
+      service: inventory-db-rollback
+    container_name: !reset null
+    command: ["--innodb-use-native-aio=OFF"]
 
-  postgres:
-    image: postgres:17.11-alpine
-    environment:
-      POSTGRES_DB: inventory
-      POSTGRES_PASSWORD: inventory-isolated-postgresql
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "inventory"]
-      interval: 2s
-      timeout: 3s
-      retries: 45
+  inventory-db-postgresql:
+    extends:
+      file: infrastructure/compose/compose.inventory-postgresql.yaml
+      service: inventory-db-postgresql
+    container_name: !reset null
 
-  migrator:
-    image: redgate/flyway:12.4.0
-    environment:
-      FLYWAY_URL: jdbc:postgresql://postgres:5432/inventory
-      FLYWAY_USER: postgres
-      FLYWAY_PASSWORD: inventory-isolated-postgresql
-    volumes:
+  inventory-postgresql-roles:
+    extends:
+      file: infrastructure/compose/compose.inventory-postgresql.yaml
+      service: inventory-postgresql-roles
+    volumes: !override
+      - ./infrastructure/inventory/postgresql-roles.sql:/roles.sql:ro
+
+  inventory-postgresql-migrator:
+    extends:
+      file: infrastructure/compose/compose.inventory-postgresql.yaml
+      service: inventory-postgresql-migrator
+    volumes: !override
       - ./services/inventory-service/src/main/resources/db/postgresql:/flyway/sql:ro
-    command: ["-target=1", "migrate"]
+      - ./infrastructure/inventory/postgresql-after-migrate.sql:/flyway/callbacks/afterMigrate.sql:ro
 
   kafka:
     image: apache/kafka:4.1.1
@@ -71,6 +71,7 @@ services:
       DATABASE_USERNAME: ${INVENTORY_VERIFICATION_USER:?Set the isolated database account}
       DATABASE_PASSWORD: ${INVENTORY_VERIFICATION_PASSWORD:?Set the isolated database password}
       SPRING_PROFILES_ACTIVE: ${INVENTORY_VERIFICATION_PROFILE:-default}
+      SPRING_FLYWAY_ENABLED: ${INVENTORY_VERIFICATION_FLYWAY:-true}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       INVENTORY_ACCEPTING_TRAFFIC: "true"
       INVENTORY_INTERNAL_SECRET: inventory-isolated-commerce
@@ -94,6 +95,6 @@ networks:
 
 volumes:
   original-data:
-  postgres-data:
-  rollback-data:
+  inventory-postgresql-data:
+  inventory-rollback-data:
   kafka-data:

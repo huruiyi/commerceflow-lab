@@ -6,6 +6,7 @@ const prefix = '/internal/v1/inventory';
 const releaseOrder = 9200751;
 const shippedOrder = 9200752;
 const rollbackOrder = 9200753;
+const originalOutboundOrder = 9200755;
 const orderLine = 9201752;
 const productId = 2;
 const merchantId = 5;
@@ -61,6 +62,14 @@ async function lookupOutbound() {
 
 if (phase === 'hold-mysql') {
   console.log(JSON.stringify(await succeeded(command(releaseOrder, 'RESERVE', 2))));
+} else if (phase === 'outbound-mysql') {
+  await succeeded(command(originalOutboundOrder, 'RESERVE', 1));
+  await succeeded(command(originalOutboundOrder, 'COMMIT'));
+  const prior = { outboundId: 'b2e11d49-7316-4180-9992-0f32e7e571b1', orderId: originalOutboundOrder,
+    merchantId, warehouseId: 1, lines: [{ orderLineId: 9201755, productId, quantity: 1 }] };
+  const receipt = await call('/outbound-documents', prior, 'fulfillment');
+  assert.deepEqual(receipt, { outboundId: prior.outboundId, orderId: originalOutboundOrder, lineCount: 1 });
+  console.log(JSON.stringify(receipt));
 } else if (phase === 'release-postgresql') {
   await succeeded(command(releaseOrder, 'RESERVE', 2));
   const release = command(releaseOrder, 'RELEASE');
