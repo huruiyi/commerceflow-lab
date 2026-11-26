@@ -6,6 +6,12 @@
     VALUES(#{outboundId},#{orderId},#{merchantId},#{fingerprint},#{warehouseId})
   </insert>
 
+  <insert id="claim" databaseId="postgresql">
+    INSERT INTO inventory_outbound_documents(outbound_id,order_id,merchant_id,payload_fingerprint,warehouse_id)
+    VALUES(#{outboundId},#{orderId},#{merchantId},#{fingerprint},#{warehouseId})
+    ON CONFLICT (outbound_id) DO NOTHING
+  </insert>
+
   <select id="fingerprint" resultType="java.lang.String">
     SELECT payload_fingerprint FROM inventory_outbound_documents
     WHERE outbound_id=#{outboundId} FOR UPDATE
@@ -39,8 +45,11 @@
 
   <insert id="enqueue">
     INSERT INTO inventory_outbound_event_outbox(event_id,outbound_id,order_line_id,payload)
-    VALUES(#{eventId},#{outboundId},#{orderLineId},#{payload})
+    VALUES(#{eventId},#{outboundId},#{orderLineId},<include refid="eventPayload"/>)
   </insert>
+
+  <sql id="eventPayload">#{payload}</sql>
+  <sql id="eventPayload" databaseId="postgresql">CAST(#{payload} AS jsonb)</sql>
 
   <select id="pending"
           resultType="vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryOutboundMapper$PendingEvent">
@@ -56,15 +65,22 @@
 
   <select id="backlog"
           resultType="vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryOutboundMapper$Backlog">
-    SELECT COUNT(*) AS pending,
-      COALESCE(GREATEST(0,TIMESTAMPDIFF(SECOND,MIN(d.posted_at),CURRENT_TIMESTAMP(6))),0) AS oldestSeconds
+    SELECT COUNT(*) AS pending, <include refid="backlogAge"/> AS oldestSeconds
     FROM inventory_outbound_event_outbox o
     JOIN inventory_outbound_documents d ON d.outbound_id=o.outbound_id
     WHERE o.published_at IS NULL
   </select>
 
+  <sql id="backlogAge">COALESCE(GREATEST(0,TIMESTAMPDIFF(SECOND,MIN(d.posted_at),CURRENT_TIMESTAMP(6))),0)</sql>
+  <sql id="backlogAge" databaseId="postgresql">
+    COALESCE(GREATEST(0,TRUNC(EXTRACT(EPOCH FROM (statement_timestamp()-MIN(d.posted_at))))::bigint),0)
+  </sql>
+
   <update id="retry">
-    UPDATE inventory_outbound_event_outbox SET next_attempt_at=CURRENT_TIMESTAMP(6)+INTERVAL 5 SECOND
+    UPDATE inventory_outbound_event_outbox SET next_attempt_at=<include refid="retryTime"/>
     WHERE event_id=#{eventId} AND published_at IS NULL
   </update>
+
+  <sql id="retryTime">CURRENT_TIMESTAMP(6)+INTERVAL 5 SECOND</sql>
+  <sql id="retryTime" databaseId="postgresql">statement_timestamp()+INTERVAL '5 seconds'</sql>
 </mapper>

@@ -8,6 +8,12 @@
     ) VALUES(#{eventId},#{productId},#{businessVersion},#{payloadFingerprint},'PROCESSING')
   </insert>
 
+  <insert id="claim" databaseId="postgresql">
+    INSERT INTO inventory_catalog_event_inbox(event_id,product_id,business_version,payload_fingerprint,status)
+    VALUES(#{eventId},#{productId},#{businessVersion},#{payloadFingerprint},'PROCESSING')
+    ON CONFLICT (event_id) DO NOTHING
+  </insert>
+
   <select id="payloadFingerprint" resultType="java.lang.String">
     SELECT payload_fingerprint FROM inventory_catalog_event_inbox WHERE event_id=#{eventId}
   </select>

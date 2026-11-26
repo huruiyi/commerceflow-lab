@@ -8,6 +8,12 @@
     ) VALUES(#{commandId},#{commandType},#{orderId},#{payloadFingerprint},'PROCESSING')
   </insert>
 
+  <insert id="claim" databaseId="postgresql">
+    INSERT INTO inventory_command_inbox(command_id,command_type,order_id,payload_fingerprint,status)
+    VALUES(#{commandId},#{commandType},#{orderId},#{payloadFingerprint},'PROCESSING')
+    ON CONFLICT (command_id) DO NOTHING
+  </insert>
+
   <select id="payloadFingerprint" resultType="java.lang.String">
     SELECT payload_fingerprint FROM inventory_command_inbox WHERE command_id=#{commandId} FOR UPDATE
   </select>

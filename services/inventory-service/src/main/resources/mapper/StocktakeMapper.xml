@@ -15,6 +15,11 @@
     INSERT IGNORE INTO inventory_stocktake_reconciliation(reference,fingerprint,audit_data,adjustment)
     VALUES(#{reference},#{fingerprint},#{auditData},#{adjustment})
   </insert>
+  <insert id="claim" databaseId="postgresql">
+    INSERT INTO inventory_stocktake_reconciliation(reference,fingerprint,audit_data,adjustment)
+    VALUES(#{reference},#{fingerprint},CAST(#{auditData} AS jsonb),#{adjustment})
+    ON CONFLICT (reference) DO NOTHING
+  </insert>
   <select id="fingerprint" resultType="string">
     SELECT fingerprint FROM inventory_stocktake_reconciliation WHERE reference=#{reference} FOR UPDATE
   </select>

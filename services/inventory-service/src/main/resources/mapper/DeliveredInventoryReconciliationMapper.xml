@@ -7,6 +7,12 @@
     VALUES(#{orderId},#{fingerprint},#{actor})
   </insert>
 
+  <insert id="claim" databaseId="postgresql">
+    INSERT INTO inventory_delivered_reconciliation(order_id,evidence_fingerprint,recorded_by)
+    VALUES(#{orderId},#{fingerprint},#{actor})
+    ON CONFLICT (order_id) DO NOTHING
+  </insert>
+
   <select id="fingerprint" resultType="java.lang.String">
     SELECT evidence_fingerprint FROM inventory_delivered_reconciliation
     WHERE order_id=#{orderId} FOR UPDATE

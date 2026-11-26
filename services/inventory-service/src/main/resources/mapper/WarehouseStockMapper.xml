@@ -29,4 +29,10 @@
     SELECT #{productId},id,0,0,0 FROM inventory_warehouses WHERE id=#{warehouseId} AND enabled=TRUE
     ON DUPLICATE KEY UPDATE stock_available=inventory_warehouse_stock.stock_available
   </insert>
+
+  <insert id="ensureStock" databaseId="postgresql">
+    INSERT INTO inventory_warehouse_stock (product_id,warehouse_id,stock_available,stock_reserved,stock_sold)
+    SELECT #{productId},id,0,0,0 FROM inventory_warehouses WHERE id=#{warehouseId} AND enabled=TRUE
+    ON CONFLICT (product_id,warehouse_id) DO UPDATE SET stock_available=inventory_warehouse_stock.stock_available
+  </insert>
 </mapper>
