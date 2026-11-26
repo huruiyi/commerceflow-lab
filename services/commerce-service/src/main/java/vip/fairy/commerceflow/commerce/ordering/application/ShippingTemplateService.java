@@ -20,14 +20,15 @@ public class ShippingTemplateService {
 
   private static final int MAX_REGIONS = 50;
 
-  private static final Map<String, String> AUTONOMOUS_REGION_NAMES = Map.of(
-    "内蒙古自治区", "内蒙古", "广西壮族自治区", "广西", "西藏自治区", "西藏",
-    "宁夏回族自治区", "宁夏", "新疆维吾尔自治区", "新疆"
+  private static final Set<String> PROVINCES = Set.of(
+    "河北", "山西", "辽宁", "吉林", "黑龙江", "江苏", "浙江", "安徽", "福建", "江西", "山东", "河南",
+    "湖北", "湖南", "广东", "海南", "四川", "贵州", "云南", "陕西", "甘肃", "青海", "台湾"
   );
-  private static final Set<String> DOMESTIC_PROVINCE_NAMES = Set.of(
-    "北京", "天津", "河北", "山西", "内蒙古", "辽宁", "吉林", "黑龙江", "上海", "江苏", "浙江", "安徽",
-    "福建", "江西", "山东", "河南", "湖北", "湖南", "广东", "广西", "海南", "重庆", "四川", "贵州",
-    "云南", "西藏", "陕西", "甘肃", "青海", "宁夏", "新疆", "台湾", "香港", "澳门"
+  private static final Map<String, String> OTHER_PROVINCE_NAMES = Map.ofEntries(
+    Map.entry("北京", "北京市"), Map.entry("天津", "天津市"), Map.entry("上海", "上海市"), Map.entry("重庆", "重庆市"),
+    Map.entry("内蒙古", "内蒙古自治区"), Map.entry("广西", "广西壮族自治区"), Map.entry("西藏", "西藏自治区"),
+    Map.entry("宁夏", "宁夏回族自治区"), Map.entry("新疆", "新疆维吾尔自治区"),
+    Map.entry("香港", "香港特别行政区"), Map.entry("澳门", "澳门特别行政区")
   );
 
   private final CheckoutPricingMapper pricing;
@@ -122,28 +123,14 @@ public class ShippingTemplateService {
 
   public BigDecimal fee(Long merchantId, String countryCode, String province) {
     String country = normalize(countryCode);
-    String name = normalize(province);
-    if ("CN".equals(country)) {
-      return domesticFee(get(merchantId), name);
-    }
-    BigDecimal fee = pricing.fee(merchantId, country, name);
+    BigDecimal fee = pricing.fee(merchantId, country, provinceName(country, province));
     return fee == null ? BigDecimal.ZERO : fee;
   }
 
-  private BigDecimal domesticFee(Template template, String name) {
-    String provinceKey = domesticProvinceKey(name);
-    BigDecimal matchingAlias = template.defaultFee();
-    for (Rate rate : template.regions()) {
-      if (!"CN".equals(rate.countryCode()) || !Boolean.TRUE.equals(rate.enabled())) continue;
-      if (rate.stateProvince().equals(name)) return rate.fee();
-      if (domesticProvinceKey(rate.stateProvince()).equals(provinceKey)) matchingAlias = rate.fee();
-    }
-    return matchingAlias;
-  }
-
-  private String domesticProvinceKey(String name) {
-    String shortName = AUTONOMOUS_REGION_NAMES.getOrDefault(name, name.replaceFirst("(省|市|特别行政区)$", ""));
-    return DOMESTIC_PROVINCE_NAMES.contains(shortName) ? shortName : name;
+  private String provinceName(String country, String province) {
+    String name = normalize(province);
+    if (!"CN".equals(country)) return name;
+    return PROVINCES.contains(name) ? name + "省" : OTHER_PROVINCE_NAMES.getOrDefault(name, name);
   }
 
   private String normalize(String value) {
@@ -157,7 +144,7 @@ public class ShippingTemplateService {
 
   private RegionKey regionKey(String countryCode, String stateProvince) {
     String country = normalize(countryCode);
-    String province = normalize(stateProvince);
+    String province = provinceName(country, stateProvince);
     if (!country.matches("[A-Z]{2}") || province.isEmpty() || province.length() > 100) {
       throw new IllegalArgumentException("Use a two-letter country code and a province or state");
     }

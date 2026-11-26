@@ -31,6 +31,9 @@ import vip.fairy.commerceflow.commerce.scheduling.application.ScheduledTaskTypes
 import vip.fairy.commerceflow.commerce.scheduling.application.TaskTriggerSource;
 import vip.fairy.commerceflow.commerce.identity.infrastructure.AppUserMapper;
 import vip.fairy.commerceflow.commerce.ordering.application.OrderCancellationService;
+import vip.fairy.commerceflow.commerce.ordering.application.ShippingTemplateService;
+import vip.fairy.commerceflow.commerce.ordering.application.ShippingTemplateService.Rate;
+import vip.fairy.commerceflow.commerce.ordering.application.ShippingTemplateService.Template;
 import vip.fairy.commerceflow.commerce.receipt.application.OrderReceiptLifecycleService;
 import vip.fairy.commerceflow.commerce.ordering.application.OrderCancellationProjection;
 import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderCommandV1;
@@ -141,6 +144,34 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @AutoConfigureMockMvc
 @Import(CommerceFlowIntegrationTest.TestSessions.class)
 class CommerceFlowIntegrationTest {
+
+  @Test
+  @Transactional
+  void shippingRulesShareOneProvinceAcrossWritesAndQuotes(@Autowired ShippingTemplateService shipping) {
+    long merchant = users.selectOne(Wrappers.lambdaQuery(AppUser.class)
+      .eq(AppUser::getEmail, "merchant@example.com")).getId();
+    var regular = new BigDecimal("8.50");
+    var regional = new BigDecimal("7.25");
+    var shortName = new Rate("CN", "安徽", regional, true);
+    var fullName = new Rate("CN", "安徽省", new BigDecimal("19.00"), true);
+    shipping.replace(merchant, new Template(regular, List.of(shortName)));
+    assertEquals("安徽省", shipping.get(merchant).regions().getFirst().stateProvince());
+    assertThrows(BusinessRuleException.class, () -> shipping.addRegion(merchant, fullName));
+    assertThrows(IllegalArgumentException.class,
+      () -> shipping.replace(merchant, new Template(regular, List.of(shortName, fullName))));
+    shipping.addRegion(merchant, new Rate("CN", "北京市", regular, true));
+    assertThrows(BusinessRuleException.class, () -> shipping.updateRegion(merchant, "CN", "北京", fullName));
+    assertEquals(regional, shipping.fee(merchant, "CN", "安徽省"));
+    assertEquals(regional, shipping.fee(merchant, "cn", " 安徽 "));
+    shipping.setRegionEnabled(merchant, "CN", "安徽", false);
+    assertEquals(regular, shipping.fee(merchant, "CN", "安徽省"));
+    shipping.updateRegion(merchant, "CN", "安徽省", new Rate("CN", "广西", regional, null));
+    assertEquals(regular, shipping.fee(merchant, "CN", "广西"));
+    shipping.setRegionEnabled(merchant, "CN", "广西壮族自治区", true);
+    assertEquals(regional, shipping.fee(merchant, "CN", "广西"));
+    shipping.deleteRegion(merchant, "CN", "广西");
+    assertEquals(regular, shipping.fee(merchant, "CN", "广西壮族自治区"));
+  }
 
   @TestConfiguration
   static class TestSessions {
