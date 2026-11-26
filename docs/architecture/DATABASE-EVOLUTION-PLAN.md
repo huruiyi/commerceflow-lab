@@ -4,7 +4,7 @@
 
 日常通知服务使用 PostgreSQL 17.11（`notification-db-postgresql` / `notification`）。原通知 MySQL
 数据库 `notification-db` 及其应用容器保留作回退，反向迁移前以 PostgreSQL 为唯一写入源。
-行政区划基础数据（`reference-data-db` / `reference_data`）、核心商城以及站外消息、仓库和物流模拟服务也已使用 PostgreSQL 17.11。2026-11-26 物流切换后，以下 7 个业务库仍以 MySQL 8.4 为写入方。
+行政区划基础数据（`reference-data-db` / `reference_data`）、核心商城以及站外消息、仓库、物流和发票模拟服务也已使用 PostgreSQL 17.11。2026-11-26 发票切换后，以下 6 个业务库仍以 MySQL 8.4 为写入方。
 
 - `payment-simulator-db` / `payment_platform`
 - `catalog-db` / `catalog`
@@ -12,7 +12,6 @@
 - `order-db` / `orders`（已完成单一所有权 CUTOVER）
 - `payment-db` / `payments`（支付编排）
 - `fulfillment-db` / `fulfillment`
-- `invoice-db` / `invoice_platform`
 
 ### 下一库的隔离候选
 
@@ -69,7 +68,9 @@ pwsh scripts/invoice/verify-invoice-simulator.ps1 -PostgreSqlImage commerceflow-
 
 ### 发票模拟库日常发布窗口
 
-准备目录为 `%LOCALAPPDATA%/CommerceFlow/releases/invoice-pg-ready-1795686700/`。原 MySQL V2 使用 `fairy-commerceflow_invoice-db-data`。PostgreSQL 17.11 目标卷为 `fairy-commerceflow_invoice-postgresql-data`，由 `invoice_migrator` 管理 V1 schema。应用以 `invoice_runtime` 连接，Flyway 由独立进程运行。运行账号只追加票据，可以更新开票状态及回执投递字段。红冲继续按原蓝票串行校验额度，PostgreSQL 通过锁定原票对应的申请行实现。独立 MySQL 回退卷 `fairy-commerceflow_invoice-rollback-data` 已恢复 V2 结构和两条 Flyway 记录，平时保持停止。
+准备目录为 `%LOCALAPPDATA%/CommerceFlow/releases/invoice-pg-ready-1795686700/`。日常发票使用 PostgreSQL 17.11 V1 和 `fairy-commerceflow_invoice-postgresql-data`。原 MySQL V2 与 `fairy-commerceflow_invoice-db-data` 已冻结为只读。重启现役应用使用下文的 `$pg` 参数。[日常切换验收](../IMPLEMENTED.md#2115-2026-11-26-日常发票切换-postgresql)
+
+`invoice_migrator` 管理 V1 schema。应用以 `invoice_runtime` 连接，Flyway 由独立进程运行。运行账号只追加票据，可以更新开票状态及回执投递字段。红冲继续按原蓝票串行校验额度，PostgreSQL 通过锁定原票对应的申请行实现。独立 MySQL 回退卷 `fairy-commerceflow_invoice-rollback-data` 已恢复 V2 结构和两条 Flyway 记录，平时保持停止。
 
 切换前核对本机发布配置绑定的镜像 ID、源卷、备份摘要和目标账号权限。用同一组发布配置和最新备份在隔离项目中复测并记录账本摘要：
 
