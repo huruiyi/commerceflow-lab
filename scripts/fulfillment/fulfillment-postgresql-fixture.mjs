@@ -6,6 +6,8 @@ const orders = {
   9100751: { status: 'CONFIRMED', version: 0, line: { orderLineId: 711, productId: 11, quantity: 1 } },
   9100752: { status: 'CONFIRMED', version: 0, line: { orderLineId: 721, productId: 12, quantity: 2 } },
   9100753: { status: 'PAID', version: 0, line: { orderLineId: 731, productId: 13, quantity: 1 } },
+  9100754: { status: 'CONFIRMED', version: 0, line: { orderLineId: 741, productId: 14, quantity: 1 } },
+  9100755: { status: 'PAID', version: 0, line: { orderLineId: 751, productId: 15, quantity: 1 } },
 };
 const effects = { order: {}, warehouse: {}, inventory: {}, logistics: {}, package: {} };
 
@@ -106,13 +108,13 @@ createServer(async (req, res) => {
       }
       case '/internal/v1/outbounds': {
         assert.equal(body.merchantId, 5);
-        const first = body.orderId === 9100751;
-        assert.equal(body.warehouseId, first ? 1 : 2);
-        assert.equal(body.wholeOrder, first);
+        const wholeOrder = body.orderId !== 9100752;
+        assert.equal(body.warehouseId, wholeOrder ? 1 : 2);
+        assert.equal(body.wholeOrder, wholeOrder);
         assert.deepEqual(body.lines, [{ ...order.line, quantity: 1 }]);
         const entry = record('warehouse', body.outboundId, body);
-        if (!first && entry.attempts === 1) return respond(res, { unavailable: true }, id, 503);
-        if (!first && entry.attempts === 2) return respond(res, { ...body, status: 'PENDING' }, id);
+        if (!wholeOrder && entry.attempts === 1) return respond(res, { unavailable: true }, id, 503);
+        if (!wholeOrder && entry.attempts === 2) return respond(res, { ...body, status: 'PENDING' }, id);
         return respond(res, { ...body, status: 'DISPATCHED',
           actual: [{ orderLineId: order.line.orderLineId, quantity: 1 }] }, id);
       }
@@ -128,7 +130,7 @@ createServer(async (req, res) => {
         const entry = record('logistics', body.commandId, body);
         entry.receipt = { commandId: body.commandId, platformShipmentNo: 'LGS-REHEARSAL-' + body.orderId,
           shipmentVersion: 0 };
-        if (body.orderId === 9100751 && entry.attempts === 1) {
+        if ([9100751, 9100754].includes(body.orderId) && entry.attempts === 1) {
           entry.heldAfterReceipt = true;
           return;
         }

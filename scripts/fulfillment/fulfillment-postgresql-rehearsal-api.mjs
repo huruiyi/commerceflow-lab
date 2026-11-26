@@ -7,6 +7,10 @@ const phase = process.argv[2];
 const first = '337d2e13-9f27-4a12-afc9-d0dfe82f4689';
 const second = 'ffc4f8b7-9653-477b-aeb0-fcc709745f5e';
 const third = 'bffcd8df-206e-489e-a6c4-a5ebdfc8c735';
+const reverse = 'd84dd402-6c09-4936-9b2a-0935ec8e183b';
+const reviewed = '8db46b40-d34c-4cd3-968a-7a8e42edf401';
+const recovery = { recoveryId: '015a92ee-120e-4ac1-a1a0-f69e8af21300', operatorId: 5,
+  reason: 'Retry an isolated stalled confirmation', evidence: 'PostgreSQL release rehearsal', merchantOperation: true };
 const origin = 'http://fulfillment:8080';
 const firstCommand = {
   version: 1, commandId: first, operation: 'SHIP', merchantId: 5, orderId: 9100751,
@@ -16,20 +20,21 @@ const secondCommand = {
   ...firstCommand, commandId: second, orderId: 9100752, trackingNumber: 'PG-VERIFY-752',
   lines: [{ orderLineId: 721, quantity: 1 }], warehouseId: 2,
 };
+const reverseCommand = { ...firstCommand, commandId: reverse, orderId: 9100754, trackingNumber: 'PG-VERIFY-754' };
 
-async function call(path, input, expected = [200]) {
+async function call(path, input, expected = [200], method = 'POST') {
   const target = '/internal/v1/fulfillment' + path;
-  const raw = JSON.stringify(input);
+  const raw = input === undefined ? '' : JSON.stringify(input);
   const timestamp = String(Math.floor(Date.now() / 1000));
   const requestId = randomUUID();
   const hash = createHash('sha256').update(raw).digest('hex');
-  const signature = createHmac('sha256', 'fulfillment-isolated-api')
-    .update(['POST', target, timestamp, requestId, hash].join('\n')).digest('hex');
+  const signature = createHmac('sha256', path.startsWith('/admin/') ? 'fulfillment-isolated-admin' : 'fulfillment-isolated-api')
+    .update([method, target, timestamp, requestId, hash].join('\n')).digest('hex');
   const response = await fetch(origin + target, {
-    method: 'POST',
+    method,
     headers: { 'Content-Type': 'application/json', 'X-CommerceFlow-Timestamp': timestamp,
       'X-CommerceFlow-Request-Id': requestId, 'X-CommerceFlow-Content-SHA256': hash, 'X-CommerceFlow-Signature': signature },
-    body: raw,
+    body: input === undefined ? undefined : raw,
     signal: AbortSignal.timeout(8000),
   });
   const result = await response.text();
@@ -104,7 +109,26 @@ if (phase === 'hold') {
   assert(snapshot.effects.package[second].actual && snapshot.effects.package[second].finished);
   assert.equal(snapshot.effects.order[stepId(first, 'FINISH_ORDER')].attempts, 1);
   console.log(JSON.stringify(snapshot));
+} else if (phase === 'reverse-hold') {
+  const retryPath = '/admin/operations/' + reviewed + '/retry';
+  const accepted = await call(retryPath, recovery, [202]);
+  assert.equal(accepted.recoveryId, recovery.recoveryId);
+  assert.equal((await call(retryPath, recovery, [202])).recoveryId, recovery.recoveryId);
+  await until(() => query(reviewed), q => q.status === 'COMPLETED', 30, 'PostgreSQL recovery completes');
+  const command = await call('/commands', reverseCommand, [202]);
+  assert.equal(command.commandId, reverse);
+  const snapshot = await until(state, s => logisticsAttempts(s, 9100754)?.heldAfterReceipt, 20, 'reverse logistics receipt held');
+  assert.equal(logisticsAttempts(snapshot, 9100754).attempts, 1);
+  console.log(JSON.stringify({ logistics: logisticsAttempts(snapshot, 9100754), audit: accepted }));
 } else if (phase === 'rollback') {
+  assert.equal((await query(reverse)).status, 'PENDING');
+  await setTimeout(1000);
+  assert.equal(logisticsAttempts(await state(), 9100754).attempts, 1, 'valid PostgreSQL lease must block a new MySQL claim');
+  await until(() => query(reverse), q => q.status === 'COMPLETED', 85, 'old MySQL recovers the PostgreSQL lease');
+  const audit = await call('/admin/operations/merchant-operations/' + reviewed, undefined, [200], 'GET');
+  assert.equal(audit.operation.status, 'COMPLETED');
+  assert.equal(audit.history.length, 1);
+  for (const key of ['recoveryId', 'operatorId', 'reason', 'evidence']) assert.equal(audit.history[0][key], recovery[key]);
   for (const command of [firstCommand, secondCommand]) {
     assert.equal((await query(command.commandId)).status, 'COMPLETED');
     assert.equal((await call('/commands', command)).commandId, command.commandId);
@@ -122,8 +146,12 @@ if (phase === 'hold') {
   const snapshot = await state();
   assert.equal(snapshot.effects.order[third].attempts, 1);
   assert.equal(snapshot.effects.order[third].body.type, 'MERCHANT_CONFIRM');
-  assert.equal(Object.keys(snapshot.effects.logistics).length, 2);
-  console.log(JSON.stringify({ historicalMatched: historical.length, newConfirmation: third }));
+  assert.equal(Object.keys(snapshot.effects.logistics).length, 3);
+  assert.equal(snapshot.orders[9100754].status, 'SHIPPED');
+  assert.equal(logisticsAttempts(snapshot, 9100754).attempts, 2);
+  assert.equal(logisticsAttempts(snapshot, 9100754).receipt.commandId, stepId(reverse, 'LOGISTICS'));
+  console.log(JSON.stringify({ historicalMatched: historical.length, newConfirmation: third,
+    recoveredShipment: reverse, recoveryAudit: audit.history[0], logistics: logisticsAttempts(snapshot, 9100754) }));
 } else {
   throw new Error('Unknown fulfillment verification phase');
 }

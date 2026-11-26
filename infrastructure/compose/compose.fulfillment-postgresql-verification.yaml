@@ -16,32 +16,32 @@ services:
       retries: 45
 
   rollback:
-    extends: original
-    volumes:
-      - rollback-data:/var/lib/mysql
+    extends:
+      file: infrastructure/compose/compose.fulfillment-rollback.yaml
+      service: fulfillment-db-rollback
+    container_name: !reset null
+    command: ["--innodb-use-native-aio=OFF"]
 
-  postgres:
-    image: postgres:17.11-alpine
-    environment:
-      POSTGRES_DB: fulfillment
-      POSTGRES_PASSWORD: fulfillment-isolated-postgresql
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "fulfillment"]
-      interval: 2s
-      timeout: 3s
-      retries: 45
+  fulfillment-db-postgresql:
+    extends:
+      file: infrastructure/compose/compose.fulfillment-postgresql.yaml
+      service: fulfillment-db-postgresql
+    container_name: !reset null
 
-  migrator:
-    image: redgate/flyway:12.4.0
-    environment:
-      FLYWAY_URL: jdbc:postgresql://postgres:5432/fulfillment
-      FLYWAY_USER: postgres
-      FLYWAY_PASSWORD: fulfillment-isolated-postgresql
-    volumes:
+  fulfillment-postgresql-roles:
+    extends:
+      file: infrastructure/compose/compose.fulfillment-postgresql.yaml
+      service: fulfillment-postgresql-roles
+    volumes: !override
+      - ./infrastructure/fulfillment/postgresql-roles.sql:/roles.sql:ro
+
+  fulfillment-postgresql-migrator:
+    extends:
+      file: infrastructure/compose/compose.fulfillment-postgresql.yaml
+      service: fulfillment-postgresql-migrator
+    volumes: !override
       - ./services/fulfillment-service/src/main/resources/db/postgresql:/flyway/sql:ro
-    command: ["-target=1", "migrate"]
+      - ./infrastructure/fulfillment/postgresql-after-migrate.sql:/flyway/callbacks/afterMigrate.sql:ro
 
   fulfillment:
     image: ${FULFILLMENT_VERIFICATION_IMAGE:?Set the fulfillment verification image}
@@ -53,6 +53,9 @@ services:
       FULFILLMENT_RUNTIME_MODE: EXECUTION
       FULFILLMENT_REQUIRE_PROMOTED_MODE: "true"
       FULFILLMENT_INTERNAL_SECRET: fulfillment-isolated-api
+      FULFILLMENT_RECOVERY_ENABLED: "true"
+      FULFILLMENT_ADMIN_SECRET: fulfillment-isolated-admin
+      SPRING_FLYWAY_ENABLED: ${FULFILLMENT_VERIFICATION_FLYWAY:-true}
       FULFILLMENT_ORDER_ENDPOINT: http://fixture:8080
       FULFILLMENT_ORDER_SECRET: fulfillment-isolated-order
       FULFILLMENT_LOGISTICS_ENDPOINT: http://fixture:8080
@@ -85,5 +88,5 @@ networks:
 
 volumes:
   original-data:
-  rollback-data:
-  postgres-data:
+  fulfillment-rollback-data:
+  fulfillment-postgresql-data:
