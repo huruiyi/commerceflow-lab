@@ -73,6 +73,7 @@ scheduling/verify-rocketmq-scheduling.ps1	BaseUrl,MaxWaitSeconds
 scheduling/verify-scheduling.ps1	BaseUrl
 operations/verify-upgrade-restart-recovery.ps1	MaxWaitSeconds,SkipMigrationRehearsal,SkipBuild
 fulfillment/verify-fulfillment-shadow-runtime.ps1	BaseUrl
+fulfillment/verify-fulfillment-postgresql.ps1	BackupPath,CandidateImage,BaselineImage,ReceiptDirectory,EvidenceDirectory
 commerce/verify-checkout-pricing.ps1	BaseUrl,PaymentBaseUrl,HistoricalOrderId,ExercisePricing
 commerce/verify-line-after-sales.ps1	BaseUrl,PaymentBaseUrl,LogisticsUrl,ProjectName,WarehouseBaseUrl
 commerce/verify-coupons.ps1	BaseUrl,PaymentBaseUrl,ProjectName
