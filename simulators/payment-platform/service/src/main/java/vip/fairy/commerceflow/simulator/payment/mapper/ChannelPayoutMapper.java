@@ -10,7 +10,7 @@ public interface ChannelPayoutMapper {
 
   ChannelPayout lock(String attemptId);
 
-  void create(ChannelPayout attempt);
+  int create(ChannelPayout attempt);
 
   List<ChannelPayout> pending();
 

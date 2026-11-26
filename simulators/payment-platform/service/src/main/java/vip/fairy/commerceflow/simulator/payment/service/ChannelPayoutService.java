@@ -22,17 +22,19 @@ public class ChannelPayoutService {
   @Transactional
   public ChannelPayout create(String id, String statement, Long merchant, BigDecimal amount, boolean fail) {
     try {
-      payouts.create(new ChannelPayout(id, statement, merchant, amount, "CNY",
-        "PYT-" + id.replace("-", ""), "PENDING", fail, null, null, null));
-    } catch (DuplicateKeyException exception) {
-      var existing = payouts.lock(id);
-      if (existing == null || !existing.statementId().equals(statement) || !existing.beneficiaryId().equals(merchant)
-        || existing.amount().compareTo(amount) != 0 || existing.simulateFailure() != fail) {
-        throw new ResponseStatusException(HttpStatus.CONFLICT, "Payout request conflicts with an active attempt");
+      if (payouts.create(new ChannelPayout(id, statement, merchant, amount, "CNY",
+          "PYT-" + id.replace("-", ""), "PENDING", fail, null, null, null)) == 1) {
+        return get(id);
       }
-      return existing;
+    } catch (DuplicateKeyException exception) {
+      // MySQL reports a duplicate key; PostgreSQL's conflict clause returns zero.
     }
-    return get(id);
+    var existing = payouts.lock(id);
+    if (existing == null || !existing.statementId().equals(statement) || !existing.beneficiaryId().equals(merchant)
+        || existing.amount().compareTo(amount) != 0 || existing.simulateFailure() != fail) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "Payout request conflicts with an active attempt");
+    }
+    return existing;
   }
 
   public ChannelPayout get(String id) {

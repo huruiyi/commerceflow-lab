@@ -59,9 +59,7 @@ public class ChannelTransactionService {
     if ("CREATE_FAILURE".equals(request.faultScenario())) {
       throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "教学故障：渠道创建交易失败");
     }
-    ChannelTransaction existing = transactions.selectOne(new LambdaQueryWrapper<ChannelTransaction>()
-      .eq(ChannelTransaction::getMerchantId, merchant.getId())
-      .eq(ChannelTransaction::getMerchantRequestNo, request.merchantRequestNo()));
+    ChannelTransaction existing = findRequest(merchant.getId(), request.merchantRequestNo());
     if (existing != null) return replay(existing, request);
     if (!adapters.containsKey(request.channel())) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不支持的支付渠道");
@@ -81,23 +79,24 @@ public class ChannelTransactionService {
     value.setCreatedAt(LocalDateTime.now());
     value.setUpdatedAt(LocalDateTime.now());
     try {
-      transactions.insert(value);
+      if (transactions.insertForRequest(value) == 1) return response(value);
     } catch (DuplicateKeyException exception) {
-      ChannelTransaction concurrent = transactions.selectOne(new LambdaQueryWrapper<ChannelTransaction>()
-        .eq(ChannelTransaction::getMerchantId, merchant.getId())
-        .eq(ChannelTransaction::getMerchantRequestNo, request.merchantRequestNo()));
+      ChannelTransaction concurrent = findRequest(merchant.getId(), request.merchantRequestNo());
       if (concurrent != null) return replay(concurrent, request);
       throw exception;
     }
-    return response(value);
+    return replay(require(findRequest(merchant.getId(), request.merchantRequestNo())), request);
   }
 
   public ChannelTransactionResponse query(SignedRequestContext signed, String merchantRequestNo) {
     PaymentMerchant merchant = signed.merchant();
-    ChannelTransaction value = transactions.selectOne(new LambdaQueryWrapper<ChannelTransaction>()
-      .eq(ChannelTransaction::getMerchantId, merchant.getId())
+    return response(require(findRequest(merchant.getId(), merchantRequestNo)));
+  }
+
+  private ChannelTransaction findRequest(long merchantId, String merchantRequestNo) {
+    return transactions.selectOne(new LambdaQueryWrapper<ChannelTransaction>()
+      .eq(ChannelTransaction::getMerchantId, merchantId)
       .eq(ChannelTransaction::getMerchantRequestNo, merchantRequestNo));
-    return response(require(value));
   }
 
   @Transactional

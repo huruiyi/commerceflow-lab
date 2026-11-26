@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="vip.fairy.commerceflow.simulator.payment.mapper.ChannelRefundMapper">
+  <insert id="insertForRequest" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+    INSERT INTO channel_refund (channel_refund_no, merchant_id, merchant_refund_no, channel_transaction_no, amount,
+      currency, reason_code, status, fault_scenario, failure_reason, succeeded_at, failed_at, created_at, updated_at)
+    VALUES (#{channelRefundNo}, #{merchantId}, #{merchantRefundNo}, #{channelTransactionNo}, #{amount},
+      #{currency}, #{reasonCode}, #{status}, #{faultScenario}, #{failureReason}, #{succeededAt}, #{failedAt},
+      #{createdAt}, #{updatedAt})
+    <if test="_databaseId == 'postgresql'">ON CONFLICT (merchant_id, merchant_refund_no) DO NOTHING</if>
+  </insert>
+</mapper>

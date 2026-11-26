@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="vip.fairy.commerceflow.simulator.payment.mapper.ChannelTransactionMapper">
+  <insert id="insertForRequest" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+    INSERT INTO channel_transaction (channel_transaction_no, merchant_id, merchant_request_no, channel, subject,
+      amount, currency, status, fault_scenario, checkout_token, expires_at, created_at, updated_at)
+    VALUES (#{channelTransactionNo}, #{merchantId}, #{merchantRequestNo}, #{channel}, #{subject},
+      #{amount}, #{currency}, #{status}, #{faultScenario}, #{checkoutToken}, #{expiresAt}, #{createdAt}, #{updatedAt})
+    <if test="_databaseId == 'postgresql'">ON CONFLICT (merchant_id, merchant_request_no) DO NOTHING</if>
+  </insert>
   <select id="lockRefundPayment" resultType="vip.fairy.commerceflow.simulator.payment.domain.ChannelTransaction">
     SELECT * FROM channel_transaction
     WHERE merchant_id=#{merchantId} AND channel_transaction_no=#{transactionNo} FOR UPDATE

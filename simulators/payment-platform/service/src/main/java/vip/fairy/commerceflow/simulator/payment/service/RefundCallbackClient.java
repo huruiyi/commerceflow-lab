@@ -11,9 +11,11 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.server.ResponseStatusException;
 
 @Component
 public class RefundCallbackClient {
@@ -57,7 +59,7 @@ public class RefundCallbackClient {
         .retrieve()
         .toBodilessEntity();
     } catch (Exception exception) {
-      throw new IllegalStateException("Refund callback delivery failed", exception);
+      throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "退款结果通知暂不可用", exception);
     }
   }
 }

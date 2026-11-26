@@ -16,13 +16,14 @@
       channel_payout_no,status,simulate_failure)
     VALUES(#{attemptId},#{statementId},#{beneficiaryId},#{amount},#{currency},
       #{channelPayoutNo},'PENDING',#{simulateFailure})
+    <if test="_databaseId == 'postgresql'">ON CONFLICT DO NOTHING</if>
   </insert>
   <select id="pending" resultType="vip.fairy.commerceflow.simulator.payment.domain.ChannelPayout">
     SELECT <include refid="columns"/> FROM channel_payouts WHERE status='PENDING'
     ORDER BY created_at,attempt_id LIMIT 20
   </select>
   <update id="resolve">
-    UPDATE channel_payouts SET status=IF(simulate_failure,'FAILED','SUCCEEDED'),
+    UPDATE channel_payouts SET status=CASE WHEN simulate_failure THEN 'FAILED' ELSE 'SUCCEEDED' END,
       resolved_at=CURRENT_TIMESTAMP(6),next_notify_at=CURRENT_TIMESTAMP(6)
     WHERE attempt_id=#{attemptId} AND status='PENDING'
   </update>
@@ -33,8 +34,12 @@
   </select>
   <update id="notified">
     UPDATE channel_payouts SET
-      notified_at=IF(#{delivered},CURRENT_TIMESTAMP(6),NULL),
-      next_notify_at=TIMESTAMPADD(SECOND,5,CURRENT_TIMESTAMP(6))
+      notified_at=CASE WHEN #{delivered} THEN CURRENT_TIMESTAMP(6) END,
+      next_notify_at=
+      <choose>
+        <when test="_databaseId == 'postgresql'">CURRENT_TIMESTAMP(6) + INTERVAL '5 seconds'</when>
+        <otherwise>TIMESTAMPADD(SECOND,5,CURRENT_TIMESTAMP(6))</otherwise>
+      </choose>
     WHERE attempt_id=#{attemptId} AND notified_at IS NULL
   </update>
   <select id="recent" resultType="vip.fairy.commerceflow.simulator.payment.domain.ChannelPayout">

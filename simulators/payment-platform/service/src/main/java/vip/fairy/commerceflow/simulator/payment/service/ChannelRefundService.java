@@ -47,9 +47,7 @@ public class ChannelRefundService {
   public ChannelRefundResponse create(SignedRequestContext signed, CreateChannelRefundRequest request) {
     PaymentMerchant merchant = signed.merchant();
     ChannelTransaction payment = transactions.lockRefundPayment(merchant.getId(), request.channelTransactionNo());
-    ChannelRefund existing = refunds.selectOne(new LambdaQueryWrapper<ChannelRefund>()
-      .eq(ChannelRefund::getMerchantId, merchant.getId())
-      .eq(ChannelRefund::getMerchantRefundNo, request.merchantRefundNo()));
+    ChannelRefund existing = findRequest(merchant.getId(), request.merchantRefundNo());
     if (existing != null) {
       return replay(existing, request);
     }
@@ -89,11 +87,11 @@ public class ChannelRefundService {
       value.setSucceededAt(LocalDateTime.now());
     }
     try {
-      refunds.insert(value);
+      if (refunds.insertForRequest(value) == 0) {
+        return replay(require(findRequest(merchant.getId(), request.merchantRefundNo())), request);
+      }
     } catch (DuplicateKeyException exception) {
-      ChannelRefund concurrent = refunds.selectOne(new LambdaQueryWrapper<ChannelRefund>()
-        .eq(ChannelRefund::getMerchantId, merchant.getId())
-        .eq(ChannelRefund::getMerchantRefundNo, request.merchantRefundNo()));
+      ChannelRefund concurrent = findRequest(merchant.getId(), request.merchantRefundNo());
       if (concurrent != null) {
         return replay(concurrent, request);
       }
@@ -110,16 +108,12 @@ public class ChannelRefundService {
   }
 
   public ChannelRefundResponse query(SignedRequestContext signed, String merchantRefundNo) {
-    ChannelRefund value = refunds.selectOne(new LambdaQueryWrapper<ChannelRefund>()
-      .eq(ChannelRefund::getMerchantId, signed.merchant().getId())
-      .eq(ChannelRefund::getMerchantRefundNo, merchantRefundNo));
-    return response(require(value), channel(value));
+    ChannelRefund value = require(findRequest(signed.merchant().getId(), merchantRefundNo));
+    return response(value, channel(value));
   }
 
   public ChannelRefundResponse redeliverByMerchant(SignedRequestContext signed, String merchantRefundNo) {
-    ChannelRefund value = require(refunds.selectOne(new LambdaQueryWrapper<ChannelRefund>()
-      .eq(ChannelRefund::getMerchantId, signed.merchant().getId())
-      .eq(ChannelRefund::getMerchantRefundNo, merchantRefundNo)));
+    ChannelRefund value = require(findRequest(signed.merchant().getId(), merchantRefundNo));
     String channel = channel(value);
     callbacks.send(value, channel);
     return response(value, channel);
@@ -157,6 +151,12 @@ public class ChannelRefundService {
     ChannelTransaction transaction = transactions.selectOne(new LambdaQueryWrapper<ChannelTransaction>()
       .eq(ChannelTransaction::getChannelTransactionNo, value.getChannelTransactionNo()));
     return transaction == null ? "" : transaction.getChannel();
+  }
+
+  private ChannelRefund findRequest(long merchantId, String merchantRefundNo) {
+    return refunds.selectOne(new LambdaQueryWrapper<ChannelRefund>()
+      .eq(ChannelRefund::getMerchantId, merchantId)
+      .eq(ChannelRefund::getMerchantRefundNo, merchantRefundNo));
   }
 
   private ChannelRefund require(ChannelRefund value) {

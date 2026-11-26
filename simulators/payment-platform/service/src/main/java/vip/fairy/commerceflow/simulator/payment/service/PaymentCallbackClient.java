@@ -11,9 +11,11 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.server.ResponseStatusException;
 
 @Component
 public class PaymentCallbackClient {
@@ -55,7 +57,7 @@ public class PaymentCallbackClient {
         .retrieve()
         .toBodilessEntity();
     } catch (Exception e) {
-      throw new IllegalStateException("Callback delivery failed", e);
+      throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "支付结果通知暂不可用", e);
     }
   }
 }
