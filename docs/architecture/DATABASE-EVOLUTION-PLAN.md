@@ -4,10 +4,9 @@
 
 日常通知服务使用 PostgreSQL 17.11（`notification-db-postgresql` / `notification`）。原通知 MySQL
 数据库 `notification-db` 及其应用容器保留作回退，反向迁移前以 PostgreSQL 为唯一写入源。
-行政区划基础数据（`reference-data-db` / `reference_data`）、核心商城、商品目录、履约以及站外消息、仓库、物流和发票模拟服务也已使用 PostgreSQL 17.11。2026-11-26 履约切换后，以下 4 个业务库以 MySQL 8.4 为写入方。
+行政区划基础数据（`reference-data-db` / `reference_data`）、核心商城、商品目录、履约、库存以及站外消息、仓库、物流和发票模拟服务也已使用 PostgreSQL 17.11。2026-11-26 库存切换后，以下 3 个业务库以 MySQL 8.4 为写入方。
 
 - `payment-simulator-db` / `payment_platform`
-- `inventory-db` / `inventory`
 - `order-db` / `orders`（已完成单一所有权 CUTOVER）
 - `payment-db` / `payments`（支付编排）
 
@@ -46,9 +45,9 @@ pwsh scripts/inventory/verify-inventory-postgresql.ps1 -BackupPath "$release/inv
 
 ### 库存服务日常发布窗口
 
-准备目录为 `%LOCALAPPDATA%/CommerceFlow/releases/inventory-pg-ready-1795694316/`。PostgreSQL 17.11 目标卷 `fairy-commerceflow_inventory-postgresql-data` 已应用 V1 空结构。`inventory_migrator` 持有结构，`inventory_runtime` 处于禁用登录状态，正式启用后可写入库存账本和更新投递状态。独立回退卷 `fairy-commerceflow_inventory-rollback-data` 已载入 MySQL V10 结构和十条原 Flyway 记录。回退实例暂停，日常仍用原 MySQL 和 Kafka。
+发布目录为 `%LOCALAPPDATA%/CommerceFlow/releases/inventory-pg-ready-1795694316/`。日常库存现役库为 PostgreSQL 17.11 V2，使用 `fairy-commerceflow_inventory-postgresql-data`。`inventory_migrator` 持有结构，应用以 `inventory_runtime` 连接并处理库存和事件投递。原 MySQL 卷 `fairy-commerceflow_inventory-db-data` 持久保持只读，独立回退卷 `fairy-commerceflow_inventory-rollback-data` 保留 V10 结构和十条原 Flyway 记录，回退实例暂停。日常 Kafka 沿用原实例和主题。[日常库存切换验收](../IMPLEMENTED.md#2125-2026-11-26-日常库存切换-postgresql)
 
-从仓库根目录加载已核对的 Compose 参数。切换前检查原应用和候选镜像 ID、备份摘要与 PostgreSQL 权限。备份及发布凭据保存在仓库外。
+从仓库根目录加载已核对的 Compose 参数。日常重启现役库存应用使用 `$pg`。下列正向步骤保留切换前的原应用及候选镜像 ID、备份摘要和 PostgreSQL 权限检查。备份及发布凭据保存在仓库外。
 
 ```powershell
 $ErrorActionPreference = 'Stop'
