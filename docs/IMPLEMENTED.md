@@ -1948,6 +1948,14 @@ MySQL 和 PostgreSQL 各自通过发票专项回归。两边均核对了 9 条�
 
 本机备份和投影证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/catalog-pg-baseline-1795688404/`，成功隔离项目为 `fairy-commerceflow-catalog-pg-4a35b6c16a88`。代码质量和 89 项脚本契约通过。日常目录服务当前使用 MySQL V8，隔离账本已验证，应用层查询、写入和搜索重建待验收。[复测步骤](architecture/DATABASE-EVOLUTION-PLAN.md#商品目录账本隔离演练)
 
+### 2.117 2026-11-26 商品目录 PostgreSQL 应用层隔离验收
+
+以日常 V8 备份恢复 257 行目录账本，再启动 PostgreSQL 17.11 候选并升级 Flyway V1 到 V2。候选通过存量查询和商品 83 的并发创建重放、冲突请求拒绝、版本冲突、商品与 SKU 编辑。英文先读取原文，再读取两次翻译写入后的新文案。SQL 路径验证了中文短语、关键词排除、大小写与重音区别、评分排序、价格排序和 JSON 组合筛选。SKU 价格 89.00 元和显示器属性同时命中，商品公开价为 139.00 元。
+
+隔离库存服务接续商品 83 的第 9 版和内部销售单元 86 的第 2 版。销售单元价格事件再次派发后由同一条库存回执确认，尝试次数从 1 增至 2，库存的版本、价格和状态一致。Elasticsearch 从隔离空索引重建后，SQL 和 Elasticsearch 的代次分别推进到 5 和 6，逐条核对 48 份文档无差异。停止 Elasticsearch 后，同组查询由 PostgreSQL 接续。
+
+候选也通过 MySQL V8 的同组写入和 SQL 查询验证，空 PostgreSQL 从 V1、V2 初始化后建立首个 SQL 搜索代次。镜像内 7 项测试、代码质量和 90 项脚本契约通过。本机凭证位于 `%LOCALAPPDATA%/CommerceFlow/releases/catalog-pg-runtime-1795688934/`，完整复验项目为 `fairy-commerceflow-catalog-pg-6ec2262f4a32`。日常目录当前使用 MySQL V8，48 个日常容器的 ID 在演练前后一致。[复测步骤](architecture/DATABASE-EVOLUTION-PLAN.md#商品目录账本隔离演练)
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

@@ -44,7 +44,15 @@ pwsh scripts/commerce/verify-catalog-postgresql-ledger.ps1 -BackupPath "$release
 
 库存核对按实际交易口径比较。非默认 SKU 对应的内部销售单元隐藏在目录列表中，激活的销售单元仍按库存事件用于交易。搜索核对同时使用 SQL 文档的版本及 Elasticsearch 当前代次的商品文档，区分可搜索商品和隐藏条目。
 
-下一批适配实际服务的商品与 SKU 更新时间、翻译冲突写入、JSON 筛选及聚合、中文全文相关性和排序。随后在隔离环境验证目录事件可继续推进库存版本，Elasticsearch 可从已迁移目录重建并核对搜索结果。[账本与投影基线](../IMPLEMENTED.md#2116-2026-11-26-商品目录-postgresql-账本隔离验收)
+应用层演练从这份 PostgreSQL V1 账本启动目录候选，应用 Flyway V2，再接上隔离库存服务与 Elasticsearch。V2 初始化空库的搜索状态，并给商品和 SKU 的更新补上时间戳。复验覆盖创建请求重放、乐观锁、翻译回退、JSON 规格与显示器属性、价格与评分排序，以及同一目录事件由库存幂等确认。
+
+```powershell
+docker build -t commerceflow-catalog-pg:runtime services/catalog-service
+$inventoryImage = docker inspect fairy-commerceflow-inventory-service --format '{{.Config.Image}}'
+pwsh scripts/commerce/verify-catalog-postgresql-runtime.ps1 -BackupPath "$release/catalog-mysql.sql" -CandidateImage commerceflow-catalog-pg:runtime -InventoryImage $inventoryImage -EvidenceDirectory $release
+```
+
+PostgreSQL 的数据库搜索使用子串筛选，关键词匹配忽略大小写并保留重音区别，覆盖包含、排除和短语三种行为。默认相关性优先匹配标题，再按搜索文本中匹配词的出现次数排序，最后按商品编号排序。Elasticsearch 可用时沿用其相关性。演练在 Elasticsearch 尚未启动时先测 SQL 查询，随后做索引重建和逐文档核对，停掉索引后再复测 SQL 回退。[账本与投影基线](../IMPLEMENTED.md#2116-2026-11-26-商品目录-postgresql-账本隔离验收)
 
 ### 发票模拟库隔离演练
 
