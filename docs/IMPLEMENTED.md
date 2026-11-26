@@ -2078,6 +2078,18 @@ PostgreSQL 17.11 目标卷 `fairy-commerceflow_payment-simulator-postgresql-data
 
 日常模拟器保持 MySQL V7，原库导出去除导出时间后完全一致，52 个原日常运行容器 ID 一致。11 项服务测试、95 项脚本契约和代码质量检查通过。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/payment-simulator-pg-ready-1795699510/`，完整复验项目为 `fairy-commerceflow-payment-simulator-pg-545b2c6481b8`。[日常发布准备与回退说明](architecture/DATABASE-EVOLUTION-PLAN.md#支付渠道模拟库日常发布准备)
 
+### 2.131 2026-11-26 日常支付双库切换 PostgreSQL
+
+21:36 切换支付渠道模拟库。冻结的 MySQL V7 有 619 笔渠道交易、144 笔退款和 1 笔已投递打款。迁入 17 张业务表 2,362 行，逐表全字段摘要和 10 个下一自增值一致。30.6 秒后应用通过 `payment_simulator_runtime` 连接 PostgreSQL 17.11 V2，同窗其余 52 个运行容器 ID 一致。
+
+支付编排库先完成受限账号、目标卷和独立 MySQL V5 回退卷准备。隔离正向迁移 20 张表 11,919 行，反向恢复 11,969 行，逐表摘要和 12 个下一自增值一致。正向用原渠道交易完成在途支付。回迁保持另一笔待支付命令的编号及微秒级截止时间，旧版接收原渠道交易的成功回调，并沿用原事件号补发待投递退款通知。PostgreSQL 隔离实例还通过关单、退款补偿、发票资金快照、日维度报表与商家归属登记。
+
+21:52 切换支付编排库。冻结的 MySQL V5 有 614 笔支付、145 笔退款，没有待确认命令或待发事件。迁入 20 张业务表 11,922 行，逐表摘要和 12 个下一自增值一致。27.0 秒后应用通过 `payment_orchestration_runtime` 连接 PostgreSQL 17.11 V2，同窗其余 53 个运行容器 ID 一致。
+
+新订单 758 关闭一笔待支付的支付宝模拟交易，最终为 `CANCELLED/RELEASED`，商城关闭命令和渠道结果对平。新订单 759 支付 1,301.90 元后全额退款，支付编排与渠道模拟库的交易号、退款号和金额一致。签名支付及退款回执各入账一次，退款站外通知事件为 `PUBLISHED`。两笔订单结束后商品总账和分仓余额回到基线。
+
+两套原 MySQL 卷均持久强制只读，切换前后导出去除时间戳后完全一致。切换后两份 PostgreSQL 原生备份均在独立环境恢复并逐表校验，渠道库 17 表 2,369 行、编排库 20 表 11,982 行。9 项支付编排测试、96 项脚本契约和代码质量审计通过。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/payment-simulator-pg-ready-1795699510/live-20261126-213620/` 和 `%LOCALAPPDATA%/CommerceFlow/releases/payment-orchestration-pg-1795700179/live-20261126-215223/`。[日常运行与回退](architecture/DATABASE-EVOLUTION-PLAN.md#支付双库日常运行与回退)
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

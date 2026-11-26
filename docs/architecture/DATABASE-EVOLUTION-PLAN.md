@@ -4,16 +4,13 @@
 
 日常通知服务使用 PostgreSQL 17.11（`notification-db-postgresql` / `notification`）。原通知 MySQL
 数据库 `notification-db` 及其应用容器保留作回退，反向迁移前以 PostgreSQL 为唯一写入源。
-行政区划基础数据（`reference-data-db` / `reference_data`）、核心商城、商品目录、履约、库存、订单以及站外消息、仓库、物流和发票模拟服务也已使用 PostgreSQL 17.11。2026-11-26 订单切换后，以下两个业务库仍使用 MySQL 8.4 写入。
-
-- `payment-simulator-db` / `payment_platform`
-- `payment-db` / `payments`（支付编排）
+行政区划基础数据（`reference-data-db` / `reference_data`）、核心商城、商品目录、履约、库存、订单、支付编排以及支付渠道、站外消息、仓库、物流和发票模拟服务均已使用 PostgreSQL 17.11。2026-11-26 日常支付双库完成最后一批切换，业务写入统一走 PostgreSQL。原 MySQL 数据留作历史核对和回退。[日常支付双库切换验收](../IMPLEMENTED.md#2131-2026-11-26-日常支付双库切换-postgresql)
 
 ### 下一库的隔离候选
 
 支付渠道模拟库 `payment_platform` 保存模拟支付交易、退款、打款、签名防重和平台后台审计。支付编排库独立保存商城侧的资金状态，渠道交易号与退款号是对账键。
 
-2026-11-26 已从十个日常 MySQL 实例核对表数、外键数，并检查各服务的迁移 SQL 与 Mapper。下表为隔离演练建议顺序。表数包含 Flyway 历史表。回退一列列出反向迁移后需要从外部系统同时对上的记录；每次演练完成后再决定对应日常窗口。
+2026-11-26 已从十个原日常 MySQL 实例核对表数、外键数，并检查迁移 SQL 和 Mapper。下表记录各库的隔离演练顺序，表数包含 Flyway 历史表。回退一列列出反向迁移后需要从外部系统核对的记录。
 
 | 顺序与写入服务 | 表 / 外键 | SQL 适配点 | 回退时需核对的跨服务记录 |
 | --- | ---: | --- | --- |
@@ -49,6 +46,27 @@ V1 建立与 MySQL 对应的 17 张业务表、16 个外键、10 个自增序列
 准备目录为 `%LOCALAPPDATA%/CommerceFlow/releases/payment-simulator-pg-ready-1795699510/`。日常模拟器和支付编排分别继续使用各自的原 MySQL。目标卷 `fairy-commerceflow_payment-simulator-postgresql-data` 已应用 PostgreSQL 17.11 V1 空结构。迁移账号 `payment_simulator_migrator` 管理结构和 Flyway，应用账号 `payment_simulator_runtime` 在备用库保持禁用登录。独立回退卷 `fairy-commerceflow_payment-simulator-rollback-data` 已验证可启动，保留 V7 空账本、七条原 Flyway 记录及两个审计触发器，回退容器停止。
 
 日常 Compose 覆盖、候选和原镜像绑定、备份摘要及权限实测均记录在准备目录。隔离复验使用同一组迁移与授权 SQL，应用以受限账号连接。正式窗口需重新核对原库、镜像、备份和配置，并保存冻结点的待发回调及计划重试时间。若正式运行后回退，先保存 PostgreSQL 最新账本，再在独立 MySQL 卷接续，并用原打款号和原退款号核对投递。回迁复制时暂停业务写入，完成数据校验后加载审计触发器并恢复旧版应用。[支付渠道发布准备验收](../IMPLEMENTED.md#2130-2026-11-26-支付渠道模拟库日常发布准备)
+
+### 支付编排库 PostgreSQL 隔离演练
+
+以 MySQL V5 的单事务备份恢复隔离源库。PostgreSQL V1 保留 20 张业务表、7 个外键、12 个自增序列和 JSON 发件报文。V2 只补空库水位记录。日常支付编排已关闭影子复制。PostgreSQL 运行账号可追加交易及回执，更新支付、退款和投递状态，并登记累计退款金额和恢复记录。既有付款金额、退款申请金额和发件报文禁止改写。签名防重表仅允许按过期时间清理。
+
+在隔离环境使用实际支付编排应用和渠道模拟器，通过隔离接收器控制订单、库存和站外通知回执。正向复制前创建待支付交易，PostgreSQL 用原收银凭据接收渠道结果并完成库存提交。随后验证关单、退款和补偿，检查发票资金快照、日维度报表和商家归属写入。回迁 MySQL 后用原渠道交易号接回另一笔待支付结果，并让旧版应用按原事件号补发退款通知。
+
+```powershell
+docker build -t commerceflow-payment-orchestration-pg:candidate services/payment-orchestration-service
+pwsh -File scripts/payment/verify-payment-orchestration-postgresql.ps1 `
+  -BackupPath "$release/payment-mysql.sql" `
+  -CandidateImage commerceflow-payment-orchestration-pg:candidate `
+  -BaselineImage commerceflow-payment-orchestration-pg:legacy `
+  -ChannelImage commerceflow-payment-simulator-pg:release-ready -EvidenceDirectory $release
+```
+
+### 支付双库日常运行与回退
+
+支付渠道模拟服务使用 `payment-simulator-db-postgresql/payment_platform`，支付编排服务使用 `payment-db-postgresql/payments`。日常维护分别加载发布目录中的 `postgresql-args.json`，保持两个服务原有 API、渠道、订单、库存和通知端点。支付渠道模拟库的准备目录是 `%LOCALAPPDATA%/CommerceFlow/releases/payment-simulator-pg-ready-1795699510/`，支付编排库的准备目录是 `%LOCALAPPDATA%/CommerceFlow/releases/payment-orchestration-pg-1795700179/`。原 MySQL 卷持久强制只读。两个独立 MySQL 回退实例平时停止。
+
+如需回退，先停止对应写入应用，禁用其 PostgreSQL 运行账号并关闭已有运行会话，保存 PostgreSQL 原生归档与待发命令快照。用对应的 `payment-simulator-postgresql-ledger.mjs` 或 `payment-orchestration-postgresql-ledger.mjs` 迁至独立 MySQL 回退库，逐表比对后以该服务保存的 `rollback-args.json` 恢复旧版应用。渠道库复制期间暂卸独立回退库的两个审计触发器，复制后从准备阶段的 `rollback-triggers.sql` 恢复。核对渠道交易号、退款号、待发回调和库存命令接续。
 
 ### 订单服务 PostgreSQL 隔离演练
 
