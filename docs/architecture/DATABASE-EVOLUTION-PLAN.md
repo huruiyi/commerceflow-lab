@@ -4,7 +4,7 @@
 
 日常通知服务使用 PostgreSQL 17.11（`notification-db-postgresql` / `notification`）。原通知 MySQL
 数据库 `notification-db` 及其应用容器保留作回退，反向迁移前以 PostgreSQL 为唯一写入源。
-行政区划基础数据也已使用 PostgreSQL 17.11（`reference-data-db` / `reference_data`）。2026-11-26 核对日常服务，日常核心商城也已切换 PostgreSQL 17.11。以下 10 个业务库仍使用 MySQL 8.4。
+行政区划基础数据（`reference-data-db` / `reference_data`）、核心商城和站外消息模拟库也已使用 PostgreSQL 17.11。2026-11-26 站外消息日常切换后，以下 9 个业务库仍以 MySQL 8.4 为写入方。
 
 - `payment-simulator-db` / `payment_platform`
 - `logistics-simulator-db` / `logistics_platform`
@@ -14,7 +14,6 @@
 - `payment-db` / `payments`（支付编排）
 - `fulfillment-db` / `fulfillment`
 - `warehouse-simulator-db` / `warehouse_platform`
-- `messaging-simulator-db` / `messaging_platform`
 - `invoice-db` / `invoice_platform`
 
 ### 下一库的隔离候选
@@ -52,6 +51,8 @@ pwsh scripts/messaging/verify-messaging-postgresql.ps1 -CandidateImage commercef
 2026-11-26 已完成带日常快照的演练，正向迁入 46 条投递，反向恢复 55 条投递。随后使用日常发布配置与原生备份复验了停写期间的最终同步，账号、目标卷和回退卷均已准备。[回执与恢复验收](../IMPLEMENTED.md#2104-2026-11-26-站外消息模拟库-postgresql-隔离验收)
 
 ### 站外消息模拟库日常发布窗口
+
+**日常现状（2026-11-26 14:15）。** 供应商通过 `messaging_runtime` 写入 `messaging-simulator-db-postgresql/messaging_platform`。原 MySQL 持久化为强制只读，保留切换时的 40 条投递。日常查询与恢复启动沿用发布目录的 `daily-pg-args.json`。已创建的容器可按该配置执行 `docker @pg start --wait messaging-simulator-service`。下方窗口前、窗口内命令记录本次迁移；当前需要回退时使用“切换后回退”一节。[日常切换与投递结果](../IMPLEMENTED.md#2106-2026-11-26-站外消息模拟库日常切换)
 
 本机发布目录 `%LOCALAPPDATA%/CommerceFlow/releases/messaging-pg-ready-1795670404` 已保存 MySQL 一致性备份、SHA-256、原版与候选镜像 ID、Compose 参数、角色凭据及回退表结构。日常 PostgreSQL 17.11 已使用卷 `fairy-commerceflow_messaging-postgresql-data` 建立 V1。独立回退卷 `fairy-commerceflow_messaging-rollback-data` 含 MySQL V1/V2 的结构和迁移历史，业务表为空，实例平时停止。原 MySQL 卷为 `fairy-commerceflow_messaging-simulator-db-data`。
 

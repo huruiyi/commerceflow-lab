@@ -50,6 +50,7 @@ VXE Grid 使用 Vben 角色管理页的默认圆角边框，提供分页、刷�
 
 日常管理台位于 `http://127.0.0.1:18119`，用 `MESSAGING_ADMIN_TOKEN` 登录。
 在短信或邮件菜单按业务关联号、投递状态筛选，可查看脱敏收件地址、请求编号、供应商单号与时间。
+日常供应商回执存于 PostgreSQL 的 `messaging_platform`，通知服务按请求编号保存对应的供应商单号和送达状态。[日常切换与恢复](../architecture/DATABASE-EVOLUTION-PLAN.md#站外消息模拟库日常发布窗口)
 
 通知服务使用 `OFFSITE_CUSTOMER_SMS`、`OFFSITE_CUSTOMER_EMAIL`、
 `OFFSITE_MERCHANT_SMS` 和 `OFFSITE_MERCHANT_EMAIL` 配置角色测试地址。
