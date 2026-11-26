@@ -1,0 +1,99 @@
+services:
+  original:
+    image: mysql:8.4
+    command: ["--innodb-use-native-aio=OFF"]
+    environment:
+      MYSQL_DATABASE: inventory
+      MYSQL_USER: inventory
+      MYSQL_PASSWORD: inventory-isolated-runtime
+      MYSQL_ROOT_PASSWORD: inventory-isolated-mysql
+    volumes:
+      - original-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_ROOT_PASSWORD mysql -h127.0.0.1 -uroot inventory -e 'SELECT 1'"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+
+  rollback:
+    extends: original
+    volumes:
+      - rollback-data:/var/lib/mysql
+
+  postgres:
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: inventory
+      POSTGRES_PASSWORD: inventory-isolated-postgresql
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "inventory"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+
+  migrator:
+    image: redgate/flyway:12.4.0
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/inventory
+      FLYWAY_USER: postgres
+      FLYWAY_PASSWORD: inventory-isolated-postgresql
+    volumes:
+      - ./services/inventory-service/src/main/resources/db/postgresql:/flyway/sql:ro
+    command: ["-target=1", "migrate"]
+
+  kafka:
+    image: apache/kafka:4.1.1
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+    volumes:
+      - kafka-data:/tmp/kraft-combined-logs
+    healthcheck:
+      test: ["CMD", "/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "kafka:9092"]
+      interval: 3s
+      timeout: 6s
+      retries: 30
+
+  inventory:
+    image: ${INVENTORY_VERIFICATION_IMAGE:?Set the inventory verification image}
+    environment:
+      DATABASE_URL: ${INVENTORY_VERIFICATION_DATABASE:?Set the isolated database URL}
+      DATABASE_USERNAME: ${INVENTORY_VERIFICATION_USER:?Set the isolated database account}
+      DATABASE_PASSWORD: ${INVENTORY_VERIFICATION_PASSWORD:?Set the isolated database password}
+      SPRING_PROFILES_ACTIVE: ${INVENTORY_VERIFICATION_PROFILE:-default}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      INVENTORY_ACCEPTING_TRAFFIC: "true"
+      INVENTORY_INTERNAL_SECRET: inventory-isolated-commerce
+      FULFILLMENT_INVENTORY_SECRET: inventory-isolated-fulfillment
+      CATALOG_INTERNAL_SECRET: inventory-isolated-catalog
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health/readiness"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+
+  verifier:
+    image: node:26.13.1-alpine3.24
+    command: ["node", "-e", "setInterval(() => {}, 3600000)"]
+    volumes:
+      - ./scripts/inventory:/verification:ro
+
+networks:
+  default:
+    internal: true
+
+volumes:
+  original-data:
+  postgres-data:
+  rollback-data:
+  kafka-data:

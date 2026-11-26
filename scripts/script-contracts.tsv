@@ -63,6 +63,7 @@ inventory/verify-inventory-remote-rehearsal.ps1	BaseUrl
 inventory/verify-inventory-runtime-cutover.ps1	BaseUrl,TempoUrl,MaxWaitSeconds
 inventory/verify-inventory-single-owner.ps1	BaseUrl,MaxWaitSeconds
 inventory/verify-inventory-command-monitoring.ps1	CommerceJar,CommerceRuntimeImage,InventoryImage,MaxWaitSeconds
+inventory/verify-inventory-postgresql.ps1	BackupPath,CandidateImage,BaselineImage,EvidenceDirectory
 orders/verify-receipt-reviews.ps1	BaseUrl,PaymentBaseUrl,PaymentOrchestrationUrl
 commerce/verify-redis-business.ps1	BaseUrl,PaymentUrl
 payment/verify-refunds.ps1	BaseUrl,PaymentBaseUrl,PaymentOrchestrationUrl
