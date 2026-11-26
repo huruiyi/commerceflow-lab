@@ -1940,6 +1940,14 @@ MySQL 和 PostgreSQL 各自通过发票专项回归。两边均核对了 9 条�
 
 切换后的原生备份已在独立空实例恢复。三张业务表各六行和一条 Flyway 迁移记录的行数、全字段摘要均与现役库一致。本机冻结备份、最终迁移清单、订单、签名回执和恢复摘要位于 `%LOCALAPPDATA%/CommerceFlow/releases/invoice-pg-ready-1795686700/live-20261126-181658/`。[日常启动与回退](architecture/DATABASE-EVOLUTION-PLAN.md#发票模拟库日常发布窗口)
 
+### 2.116 2026-11-26 商品目录 PostgreSQL 账本隔离验收
+
+从日常 MySQL V8 的在线备份恢复目录，保留八条 MySQL Flyway 记录。隔离 PostgreSQL 17.11 V1 和独立 MySQL 回退库正反向复制八张业务表、257 行。三份账本的逐表摘要一致，商品、SKU 和 Outbox 的下一编号分别是 83、75 和 100。46 个商品、46 个 SKU、12 条翻译、99 条目录事件与 51 条 SQL 搜索文档均已核对。三个实例的显示器属性视图均返回相同的 44 条属性。
+
+日常库存的 46 条快照与目录交易口径逐项匹配，其中五条内部销售单元按其激活 SKU 和已投递库存事件核对。日常搜索代次为 4，51 条 SQL 文档的商品版本均一致。Elasticsearch 的 46 条文档包含 39 条可搜索商品和七条隐藏记录，可搜索商品的版本、店铺、售价、状态和缩略图与目录相符。99 条目录事件的库存投递和两条搜索投影状态均已确认。
+
+本机备份和投影证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/catalog-pg-baseline-1795688404/`，成功隔离项目为 `fairy-commerceflow-catalog-pg-4a35b6c16a88`。代码质量和 89 项脚本契约通过。日常目录服务当前使用 MySQL V8，隔离账本已验证，应用层查询、写入和搜索重建待验收。[复测步骤](architecture/DATABASE-EVOLUTION-PLAN.md#商品目录账本隔离演练)
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。
