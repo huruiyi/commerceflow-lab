@@ -23,7 +23,15 @@ if (-not $selected.addressId) {
 
 function New-Order {
   Invoke-RestMethod "$BaseUrl/api/cart/items" -Method Post -WebSession $customer.Session -Headers $customer.Headers -ContentType application/json -Body '{"productId":1,"quantity":1,"note":"cancellation-acceptance"}' | Out-Null
-  return (Submit-VerifiedCheckout $BaseUrl $customer.Session $customer.Headers)
+  $order = Submit-VerifiedCheckout $BaseUrl $customer.Session $customer.Headers
+  $deadline = (Get-Date).AddSeconds(30)
+  while ($order.inventoryStatus -eq 'WAITING_RESERVATION' -and (Get-Date) -lt $deadline) {
+    if ($order.availableActions -contains 'PAY') { throw 'Payment available before inventory reservation' }
+    Start-Sleep -Milliseconds 300
+    $order = Invoke-RestMethod "$BaseUrl/api/purchase-orders/$($order.id)" -WebSession $customer.Session -TimeoutSec 10
+  }
+  if ($order.inventoryStatus -ne 'RESERVED') { throw "Cancellation fixture inventory status: $($order.inventoryStatus)" }
+  return $order
 }
 
 function Wait-CancellationNotification([long]$OrderId) {
