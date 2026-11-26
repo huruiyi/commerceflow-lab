@@ -1984,6 +1984,14 @@ MySQL 和 PostgreSQL 各自通过发票专项回归。两边均核对了 9 条�
 
 日常履约继续使用 MySQL V4，隔离验收前后 49 个日常容器的 ID 一致。本机证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/fulfillment-pg-rehearsal-1795691093/`，完整复验项目为 `fairy-commerceflow-fulfillment-pg-4681d511e2fa`。[隔离复测步骤](architecture/DATABASE-EVOLUTION-PLAN.md#履约服务-postgresql-隔离演练)
 
+### 2.121 2026-11-26 履约服务日常发布准备
+
+日常 PostgreSQL 17.11 目标卷已完成 V1 空结构及分权配置。迁移使用 `fulfillment_migrator`，运行角色 `fulfillment_runtime` 可处理履约和追加审计，不能修改已有审计、读取迁移历史或创建结构。备用 PostgreSQL 的运行角色保持禁用登录。独立 MySQL 回退卷已载入 V4 结构及四条原 Flyway 记录，回退实例暂停。
+
+最新日常备份包含 102 条发货任务和 160 条商家操作，当时没有待执行任务。隔离复验另外构造在途任务，正向同步九表 609 行、反向恢复 618 行，两个自增序列和逐表摘要一致，重复执行迁移入口的校验清单一致。两个方向都保留原租约，等到期才用同一命令号向签名依赖取回原运单回执。隔离 PostgreSQL 上的管理员恢复请求重放只写一条审计，回退后旧版可查到这条审计、接续发货并处理新接单。日常订单 751、752、753 的履约、仓库、商城物流桥和物流平台回执也已重新核对。
+
+日常履约保持 MySQL V4。代码质量检查和 92 项脚本契约通过。证据目录为 `%LOCALAPPDATA%/CommerceFlow/releases/fulfillment-pg-ready-1795692135/`，完整复验项目为 `fairy-commerceflow-fulfillment-pg-3862a3f8e7ad`。[日常发布与回退步骤](architecture/DATABASE-EVOLUTION-PLAN.md#履约服务日常发布窗口)
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

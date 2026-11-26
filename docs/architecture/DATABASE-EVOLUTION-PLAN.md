@@ -45,6 +45,61 @@ pwsh scripts/fulfillment/verify-fulfillment-postgresql.ps1 -BackupPath "$release
 
 脚本在旧服务认领发货、签名下游收到物流请求后终止旧进程。候选先核对迁入的持有人、到期时间和尝试次数，等待原租约到期再用原物流命令接续。另用隔离签名服务演练第二个仓库的拆包、临时 503 和待出库回执。停止候选后归档 PostgreSQL，将九表写回单独的 MySQL V4，再用旧镜像读取历史及新增发货并受理新接单。运行结果、迁移清单和归档记录保存在本次隔离项目目录。[履约隔离验收记录](../IMPLEMENTED.md#2120-2026-11-26-履约服务-postgresql-隔离验收)
 
+### 履约服务日常发布窗口
+
+准备目录为 `%LOCALAPPDATA%/CommerceFlow/releases/fulfillment-pg-ready-1795692135/`。目标 PostgreSQL 17.11 卷 `fairy-commerceflow_fulfillment-postgresql-data` 已应用 V1 空结构。`fulfillment_migrator` 持有结构和 Flyway 历史，`fulfillment_runtime` 默认禁用登录，启用后可执行履约和追加恢复审计。独立 MySQL 卷 `fairy-commerceflow_fulfillment-rollback-data` 已载入 V4 结构和四条原迁移记录，实例暂停。日常履约仍连接原 MySQL。
+
+从仓库根目录加载镜像绑定和三组 Compose 参数。核对原应用和候选镜像 ID、备份摘要及 PostgreSQL 权限。备份保存至仓库外的发布目录。
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $true
+$release = Join-Path $env:LOCALAPPDATA 'CommerceFlow/releases/fulfillment-pg-ready-1795692135'
+$binding = Get-Content "$release/release-binding.json" -Raw | ConvertFrom-Json
+$old = Get-Content "$release/original-args.json" -Raw | ConvertFrom-Json
+$pg = Get-Content "$release/postgresql-args.json" -Raw | ConvertFrom-Json
+$back = Get-Content "$release/rollback-args.json" -Raw | ConvertFrom-Json
+$source = 'fairy-commerceflow-fulfillment-db'
+$target = 'fairy-commerceflow-fulfillment-db-postgresql'
+if ((docker inspect fairy-commerceflow-fulfillment-service --format '{{.Image}}') -cne $binding.legacyId -or
+    (docker image inspect $binding.legacyTag --format '{{.Id}}') -cne $binding.legacyId -or
+    (docker image inspect $binding.candidateTag --format '{{.Id}}') -cne $binding.candidateId -or
+    (Get-FileHash "$release/fulfillment-mysql.sql").Hash -cne (Get-Content "$release/fulfillment-backup.sha256")) {
+    throw '履约镜像或备份与发布准备记录不一致'
+}
+if ((docker exec $target psql -U postgres -d fulfillment -XAtq -v ON_ERROR_STOP=1 -c (Get-Content infrastructure/fulfillment/verify-runtime.sql -Raw)) -cne 't') {
+    throw '履约运行账号权限已变化'
+}
+```
+
+窗口开始时只停履约应用并冻结原 MySQL，保留履约命令入口上下游的原回执。冻结后生成原生备份，复制九张业务表及两个自增序列，再迁移到 V2，保留已有水位和执行模式。复制入口核对实际卷、原 MySQL 持久只读和 PostgreSQL 运行账号停写状态。目标已有数据时，同方向执行只做账本校验。
+
+```powershell
+$stamp = Get-Date -Format yyyyMMdd-HHmmss
+docker @old stop fulfillment-service
+docker exec $source sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -e "SET PERSIST super_read_only=ON"'
+docker exec $source sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysqldump -uroot --single-transaction --no-tablespaces --set-gtid-purged=OFF --skip-lock-tables --hex-blob fulfillment' > "$release/frozen-$stamp.sql"
+node scripts/fulfillment/fulfillment-postgresql-ledger.mjs fairy-commerceflow ToPostgreSQL "$release/forward-$stamp.json"
+docker @pg run --rm --no-deps fulfillment-postgresql-migrator
+docker exec $target psql -U postgres -d fulfillment -v ON_ERROR_STOP=1 -c 'ALTER ROLE fulfillment_runtime LOGIN'
+docker @pg up -d --no-deps --no-build --wait fulfillment-service
+```
+
+从 PostgreSQL 连接确认运行账号，按原命令号核对在途任务、租约、仓库出库单和物流回执。补做一笔日常新发货并核对下游记录和履约指标。如果新应用还未启动且确认 PostgreSQL 没有新增业务写入，可禁用 PostgreSQL 运行账号、解除原 MySQL 的 `super_read_only` 和 `read_only` 后用 `$old` 恢复应用。
+
+新应用已接单时，先停履约应用，禁用 PostgreSQL 运行账号并结束余留连接。归档新账本后反向恢复到独立的 MySQL 卷，保留原 MySQL 只读。用回退镜像按原命令号核对当前任务、回执和审计。
+
+```powershell
+$stamp = Get-Date -Format yyyyMMdd-HHmmss
+docker @pg stop fulfillment-service
+docker exec $target psql -U postgres -d fulfillment -v ON_ERROR_STOP=1 -c 'ALTER ROLE fulfillment_runtime NOLOGIN'
+docker exec $target psql -U postgres -d fulfillment -v ON_ERROR_STOP=1 -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename='fulfillment_runtime'"
+docker exec $target pg_dump -U postgres -d fulfillment -Fc > "$release/postgresql-$stamp.dump"
+docker @back start --wait fulfillment-db-rollback
+node scripts/fulfillment/fulfillment-postgresql-ledger.mjs fairy-commerceflow ToMySQL "$release/reverse-$stamp.json"
+docker @back up -d --no-deps --no-build --wait fulfillment-service
+```
+
 ### 商品目录账本隔离演练
 
 使用日常 MySQL V8 的单事务原生备份。隔离 PostgreSQL 17.11 的 Flyway V1 建立八张业务表、三个自增序列及显示器属性视图。正向和反向复制均核对全字段摘要和下一自增值。反向恢复按外键关系先插入公开商品，再插入引用它的销售单元，回退库保留八条原 MySQL Flyway 记录。
