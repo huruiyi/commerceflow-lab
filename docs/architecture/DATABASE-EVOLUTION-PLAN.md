@@ -33,6 +33,40 @@
 | 9 支付渠道模拟服务 | 18 / 16 | 冲突更新、回调重试时间算术 | 支付与退款的渠道流水号、金额及回调状态与支付编排一致。 |
 | 10 支付编排服务 | 21 / 7 | 忽略重复插入、冲突更新、行锁 | 订单、渠道、退款、结算和待处理命令逐笔对账，回退后不能重复入账。 |
 
+### 发票模拟库隔离演练
+
+以日常 `invoice_platform` MySQL V2 的单事务原生备份开始，同时导出商城 `commerceflow.invoice_attempts` 中成功的请求号、业务编号、票号、原票号、金额、币种和状态。蓝票重放使用商城支付号，红票重放使用原蓝票和退款号。历史回执按请求号同时匹配开票查询和重放结果。
+
+PostgreSQL 17.11 使用独立 Flyway V1，保留业务编号区分大小写、活跃业务引用唯一、金额和状态约束、原票外键及回执去重。切换方向分别核对申请、票据、回执三张表的全字段摘要。回迁先插入外键引用的原票，再插入红票。迁移工具校验隔离 Compose 项目、三个数据卷和模拟服务停写。
+
+在仓库根目录使用 PowerShell 7.4+、Node.js 24+ 及本机 Docker。使用当前日常镜像作为回退基线，将原始备份和商城回执保存在仓库外。
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $true
+$release = Join-Path $env:LOCALAPPDATA ("CommerceFlow/releases/invoice-pg-" + (Get-Date -Format yyyyMMdd-HHmmss))
+New-Item -ItemType Directory $release | Out-Null
+$baselineImage = docker inspect fairy-commerceflow-invoice-simulator-service --format '{{.Config.Image}}'
+docker exec fairy-commerceflow-invoice-db sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysqldump -uroot --single-transaction --no-tablespaces --set-gtid-purged=OFF --skip-lock-tables --hex-blob --routines --events --triggers invoice_platform' > "$release/invoice-mysql.sql"
+(Get-FileHash "$release/invoice-mysql.sql").Hash | Set-Content "$release/backup.sha256"
+$query = @'
+SELECT json_build_object(
+    'requestId', request_id, 'orderId', order_id, 'kind', kind, 'referenceNo', reference_no,
+    'paymentNo', payment_no, 'originalInvoiceNo', original_invoice_no, 'amount', amount,
+    'currency', currency, 'status', status, 'invoiceNo', invoice_no
+)
+FROM commerceflow.invoice_attempts
+WHERE status = 'SUCCEEDED'
+ORDER BY request_id
+'@
+docker exec fairy-commerceflow-commerce-db-postgresql psql -U postgres -d commerceflow -XAtq -v ON_ERROR_STOP=1 -c $query > "$release/commerce-receipts.jsonl"
+docker build -t commerceflow-invoice-pg:rehearsal simulators/invoice-platform/service
+pwsh scripts/invoice/verify-invoice-postgresql.ps1 -BackupPath "$release/invoice-mysql.sql" -CommerceReceiptsPath "$release/commerce-receipts.jsonl" -CandidateImage commerceflow-invoice-pg:rehearsal -BaselineImage $baselineImage -EvidenceDirectory $release
+pwsh scripts/invoice/verify-invoice-simulator.ps1 -PostgreSqlImage commerceflow-invoice-pg:rehearsal
+```
+
+验收在隔离 MySQL 受理一张蓝票，停服务后执行正向迁移，由 PostgreSQL 接续出具蓝票及签名回执。随后在 PostgreSQL 开红票并制造一次投递失败，停止模拟器后反向迁移到独立 MySQL。旧版服务查询并重放两张新票，接续发送原红票事件，拒绝超额红冲。验收结束停止隔离服务并保留卷与迁移摘要。[发票隔离验收](../IMPLEMENTED.md#2113-2026-11-26-发票模拟库-postgresql-隔离验收)
+
 ### 物流模拟库隔离演练
 
 隔离演练使用切换前日常物流的 MySQL V7 备份。演练在独立 Docker 内部网络运行，从日常单事务备份恢复一个源库，并另建 PostgreSQL 17.11 目标库和 MySQL 回退库。物流应用只与隔离网络中的数据库和签名回调接收端通信。服务停止后按外键顺序复制五张业务表，各引擎保留自己的 Flyway 历史。每张表单独核对行数、全字段摘要和下一自增值，包含轨迹顺序、回调载荷、重试时间、领取租约、审计信息和用于防止重复请求的 nonce。
