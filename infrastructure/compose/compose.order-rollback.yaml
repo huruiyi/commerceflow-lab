@@ -1,0 +1,34 @@
+services:
+  order-db-rollback:
+    container_name: fairy-commerceflow-order-db-rollback
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: orders
+      MYSQL_USER: orders
+      MYSQL_PASSWORD: ${ORDER_ROLLBACK_PASSWORD:?Set the order rollback application password}
+      MYSQL_ROOT_PASSWORD: ${ORDER_ROLLBACK_ROOT_PASSWORD:?Set the order rollback admin password}
+    volumes:
+      - order-rollback-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_PASSWORD mysql -h127.0.0.1 -uorders orders -e 'SELECT 1'"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+    restart: unless-stopped
+
+  order-service:
+    build: !reset null
+    image: ${ORDER_ROLLBACK_IMAGE:?Set the original order image}
+    pull_policy: never
+    environment:
+      DATABASE_URL: jdbc:mysql://order-db-rollback:3306/orders?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DATABASE_USERNAME: orders
+      DATABASE_PASSWORD: ${ORDER_ROLLBACK_PASSWORD:?Set the order rollback application password}
+      SPRING_PROFILES_ACTIVE: default
+    depends_on:
+      order-db: !reset null
+      order-db-rollback:
+        condition: service_healthy
+
+volumes:
+  order-rollback-data:

@@ -1,0 +1,62 @@
+services:
+  order-db-postgresql:
+    container_name: fairy-commerceflow-order-db-postgresql
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: orders
+      POSTGRES_PASSWORD: ${ORDER_PG_ADMIN_PASSWORD:?Set the order PostgreSQL admin password}
+    volumes:
+      - order-postgresql-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "orders"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+    restart: unless-stopped
+
+  order-postgresql-roles:
+    image: postgres:17.11-alpine
+    environment:
+      PGPASSWORD: ${ORDER_PG_ADMIN_PASSWORD:?Set the order PostgreSQL admin password}
+      ORDER_PG_MIGRATOR_PASSWORD: ${ORDER_PG_MIGRATOR_PASSWORD:?Set the order migration password}
+      ORDER_PG_RUNTIME_PASSWORD: ${ORDER_PG_RUNTIME_PASSWORD:?Set the order runtime password}
+    volumes:
+      - ./infrastructure/order/postgresql-roles.sql:/roles.sql:ro
+    command: ["psql", "-Xq", "-h", "order-db-postgresql", "-U", "postgres", "-d", "orders", "-f", "/roles.sql"]
+    depends_on:
+      order-db-postgresql:
+        condition: service_healthy
+
+  order-postgresql-migrator:
+    image: redgate/flyway:12.4.0
+    environment:
+      FLYWAY_URL: jdbc:postgresql://order-db-postgresql:5432/orders
+      FLYWAY_SCHEMAS: public
+      FLYWAY_USER: order_migrator
+      FLYWAY_PASSWORD: ${ORDER_PG_MIGRATOR_PASSWORD:?Set the order migration password}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql,filesystem:/flyway/callbacks
+    volumes:
+      - ./services/order-service/src/main/resources/db/postgresql:/flyway/sql:ro
+      - ./infrastructure/order/postgresql-after-migrate.sql:/flyway/callbacks/afterMigrate.sql:ro
+    command: ["migrate"]
+    depends_on:
+      order-postgresql-roles:
+        condition: service_completed_successfully
+
+  order-service:
+    build: !reset null
+    image: ${ORDER_PG_IMAGE:?Set the verified order candidate image}
+    pull_policy: never
+    environment:
+      DATABASE_URL: jdbc:postgresql://order-db-postgresql:5432/orders
+      DATABASE_USERNAME: order_runtime
+      DATABASE_PASSWORD: ${ORDER_PG_RUNTIME_PASSWORD:?Set the order runtime password}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
+    depends_on:
+      order-db: !reset null
+      order-db-postgresql:
+        condition: service_healthy
+
+volumes:
+  order-postgresql-data:

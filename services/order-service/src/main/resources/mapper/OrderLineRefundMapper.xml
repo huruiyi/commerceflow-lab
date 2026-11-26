@@ -3,7 +3,8 @@
 <mapper namespace="vip.fairy.commerceflow.order.infrastructure.persistence.OrderLineRefundMapper">
   <select id="lockOrder"
           resultType="vip.fairy.commerceflow.order.infrastructure.persistence.OrderLineRefundMapper$OrderLock">
-    SELECT customer_id,status,inventory_status,shipment_intent_key FROM shop_orders WHERE id=#{orderId} FOR UPDATE
+    SELECT customer_id,status,inventory_status,RTRIM(shipment_intent_key) AS shipment_intent_key
+    FROM shop_orders WHERE id=#{orderId} FOR UPDATE
   </select>
   <select id="find"
           resultType="vip.fairy.commerceflow.order.infrastructure.persistence.OrderLineRefundMapper$Admission">
