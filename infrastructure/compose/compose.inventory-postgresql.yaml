@@ -1,0 +1,62 @@
+services:
+  inventory-db-postgresql:
+    container_name: fairy-commerceflow-inventory-db-postgresql
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: inventory
+      POSTGRES_PASSWORD: ${INVENTORY_PG_ADMIN_PASSWORD:?Set the inventory PostgreSQL admin password}
+    volumes:
+      - inventory-postgresql-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "inventory"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+    restart: unless-stopped
+
+  inventory-postgresql-roles:
+    image: postgres:17.11-alpine
+    environment:
+      PGPASSWORD: ${INVENTORY_PG_ADMIN_PASSWORD:?Set the inventory PostgreSQL admin password}
+      INVENTORY_PG_MIGRATOR_PASSWORD: ${INVENTORY_PG_MIGRATOR_PASSWORD:?Set the inventory migration password}
+      INVENTORY_PG_RUNTIME_PASSWORD: ${INVENTORY_PG_RUNTIME_PASSWORD:?Set the inventory runtime password}
+    volumes:
+      - ./infrastructure/inventory/postgresql-roles.sql:/roles.sql:ro
+    command: ["psql", "-Xq", "-h", "inventory-db-postgresql", "-U", "postgres", "-d", "inventory", "-f", "/roles.sql"]
+    depends_on:
+      inventory-db-postgresql:
+        condition: service_healthy
+
+  inventory-postgresql-migrator:
+    image: redgate/flyway:12.4.0
+    environment:
+      FLYWAY_URL: jdbc:postgresql://inventory-db-postgresql:5432/inventory
+      FLYWAY_SCHEMAS: public
+      FLYWAY_USER: inventory_migrator
+      FLYWAY_PASSWORD: ${INVENTORY_PG_MIGRATOR_PASSWORD:?Set the inventory migration password}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql,filesystem:/flyway/callbacks
+    volumes:
+      - ./services/inventory-service/src/main/resources/db/postgresql:/flyway/sql:ro
+      - ./infrastructure/inventory/postgresql-after-migrate.sql:/flyway/callbacks/afterMigrate.sql:ro
+    command: ["migrate"]
+    depends_on:
+      inventory-postgresql-roles:
+        condition: service_completed_successfully
+
+  inventory-service:
+    build: !reset null
+    image: ${INVENTORY_PG_IMAGE:?Set the verified inventory candidate image}
+    pull_policy: never
+    environment:
+      DATABASE_URL: jdbc:postgresql://inventory-db-postgresql:5432/inventory
+      DATABASE_USERNAME: inventory_runtime
+      DATABASE_PASSWORD: ${INVENTORY_PG_RUNTIME_PASSWORD:?Set the inventory runtime password}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
+    depends_on:
+      inventory-db: !reset null
+      inventory-db-postgresql:
+        condition: service_healthy
+
+volumes:
+  inventory-postgresql-data:
