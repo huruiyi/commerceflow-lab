@@ -45,6 +45,69 @@ pwsh scripts/orders/verify-order-postgresql.ps1 -BackupPath "$release/order-mysq
 
 隔离正向迁移时，取消流程已收到支付关闭回执，仍等待库存释放。反向迁移时，另一笔取消已收到库存释放回执，仍等待支付关闭。演练从独立支付、库存服务取得实际回执，再通过签名接口按原业务命令提交给接管的订单服务。另实测订单存储接口的并发下单、取消、请求重放和关键词搜索。核对订单取消终态、订单出站命令、结果收件记录、支付关闭回执与库存释放流水。[订单隔离验收记录](../IMPLEMENTED.md#2126-2026-11-26-订单服务-postgresql-隔离验收)
 
+### 订单服务日常发布窗口
+
+准备目录为 `%LOCALAPPDATA%/CommerceFlow/releases/order-pg-ready-1795696729/`。PostgreSQL 17.11 目标卷 `fairy-commerceflow_order-postgresql-data` 已应用 V1 空结构。`order_migrator` 在 `orders` 持有结构和 `unaccent` 扩展，`order_runtime` 保持禁用登录。独立 MySQL 回退卷 `fairy-commerceflow_order-rollback-data` 已载入 V12 空账本结构及十二条原 Flyway 记录，回退实例已停止。日常订单仍使用原 MySQL。[订单发布准备验收](../IMPLEMENTED.md#2127-2026-11-26-订单服务日常发布准备)
+
+从仓库根目录加载已验证的 Compose 参数。正式窗口前核对当前原镜像、候选镜像、备份摘要和 PostgreSQL 权限。
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $true
+$release = Join-Path $env:LOCALAPPDATA 'CommerceFlow/releases/order-pg-ready-1795696729'
+$binding = Get-Content "$release/release-binding.json" -Raw | ConvertFrom-Json
+$old = Get-Content "$release/original-args.json" -Raw | ConvertFrom-Json
+$pg = Get-Content "$release/postgresql-args.json" -Raw | ConvertFrom-Json
+$back = Get-Content "$release/rollback-args.json" -Raw | ConvertFrom-Json
+$source = 'fairy-commerceflow-order-db'
+$target = 'fairy-commerceflow-order-db-postgresql'
+if ((docker inspect fairy-commerceflow-order-service --format '{{.Image}}') -cne $binding.legacyId -or
+    (docker image inspect $binding.legacyTag --format '{{.Id}}') -cne $binding.legacyId -or
+    (docker image inspect $binding.candidateTag --format '{{.Id}}') -cne $binding.candidateId -or
+    (Get-FileHash "$release/order-mysql.sql").Hash -cne (Get-Content "$release/backup.sha256")) {
+    throw '订单镜像或备份与发布准备记录不一致'
+}
+$pgConfig = (docker @pg config --format json | ConvertFrom-Json).services
+$backConfig = (docker @back config --format json | ConvertFrom-Json).services
+if ($pgConfig.'order-service'.environment.DATABASE_URL -cne
+    "jdbc:postgresql://order-db-postgresql:5432/$($pgConfig.'order-db-postgresql'.environment.POSTGRES_DB)" -or
+    $backConfig.'order-service'.environment.DATABASE_URL -cnotlike
+    "jdbc:mysql://order-db-rollback:3306/$($backConfig.'order-db-rollback'.environment.MYSQL_DATABASE)?*") {
+    throw '订单应用连接配置与目标数据库不一致'
+}
+if ((docker exec $target psql -U postgres -d orders -XAtq -v ON_ERROR_STOP=1 -c (Get-Content infrastructure/order/verify-runtime.sql -Raw)) -cne 't') {
+    throw '订单运行账号权限已变化'
+}
+```
+
+正式切换只停订单应用并冻结原 MySQL。冻结后保存备份和待处理取消命令的状态、原发件与收件标识及结果期限。复制 16 张业务表及 5 个自增序列后再应用 V2，随后启用 PostgreSQL 运行账号。原支付和库存使用现役服务，按业务号核对两侧回执，复验新订单完成取消。
+
+```powershell
+$stamp = Get-Date -Format yyyyMMdd-HHmmss
+docker @old stop order-service
+docker exec $source sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -e "SET PERSIST super_read_only=ON"'
+docker exec $source sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysqldump -uroot --single-transaction --no-tablespaces --set-gtid-purged=OFF --skip-lock-tables --hex-blob orders' > "$release/frozen-$stamp.sql"
+node scripts/orders/order-postgresql-ledger.mjs fairy-commerceflow ToPostgreSQL "$release/forward-$stamp.json"
+docker @pg run --rm --no-deps order-postgresql-migrator
+docker exec $target psql -U postgres -d orders -v ON_ERROR_STOP=1 -c 'ALTER ROLE order_runtime LOGIN'
+docker @pg up -d --no-deps --no-build --wait order-service
+```
+
+若新应用启动前中止且确认目标无新增业务写入，禁用 PostgreSQL 运行账号、解除原 MySQL 的 `super_read_only` 和 `read_only`，用 `$old` 恢复订单应用。新应用已受理业务时，用独立回退卷接续，原 MySQL 保持只读。迁移入口先核对数据卷和停写状态，已写入的目标只允许同方向校验。
+
+```powershell
+$stamp = Get-Date -Format yyyyMMdd-HHmmss
+docker @pg stop order-service
+docker exec $target psql -U postgres -d orders -v ON_ERROR_STOP=1 -c 'ALTER ROLE order_runtime NOLOGIN'
+docker exec $target psql -U postgres -d orders -v ON_ERROR_STOP=1 -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename='order_runtime'"
+docker exec $target pg_dump -U postgres -d orders -Fc > "$release/postgresql-$stamp.dump"
+docker @back start --wait order-db-rollback
+node scripts/orders/order-postgresql-ledger.mjs fairy-commerceflow ToMySQL "$release/reverse-$stamp.json"
+docker @back up -d --no-deps --no-build --wait order-service
+```
+
+恢复 PostgreSQL 原生归档到独立实例时，先创建禁用登录的 `order_runtime` 角色供归档中的防重清理策略引用，再用 `pg_restore` 恢复。完成后核对订单及取消状态、生成列、自增序列、出站命令和结果回执。
+
 ### 库存服务 PostgreSQL 隔离演练
 
 从日常 MySQL V10 的单事务原生备份恢复库存账本。PostgreSQL 17.11 V1 建立 17 张业务表、16 个外键及两个自增序列。V2 初始化空库的两个默认仓，保留迁入的仓库资料。迁移时保留商品库存和分仓库存、预占状态和版本、命令防重记录、出库单与出库事件、退货回补和原迁移水位。正反向均核对逐表全字段摘要和下一自增值。

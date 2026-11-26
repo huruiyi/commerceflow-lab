@@ -2038,6 +2038,16 @@ MySQL 和 PostgreSQL 各自通过发票专项回归。两边均核对了 9 条�
 
 隔离 PostgreSQL 的日常订单存储接口完成并发下单、关键词检索、重复取消写入和请求重放验证，最终订单为 `CANCELLED/RELEASED`，新增订单创建流水只有一条。指标刷新成功。PostgreSQL 归档在独立空库恢复，16 表行数、5 个下一自增值、10 个外键、订单金额生成列和两笔取消状态均通过核对。镜像内 2 项测试、代码质量及 94 项脚本契约通过。日常订单仍使用 MySQL V12，原 51 个日常容器 ID 及原库导出内容一致。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/order-pg-rehearsal-1795695719/`，完整复验项目为 `fairy-commerceflow-order-pg-6ddabef51850`。[隔离复测步骤](architecture/DATABASE-EVOLUTION-PLAN.md#订单服务-postgresql-隔离演练)
 
+### 2.127 2026-11-26 订单服务日常发布准备
+
+PostgreSQL 17.11 目标卷 `fairy-commerceflow_order-postgresql-data` 已应用 V1 空结构。`order_migrator` 管理结构和扩展，受限应用账号 `order_runtime` 在备用库保持禁用登录。实测应用角色无权创建结构、改写订单金额及原始回执、删除订单流水或读取 Flyway 历史，防重表仅允许删除已过期记录。独立 MySQL 回退卷 `fairy-commerceflow_order-rollback-data` 已载入 V12 结构，实测启动健康，十二条 Flyway 记录与原库一致。回退实例已停止。
+
+最新日常 MySQL 备份恢复出 756 笔订单，当时在途取消、待发取消命令和结果收件记录均为零。隔离环境重新核对历史订单 750 的取消终态、两条取消命令、支付关闭和库存释放回执，以及订单 755、756 的发货或收货状态、成功支付和库存提交。正向迁移 16 表 15,826 行，反向恢复 16 表 15,894 行，两边的逐表全字段摘要、5 个下一自增值及重试校验清单一致。
+
+隔离订单 757 在收到支付关闭后迁至 PostgreSQL，接回原库存释放命令的回执。订单 761 在收到库存释放后回迁 MySQL V12，旧版接回原支付关闭命令的回执。两笔保留原命令号、已有回执及精确到微秒的等待截止时间，最终均为 `CANCELLED/RELEASED`。每笔两条出站命令确认、两条回执处理完成。另复验商家取消和包裹实发。修正 PostgreSQL 的包裹更新语句及定长发货标识补位问题后，订单 760 完成发货并在回退后读回。PostgreSQL 原生归档独立恢复通过，核对了 16 表、5 个下一自增值、两个 Flyway 版本、10 个外键、订单金额生成列和两笔取消状态。
+
+日常订单继续使用原 MySQL V12，原 51 个日常容器 ID 及原库导出内容一致。镜像内 2 项测试、代码质量和 94 项脚本契约通过。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/order-pg-ready-1795696729/`，完整复验项目为 `fairy-commerceflow-order-pg-16099a025f13`。[日常发布与回退步骤](architecture/DATABASE-EVOLUTION-PLAN.md#订单服务日常发布窗口)
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。
