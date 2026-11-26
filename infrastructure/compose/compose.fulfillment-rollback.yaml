@@ -1,0 +1,33 @@
+services:
+  fulfillment-db-rollback:
+    container_name: fairy-commerceflow-fulfillment-db-rollback
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: fulfillment
+      MYSQL_USER: fulfillment
+      MYSQL_PASSWORD: ${FULFILLMENT_ROLLBACK_PASSWORD:?Set the fulfillment rollback application password}
+      MYSQL_ROOT_PASSWORD: ${FULFILLMENT_ROLLBACK_ROOT_PASSWORD:?Set the fulfillment rollback admin password}
+    volumes:
+      - fulfillment-rollback-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_PASSWORD mysql -h127.0.0.1 -ufulfillment fulfillment -e 'SELECT 1'"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+    restart: unless-stopped
+
+  fulfillment-service:
+    build: !reset null
+    image: ${FULFILLMENT_ROLLBACK_IMAGE:?Set the original fulfillment image}
+    pull_policy: never
+    environment:
+      FULFILLMENT_DATABASE_URL: jdbc:mysql://fulfillment-db-rollback:3306/fulfillment?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      FULFILLMENT_DATABASE_USERNAME: fulfillment
+      FULFILLMENT_DATABASE_PASSWORD: ${FULFILLMENT_ROLLBACK_PASSWORD:?Set the fulfillment rollback application password}
+    depends_on:
+      fulfillment-db: !reset null
+      fulfillment-db-rollback:
+        condition: service_healthy
+
+volumes:
+  fulfillment-rollback-data:

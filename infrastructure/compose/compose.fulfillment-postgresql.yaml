@@ -1,0 +1,62 @@
+services:
+  fulfillment-db-postgresql:
+    container_name: fairy-commerceflow-fulfillment-db-postgresql
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: fulfillment
+      POSTGRES_PASSWORD: ${FULFILLMENT_PG_ADMIN_PASSWORD:?Set the fulfillment PostgreSQL admin password}
+    volumes:
+      - fulfillment-postgresql-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "fulfillment"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+    restart: unless-stopped
+
+  fulfillment-postgresql-roles:
+    image: postgres:17.11-alpine
+    environment:
+      PGPASSWORD: ${FULFILLMENT_PG_ADMIN_PASSWORD:?Set the fulfillment PostgreSQL admin password}
+      FULFILLMENT_PG_MIGRATOR_PASSWORD: ${FULFILLMENT_PG_MIGRATOR_PASSWORD:?Set the fulfillment migration password}
+      FULFILLMENT_PG_RUNTIME_PASSWORD: ${FULFILLMENT_PG_RUNTIME_PASSWORD:?Set the fulfillment runtime password}
+    volumes:
+      - ./infrastructure/fulfillment/postgresql-roles.sql:/roles.sql:ro
+    command: ["psql", "-Xq", "-h", "fulfillment-db-postgresql", "-U", "postgres", "-d", "fulfillment", "-f", "/roles.sql"]
+    depends_on:
+      fulfillment-db-postgresql:
+        condition: service_healthy
+
+  fulfillment-postgresql-migrator:
+    image: redgate/flyway:12.4.0
+    environment:
+      FLYWAY_URL: jdbc:postgresql://fulfillment-db-postgresql:5432/fulfillment
+      FLYWAY_SCHEMAS: public
+      FLYWAY_USER: fulfillment_migrator
+      FLYWAY_PASSWORD: ${FULFILLMENT_PG_MIGRATOR_PASSWORD:?Set the fulfillment migration password}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql,filesystem:/flyway/callbacks
+    volumes:
+      - ./services/fulfillment-service/src/main/resources/db/postgresql:/flyway/sql:ro
+      - ./infrastructure/fulfillment/postgresql-after-migrate.sql:/flyway/callbacks/afterMigrate.sql:ro
+    command: ["migrate"]
+    depends_on:
+      fulfillment-postgresql-roles:
+        condition: service_completed_successfully
+
+  fulfillment-service:
+    build: !reset null
+    image: ${FULFILLMENT_PG_IMAGE:?Set the verified fulfillment candidate image}
+    pull_policy: never
+    environment:
+      FULFILLMENT_DATABASE_URL: jdbc:postgresql://fulfillment-db-postgresql:5432/fulfillment
+      FULFILLMENT_DATABASE_USERNAME: fulfillment_runtime
+      FULFILLMENT_DATABASE_PASSWORD: ${FULFILLMENT_PG_RUNTIME_PASSWORD:?Set the fulfillment runtime password}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
+    depends_on:
+      fulfillment-db: !reset null
+      fulfillment-db-postgresql:
+        condition: service_healthy
+
+volumes:
+  fulfillment-postgresql-data:
