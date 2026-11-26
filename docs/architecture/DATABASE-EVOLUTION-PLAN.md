@@ -34,6 +34,24 @@
 | 9 支付渠道模拟服务 | 18 / 16 | 冲突更新、回调重试时间算术 | 支付与退款的渠道流水号、金额及回调状态与支付编排一致。 |
 | 10 支付编排服务 | 21 / 7 | 忽略重复插入、冲突更新、行锁 | 订单、渠道、退款、结算和待处理命令逐笔对账，回退后不能重复入账。 |
 
+### 物流模拟库隔离演练
+
+日常物流服务使用 MySQL V7。演练在独立 Docker 内部网络运行，从日常单事务备份恢复一个源库，并另建 PostgreSQL 17.11 目标库和 MySQL 回退库。物流应用只与隔离网络中的数据库和签名回调接收端通信。服务停止后按外键顺序复制五张业务表，各引擎保留自己的 Flyway 历史。每张表单独核对行数、全字段摘要和下一自增值，包含轨迹顺序、回调载荷、重试时间、领取租约、审计信息和用于防止重复请求的 nonce。
+
+在仓库根目录使用 PowerShell 7.4+、Node.js 24+ 及本机 Docker：
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $true
+$dir = New-Item -ItemType Directory (Join-Path $env:LOCALAPPDATA ("CommerceFlow/releases/logistics-rehearsal-" + [guid]::NewGuid().ToString('N')))
+$baseline = docker inspect fairy-commerceflow-logistics-simulator-service --format '{{.Config.Image}}'
+docker exec fairy-commerceflow-logistics-simulator-db sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysqldump -uroot --single-transaction --no-tablespaces --set-gtid-purged=OFF --skip-lock-tables --default-character-set=utf8mb4 --hex-blob --routines --events --triggers logistics_platform' > "$dir/logistics.sql"
+docker build -t commerceflow-logistics-pg:rehearsal simulators/logistics-platform/service
+pwsh scripts/fulfillment/verify-logistics-postgresql.ps1 -BackupPath "$dir/logistics.sql" -CandidateImage commerceflow-logistics-pg:rehearsal -BaselineImage $baseline -EvidenceDirectory $dir
+```
+
+脚本通过物流 API 读取历史发货、退货各一单，然后创建两张新运单，按真实事件号比对轨迹和签名回执。接收端返回 HTTP 503 时产生待重试记录。一次在 PostgreSQL 上恢复，另一次在反向复制后由旧版 MySQL 服务恢复。结果目录保留两份逐表摘要和两次重试的事件号，隔离容器停止。
+
 ### 仓库模拟库隔离演练
 
 从日常 MySQL V4 获取一致性备份。仓库模拟服务继续接收日常出库和退货，复测脚本只向新建的隔离 Compose 项目写入。PowerShell 7.4+ 保留原生备份字节，迁移工具使用 Node.js 24+。
