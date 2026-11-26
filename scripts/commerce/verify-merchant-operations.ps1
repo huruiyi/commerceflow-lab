@@ -15,8 +15,9 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '../lib/checkout-verification.ps1')
 $isolated=$ProjectName-ne'fairy-commerceflow'
 $combined=$Chapter-in'Operations','StatementCorrections'
+$warehouseRehearsal=$Chapter -in 'WmsOutbound','WmsReturn' -and $ProjectName -cmatch '^fairy-commerceflow-acceptance-warehouse-[a-f0-9]{12}$'
 $verifyOffsite=$Chapter-in'Offsite','Operations'
-$isolatedPattern=if($combined){'^fairy-commerceflow-(merchant-isolated|acceptance)-[a-z0-9-]+$'}else{
+$isolatedPattern=if($combined -or $warehouseRehearsal){'^fairy-commerceflow-(merchant-isolated|acceptance)-[a-z0-9-]+$'}else{
   '^fairy-commerceflow-merchant-isolated-'
 }
 if($combined -and !$isolated){throw 'Operations requires a dedicated isolated Compose project'}
@@ -105,7 +106,7 @@ function Archives {
   $orders=@(Sql order-db orders "SELECT CONCAT(id,'/',inventory_status,'/',total_amount) FROM shop_orders WHERE id IN (465,479,480,497,498) ORDER BY id")
   $commands=@(Sql commerce-db commerceflow "SELECT CONCAT(order_id,'/',status,'/',attempts,'/',payload_fingerprint) FROM inventory_command_delivery_outbox WHERE command_id IN ('order:465:reserve','order:479:reserve','order:480:reserve','order:497:reserve','order:498:reserve') ORDER BY order_id")
   $movements=Sql inventory-db inventory 'SELECT COUNT(*) FROM inventory_movements WHERE order_id IN (465,479,480,497,498)'
-  if($combined -and !$orders.Count -and !$commands.Count -and $movements-eq'0'){return 'FRESH'}
+  if(($combined -or $warehouseRehearsal) -and !$orders.Count -and !$commands.Count -and $movements-eq'0'){return 'FRESH'}
   if($orders.Count-ne5 -or $commands.Count-ne5 -or @($orders-notmatch'/TEST_DATA_ARCHIVED/').Count -or
       @($commands-notmatch'/CLOSED/5/').Count -or $movements-ne'0'){throw 'Missing five preserved archives'}
   ($orders+$commands+$movements)-join'|'
@@ -638,9 +639,26 @@ function Verify-WmsOutbound($shop){
   if($auto.Count-ne1 -or $auto[0].status-ne'DISPATCHED' -or $auto[0].actual[0].quantity-ne1){
     throw 'Whole-order shipment did not pass through the warehouse'
   }
-  [ordered]@{splitOrder=$splitId;shortOrder=$id;voidedOrder=$voidId;wholeOrder=$legacy.id;planned=2;actual=1;
+  $result=[ordered]@{splitOrder=$splitId;shortOrder=$id;voidedOrder=$voidId;wholeOrder=$legacy.id;planned=2;actual=1;
     refundAmount=$finished.merchandiseAmount;retainedFreight=12.01;refundNumber=$finished.refundNumber;
     splitWarehouseA=$a.id;splitWarehouseB=$b.id;shortOutbound=$task.id;warehouseRestartVerified=$isolated}
+  if ($warehouseRehearsal) {
+    $order=Warehouse-Order $shop -SingleWarehouse
+    $lineId=$order.items[0].id
+    $slots=foreach ($planned in 2,1) {
+      $part=Start-WarehousePackage $shop $order $planned 1
+      Confirm-WarehousePackage $part 1 | Out-Null
+      Wait-WarehousePackage $shop $part COMPLETED | Out-Null
+      $audit=Sql inventory-db inventory "SELECT CONCAT(d.warehouse_id,'/',l.quantity) FROM inventory_outbound_documents d
+        JOIN inventory_outbound_lines l USING(outbound_id) WHERE d.outbound_id='$($part.id)' AND d.order_id=$($order.id) AND l.order_line_id=$lineId"
+      if ($audit -ne '1/1') { throw 'Reshipment inventory document differs from the warehouse receipt' }
+      $part.id
+    }
+    $packages=(Api $buyer "/api/purchase-orders/$($order.id)").packages
+    if ($slots[0] -eq $slots[1] -or $packages.Count -ne 2) { throw 'Expected two packages for the short shipment and its remainder' }
+    $result.reship=@{order=$order.id;line=$lineId;warehouse=1;outbounds=$slots}
+  }
+  $result
 }
 
 function Verify-Warehouses($shop){
@@ -1523,7 +1541,7 @@ function Verify-OperationsStatement($shop,$returned){
     received=$arrival.receipt.receivedQuantity;qualified=$arrival.receipt.qualifiedQuantity;payout=$payout}
 }
 
-if($combined){
+if($combined -or $warehouseRehearsal){
   Assert-OperationsEndpoint commerce-portal-angular 80 $BaseUrl
   Assert-OperationsEndpoint payment-simulator-web 80 $PaymentBaseUrl
   Assert-OperationsEndpoint logistics-simulator-service 8080 $LogisticsUrl
@@ -1548,16 +1566,16 @@ if($baselineShop.status-ne'ACTIVE' -or $baselineProduct.merchantId-ne$baselineSh
 $shop=Open-FixtureStore
 $otherShop=$null
 try{
-  if($combined){
-    if(!(Api $admin '/api/auth/me').invoiceEnabled){throw 'Operations requires the isolated invoice service'}
-    if(!(Api $buyer '/api/addresses/selected').addressId){
-      $address=Api $buyer '/api/addresses' Post @{
-        recipientName='Acceptance Customer';phone='13800000000';countryCode='CN';stateProvince='Shanghai'
-        city='Shanghai';district='Pudong';addressLine1='1 Isolated Lab Road';postalCode='200120';label='Acceptance'
-        isDefault=$true
-      }
-      $null=Api $buyer "/api/addresses/$($address.id)/select" Put @{}
+  if($combined -and !(Api $admin '/api/auth/me').invoiceEnabled){throw 'Operations requires the isolated invoice service'}
+  if(($combined -or $warehouseRehearsal) -and !(Api $buyer '/api/addresses/selected').addressId){
+    $address=Api $buyer '/api/addresses' Post @{
+      recipientName='Acceptance Customer';phone='13800000000';countryCode='CN';stateProvince='Shanghai'
+      city='Shanghai';district='Pudong';addressLine1='1 Isolated Lab Road';postalCode='200120';label='Acceptance'
+      isDefault=$true
     }
+    $null=Api $buyer "/api/addresses/$($address.id)/select" Put @{}
+  }
+  if($combined){
     if($Chapter-eq'StatementCorrections'){
       Verify-StatementCorrections $shop | ConvertTo-Json -Depth 6
       return
@@ -1589,7 +1607,7 @@ try{
     if((Archives)-ne$archive){throw 'Historical archives changed'}
     $actualCart=@(Api $buyer '/api/cart' | Sort-Object id | ForEach-Object {"$($_.id)/$($_.productId)/$($_.quantity)"}) -join '|'
     if($actualCart-ne$originalCart){throw 'Pre-existing cart items changed'}
-    @{chapter=$Chapter;isolated=$isolated;result=$result;fiveArchivesVerified=$true}|ConvertTo-Json -Depth 5
+    @{chapter=$Chapter;isolated=$isolated;result=$result;fiveArchivesVerified=($archive-ne'FRESH')}|ConvertTo-Json -Depth 5
     return
   }
   if($Chapter-eq'Search'){

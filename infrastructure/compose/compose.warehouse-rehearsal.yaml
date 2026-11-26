@@ -1,0 +1,53 @@
+services:
+  warehouse-simulator-db-postgresql:
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: warehouse_platform
+      POSTGRES_PASSWORD: rehearsal
+    volumes:
+      - warehouse-candidate:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "warehouse_platform"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+  warehouse-schema-rehearsal:
+    image: redgate/flyway:12.4.0
+    environment:
+      FLYWAY_URL: jdbc:postgresql://warehouse-simulator-db-postgresql:5432/warehouse_platform
+      FLYWAY_USER: postgres
+      FLYWAY_PASSWORD: rehearsal
+    volumes:
+      - ./simulators/warehouse-platform/service/src/main/resources/db/postgresql:/flyway/sql:ro
+    command: migrate
+    depends_on:
+      warehouse-simulator-db-postgresql:
+        condition: service_healthy
+  warehouse-simulator-db-rollback:
+    image: mysql:8.4
+    command: ["--innodb-use-native-aio=OFF"]
+    environment:
+      MYSQL_DATABASE: warehouse_platform
+      MYSQL_USER: warehouse
+      MYSQL_PASSWORD: rehearsal
+      MYSQL_ROOT_PASSWORD: rehearsal-root
+    volumes:
+      - warehouse-rollback:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+  warehouse-simulator-service:
+    image: ${WAREHOUSE_REHEARSAL_IMAGE:?set the candidate image}
+    environment:
+      WAREHOUSE_DATABASE_URL: jdbc:postgresql://warehouse-simulator-db-postgresql:5432/warehouse_platform
+      WAREHOUSE_DATABASE_USERNAME: postgres
+      WAREHOUSE_DATABASE_PASSWORD: rehearsal
+      SPRING_PROFILES_ACTIVE: postgresql
+    depends_on: !override
+      warehouse-schema-rehearsal:
+        condition: service_completed_successfully
+volumes:
+  warehouse-candidate:
+  warehouse-rollback:
