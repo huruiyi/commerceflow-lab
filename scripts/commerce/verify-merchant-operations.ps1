@@ -50,6 +50,7 @@ function Assert-OperationsEndpoint([string]$Service,[int]$ContainerPort,[string]
 }
 
 . "$PSScriptRoot/../lib/commerce-ledger.ps1"
+. "$PSScriptRoot/../lib/messaging-ledger.ps1"
 if (!$isolated) { $dailyLedger = Get-CommerceLedger $ProjectName }
 
 function Sql([string]$Service,[string]$Database,[string]$Query){
@@ -849,7 +850,7 @@ function Assert-Offsite([string]$Type,[string]$Reference,[long]$OrderId,[long]$R
     if($receipt.providerId-ne$providerId -or $receipt.channel-ne$channel -or
         $receipt.status-ne$status -or $receipt.reference-ne$eventId){throw "Provider ledger differs for $requestId"}
     $query="SELECT COUNT(*) FROM messaging_deliveries WHERE request_id='$requestId'"
-    $count=Sql messaging-simulator-db messaging_platform $query
+    $count=Read-MessagingLedger $ProjectName $query
     if($count-ne'1'){throw "Provider accepted $requestId more than once"}
     $seen[$channel]=@{status=$status;attempts=[int]$attempts;requestId=$requestId;providerId=$providerId}
   }

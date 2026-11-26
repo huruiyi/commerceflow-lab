@@ -20,6 +20,7 @@ $script:senderSecret=$env:MESSAGING_SENDER_SECRET
 if(!$script:senderSecret){$script:senderSecret='demo-messaging-sender-secret'}
 
 . "$PSScriptRoot/../lib/messaging-verification.ps1"
+. "$PSScriptRoot/../lib/messaging-ledger.ps1"
 
 function Container([string]$Service){
   $name=if($isolated){"$ProjectName-$Service-1"}else{"$ProjectName-$Service"}
@@ -28,23 +29,6 @@ function Container([string]$Service){
   return $name
 }
 
-function Sql([string]$Query){
-  if ($postgresql) {
-    return docker exec -e 'PGOPTIONS=-c default_transaction_read_only=on -c search_path=messaging_platform,public' (Container $dbService) sh -ec 'exec psql -U "${POSTGRES_USER:-postgres}" -d messaging_platform -XAtq -v ON_ERROR_STOP=1 -c "$1"' sh $Query
-  }
-  docker exec (Container $dbService) sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -NB messaging_platform -e "$1"' sh $Query
-}
-
-$url = docker inspect (Container messaging-simulator-service) --format '{{range .Config.Env}}{{println .}}{{end}}' |
-  Where-Object { $_ -like 'MESSAGING_DATABASE_URL=*' }
-if ($url -match '^MESSAGING_DATABASE_URL=jdbc:postgresql://(messaging-simulator-db-postgresql):5432/messaging_platform(?:\?|$)') {
-  $postgresql = $true
-} elseif ($url -match '^MESSAGING_DATABASE_URL=jdbc:mysql://(messaging-simulator-db(?:-rollback)?):3306/messaging_platform(?:\?|$)') {
-  $postgresql = $false
-} else {
-  throw 'Unexpected messaging ledger binding'
-}
-$dbService = $Matches[1]
 $session=Json-Body (Request GET '/api/admin/session' $null 200)
 if([bool]$session.faultsEnabled-ne$isolated){throw 'Unexpected fault injection mode'}
 Request GET '/api/admin/deliveries?channel=SMS' $null 401 None|Out-Null
@@ -113,7 +97,7 @@ if($isolated){
 }
 foreach($receipt in $cases.Values){
   $id=[guid]$receipt.requestId
-  $rows=Sql "SELECT CONCAT(COUNT(*),'/',MAX(status),'/',MAX(provider_id)) FROM messaging_deliveries WHERE request_id='$id'"
+  $rows=Read-MessagingLedger $ProjectName "SELECT CONCAT(COUNT(*),'/',MAX(status),'/',MAX(provider_id)) FROM messaging_deliveries WHERE request_id='$id'"
   if($rows-ne"1/$($receipt.status)/$($receipt.providerId)"){throw 'Provider ledger disagrees with API'}
 }
 [ordered]@{isolated=$isolated;cases=$cases;faultsEnabled=[bool]$session.faultsEnabled}|ConvertTo-Json -Depth 6
