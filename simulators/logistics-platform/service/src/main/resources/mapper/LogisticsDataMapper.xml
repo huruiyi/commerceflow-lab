@@ -140,7 +140,7 @@
 
   <insert id="insertOutbox">
     INSERT INTO callback_outbox(shipment_id, event_id, callback_url, payload, max_attempts)
-    VALUES (#{shipmentId}, #{eventId}, #{callbackUrl}, #{payload}, #{maxAttempts})
+    VALUES (#{shipmentId}, #{eventId}, #{callbackUrl}, CAST(#{payload} AS JSON), #{maxAttempts})
   </insert>
 
   <select id="outboxIdByEventId" resultType="java.lang.Long">
