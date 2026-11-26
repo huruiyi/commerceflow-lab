@@ -69,7 +69,9 @@
 
 ## 一键启动
 
-在已完成履约交接或初始化的环境中，从本目录执行：
+本机日常核心商城现用 PostgreSQL 17.11。日常重启、重建和回退时使用已经发布的 Compose 参数，以复用当前卷、镜像和凭据。[核心商城的启动与回退](docs/architecture/DATABASE-EVOLUTION-PLAN.md#核心商城的启动与回退)
+
+在使用基础 MySQL 配置且已完成履约交接或初始化的学习环境中，从本目录执行：
 
 ```powershell
 docker compose up --build -d --wait

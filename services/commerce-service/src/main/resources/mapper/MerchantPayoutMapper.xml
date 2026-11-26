@@ -31,8 +31,19 @@
       next_attempt_at=TIMESTAMPADD(SECOND,5,CURRENT_TIMESTAMP(6))
     WHERE id=#{id} AND status IN ('REQUESTED','PENDING')
   </update>
+
+  <update id="observe" databaseId="postgresql">
+    UPDATE merchant_payout_attempts SET status=#{status},channel_payout_no=#{channel},resolved_at=#{resolvedAt},
+      next_attempt_at=CURRENT_TIMESTAMP + INTERVAL '5 seconds'
+    WHERE id=#{id} AND status IN ('REQUESTED','PENDING')
+  </update>
   <update id="defer">
     UPDATE merchant_payout_attempts SET next_attempt_at=TIMESTAMPADD(SECOND,5,CURRENT_TIMESTAMP(6))
+    WHERE id=#{id} AND status IN ('REQUESTED','PENDING')
+  </update>
+
+  <update id="defer" databaseId="postgresql">
+    UPDATE merchant_payout_attempts SET next_attempt_at=CURRENT_TIMESTAMP + INTERVAL '5 seconds'
     WHERE id=#{id} AND status IN ('REQUESTED','PENDING')
   </update>
 </mapper>

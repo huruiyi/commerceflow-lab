@@ -5,6 +5,12 @@
     INSERT IGNORE INTO inventory_stocktake_reviews(reference,proposal,counted_by)
     VALUES(#{reference},#{proposal},#{actor})
   </insert>
+
+  <insert id="create" databaseId="postgresql">
+    INSERT INTO inventory_stocktake_reviews(reference,proposal,counted_by)
+    VALUES(#{reference},#{proposal},#{actor})
+    ON CONFLICT DO NOTHING
+  </insert>
   <sql id="review">
     SELECT reference,proposal,counted_by,approved_by,approval_reason,approved_at,receipt
     FROM inventory_stocktake_reviews WHERE reference=#{reference}

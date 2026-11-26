@@ -63,4 +63,14 @@
         c.bound_quote=CASE WHEN #{consumed} THEN #{quoteId} ELSE NULL END
     WHERE c.id=#{id} AND c.status='HELD' AND c.bound_quote=#{quoteId}
   </update>
+
+  <update id="reconcile" databaseId="postgresql">
+    UPDATE customer_coupons c
+    SET status=CASE WHEN #{consumed} THEN 'USED'
+                      WHEN a.expires_at&lt;=CURRENT_TIMESTAMP(6) THEN 'EXPIRED'
+                      ELSE 'AVAILABLE' END,
+        bound_quote=CASE WHEN #{consumed} THEN #{quoteId} ELSE NULL END
+    FROM coupon_campaigns a
+    WHERE a.id=c.campaign_id AND c.id=#{id} AND c.status='HELD' AND c.bound_quote=#{quoteId}
+  </update>
 </mapper>

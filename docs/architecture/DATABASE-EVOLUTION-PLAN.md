@@ -4,9 +4,8 @@
 
 日常通知服务使用 PostgreSQL 17.11（`notification-db-postgresql` / `notification`）。原通知 MySQL
 数据库 `notification-db` 及其应用容器保留作回退，反向迁移前以 PostgreSQL 为唯一写入源。
-行政区划基础数据也已使用 PostgreSQL 17.11（`reference-data-db` / `reference_data`）。2026-11-26 核对日常服务，以下 11 个业务库仍使用 MySQL 8.4。
+行政区划基础数据也已使用 PostgreSQL 17.11（`reference-data-db` / `reference_data`）。2026-11-26 核对日常服务，日常核心商城也已切换 PostgreSQL 17.11。以下 10 个业务库仍使用 MySQL 8.4。
 
-- `commerce-db` / `commerceflow`
 - `payment-simulator-db` / `payment_platform`
 - `logistics-simulator-db` / `logistics_platform`
 - `catalog-db` / `catalog`
@@ -18,9 +17,21 @@
 - `messaging-simulator-db` / `messaging_platform`
 - `invoice-db` / `invoice_platform`
 
-日常核心商城 `commerceflow` 当前为 V73，共 79 张基础表（含 Flyway 历史），79 个主键、53 个唯一约束、44 个外键、47 个检查约束。同实例还有独立的 `commerce_verification` 验收库。迁移核对需分别记录业务库和验收库，保留原卷及原有数据。商城的结算防重、售后占用、打款和运单依赖 5 个生成列。迁移时须验证同一顾客的待结算请求、同一订单的进行中售后、同一账单的有效打款，以及原单和退货运单的唯一性。
+### 核心商城的启动与回退
 
-运费表已做 PostgreSQL 17.11 兼容性预检。从日常库只读复制 11 行到隔离临时实例，执行 V74 省名规范化 SQL，并逐行核对商家、国家、省州、两位小数金额和启用状态。本次预检覆盖运费表数据和该条迁移 SQL。商城运行账户、其余表、Mapper 和应用切换仍待迁移验收。
+日常核心商城服务通过 `commerce-db-postgresql:5432/commerceflow` 读写，业务 schema 为 `commerceflow`。MySQL 原卷 `fairy-commerceflow_commerce-db-data` 及 `commerce_verification` 保持只读。PostgreSQL 数据卷为 `fairy-commerceflow_commerce-postgresql-data`。运行账户仅持有 49 张表的授权，五个生成列继续约束结算、售后、打款和运单唯一性。[日常切换验收](../IMPLEMENTED.md#2102-2026-11-26-核心商城切换-postgresql)
+
+**日常恢复启动。** 本机发布目录保存了覆盖文件顺序、两个数据库密码和现役镜像。使用发布参数检查状态。已存在的容器可用同一组参数执行 `start --wait`，这会沿用创建时的配置。基础 Compose 的 MySQL 配置用于独立学习环境。
+
+```powershell
+$release = Join-Path $env:LOCALAPPDATA 'CommerceFlow/releases/commerce-v74-pg-1795662278646'
+$daily = Get-Content "$release/daily-pg-args.json" -Raw | ConvertFrom-Json
+docker @daily ps commerce-service commerce-db-postgresql
+```
+
+**迁移或演练。** PostgreSQL 覆盖文件位于 `infrastructure/compose/compose.commerce-postgresql.yaml`，Flyway 基线位于 `services/commerce-service/src/main/resources/db/postgresql`。先创建独立目标卷、执行 Flyway 并核对 schema。源端停写或使用已恢复的静态副本；目标业务表须为空。PowerShell 7 和 Node.js 24 或以上可运行 `scripts/commerce/verify-commerce-postgresql-data.ps1`。显式给出两个容器、数据库和摘要输出路径，`ToPostgreSQL` 复制到 PostgreSQL，`Compare` 只读核对。每次比较均校验逐表行数、逻辑值及序列。按 `infrastructure/commerce/postgresql-runtime-grants.sql` 配置运行账户，并与源端表授权逐项核对。日常读数及定时任务验收使用单独的列级权限，见同目录的 `postgresql-verification-grants.sql`。
+
+**已有新交易时回退。** 暂停商城写入，备份当前 PostgreSQL。在独立 MySQL 卷恢复 V74 表结构和原 Flyway 历史，保留空业务表，将触发器及过程留到数据复制之后恢复。用同一脚本的 `ToMySQL` 复制最新 PostgreSQL 数据并校验 35 个自增序列。恢复受限账户与必要的数据库对象，然后启动原版商城并通过 HTTP 核对切换后的新订单、库存及纠正回执。切回经过核对的新 MySQL 实例后，再开放写入。原切换前备份和只读卷用于核对历史。
 
 PostgreSQL 专项与服务拆分、目录及命名重构分开推进。2026-11-21 已核实 M3 六个服务的单一运行所有权。
 入口退役、准入审计和当前版本恢复已通过隔离验收，M3 已在[日常发布与收尾核验](M3-SINGLE-OWNERSHIP-REVIEW.md#14-2026-11-21-日常发布与-m3-验收)

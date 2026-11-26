@@ -6,6 +6,7 @@ operations/verify-project-navigation.ps1	BaseUrl,MaxWaitSeconds,ProjectName,Comp
 operations/verify-simulator-admin.ps1	MaxWaitSeconds
 operations/verify-simulator-monitoring.ps1	MaxWaitSeconds
 fulfillment/verify-logistics-simulator-web.ps1	BaseUrl,AdminToken
+commerce/verify-commerce-postgresql-data.ps1	Direction,MySqlContainer,MySqlDatabase,PostgresContainer,PostgresDatabase,ManifestPath
 commerce/verify-line-exchanges.ps1	BaseUrl,PaymentBaseUrl,LogisticsUrl,WarehouseBaseUrl,ProjectName
 verify-all.ps1	BaseUrl,SkipBuild,CleanupOnSuccess
 commerce/verify-authorization.ps1	BaseUrl

@@ -81,7 +81,7 @@ if($LASTEXITCODE-ne0){throw 'Could not stop commerce-service for lease recovery 
 try{
   Invoke-VerificationDb task "UPDATE scheduled_tasks SET status='PROCESSING',completed_at=NULL,due_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 2 SECOND),lease_until=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND),claimed_by='simulated-crashed-worker',last_error=NULL WHERE id=$completeTaskId"|Out-Null
 }finally{
-  docker compose --project-directory $ProjectRoot up -d --wait commerce-service|Out-Null
+  docker compose --project-directory $ProjectRoot start --wait commerce-service|Out-Null
   if($LASTEXITCODE-ne0){throw 'Backend did not restart after lease recovery setup'}
 }
 Wait-TaskStatus $completeTaskId 'SUCCEEDED' 90

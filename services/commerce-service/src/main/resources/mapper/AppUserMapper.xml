@@ -21,6 +21,18 @@
     </where>
   </sql>
 
+  <sql id="adminFilter" databaseId="postgresql">
+    <where>
+      <if test="term != ''">
+        strpos(lower(public.unaccent(CONCAT_WS(' ', first_name, last_name))) COLLATE "C",
+               lower(public.unaccent(#{term}))) &gt; 0
+        OR strpos(lower(public.unaccent(email)) COLLATE "C",
+               lower(public.unaccent(#{term}))) &gt; 0
+        OR strpos(phone COLLATE "C", #{term}) &gt; 0
+      </if>
+    </where>
+  </sql>
+
   <select id="countForAdmin" resultType="long">
     SELECT COUNT(*) FROM app_users
     <include refid="adminFilter"/>

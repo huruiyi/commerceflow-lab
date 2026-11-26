@@ -1,0 +1,63 @@
+services:
+  commerce-db-postgresql:
+    container_name: fairy-commerceflow-commerce-db-postgresql
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: commerceflow
+      POSTGRES_PASSWORD: ${COMMERCE_POSTGRES_ADMIN_PASSWORD:?Set the PostgreSQL migration password}
+    volumes:
+      - commerce-postgresql-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "commerceflow"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  commerce-schema-migrator-postgresql:
+    image: redgate/flyway:12.4.0
+    environment:
+      FLYWAY_URL: jdbc:postgresql://commerce-db-postgresql:5432/commerceflow
+      FLYWAY_USER: postgres
+      FLYWAY_PASSWORD: ${COMMERCE_POSTGRES_ADMIN_PASSWORD:?Set the PostgreSQL migration password}
+      FLYWAY_SCHEMAS: commerceflow
+    volumes:
+      - ./services/commerce-service/src/main/resources/db/postgresql:/flyway/sql:ro
+    command: migrate
+    depends_on:
+      commerce-db-postgresql:
+        condition: service_healthy
+
+  commerce-service:
+    environment:
+      DATABASE_URL: jdbc:postgresql://commerce-db-postgresql:5432/commerceflow?currentSchema=commerceflow
+      DATABASE_USERNAME: commerce_runtime
+      DATABASE_PASSWORD: ${COMMERCE_POSTGRES_RUNTIME_PASSWORD:?Set the PostgreSQL runtime password}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
+    depends_on: !override
+      commerce-schema-migrator-postgresql:
+        condition: service_completed_successfully
+      catalog-service:
+        condition: service_healthy
+      commerce-redis:
+        condition: service_healthy
+      fulfillment-service:
+        condition: service_healthy
+      inventory-service:
+        condition: service_healthy
+      kafka-broker:
+        condition: service_healthy
+      logistics-simulator-service:
+        condition: service_healthy
+      notification-service-postgresql:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+      payment-orchestration-service:
+        condition: service_healthy
+      payment-simulator-service:
+        condition: service_healthy
+
+volumes:
+  commerce-postgresql-data:

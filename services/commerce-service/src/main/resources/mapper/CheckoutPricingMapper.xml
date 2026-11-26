@@ -29,6 +29,12 @@
     ON DUPLICATE KEY UPDATE fee = #{fee}
   </insert>
 
+  <insert id="saveDefault" databaseId="postgresql">
+    INSERT INTO merchant_shipping_rates (merchant_id, country_code, state_province, fee)
+    VALUES (#{merchantId}, '', '', #{fee})
+    ON CONFLICT (merchant_id, country_code, state_province) DO UPDATE SET fee = #{fee}
+  </insert>
+
   <delete id="deleteRegions">
     DELETE FROM merchant_shipping_rates WHERE merchant_id = #{merchantId} AND country_code &lt;&gt; ''
   </delete>

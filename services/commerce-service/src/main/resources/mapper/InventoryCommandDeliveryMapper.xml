@@ -11,6 +11,16 @@
     )
   </insert>
 
+  <insert id="enqueue" databaseId="postgresql">
+    INSERT INTO inventory_command_delivery_outbox(
+      command_id,command_type,producer,order_id,payload_fingerprint,payload,status
+    ) VALUES(
+      #{commandId},#{commandType},#{producer},#{orderId},#{payloadFingerprint},
+      #{payload},'NEW'
+    )
+    ON CONFLICT DO NOTHING
+  </insert>
+
   <select id="payloadFingerprint" resultType="java.lang.String">
     SELECT payload_fingerprint
     FROM inventory_command_delivery_outbox
@@ -30,6 +40,16 @@
       COALESCE(GREATEST(0,TIMESTAMPDIFF(SECOND,
         MIN(CASE WHEN status IN ('NEW','IN_FLIGHT','RETRY') THEN created_at END),
         CURRENT_TIMESTAMP(6))),0) AS oldestSeconds
+    FROM inventory_command_delivery_outbox
+    WHERE status IN ('NEW','IN_FLIGHT','RETRY','RECONCILIATION_REQUIRED')
+  </select>
+
+  <select id="backlog" databaseId="postgresql"
+          resultType="vip.fairy.commerceflow.commerce.inventory.infrastructure.InventoryCommandDeliveryMapper$Backlog">
+    SELECT COUNT(CASE WHEN status='RECONCILIATION_REQUIRED' THEN 1 END) AS reconciliationRequired,
+      COUNT(CASE WHEN status IN ('NEW','IN_FLIGHT','RETRY') THEN 1 END) AS pending,
+      COALESCE(GREATEST(0,trunc(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP -
+        MIN(CASE WHEN status IN ('NEW','IN_FLIGHT','RETRY') THEN created_at END))))::bigint),0) AS oldestSeconds
     FROM inventory_command_delivery_outbox
     WHERE status IN ('NEW','IN_FLIGHT','RETRY','RECONCILIATION_REQUIRED')
   </select>
@@ -64,6 +84,17 @@
       #{resultId},#{commandId},#{commandType},#{outcome},#{occurredAt},#{errorCode},
       #{message},#{correlationId},#{causationId},#{traceparent}
     )
+  </insert>
+
+  <insert id="recordResult" databaseId="postgresql">
+    INSERT INTO inventory_command_result_inbox(
+      result_id,command_id,command_type,outcome,occurred_at,error_code,message,correlation_id,
+      causation_id,traceparent
+    ) VALUES(
+      #{resultId},#{commandId},#{commandType},#{outcome},#{occurredAt},#{errorCode},
+      #{message},#{correlationId},#{causationId},#{traceparent}
+    )
+    ON CONFLICT DO NOTHING
   </insert>
 
   <update id="recoverExpired">
@@ -101,6 +132,16 @@
       WHERE order_id = #{orderId} AND command_type = 'RESERVE'
         AND (status = 'RECONCILIATION_REQUIRED'
           OR (status = 'CLOSED' AND recovery_reason LIKE 'Stocktake %' AND recovered_at &gt;= #{reviewedAt}))
+    )
+  </select>
+
+  <select id="hasStocktakeCase" databaseId="postgresql" resultType="java.lang.Boolean">
+    SELECT EXISTS (
+      SELECT 1 FROM inventory_command_delivery_outbox
+      WHERE order_id = #{orderId} AND command_type = 'RESERVE'
+        AND (status = 'RECONCILIATION_REQUIRED'
+          OR (status = 'CLOSED' AND lower(recovery_reason) COLLATE "C" LIKE 'stocktake %'
+            AND recovered_at &gt;= #{reviewedAt}))
     )
   </select>
 

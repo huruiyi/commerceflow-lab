@@ -28,6 +28,13 @@
     SELECT s.id,s.warehouse_return_status FROM line_after_sales s
     WHERE s.id=#{caseId} AND <include refid="reviewRequired"/>
   </insert>
+
+  <insert id="open" databaseId="postgresql">
+    INSERT INTO return_exception_work_orders(case_id,warehouse_status)
+    SELECT s.id,s.warehouse_return_status FROM line_after_sales s
+    WHERE s.id=#{caseId} AND <include refid="reviewRequired"/>
+    ON CONFLICT DO NOTHING
+  </insert>
   <sql id="merchantFilters">
     WHERE s.merchant_id=#{merchantId}
     <if test="query.orderId != null">AND s.order_id=#{query.orderId}</if>

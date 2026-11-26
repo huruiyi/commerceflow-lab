@@ -52,6 +52,11 @@
     INSERT INTO line_after_sale_order_locks(order_id) VALUES (#{orderId})
     ON DUPLICATE KEY UPDATE order_id=order_id
   </insert>
+
+  <insert id="serializeApplication" databaseId="postgresql">
+    INSERT INTO line_after_sale_order_locks(order_id) VALUES (#{orderId})
+    ON CONFLICT (order_id) DO UPDATE SET order_id=EXCLUDED.order_id
+  </insert>
   <select id="due" resultType="vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale">
     SELECT <include refid="columns"/> FROM line_after_sales
     WHERE status IN ('RETURN_SENT','PREPARING','REFUNDING','RESTOCKING','RELEASING',
@@ -90,6 +95,16 @@
         OR (warehouse_return_status='WAITING_RECEIPT' AND #{warehouseStatus}&lt;&gt;'WAITING_RECEIPT')
         OR (warehouse_return_status='RECEIVED' AND #{warehouseStatus} IN ('PASSED','FAILED')))
   </update>
+
+  <update id="projectWarehouse" databaseId="postgresql">
+    UPDATE line_after_sales SET warehouse_id=#{warehouseId},outbound_id=#{outboundId},
+      warehouse_return_status=#{warehouseStatus},received_quantity=#{receivedQuantity},status=#{to},
+      last_error=NULL,next_attempt_at=CURRENT_TIMESTAMP + INTERVAL '5 seconds',updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{id} AND status='RETURN_SENT'
+      AND (warehouse_return_status IS NULL
+        OR (warehouse_return_status='WAITING_RECEIPT' AND #{warehouseStatus}&lt;&gt;'WAITING_RECEIPT')
+        OR (warehouse_return_status='RECEIVED' AND #{warehouseStatus} IN ('PASSED','FAILED')))
+  </update>
   <update id="acceptWarehouse">
     UPDATE line_after_sales SET status=#{to},decision=#{note},next_attempt_at=CURRENT_TIMESTAMP(6),
       updated_at=CURRENT_TIMESTAMP(6)
@@ -99,6 +114,11 @@
   </update>
   <update id="waitForWarehouse">
     UPDATE line_after_sales SET next_attempt_at=TIMESTAMPADD(SECOND,5,CURRENT_TIMESTAMP(6))
+    WHERE id=#{id} AND status='RETURN_SENT'
+  </update>
+
+  <update id="waitForWarehouse" databaseId="postgresql">
+    UPDATE line_after_sales SET next_attempt_at=CURRENT_TIMESTAMP + INTERVAL '5 seconds'
     WHERE id=#{id} AND status='RETURN_SENT'
   </update>
   <update id="approveException">
@@ -115,6 +135,12 @@
   <update id="defer">
     UPDATE line_after_sales SET last_error=#{error},
       next_attempt_at=TIMESTAMPADD(SECOND, 5, CURRENT_TIMESTAMP(6)),updated_at=CURRENT_TIMESTAMP(6)
+    WHERE id=#{id} AND status=#{status}
+  </update>
+
+  <update id="defer" databaseId="postgresql">
+    UPDATE line_after_sales SET last_error=#{error},
+      next_attempt_at=CURRENT_TIMESTAMP + INTERVAL '5 seconds',updated_at=CURRENT_TIMESTAMP(6)
     WHERE id=#{id} AND status=#{status}
   </update>
 </mapper>

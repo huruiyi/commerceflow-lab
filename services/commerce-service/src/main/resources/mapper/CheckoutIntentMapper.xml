@@ -35,4 +35,9 @@
     UPDATE checkout_intents SET next_attempt_at=TIMESTAMPADD(SECOND,4,CURRENT_TIMESTAMP(6))
     WHERE quote_id=#{quoteId} AND status IN ('PREPARED','BOUND')
   </update>
+
+  <update id="defer" databaseId="postgresql">
+    UPDATE checkout_intents SET next_attempt_at=CURRENT_TIMESTAMP + INTERVAL '4 seconds'
+    WHERE quote_id=#{quoteId} AND status IN ('PREPARED','BOUND')
+  </update>
 </mapper>

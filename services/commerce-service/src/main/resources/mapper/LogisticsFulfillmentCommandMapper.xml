@@ -10,6 +10,14 @@
     ON DUPLICATE KEY UPDATE command_id=command_id
   </insert>
 
+  <insert id="register" databaseId="postgresql">
+    INSERT INTO logistics_fulfillment_commands
+      (command_id,operation,order_id,order_number,carrier,tracking_number,expected_version,package_id)
+    VALUES (#{commandId},#{operation},#{orderId},#{orderNumber},#{carrier},#{trackingNumber},#{expectedVersion},
+      #{packageId})
+    ON CONFLICT DO NOTHING
+  </insert>
+
   <select id="find"
           resultType="vip.fairy.commerceflow.commerce.logistics.application.contract.LogisticsFulfillmentV1$Command">
     SELECT command_id,operation,order_id,order_number,carrier,tracking_number,expected_version,package_id
@@ -25,6 +33,13 @@
   <update id="claim">
     UPDATE logistics_fulfillment_commands SET owner_token=#{owner},
       lease_until=TIMESTAMPADD(SECOND,30,CURRENT_TIMESTAMP(6))
+    WHERE command_id=#{commandId} AND shipment_version IS NULL
+      AND (lease_until IS NULL OR lease_until &lt;= CURRENT_TIMESTAMP(6))
+  </update>
+
+  <update id="claim" databaseId="postgresql">
+    UPDATE logistics_fulfillment_commands SET owner_token=#{owner},
+      lease_until=CURRENT_TIMESTAMP + INTERVAL '30 seconds'
     WHERE command_id=#{commandId} AND shipment_version IS NULL
       AND (lease_until IS NULL OR lease_until &lt;= CURRENT_TIMESTAMP(6))
   </update>

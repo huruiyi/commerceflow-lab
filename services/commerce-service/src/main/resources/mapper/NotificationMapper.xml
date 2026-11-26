@@ -7,6 +7,12 @@
     VALUES(#{eventId},#{topic},#{payload})
   </insert>
 
+  <insert id="insertOutbox" databaseId="postgresql">
+    INSERT INTO notification_delivery_outbox(event_id,topic,payload)
+    VALUES(#{eventId},#{topic},#{payload})
+    ON CONFLICT DO NOTHING
+  </insert>
+
   <select id="pendingOutbox"
           resultType="vip.fairy.commerceflow.commerce.notification.domain.NotificationOutboxEntry">
     SELECT id,event_id,topic,payload,status,attempts
@@ -26,6 +32,17 @@
       COALESCE(GREATEST(0,TIMESTAMPDIFF(SECOND,
         MIN(CASE WHEN status IN ('NEW','RETRY') THEN created_at END),
         CURRENT_TIMESTAMP(6))),0) AS oldestSeconds,
+      COUNT(CASE WHEN status='DEAD' THEN 1 END) AS dead
+    FROM notification_delivery_outbox
+    WHERE status IN ('NEW','RETRY','DEAD')
+  </select>
+
+  <select id="backlog" databaseId="postgresql"
+          resultType=
+          "vip.fairy.commerceflow.commerce.notification.infrastructure.persistence.commerce.NotificationMapper$Backlog">
+    SELECT COUNT(CASE WHEN status IN ('NEW','RETRY') THEN 1 END) AS pending,
+      COALESCE(GREATEST(0,trunc(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP -
+        MIN(CASE WHEN status IN ('NEW','RETRY') THEN created_at END))))::bigint),0) AS oldestSeconds,
       COUNT(CASE WHEN status='DEAD' THEN 1 END) AS dead
     FROM notification_delivery_outbox
     WHERE status IN ('NEW','RETRY','DEAD')

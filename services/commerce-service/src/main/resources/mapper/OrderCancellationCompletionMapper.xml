@@ -9,6 +9,14 @@
     VALUES(#{orderId},#{customerId},#{actorId},#{reason},#{triggerSource},#{scheduledTaskId})
   </insert>
 
+  <insert id="enqueue" databaseId="postgresql">
+    INSERT INTO order_cancellation_completion(
+      order_id,customer_id,actor_id,reason,trigger_source,scheduled_task_id
+    )
+    VALUES(#{orderId},#{customerId},#{actorId},#{reason},#{triggerSource},#{scheduledTaskId})
+    ON CONFLICT DO NOTHING
+  </insert>
+
   <select id="due" resultType="java.lang.Long">
     SELECT order_id FROM order_cancellation_completion
     WHERE completed_at IS NULL AND next_attempt_at&lt;=CURRENT_TIMESTAMP(6)

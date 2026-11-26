@@ -9,6 +9,12 @@
     VALUES (#{orderId}, #{applicationNo}, #{customerId}, 'PENDING', UTC_TIMESTAMP(6), #{orderNumber})
     ON DUPLICATE KEY UPDATE order_id = order_id
   </insert>
+
+  <insert id="create" databaseId="postgresql">
+    INSERT INTO invoice_applications (order_id, application_no, customer_id, status, next_check_at, order_number)
+    VALUES (#{orderId}, #{applicationNo}, #{customerId}, 'PENDING', CURRENT_TIMESTAMP, #{orderNumber})
+    ON CONFLICT DO NOTHING
+  </insert>
   <select id="find" resultType="vip.fairy.commerceflow.commerce.invoice.domain.InvoiceJournal$Application">
     SELECT <include refid="applicationColumns"/> FROM invoice_applications WHERE order_id = #{orderId}
   </select>
@@ -19,8 +25,19 @@
     SELECT <include refid="applicationColumns"/> FROM invoice_applications
     WHERE order_id = #{orderId} AND next_check_at &lt;= UTC_TIMESTAMP(6) FOR UPDATE
   </select>
+
+  <select id="lockDue" databaseId="postgresql"
+          resultType="vip.fairy.commerceflow.commerce.invoice.domain.InvoiceJournal$Application">
+    SELECT <include refid="applicationColumns"/> FROM invoice_applications
+    WHERE order_id = #{orderId} AND next_check_at &lt;= CURRENT_TIMESTAMP FOR UPDATE
+  </select>
   <select id="due" resultType="java.lang.Long">
     SELECT order_id FROM invoice_applications WHERE next_check_at &lt;= UTC_TIMESTAMP(6)
+    ORDER BY next_check_at, order_id LIMIT 30
+  </select>
+
+  <select id="due" databaseId="postgresql" resultType="java.lang.Long">
+    SELECT order_id FROM invoice_applications WHERE next_check_at &lt;= CURRENT_TIMESTAMP
     ORDER BY next_check_at, order_id LIMIT 30
   </select>
   <select id="attempts" resultType="vip.fairy.commerceflow.commerce.invoice.domain.InvoiceJournal$Attempt">
@@ -44,6 +61,28 @@
       <if test="status != null">AND a.status = #{status}</if>
       <if test="term != null">
         AND (a.order_number = #{term} OR a.application_no = #{term} OR CAST(a.order_id AS CHAR) = #{term})
+      </if>
+    </where>
+    ORDER BY a.order_id DESC LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="search" databaseId="postgresql"
+          resultType="vip.fairy.commerceflow.commerce.invoice.domain.InvoicePortal$Summary">
+    SELECT a.order_id, a.order_number, a.application_no, a.status, i.merchant_id, i.invoice_no, i.amount, i.currency,
+           CASE WHEN i.status = 'SUCCEEDED' THEN i.amount - COALESCE((
+             SELECT SUM(red.amount) FROM invoice_attempts red
+             WHERE red.order_id = a.order_id AND red.kind = 'RED' AND red.status = 'SUCCEEDED'
+           ), 0) END AS effective_amount
+    FROM invoice_applications a
+    LEFT JOIN invoice_attempts i ON i.id = (
+      SELECT t.id FROM invoice_attempts t WHERE t.order_id = a.order_id AND t.kind = 'ISSUE' ORDER BY t.id DESC LIMIT 1
+    )
+    <where>
+      <if test="customerId != null">AND a.customer_id = #{customerId}</if>
+      <if test="merchantId != null">AND i.merchant_id = #{merchantId} AND i.status = 'SUCCEEDED'</if>
+      <if test="status != null">AND a.status = #{status}</if>
+      <if test="term != null">
+        AND (a.order_number = #{term} OR a.application_no = #{term} OR CAST(a.order_id AS text) = #{term})
       </if>
     </where>
     ORDER BY a.order_id DESC LIMIT #{limit} OFFSET #{offset}
@@ -72,6 +111,15 @@
           ELSE retry_after_id END
     WHERE order_id = #{orderId}
   </update>
+
+  <update id="reopen" databaseId="postgresql">
+    UPDATE invoice_applications
+    SET status = #{state}, review_reason = NULL, review_detail = NULL, next_check_at = CURRENT_TIMESTAMP,
+        retry_after_id = CASE WHEN #{restartRetries}
+          THEN COALESCE((SELECT MAX(t.id) FROM invoice_attempts t WHERE t.order_id = #{orderId}), 0)
+          ELSE retry_after_id END
+    WHERE order_id = #{orderId}
+  </update>
   <insert id="insertAttempt">
     INSERT INTO invoice_attempts (order_id, request_id, kind, reference_no, payment_no, original_invoice_no,
       amount, currency, merchant_id, gross_amount, discount_amount, freight_amount, paid_amount, status)
@@ -87,6 +135,12 @@
       next_check_at = TIMESTAMPADD(MICROSECOND, #{delayMs,jdbcType=INTEGER} * 1000, UTC_TIMESTAMP(6))
     WHERE order_id = #{orderId}
   </update>
+
+  <update id="advance" databaseId="postgresql">
+    UPDATE invoice_applications SET status = #{status},
+      next_check_at = CURRENT_TIMESTAMP + #{delayMs,jdbcType=INTEGER} * INTERVAL '1 millisecond'
+    WHERE order_id = #{orderId}
+  </update>
   <update id="review">
     UPDATE invoice_applications SET status = 'REVIEW_REQUIRED', review_reason = #{reason},
       review_detail = LEFT(#{detail}, 1024), next_check_at = NULL
@@ -94,6 +148,14 @@
   </update>
   <update id="nudge">
     UPDATE invoice_applications a SET a.next_check_at = UTC_TIMESTAMP(6)
+    WHERE a.next_check_at IS NOT NULL AND EXISTS (
+      SELECT 1 FROM invoice_attempts t WHERE t.order_id = a.order_id AND t.request_id = #{requestId}
+        AND t.status = 'PENDING'
+    )
+  </update>
+
+  <update id="nudge" databaseId="postgresql">
+    UPDATE invoice_applications a SET next_check_at = CURRENT_TIMESTAMP
     WHERE a.next_check_at IS NOT NULL AND EXISTS (
       SELECT 1 FROM invoice_attempts t WHERE t.order_id = a.order_id AND t.request_id = #{requestId}
         AND t.status = 'PENDING'

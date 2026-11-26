@@ -30,6 +30,22 @@
     ]]>
   </insert>
 
+  <insert id="upsertPolicy" databaseId="postgresql">
+    <![CDATA[
+      INSERT INTO scheduled_task_policies(
+      task_type,enabled,primary_trigger,reconciliation_enabled,grace_period_seconds,
+      claim_lease_seconds,max_attempts,retry_delay_seconds,config_version,updated_by)
+    VALUES(#{taskType},#{enabled},#{primaryTrigger},#{reconciliationEnabled},#{gracePeriodSeconds},
+      #{claimLeaseSeconds},#{maxAttempts},#{retryDelaySeconds},1,#{updatedBy})
+    ON CONFLICT (task_type) DO UPDATE SET
+      enabled=EXCLUDED.enabled,primary_trigger=EXCLUDED.primary_trigger,
+      reconciliation_enabled=EXCLUDED.reconciliation_enabled,grace_period_seconds=EXCLUDED.grace_period_seconds,
+      claim_lease_seconds=EXCLUDED.claim_lease_seconds,max_attempts=EXCLUDED.max_attempts,
+      retry_delay_seconds=EXCLUDED.retry_delay_seconds,config_version=scheduled_task_policies.config_version+1,
+      updated_by=EXCLUDED.updated_by,updated_at=CURRENT_TIMESTAMP(6)
+    ]]>
+  </insert>
+
   <delete id="deletePolicy">
     <![CDATA[
       DELETE FROM scheduled_task_policies WHERE task_type=#{taskType}
@@ -130,6 +146,17 @@
       AND status IN ('SCHEDULED','FAILED')
       AND due_at<=#{now} AND attempts<max_attempts
       AND TIMESTAMPADD(SECOND,grace_period_seconds_snapshot,due_at)<=#{now}
+    ORDER BY due_at,id LIMIT #{limit}
+    ]]>
+  </select>
+
+  <select id="reconciliationCandidates" databaseId="postgresql" resultType="java.lang.Long">
+    <![CDATA[
+      SELECT id FROM scheduled_tasks
+    WHERE reconciliation_enabled_snapshot=TRUE
+      AND status IN ('SCHEDULED','FAILED')
+      AND due_at<=#{now} AND attempts<max_attempts
+      AND (due_at + grace_period_seconds_snapshot * INTERVAL '1 second')<=#{now}
     ORDER BY due_at,id LIMIT #{limit}
     ]]>
   </select>
