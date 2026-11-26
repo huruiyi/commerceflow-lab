@@ -53,6 +53,57 @@ pwsh scripts/fulfillment/verify-warehouse-postgresql.ps1 -BackupPath "$evidence/
 
 2026-11-26 隔离环境从日常备份迁入 29 张出库单、16 张退货单，经过短发补发和退货等业务后，反向恢复 43 张出库单、20 张退货单。旧版 MySQL 服务读回了质检回执，并完成了 PostgreSQL 上创建的待出库单。[仓库隔离验收记录](../IMPLEMENTED.md#2107-2026-11-26-仓库模拟库-postgresql-隔离验收)
 
+### 仓库模拟库日常发布窗口
+
+日常仓库准备目录为 `%LOCALAPPDATA%/CommerceFlow/releases/warehouse-pg-ready-1795676371/`。原服务和原 MySQL 继续承接仓库业务。PostgreSQL 17.11 的 V1 结构位于 `fairy-commerceflow_warehouse-postgresql-data`，MySQL V4 的回退结构与四条迁移历史位于 `fairy-commerceflow_warehouse-rollback-data`。准备结束时两个备用库的业务表为空，回退实例已停止。
+
+发布目录保存原服务镜像、候选镜像 ID、原 MySQL 单事务备份及其哈希、凭据和三组 Compose 参数。参数沿用仓库服务现役覆盖文件、签名配置和端点。使用 PowerShell 7.4+ 从仓库根目录加载：
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $true
+$release = Join-Path $env:LOCALAPPDATA 'CommerceFlow/releases/warehouse-pg-ready-1795676371'
+$old = Get-Content "$release/original-args.json" -Raw | ConvertFrom-Json
+$pg = Get-Content "$release/postgresql-args.json" -Raw | ConvertFrom-Json
+$back = Get-Content "$release/rollback-args.json" -Raw | ConvertFrom-Json
+$binding = Get-Content "$release/release-binding.json" -Raw | ConvertFrom-Json
+$source = 'fairy-commerceflow-warehouse-simulator-db'
+$target = 'fairy-commerceflow-warehouse-simulator-db-postgresql'
+if ((docker inspect fairy-commerceflow-warehouse-simulator-service --format '{{.Image}}') -ne $binding.originalId -or
+    (docker image inspect $binding.originalTag --format '{{.Id}}') -ne $binding.originalId -or
+    (docker image inspect $binding.candidateTag --format '{{.Id}}') -ne $binding.candidateId) { throw '仓库镜像已变化' }
+if ((Get-FileHash "$release/warehouse-backup.sql").Hash -ne (Get-Content "$release/backup.sha256")) { throw '备份摘要不同' }
+pwsh scripts/fulfillment/verify-warehouse-release.ps1 -BackupPath "$release/warehouse-backup.sql" -ReleaseEnvFile "$release/standby.env" -EvidenceDirectory $release
+```
+
+**正式切换时**，单独停止仓库模拟服务，把原库持久化为只读，备份并复制这一刻的全部出库和退货记录。数据量小，最后一次全量还包括备份后已签收或质检的旧单。复制核对成功后启动候选服务。
+
+```powershell
+$stamp = Get-Date -Format yyyyMMdd-HHmmss
+docker @old stop warehouse-simulator-service
+docker exec $source sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -e "SET PERSIST super_read_only=ON"'
+docker exec $source sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysqldump -uroot --single-transaction --no-tablespaces --set-gtid-purged=OFF --skip-lock-tables --default-character-set=utf8mb4 --hex-blob --routines --events --triggers warehouse_platform' > "$release/frozen-$stamp.sql"
+node scripts/fulfillment/warehouse-rehearsal-data.mjs fairy-commerceflow release-forward | Tee-Object "$release/forward-$stamp.json"
+docker @pg up -d --no-deps --no-build --wait warehouse-simulator-service
+```
+
+切换后从仓库管理接口按原单号查出库与退货，核对履约和库存中的仓库、数量及来源单，并从 PostgreSQL 的 `pg_stat_activity` 确认业务连接使用 `warehouse_runtime`。新服务尚未启动便中断时，确认目标库没有后续业务写入，再解除原 MySQL 的 `super_read_only` 和 `read_only`，用 `$old` 恢复旧服务。
+
+**新服务启动后的回退**使用独立回退卷。原 MySQL 保持只读。停止新服务，禁用运行账号并结束残余连接，保存 PostgreSQL 原生备份，再把当前数据逐字段复制、校验并启动旧版。
+
+```powershell
+$stamp = Get-Date -Format yyyyMMdd-HHmmss
+docker @pg stop warehouse-simulator-service
+docker exec $target psql -U postgres -d warehouse_platform -v ON_ERROR_STOP=1 -c 'ALTER ROLE warehouse_runtime NOLOGIN'
+docker exec $target psql -U postgres -d warehouse_platform -v ON_ERROR_STOP=1 -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename='warehouse_runtime'"
+docker exec $target pg_dump -U postgres -d warehouse_platform -Fc > "$release/postgresql-$stamp.dump"
+docker @back start --wait warehouse-simulator-db-rollback
+node scripts/fulfillment/warehouse-rehearsal-data.mjs fairy-commerceflow release-reverse | Tee-Object "$release/reverse-$stamp.json"
+docker @back up -d --no-deps --no-build --wait warehouse-simulator-service
+```
+
+回退后重查切换前后的出库和退货凭证，并核对待签收或待质检单据能按原号继续办理。两种复制均检查项目、卷、写入方状态和源目标摘要；目标含不同数据时脚本退出并保留数据供核对。[发布准备验收](../IMPLEMENTED.md#2108-2026-11-26-仓库模拟库日常发布准备)
+
 ### 站外消息模拟库隔离演练
 
 在仓库根目录使用以下命令构建候选镜像并演练。默认基线为日常使用的旧版消息模拟服务镜像。可用 `-BaselineImage` 指定本机的对应版本。需要本机 Docker、PowerShell 7 和 Node.js。
