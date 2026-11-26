@@ -2048,6 +2048,16 @@ PostgreSQL 17.11 目标卷 `fairy-commerceflow_order-postgresql-data` 已应用 
 
 日常订单继续使用原 MySQL V12，原 51 个日常容器 ID 及原库导出内容一致。镜像内 2 项测试、代码质量和 94 项脚本契约通过。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/order-pg-ready-1795696729/`，完整复验项目为 `fairy-commerceflow-order-pg-16099a025f13`。[日常发布与回退步骤](architecture/DATABASE-EVOLUTION-PLAN.md#订单服务日常发布窗口)
 
+### 2.128 2026-11-26 日常订单切换 PostgreSQL
+
+21:05 停止日常订单应用，将原 MySQL V12 设为持久强制只读。冻结时有 756 笔订单，在途取消及待发取消命令均为零。迁入 16 张业务表 15,816 行，逐表全字段摘要和 5 个下一自增值一致。订单应用 24.4 秒后恢复健康，通过 `order_runtime` 连接 PostgreSQL 17.11 V2。同窗其余 51 个运行容器 ID 一致，订单 750、755、756 历史状态与原库一致。
+
+新订单 757 从仓库 1 预占 1 件，发起一笔待支付的支付宝模拟交易。取消后订单终态为 `CANCELLED/RELEASED`。PostgreSQL 中 `finish-cancellation:757` 和 `audit-cancellation:757` 均为 `APPLIED`，各执行一次，仅产生一条取消终态流水。重复取消返回原结果，顾客原购物车和所选地址保留。
+
+支付关闭回执 `73200dcb-ee80-3f6c-930a-0b70208e387c` 对上命令 `dca19959-7071-4eed-8449-fb0c27935473`，确认关闭 1 笔。支付编排和模拟渠道均记为 `CLOSED`，交易未扣款。商城释放命令 `a6f569a8-b130-40cf-8e18-2ab1656c6c44:inventory:release` 为 `ACKNOWLEDGED`，库存使用同一命令号记录 `SUCCEEDED` 和唯一一条释放流水。商品总账和仓库 1 的可售、预占、已售余额从 `95/0/5` 到 `94/1/5`，取消后回到 `95/0/5`。
+
+原 MySQL 前后导出在去除导出时间后摘要一致，订单 757 只写入 PostgreSQL。切换后的 PostgreSQL 原生备份在隔离空库恢复，16 表 15,859 行的逐表摘要、5 个下一自增值、两个 Flyway 版本、10 个外键和新订单的取消状态均通过核对。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/order-pg-ready-1795696729/live-20261126-210503/`。[日常运行与回退](architecture/DATABASE-EVOLUTION-PLAN.md#订单服务日常发布窗口)
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

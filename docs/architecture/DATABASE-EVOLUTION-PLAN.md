@@ -4,10 +4,9 @@
 
 日常通知服务使用 PostgreSQL 17.11（`notification-db-postgresql` / `notification`）。原通知 MySQL
 数据库 `notification-db` 及其应用容器保留作回退，反向迁移前以 PostgreSQL 为唯一写入源。
-行政区划基础数据（`reference-data-db` / `reference_data`）、核心商城、商品目录、履约、库存以及站外消息、仓库、物流和发票模拟服务也已使用 PostgreSQL 17.11。2026-11-26 库存切换后，以下 3 个业务库以 MySQL 8.4 为写入方。
+行政区划基础数据（`reference-data-db` / `reference_data`）、核心商城、商品目录、履约、库存、订单以及站外消息、仓库、物流和发票模拟服务也已使用 PostgreSQL 17.11。2026-11-26 订单切换后，以下两个业务库仍使用 MySQL 8.4 写入。
 
 - `payment-simulator-db` / `payment_platform`
-- `order-db` / `orders`（已完成单一所有权 CUTOVER）
 - `payment-db` / `payments`（支付编排）
 
 ### 下一库的隔离候选
@@ -47,9 +46,9 @@ pwsh scripts/orders/verify-order-postgresql.ps1 -BackupPath "$release/order-mysq
 
 ### 订单服务日常发布窗口
 
-准备目录为 `%LOCALAPPDATA%/CommerceFlow/releases/order-pg-ready-1795696729/`。PostgreSQL 17.11 目标卷 `fairy-commerceflow_order-postgresql-data` 已应用 V1 空结构。`order_migrator` 在 `orders` 持有结构和 `unaccent` 扩展，`order_runtime` 保持禁用登录。独立 MySQL 回退卷 `fairy-commerceflow_order-rollback-data` 已载入 V12 空账本结构及十二条原 Flyway 记录，回退实例已停止。日常订单仍使用原 MySQL。[订单发布准备验收](../IMPLEMENTED.md#2127-2026-11-26-订单服务日常发布准备)
+**日常现状（2026-11-26 21:05）**。订单服务通过 `order_runtime` 写入 PostgreSQL 17.11 V2 的 `orders`，现役卷为 `fairy-commerceflow_order-postgresql-data`。原 `fairy-commerceflow_order-db-data` 保持持久强制只读。独立 MySQL 回退卷 `fairy-commerceflow_order-rollback-data` 保留 V12 结构及原 Flyway 历史，回退实例平时停止。维护日常订单服务时使用准备目录中的 `postgresql-args.json` 加载当前 Compose 覆盖。[日常订单切换验收](../IMPLEMENTED.md#2128-2026-11-26-日常订单切换-postgresql)
 
-从仓库根目录加载已验证的 Compose 参数。正式窗口前核对当前原镜像、候选镜像、备份摘要和 PostgreSQL 权限。
+以下记录切换时的正向步骤，准备目录为 `%LOCALAPPDATA%/CommerceFlow/releases/order-pg-ready-1795696729/`。从切换前的 MySQL 状态开始时，在仓库根目录加载已验证的 Compose 参数，先核对原镜像、候选镜像、备份摘要和 PostgreSQL 权限。[订单发布准备验收](../IMPLEMENTED.md#2127-2026-11-26-订单服务日常发布准备)
 
 ```powershell
 $ErrorActionPreference = 'Stop'
@@ -96,6 +95,18 @@ docker @pg up -d --no-deps --no-build --wait order-service
 若新应用启动前中止且确认目标无新增业务写入，禁用 PostgreSQL 运行账号、解除原 MySQL 的 `super_read_only` 和 `read_only`，用 `$old` 恢复订单应用。新应用已受理业务时，用独立回退卷接续，原 MySQL 保持只读。迁移入口先核对数据卷和停写状态，已写入的目标只允许同方向校验。
 
 ```powershell
+$ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $true
+$release = Join-Path $env:LOCALAPPDATA 'CommerceFlow/releases/order-pg-ready-1795696729'
+$pg = Get-Content "$release/postgresql-args.json" -Raw | ConvertFrom-Json
+$back = Get-Content "$release/rollback-args.json" -Raw | ConvertFrom-Json
+$target = 'fairy-commerceflow-order-db-postgresql'
+$binding = Get-Content "$release/release-binding.json" -Raw | ConvertFrom-Json
+if ((docker inspect fairy-commerceflow-order-service --format '{{.Image}}') -cne $binding.candidateId -or
+    (docker image inspect $binding.legacyTag --format '{{.Id}}') -cne $binding.legacyId -or
+    (docker exec $target psql -U postgres -d orders -XAtq -v ON_ERROR_STOP=1 -c "SELECT rolcanlogin FROM pg_roles WHERE rolname='order_runtime'") -cne 't') {
+    throw '现役订单应用、回退镜像或 PostgreSQL 账号与切换记录不一致'
+}
 $stamp = Get-Date -Format yyyyMMdd-HHmmss
 docker @pg stop order-service
 docker exec $target psql -U postgres -d orders -v ON_ERROR_STOP=1 -c 'ALTER ROLE order_runtime NOLOGIN'
