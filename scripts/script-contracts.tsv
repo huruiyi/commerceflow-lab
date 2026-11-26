@@ -37,6 +37,7 @@ orders/verify-order-precutover-rehearsal.ps1	BaseUrl
 orders/verify-order-runtime-cutover.ps1	BaseUrl,MaxWaitSeconds
 orders/verify-order-monitoring.ps1	ReadOnly,OrderId,OrderJar,OrderRuntimeImage,MaxWaitSeconds
 orders/verify-order-shadow-runtime.ps1	BaseUrl
+orders/verify-order-postgresql.ps1	BackupPath,CandidateImage,BaselineImage,InventoryImage,PaymentImage,HistoricalReceiptsPath,EvidenceDirectory
 payment/verify-payment.ps1	BaseUrl
 payment/verify-payment-attempt-deadline.ps1	BaseUrl,PaymentUrl,MaxWaitSeconds
 payment/verify-payment-cancellation-crash-recovery.ps1	BaseUrl
