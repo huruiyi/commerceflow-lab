@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHmac, randomUUID } from 'node:crypto';
 import { setTimeout } from 'node:timers/promises';
 
-const [phase, productIdText] = process.argv.slice(2);
+const [phase, productIdText, versionText, priceText] = process.argv.slice(2);
 const path = '/internal/v1';
 const merchant = 5;
 const searchPath = path + '/product-search';
@@ -64,6 +64,20 @@ async function assertSearch(productId) {
     const prices = page.products.map(p => page.skuRanges[p.productId]?.min ?? p.unitPrice);
     assert(prices.every((price, i) => i === 0 || sign * (price - prices[i - 1]) >= 0), sort);
   }
+}
+
+async function readyIndex() {
+  return until(() => api('GET', searchPath + '/index'),
+    s => s.pending === 0 && !s.rebuildRequested && s.elasticsearch.phase === 'READY',
+    'SQL and Elasticsearch projection readiness');
+}
+
+async function compareIndex() {
+  const comparison = await api('GET', searchPath + '/index/comparison');
+  assert.equal(comparison.status, 'CHECKED');
+  assert.deepEqual(comparison.differences, []);
+  assert.equal(comparison.nextAfterId, null, 'comparison must span all products in this snapshot');
+  return comparison.checked;
 }
 
 if (phase === 'sql') {
@@ -141,6 +155,41 @@ if (phase === 'sql') {
   const state = await api('GET', searchPath + '/index');
   assert.equal(state.elasticsearch.phase, 'UNAVAILABLE');
   console.log(JSON.stringify({ fallback: true, sqlGeneration: state.generation }));
+} else if (phase === 'window-edit') {
+  const productId = 1;
+  const current = path + '/merchant/products/' + productId;
+  const old = await api('GET', current);
+  const price = Number(productIdText);
+  assert.equal(old.lifecycleStatus, 'ACTIVE');
+  assert(Number.isFinite(price) && price > 0 && price !== old.unitPrice);
+  const priced = await api('PUT', current + '/price', { expectedVersion: old.businessVersion, unitPrice: price });
+  const translated = await api('PUT', current + '/translations/en', {
+    expectedVersion: priced.businessVersion, name: 'CatalogWindow laptop ' + priced.businessVersion,
+    brief: 'Catalog window verification', description: 'Isolated catalog PostgreSQL publisher verification',
+  });
+  assert.equal(translated.businessVersion, old.businessVersion + 2);
+  console.log(JSON.stringify({ productId, fromVersion: old.businessVersion, version: translated.businessVersion,
+    price, name: 'CatalogWindow laptop ' + priced.businessVersion }));
+} else if (phase === 'window-index' || phase === 'window-rebuild') {
+  let state = await readyIndex();
+  if (phase === 'window-rebuild') {
+    const previous = state;
+    await api('POST', searchPath + '/index/rebuild');
+    state = await until(() => api('GET', searchPath + '/index'),
+      s => s.generation > previous.generation && s.elasticsearch.generation > previous.elasticsearch.generation &&
+        s.pending === 0 && s.elasticsearch.phase === 'READY',
+      'SQL and Elasticsearch both advance to the next generation');
+  }
+  if (productIdText) {
+    const productId = Number(productIdText);
+    const result = await search({ query: 'CatalogWindow' });
+    const product = result.products.find(item => item.productId === productId);
+    assert.equal(product?.businessVersion, Number(versionText));
+    assert.equal(product?.unitPrice, Number(priceText));
+    assert.equal(product?.name, 'CatalogWindow laptop ' + (Number(versionText) - 1));
+  }
+  console.log(JSON.stringify({ sqlGeneration: state.generation, elasticGeneration: state.elasticsearch.generation,
+    compared: await compareIndex() }));
 } else {
   throw new Error('Unknown catalog verification phase');
 }
