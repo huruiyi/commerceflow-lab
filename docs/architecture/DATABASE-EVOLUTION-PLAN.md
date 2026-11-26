@@ -35,6 +35,24 @@
 | 9 支付渠道模拟服务 | 18 / 16 | 冲突更新、回调重试时间算术 | 支付与退款的渠道流水号、金额及回调状态与支付编排一致。 |
 | 10 支付编排服务 | 21 / 7 | 忽略重复插入、冲突更新、行锁 | 订单、渠道、退款、结算和待处理命令逐笔对账，回退后不能重复入账。 |
 
+### 仓库模拟库隔离演练
+
+从日常 MySQL V4 获取一致性备份。仓库模拟服务继续接收日常出库和退货，复测脚本只向新建的隔离 Compose 项目写入。PowerShell 7.4+ 保留原生备份字节，迁移工具使用 Node.js 24+。
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $true
+$evidence = New-Item -ItemType Directory (Join-Path $env:LOCALAPPDATA ("CommerceFlow/releases/warehouse-rehearsal-" + [guid]::NewGuid().ToString('N')))
+$baseline = docker inspect fairy-commerceflow-warehouse-simulator-service --format '{{.Config.Image}}'
+docker exec fairy-commerceflow-warehouse-simulator-db sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysqldump -uroot --single-transaction --no-tablespaces --set-gtid-purged=OFF --skip-lock-tables --default-character-set=utf8mb4 --hex-blob warehouse_platform' > "$evidence/warehouse.sql"
+docker build -t commerceflow-warehouse-pg:rehearsal simulators/warehouse-platform/service
+pwsh scripts/fulfillment/verify-warehouse-postgresql.ps1 -BackupPath "$evidence/warehouse.sql" -CandidateImage commerceflow-warehouse-pg:rehearsal -BaselineImage $baseline -EvidenceDirectory $evidence
+```
+
+当本机已有本批次商城、仓库管理台等验收镜像时，可加 `-SkipBuild`。脚本从备份恢复隔离 MySQL 源库和独立回退库的表结构与 Flyway 历史。PostgreSQL 使用自己的 Flyway 基线和 `postgresql` Profile。迁移校验逐字段比较两张表，统一微秒时间及 JSON 对象的键顺序，保留明细数组的顺序、长整型编号、实发数量与空值。反向复制前还会检查历史单据与原始快照一致。运行后保留隔离卷和证据，服务停止。
+
+2026-11-26 隔离环境从日常备份迁入 29 张出库单、16 张退货单，经过短发补发和退货等业务后，反向恢复 43 张出库单、20 张退货单。旧版 MySQL 服务读回了质检回执，并完成了 PostgreSQL 上创建的待出库单。[仓库隔离验收记录](../IMPLEMENTED.md#2107-2026-11-26-仓库模拟库-postgresql-隔离验收)
+
 ### 站外消息模拟库隔离演练
 
 在仓库根目录使用以下命令构建候选镜像并演练。默认基线为日常使用的旧版消息模拟服务镜像。可用 `-BaselineImage` 指定本机的对应版本。需要本机 Docker、PowerShell 7 和 Node.js。
