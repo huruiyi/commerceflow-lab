@@ -1922,6 +1922,16 @@ MySQL 和 PostgreSQL 各自通过发票专项回归。两边均核对了 9 条�
 
 本机备份、商城回执及逐表迁移摘要位于 `%LOCALAPPDATA%/CommerceFlow/releases/invoice-pg-rehearsal-1795684054/`，演练项目为 `fairy-commerceflow-invoice-pg-3c59536260d0`。日常发票服务仍由 MySQL V2 提供，47 个日常容器的 ID 前后一致。[复测步骤](architecture/DATABASE-EVOLUTION-PLAN.md#发票模拟库隔离演练)
 
+### 2.114 2026-11-26 发票模拟库日常发布准备
+
+在线取得日常 MySQL V2 单事务备份，并导出商城的四条成功回执。日常 PostgreSQL 17.11 目标卷已有 V1 结构，由 `invoice_migrator` 持有 schema。逐列核验 `invoice_runtime` 的读写权限，确认其可以追加票据、更新申请及回执进度，无票据更新、删除或建表权限。并发红冲仍在原蓝票粒度串行校验，PostgreSQL 锁定原蓝票对应的申请行。独立 MySQL 回退卷的四张表结构、列与索引和两条 Flyway 校验值均与原库一致，业务表为空，实例已停止。
+
+隔离复验复用日常的候选镜像、旧版镜像、账号初始化和迁移配置。备份恢复后由旧版受理两张蓝票。一张已开出但回执第一次投递失败，另一张在停服时仍为 `ACCEPTED`。原 MySQL 重启后保持强制只读，正向复制 6 条请求、5 张票和 5 条回执。PostgreSQL 运行账号开出了第二张蓝票，并用原事件成功完成第一张蓝票回执的第 2 次投递。四条历史商城回执继续按原请求号匹配。
+
+新库开出 40.00 元红票，回执首次失败后停服，禁用 PostgreSQL 运行账号并保存原生备份。反向复制 7 条请求、7 张票和 7 条回执。旧版接续原红票回执，第 2 次投递成功，接收端只应用一次。重放返回相同票号，超出剩余额度的红冲被拒绝。两个方向的三表全字段摘要一致，重复复制只执行比对并返回同一份清单。PostgreSQL 备份另在空实例恢复，核对三表行数、V1 迁移和红票回执的首次失败记录。
+
+标准隔离迁移、PostgreSQL 发票专项回归、代码质量、88 项脚本契约及隔离快速回归均通过。准备目录为 `%LOCALAPPDATA%/CommerceFlow/releases/invoice-pg-ready-1795686700/`，成功复验项目为 `fairy-commerceflow-invoice-release-b0bb871490b4`。备份、镜像绑定和验证日志保存在该目录。日常发票仍在原 MySQL V2 正常写入，迁移入口在实际写入方运行时拒绝执行。47 个原有日常容器的 ID 前后一致。[正式切换与回退步骤](architecture/DATABASE-EVOLUTION-PLAN.md#发票模拟库日常发布窗口)
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

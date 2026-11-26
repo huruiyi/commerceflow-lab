@@ -67,6 +67,62 @@ pwsh scripts/invoice/verify-invoice-simulator.ps1 -PostgreSqlImage commerceflow-
 
 验收在隔离 MySQL 受理一张蓝票，停服务后执行正向迁移，由 PostgreSQL 接续出具蓝票及签名回执。随后在 PostgreSQL 开红票并制造一次投递失败，停止模拟器后反向迁移到独立 MySQL。旧版服务查询并重放两张新票，接续发送原红票事件，拒绝超额红冲。验收结束停止隔离服务并保留卷与迁移摘要。[发票隔离验收](../IMPLEMENTED.md#2113-2026-11-26-发票模拟库-postgresql-隔离验收)
 
+### 发票模拟库日常发布窗口
+
+准备目录为 `%LOCALAPPDATA%/CommerceFlow/releases/invoice-pg-ready-1795686700/`。原 MySQL V2 使用 `fairy-commerceflow_invoice-db-data`。PostgreSQL 17.11 目标卷为 `fairy-commerceflow_invoice-postgresql-data`，由 `invoice_migrator` 管理 V1 schema。应用以 `invoice_runtime` 连接，Flyway 由独立进程运行。运行账号只追加票据，可以更新开票状态及回执投递字段。红冲继续按原蓝票串行校验额度，PostgreSQL 通过锁定原票对应的申请行实现。独立 MySQL 回退卷 `fairy-commerceflow_invoice-rollback-data` 已恢复 V2 结构和两条 Flyway 记录，平时保持停止。
+
+切换前核对本机发布配置绑定的镜像 ID、源卷、备份摘要和目标账号权限。用同一组发布配置和最新备份在隔离项目中复测并记录账本摘要：
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $true
+$release = Join-Path $env:LOCALAPPDATA 'CommerceFlow/releases/invoice-pg-ready-1795686700'
+$binding = Get-Content "$release/release-binding.json" -Raw | ConvertFrom-Json
+$old = Get-Content "$release/original-args.json" -Raw | ConvertFrom-Json
+$pg = Get-Content "$release/postgresql-args.json" -Raw | ConvertFrom-Json
+$back = Get-Content "$release/rollback-args.json" -Raw | ConvertFrom-Json
+$source = 'fairy-commerceflow-invoice-db'
+$target = 'fairy-commerceflow-invoice-db-postgresql'
+if ((docker inspect fairy-commerceflow-invoice-simulator-service --format '{{.Image}}') -cne $binding.legacyId -or
+    (docker image inspect $binding.legacyTag --format '{{.Id}}') -cne $binding.legacyId -or
+    (docker image inspect $binding.candidateTag --format '{{.Id}}') -cne $binding.candidateId) {
+    throw '发票镜像与已验收版本不一致'
+}
+if ((Get-FileHash "$release/invoice-mysql.sql").Hash -cne (Get-Content "$release/backup.sha256")) { throw '发票备份摘要不一致' }
+if ((docker exec $target psql -U postgres -d invoice_platform -XAtq -v ON_ERROR_STOP=1 -c (Get-Content infrastructure/invoice/verify-runtime.sql -Raw)) -cne 't') {
+    throw '发票运行权限与已验收配置不一致'
+}
+pwsh scripts/invoice/verify-invoice-postgresql.ps1 -BackupPath "$release/invoice-mysql.sql" -CommerceReceiptsPath "$release/commerce-receipts.jsonl" -CandidateImage $binding.candidateTag -BaselineImage $binding.legacyTag -EvidenceDirectory $release -ReleaseEnvFile "$release/standby.env"
+```
+
+正式切换只停止发票模拟服务。冻结原 MySQL，保存快照并核对申请、票据和回执三表后启动候选。迁移入口核对 Compose 项目、数据卷、停写和只读标志，目标已有数据时只允许逐表比对。
+
+```powershell
+$stamp = Get-Date -Format yyyyMMdd-HHmmss
+docker @old stop invoice-simulator-service
+docker exec $source sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -e "SET PERSIST super_read_only=ON"'
+docker exec $source sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysqldump -uroot --single-transaction --no-tablespaces --set-gtid-purged=OFF --skip-lock-tables --hex-blob invoice_platform' > "$release/frozen-$stamp.sql"
+node scripts/invoice/invoice-rehearsal-data.mjs fairy-commerceflow release-forward "$release/forward-$stamp.json"
+docker @pg up -d --no-deps --no-build --wait invoice-simulator-service
+```
+
+启动后核对运行账号连接、接受中的开票请求、回执是否接续以及商城确认的请求号、蓝票号和原票号。若 PostgreSQL 版本启动前中止，确认目标无业务写入后解除源库的 `super_read_only` 和 `read_only`，用 `$old` 恢复旧服务。
+
+PostgreSQL 开始接单后的回退使用独立 MySQL 回退卷。先停止应用并禁用运行账号，终止残余会话，再备份和反向复制。
+
+```powershell
+$stamp = Get-Date -Format yyyyMMdd-HHmmss
+docker @pg stop invoice-simulator-service
+docker exec $target psql -U postgres -d invoice_platform -v ON_ERROR_STOP=1 -c 'ALTER ROLE invoice_runtime NOLOGIN'
+docker exec $target psql -U postgres -d invoice_platform -v ON_ERROR_STOP=1 -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename='invoice_runtime'"
+docker exec $target pg_dump -U postgres -d invoice_platform -Fc > "$release/postgresql-$stamp.dump"
+docker @back start --wait invoice-db-rollback
+node scripts/invoice/invoice-rehearsal-data.mjs fairy-commerceflow release-reverse "$release/reverse-$stamp.json"
+docker @back up -d --no-deps --no-build --wait invoice-simulator-service
+```
+
+回退后按原请求查询与重放，核实同一票号和原票号。逐条确认待投递的签名事件沿用原事件号和尝试次数，并与商城账本对齐。
+
 ### 物流模拟库隔离演练
 
 隔离演练使用切换前日常物流的 MySQL V7 备份。演练在独立 Docker 内部网络运行，从日常单事务备份恢复一个源库，并另建 PostgreSQL 17.11 目标库和 MySQL 回退库。物流应用只与隔离网络中的数据库和签名回调接收端通信。服务停止后按外键顺序复制五张业务表，各引擎保留自己的 Flyway 历史。每张表单独核对行数、全字段摘要和下一自增值，包含轨迹顺序、回调载荷、重试时间、领取租约、审计信息和用于防止重复请求的 nonce。
