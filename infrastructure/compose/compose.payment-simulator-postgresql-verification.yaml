@@ -1,0 +1,90 @@
+services:
+  original:
+    image: mysql:8.4
+    command: ["--innodb-use-native-aio=OFF", "--log-bin-trust-function-creators=1"]
+    environment:
+      MYSQL_DATABASE: payment_platform
+      MYSQL_USER: payment
+      MYSQL_PASSWORD: payment-isolated
+      MYSQL_ROOT_PASSWORD: payment-isolated-root
+    volumes:
+      - original-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_PASSWORD mysql -h127.0.0.1 -upayment payment_platform -e 'SELECT 1'"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+
+  rollback:
+    extends: original
+    volumes:
+      - rollback-data:/var/lib/mysql
+
+  postgres:
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: payment_platform
+      POSTGRES_PASSWORD: payment-isolated-postgresql
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "payment_platform"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+
+  migrator:
+    image: redgate/flyway:12.4.0
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/payment_platform
+      FLYWAY_USER: postgres
+      FLYWAY_PASSWORD: payment-isolated-postgresql
+    volumes:
+      - ./simulators/payment-platform/service/src/main/resources/db/postgresql:/flyway/sql:ro
+    command: ["-target=1", "migrate"]
+
+  redis:
+    image: redis:7.4-alpine
+
+  simulator:
+    image: ${PAYMENT_SIMULATOR_REHEARSAL_IMAGE:?Set the isolated simulator image}
+    pull_policy: never
+    environment:
+      PAYMENT_DATABASE_URL: ${PAYMENT_SIMULATOR_REHEARSAL_URL:-jdbc:postgresql://postgres:5432/payment_platform}
+      PAYMENT_DATABASE_USERNAME: ${PAYMENT_SIMULATOR_REHEARSAL_USER:-postgres}
+      PAYMENT_DATABASE_PASSWORD: ${PAYMENT_SIMULATOR_REHEARSAL_PASSWORD:-payment-isolated-postgresql}
+      SPRING_PROFILES_ACTIVE: ${PAYMENT_SIMULATOR_REHEARSAL_PROFILE:-postgresql}
+      PAYMENT_CREDENTIAL_MASTER_KEY: ${PAYMENT_CREDENTIAL_MASTER_KEY:-bG9jYWwtZGVtby1rZXktMTIzNDU2Nzg5MC1hYmNkZWY=}
+      REDIS_HOST: redis
+      PAYMENT_CHECKOUT_BASE_URL: http://simulator:8080
+      PAYMENT_CALLBACK_URL: http://fixture:8080/payment
+      REFUND_CALLBACK_URL: http://fixture:8080/refund
+      PAYOUT_CALLBACK_URL: http://fixture:8080/payout
+      PAYMENT_CALLBACK_SECRET: payment-isolated-callback
+      PAYOUT_CALLBACK_SECRET: payment-isolated-payout-callback
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+
+  fixture:
+    image: node:24-alpine
+    working_dir: /verification
+    volumes:
+      - ./scripts/payment/payment-simulator-postgresql-api.mjs:/verification/rehearsal.mjs:ro
+    command: ["node", "rehearsal.mjs", "serve"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/state"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+networks:
+  default:
+    internal: true
+
+volumes:
+  original-data:
+  rollback-data:
+  postgres-data:
