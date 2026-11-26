@@ -1992,6 +1992,14 @@ MySQL 和 PostgreSQL 各自通过发票专项回归。两边均核对了 9 条�
 
 日常履约保持 MySQL V4。代码质量检查和 92 项脚本契约通过。证据目录为 `%LOCALAPPDATA%/CommerceFlow/releases/fulfillment-pg-ready-1795692135/`，完整复验项目为 `fairy-commerceflow-fulfillment-pg-3862a3f8e7ad`。[日常发布与回退步骤](architecture/DATABASE-EVOLUTION-PLAN.md#履约服务日常发布窗口)
 
+### 2.122 2026-11-26 日常履约切换 PostgreSQL
+
+19:39 停止日常履约应用并冻结原 MySQL V4，保存原生备份。迁入九张业务表 606 行，逐表全字段摘要及两个下一自增值一致。冻结时待执行任务和持有租约任务均为零，执行模式沿用 `EXECUTION`，影子水位仍为第 41 代、源序号 393。应用于停服 15.4 秒后恢复健康，以 `fulfillment_runtime` 连接 PostgreSQL 17.11 V2。其余 49 个运行中的日常容器 ID 一致。
+
+新订单 755 完成模拟支付、库存提交、商家接单和发货。接单与发货各用原命令重放一次，均返回已完成结果。发货命令 `2f57a70d-c5d9-4b5b-a5ff-a2a921fc88a6`、仓库 1 实发与库存出库凭证对应同一单号，订单行 759 实发 1 件。顾客及商家 API 均显示已发货，商家时间线只有一次发货。平台运单 `LGS-018B769F55B7437396CB` 的建单事件首次投递，商城验签并处理。验收范围截至发货和建单回执。验收前后的原购物车及所选地址一致。
+
+原 MySQL 持久保持强制只读。切换前后的 MySQL 原生导出在排除导出时间后摘要一致，订单 755 的两条履约命令均只在 PostgreSQL。历史订单 751、752、753 的履约字段与已核对的下游回执一致，现役履约指标刷新成功，待执行与逾期租约均为零。切换后的 PostgreSQL 归档在独立空实例恢复，九表 611 行的全字段摘要、两个下一自增值及两条 Flyway 记录均与现役数据库一致。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/fulfillment-pg-ready-1795692135/live-20261126-193914/`。[日常运行与回退](architecture/DATABASE-EVOLUTION-PLAN.md#履约服务日常发布窗口)
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

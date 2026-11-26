@@ -4,13 +4,12 @@
 
 日常通知服务使用 PostgreSQL 17.11（`notification-db-postgresql` / `notification`）。原通知 MySQL
 数据库 `notification-db` 及其应用容器保留作回退，反向迁移前以 PostgreSQL 为唯一写入源。
-行政区划基础数据（`reference-data-db` / `reference_data`）、核心商城、商品目录以及站外消息、仓库、物流和发票模拟服务也已使用 PostgreSQL 17.11。2026-11-26 商品目录切换后，以下 5 个业务库以 MySQL 8.4 为写入方。
+行政区划基础数据（`reference-data-db` / `reference_data`）、核心商城、商品目录、履约以及站外消息、仓库、物流和发票模拟服务也已使用 PostgreSQL 17.11。2026-11-26 履约切换后，以下 4 个业务库以 MySQL 8.4 为写入方。
 
 - `payment-simulator-db` / `payment_platform`
 - `inventory-db` / `inventory`
 - `order-db` / `orders`（已完成单一所有权 CUTOVER）
 - `payment-db` / `payments`（支付编排）
-- `fulfillment-db` / `fulfillment`
 
 ### 下一库的隔离候选
 
@@ -47,9 +46,9 @@ pwsh scripts/fulfillment/verify-fulfillment-postgresql.ps1 -BackupPath "$release
 
 ### 履约服务日常发布窗口
 
-准备目录为 `%LOCALAPPDATA%/CommerceFlow/releases/fulfillment-pg-ready-1795692135/`。目标 PostgreSQL 17.11 卷 `fairy-commerceflow_fulfillment-postgresql-data` 已应用 V1 空结构。`fulfillment_migrator` 持有结构和 Flyway 历史，`fulfillment_runtime` 默认禁用登录，启用后可执行履约和追加恢复审计。独立 MySQL 卷 `fairy-commerceflow_fulfillment-rollback-data` 已载入 V4 结构和四条原迁移记录，实例暂停。日常履约仍连接原 MySQL。
+发布目录为 `%LOCALAPPDATA%/CommerceFlow/releases/fulfillment-pg-ready-1795692135/`。日常履约现役库为 PostgreSQL 17.11 V2，使用 `fairy-commerceflow_fulfillment-postgresql-data`。`fulfillment_migrator` 持有结构和 Flyway 历史，应用以 `fulfillment_runtime` 连接并执行履约和追加恢复审计。MySQL 原卷 `fairy-commerceflow_fulfillment-db-data` 已持久设为只读。独立回退卷 `fairy-commerceflow_fulfillment-rollback-data` 保留 V4 结构和原迁移历史，实例暂停。[日常履约切换验收](../IMPLEMENTED.md#2122-2026-11-26-日常履约切换-postgresql)
 
-从仓库根目录加载镜像绑定和三组 Compose 参数。核对原应用和候选镜像 ID、备份摘要及 PostgreSQL 权限。备份保存至仓库外的发布目录。
+从仓库根目录加载镜像绑定和三组 Compose 参数。日常重启现役履约应用使用 `$pg` 参数。下列正向步骤记录切换前的镜像、备份及权限检查，备份保存在仓库外的发布目录。
 
 ```powershell
 $ErrorActionPreference = 'Stop'
