@@ -38,6 +38,15 @@
 
 各平台统一执行同一份 PowerShell 7 脚本。机器可读契约见 `scripts/script-contracts.tsv`。
 
+日常核对一笔订单时，传入该单的数字 ID。例如，下面两条只读命令分别检查订单 750 的结算凭证、库存命令，以及整个目录与通知链路的积压。
+
+```powershell
+pwsh scripts/orders/verify-order-monitoring.ps1 -ReadOnly -OrderId 750
+pwsh scripts/commerce/verify-catalog-notification-monitoring.ps1 -ReadOnly
+```
+
+输出中的 `Commerce ledger` 来自当前商城应用的 JDBC 连接。日常切换后应指向 `commerce-db-postgresql/commerceflow`。`Historical order source` 指向保留的只读 MySQL，供核对拆分前的订单历史。订单状态、库存流水和退款记录仍分别由订单、库存和支付服务持有。
+
 ## 4. 日常开发流程
 
 ### 4.1 修改前：固定基线

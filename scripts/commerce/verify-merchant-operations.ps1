@@ -49,7 +49,11 @@ function Assert-OperationsEndpoint([string]$Service,[int]$ContainerPort,[string]
   }
 }
 
+. "$PSScriptRoot/../lib/commerce-ledger.ps1"
+if (!$isolated) { $dailyLedger = Get-CommerceLedger $ProjectName }
+
 function Sql([string]$Service,[string]$Database,[string]$Query){
+  if (!$isolated -and $Service -eq 'commerce-db') { return Read-CommerceLedger $dailyLedger $Query }
   $name=if($isolated){"$ProjectName-$Service-1"}else{"$ProjectName-$Service"}
   $labels=docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}/{{index .Config.Labels "com.docker.compose.service"}}' $name
   if($LASTEXITCODE -or $labels-ne"$ProjectName/$Service"){throw "Unexpected SQL scope for $Service"}
@@ -291,6 +295,20 @@ function Verify-Search($shop,$other){
     generation=$rebuilt.generation;price=95;stalePriceVerified=$isolated;coldRebuildVerified=$isolated}
 }
 
+function Set-OrderCompletionDue([long]$OrderId) {
+  $query = "UPDATE scheduled_tasks SET due_at=CURRENT_TIMESTAMP(6),primary_trigger_snapshot='DATABASE'
+    WHERE task_type='AUTO_COMPLETE' AND task_key='order:$OrderId' AND status='SCHEDULED'"
+  if ($isolated) {
+    Sql commerce-db commerceflow $query | Out-Null
+  } elseif ($dailyLedger.Engine -eq 'postgresql') {
+    docker exec $dailyLedger.Container psql -U postgres -d $dailyLedger.Database -Xq -v ON_ERROR_STOP=1 `
+      -c "SET search_path TO commerceflow; $query" | Out-Null
+  } else {
+    docker exec $dailyLedger.Container sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot "$1" -e "$2"' sh $dailyLedger.Database $query
+  }
+  if ($LASTEXITCODE) { throw "Could not advance the completion task for order $OrderId" }
+}
+
 function Complete-Order($shop,$product,[int]$Quantity,[string]$Coupon=''){
   $cart=Api $buyer '/api/cart/items' Post @{productId=$product.productId;quantity=$Quantity}
   $selection=@{itemIds=@($cart.id)}
@@ -308,7 +326,7 @@ function Complete-Order($shop,$product,[int]$Quantity,[string]$Coupon=''){
   $null=Wait-Value {if((Api $buyer "/api/purchase-orders/$id").logistics.status-eq'DELIVERED'){$true}} 'Missing outbound delivery'
   Api $buyer "/api/purchase-orders/$id/receive" Post @{}|Out-Null
   # Advance only this newly created test order's normal completion task.
-  Sql commerce-db commerceflow "UPDATE scheduled_tasks SET due_at=TIMESTAMPADD(SECOND,-1,UTC_TIMESTAMP(6)),primary_trigger_snapshot='DATABASE' WHERE task_type='AUTO_COMPLETE' AND task_key='order:$id' AND status='SCHEDULED'" | Out-Null
+  Set-OrderCompletionDue $id
   Wait-Value {
     $value=Api $buyer "/api/purchase-orders/$id"
     if($value.status-eq'COMPLETED'){$value}
@@ -1399,8 +1417,7 @@ function Verify-StatementCorrections($shop){
     if((Api $buyer "/api/purchase-orders/$id").logisticsDeliveredAt){$true}
   } 'Warehouse shipment did not reach the customer'
   Api $buyer "/api/purchase-orders/$id/receive" Post @{}|Out-Null
-  Sql commerce-db commerceflow "UPDATE scheduled_tasks SET due_at=TIMESTAMPADD(SECOND,-1,UTC_TIMESTAMP(6)),
-    primary_trigger_snapshot='DATABASE' WHERE task_type='AUTO_COMPLETE' AND task_key='order:$id' AND status='SCHEDULED'"|Out-Null
+  Set-OrderCompletionDue $id
   $null=Wait-Value {if((Api $buyer "/api/purchase-orders/$id").status-eq'COMPLETED'){$true}} 'Order did not complete'
   $statement=Api $admin "$store/statements" Post @{requestId=[guid]::NewGuid()}
   $report="$store/statements/$($statement.id)/reconciliation"
@@ -1472,8 +1489,7 @@ function Verify-StatementCorrections($shop){
 function Verify-OperationsStatement($shop,$returned){
   $id=[long]$returned.partialOrder
   $orderPath="/api/purchase-orders/$id"
-  Sql commerce-db commerceflow "UPDATE scheduled_tasks SET due_at=TIMESTAMPADD(SECOND,-1,UTC_TIMESTAMP(6)),
-    primary_trigger_snapshot='DATABASE' WHERE task_type='AUTO_COMPLETE' AND task_key='order:$id' AND status='SCHEDULED'"|Out-Null
+  Set-OrderCompletionDue $id
   $order=Wait-Value {
     $value=Api $buyer $orderPath
     if($value.status-eq'COMPLETED'){$value}

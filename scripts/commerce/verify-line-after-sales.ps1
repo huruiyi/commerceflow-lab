@@ -24,7 +24,11 @@ function DbContainer([string]$Service){
   if((docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}/{{index .Config.Labels "com.docker.compose.service"}}' $id)-ne"$ProjectName/$Service"){throw 'Database project scope mismatch'}
   return $id
 }
+. "$PSScriptRoot/../lib/commerce-ledger.ps1"
+if (!$isolated) { $dailyLedger = Get-CommerceLedger $ProjectName }
+
 function Sql([string]$Service,[string]$Schema,[string]$Query){
+  if (!$isolated -and $Service -eq 'commerce-db') { return Read-CommerceLedger $dailyLedger $Query }
   docker exec (DbContainer $Service) sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -NB "$1" -e "$2"' sh $Schema $Query
   if($LASTEXITCODE){throw "Database query failed: $Service"}
 }

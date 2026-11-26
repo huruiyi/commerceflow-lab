@@ -17,7 +17,11 @@ function Container([string]$Service) {
   }
   $name
 }
+. "$PSScriptRoot/../lib/commerce-ledger.ps1"
+if (!$isolated) { $dailyLedger = Get-CommerceLedger $ProjectName }
+
 function Sql([string]$Service,[string]$Database,[string]$Query) {
+  if (!$isolated -and $Service -eq 'commerce-db') { return Read-CommerceLedger $dailyLedger $Query }
   docker exec (Container $Service) sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -NB "$1" -e "$2"' sh $Database $Query
   if ($LASTEXITCODE) { throw "SQL failed for $Service" }
 }

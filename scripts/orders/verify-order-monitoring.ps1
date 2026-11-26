@@ -20,8 +20,16 @@ function Invoke-MySql([string]$Container, [string]$Schema, [string]$Sql) {
 }
 
 if ($ReadOnly) {
-  $source = 'fairy-commerceflow-commerce-db'
+  . "$PSScriptRoot/../lib/commerce-ledger.ps1"
+  $commerce = Get-CommerceLedger fairy-commerceflow
+  $source = 'fairy-commerceflow-commerce-db' # Historical MySQL source for the order-service handoff.
   $target = 'fairy-commerceflow-order-db'
+  if ($commerce.Engine -eq 'postgresql') {
+    if ((Invoke-MySql $source commerceflow 'SELECT @@GLOBAL.super_read_only') -ne '1') {
+      throw 'The historical commerce MySQL database is writable'
+    }
+    Write-Host "Historical order source=$source (read-only)"
+  }
   $mode = Invoke-Docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' fairy-commerceflow-order-service
   $commerceAccount = Invoke-Docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' fairy-commerceflow-commerce-service |
     Where-Object { $_ -like 'DATABASE_USERNAME=*' }
@@ -44,24 +52,27 @@ COMMIT;
   if ($sourceTables.Count -notin @(0, $legacyTables.Count)) {
     throw "Only $($sourceTables.Count) of $($legacyTables.Count) legacy order tables remain."
   }
-  $grants = @(Invoke-MySql $source commerceflow @"
-START TRANSACTION READ ONLY;
-WITH runtime_grants AS (
-  SELECT 'global' AS scope_name,grantee,privilege_type FROM information_schema.user_privileges
-    WHERE privilege_type IN ('SELECT','INSERT','UPDATE','DELETE')
-  UNION ALL
-  SELECT table_schema,grantee,privilege_type FROM information_schema.schema_privileges WHERE table_schema='commerceflow'
-  UNION ALL
-  SELECT table_name,grantee,privilege_type FROM information_schema.table_privileges
-    WHERE table_schema='commerceflow' AND table_name IN ($legacyNames)
-  UNION ALL
-  SELECT table_name,grantee,privilege_type FROM information_schema.column_privileges
-    WHERE table_schema='commerceflow' AND table_name IN ($legacyNames)
-)
-SELECT scope_name,privilege_type FROM runtime_grants WHERE grantee='''commerce_runtime''@''%''';
-COMMIT;
+  if ($commerce.Engine -eq 'postgresql') {
+    $grants = @(Get-PostgresCommerceGrantViolations $commerce $legacyTables)
+  } else {
+    $grants = @(Invoke-MySql $source commerceflow @"
+  START TRANSACTION READ ONLY;
+  WITH runtime_grants AS (
+    SELECT 'global' AS scope_name,grantee,privilege_type FROM information_schema.user_privileges
+      WHERE privilege_type IN ('SELECT','INSERT','UPDATE','DELETE')
+    UNION ALL
+    SELECT table_schema,grantee,privilege_type FROM information_schema.schema_privileges WHERE table_schema='commerceflow'
+    UNION ALL
+    SELECT table_name,grantee,privilege_type FROM information_schema.table_privileges
+      WHERE table_schema='commerceflow' AND table_name IN ($legacyNames)
+    UNION ALL
+    SELECT table_name,grantee,privilege_type FROM information_schema.column_privileges
+      WHERE table_schema='commerceflow' AND table_name IN ($legacyNames)
+  )
+  SELECT scope_name,privilege_type FROM runtime_grants WHERE grantee='''commerce_runtime''@''%''';
+  COMMIT;
 "@)
-
+  }
   Write-Host "Commerce runtime source privileges=$($grants.Count)"
   if ($grants.Count -gt 0) { throw 'Order source privilege check failed.' }
   if ($sourceTables.Count -eq 0) {
@@ -106,7 +117,7 @@ SELECT 'order_command_outbox',status,COUNT(*) FROM order_command_outbox WHERE st
 SELECT 'open_shadow_orphans',COUNT(*) FROM order_shadow_orphan_quarantine WHERE status='OPEN';
 COMMIT;
 '@
-  Invoke-MySql $source commerceflow @'
+  Read-CommerceLedger $commerce @'
 START TRANSACTION READ ONLY;
 SELECT 'cancellation_effect_backlog',COUNT(*) FROM order_effect_outbox
   WHERE event_type='ORDER_CANCELLED' AND status IN ('NEW','RETRY');
@@ -116,9 +127,13 @@ COMMIT;
     $orderFacts = @(Invoke-MySql $target orders "START TRANSACTION READ ONLY; SELECT 'order',id,status,inventory_status FROM shop_orders WHERE id=$OrderId; COMMIT;")
     if ($orderFacts.Count -ne 1) { throw "Order $OrderId was not found in the authoritative schema." }
     $orderFacts
-    Invoke-MySql $source commerceflow @"
+    $expectedCancellation = [int](($orderFacts[0] -split "`t")[2] -eq 'CANCELLED')
+    Write-Host "Commerce ledger=$($commerce.Service)/$($commerce.Database)"
+    Read-CommerceLedger $commerce "SELECT 'checkout_receipt',order_id FROM checkout_receipts WHERE order_id=$OrderId;"
+    Read-CommerceLedger $commerce "SELECT 'inventory_command',command_type,status FROM inventory_command_delivery_outbox WHERE order_id=$OrderId ORDER BY command_type;"
+    Read-CommerceLedger $commerce @"
 START TRANSACTION READ ONLY;
-SELECT 'effect',o.event_id,o.status,IF(i.event_id IS NULL,'MISSING', 'RECORDED') AS effect_inbox,
+SELECT 'effect',o.event_id,o.status,CASE WHEN i.event_id IS NULL THEN 'MISSING' ELSE 'RECORDED' END AS effect_inbox,
        COALESCE(r.status,'MISSING') AS release_delivery,COALESCE(n.status,'MISSING') AS notification_delivery
 FROM order_effect_outbox o
 LEFT JOIN order_effect_inbox i ON i.event_id=o.event_id AND i.consumer_group='commerceflow-order-effects'
@@ -127,7 +142,7 @@ LEFT JOIN notification_delivery_outbox n ON n.event_id=CONCAT(o.event_id,':notif
 WHERE o.aggregate_id='$OrderId' AND o.event_type='ORDER_CANCELLED'
 UNION ALL
 SELECT 'effect','MISSING','MISSING','MISSING','MISSING','MISSING'
-WHERE NOT EXISTS (SELECT 1 FROM order_effect_outbox WHERE aggregate_id='$OrderId' AND event_type='ORDER_CANCELLED');
+WHERE $expectedCancellation=1 AND NOT EXISTS (SELECT 1 FROM order_effect_outbox WHERE aggregate_id='$OrderId' AND event_type='ORDER_CANCELLED');
 COMMIT;
 "@
   }

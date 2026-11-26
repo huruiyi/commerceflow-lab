@@ -26,28 +26,44 @@ function Wait-Healthy([string]$Container) {
 }
 
 Set-Location $ProjectRoot
-docker compose up -d --wait commerce-service inventory-service | Out-Null
-if ($LASTEXITCODE -ne 0) { throw 'Commerce and inventory services did not start' }
+. "$PSScriptRoot/../lib/commerce-ledger.ps1"
+Start-CommerceVerificationStack $ProjectRoot inventory-service
+$ledger = Get-CommerceLedger -AppId (docker compose ps -q commerce-service)
 
-$commerceEnvironment = docker inspect fairy-commerceflow-commerce-service `
+$commerceEnvironment = docker inspect (docker compose ps -q commerce-service) `
   --format '{{range .Config.Env}}{{println .}}{{end}}'
 if ($commerceEnvironment -notcontains 'DATABASE_USERNAME=commerce_runtime' `
     -or $commerceEnvironment -notcontains 'SPRING_FLYWAY_ENABLED=false') {
   throw 'commerce-service is not using the restricted runtime database identity'
 }
 
-$allowed = Invoke-DatabaseScalar commerce-db commerce_runtime commerce-runtime-password `
-  commerceflow 'SELECT COUNT(*) FROM app_users;'
-if ([long]$allowed -lt 1) { throw 'Runtime identity cannot access an owned commerce table' }
-foreach ($table in @('product_inventory', 'inventory_reservations', 'inventory_movements',
-    'inventory_command_inbox', 'inventory_catalog_event_inbox')) {
-  & docker compose exec -T commerce-db mysql -N -ucommerce_runtime `
-    -pcommerce-runtime-password commerceflow -e "SELECT COUNT(*) FROM $table;" `
-    1>$null 2>$null
-  if ($LASTEXITCODE -eq 0) { throw "Runtime identity can still read $table" }
+if ($ledger.Engine -eq 'postgresql') {
+  $owned = Read-CommerceLedger $ledger 'SET ROLE commerce_runtime; SELECT COUNT(*) FROM app_users;'
+  $tables = @('product_inventory','inventory_reservations','inventory_movements','inventory_command_inbox','inventory_catalog_event_inbox')
+  if ([long]$owned -lt 1 -or @(Get-PostgresCommerceGrantViolations $ledger $tables).Count) {
+    throw 'Unexpected commerce runtime inventory privileges'
+  }
+} else {
+  $allowed = Invoke-DatabaseScalar commerce-db commerce_runtime commerce-runtime-password `
+    commerceflow 'SELECT COUNT(*) FROM app_users;'
+  if ([long]$allowed -lt 1) { throw 'Runtime identity cannot access an owned commerce table' }
+  foreach ($table in @('product_inventory', 'inventory_reservations', 'inventory_movements',
+      'inventory_command_inbox', 'inventory_catalog_event_inbox')) {
+    & docker compose exec -T commerce-db mysql -N -ucommerce_runtime `
+      -pcommerce-runtime-password commerceflow -e "SELECT COUNT(*) FROM $table;" `
+      1>$null 2>$null
+    if ($LASTEXITCODE -eq 0) { throw "Runtime identity can still read $table" }
+  }
 }
 
-$sourceBefore = Invoke-VerificationDb legacy 'SELECT COUNT(*) FROM inventory_movements;'
+# This pre-cutover history belongs to the retained MySQL source.
+function Get-LegacyMovementCount {
+  $exists = Invoke-VerificationDb legacy "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name='inventory_movements'"
+  if ($exists -eq '0') { return 'retired' }
+  Invoke-VerificationDb legacy 'SELECT COUNT(*) FROM inventory_movements;'
+}
+
+$sourceBefore = Get-LegacyMovementCount
 $targetBefore = Invoke-DatabaseScalar inventory-db inventory inventory-password `
   inventory 'SELECT COUNT(*) FROM inventory_movements;'
 
@@ -98,7 +114,7 @@ try {
 }
 Invoke-RestMethod "$BaseUrl/api/merchant/inventory" -WebSession $session | Out-Null
 
-$sourceAfter = Invoke-VerificationDb legacy 'SELECT COUNT(*) FROM inventory_movements;'
+$sourceAfter = Get-LegacyMovementCount
 $targetAfter = Invoke-DatabaseScalar inventory-db inventory inventory-password `
   inventory 'SELECT COUNT(*) FROM inventory_movements;'
 if ($sourceAfter -ne $sourceBefore -or [long]$targetAfter -lt [long]$targetBefore + 2) {

@@ -47,7 +47,8 @@ if ($ReadOnly) {
   }
 
   $catalog = 'fairy-commerceflow-catalog-db'
-  $commerce = 'fairy-commerceflow-commerce-db'
+  . "$PSScriptRoot/../lib/commerce-ledger.ps1"
+  $commerce = Get-CommerceLedger fairy-commerceflow
   $inventory = 'fairy-commerceflow-inventory-db'
   $notification = 'fairy-commerceflow-notification-db-postgresql'
   $broker = 'fairy-commerceflow-kafka-broker'
@@ -61,7 +62,12 @@ if ($ReadOnly) {
   if ($notificationBinding -notmatch '^DATABASE_URL=jdbc:postgresql://(?:fairy-commerceflow-)?notification-db-postgresql:5432/notification(?:\?|$)') {
     throw 'Notification does not point at its PostgreSQL owner database.'
   }
-  $grants = Sql $commerce commerceflow @'
+  if ($commerce.Engine -eq 'postgresql') {
+    $legacy = @('products','product_translations','catalog_event_outbox','customer_notifications','notification_inbox',
+      'notification_projection_windows','notification_projection_shadow','notification_projection_audits')
+    $grants = @(Get-PostgresCommerceGrantViolations $commerce $legacy).Count
+  } else {
+    $grants = Read-CommerceLedger $commerce @'
 START TRANSACTION READ ONLY;
 WITH legacy_tables AS (
  SELECT 'products' AS name UNION ALL SELECT 'product_translations' UNION ALL SELECT 'catalog_event_outbox'
@@ -79,6 +85,7 @@ SELECT (SELECT COUNT(*) FROM information_schema.table_privileges WHERE grantee='
           AND privilege_type IN ('SELECT','INSERT','UPDATE','DELETE'));
 COMMIT;
 '@
+  }
   if ($grants -ne '0') { throw "Commerce still has legacy catalog or notification grants ($grants)." }
   $catalogPublished = @(Sql $catalog catalog "START TRANSACTION READ ONLY; SELECT event_id,aggregate_id,business_version FROM catalog_event_outbox WHERE status='PUBLISHED'; COMMIT;")
   $inventoryEvents = @(Sql $inventory inventory @'
@@ -88,7 +95,7 @@ JOIN product_inventory p ON p.product_id=i.product_id AND p.catalog_business_ver
 WHERE i.status IN ('APPLIED','STALE');
 COMMIT;
 '@)
-  $sent = @(Sql $commerce commerceflow "START TRANSACTION READ ONLY; SELECT event_id FROM notification_delivery_outbox WHERE topic='$topic' AND status='PUBLISHED'; COMMIT;")
+  $sent = @(Read-CommerceLedger $commerce "START TRANSACTION READ ONLY; SELECT event_id FROM notification_delivery_outbox WHERE topic='$topic' AND status='PUBLISHED'; COMMIT;")
   $inbox = @(Read-NotificationLedger "SELECT event_id FROM notification_inbox WHERE consumer_name='$group';")
   $visible = @(Read-NotificationLedger 'SELECT event_id FROM customer_notifications;')
   $quarantined = @(Read-NotificationLedger 'SELECT event_id FROM notification_storage_quarantine;')
@@ -98,7 +105,7 @@ COMMIT;
   Write-Host "Notification published=$($sent.Count) inbox=$($inbox.Count) visible=$($visible.Count) quarantined=$($quarantined.Count) missing=$notificationMissing"
   Write-Host "Legacy grants=$grants consumerLag=$(Get-CommittedLag $broker) deadLetterLogEnd=$(Get-LogEnd $broker "$topic-dlt")"
   Sql $catalog catalog 'START TRANSACTION READ ONLY; SELECT status,COUNT(*) FROM catalog_event_outbox GROUP BY status; COMMIT;'
-  Sql $commerce commerceflow 'START TRANSACTION READ ONLY; SELECT status,COUNT(*) FROM notification_delivery_outbox GROUP BY status; COMMIT;'
+  Read-CommerceLedger $commerce 'START TRANSACTION READ ONLY; SELECT status,COUNT(*) FROM notification_delivery_outbox GROUP BY status; COMMIT;'
   if ($catalogMissing -gt 0 -or $notificationMissing -gt 0) { throw 'Published ledger rows are missing downstream evidence.' }
   return
 }

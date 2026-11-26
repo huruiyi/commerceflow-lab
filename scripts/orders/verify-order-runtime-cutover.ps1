@@ -23,6 +23,7 @@ function WaitHealthy([string]$Container) {
   throw "$Container did not become healthy"
 }
 
+# Historical MySQL source for the order-service ownership handoff.
 function Get-SourceOrderState {
   $exists = DbScalar commerce-db root local-root-password commerceflow @'
 SELECT COUNT(*) FROM information_schema.tables
@@ -32,8 +33,9 @@ WHERE table_schema='commerceflow' AND table_name='shop_orders';
   return DbScalar commerce-db root local-root-password commerceflow 'SELECT COUNT(*) FROM shop_orders;'
 }
 
-docker compose --project-directory $ProjectRoot up -d --wait order-service commerce-service | Out-Null
-if ($LASTEXITCODE -ne 0) { throw 'Order verification services did not become healthy' }
+. "$PSScriptRoot/../lib/commerce-ledger.ps1"
+Start-CommerceVerificationStack $ProjectRoot order-service
+$ledger = Get-CommerceLedger -AppId (docker compose --project-directory $ProjectRoot ps -q commerce-service)
 $orderContainer = docker compose --project-directory $ProjectRoot ps -q order-service
 if ($LASTEXITCODE -ne 0 -or !$orderContainer) { throw 'Order service container is missing' }
 $orderEnvironment = docker inspect $orderContainer `
@@ -44,7 +46,11 @@ if ($orderEnvironment -notcontains 'ORDER_ACCEPTING_TRAFFIC=true' -or
 }
 
 $sourceBefore = Get-SourceOrderState
-if ($sourceBefore -ne 'retired') {
+if ($ledger.Engine -eq 'postgresql') {
+  if (@(Get-PostgresCommerceGrantViolations $ledger @('shop_orders','order_items','order_events')).Count) {
+    throw 'Commerce runtime can access legacy order tables'
+  }
+} elseif ($sourceBefore -ne 'retired') {
   docker compose --project-directory $ProjectRoot exec -T commerce-db mysql --user=commerce_runtime `
     --password=commerce-runtime-password commerceflow -e 'SELECT COUNT(*) FROM shop_orders;' 2>$null | Out-Null
   if ($LASTEXITCODE -eq 0) { throw 'Commerce runtime user can still read the order source table' }

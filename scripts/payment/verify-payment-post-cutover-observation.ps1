@@ -7,9 +7,10 @@ function Compose([string[]]$Arguments) {
   if ($LASTEXITCODE -ne 0) { throw "Docker Compose failed: $($Arguments -join ' ')" }
 }
 
+# Historical MySQL sequence and grants from the payment ownership handoff.
 function Source-Sql([string]$Sql) {
-  $result = docker compose --project-directory $ProjectRoot exec -T -e MYSQL_PWD=local-root-password `
-    commerce-db mysql -uroot -Nse $Sql commerceflow
+  $result = docker compose --project-directory $ProjectRoot exec -T commerce-db sh -ec `
+    'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -NB --init-command="SET SESSION TRANSACTION READ ONLY" commerceflow -e "$1"' sh $Sql
   if ($LASTEXITCODE -ne 0) { throw 'Source SQL failed' }
   return "$result".Trim()
 }
@@ -80,7 +81,16 @@ $sourceSequenceAfter = Source-Sql 'SELECT last_sequence FROM payment_shadow_chan
 if ($sourceSequenceAfter -ne $sourceSequenceBefore) {
   throw "Commerce payment source changed after CUTOVER: $sourceSequenceBefore -> $sourceSequenceAfter"
 }
-$sourceGrants = Source-Sql "SELECT COUNT(*) FROM information_schema.table_privileges WHERE grantee='''commerce_runtime''@''%''' AND table_schema='commerceflow' AND table_name IN ('payment_records','payment_merchant_accounts','payment_notifications','payment_events','payment_idempotency_locks','payment_reconciliation_issue','payment_outbox','kafka_consumed_event','payment_process_managers','payment_command_outbox','payment_result_inbox','refund_records','refund_events','refund_notifications');"
+. "$PSScriptRoot/../lib/commerce-ledger.ps1"
+$ledger = Get-CommerceLedger -AppId (docker compose --project-directory $ProjectRoot ps -q commerce-service)
+if ($ledger.Engine -eq 'postgresql') {
+  $paymentTables = @('payment_records','payment_merchant_accounts','payment_notifications','payment_events',
+    'payment_idempotency_locks','payment_reconciliation_issue','payment_outbox','kafka_consumed_event',
+    'payment_process_managers','payment_command_outbox','payment_result_inbox','refund_records','refund_events','refund_notifications')
+  $sourceGrants = @(Get-PostgresCommerceGrantViolations $ledger $paymentTables).Count
+} else {
+  $sourceGrants = Source-Sql "SELECT COUNT(*) FROM information_schema.table_privileges WHERE grantee='''commerce_runtime''@''%''' AND table_schema='commerceflow' AND table_name IN ('payment_records','payment_merchant_accounts','payment_notifications','payment_events','payment_idempotency_locks','payment_reconciliation_issue','payment_outbox','kafka_consumed_event','payment_process_managers','payment_command_outbox','payment_result_inbox','refund_records','refund_events','refund_notifications');"
+}
 if ($sourceGrants -ne '0') { throw "Commerce runtime still has $sourceGrants payment source grants" }
 
 $pending = Target-Sql "SELECT COUNT(*) FROM payment_outbox WHERE status IN ('NEW','RETRY','PROCESSING'); SELECT COUNT(*) FROM payment_command_outbox WHERE status IN ('NEW','RETRY','IN_FLIGHT'); SELECT COUNT(*) FROM payment_process_managers WHERE status<>'COMPLETED'; SELECT COUNT(*) FROM payment_shadow_orphan_quarantine WHERE status='OPEN';"
