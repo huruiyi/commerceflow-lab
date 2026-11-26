@@ -16,6 +16,14 @@
        #{simulation}, 'RECEIVED')
     ON DUPLICATE KEY UPDATE request_id = request_id
   </insert>
+  <insert id="insertRequest" databaseId="postgresql">
+    INSERT INTO invoice_requests
+      (request_id, kind, reference_no, payment_no, original_invoice_no, amount, currency, simulation, status)
+    VALUES
+      (#{requestId}, #{kind}, #{referenceNo}, #{paymentNo}, #{originalInvoiceNo}, #{amount}, #{currency},
+       #{simulation}, 'RECEIVED')
+    ON CONFLICT (request_id) DO NOTHING
+  </insert>
   <select id="findRequest" resultType="vip.fairy.commerceflow.simulator.invoice.InvoiceLedger$Request">
     SELECT <include refid="requestColumns"/> FROM invoice_requests WHERE request_id = #{requestId}
   </select>
@@ -26,6 +34,12 @@
     UPDATE invoice_requests
     SET status = 'ACCEPTED', accepted_at = UTC_TIMESTAMP(6),
         process_after = TIMESTAMPADD(MICROSECOND, #{delayMs} * 1000, UTC_TIMESTAMP(6))
+    WHERE request_id = #{requestId}
+  </update>
+  <update id="accept" databaseId="postgresql">
+    UPDATE invoice_requests
+    SET status = 'ACCEPTED', accepted_at = (statement_timestamp() AT TIME ZONE 'UTC'),
+        process_after = (statement_timestamp() AT TIME ZONE 'UTC') + #{delayMs} * INTERVAL '1 millisecond'
     WHERE request_id = #{requestId}
   </update>
   <select id="findTicket" resultType="vip.fairy.commerceflow.simulator.invoice.InvoiceLedger$Ticket">
@@ -43,12 +57,27 @@
     WHERE status = 'ACCEPTED' AND process_after &lt;= UTC_TIMESTAMP(6)
     ORDER BY process_after, request_id LIMIT 50
   </select>
+  <select id="findDueRequests" databaseId="postgresql" resultType="vip.fairy.commerceflow.simulator.invoice.InvoiceLedger$Request">
+    SELECT <include refid="requestColumns"/> FROM invoice_requests
+    WHERE status = 'ACCEPTED' AND process_after &lt;= (statement_timestamp() AT TIME ZONE 'UTC')
+    ORDER BY process_after, request_id LIMIT 50
+  </select>
   <select id="oldestAcceptedSeconds" resultType="long">
     SELECT COALESCE(GREATEST(0, TIMESTAMPDIFF(SECOND, MIN(accepted_at), UTC_TIMESTAMP(6))), 0)
     FROM invoice_requests WHERE kind = #{kind} AND status = 'ACCEPTED'
   </select>
+  <select id="oldestAcceptedSeconds" databaseId="postgresql" resultType="long">
+    SELECT COALESCE(GREATEST(0, TRUNC(EXTRACT(EPOCH FROM ((statement_timestamp() AT TIME ZONE 'UTC') - MIN(accepted_at))))::bigint), 0)
+    FROM invoice_requests WHERE kind = #{kind} AND status = 'ACCEPTED'
+  </select>
   <select id="oldestUndeliveredReceiptSeconds" resultType="long">
     SELECT COALESCE(GREATEST(0, TIMESTAMPDIFF(SECOND, MIN(request.completed_at), UTC_TIMESTAMP(6))), 0)
+    FROM invoice_receipts receipt
+    JOIN invoice_requests request ON request.request_id = receipt.request_id
+    WHERE receipt.delivered_at IS NULL AND request.kind = #{kind}
+  </select>
+  <select id="oldestUndeliveredReceiptSeconds" databaseId="postgresql" resultType="long">
+    SELECT COALESCE(GREATEST(0, TRUNC(EXTRACT(EPOCH FROM ((statement_timestamp() AT TIME ZONE 'UTC') - MIN(request.completed_at))))::bigint), 0)
     FROM invoice_receipts receipt
     JOIN invoice_requests request ON request.request_id = receipt.request_id
     WHERE receipt.delivered_at IS NULL AND request.kind = #{kind}
@@ -64,6 +93,12 @@
         invoice_no = #{invoiceNo}, failure_code = #{failureCode}, completed_at = UTC_TIMESTAMP(6)
     WHERE request_id = #{requestId}
   </update>
+  <update id="complete" databaseId="postgresql">
+    UPDATE invoice_requests
+    SET status = CASE WHEN CAST(#{failureCode} AS varchar) IS NULL THEN 'SUCCEEDED' ELSE 'FAILED' END,
+        invoice_no = #{invoiceNo}, failure_code = #{failureCode}, completed_at = (statement_timestamp() AT TIME ZONE 'UTC')
+    WHERE request_id = #{requestId}
+  </update>
   <insert id="insertReceipt">
     INSERT INTO invoice_receipts (event_id, request_id) VALUES (#{eventId}, #{requestId})
   </insert>
@@ -72,13 +107,27 @@
     WHERE delivered_at IS NULL AND next_attempt_at &lt;= UTC_TIMESTAMP(6)
     ORDER BY next_attempt_at, event_id LIMIT 10
   </select>
+  <select id="findDueReceipts" databaseId="postgresql" resultType="vip.fairy.commerceflow.simulator.invoice.InvoiceLedger$Receipt">
+    SELECT event_id, request_id FROM invoice_receipts
+    WHERE delivered_at IS NULL AND next_attempt_at &lt;= (statement_timestamp() AT TIME ZONE 'UTC')
+    ORDER BY next_attempt_at, event_id LIMIT 10
+  </select>
   <update id="acknowledgeReceipt">
     UPDATE invoice_receipts SET attempts = attempts + 1, delivered_at = UTC_TIMESTAMP(6)
+    WHERE event_id = #{eventId} AND delivered_at IS NULL
+  </update>
+  <update id="acknowledgeReceipt" databaseId="postgresql">
+    UPDATE invoice_receipts SET attempts = attempts + 1, delivered_at = (statement_timestamp() AT TIME ZONE 'UTC')
     WHERE event_id = #{eventId} AND delivered_at IS NULL
   </update>
   <update id="deferReceipt">
     UPDATE invoice_receipts
     SET attempts = attempts + 1, next_attempt_at = TIMESTAMPADD(MICROSECOND, #{delayMs} * 1000, UTC_TIMESTAMP(6))
+    WHERE event_id = #{eventId} AND delivered_at IS NULL
+  </update>
+  <update id="deferReceipt" databaseId="postgresql">
+    UPDATE invoice_receipts
+    SET attempts = attempts + 1, next_attempt_at = (statement_timestamp() AT TIME ZONE 'UTC') + #{delayMs} * INTERVAL '1 millisecond'
     WHERE event_id = #{eventId} AND delivered_at IS NULL
   </update>
 </mapper>
