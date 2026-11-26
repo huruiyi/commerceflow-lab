@@ -2,8 +2,10 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 const [project, direction] = process.argv.slice(2);
-if (!/^fairy-commerceflow-acceptance-warehouse-[a-f0-9]{12}$/.test(project) ||
-    !['forward', 'reverse'].includes(direction)) throw Error('Expected an isolated warehouse rehearsal');
+const release = ['release-forward', 'release-reverse'].includes(direction);
+const isolated = /^fairy-commerceflow-acceptance-warehouse-[a-f0-9]{12}$/.test(project);
+if ((!isolated && !(release && project === 'fairy-commerceflow')) ||
+    (!release && !['forward', 'reverse'].includes(direction))) throw Error('Invalid warehouse migration scope');
 
 const tables = {
   warehouse_outbounds: ['outbound_id', 'order_id', 'merchant_id', 'warehouse_id', 'whole_order', 'planned',
@@ -24,11 +26,21 @@ function running(service) {
 }
 function database(service) {
   const id = running(service);
-  if (!/^[a-f0-9]{12}$/.test(id)) throw Error('Expected one running isolated ' + service);
+  if (!/^[a-f0-9]{12}$/.test(id)) throw Error('Expected one running ' + service);
   const pg = service.endsWith('-postgresql');
+  if (release) {
+    const volume = pg ? 'warehouse-postgresql-data' : service.endsWith('-rollback') ?
+      'warehouse-rollback-data' : 'warehouse-simulator-db-data';
+    const path = pg ? '/var/lib/postgresql/data' : '/var/lib/mysql';
+    const mounts = JSON.parse(docker(['inspect', '--format', '{{json .Mounts}}', id]));
+    if (!mounts.some(m => m.Destination === path && m.Name === project + '_' + volume)) {
+      throw Error('Unexpected volume for ' + service);
+    }
+  }
   const client = pg ? ['psql','-U','postgres','-d','warehouse_platform','-XAtq','-v','ON_ERROR_STOP=1'] :
     ['sh','-ec','MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot --default-character-set=utf8mb4 -BNr warehouse_platform'];
   return {pg, query: sql => docker(['exec','-i',id,...client],
+    (pg && release ? 'SET search_path TO warehouse_platform;\n' : '') +
     (pg ? "SET TIME ZONE 'UTC';\n" : "SET time_zone='+00:00';\n") + sql)};
 }
 function field(name, pg) {
@@ -82,14 +94,30 @@ function literal(pg, name, value) {
   return text;
 }
 const digest = rows => createHash('sha256').update(JSON.stringify(rows)).digest('hex');
-if (running('warehouse-simulator-service')) throw Error('Stop the isolated WMS before copying');
+if (running('warehouse-simulator-service')) throw Error('Stop the warehouse service before copying');
 const mysql = database('warehouse-simulator-db');
 const postgres = database('warehouse-simulator-db-postgresql');
-const forward = direction === 'forward';
+const forward = direction === 'forward' || direction === 'release-forward';
+if (release) {
+  if (mysql.query('SELECT @@GLOBAL.super_read_only;') !== '1') throw Error('Original MySQL must be read-only');
+  if (!forward && postgres.query("SELECT NOT rolcanlogin AND NOT EXISTS (SELECT FROM pg_stat_activity " +
+      "WHERE usename='warehouse_runtime') FROM pg_roles WHERE rolname='warehouse_runtime'") !== 't') {
+    throw Error('Disable the PostgreSQL runtime login and close its sessions before rollback');
+  }
+}
 const source = snapshot(forward ? mysql : postgres);
 if (!forward) {
-  const records = new Set(source.map(row => JSON.stringify(row)));
-  if (snapshot(mysql).some(row => !records.has(JSON.stringify(row)))) throw Error('Historical warehouse data changed');
+  // A receipt can advance in PostgreSQL. The original plan, tracking data and creation time cannot change.
+  const immutable = {
+    warehouse_outbounds: ['outbound_id','order_id','merchant_id','warehouse_id','whole_order','planned','created_at'],
+    warehouse_returns: ['return_id','outbound_id','order_id','order_line_id','warehouse_id','tracking_number','expected_quantity','created_at'],
+  };
+  function historicalRecord(row) {
+    const table = row[0];
+    return JSON.stringify(release ? [table, ...immutable[table].map(name => row[1 + tables[table].indexOf(name)])] : row);
+  }
+  const records = new Set(source.map(historicalRecord));
+  if (snapshot(mysql).some(row => !records.has(historicalRecord(row)))) throw Error('Historical warehouse record missing or changed');
 }
 const target = forward ? postgres : database('warehouse-simulator-db-rollback');
 const before = snapshot(target);

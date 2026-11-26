@@ -22,26 +22,7 @@ function Restore-WarehouseBackup([string]$Service,[string]$Path) {
   docker cp $Path "$($container):/tmp/warehouse.sql"
   docker exec $container sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot --default-character-set=utf8mb4 warehouse_platform </tmp/warehouse.sql'
 }
-function Get-Receipt([string]$Resource,[string]$Id) {
-  $page=Invoke-RestMethod "$warehouseUrl/api/admin/$($Resource)?jobId=$Id" -Headers $adminHeaders
-  if ($page.total -ne 1) { throw "Expected one $Resource receipt for $Id" }
-  return $page.rows[0]
-}
-function Submit-Plan($Plan,[int]$Expected=200) {
-  $path='/internal/v1/outbounds'
-  $json=$Plan|ConvertTo-Json -Depth 5 -Compress
-  $bytes=[Text.Encoding]::UTF8.GetBytes($json)
-  $hash=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
-  $time=[datetimeoffset]::UtcNow.ToUnixTimeSeconds()
-  $nonce=[guid]::NewGuid().ToString()
-  $message=@('POST',$path,$time,$nonce,$hash) -join [char]10
-  $signature=[Security.Cryptography.HMACSHA256]::HashData([Text.Encoding]::UTF8.GetBytes($senderSecret),[Text.Encoding]::UTF8.GetBytes($message))
-  $headers=@{'X-CommerceFlow-Service'='fulfillment-service';'X-CommerceFlow-Timestamp'="$time";'X-CommerceFlow-Request-Id'=$nonce
-    'X-CommerceFlow-Content-SHA256'=$hash;'X-CommerceFlow-Signature'=[Convert]::ToHexString($signature).ToLowerInvariant()}
-  $response=Invoke-WebRequest "$warehouseUrl$path" -Method Post -Body $bytes -Headers $headers -ContentType 'application/json' -SkipHttpErrorCheck
-  if ($response.StatusCode -ne $Expected) {throw "Unexpected warehouse submission status $($response.StatusCode)"}
-  if ($Expected -eq 200) { $response.Content | ConvertFrom-Json }
-}
+. "$PSScriptRoot/../lib/warehouse-verification.ps1"
 try {
   Invoke-IsolatedAcceptance -ProjectName $warehouseProject -SkipBuild:$SkipBuild -SimulatorAdmin -Initialize {
     param($Target)
@@ -70,12 +51,12 @@ try {
     $plan=@{outboundId=[guid]::NewGuid().ToString();orderId=900001;merchantId=900001;warehouseId=1;wholeOrder=$false
       lines=@(@{orderLineId=[long]9007199254740993;productId=[long]9007199254740995;quantity=2})}
     foreach ($i in 1..2) {
-      $pending=Submit-Plan $plan
+      $pending=Submit-WarehouseCommand outbounds $plan fulfillment-service $senderSecret
       if ($pending.status -ne 'PENDING' -or $pending.outboundId -cne $plan.outboundId -or $pending.planned[0].orderLineId -ne $plan.lines[0].orderLineId) {throw 'Pending outbound replay differs'}
     }
     $conflict=$plan.Clone()
     $conflict.warehouseId=2
-    Submit-Plan $conflict 409
+    Submit-WarehouseCommand outbounds $conflict fulfillment-service $senderSecret 409
     $returned=(Get-Content "$evidence/WmsReturn.json" -Raw | ConvertFrom-Json).result
     $returnReceipt=Get-Receipt returns $returned.returnId
     if ($returnReceipt.status -ne 'PASSED' -or $returnReceipt.outboundId -ne $returned.origin) {throw 'Return origin differs'}
@@ -87,7 +68,7 @@ try {
       WAREHOUSE_DATABASE_USERNAME='warehouse';WAREHOUSE_DATABASE_PASSWORD='rehearsal'}}}} | ConvertTo-Json -Depth 5 > $rollbackConfig
     $env:COMPOSE_FILE += [IO.Path]::PathSeparator + $rollbackConfig
     Invoke-AcceptanceCompose up -d --no-deps --no-build --wait warehouse-simulator-service
-    $oldPending=Submit-Plan $plan
+    $oldPending=Submit-WarehouseCommand outbounds $plan fulfillment-service $senderSecret
     if ((ConvertTo-Json $oldPending -Compress -Depth 5) -cne (ConvertTo-Json $pending -Compress -Depth 5)) {throw 'Old image returned a different outbound'}
     $oldReturn=Get-Receipt returns $returned.returnId
     if ((ConvertTo-Json $oldReturn -Compress -Depth 5) -cne (ConvertTo-Json $returnReceipt -Compress -Depth 5)) {throw 'Old image returned a different return receipt'}
