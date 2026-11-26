@@ -1956,6 +1956,16 @@ MySQL 和 PostgreSQL 各自通过发票专项回归。两边均核对了 9 条�
 
 候选也通过 MySQL V8 的同组写入和 SQL 查询验证，空 PostgreSQL 从 V1、V2 初始化后建立首个 SQL 搜索代次。镜像内 7 项测试、代码质量和 90 项脚本契约通过。本机凭证位于 `%LOCALAPPDATA%/CommerceFlow/releases/catalog-pg-runtime-1795688934/`，完整复验项目为 `fairy-commerceflow-catalog-pg-6ec2262f4a32`。日常目录当前使用 MySQL V8，48 个日常容器的 ID 在演练前后一致。[复测步骤](architecture/DATABASE-EVOLUTION-PLAN.md#商品目录账本隔离演练)
 
+### 2.118 2026-11-26 商品目录日常发布准备
+
+在线取得目录和库存的单事务备份。日常目录有 46 个商品、99 条已投递事件，SQL 与 Elasticsearch 的代次均为 4。PostgreSQL 17.11 目标卷保留 V1 空账本，独立迁移账号拥有 schema。逐列核对运行权限后确认，应用只可修改目录及投影所需字段，删除权限仅用于可重建的 SQL 搜索文档。MySQL 回退卷的 V8 表结构、列、索引及八条 Flyway 校验值均与原库一致，业务表为空，回退实例已停止。日常原目录仍由 MySQL V8 接单，48 个已有容器的 ID 经核对一致。
+
+隔离环境恢复同一批目录和库存备份，旧版先将 Elasticsearch 重建至第 5 代，再积压商品 1 的两条事件。冻结 MySQL 并重启后，正向复制八表 260 行和三个自增序列。PostgreSQL 升至 V2 后由受限运行账号接续第 4 版价格和第 5 版英文翻译，沿用 SQL 第 4 代和 Elasticsearch 第 5 代。库存两条回执均沿用原事件号，商品版本推进至 5，库存数量不变。主动重建后 SQL 和 Elasticsearch 分别进入第 5 代与第 6 代，46 份 Elasticsearch 文档逐一匹配。
+
+在 PostgreSQL 上再积压同一商品第 6、7 版的两条事件，停止应用并禁用运行账号。反向复制八表 263 行和三个自增序列，旧版在独立 MySQL 上沿用 SQL 第 5 代与 Elasticsearch 第 6 代接续两条库存回执及文档投影。四条窗口事件均首次投递确认，三类库存数量保持为 25、3、280，回退后 46 份 Elasticsearch 文档再次匹配。两个方向重复校验得到相同逐表清单。反向复制前取得的 PostgreSQL 备份已在空实例恢复，八张业务表和两条 Flyway 记录的全字段摘要一致，两条待投递事件均可读回。
+
+代码质量、91 项脚本契约和隔离快速回归均通过。本机凭证位于 `%LOCALAPPDATA%/CommerceFlow/releases/catalog-pg-ready-1795689831/`，完整复验项目为 `fairy-commerceflow-catalog-release-b1be509b3860`。[正式切换与回退步骤](architecture/DATABASE-EVOLUTION-PLAN.md#商品目录日常发布窗口)
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

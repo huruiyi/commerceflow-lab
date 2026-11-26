@@ -54,6 +54,68 @@ pwsh scripts/commerce/verify-catalog-postgresql-runtime.ps1 -BackupPath "$releas
 
 PostgreSQL 的数据库搜索使用子串筛选，关键词匹配忽略大小写并保留重音区别，覆盖包含、排除和短语三种行为。默认相关性优先匹配标题，再按搜索文本中匹配词的出现次数排序，最后按商品编号排序。Elasticsearch 可用时沿用其相关性。演练在 Elasticsearch 尚未启动时先测 SQL 查询，随后做索引重建和逐文档核对，停掉索引后再复测 SQL 回退。[账本与投影基线](../IMPLEMENTED.md#2116-2026-11-26-商品目录-postgresql-账本隔离验收)
 
+### 商品目录日常发布窗口
+
+准备目录为 `%LOCALAPPDATA%/CommerceFlow/releases/catalog-pg-ready-1795689831/`。原目录由 MySQL V8 提供，原卷为 `fairy-commerceflow_catalog-db-data`。PostgreSQL 17.11 的 `fairy-commerceflow_catalog-postgresql-data` 已建立 V1 空账本。`catalog_migrator` 持有 schema，`catalog_runtime` 只能写入目录、库存事件和搜索投影所需的字段。允许删除待重建的 SQL 搜索文档。独立 MySQL 回退卷为 `fairy-commerceflow_catalog-rollback-data`，已载入 V8 结构、显示器属性视图和八条迁移记录。
+
+从仓库根目录加载锁定的镜像、备份及发布配置。隔离演练复用当前的目录候选、旧版目录和库存镜像，在独立库存和 Elasticsearch 上验证。
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $true
+$release = Join-Path $env:LOCALAPPDATA 'CommerceFlow/releases/catalog-pg-ready-1795689831'
+$binding = Get-Content "$release/release-binding.json" -Raw | ConvertFrom-Json
+$old = Get-Content "$release/original-args.json" -Raw | ConvertFrom-Json
+$pg = Get-Content "$release/postgresql-args.json" -Raw | ConvertFrom-Json
+$back = Get-Content "$release/rollback-args.json" -Raw | ConvertFrom-Json
+$source = 'fairy-commerceflow-catalog-db'
+$target = 'fairy-commerceflow-catalog-db-postgresql'
+if ((docker inspect fairy-commerceflow-catalog-service --format '{{.Image}}') -cne $binding.legacyId -or
+    (docker image inspect $binding.legacyTag --format '{{.Id}}') -cne $binding.legacyId -or
+    (docker image inspect $binding.candidateTag --format '{{.Id}}') -cne $binding.candidateId -or
+    (docker inspect fairy-commerceflow-inventory-service --format '{{.Image}}') -cne $binding.inventoryId) {
+    throw '目录或库存镜像与发布准备记录不一致'
+}
+foreach ($db in 'catalog','inventory') {
+    if ((Get-FileHash "$release/$db-mysql.sql").Hash -cne (Get-Content "$release/$db-backup.sha256")) {
+        throw "$db 备份摘要不一致"
+    }
+}
+if ((docker exec $target psql -U postgres -d catalog -XAtq -v ON_ERROR_STOP=1 -c (Get-Content infrastructure/catalog/verify-runtime.sql -Raw)) -cne 't') {
+    throw '目录运行账号权限已变化'
+}
+pwsh scripts/commerce/verify-catalog-postgresql-release.ps1 -BackupPath "$release/catalog-mysql.sql" -InventoryBackupPath "$release/inventory-mysql.sql" -ReleaseEnvFile "$release/standby.env" -EvidenceDirectory $release
+```
+
+正式窗口只停止目录服务并冻结 MySQL。保留库存回执和现役 Elasticsearch 代次。复制最终八张业务表和三个自增序列后，再迁移到 PostgreSQL V2。V2 在空库初始化两个搜索状态行，必须在复制之后运行，以沿用迁入的搜索代次。
+
+```powershell
+$stamp = Get-Date -Format yyyyMMdd-HHmmss
+docker @old stop catalog-service
+docker exec $source sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -e "SET PERSIST super_read_only=ON"'
+docker exec $source sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysqldump -uroot --single-transaction --no-tablespaces --set-gtid-purged=OFF --skip-lock-tables --hex-blob catalog' > "$release/frozen-$stamp.sql"
+node scripts/commerce/catalog-postgresql-ledger.mjs fairy-commerceflow release-forward "$release/forward-$stamp.json"
+docker @pg run --rm --no-deps catalog-postgresql-migrator
+docker @pg up -d --no-deps --no-build --wait catalog-service
+```
+
+确认应用以 `catalog_runtime` 连接。用迁移清单中的最终版本核对目录事件、库存回执和 SQL 文档版本，并从目录索引比对入口核对 Elasticsearch 文档。若应用启动前中止，确认 PostgreSQL 无新业务写入后解除 MySQL 的 `super_read_only` 和 `read_only`，使用 `$old` 恢复旧服务。
+
+若新应用已接单，先停目录应用，禁用 PostgreSQL 运行账号并保存原生备份，再将最新账本反向复制到独立 MySQL 回退库。
+
+```powershell
+$stamp = Get-Date -Format yyyyMMdd-HHmmss
+docker @pg stop catalog-service
+docker exec $target psql -U postgres -d catalog -v ON_ERROR_STOP=1 -c 'ALTER ROLE catalog_runtime NOLOGIN'
+docker exec $target psql -U postgres -d catalog -v ON_ERROR_STOP=1 -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename='catalog_runtime'"
+docker exec $target pg_dump -U postgres -d catalog -Fc > "$release/postgresql-$stamp.dump"
+docker @back start --wait catalog-db-rollback
+node scripts/commerce/catalog-postgresql-ledger.mjs fairy-commerceflow release-reverse "$release/reverse-$stamp.json"
+docker @back up -d --no-deps --no-build --wait catalog-service
+```
+
+回退后按原事件号核对库存确认，按当前索引代次对比 Elasticsearch 文档。受停写保护的目标中已有数据时，迁移入口只做双库逐表比对，可用同一方向重试校验。
+
 ### 发票模拟库隔离演练
 
 以日常 `invoice_platform` MySQL V2 的单事务原生备份开始，同时导出商城 `commerceflow.invoice_attempts` 中成功的请求号、业务编号、票号、原票号、金额、币种和状态。蓝票重放使用商城支付号，红票重放使用原蓝票和退款号。历史回执按请求号同时匹配开票查询和重放结果。

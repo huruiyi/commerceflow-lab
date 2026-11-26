@@ -49,7 +49,8 @@
 - [x] 日常发票已切换 PostgreSQL，停服至健康 8.6 秒。三张业务表 12 行逐字段一致，订单 754 的蓝票、红票和商城签名回执均已核对，切换后的备份可恢复。[日常发票切换验收](IMPLEMENTED.md#2115-2026-11-26-日常发票切换-postgresql)
 - [x] 商品目录 V8 账本已完成 PostgreSQL 正反向迁移。八张业务表 257 行、三个自增序列和 44 条显示器属性一致，库存和搜索基线已核对。[目录账本验收](IMPLEMENTED.md#2116-2026-11-26-商品目录-postgresql-账本隔离验收)
 - [x] 目录服务 PostgreSQL 应用层隔离验收通过。商品写入、翻译回退、SKU 筛选排序、库存事件重放、Elasticsearch 重建及 SQL 回退均已验证。[目录应用层验收](IMPLEMENTED.md#2117-2026-11-26-商品目录-postgresql-应用层隔离验收)
-- [ ] 准备日常目录 PostgreSQL 目标卷、受限运行账号和独立 MySQL 回退卷。用最新备份复验最后一批目录版本、库存回执和搜索索引代次的接续。[目录隔离演练](architecture/DATABASE-EVOLUTION-PLAN.md#商品目录账本隔离演练)
+- [x] 日常目录 PostgreSQL 目标卷、受限账号和独立回退卷已就绪。最新目录和库存备份复验通过，正向 260 行、反向 263 行逐表一致，两次待投递批次均沿用原事件号，SQL 与 Elasticsearch 代次接续成功。[目录发布准备验收](IMPLEMENTED.md#2118-2026-11-26-商品目录日常发布准备)
+- [ ] 正式切换日常目录服务。冻结原 MySQL，同步最后一批目录版本，再核对实际库存回执和 Elasticsearch 现役代次。[目录切换与回退步骤](architecture/DATABASE-EVOLUTION-PLAN.md#商品目录日常发布窗口)
 
 | 批次 | 必须交付 | 完成条件 |
 | --- | --- | --- |
