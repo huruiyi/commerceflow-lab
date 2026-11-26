@@ -4,7 +4,7 @@
 
 日常通知服务使用 PostgreSQL 17.11（`notification-db-postgresql` / `notification`）。原通知 MySQL
 数据库 `notification-db` 及其应用容器保留作回退，反向迁移前以 PostgreSQL 为唯一写入源。
-行政区划基础数据（`reference-data-db` / `reference_data`）、核心商城和站外消息模拟库也已使用 PostgreSQL 17.11。2026-11-26 站外消息日常切换后，以下 9 个业务库仍以 MySQL 8.4 为写入方。
+行政区划基础数据（`reference-data-db` / `reference_data`）、核心商城、站外消息和仓库模拟服务也已使用 PostgreSQL 17.11。2026-11-26 仓库切换后，以下 8 个业务库仍以 MySQL 8.4 为写入方。
 
 - `payment-simulator-db` / `payment_platform`
 - `logistics-simulator-db` / `logistics_platform`
@@ -13,7 +13,6 @@
 - `order-db` / `orders`（已完成单一所有权 CUTOVER）
 - `payment-db` / `payments`（支付编排）
 - `fulfillment-db` / `fulfillment`
-- `warehouse-simulator-db` / `warehouse_platform`
 - `invoice-db` / `invoice_platform`
 
 ### 下一库的隔离候选
@@ -55,7 +54,7 @@ pwsh scripts/fulfillment/verify-warehouse-postgresql.ps1 -BackupPath "$evidence/
 
 ### 仓库模拟库日常发布窗口
 
-日常仓库准备目录为 `%LOCALAPPDATA%/CommerceFlow/releases/warehouse-pg-ready-1795676371/`。原服务和原 MySQL 继续承接仓库业务。PostgreSQL 17.11 的 V1 结构位于 `fairy-commerceflow_warehouse-postgresql-data`，MySQL V4 的回退结构与四条迁移历史位于 `fairy-commerceflow_warehouse-rollback-data`。准备结束时两个备用库的业务表为空，回退实例已停止。
+**日常现状（2026-11-26 15:30）**。仓库通过 `warehouse_runtime` 写入 PostgreSQL 17.11 的 `warehouse_platform`，现役卷为 `fairy-commerceflow_warehouse-postgresql-data`。原 MySQL V4 卷持久化为强制只读，保留切换时的 29 张出库单、16 张退货单。独立回退卷 `fairy-commerceflow_warehouse-rollback-data` 已有 V4 表结构与迁移历史，回退实例平时停止。新订单 752 完成出库、退货及回补后，现役库有 30 张出库单、17 张退货单。
 
 发布目录保存原服务镜像、候选镜像 ID、原 MySQL 单事务备份及其哈希、凭据和三组 Compose 参数。参数沿用仓库服务现役覆盖文件、签名配置和端点。使用 PowerShell 7.4+ 从仓库根目录加载：
 
@@ -69,6 +68,18 @@ $back = Get-Content "$release/rollback-args.json" -Raw | ConvertFrom-Json
 $binding = Get-Content "$release/release-binding.json" -Raw | ConvertFrom-Json
 $source = 'fairy-commerceflow-warehouse-simulator-db'
 $target = 'fairy-commerceflow-warehouse-simulator-db-postgresql'
+```
+
+日常启动已创建的 PostgreSQL 和仓库服务时，使用现役参数；需要回退时加载以上变量后直接执行下方“新服务启动后的回退”。
+
+```powershell
+docker @pg up -d --no-deps --no-build --wait warehouse-simulator-db-postgresql
+docker @pg up -d --no-deps --no-build --wait warehouse-simulator-service
+```
+
+**切换前的复验记录**。下列检查以旧镜像仍承接业务为前提。
+
+```powershell
 if ((docker inspect fairy-commerceflow-warehouse-simulator-service --format '{{.Image}}') -ne $binding.originalId -or
     (docker image inspect $binding.originalTag --format '{{.Id}}') -ne $binding.originalId -or
     (docker image inspect $binding.candidateTag --format '{{.Id}}') -ne $binding.candidateId) { throw '仓库镜像已变化' }
@@ -76,7 +87,7 @@ if ((Get-FileHash "$release/warehouse-backup.sql").Hash -ne (Get-Content "$relea
 pwsh scripts/fulfillment/verify-warehouse-release.ps1 -BackupPath "$release/warehouse-backup.sql" -ReleaseEnvFile "$release/standby.env" -EvidenceDirectory $release
 ```
 
-**正式切换时**，单独停止仓库模拟服务，把原库持久化为只读，备份并复制这一刻的全部出库和退货记录。数据量小，最后一次全量还包括备份后已签收或质检的旧单。复制核对成功后启动候选服务。
+**本次正式切换步骤**。单独停止仓库模拟服务，把原库持久化为只读，备份并复制这一刻的全部出库和退货记录。最后一次全量包括备份后已签收或质检的旧单。复制核对成功后启动候选服务。
 
 ```powershell
 $stamp = Get-Date -Format yyyyMMdd-HHmmss
