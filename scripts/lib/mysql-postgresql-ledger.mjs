@@ -146,6 +146,11 @@ export function transferLedger({direction, mysqlContainer, mysqlDatabase, pgCont
     const target = reverse ? mysql : pg;
     const counts = target(ordered.map(t => 'SELECT COUNT(*) FROM ' + t + ';').join('\n')).split('\n');
     if (counts.length !== ordered.length || counts.some(n => n !== '0')) throw new Error('Destination business tables must be empty.');
+    if (reverse) {
+      // MySQL DDL commits implicitly. Reserve the source's next IDs while every target table is still empty.
+      // Explicit historical IDs below these counters can then be restored in one transaction.
+      mysql([...source.sequences].map(([t, n]) => `ALTER TABLE ${t} AUTO_INCREMENT = ${n};`).join('\n'));
+    }
     const sql = ['BEGIN;'];
     for (const [table, cols] of meta) {
       const included = cols.map((c, i) => ({ ...c, i })).filter(c => !c.generated);
@@ -171,10 +176,6 @@ export function transferLedger({direction, mysqlContainer, mysqlDatabase, pgCont
     }
     sql.push('COMMIT;');
     target(sql.join('\n') + '\n');
-    if (reverse) {
-      // MySQL ALTER TABLE commits implicitly. Advance counters only after the entire row transaction commits.
-      mysql([...source.sequences].map(([t, n]) => `ALTER TABLE ${t} AUTO_INCREMENT = ${n};`).join('\n'));
-    }
   }
   const actual = snapshot(reverse ? 'mysql' : 'pg');
   const manifest = ordered.map(t => digest(source, t));
