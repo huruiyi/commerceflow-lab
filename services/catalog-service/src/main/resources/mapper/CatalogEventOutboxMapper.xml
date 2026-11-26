@@ -7,7 +7,12 @@
       business_version,occurred_at,correlation_id,causation_id,payload)
     VALUES (#{event.eventId},#{event.eventType},#{event.productId},#{event.schemaVersion},
       #{event.businessVersion},#{event.occurredAt},#{event.correlationId},
-      #{event.causationId},#{payload})
+      #{event.causationId},
+      <choose>
+        <when test="_databaseId == 'postgresql'">CAST(#{payload} AS jsonb)</when>
+        <otherwise>#{payload}</otherwise>
+      </choose>
+    )
   </insert>
 
   <select id="pending" resultType="vip.fairy.commerceflow.catalog.domain.CatalogEventOutbox">
@@ -16,6 +21,17 @@
     WHERE status IN ('NEW','RETRY') AND next_attempt_at&lt;=CURRENT_TIMESTAMP
     ORDER BY id
     LIMIT #{batchSize}
+  </select>
+
+  <select id="backlog" databaseId="postgresql"
+          resultType="vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogEventOutboxMapper$Backlog">
+    SELECT COUNT(*) FILTER (WHERE status IN ('NEW','RETRY')) AS pending,
+      GREATEST(0,TRUNC(EXTRACT(EPOCH FROM (
+        CURRENT_TIMESTAMP-MIN(created_at) FILTER (WHERE status IN ('NEW','RETRY'))
+      )))::bigint) AS oldest_seconds,
+      COUNT(*) FILTER (WHERE status='DEAD') AS dead
+    FROM catalog_event_outbox
+    WHERE status IN ('NEW','RETRY','DEAD')
   </select>
 
   <select id="backlog"

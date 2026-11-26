@@ -149,9 +149,13 @@ public class CatalogApplicationService {
     }
     var product = new Product(merchantId, key, fingerprint, request.name().strip(),
       request.description().strip(), request.unitPrice(), request.imageUrl().strip());
+    int inserted;
     try {
-      products.insert(product);
+      inserted = products.insertListing(product);
     } catch (DuplicateKeyException exception) {
+      inserted = 0;
+    }
+    if (inserted == 0) {
       var existing = products.findCreation(merchantId, key);
       if (existing == null || !fingerprint.equals(existing.getCreateFingerprint())) {
         throw new CatalogVersionConflictException("Product creation key has been used with different fields");

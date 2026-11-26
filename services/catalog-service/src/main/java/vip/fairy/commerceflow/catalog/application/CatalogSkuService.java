@@ -83,10 +83,14 @@ public class CatalogSkuService {
     String requestId = request.requestId().toString();
     var existing = skus.findRequest(merchant, requestId);
     if (existing != null) return replay(existing, fingerprint, product);
+    int created;
     try {
-      skus.insert(new Row(null, productId, merchant, code, specKey, specification, false, request.unitPrice(),
+      created = skus.insert(new Row(null, productId, merchant, code, specKey, specification, false, request.unitPrice(),
         request.status().name(), 1, requestId, fingerprint, null));
     } catch (DuplicateKeyException duplicate) {
+      created = 0;
+    }
+    if (created == 0) {
       return replay(skus.findRequest(merchant, requestId), fingerprint, product);
     }
     var inserted = skus.findRequest(merchant, requestId);

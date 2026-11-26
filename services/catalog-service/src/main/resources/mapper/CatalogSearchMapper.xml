@@ -89,18 +89,36 @@
           <otherwise>AND</otherwise>
         </choose>
       </if>
-      LOCATE(#{term}, d.searchable) &gt; 0
+      <include refid="termPosition"/> &gt; 0
     </foreach>
     <foreach collection="excluded" item="term">
-      AND LOCATE(#{term}, d.searchable) = 0
+      AND <include refid="termPosition"/> = 0
     </foreach>
     <foreach collection="attributes" item="attr">
       AND EXISTS (
         SELECT 1 FROM catalog_monitor_attribute_values a
         WHERE a.product_id=d.product_id AND a.name=#{attr.name}
-          AND a.value COLLATE utf8mb4_0900_bin = #{attr.value}
+          AND a.value <include refid="binaryCollation"/> = #{attr.value}
       )
     </foreach>
+  </sql>
+
+  <sql id="termPosition">LOCATE(#{term},d.searchable)</sql>
+  <sql id="termPosition" databaseId="postgresql">
+    strpos(lower(d.searchable),lower(#{term}))
+  </sql>
+
+  <sql id="binaryCollation">COLLATE utf8mb4_0900_bin</sql>
+  <sql id="binaryCollation" databaseId="postgresql">COLLATE "C"</sql>
+
+  <sql id="defaultSpecContains">JSON_CONTAINS(LOWER(base_sku.specifications),#{skuJson})</sql>
+  <sql id="defaultSpecContains" databaseId="postgresql">
+    lower(base_sku.specifications::text)::jsonb @&gt; CAST(#{skuJson} AS jsonb)
+  </sql>
+
+  <sql id="variantSpecContains">JSON_CONTAINS(LOWER(sku.specifications),#{skuJson})</sql>
+  <sql id="variantSpecContains" databaseId="postgresql">
+    lower(sku.specifications::text)::jsonb @&gt; CAST(#{skuJson} AS jsonb)
   </sql>
 
   <sql id="searchScope">
@@ -123,7 +141,7 @@
       AND EXISTS (
         SELECT 1 FROM catalog_product_skus base_sku
         WHERE base_sku.default_product_id=d.product_id AND base_sku.stock_product_id IS NOT NULL
-          AND JSON_CONTAINS(LOWER(base_sku.specifications),#{skuJson})
+          AND <include refid="defaultSpecContains"/>
       )
     </if>
     <if test="minPrice != null">AND d.unit_price &gt;= #{minPrice}</if>
@@ -139,7 +157,7 @@
   <sql id="skuFilters">
     <if test="minPrice != null">AND COALESCE(sku.unit_price,d.unit_price) &gt;= #{minPrice}</if>
     <if test="maxPrice != null">AND COALESCE(sku.unit_price,d.unit_price) &lt;= #{maxPrice}</if>
-    <if test="skuJson != null">AND JSON_CONTAINS(LOWER(sku.specifications),#{skuJson})</if>
+    <if test="skuJson != null">AND <include refid="variantSpecContains"/></if>
   </sql>
 
   <sql id="matchingSkuPrice">
@@ -164,8 +182,20 @@
     GROUP BY 1, 2
   </select>
 
+  <select id="skuFacets" databaseId="postgresql"
+          resultType="vip.fairy.commerceflow.catalog.application.CatalogSkuSearch$Facet">
+    SELECT spec.key COLLATE "C" AS name,spec.value COLLATE "C" AS value,COUNT(DISTINCT d.product_id) AS product_count
+    <include refid="searchSource"/>
+    JOIN catalog_product_skus sku ON sku.product_id=d.product_id AND sku.stock_product_id IS NOT NULL
+      AND (sku.default_sku=TRUE OR sku.lifecycle_status='ACTIVE')
+      <include refid="skuFilters"/>
+    CROSS JOIN LATERAL jsonb_each_text(lower(sku.specifications::text)::jsonb) spec
+    <include refid="productFilters"/>
+    GROUP BY 1, 2
+  </select>
+
   <select id="attributeFacets" resultType="vip.fairy.commerceflow.catalog.application.CatalogSkuSearch$Facet">
-    SELECT a.name, a.value COLLATE utf8mb4_0900_bin AS value, COUNT(DISTINCT d.product_id) AS product_count
+    SELECT a.name, a.value <include refid="binaryCollation"/> AS value, COUNT(DISTINCT d.product_id) AS product_count
     <include refid="searchSource"/>
     JOIN catalog_monitor_attribute_values a ON a.product_id=d.product_id
     <include refid="productFilters"/>
@@ -177,18 +207,14 @@
           resultType="vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogSearchMapper$AttributeValue">
     SELECT product_id,name,value FROM catalog_monitor_attribute_values WHERE product_id IN
     <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
-    ORDER BY product_id,name,value COLLATE utf8mb4_0900_bin
+    ORDER BY product_id,name,value <include refid="binaryCollation"/>
   </select>
 
   <select id="count" resultType="long">
     SELECT COUNT(*) <include refid="searchScope"/>
   </select>
 
-  <select id="search" resultType="vip.fairy.commerceflow.catalog.api.CatalogProductV1">
-    SELECT 1 AS schema_version,d.product_id,d.merchant_id,d.name,d.brief,d.description,
-      d.unit_price,p.image_url,p.thumbnail_url,p.lifecycle_status,d.business_version,p.updated_at
-    <include refid="searchScope"/>
-    ORDER BY
+  <sql id="searchOrder">
     <choose>
       <when test="sort == 'price-asc'"><include refid="matchingSkuPrice"/> ASC,</when>
       <when test="sort == 'price-desc'"><include refid="matchingSkuPrice"/> DESC,</when>
@@ -205,6 +231,33 @@
         MATCH(d.searchable) AGAINST (#{query} IN NATURAL LANGUAGE MODE) DESC,
       </when>
     </choose>
+  </sql>
+
+  <sql id="searchOrder" databaseId="postgresql">
+    <choose>
+      <when test="sort == 'price-asc'"><include refid="matchingSkuPrice"/> ASC,</when>
+      <when test="sort == 'price-desc'"><include refid="matchingSkuPrice"/> DESC,</when>
+      <when test="sort == 'rating' and !ratedIds.isEmpty()">
+        array_position(ARRAY
+        <foreach collection="ratedIds" item="rated" open="[" separator="," close="]">#{rated}</foreach>
+        ::bigint[],d.product_id) ASC NULLS LAST,
+      </when>
+      <when test="!terms.isEmpty()">
+        (strpos(lower(d.name),lower(#{terms[0]}))&gt;0) DESC,
+        (<foreach collection="terms" item="term" separator="+">
+          COALESCE((char_length(d.searchable) - char_length(replace(lower(d.searchable),lower(#{term}),'')))
+            / NULLIF(char_length(#{term}),0),0)
+        </foreach>) DESC,
+      </when>
+    </choose>
+  </sql>
+
+  <select id="search" resultType="vip.fairy.commerceflow.catalog.api.CatalogProductV1">
+    SELECT 1 AS schema_version,d.product_id,d.merchant_id,d.name,d.brief,d.description,
+      d.unit_price,p.image_url,p.thumbnail_url,p.lifecycle_status,d.business_version,p.updated_at
+    <include refid="searchScope"/>
+    ORDER BY
+    <include refid="searchOrder"/>
     d.product_id ASC LIMIT #{size} OFFSET #{offset}
   </select>
 </mapper>

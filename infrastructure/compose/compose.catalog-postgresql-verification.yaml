@@ -40,7 +40,7 @@ services:
       FLYWAY_PASSWORD: catalog-isolated-postgresql
     volumes:
       - ./services/catalog-service/src/main/resources/db/postgresql:/flyway/sql:ro
-    command: ["migrate"]
+    command: ["-target=1", "migrate"]
 
 networks:
   default:

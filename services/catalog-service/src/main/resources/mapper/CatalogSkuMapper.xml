@@ -19,6 +19,20 @@
     VALUES (#{product},#{merchant},CONCAT('DEFAULT-',#{product}),SHA2('{}',256),'{}',TRUE,#{product})
     ON DUPLICATE KEY UPDATE business_version=catalog_product_skus.business_version
   </insert>
+  <insert id="backfillDefaults" databaseId="postgresql">
+    INSERT INTO catalog_product_skus(product_id,merchant_id,code,spec_key,specifications,default_sku,stock_product_id)
+    SELECT p.id,p.merchant_id,CONCAT('DEFAULT-',p.id),encode(sha256(convert_to('{}','UTF8')),'hex'),'{}',TRUE,p.id
+    FROM products p LEFT JOIN catalog_product_skus s ON s.default_product_id=p.id
+    WHERE p.listing_product_id IS NULL AND s.id IS NULL
+    ON CONFLICT DO NOTHING
+  </insert>
+
+  <insert id="insertDefault" databaseId="postgresql">
+    INSERT INTO catalog_product_skus(product_id,merchant_id,code,spec_key,specifications,default_sku,stock_product_id)
+    VALUES (#{product},#{merchant},CONCAT('DEFAULT-',#{product}),
+      encode(sha256(convert_to('{}','UTF8')),'hex'),'{}',TRUE,#{product})
+    ON CONFLICT DO NOTHING
+  </insert>
 
   <select id="list" resultType="vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogSkuMapper$Row">
     SELECT <include refid="columns"/> FROM catalog_product_skus
@@ -61,6 +75,12 @@
     <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
     ORDER BY product_id
   </select>
+  <select id="specifiedDefaults" databaseId="postgresql"
+          resultType="vip.fairy.commerceflow.catalog.infrastructure.persistence.CatalogSkuMapper$Row">
+    SELECT <include refid="columns"/> FROM catalog_product_skus
+    WHERE default_sku=TRUE AND stock_product_id IS NOT NULL AND specifications&lt;&gt;'{}'::jsonb AND product_id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+  </select>
 
   <update id="bindStock">
     UPDATE catalog_product_skus SET stock_product_id=#{stockProductId} WHERE id=#{sku} AND stock_product_id IS NULL
@@ -72,11 +92,24 @@
     VALUES (#{productId},#{merchantId},#{code},#{specKey},#{specifications},FALSE,
       #{unitPrice},#{lifecycleStatus},#{requestId},#{createFingerprint})
   </insert>
+  <insert id="insert" databaseId="postgresql">
+    INSERT INTO catalog_product_skus(product_id,merchant_id,code,spec_key,specifications,default_sku,
+      unit_price,lifecycle_status,request_id,create_fingerprint)
+    VALUES (#{productId},#{merchantId},#{code},#{specKey},CAST(#{specifications} AS jsonb),FALSE,
+      #{unitPrice},#{lifecycleStatus},#{requestId},#{createFingerprint})
+    ON CONFLICT DO NOTHING
+  </insert>
 
   <update id="update">
     UPDATE catalog_product_skus
     SET code=#{code},unit_price=#{unitPrice},lifecycle_status=#{lifecycleStatus},
-      spec_key=COALESCE(#{specKey},spec_key),specifications=COALESCE(#{specifications},specifications),
+      spec_key=COALESCE(#{specKey},spec_key),
+      specifications=COALESCE(
+        <choose>
+          <when test="_databaseId == 'postgresql'">CAST(#{specifications} AS jsonb)</when>
+          <otherwise>#{specifications}</otherwise>
+        </choose>
+        ,specifications),
       business_version=business_version+1
     WHERE id=#{sku} AND business_version=#{version}
   </update>

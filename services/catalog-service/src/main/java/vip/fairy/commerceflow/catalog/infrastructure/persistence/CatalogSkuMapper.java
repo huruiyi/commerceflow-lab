@@ -26,7 +26,7 @@ public interface CatalogSkuMapper {
 
   int bindStock(@Param("sku") long sku, @Param("stockProductId") long stockProductId);
 
-  void insert(Row sku);
+  int insert(Row sku);
 
   int update(@Param("sku") long sku, @Param("version") long version, @Param("code") String code,
              @Param("unitPrice") BigDecimal unitPrice, @Param("lifecycleStatus") String lifecycleStatus,

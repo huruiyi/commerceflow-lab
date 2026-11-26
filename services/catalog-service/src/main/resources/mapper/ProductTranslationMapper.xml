@@ -7,4 +7,10 @@
     VALUES (#{productId},#{locale},#{name},#{brief},#{description})
     ON DUPLICATE KEY UPDATE name=#{name},brief=#{brief},description=#{description}
   </insert>
+  <insert id="upsert" databaseId="postgresql">
+    INSERT INTO product_translations(product_id,locale,name,brief,description)
+    VALUES (#{productId},#{locale},#{name},#{brief},#{description})
+    ON CONFLICT (product_id,locale) DO UPDATE
+    SET name=EXCLUDED.name,brief=EXCLUDED.brief,description=EXCLUDED.description
+  </insert>
 </mapper>
