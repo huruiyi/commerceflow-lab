@@ -69,15 +69,16 @@ public class StatementFulfillmentQuery {
       new OutboundLine(line.outboundId(), line.warehouseId(), line.orderLineId(), line.productId()), line.quantity()));
     List<StockDifference> differences = new ArrayList<>();
     for (var dispatch : shipped) {
-      if (!"DISPATCHED".equals(dispatch.status()) || dispatch.actual() == null) continue;
+      boolean finalReceipt = "DISPATCHED".equals(dispatch.status()) || "VOIDED".equals(dispatch.status());
+      if (!finalReceipt || dispatch.actual() == null) continue;
       var lines = dispatch.planned().stream().collect(Collectors.toMap(
         line -> line.orderLineId(), line -> line.productId()));
       for (var actual : dispatch.actual()) {
-        if (actual.quantity() == 0) continue;
         var product = lines.get(actual.orderLineId());
         if (product == null) continue;
         var key = new OutboundLine(dispatch.outboundId(), dispatch.warehouseId(), actual.orderLineId(), product);
         var quantity = inventory.remove(key);
+        if (quantity == null && actual.quantity() == 0) continue;
         if (quantity == null || quantity != actual.quantity()) {
           differences.add(new StockDifference("INVENTORY_OUTBOUND_QUANTITY", key.outboundId(), key.orderLineId(),
             actual.quantity(), quantity));

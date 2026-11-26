@@ -62,6 +62,7 @@ import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.Invento
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandV1;
 import vip.fairy.commerceflow.commerce.inventory.application.contract.v1.InventoryCommandValidatorV1;
 import vip.fairy.commerceflow.commerce.inventory.application.port.InventoryCommandPort;
+import vip.fairy.commerceflow.commerce.inventory.infrastructure.InventoryCommandDeliveryMapper;
 import vip.fairy.commerceflow.commerce.inventory.application.InventoryCommandDeliveryStateMachine;
 import vip.fairy.commerceflow.commerce.inventory.application.InventoryCommandRecoveryService;
 import vip.fairy.commerceflow.commerce.fulfillment.application.MerchantFulfillmentService;
@@ -127,6 +128,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.when;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -171,6 +173,26 @@ class CommerceFlowIntegrationTest {
     assertEquals(regional, shipping.fee(merchant, "CN", "广西"));
     shipping.deleteRegion(merchant, "CN", "广西");
     assertEquals(regular, shipping.fee(merchant, "CN", "广西壮族自治区"));
+  }
+
+  @Test
+  @Transactional
+  void stocktakeRouteRequiresAnOpenCaseOrATimelyOriginalReceipt(@Autowired InventoryCommandDeliveryMapper deliveries) {
+    long openOrder = 723445L;
+    long closedOrder = openOrder + 1;
+    String openCommand = "order:" + openOrder + ":reserve";
+    String closedCommand = "order:" + closedOrder + ":reserve";
+    Instant reviewedAt = Instant.parse("2026-01-01T00:00:00Z");
+    deliveries.enqueue(openCommand, "RESERVE", "commerce-service", openOrder, "a".repeat(64), "{}");
+    deliveries.enqueue(closedCommand, "RESERVE", "commerce-service", closedOrder, "b".repeat(64), "{}");
+    jdbc.update("UPDATE inventory_command_delivery_outbox SET status='RECONCILIATION_REQUIRED' WHERE command_id=?",
+      openCommand);
+    jdbc.update("UPDATE inventory_command_delivery_outbox SET status='CLOSED', recovered_at=?, recovery_reason=? WHERE command_id=?",
+      reviewedAt, "Stocktake count-1; no order-level outbound attribution", closedCommand);
+    assertTrue(deliveries.hasStocktakeCase(openOrder, reviewedAt));
+    assertTrue(deliveries.hasStocktakeCase(closedOrder, reviewedAt));
+    assertFalse(deliveries.hasStocktakeCase(closedOrder, reviewedAt.plusSeconds(1)));
+    assertFalse(deliveries.hasStocktakeCase(closedOrder + 1, reviewedAt));
   }
 
   @TestConfiguration

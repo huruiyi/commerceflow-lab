@@ -95,6 +95,15 @@
     LIMIT #{limit}
   </select>
 
+  <select id="hasStocktakeCase" resultType="java.lang.Boolean">
+    SELECT EXISTS (
+      SELECT 1 FROM inventory_command_delivery_outbox
+      WHERE order_id = #{orderId} AND command_type = 'RESERVE'
+        AND (status = 'RECONCILIATION_REQUIRED'
+          OR (status = 'CLOSED' AND recovery_reason LIKE 'Stocktake %' AND recovered_at &gt;= #{reviewedAt}))
+    )
+  </select>
+
   <select id="byCommandId"
           resultType="vip.fairy.commerceflow.commerce.inventory.infrastructure.DeliveryRecoveryView">
     SELECT command_id,command_type,order_id,status,attempts,last_error,recovered_by,

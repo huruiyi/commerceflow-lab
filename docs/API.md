@@ -128,8 +128,8 @@ V8 的 `PUT /api/merchant/catalog/v1/products/{productId}/monitor-profile` 接�
 
 V72 在单条复核下提供 `GET /reconciliation/reviews/{review}/disposition`（沿用上述平台账单前缀）。
 向其 `/receipts` 发送 `POST` 关联原业务回执，提交 `requestId` 和 `receipt`。向其 `/closure` 发送 `POST` 重新对账和结案，提交 `requestId` 和 `reason`。
-已确认的库存、打款或发票差异须通过对应业务核验回执，重算后相应差异消失才可结案。无需处置须重新对账并记录结案依据。
-同一操作者以相同请求号和内容重试可读回原结果。无回执、来源暂不可用或结果仍有差异时，保持待处理并返回 409。日常商城已升至 V72。
+库存出库行差异仅在原订单有待核对的预占指令，或有复核后通过盘点关闭的预占指令时返回 `STOCKTAKE`。普通已提交订单的开放差异返回 `MANUAL`，供人工核对原始出库凭证。已确认的库存、打款或发票差异须通过对应业务核验回执，重算后相应差异消失才可结案。无需处置须重新对账并记录结案依据。
+同一操作者以相同请求号和内容重试可读回原结果。无回执、来源暂不可用或结果仍有差异时，保持待处理并返回 409。
 
 V72 提供 `GET /api/admin/exception-work` 和 `GET /api/merchant/exception-work`。
 返回 `rows`、`total`、`page`、`size`，页码从 0 开始，默认每页 20 条，最大 100 条。

@@ -4,7 +4,7 @@
 
 日常通知服务使用 PostgreSQL 17.11（`notification-db-postgresql` / `notification`）。原通知 MySQL
 数据库 `notification-db` 及其应用容器保留作回退，反向迁移前以 PostgreSQL 为唯一写入源。
-其他业务库继续使用 MySQL 8.4，各进程拥有自己的数据库。
+行政区划基础数据也已使用 PostgreSQL 17.11（`reference-data-db` / `reference_data`）。2026-11-26 核对日常服务，以下 11 个业务库仍使用 MySQL 8.4。
 
 - `commerce-db` / `commerceflow`
 - `payment-simulator-db` / `payment_platform`
@@ -14,10 +14,17 @@
 - `order-db` / `orders`（已完成单一所有权 CUTOVER）
 - `payment-db` / `payments`（支付编排）
 - `fulfillment-db` / `fulfillment`
+- `warehouse-simulator-db` / `warehouse_platform`
+- `messaging-simulator-db` / `messaging_platform`
+- `invoice-db` / `invoice_platform`
+
+日常核心商城 `commerceflow` 当前为 V73，共 79 张基础表（含 Flyway 历史），79 个主键、53 个唯一约束、44 个外键、47 个检查约束。同实例还有独立的 `commerce_verification` 验收库。迁移核对需分别记录业务库和验收库，保留原卷及原有数据。商城的结算防重、售后占用、打款和运单依赖 5 个生成列。迁移时须验证同一顾客的待结算请求、同一订单的进行中售后、同一账单的有效打款，以及原单和退货运单的唯一性。
+
+运费表已做 PostgreSQL 17.11 兼容性预检。从日常库只读复制 11 行到隔离临时实例，执行 V74 省名规范化 SQL，并逐行核对商家、国家、省州、两位小数金额和启用状态。本次预检覆盖运费表数据和该条迁移 SQL。商城运行账户、其余表、Mapper 和应用切换仍待迁移验收。
 
 PostgreSQL 专项与服务拆分、目录及命名重构分开推进。2026-11-21 已核实 M3 六个服务的单一运行所有权。
 入口退役、准入审计和当前版本恢复已通过隔离验收，M3 已在[日常发布与收尾核验](M3-SINGLE-OWNERSHIP-REVIEW.md#14-2026-11-21-日常发布与-m3-验收)
-后正式关闭。M4 已完成通知服务日常切换，当前推进部署配置和切换后验收。
+后正式关闭。M4 已完成通知服务日常切换及[门户路径收尾验收](#2026-11-22-m4-门户路径收尾验收)。
 其他 MySQL 业务库的行锁、唯一约束、幂等、Outbox 和事务竞态继续使用已实测的 InnoDB 基线。
 
 ## PostgreSQL 专项的启动条件

@@ -47,6 +47,8 @@ public interface InventoryCommandDeliveryMapper {
 
   DeliveryRecoveryView byCommandId(String commandId);
 
+  boolean hasStocktakeCase(@Param("orderId") long orderId, @Param("reviewedAt") Instant reviewedAt);
+
   DeliveryRecoveryView lockRecovery(String commandId);
 
   int closeReconciled(@Param("commandId") String commandId,

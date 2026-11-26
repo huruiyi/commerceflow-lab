@@ -41,7 +41,13 @@ public class StatementDifferenceDispositionService {
 
   @Transactional(readOnly = true)
   public View get(long merchant, String statement, String reviewId) {
-    return view(reviews.get(merchant, statement, reviewId), dispositions.find(reviewId));
+    var review = reviews.get(merchant, statement, reviewId);
+    var record = dispositions.find(reviewId);
+    if (record == null && Route.forKind(review.differenceKind()) == Route.STOCKTAKE
+        && (review.orderId() == null || !stocktakes.hasReservationCase(review.orderId(), review.reviewedAt()))) {
+      return new View(Route.MANUAL, "OPEN", null);
+    }
+    return view(review, record);
   }
 
   @Transactional(isolation = Isolation.READ_COMMITTED)

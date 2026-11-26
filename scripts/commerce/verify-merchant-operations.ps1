@@ -1378,7 +1378,7 @@ function Verify-StocktakeBoundary($order,$outbound,$report){
     Reject $admin "$disposition/receipts" Post @{requestId=[guid]::NewGuid();receipt=$reference} @(409)
     Reject $admin "$disposition/closure" Post @{requestId=[guid]::NewGuid();reason='No itemized correction receipt'} @(409)
     $view=Api $admin $disposition
-    if($view.status-ne'OPEN' -or $view.route-ne'STOCKTAKE'){throw 'Outstanding inventory evidence must remain open'}
+    if($view.status-ne'OPEN' -or $view.route-ne'MANUAL'){throw 'Outstanding inventory evidence must remain open'}
   }finally{
     if((Sql inventory-db inventory "$update 2 WHERE $match AND quantity=3; SELECT ROW_COUNT()")-ne'1'){
       throw 'Could not restore isolated inventory discrepancy fixture'

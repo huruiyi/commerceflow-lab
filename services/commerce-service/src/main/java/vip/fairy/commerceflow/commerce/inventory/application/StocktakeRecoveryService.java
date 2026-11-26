@@ -63,6 +63,11 @@ public class StocktakeRecoveryService implements StocktakeDispositionV1 {
   }
 
   @Override
+  public boolean hasReservationCase(long orderId, Instant reviewedAt) {
+    return deliveries.hasStocktakeCase(orderId, reviewedAt);
+  }
+
+  @Override
   public boolean applied(String reference, long orderId, long productId, Instant reviewedAt) {
     var row = reviews.find(reference);
     if (row == null || row.receipt() == null) return false;
