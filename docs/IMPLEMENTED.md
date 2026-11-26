@@ -2000,6 +2000,16 @@ MySQL 和 PostgreSQL 各自通过发票专项回归。两边均核对了 9 条�
 
 原 MySQL 持久保持强制只读。切换前后的 MySQL 原生导出在排除导出时间后摘要一致，订单 755 的两条履约命令均只在 PostgreSQL。历史订单 751、752、753 的履约字段与已核对的下游回执一致，现役履约指标刷新成功，待执行与逾期租约均为零。切换后的 PostgreSQL 归档在独立空实例恢复，九表 611 行的全字段摘要、两个下一自增值及两条 Flyway 记录均与现役数据库一致。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/fulfillment-pg-ready-1795692135/live-20261126-193914/`。[日常运行与回退](architecture/DATABASE-EVOLUTION-PLAN.md#履约服务日常发布窗口)
 
+### 2.123 2026-11-26 库存服务 PostgreSQL 隔离验收
+
+从日常 MySQL V10 备份恢复库存账本。旧版预占 2 件后停止写入，正向迁移 17 张业务表、3,938 行、两个下一自增值。PostgreSQL 候选启动到 Flyway V2 后沿用原订单号释放这 2 件，同一释放命令并发重放归还一次。日常订单 751、752、753、755 的四条出库凭证和前三单的三条退货回补均对上仓库的出库和质检记录，迁入和回迁后凭证一致。
+
+隔离新订单 9200752 预占并提交 3 件，从仓库 1 出库 2 件，沿用原出库单和订单行回补 1 件。商品和分仓的可售、预占、已售余额从 `95/0/5` 到 `92/3/5`，提交后为 `92/0/8`，出库维持该余额，回补后为 `93/0/7`。重复请求只记一条出库流水、一条 Kafka 出库事件和一条退货回补流水，错误出库单及超额回补均被拒绝。
+
+反向恢复 MySQL V10 共 3,955 行，逐表摘要、两个自增值及原 Flyway 历史一致。旧版读回出库及退货凭证，并释放 PostgreSQL 创建的一件在途预占。PostgreSQL 原生归档已在独立空实例恢复，逐表行数、两个下一自增值、Flyway 记录、选定凭证和商品分仓汇总通过核对。
+
+日常库存仍运行在 MySQL V10，验收前后 50 个日常容器 ID 及原库导出数据摘要一致。候选镜像也通过 PostgreSQL 空库启动，并作为 MySQL V10 应用复跑同一组双向验收。库存镜像内 11 项测试、代码质量检查和 93 项脚本契约通过。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/inventory-pg-rehearsal-1795693576/`，旧版回退使用 `fairy-commerceflow-inventory-pg-5b66e8a2eede`，候选 MySQL 复验使用 `fairy-commerceflow-inventory-pg-44ca18821701`。[隔离复测步骤](architecture/DATABASE-EVOLUTION-PLAN.md#库存服务-postgresql-隔离演练)
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

@@ -30,6 +30,20 @@
 | 9 支付渠道模拟服务 | 18 / 16 | 冲突更新、回调重试时间算术 | 支付与退款的渠道流水号、金额及回调状态与支付编排一致。 |
 | 10 支付编排服务 | 21 / 7 | 忽略重复插入、冲突更新、行锁 | 订单、渠道、退款、结算和待处理命令逐笔对账，回退后不能重复入账。 |
 
+### 库存服务 PostgreSQL 隔离演练
+
+从日常 MySQL V10 的单事务原生备份恢复库存账本。PostgreSQL 17.11 V1 建立 17 张业务表、16 个外键及两个自增序列。V2 初始化空库的两个默认仓，保留迁入的仓库资料。迁移时保留商品库存和分仓库存、预占状态和版本、命令防重记录、出库单与出库事件、退货回补和原迁移水位。正反向均核对逐表全字段摘要和下一自增值。
+
+在仓库根目录使用 PowerShell 7.4+、Node.js 24+ 及本机 Docker。`$release` 指向包含 `inventory-mysql.sql` 的备份目录。演练的源库、目标库、回退库和 Kafka 使用独立数据卷，服务仅在隔离网络内相互访问。
+
+```powershell
+docker build -t commerceflow-inventory-pg:rehearsal services/inventory-service
+$legacy = docker inspect fairy-commerceflow-inventory-service --format '{{.Config.Image}}'
+pwsh scripts/inventory/verify-inventory-postgresql.ps1 -BackupPath "$release/inventory-mysql.sql" -CandidateImage commerceflow-inventory-pg:rehearsal -BaselineImage $legacy -EvidenceDirectory $release
+```
+
+正向迁移前，旧版在隔离 MySQL 预占 2 件，PostgreSQL 接续释放。再通过签名接口预占和提交 3 件，按订单行从仓库 1 部分出库 2 件，经 Kafka 收到一条出库事件，沿用原出库单退货回补 1 件。复验重复预占、释放、提交、出库和回补，以及缺货、错误出库单和超额回补。PostgreSQL 写入另一笔预占后停写，回迁到独立 MySQL V10，旧版释放该预占并读回出库与回补凭证。[库存隔离验收记录](../IMPLEMENTED.md#2123-2026-11-26-库存服务-postgresql-隔离验收)
+
 ### 履约服务 PostgreSQL 隔离演练
 
 从日常 MySQL V4 的单事务备份恢复九张业务表，另存取自日常订单 751、752、753 的履约、仓库、商城物流桥和物流模拟器回执。正向复制到 PostgreSQL 17.11 V1，按表核对全字段摘要和两个下一自增值，启动候选服务后应用 V2。V2 初始化空库运行模式和水位，迁入的现有配置及水位保留原值。PostgreSQL `postgresql` 配置用于 `EXECUTION` 模式，旧库的 `SHADOW` 模式继续在 MySQL 上运行。
