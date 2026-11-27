@@ -2169,6 +2169,16 @@ Chromium 从管理员待办点击「查看原单」，打开对应冻结账单�
 
 同次专项验证发票在三次模拟红冲失败后按原交易补开红票 92.49 元。核对原发票复核回执、重新对账和重复结案后，撤回隔离操作者的临时发票权限。验收结果保存在本机 `%LOCALAPPDATA%/CommerceFlow/releases/fairy-commerceflow-acceptance-statement-50ee9230641b/`。
 
+### 2.139 2026-11-27 PostgreSQL 完整隔离验收
+
+以 `1c8a364` 为应用代码基线构建镜像。首次验证发现调度验收只识别 JavaScript 中的中文转义文本，现行构建直接输出 UTF-8 中文。修订断言后同时检查调度组件与中英文标题，并在完整入口纳入日常 Compose 审计。
+
+Windows PowerShell 在 `fairy-commerceflow-acceptance-1c73b5eec1a9` 复用本轮构建的镜像，从新 PostgreSQL 卷完成 13 个验收章节。包括权限、取消、支付和退款重放、物流回调补投和死信重放、自动收货、评价、Redis 降级及订单服务故障恢复。Prometheus 验证 11 个采集任务、41 条规则，Watchdog 收到 1 条测试投递。末尾健康检查通过，项目已停止。日志位于本机 `%LOCALAPPDATA%/CommerceFlow/releases/postgresql-full-acceptance-1c8a364-20261127-191759/verify-all.log`。
+
+WSL 上向原生命令转发裸通配符时，PowerShell 会按当前目录展开参数。隔离入口的三处 Compose 配置探测统一传递 `--profile=*`，保留所有 profile 的配置审计。修订后 WSL 在 `fairy-commerceflow-acceptance-da92bd12b6f8` 从新卷通过全部 13 个章节，告警规则和 Watchdog 实际投递结果与 Windows 一致。日志位于本机 `%LOCALAPPDATA%/CommerceFlow/releases/postgresql-full-acceptance-1c8a364-wsl-20261127-193231/verify-all.log`。
+
+验收项目均已停止并保留数据卷。三次启动前后核对了 42 个日常容器的 ID 和 41 个日常命名卷。GitHub Actions 已增加 Ubuntu 完整验收和日志归档作业，首次 GitHub 执行待发布。[自动验收入口](VERIFICATION-SYSTEM.md#43-提交基线门禁)
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

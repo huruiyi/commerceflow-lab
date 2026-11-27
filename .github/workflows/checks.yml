@@ -65,6 +65,30 @@ jobs:
             mvn --batch-mode --no-transfer-progress -f "$pom" test
           done < "$RUNNER_TEMP/commerceflow-poms.txt"
 
+  postgresql-acceptance:
+    name: PostgreSQL isolated acceptance
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Verify the complete stack on fresh PostgreSQL volumes
+        shell: bash
+        env:
+          COMPOSE_PARALLEL_LIMIT: '2'
+        run: |
+          pwsh -NoLogo -NoProfile -File ./scripts/verify-all.ps1 2>&1 |
+            tee "$RUNNER_TEMP/postgresql-acceptance.log"
+      - name: Upload isolated acceptance log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: postgresql-acceptance-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/postgresql-acceptance.log
+          retention-days: 14
+
   frontend:
     name: Frontend (${{ matrix.path }})
     runs-on: ubuntu-24.04

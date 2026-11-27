@@ -10,6 +10,7 @@ $ErrorActionPreference = 'Stop'
 
 & "$PSScriptRoot/audit/audit-code-quality.ps1"
 & "$PSScriptRoot/audit-script-contracts.ps1"
+& "$PSScriptRoot/audit/audit-daily-postgresql-compose.ps1"
 
 Invoke-IsolatedAcceptance -BaseUrl $BaseUrl -SkipBuild:$SkipBuild -CleanupOnSuccess:$CleanupOnSuccess -Full -Verify {
   param($Target)

@@ -30,8 +30,10 @@ $adminPage = Invoke-WebRequest "$BaseUrl/admin/scheduling" -UseBasicParsing
 $mainScript = [regex]::Match($adminPage.Content, 'src="(?<path>main-[^"]+\.js)"').Groups['path'].Value
 if (-not $mainScript) { throw 'Scheduling admin page did not reference the Angular bundle' }
 $bundle = Invoke-WebRequest "$BaseUrl/$mainScript" -UseBasicParsing
-if ($bundle.Content -notmatch 'Scheduling governance' -or
-    $bundle.Content -notmatch '(?i)\\u4efb\\u52a1\\u8c03\\u5ea6\\u6cbb\\u7406') {
+$source = [Text.Encoding]::UTF8.GetString($bundle.RawContentStream.ToArray())
+$hasChineseTitle = $source.Contains('任务调度治理') -or
+  $source -match '(?i)\\u4efb\\u52a1\\u8c03\\u5ea6\\u6cbb\\u7406'
+if (!$source.Contains('scheduling-page') -or !$source.Contains('Scheduling governance') -or !$hasChineseTitle) {
   throw 'Deployed Angular bundle does not contain the bilingual scheduling administration page'
 }
 

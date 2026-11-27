@@ -114,8 +114,9 @@ function Invoke-IsolatedAcceptance {
       $previous[$name] = [Environment]::GetEnvironmentVariable($name)
       [Environment]::SetEnvironmentVariable($name, $environment[$name])
     }
+    # Keep the wildcard within its option to prevent Unix PowerShell from expanding a splatted argument.
     # Exclude workstation overrides of database, service routing, and feature flags.
-    foreach ($line in (Invoke-AcceptanceCompose --profile '*' config --variables)) {
+    foreach ($line in (Invoke-AcceptanceCompose '--profile=*' config --variables)) {
       if ($line -match '^([A-Z][A-Z0-9_]+)\s+(?:true|false)\s' -and
           !$environment.ContainsKey($Matches[1])) {
         $name = $Matches[1]
@@ -126,7 +127,7 @@ function Invoke-IsolatedAcceptance {
         }
       }
     }
-    $base = Invoke-AcceptanceCompose --profile '*' config --format json | ConvertFrom-Json -AsHashtable
+    $base = Invoke-AcceptanceCompose '--profile=*' config --format json | ConvertFrom-Json -AsHashtable
     $endpoints = [ordered]@{}
     foreach ($service in $endpointSpecs.Keys) {
       if (!$base.services.Contains($service)) { throw "Missing acceptance service: $service" }
@@ -203,7 +204,7 @@ function Invoke-IsolatedAcceptance {
     Set-Content -LiteralPath $overrideFile -Value $yaml
     $env:COMPOSE_FILE = $baseFiles + [IO.Path]::PathSeparator + $overrideFile
 
-    $resolved = Invoke-AcceptanceCompose --profile '*' config --format json | ConvertFrom-Json -AsHashtable
+    $resolved = Invoke-AcceptanceCompose '--profile=*' config --format json | ConvertFrom-Json -AsHashtable
     if ($resolved.name -cne $project) { throw 'Unexpected acceptance project' }
     $notification = $resolved.services['notification-service-postgresql'].environment
     if ($notification.SPRING_PROFILES_ACTIVE -cne 'postgresql' -or
