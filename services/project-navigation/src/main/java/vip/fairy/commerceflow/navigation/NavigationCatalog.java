@@ -47,12 +47,24 @@ class NavigationCatalog {
         case "notification-service-postgresql", "notification-db-postgresql" -> NotificationRole.ACTIVE;
         default -> NotificationRole.NONE;
       };
-      JsonNode environment = service.path("environment");
-      String schema = environment.path("POSTGRES_DB").asString(metadata.path("schema").asString(""));
+      String schema = databaseName(service.path("environment"), metadata.path("schema").asString(""));
       entries.add(new Entry(id, metadata.path("name").asString(id), metadata.path("group").asString("services"),
           task, healthcheck, List.copyOf(profiles), schema, service.path("ports"), metadata, role));
     }
     return entries;
+  }
+
+  private String databaseName(JsonNode environment, String fallback) {
+    if (environment.isArray()) {
+      String setting = "POSTGRES_DB=";
+      for (JsonNode variable : environment) {
+        String assignment = variable.asString("");
+        if (assignment.startsWith(setting)) {
+          return assignment.substring(setting.length());
+        }
+      }
+    }
+    return environment.path("POSTGRES_DB").asString(fallback);
   }
 
   record Entry(String id, String name, String group, boolean task, boolean healthcheck,

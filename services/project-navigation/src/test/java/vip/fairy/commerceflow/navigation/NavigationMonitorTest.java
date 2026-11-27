@@ -51,6 +51,7 @@ class NavigationMonitorTest {
     assertThat(monitor.snapshot().collectedAt()).isNull();
     var service = monitor.snapshot().services().getFirst();
     assertThat(service.status()).isEqualTo("UNKNOWN");
+    assertThat(service.schema()).isEqualTo("orders");
     assertThat(service.addresses()).containsExactly(new NavigationSnapshot.Address(
         "PostgreSQL", "INTERNAL", "order-db-postgresql:5432"
     ));
@@ -111,7 +112,7 @@ class NavigationMonitorTest {
             """);
       }
       return mapper.readTree("""
-          {"services":{"order-db-postgresql":{"environment":{"POSTGRES_DB":"orders"}}}}
+          {"services":{"order-db-postgresql":{"environment":["POSTGRES_DB=orders"]}}}
           """);
     }
 
