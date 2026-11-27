@@ -3,6 +3,7 @@ reference-data/verify-reference-data.ps1	BaseUrl,Dataset,Version,ExpectedRows,Ch
 operations/verify-alerting.ps1	PrometheusUrl,AlertmanagerUrl,WebhookUrl,MaxWaitSeconds,SkipStart,PaymentOrchestrationUrl
 operations/verify-notification-alert-workflow.ps1	MaxWaitSeconds,NotificationImage
 operations/verify-project-navigation.ps1	BaseUrl,MaxWaitSeconds,ProjectName,ComposeFile
+operations/verify-postgresql-backup.ps1	BackupDirectory
 operations/verify-simulator-admin.ps1	MaxWaitSeconds
 operations/verify-simulator-monitoring.ps1	MaxWaitSeconds
 fulfillment/verify-logistics-simulator-web.ps1	BaseUrl,AdminToken

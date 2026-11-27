@@ -20,7 +20,7 @@ CommerceFlow Lab 的日常环境和隔离验收均使用 PostgreSQL 17.11。每�
 
 ## 日常恢复启动
 
-根目录 `.env` 加载日常覆盖文件。运行项目为 `fairy-commerceflow`。覆盖文件使用现有的 13 个外部命名卷。重建前按 `.env.example` 从本机部署配置加载现役凭据和发票签名密钥，确认目标卷已存在。用已发布的 Compose 参数启动已有容器时，`docker compose start --wait` 沿用创建配置。
+根目录 `.env` 加载日常覆盖文件及目录 Elasticsearch 覆盖，运行项目为 `fairy-commerceflow`。数据库覆盖使用现有的 13 个外部命名卷。重建前按 `.env.example` 从本机部署配置加载现役凭据和发票签名密钥，核对应用镜像、Kafka 数据目录、搜索索引和所有现役挂载。日常使用已发布的镜像和原卷重建。只恢复已停止容器时，`docker compose start --wait` 沿用创建配置。
 
 日常应用使用已有运行账号。升级数据库时按对应服务的 PostgreSQL 迁移配置使用迁移账号。通知应用重建前确认 Kafka 原卷、维护卷和消费组已提交位置。容器内通知地址为 `notification-service:8080`，宿主机端口为 `18086`。
 
@@ -37,6 +37,17 @@ CommerceFlow Lab 的日常环境和隔离验收均使用 PostgreSQL 17.11。每�
 ## 备份和恢复
 
 逐库用 `pg_dump -Fc` 保存业务数据库，保存对应的全局角色定义并记录 SHA-256。使用同版本 PostgreSQL 在隔离实例恢复，按库核对对象所有者、表摘要、序列、约束及角色授权。跨库交易应用订单号、支付号、退款号和事件号核对完整性。日常恢复前先冻结写入入口，并记录 Kafka 消费组和待投递事件的状态。[全量备份与隔离恢复记录](../IMPLEMENTED.md#2133-2026-11-27-日常-postgresql-全量备份与隔离恢复)
+
+在每日维护时段和变更前运行备份，每周选一份完整备份在隔离环境演练一次。保留最近 7 份每日备份和 4 份周度演练备份，另行保留仍关联发布回退的备份。备份目录须在仓库之外，根路径应限制访问。生成的备份包含数据库角色和现役容器配置，按部署凭据管理。
+
+```powershell
+./scripts/operations/backup-daily-postgresql.ps1 -BackupRoot 'G:/CommerceFlow-backups'
+./scripts/operations/verify-postgresql-backup.ps1 -BackupDirectory '<备份命令生成的目录>'
+```
+
+以 `SHA256SUMS.txt` 为备份完成标记。清单记录逐库快照时间、Flyway 历史、运行镜像、Docker 挂载、已提交的 Kafka 消费位置和分区起止位置。数据库归档是逐库的，Kafka 文件记录位置。重放 Kafka 消息还需要对应的数据卷或 broker 归档。
+
+验证入口先核对所有文件摘要，再逐库在同镜像的无网络临时实例恢复并比对 Flyway 历史，输出逐库恢复耗时。整栈演练使用独立项目和独立卷启动 Compose，继续验证下单、支付、出库、退款及通知，记录到业务就绪的时间。可恢复到的业务时间以归档窗口和跨库订单核验为准。
 
 ## 已应用版本的注释清理
 

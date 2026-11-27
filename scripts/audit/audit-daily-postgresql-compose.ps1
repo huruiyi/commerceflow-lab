@@ -76,4 +76,14 @@ foreach ($name in $expected.Keys) {
   }
 }
 
-Write-Host "Verified $($expected.Count) daily PostgreSQL JDBC targets and external data volumes."
+$search = $model.services['catalog-elasticsearch']
+$searchData = @($search.volumes | Where-Object target -ceq '/usr/share/elasticsearch/data')
+$catalog = $model.services['catalog-service'].environment
+if (!$search -or $searchData.Count -ne 1 -or
+    $model.volumes[$searchData[0].source].name -cne 'fairy-commerceflow_catalog-elasticsearch-data' -or
+    $catalog.COMMERCEFLOW_CATALOG_SEARCH_ELASTICSEARCH_ENABLED -cne 'true' -or
+    $catalog.COMMERCEFLOW_CATALOG_SEARCH_ELASTICSEARCH_URL -cne 'http://catalog-elasticsearch:9200') {
+  throw 'Daily catalog search must retain its Elasticsearch dependency and index volume'
+}
+
+Write-Host "Verified $($expected.Count) daily PostgreSQL JDBC targets, external database volumes and the catalog search volume."

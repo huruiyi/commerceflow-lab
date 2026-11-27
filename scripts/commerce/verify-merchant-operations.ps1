@@ -1366,7 +1366,7 @@ function Verify-Payout($shop,$product,$statement,$order){
     failureAndRecovery=$isolated;duplicateCallback=$isolated;successfulChannelRows=1;review=$review.requestId}
 }
 
-function Verify-StocktakeBoundary($order,$outbound,$report){
+function Verify-StocktakeBoundary($shop,$order,$outbound,$report){
   $id=[long]$order.id
   $line=[long]$order.items[0].id
   $product=[long]$order.items[0].productId
@@ -1406,12 +1406,25 @@ function Verify-StocktakeBoundary($order,$outbound,$report){
     Reject $admin "$disposition/closure" Post @{requestId=[guid]::NewGuid();reason='No itemized correction receipt'} @(409)
     $view=Api $admin $disposition
     if($view.status-ne'OPEN' -or $view.route-ne'MANUAL'){throw 'Outstanding inventory evidence must remain open'}
+    $filter="kind=STATEMENT_DIFFERENCE&orderId=$id"
+    $adminQueue=Api $admin "/api/admin/exception-work?$filter"
+    $shopQueue=Api $shop.actor "/api/merchant/exception-work?$filter"
+    $otherQueue=Api $original "/api/merchant/exception-work?$filter"
+    foreach($queue in @($adminQueue,$shopQueue)){
+      $item=@($queue.rows|Where-Object sourceId -eq $review.requestId)
+      if($item.Count-ne1 -or $item[0].orderId-ne$id -or $item[0].merchantId-ne$shop.id -or
+          $item[0].reasonCode-ne$delta.kind -or $item[0].state-ne'WAITING_EVIDENCE'){
+        throw 'Exception work did not retain the original inventory difference and order'
+      }
+    }
+    if($otherQueue.total-ne0){throw 'Inventory difference leaked to a different shop'}
   }finally{
     if((Sql inventory-db inventory "WITH changed AS ($update 2 WHERE $match AND quantity=3 RETURNING 1) SELECT COUNT(*) FROM changed")-ne'1'){
       throw 'Could not restore isolated inventory discrepancy fixture'
     }
   }
-  @{orderLine=$line;outbound="$outbound";expected=2;observed=3;review=$review.requestId;status=$view.status}
+  @{orderLine=$line;outbound="$outbound";expected=2;observed=3;review=$review.requestId;
+    route=$view.route;status=$view.status;queueState='WAITING_EVIDENCE';crossShopHidden=$true}
 }
 
 function Verify-StatementCorrections($shop){
@@ -1485,14 +1498,14 @@ function Verify-StatementCorrections($shop){
         $closed.record.receipt-ne$action.requestId.ToString()){throw 'Invoice closure or replay mismatch'}
   }finally{
     if($added-eq'1'){
-      Sql commerce-db commerceflow "DELETE ur FROM user_roles ur JOIN roles r ON r.id=ur.role_id
-        WHERE ur.user_id=$actor AND r.code='INVOICE_OPERATIONS'"|Out-Null
+      Sql commerce-db commerceflow "DELETE FROM user_roles ur USING roles r
+        WHERE ur.role_id=r.id AND ur.user_id=$actor AND r.code='INVOICE_OPERATIONS'"|Out-Null
     }
   }
   [ordered]@{order=$id;merchant=$shop.id;statement=$statement.id;outbound=$outbound;product=$order.items[0].productId;
     orderLine=$order.items[0].id;blue=$blue;red=$red;refund=$sale.refundNumber;amount=$missing.expected;
     review=$review.requestId;receipt=$closed.record.receipt;closedAt=$closed.record.closedAt;
-    inventory=(Verify-StocktakeBoundary $order $outbound $report)}
+    inventory=(Verify-StocktakeBoundary $shop $order $outbound $report)}
 }
 
 function Verify-OperationsStatement($shop,$returned){
