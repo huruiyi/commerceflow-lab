@@ -12,6 +12,12 @@ spring:
 mybatis-plus:
   mapper-locations: classpath:/mapper/*.xml
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
 warehouse:
   fulfillment-secret: ${FULFILLMENT_WAREHOUSE_SECRET}
   return-secret: ${WAREHOUSE_RETURN_SECRET}

@@ -50,7 +50,8 @@ $route = Wait-Json "$PrometheusUrl/api/v1/query?query=commerceflow_fulfillment_r
   @($value.data.result).Count -eq 1
 }
 $requiredJobs = @('commerce-service','inventory-service','order-service','catalog-service','notification-service',
-  'logistics-simulator-service','messaging-simulator-service','payment-orchestration-service','payment-simulator-service')
+  'logistics-simulator-service','messaging-simulator-service','payment-orchestration-service','payment-simulator-service',
+  'warehouse-simulator-service')
 $expectedJobs = @($requiredJobs + 'fulfillment-service' + 'invoice-simulator-service' | Sort-Object)
 $remoteFulfillment = $route.data.result[0].value[1] -eq '1'
 if ($remoteFulfillment) { $requiredJobs += 'fulfillment-service' }
@@ -71,6 +72,16 @@ if ($remoteFulfillment) {
     } | Out-Null
   }
 }
+
+Wait-Json "$PrometheusUrl/api/v1/query?query=commerceflow_warehouse_outbounds_metrics_refresh_success" {
+  param($value)
+  @($value.data.result | Where-Object { $_.metric.job -eq 'warehouse-simulator-service' -and $_.value[1] -eq '1' }).Count -eq 1
+} | Out-Null
+Wait-Json "$PrometheusUrl/api/v1/query?query=commerceflow_warehouse_outbounds" {
+  param($value)
+  $counts = @($value.data.result | Where-Object { $_.metric.job -eq 'warehouse-simulator-service' -and $_.value[1] -ne 'NaN' })
+  ($counts.metric.status | Sort-Object) -join ',' -ceq 'DISPATCHED,PENDING,VOIDED'
+} | Out-Null
 
 foreach ($metric in @('commerceflow_inventory_outbound_events_pending',
     'commerceflow_inventory_outbound_events_oldest_seconds',

@@ -15,8 +15,12 @@ interface WarehouseOutboundMapper {
   List<Row> search(@Param("query") WarehouseJobSearch query, @Param("offset") long offset);
   List<Row> evidence(@Param("merchantId") long merchantId, @Param("orderIds") List<Long> orderIds);
   int decide(@Param("id") String id, @Param("status") String status, @Param("actual") String actual);
+  OutboundCounts outboundCounts();
 
   record Row(String outboundId, long orderId, long merchantId, long warehouseId, boolean wholeOrder,
              String planned, String actual, String status, Instant createdAt, Instant decidedAt) {
+  }
+
+  record OutboundCounts(long pending, long dispatched, long voided) {
   }
 }

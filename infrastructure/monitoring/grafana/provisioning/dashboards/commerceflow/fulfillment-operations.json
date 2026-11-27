@@ -1,0 +1,434 @@
+{
+  "uid": "commerceflow-fulfillment-operations",
+  "title": "订单发货、WMS 实发与库存出库",
+  "description": "沿订单发货意图、履约任务、WMS 实发回执和库存事件定位卡点。按原订单号和出库单号查具体记录，见《CommerceFlow 告警管道》。",
+  "tags": [
+    "commerceflow",
+    "operations"
+  ],
+  "schemaVersion": 42,
+  "editable": false,
+  "graphTooltip": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "订单待发货意图",
+      "description": "订单服务中等待履约推进的发货意图数量。",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(commerceflow_order_shipment_intents_pending{job=\"order-service\"})",
+          "legendFormat": "待推进",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "发货意图最老等待时间",
+      "description": "待推进意图达到 120 秒并持续 1 分钟触发滞留告警，规则要求订单指标刷新成功。",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "custom": {
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 120
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(commerceflow_order_shipment_intents_oldest_seconds{job=\"order-service\"})",
+          "legendFormat": "最老等待",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "履约任务与租约",
+      "description": "查看履约发货和商家操作任务的积压、待复核与过期租约。",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(commerceflow_fulfillment_jobs_pending{job=\"fulfillment-service\"})",
+          "legendFormat": "待执行",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "expr": "max(commerceflow_fulfillment_jobs_review_required{job=\"fulfillment-service\"})",
+          "legendFormat": "待复核",
+          "range": true
+        },
+        {
+          "refId": "C",
+          "expr": "max(commerceflow_fulfillment_jobs_leases_expired{job=\"fulfillment-service\"})",
+          "legendFormat": "租约过期",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "履约任务最老超期时间",
+      "description": "履约执行模式下，待执行任务超期超过 120 秒并持续 2 分钟触发告警。",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "custom": {
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 120
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(commerceflow_fulfillment_jobs_oldest_due_seconds{job=\"fulfillment-service\"})",
+          "legendFormat": "最老超期",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "WMS 出库单状态",
+      "description": "仓库账本按状态统计出库单。已实发是已记录实发回执的出库单数，按原单核对实发明细和件数。",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (status) (commerceflow_warehouse_outbounds{job=\"warehouse-simulator-service\"})",
+          "legendFormat": "{{status}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "指标刷新状态",
+      "description": "1 表示最近一次业务指标刷新成功，0 表示失败，缺失序列表示该来源暂无采集数据。",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(commerceflow_order_metrics_refresh_success{job=\"order-service\"})",
+          "legendFormat": "订单",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "expr": "max(commerceflow_fulfillment_metrics_refresh_success{job=\"fulfillment-service\"})",
+          "legendFormat": "履约",
+          "range": true
+        },
+        {
+          "refId": "C",
+          "expr": "max(commerceflow_warehouse_outbounds_metrics_refresh_success{job=\"warehouse-simulator-service\"})",
+          "legendFormat": "WMS",
+          "range": true
+        },
+        {
+          "refId": "D",
+          "expr": "max(commerceflow_inventory_outbound_metrics_refresh_success{job=\"inventory-service\"})",
+          "legendFormat": "库存出库",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "库存出库事件投递",
+      "description": "库存 PostgreSQL 中未确认发布的出库事件数，以及最近 5 分钟的发布失败次数。",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "axisPlacement": "left",
+            "axisLabel": "待投递事件"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5 分钟失败次数"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "发布失败次数"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(commerceflow_inventory_outbound_events_pending{job=\"inventory-service\"})",
+          "legendFormat": "待投递",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "expr": "sum(increase(commerceflow_inventory_outbound_publish_failures_total{job=\"inventory-service\"}[5m]))",
+          "legendFormat": "5 分钟失败次数",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "出库事件最老等待时间",
+      "description": "待投递事件达到 120 秒并持续 1 分钟触发积压告警，规则要求库存出库指标刷新成功。",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "custom": {
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 120
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(commerceflow_inventory_outbound_events_oldest_seconds{job=\"inventory-service\"})",
+          "legendFormat": "最老等待",
+          "range": true
+        }
+      ]
+    }
+  ]
+}

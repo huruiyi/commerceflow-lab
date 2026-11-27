@@ -285,3 +285,34 @@ Windows 任务 `CommerceFlow PostgreSQL Recovery Alerts` 每 15 分钟读取备�
 4. 核对红票金额等于原退款金额，商城与发票平台认同同一张红票。以 `offsite-refund:<退款号>` 查通知库的 `offsite_notification_inbox` 和 `offsite_notification_deliveries`，再用渠道请求号核对模拟平台回执。验收需看到红票等待值回到 0、Webhook 收到 `resolved`、红票只生效一张、短信和邮件各送达一次。
 
 在 PowerShell 7 下运行 `pwsh -File ./scripts/operations/verify-refund-observability.ps1` 可在新卷上复验。已有同版本验收镜像时可加 `-SkipBuild`。脚本使用正式告警阈值，由隔离回执代理暂缓投递，再放行原回执并让其重试。
+
+### 订单发货、WMS 实发与库存出库处置手册
+
+在 Grafana 的 CommerceFlow 文件夹打开「订单发货、WMS 实发与库存出库」。先检查订单、履约、WMS 和库存出库的指标刷新状态，再对照发货意图、履约超期、WMS 出库状态和 Kafka 投递等待。WMS 的 `DISPATCHED` 为已有实发回执的出库单总数，件数从对应原单的 `actual` 明细读取。看板和告警使用有限的服务、状态标签，原订单号和命令号从业务账本查找。[Grafana 看板](http://localhost:13000/d/commerceflow-fulfillment-operations)
+
+| 告警或现象 | 定位原单 | 恢复与确认 |
+| --- | --- | --- |
+| `CommerceFlowOrderShipmentIntentStalled`，最老发货意图至少 120 秒且持续 1 分钟 | 在订单库按发货意图查订单 ID 和命令 ID，用完整订单号打开商家订单。继续查履约命令和 WMS 接单记录。 | 恢复卡住的服务或签名调用，查看原发货意图是否完成。 |
+| `CommerceFlowFulfillmentJobsOverdue`，履约任务超期超过 120 秒且持续 2 分钟 | 在 `fulfillment` 库定位最老命令。按该命令号查 WMS `warehouse_outbounds.outbound_id`、`status` 和 `actual`，并对照商家订单的命令状态。 | 已实发时保留原出库单。服务恢复后等待原待执行任务接续，或在原商家入口用相同 `packageId` 和原请求重试。进入 `REVIEW_REQUIRED` 时，由有权限的人员用平台原命令复核入口处理。核对同一出库单、运单与库存流水。 |
+| `CommerceFlowInventoryOutboundBacklog`，有待投递且最老事件至少 120 秒并持续 1 分钟 | 从库存 Outbox 的 `outbound_id` 关联库存出库单和订单行，记录原 `event_id`。用同一单号核对 WMS 实发、履约完成状态和库存出库凭证。 | 恢复 Kafka 与库存发布连接，由库存服务沿用原事件投递。核对原 Outbox 行的 `published_at`、Kafka 中的原消息与原业务流水。 |
+
+在对应 PostgreSQL 库用只读查询取最老候选。履约结果的 `command_id` 是 WMS 出库单号，库存结果保留原订单行与事件编号。
+
+```sql
+-- 履约库
+SELECT order_number, order_id, command_id, warehouse_id, step, status, next_attempt_at, last_error
+FROM fulfillment_shipment_jobs
+WHERE status = 'PENDING' AND next_attempt_at <= statement_timestamp()
+ORDER BY next_attempt_at, command_id
+LIMIT 20;
+
+-- 库存库
+SELECT document.order_id, event.event_id, event.outbound_id, event.order_line_id, event.next_attempt_at
+FROM inventory_outbound_event_outbox event
+JOIN inventory_outbound_documents document USING (outbound_id)
+WHERE event.published_at IS NULL
+ORDER BY event.next_attempt_at, event.event_id
+LIMIT 20;
+```
+
+确认解除时保存原订单号、出库命令、事件号、告警触发和恢复时间。检查履约待执行与库存待投递回到基线，Webhook 收到 `resolved`。按原命令及订单行逐笔核对 WMS 回执、库存出库流水和 Kafka 事件各一份。验收注入在独立 Compose 项目和新卷中执行。

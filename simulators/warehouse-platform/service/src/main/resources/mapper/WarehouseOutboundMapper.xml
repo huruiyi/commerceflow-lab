@@ -53,4 +53,11 @@
     UPDATE warehouse_outbounds SET status=#{status},actual=CAST(#{actual} AS jsonb),decided_at=CURRENT_TIMESTAMP(6)
     WHERE outbound_id=#{id} AND status='PENDING'
   </update>
+
+  <select id="outboundCounts" resultType="vip.fairy.commerceflow.warehouse.WarehouseOutboundMapper$OutboundCounts">
+    SELECT COUNT(*) FILTER (WHERE status='PENDING') AS pending,
+      COUNT(*) FILTER (WHERE status='DISPATCHED') AS dispatched,
+      COUNT(*) FILTER (WHERE status='VOIDED') AS voided
+    FROM warehouse_outbounds
+  </select>
 </mapper>
