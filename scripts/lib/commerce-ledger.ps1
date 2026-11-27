@@ -28,7 +28,7 @@ function Start-CommerceVerificationStack([string]$Root, [string]$Peer) {
     $health = @(docker inspect --format '{{.State.Health.Status}}' @existing)
     if ($LASTEXITCODE) { throw 'Could not inspect verification service health' }
     if ($health.Count -eq 2 -and !($health -ne 'healthy')) { return }
-    docker compose --project-directory $Root start --wait commerce-service $Peer | Out-Null
+    docker compose --project-directory $Root up -d --no-build --no-recreate --wait --wait-timeout 150 commerce-service $Peer | Out-Null
   } else {
     $config = docker compose --project-directory $Root config --format json | ConvertFrom-Json
     if ($LASTEXITCODE -or !$config.name) { throw 'Could not identify the verification project' }

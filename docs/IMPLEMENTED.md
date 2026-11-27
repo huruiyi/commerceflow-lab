@@ -2177,7 +2177,9 @@ Windows PowerShell 在 `fairy-commerceflow-acceptance-1c73b5eec1a9` 复用本轮
 
 WSL 上向原生命令转发裸通配符时，PowerShell 会按当前目录展开参数。隔离入口的三处 Compose 配置探测统一传递 `--profile=*`，保留所有 profile 的配置审计。修订后 WSL 在 `fairy-commerceflow-acceptance-da92bd12b6f8` 从新卷通过全部 13 个章节，告警规则和 Watchdog 实际投递结果与 Windows 一致。日志位于本机 `%LOCALAPPDATA%/CommerceFlow/releases/postgresql-full-acceptance-1c8a364-wsl-20261127-193231/verify-all.log`。
 
-验收项目均已停止并保留数据卷。三次启动前后核对了 42 个日常容器的 ID 和 41 个日常命名卷。GitHub Actions 已增加 Ubuntu 完整验收和日志归档作业，首次 GitHub 执行待发布。[自动验收入口](VERIFICATION-SYSTEM.md#43-提交基线门禁)
+验收项目均已停止并保留数据卷。三次启动前后核对了 42 个日常容器的 ID 和 41 个日常命名卷。GitHub Actions 已增加 Ubuntu 完整验收和日志归档作业。[自动验收入口](VERIFICATION-SYSTEM.md#43-提交基线门禁)
+
+GitHub 首轮通过 10 个常规作业。完整验收在自动生命周期章节遇到 runner 的 Compose `start` 未提供 `--wait`，退出后已归档日志。重启验收改用 `up --no-recreate --wait`，继续使用原容器和原卷，等待健康检查后核对租约恢复。[首次运行](https://github.com/huruiyi/commerceflow-lab/actions/runs/45993888838) · [首次日志归档](https://github.com/huruiyi/commerceflow-lab/actions/runs/45993888838/artifacts/15195562814)
 
 ## 3. 支付
 
