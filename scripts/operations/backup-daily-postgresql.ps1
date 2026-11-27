@@ -194,5 +194,8 @@ $hashes = Get-ChildItem -LiteralPath $destination -Recurse -File | Sort-Object F
   $relative = [IO.Path]::GetRelativePath($destination, $_.FullName).Replace('\', '/')
   '{0}  {1}' -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $relative
 }
-$hashes | Set-Content -LiteralPath (Join-Path $destination 'SHA256SUMS.txt')
+$pendingManifest = Join-Path $destination 'SHA256SUMS.pending'
+$hashes | Set-Content -LiteralPath $pendingManifest
+[IO.File]::Move($pendingManifest, (Join-Path $destination 'SHA256SUMS.txt'))
 Write-Host "Backup complete: $($metadata.Count) databases and $($ids.Count) services"
+Write-Output $destination

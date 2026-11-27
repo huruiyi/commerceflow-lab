@@ -212,6 +212,19 @@ docker exec $isolatedBroker /opt/kafka/bin/kafka-console-consumer.sh --bootstrap
 核对 PostgreSQL Inbox 恰有一行，并等待死信规则窗口结束后收到恢复通知。`workflow-result.json` 保存
 事件编号、通知确认和恢复时间、死信位置。收件箱持久化、轮次凭据和核验日志随隔离项目保留。
 
+### PostgreSQL 备份和隔离恢复告警
+
+Windows 任务 `CommerceFlow PostgreSQL Recovery Alerts` 每 15 分钟读取备份和隔离恢复的执行状态，并通过 Alertmanager 投递到本地 Webhook。状态与执行日志位于 `%LOCALAPPDATA%/CommerceFlow/postgresql-maintenance/`。[备份与恢复任务](architecture/DATABASE-EVOLUTION-PLAN.md#备份和恢复)
+
+| 告警 | 触发条件 | 排查动作 |
+| --- | --- | --- |
+| `CommerceFlowPostgresqlBackupFailed` | 每日备份执行失败，或连续 30 分钟未结束 | 读取 `backup.json` 中的 `log`，确认 Docker Desktop、备份磁盘和 13 个日常 PostgreSQL 实例后重跑每日任务。 |
+| `CommerceFlowPostgresqlBackupStale` | 没有成功的备份，或距上次成功超过 26 小时 | 检查每日任务的最近结果、登录状态和备份清单，触发备份并确认 SHA-256 校验。 |
+| `CommerceFlowPostgresqlRestoreFailed` | 隔离恢复执行失败，或连续 30 分钟未结束 | 读取 `restore.json` 中的 `log`，复核归档、校验和、镜像可用性和临时恢复实例后重跑恢复。 |
+| `CommerceFlowPostgresqlRestoreStale` | 没有成功的恢复演练，或距上次成功超过 8 天 | 检查周度任务的最近结果和完整备份，在新的隔离实例中恢复并查看报告。 |
+
+条件解除后发送恢复通知。Alertmanager 暂时不可用时，任务计划程序记录该次告警检查失败，下一轮重新检查。同一主机离线时无法通过这条本地链路通知。验收采用独立状态文件和 `acceptance-*` 告警标签，接收结果可从本地 Webhook 查阅。
+
 ## 5. 生产部署前仍需完成
 
 - Prometheus、Alertmanager、Grafana 和 Actuator 不应直接暴露到公网；应放入受控网络并启用 TLS、身份认证和访问审计。

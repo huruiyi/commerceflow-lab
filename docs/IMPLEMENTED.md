@@ -2181,6 +2181,14 @@ WSL 上向原生命令转发裸通配符时，PowerShell 会按当前目录展�
 
 GitHub 首轮通过 10 个常规作业。完整验收在自动生命周期章节遇到 runner 的 Compose `start` 未提供 `--wait`，退出后已归档日志。重启验收改用 `up --no-recreate --wait`，继续使用原容器和原卷，等待健康检查后核对租约恢复。[首次运行](https://github.com/huruiyi/commerceflow-lab/actions/runs/45993888838) · [首次日志归档](https://github.com/huruiyi/commerceflow-lab/actions/runs/45993888838/artifacts/15195562814)
 
+### 2.140 2026-11-27 PostgreSQL 定期备份恢复与告警
+
+Windows 任务计划程序按北京时间每日 21:00 备份、每周六 21:30 隔离恢复、每 15 分钟检查结果。20:42 首次手动触发每日任务，生成 13 份数据库归档、13 份角色文件及部署与 Kafka 位点清单，33 个文件的 SHA-256 摘要全部通过验证。归档位于 `G:/CommerceFlow-backups/postgresql-recovery-20261127-124216-06340b5c/`。
+
+随后手动触发周度任务，用该归档在无网络的同镜像临时实例中恢复 13 个库，共 202 张表。逐库 Flyway 历史匹配，报告为归档目录内的 `restore-verification-20261127-124338.json`。日常实例继续运行，原有 Docker 数据卷全部保留，临时恢复实例已退出。
+
+告警任务手动执行成功，并于 20:46 自动运行成功。独立测试状态经实际 Alertmanager 路由，使本地 Webhook 收到备份失败、超过 26 小时无成功备份、恢复失败、超过 8 天无成功演练共 4 条触发通知，随后收到 4 条恢复通知。回执归档在 `%LOCALAPPDATA%/CommerceFlow/postgresql-maintenance/acceptance-aeb84213/webhook-receipts.json`。[运行方式](architecture/DATABASE-EVOLUTION-PLAN.md#备份和恢复) · [告警排查](ALERTING.md#postgresql-备份和隔离恢复告警)
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

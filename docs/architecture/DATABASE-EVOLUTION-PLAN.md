@@ -38,7 +38,23 @@ CommerceFlow Lab 的日常环境和隔离验收均使用 PostgreSQL 17.11。每�
 
 逐库用 `pg_dump -Fc` 保存业务数据库，保存对应的全局角色定义并记录 SHA-256。使用同版本 PostgreSQL 在隔离实例恢复，按库核对对象所有者、表摘要、序列、约束及角色授权。跨库交易应用订单号、支付号、退款号和事件号核对完整性。日常恢复前先冻结写入入口，并记录 Kafka 消费组和待投递事件的状态。[全量备份与隔离恢复记录](../IMPLEMENTED.md#2133-2026-11-27-日常-postgresql-全量备份与隔离恢复)
 
-在每日维护时段和变更前运行备份，每周选一份完整备份在隔离环境演练一次。保留最近 7 份每日备份和 4 份周度演练备份，另行保留仍关联发布回退的备份。备份目录须在仓库之外，根路径应限制访问。生成的备份包含数据库角色和现役容器配置，按部署凭据管理。
+日常 Windows 主机通过任务计划程序在北京时间每天 21:00 备份，并在每周六 21:30 选取最新完整备份执行隔离恢复。维护任务使用当前 Windows 用户和 Docker Desktop。用户须保持登录，Docker Desktop 和备份盘须可用。变更前仍按需另做备份。
+
+备份目录须在仓库之外，根路径应限制访问。生成的备份包含数据库角色和现役容器配置，按部署凭据管理。计划任务不自动清理备份和数据卷。人工整理时保留至少最近 7 份每日备份、4 份周度演练对应的备份，以及仍关联发布回退的备份。
+
+在 Windows PowerShell 7 中执行以下命令可注册任务。首次部署先触发备份任务并核对结果，再注册恢复和告警任务。
+
+```powershell
+./scripts/operations/install-postgresql-maintenance-task.ps1 -Task Backup -BackupRoot 'G:/CommerceFlow-backups'
+Start-ScheduledTask -TaskName 'CommerceFlow PostgreSQL Daily Backup'
+./scripts/operations/install-postgresql-maintenance-task.ps1 -Task Restore -BackupRoot 'G:/CommerceFlow-backups'
+Start-ScheduledTask -TaskName 'CommerceFlow PostgreSQL Weekly Restore'
+./scripts/operations/install-postgresql-maintenance-task.ps1 -Task Monitor
+```
+
+任务脚本在 `%LOCALAPPDATA%/CommerceFlow/postgresql-maintenance/` 保留 `backup.json`、`restore.json` 和每次执行的日志。恢复核验报告写入对应的备份目录。[任务告警与排查](../ALERTING.md#postgresql-备份和隔离恢复告警) · [首次运行证据](../IMPLEMENTED.md#2140-2026-11-27-postgresql-定期备份恢复与告警)
+
+可手动创建变更前备份，或从指定备份演练恢复。
 
 ```powershell
 ./scripts/operations/backup-daily-postgresql.ps1 -BackupRoot 'G:/CommerceFlow-backups'
