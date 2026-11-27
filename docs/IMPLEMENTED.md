@@ -2189,6 +2189,18 @@ Windows 任务计划程序按北京时间每日 21:00 备份、每周六 21:30 �
 
 告警任务手动执行成功，并于 20:46 自动运行成功。独立测试状态经实际 Alertmanager 路由，使本地 Webhook 收到备份失败、超过 26 小时无成功备份、恢复失败、超过 8 天无成功演练共 4 条触发通知，随后收到 4 条恢复通知。回执归档在 `%LOCALAPPDATA%/CommerceFlow/postgresql-maintenance/acceptance-aeb84213/webhook-receipts.json`。[运行方式](architecture/DATABASE-EVOLUTION-PLAN.md#备份和恢复) · [告警排查](ALERTING.md#postgresql-备份和隔离恢复告警)
 
+### 2.141 2026-11-27 PostgreSQL 与 Kafka 整栈隔离恢复
+
+日常环境运行期间取得 13 个 PostgreSQL 库的逻辑备份，并从 Kafka 数据卷只读归档 513 个文件。采集前后的业务分区起止位点和消费组提交位置一致。复制后逐文件核对原卷，KRaft 活动日志按已归档字节长度核对前缀，其余文件逐字节匹配。33 个 PostgreSQL 归档文件及 Kafka 压缩包均通过 SHA-256 校验。各数据库仍分别取得快照。
+
+隔离项目 `fairy-commerceflow-acceptance-pgkafka-685f5d8fee` 使用独立网络和新卷恢复 13 个库、202 张表，Flyway 历史逐库一致。Kafka 保留原集群、存储目录及 12 个主题标识，31 个业务分区的起止位点、6 个已提交位置和 6 条历史消息摘要均一致。两个应用消费组加入时沿用原位点，隔离配置将 `auto.offset.reset` 设为 `none`。[Kafka 消费者配置](https://kafka.apache.org/41/configuration/consumer-configs/)
+
+隔离订单 762 完成下单、支付 1,301.90 元、WMS 出库、物流签收、退货入库、退款 89.90 元、蓝票和等额红冲，模拟短信和邮件均送达。库存出库主题只增加一条与该订单对应的消息，退货回补沿用原仓和原出库行。对原消费组另行重投订单 750 的通知和订单 758 的取消事件，报文、键和消息头一致。两组的对应分区提交位置由 46 前进到 47、由 49 前进到 50，积压归零，通知、订单和库存账本均未重复生效。
+
+PostgreSQL 恢复用时 40.08 秒。从开始校验归档到 42 个隔离容器就绪用时 6 分 25.42 秒，新订单全链路用时 40.30 秒，历史消息重投和去重核对用时 19.20 秒。从开始校验归档到业务与 Kafka 核对结束的实际用时为 12 分 54.81 秒，包含演练中的排查和分步验证。
+
+演练结束后仅停止隔离项目，保留其 18 个命名卷。42 个日常容器的身份、启动时间和挂载一致，39 个有健康检查的容器均健康。原有 1,307 个 Docker 卷全部保留，日常 Kafka 业务分区末尾及消费位置一致，隔离订单号未写入日常库。证据位于 `G:/CommerceFlow-backups/postgresql-kafka-drill-20261127-212006-baef8c/paired-capture/`。其中 `recovery-summary.json` 汇总恢复结果，`timeline.jsonl` 记录时间，`kafka/replay-proof.json` 和 `journey/cross-service-ledger-proof.json` 保存消息接续与业务对账证据。
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。
