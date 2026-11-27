@@ -2,7 +2,7 @@ spring:
   application:
     name: inventory-service
   datasource:
-    url: ${DATABASE_URL:jdbc:mysql://localhost:3309/inventory?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    url: ${DATABASE_URL}
     username: ${DATABASE_USERNAME:inventory}
     password: ${DATABASE_PASSWORD:inventory-password}
   flyway:

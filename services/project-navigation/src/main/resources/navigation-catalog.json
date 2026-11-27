@@ -360,6 +360,114 @@
       }
     }
   },
+  "commerce-db-postgresql": {
+    "name": "商城数据库 · PostgreSQL",
+    "group": "databases",
+    "ports": {
+      "5432": {
+        "protocol": "PostgreSQL"
+      }
+    }
+  },
+  "catalog-db-postgresql": {
+    "name": "商品数据库 · PostgreSQL",
+    "group": "databases",
+    "ports": {
+      "5432": {
+        "protocol": "PostgreSQL"
+      }
+    }
+  },
+  "order-db-postgresql": {
+    "name": "订单数据库 · PostgreSQL",
+    "group": "databases",
+    "ports": {
+      "5432": {
+        "protocol": "PostgreSQL"
+      }
+    }
+  },
+  "inventory-db-postgresql": {
+    "name": "库存数据库 · PostgreSQL",
+    "group": "databases",
+    "ports": {
+      "5432": {
+        "protocol": "PostgreSQL"
+      }
+    }
+  },
+  "fulfillment-db-postgresql": {
+    "name": "履约数据库 · PostgreSQL",
+    "group": "databases",
+    "ports": {
+      "5432": {
+        "protocol": "PostgreSQL"
+      }
+    }
+  },
+  "payment-db-postgresql": {
+    "name": "支付编排数据库 · PostgreSQL",
+    "group": "databases",
+    "ports": {
+      "5432": {
+        "protocol": "PostgreSQL"
+      }
+    }
+  },
+  "payment-simulator-db-postgresql": {
+    "name": "支付模拟数据库 · PostgreSQL",
+    "group": "databases",
+    "ports": {
+      "5432": {
+        "protocol": "PostgreSQL"
+      }
+    }
+  },
+  "warehouse-simulator-db-postgresql": {
+    "name": "仓储模拟数据库 · PostgreSQL",
+    "group": "databases",
+    "ports": {
+      "5432": {
+        "protocol": "PostgreSQL"
+      }
+    }
+  },
+  "logistics-simulator-db-postgresql": {
+    "name": "物流模拟数据库 · PostgreSQL",
+    "group": "databases",
+    "ports": {
+      "5432": {
+        "protocol": "PostgreSQL"
+      }
+    }
+  },
+  "invoice-db-postgresql": {
+    "name": "发票数据库 · PostgreSQL",
+    "group": "databases",
+    "ports": {
+      "5432": {
+        "protocol": "PostgreSQL"
+      }
+    }
+  },
+  "messaging-simulator-db-postgresql": {
+    "name": "短信邮件模拟数据库 · PostgreSQL",
+    "group": "databases",
+    "ports": {
+      "5432": {
+        "protocol": "PostgreSQL"
+      }
+    }
+  },
+  "reference-data-db": {
+    "name": "行政区划基础数据库 · PostgreSQL",
+    "group": "databases",
+    "ports": {
+      "5432": {
+        "protocol": "PostgreSQL"
+      }
+    }
+  },
   "commerce-redis": {
     "name": "商城 Redis",
     "group": "middleware",

@@ -148,7 +148,7 @@ function Assert-Report($Query, $PaymentRows, $RefundRows) {
 try {
   if (-not $Image) {
     $Image = 'commerceflow-payment-ledger-report:verification'
-    docker build -t $Image (Join-Path $root 'services/payment-orchestration-service')
+    docker build --build-arg MAVEN_LEGACY_MYSQL=true -t $Image (Join-Path $root 'services/payment-orchestration-service')
   }
   docker network create $isolation | Out-Null
   $networkCreated = $true

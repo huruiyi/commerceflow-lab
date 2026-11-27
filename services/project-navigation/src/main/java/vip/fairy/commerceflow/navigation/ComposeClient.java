@@ -61,7 +61,12 @@ class ComposeClient {
   }
 
   JsonNode configuration() throws IOException, InterruptedException {
-    return mapper.readTree(compose("config", "--format", "json"));
+    try {
+      return mapper.readTree(compose("config", "--format", "json"));
+    } catch (IOException exception) {
+      // The dashboard can read topology even when deployment credentials are unavailable.
+      return mapper.readTree(compose("config", "--no-interpolate", "--format", "json"));
+    }
   }
 
   List<JsonNode> containers() throws IOException, InterruptedException {

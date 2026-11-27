@@ -2,7 +2,7 @@ spring:
   application:
     name: logistics-simulator-service
   datasource:
-    url: ${LOGISTICS_DATABASE_URL:jdbc:mysql://localhost:13308/logistics_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    url: ${LOGISTICS_DATABASE_URL}
     username: ${LOGISTICS_DATABASE_USERNAME:logistics}
     password: ${LOGISTICS_DATABASE_PASSWORD:logistics-password}
   flyway:

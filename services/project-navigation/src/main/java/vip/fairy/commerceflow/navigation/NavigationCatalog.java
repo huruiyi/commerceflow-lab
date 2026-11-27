@@ -51,10 +51,11 @@ class NavigationCatalog {
         case "notification-db" -> mysqlNotification ? NotificationRole.ACTIVE : NotificationRole.ROLLBACK_DB;
         default -> NotificationRole.NONE;
       };
+      JsonNode environment = service.path("environment");
+      String schema = environment.path("POSTGRES_DB").asString(
+          environment.path("MYSQL_DATABASE").asString(metadata.path("schema").asString("")));
       entries.add(new Entry(id, metadata.path("name").asString(id), metadata.path("group").asString("services"),
-          task, healthcheck, List.copyOf(profiles), service.path("environment").path("MYSQL_DATABASE")
-              .asString(metadata.path("schema").asString("")),
-          service.path("ports"), metadata, role));
+          task, healthcheck, List.copyOf(profiles), schema, service.path("ports"), metadata, role));
     }
     return entries;
   }

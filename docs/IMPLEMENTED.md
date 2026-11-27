@@ -2143,6 +2143,12 @@ PostgreSQL 17.11 目标卷 `fairy-commerceflow_payment-simulator-postgresql-data
 
 演练结束后临时实例均已清理，13 个日常服务的 PostgreSQL 会话仍正常，54 个运行容器 ID 及 41 个日常命名卷均一致。12 套原 MySQL 卷、原生导出摘要及只读配置前后一致。备份和演练证据保存在本机受限目录 `G:/CommerceFlow-backups/postgresql-full-20261127-042935/`，其中 `SHA256SUMS.txt` 是归档校验清单，`rehearsal-summary.json` 是逐库恢复结果。
 
+### 2.134 2026-11-27 日常 MySQL 容器退役
+
+对 `fairy-commerceflow` 逐项核对 13 个应用的 JDBC 目标、容器健康状态及 PostgreSQL 17.11 的 `pg_stat_activity`。停机前，12 个原 MySQL 实例均无业务客户端会话。原实例正常退出后共移除 27 个旧容器，涵盖原数据库、回退实例、迁移辅助容器和旧通知应用。
+
+清理前后，每个应用在相应 PostgreSQL 库均有 10 条会话，应用与数据库容器均健康。其余 42 个运行容器的 ID 一致。41 个日常命名卷均保留，其中包括 12 个原 MySQL 数据卷和 10 个 MySQL 回退卷。
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

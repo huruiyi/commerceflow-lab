@@ -1,6 +1,6 @@
 # CommerceFlow Lab / CommerceFlow 电商全链路实验室
 
-这是一个可独立运行的前后端分离教学项目，已将原 Angular Demo 中的登录、商品、订单和用户功能改为本地 Spring Boot + MySQL 实现，不再依赖外部 JsonBulut API。
+这是一个可独立运行的前后端分离教学项目。登录、商品、订单和用户功能由本地 Spring Boot 服务提供，日常环境使用 PostgreSQL 17.11。
 
 ## 项目标识 / Project identity
 
@@ -27,15 +27,15 @@
   └─ http://localhost:14200
        └─ Nginx
             ├─ Angular 22.2.6 + SimUI 1.8.0 / Spartan UI 静态页面
-            └─ /api/* → commerce-service → MySQL 8.4 / Redis 7.4
+            └─ /api/* → commerce-service → PostgreSQL 17.11 / Redis 7.4
                          ├─ 通知身份薄代理 → notification-service → PostgreSQL 17.11 / Kafka
-                         ├─ 商品身份薄代理 → catalog-service → 独立 MySQL 8.4
-                         ├─ Payment V1 → payment-orchestration-service → 独立 MySQL 8.4
-                         └─ 库存 Outbox / 身份薄代理 → inventory-service → 独立 MySQL 8.4
+                         ├─ 商品身份薄代理 → catalog-service → 独立 PostgreSQL
+                         ├─ Payment V1 → payment-orchestration-service → 独立 PostgreSQL
+                         └─ 库存 Outbox / 身份薄代理 → inventory-service → 独立 PostgreSQL
 
 支付平台浏览器 http://localhost:14201
   └─ Vue 3.5.45 + Ant Design Vue Next + VXE-Table + Nginx
-                  → 独立 Spring Boot 支付服务 → 独立 MySQL
+                  → 独立 Spring Boot 支付服务 → 独立 PostgreSQL
                                       └────────────→ 独立 Redis Session 命名空间
 ```
 
@@ -43,16 +43,16 @@
 - `services/commerce-service/`：Java 25 LTS、Spring Boot 4.1.2、Spring Security 7、MyBatis-Plus、Flyway 和后端 Dockerfile。
 - `services/notification-service/`：独立 PostgreSQL/Kafka 通知服务，是通知查询、未读统计和已读状态的唯一实现；
   commerce 只保留 Session/RBAC/HMAC 薄代理与订单事务侧通知 Outbox。
-- `services/catalog-service/`：独立 MySQL 商品资料服务，commerce 只保留鉴权、签名代理与评价组合。
-- `services/inventory-service/`：分层库存服务，独立 MySQL 保存五张所有权表；默认接收 RESERVE、COMMIT、
+- `services/catalog-service/`：独立 PostgreSQL 商品资料服务，commerce 只保留鉴权、签名代理与评价组合。
+- `services/inventory-service/`：分层库存服务，独立 PostgreSQL 保存五张所有权表；默认接收 RESERVE、COMMIT、
   RELEASE、REFUND，并独占商家库存查询、调账和流水。commerce 只保留生产端 Outbox/结果 Inbox 与
   Session/RBAC/HMAC 薄代理，其运行数据库账号无五张库存源表权限。
-- `services/payment-orchestration-service/`：独立 MySQL 支付与退款服务，通过 Payment V1 接收商城命令，
+- `services/payment-orchestration-service/`：独立 PostgreSQL 支付与退款服务，通过 Payment V1 接收商城命令，
   独立接收渠道回调，并使用 Outbox 投递订单、库存和通知结果。[M3 日常切换验收](docs/architecture/M3-SINGLE-OWNERSHIP-REVIEW.md#14-2026-11-21-日常发布与-m3-验收)。
 - `simulators/payment-platform/service/`：独立支付数据库、后台安全、商户凭据和三渠道交易服务。
 - `simulators/logistics-platform/service/`：独立物流数据库、运单推进、异常与可靠回调模拟服务。
 - `simulators/payment-platform/web/`：Vue 3.5.45、Ant Design Vue Next 和 VXE-Table 支付管理后台与模拟收银台。
-- `compose.yaml`：一键启动 MySQL、Redis、后端和前端。
+- `compose.yaml` 与日常覆盖文件：启动 PostgreSQL、Redis、消息中间件及前后端。
 
 ## 学习路线与代码阅读顺序
 
@@ -61,7 +61,7 @@
 1. 从 `web/commerce-portal/angular/src/app` 看登录、商品、购物车、地址、订单和商家页面如何调用 API。
 2. 阅读 `services/commerce-service/.../identity/infrastructure/SecurityConfiguration.java` 和认证 Controller，理解 Session、CSRF、Remember-Me 与角色授权。
 3. 阅读购物车、下单、支付、履约、收货评价对应的 Controller、Service、Mapper。
-4. 按版本查看 `services/commerce-service/src/main/resources/db/migration`，把业务模型与数据库约束对应起来。
+4. 查看 `services/commerce-service/src/main/resources/db/postgresql`，把业务模型与数据库约束对应起来。
 5. 阅读支付 Outbox、Kafka 发布/消费和补偿任务，再进入独立的 `simulators/payment-platform/service/`。
 6. 最后使用 `scripts/` 中的验收脚本做成功、失败、幂等、越权和故障实验。
 
@@ -69,49 +69,40 @@
 
 ## 一键启动
 
-本机日常核心商城现用 PostgreSQL 17.11。日常重启、重建和回退时使用已经发布的 Compose 参数，以复用当前卷、镜像和凭据。[核心商城的启动与回退](docs/architecture/DATABASE-EVOLUTION-PLAN.md#核心商城的启动与回退)
+### 日常已迁移环境
 
-在使用基础 MySQL 配置且已完成履约交接或初始化的学习环境中，从本目录执行：
+根目录 `.env` 加载履约、行政区划基础数据和日常 PostgreSQL 覆盖文件。日常 Compose 项目为
+`fairy-commerceflow`，13 个 PostgreSQL 数据卷都映射到原有的外部命名卷。Compose 在缺少卷时会停止启动。
+在本机发布环境中加载现役 PostgreSQL 凭据和发票签名密钥，变量名见 `.env.example`。已有容器可按已经发布的
+参数执行 `start --wait`，以复用容器创建时的配置。需要按当前源码重建时，从仓库目录执行：
 
 ```powershell
 docker compose up --build -d --wait
 docker compose ps
 ```
 
-默认启动读取根目录的 `compose.yaml`。履约初始化、发布、回退、影子验证和 HA 的覆盖配置统一放在
-[`infrastructure/compose/`](infrastructure/compose/)，使用时将根配置放在第一个 `-f`。
-若本地 `.env` 已通过 `COMPOSE_FILE` 加载覆盖文件，也要在该变量中使用新路径。
+日常覆盖文件用于已迁移卷，应用使用现役账号并保持初始化迁移关闭。新版本数据库迁移沿用分库发布流程。
+MySQL JDBC 驱动和 Flyway 模块仅在显式启用 Maven 的 `legacy-mysql` Profile 时打包。
+跨库迁移、回退和历史验收通过显式 Compose 参数运行。[核心商城的启动与回退](docs/architecture/DATABASE-EVOLUTION-PLAN.md#核心商城的启动与回退)
 
-日常通知使用 PostgreSQL 17.11。重建前核对 `fairy-commerceflow_notification-postgresql-data`、
-`fairy-commerceflow_notification-maintenance` 和 Kafka 持久化卷均存在，并在 `.env` 使用现役库凭据。
-默认配置复用既有通知表和消费组提交位置，通知应用占用宿主机 `18086`，容器内通过
-`notification-service:8080` 访问。原 MySQL 应用保持停机，保留容器与数据卷。日常重建、MySQL 学习基线和
-带新写入的回退流程见[通知部署与验收](docs/architecture/DATABASE-EVOLUTION-PLAN.md#日常通知部署与验收)。
+通知应用占用宿主机 `18086`，容器内通过 `notification-service:8080` 访问。重建前还需核对通知维护卷、
+Kafka 持久化卷和通知消费组的已提交位置。[通知部署与验收](docs/architecture/DATABASE-EVOLUTION-PLAN.md#日常通知部署与验收)
 
-商城默认使用独立履约服务。首次使用全新卷时，通过空库配置显式建立履约所有权，后续启动使用上面的默认命令。
-首次使用全新的 PostgreSQL 和 Kafka 卷时，设置以下变量完成初始化。此步骤适用于新建的学习环境。
+### 隔离历史验收
+
+`scripts/verify-quick.ps1` 和 `scripts/verify-all.ps1` 在隔离项目中使用显式基础配置。
+脚本会初始化新通知数据库、Kafka 消费组和演示数据：
 
 ```powershell
-$env:NOTIFICATION_POSTGRESQL_FLYWAY_ENABLED = 'true'
-$env:NOTIFICATION_POSTGRESQL_OFFSET_RESET = 'earliest'
-docker compose -f compose.yaml -f infrastructure/compose/compose.fulfillment-fresh.yaml up --build -d --wait
+./scripts/verify-quick.ps1
 ```
 
 新消费组的每个分区都有有效提交位置后，重建时把偏移策略切回 `none`，并关闭初始化 Flyway。
 
-已有商城本地履约数据的环境先完成所有权切换。使用独立签名密钥的环境可叠加 `infrastructure/compose/compose.fulfillment-execution.yaml`，
-回退时使用已验收的版本化回退包。见[履约演进计划](docs/architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md)。
-
-已有目录库可直接启动。全新环境会先建表。体验加购、下单和支付时，启动后显式初始化演示商品、库存及支付渠道。
-
-```powershell
-docker compose --profile demo-data run --rm catalog-demo-init
-docker compose --profile demo-data run --rm payment-demo-init
-```
+已有商城本地履约数据的历史环境先完成所有权切换，回退时使用已验收的版本化回退包。
+参见[履约演进计划](docs/architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md)。
 
 从旧商城库导入目录数据时使用[手工迁移入口](docs/architecture/M3-SINGLE-OWNERSHIP-REVIEW.md#5-目录启动与初始化验收)。
-
-默认配置可直接用于本地学习。需要改端口以外的数据库密码、回调密钥或 Remember-Me 密钥时，复制 `.env.example` 为 `.env` 后修改；不要把生产密钥提交到仓库。
 
 访问地址：
 
@@ -128,7 +119,6 @@ docker compose --profile demo-data run --rm payment-demo-init
 - 库存服务健康检查：`http://localhost:18088/actuator/health`
 - 订单服务健康检查：`http://localhost:18089/actuator/health`
 - 支付编排服务健康检查：`http://localhost:18090/actuator/health`
-- 物流 MySQL：`localhost:13308`
 - Kafka UI：`http://localhost:14202`
 
 ### 运行控制台
@@ -145,16 +135,16 @@ pwsh -File ./scripts/operations/verify-project-navigation.ps1
 首页「运行总览」提供实时状态统计和常用入口。各分类提供 CommerceFlow 后台和服务的直达入口与可复制的连接地址。
 分类页和「运行总览」共用并记住在当前浏览器选择的「卡片 / 列表」布局，切换布局时保留当前筛选。
 商城和各管理台的网页入口可通过 Chrome、Edge、Firefox 图标在指定浏览器打开。浏览器需安装在运行控制台的电脑上，使用该浏览器已有的登录会话。
-控制台与验收脚本在仓库根目录读取 Compose 生效配置（默认 `compose.yaml`，也支持 `COMPOSE_FILE` 指定覆盖文件），
+控制台与验收脚本在仓库根目录读取 Compose 生效配置（包含 `COMPOSE_FILE` 指定的覆盖文件），
 再按 `fairy-commerceflow` 项目标签补充所有已创建的服务容器，包括停止的容器和发票发布覆盖中的服务。
 一次性 `docker compose run` 容器不列入清单。控制台分别显示容器健康、宿主机端点探测和任务退出结果，
 验收会指出快照中缺少的服务或容器。
 新增后台入口或探测路径时，更新 `services/project-navigation/src/main/resources/navigation-catalog.json`。独立验收栈保留各自的运行入口。
 
-`notification-db` 与 `notification-service` 属于默认拓扑。浏览器继续访问原 `/api/notifications`，commerce
+`notification-db-postgresql` 与 `notification-service-postgresql` 属于日常拓扑。浏览器继续访问原 `/api/notifications`，commerce
 从 Session 提取 customerId 并签名转发；它不访问通知表，也不在独立服务故障时回退到本地数据。
 
-`inventory-db` 与 `inventory-service` 属于默认拓扑。commerce 在业务事务中只写库存命令 Outbox，由唯一
+`inventory-db-postgresql` 与 `inventory-service` 属于日常拓扑。commerce 在业务事务中只写库存命令 Outbox，由唯一
 异步派发器向独立服务发送，未知结果使用原 commandId 有限重试，不回退本地 Handler。历史数据复跑使用
 `inventory-migration` Profile；它不是长期运行路径。
 

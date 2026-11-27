@@ -78,8 +78,9 @@ class NavigationMonitor {
     JsonNode metadataPorts = entry.metadata().path("ports");
     Map<Integer, JsonNode> ports = new LinkedHashMap<>();
     for (JsonNode port : entry.ports()) {
-      if ("tcp".equals(port.path("protocol").asString("tcp"))) {
-        ports.put(port.path("target").asInt(), port);
+      int target = port.path("target").asInt();
+      if (target > 0 && "tcp".equals(port.path("protocol").asString("tcp"))) {
+        ports.put(target, port);
       }
     }
     for (String port : metadataPorts.propertyNames()) {
@@ -125,7 +126,7 @@ class NavigationMonitor {
       }
     });
 
-    if ("notification-db-postgresql".equals(entry.id())) {
+    if ("PostgreSQL".equals(metadataPorts.path("5432").path("protocol").asString())) {
       for (Instance instance : instances) {
         if (instance.health().equals("healthy") || instance.health().equals("unhealthy")) {
           probes.add(new Probe(instance.name(), instance.health().equals("healthy") ? "REACHABLE" : "FAILED",

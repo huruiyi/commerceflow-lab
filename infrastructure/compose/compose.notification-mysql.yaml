@@ -15,6 +15,8 @@ services:
     container_name: fairy-commerceflow-notification-service
     build:
       context: ./services/notification-service
+      args:
+        MAVEN_LEGACY_MYSQL: "true"
     environment:
       SPRING_KAFKA_CONSUMER_AUTO_OFFSET_RESET: ${NOTIFICATION_MYSQL_OFFSET_RESET:-earliest}
       COMMERCEFLOW_NOTIFICATION_WRITE_PAUSE_FILE: /gate/writes.paused

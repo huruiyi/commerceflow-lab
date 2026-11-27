@@ -2,8 +2,7 @@
 
 ## 当前决策
 
-日常通知服务使用 PostgreSQL 17.11（`notification-db-postgresql` / `notification`）。原通知 MySQL
-数据库 `notification-db` 及其应用容器保留作回退，反向迁移前以 PostgreSQL 为唯一写入源。
+日常通知服务使用 PostgreSQL 17.11（`notification-db-postgresql` / `notification`）。原通知 MySQL 数据卷保留作回退，旧数据库及应用容器已退役。回退流程以 PostgreSQL 为唯一写入源核对反向迁移数据。[MySQL 容器退役](../IMPLEMENTED.md#2134-2026-11-27-日常-mysql-容器退役)
 行政区划基础数据（`reference-data-db` / `reference_data`）、核心商城、商品目录、履约、库存、订单、支付编排以及支付渠道、站外消息、仓库、物流和发票模拟服务均已使用 PostgreSQL 17.11。2026-11-26 日常支付双库完成最后一批切换，原 MySQL 数据留作历史核对和回退。2026-11-27 核对了 13 个服务的实际连接，并用订单 760 对账完整交易路径。[日常支付双库切换验收](../IMPLEMENTED.md#2131-2026-11-26-日常支付双库切换-postgresql) · [切换后日常全链路回归](../IMPLEMENTED.md#2132-2026-11-27-postgresql-切换后日常全链路回归)
 
 ### 下一库的隔离候选
@@ -709,7 +708,7 @@ docker @back up -d --no-deps --no-build --wait messaging-simulator-service
 
 日常核心商城服务通过 `commerce-db-postgresql:5432/commerceflow` 读写，业务 schema 为 `commerceflow`。MySQL 原卷 `fairy-commerceflow_commerce-db-data` 及 `commerce_verification` 保持只读。PostgreSQL 数据卷为 `fairy-commerceflow_commerce-postgresql-data`。运行账户仅持有 49 张表的授权，五个生成列继续约束结算、售后、打款和运单唯一性。[日常切换验收](../IMPLEMENTED.md#2102-2026-11-26-核心商城切换-postgresql)
 
-**日常恢复启动。** 本机发布目录保存了覆盖文件顺序、两个数据库密码和现役镜像。使用发布参数检查状态。已存在的容器可用同一组参数执行 `start --wait`，这会沿用创建时的配置。基础 Compose 的 MySQL 配置用于独立学习环境。
+**日常恢复启动。** 本机发布目录保存了覆盖文件顺序、两个数据库密码和现役镜像。使用发布参数检查状态。已存在的容器可用同一组参数执行 `start --wait`，这会沿用创建时的配置。根目录 `.env` 的日常覆盖文件将 13 个 PostgreSQL 数据库绑定到现有外部卷。基础 Compose 的 MySQL 配置用于显式启动的隔离验收和回退。
 
 ```powershell
 $release = Join-Path $env:LOCALAPPDATA 'CommerceFlow/releases/commerce-v74-pg-1795662278646'

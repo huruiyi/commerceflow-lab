@@ -6,7 +6,7 @@ spring:
   application:
     name: catalog-service
   datasource:
-    url: ${DATABASE_URL:jdbc:mysql://localhost:3308/catalog?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    url: ${DATABASE_URL}
     username: ${DATABASE_USERNAME:catalog}
     password: ${DATABASE_PASSWORD:catalog-password}
   flyway:

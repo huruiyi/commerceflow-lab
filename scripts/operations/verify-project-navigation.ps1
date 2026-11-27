@@ -42,7 +42,7 @@ Assert-Navigation ($assetResponse.StatusCode -eq 200) 'The Vue bundle could not 
 
 Push-Location $workspace
 try {
-  $configured = @(& docker @compose config --services)
+  $configured = @(& docker @compose config --no-interpolate --services)
   Assert-Navigation ($LASTEXITCODE -eq 0 -and $configured.Count -gt 0) 'Could not read the Compose service list.'
 } finally {
   Pop-Location
@@ -70,14 +70,21 @@ $byId = @{}
 foreach ($service in $snapshot.services) { $byId.Add($service.id, $service) }
 Assert-Navigation (@($byId['commerce-portal-angular'].links.url -match '/merchant/orders$').Count -eq 1) 'Merchant orders shortcut missing.'
 Assert-Navigation (@($byId['commerce-portal-angular'].links.url -match '/admin/scheduling$').Count -eq 1) 'Scheduling shortcut missing.'
-Assert-Navigation ($byId['order-db'].schema -ceq 'orders') 'Order database schema is incorrect.'
-Assert-Navigation (@($byId['order-db'].addresses | Where-Object scope -EQ 'HOST').Count -eq 0) 'The order database unexpectedly has a host address.'
+$orderDatabaseId = if ($configured -ccontains 'order-db-postgresql') { 'order-db-postgresql' } else { 'order-db' }
+$orderDatabase = $byId[$orderDatabaseId]
+Assert-Navigation ($orderDatabase.schema -ceq 'orders') 'Order database schema is incorrect.'
+Assert-Navigation (@($orderDatabase.addresses | Where-Object scope -EQ 'HOST').Count -eq 0) 'The order database unexpectedly has a host address.'
 if ($expected -ccontains 'rabbitmq-broker') {
   Assert-Navigation ($byId['rabbitmq-broker'].profiles -contains 'rabbitmq') 'RabbitMQ profile information is missing.'
 }
-if ($expected -ccontains 'invoice-db') {
-  Assert-Navigation ($byId['invoice-db'].group -ceq 'databases' -and $byId['invoice-db'].schema -ceq 'invoice_platform') 'Invoice database metadata is incorrect.'
-  Assert-Navigation ($byId['invoice-db'].addresses.value -ccontains 'invoice-db:3306') 'Invoice database internal address is missing.'
+if ($configured -ccontains 'invoice-db-postgresql') {
+  $invoiceDb = $byId['invoice-db-postgresql']
+  Assert-Navigation ($invoiceDb.group -ceq 'databases' -and $invoiceDb.schema -ceq 'invoice_platform') 'Invoice database metadata is incorrect.'
+  Assert-Navigation ($invoiceDb.addresses.value -ccontains 'invoice-db-postgresql:5432') 'Invoice database internal address is missing.'
+} elseif ($expected -ccontains 'invoice-db') {
+  $invoiceDb = $byId['invoice-db']
+  Assert-Navigation ($invoiceDb.group -ceq 'databases' -and $invoiceDb.schema -ceq 'invoice_platform') 'Invoice database metadata is incorrect.'
+  Assert-Navigation ($invoiceDb.addresses.value -ccontains 'invoice-db:3306') 'Invoice database internal address is missing.'
 }
 if ($expected -ccontains 'invoice-simulator-service') {
   Assert-Navigation ($byId['invoice-simulator-service'].group -ceq 'simulators') 'Invoice simulator category is incorrect.'

@@ -1,3 +1,4 @@
+# Base configuration for explicit legacy rehearsals and the daily PostgreSQL overlay.
 name: fairy-commerceflow
 services:
   commerce-db:
@@ -220,6 +221,8 @@ services:
     container_name: fairy-commerceflow-messaging-simulator-service
     build:
       context: ./simulators/messaging-platform/service
+      args:
+        MAVEN_LEGACY_MYSQL: "true"
     environment:
       MESSAGING_DATABASE_URL: jdbc:mysql://messaging-simulator-db:3306/messaging_platform?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=UTC
       MESSAGING_DATABASE_USERNAME: ${MESSAGING_DATABASE_USERNAME:-messaging}
@@ -278,6 +281,8 @@ services:
     container_name: fairy-commerceflow-warehouse-simulator-service
     build:
       context: ./simulators/warehouse-platform/service
+      args:
+        MAVEN_LEGACY_MYSQL: "true"
     environment:
       WAREHOUSE_DATABASE_URL: jdbc:mysql://warehouse-simulator-db:3306/warehouse_platform?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=UTC
       WAREHOUSE_DATABASE_USERNAME: ${WAREHOUSE_DATABASE_USERNAME:-warehouse}
@@ -319,6 +324,8 @@ services:
     container_name: fairy-commerceflow-fulfillment-service
     build:
       context: ./services/fulfillment-service
+      args:
+        MAVEN_LEGACY_MYSQL: "true"
     environment:
       FULFILLMENT_RUNTIME_MODE: EXECUTION
       FULFILLMENT_REQUIRE_PROMOTED_MODE: "true"
@@ -640,6 +647,8 @@ services:
     container_name: fairy-commerceflow-payment-simulator-service
     build:
       context: ./simulators/payment-platform/service
+      args:
+        MAVEN_LEGACY_MYSQL: "true"
     environment:
       PAYMENT_DATABASE_URL: jdbc:mysql://payment-simulator-db:3306/payment_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       PAYMENT_DATABASE_USERNAME: ${PAYMENT_DATABASE_USERNAME:-payment}
@@ -715,6 +724,8 @@ services:
     container_name: fairy-commerceflow-logistics-simulator-service
     build:
       context: ./simulators/logistics-platform/service
+      args:
+        MAVEN_LEGACY_MYSQL: "true"
     environment:
       LOGISTICS_DATABASE_URL: jdbc:mysql://logistics-simulator-db:3306/logistics_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       LOGISTICS_DATABASE_USERNAME: ${LOGISTICS_DATABASE_USERNAME:-logistics}
@@ -777,6 +788,8 @@ services:
     container_name: fairy-commerceflow-commerce-service
     build:
       context: ./services/commerce-service
+      args:
+        MAVEN_LEGACY_MYSQL: "true"
     volumes:
       - notification-maintenance:/gate:ro
     environment:
@@ -912,8 +925,6 @@ services:
     container_name: fairy-commerceflow-notification-service-postgresql
     build:
       context: ./services/notification-service
-      args:
-        NOTIFICATION_POSTGRESQL_PILOT: "true"
     environment:
       SPRING_PROFILES_ACTIVE: postgresql
       SPRING_FLYWAY_ENABLED: ${NOTIFICATION_POSTGRESQL_FLYWAY_ENABLED:-false}
@@ -1017,6 +1028,8 @@ services:
     container_name: fairy-commerceflow-catalog-service
     build:
       context: ./services/catalog-service
+      args:
+        MAVEN_LEGACY_MYSQL: "true"
     environment:
       DATABASE_URL: jdbc:mysql://catalog-db:3306/catalog?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       DATABASE_USERNAME: ${CATALOG_DATABASE_USERNAME:-catalog}
@@ -1085,6 +1098,8 @@ services:
     container_name: fairy-commerceflow-inventory-service
     build:
       context: ./services/inventory-service
+      args:
+        MAVEN_LEGACY_MYSQL: "true"
     environment:
       DATABASE_URL: jdbc:mysql://inventory-db:3306/inventory?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       DATABASE_USERNAME: ${INVENTORY_DATABASE_USERNAME:-inventory}
@@ -1118,6 +1133,8 @@ services:
     container_name: fairy-commerceflow-order-service
     build:
       context: ./services/order-service
+      args:
+        MAVEN_LEGACY_MYSQL: "true"
     environment:
       FULFILLMENT_ORDER_SECRET: ${FULFILLMENT_ORDER_SECRET:-demo-fulfillment-order-secret}
       DATABASE_URL: jdbc:mysql://order-db:3306/orders?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
@@ -1147,6 +1164,8 @@ services:
     container_name: fairy-commerceflow-payment-orchestration-service
     build:
       context: ./services/payment-orchestration-service
+      args:
+        MAVEN_LEGACY_MYSQL: "true"
     volumes:
       - notification-maintenance:/gate:ro
     environment:

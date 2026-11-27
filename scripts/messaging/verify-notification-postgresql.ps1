@@ -354,14 +354,14 @@ function Verify-Recovered($App, [int]$Records, $ExpectedReadAt) {
 
 try {
   if (!$MySqlOnly -and !$PSBoundParameters.ContainsKey('CandidateImage')) {
-    Initialize-VerificationImage $CandidateImage 'services/notification-service' @('--build-arg', 'NOTIFICATION_POSTGRESQL_PILOT=true')
+    Initialize-VerificationImage $CandidateImage 'services/notification-service'
   }
   if ($OffsitePause) {
     if (!$PSBoundParameters.ContainsKey('CommerceImage')) {
-      Initialize-VerificationImage $CommerceImage 'services/commerce-service'
+      Initialize-VerificationImage $CommerceImage 'services/commerce-service' @('--build-arg', 'MAVEN_LEGACY_MYSQL=true')
     }
     if (!$PSBoundParameters.ContainsKey('PaymentImage')) {
-      Initialize-VerificationImage $PaymentImage 'services/payment-orchestration-service'
+      Initialize-VerificationImage $PaymentImage 'services/payment-orchestration-service' @('--build-arg', 'MAVEN_LEGACY_MYSQL=true')
     }
   }
   Invoke-Docker network create --label "commerceflow.m4.run=$run" $run | Out-Null

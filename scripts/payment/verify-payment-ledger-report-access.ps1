@@ -41,7 +41,7 @@ function Start-Container([string]$Name, [string]$Alias, [string[]]$Options) {
 function Build-VerificationImage([string]$Key, [string]$Context) {
   $tag = $imageTags[$Key]
   if (docker image ls -q --filter "reference=$tag") { throw "Verification image tag is in use: $tag" }
-  docker build -t $tag (Join-Path $root $Context)
+  docker build --build-arg MAVEN_LEGACY_MYSQL=true -t $tag (Join-Path $root $Context)
   $temporaryImages.Add($tag)
 }
 

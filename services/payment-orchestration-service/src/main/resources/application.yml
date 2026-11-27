@@ -2,7 +2,7 @@ spring:
   application:
     name: payment-orchestration-service
   datasource:
-    url: ${DATABASE_URL:jdbc:mysql://localhost:3311/payments?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    url: ${DATABASE_URL}
     username: ${DATABASE_USERNAME:payments}
     password: ${DATABASE_PASSWORD:payments-password}
   flyway:

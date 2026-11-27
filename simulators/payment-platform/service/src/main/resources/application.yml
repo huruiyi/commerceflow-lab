@@ -2,7 +2,7 @@ spring:
   application:
     name: payment-simulator-service
   datasource:
-    url: ${PAYMENT_DATABASE_URL:jdbc:mysql://localhost:13307/payment_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    url: ${PAYMENT_DATABASE_URL}
     username: ${PAYMENT_DATABASE_USERNAME:payment}
     password: ${PAYMENT_DATABASE_PASSWORD:payment-password}
   flyway:

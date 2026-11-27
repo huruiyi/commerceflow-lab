@@ -34,6 +34,10 @@ jobs:
           docker compose --profile '*' -f compose.yaml config --quiet
           docker compose -f compose.yaml -f infrastructure/compose/compose.fulfillment-fresh.yaml config --quiet
           docker compose -f compose.yaml -f infrastructure/compose/compose.catalog-elasticsearch.yaml config --quiet
+      - name: Daily PostgreSQL Compose contract
+        if: runner.os == 'Linux'
+        shell: pwsh
+        run: ./scripts/audit/audit-daily-postgresql-compose.ps1
 
   java:
     name: Java 25 tests

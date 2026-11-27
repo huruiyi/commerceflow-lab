@@ -10,6 +10,8 @@ services:
   invoice-simulator-service:
     build:
       context: ./simulators/invoice-platform/service
+      args:
+        MAVEN_LEGACY_MYSQL: "true"
     environment:
       COMMERCEFLOW_INVOICE_PROCESSING_DELAY_MS: "14000"
     healthcheck:

@@ -2,7 +2,7 @@ spring:
   application:
     name: notification-service
   datasource:
-    url: ${DATABASE_URL:jdbc:mysql://localhost:3307/notification?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    url: ${DATABASE_URL}
     username: ${DATABASE_USERNAME:notification}
     password: ${DATABASE_PASSWORD:notification-password}
   flyway:

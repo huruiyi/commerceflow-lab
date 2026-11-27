@@ -34,7 +34,10 @@ services:
 
   commerce:
     image: commerceflow-invoice-qa-commerce:batch3
-    build: ../../services/commerce-service
+    build:
+      context: ../../services/commerce-service
+      args:
+        MAVEN_LEGACY_MYSQL: "true"
     environment:
       DATABASE_URL: jdbc:mysql://commerce-db:3306/commerceflow?allowPublicKeyRetrieval=true&sslMode=DISABLED&serverTimezone=UTC
       DATABASE_USERNAME: commerce_runtime
@@ -64,7 +67,10 @@ services:
 
   order:
     image: commerceflow-invoice-qa-order:batch2
-    build: ../../services/order-service
+    build:
+      context: ../../services/order-service
+      args:
+        MAVEN_LEGACY_MYSQL: "true"
     environment:
       DATABASE_URL: jdbc:mysql://commerce-db:3306/orders?allowPublicKeyRetrieval=true&sslMode=DISABLED&serverTimezone=UTC
       DATABASE_USERNAME: orders
@@ -75,7 +81,10 @@ services:
 
   payment:
     image: commerceflow-invoice-qa-payment:batch2
-    build: ../../services/payment-orchestration-service
+    build:
+      context: ../../services/payment-orchestration-service
+      args:
+        MAVEN_LEGACY_MYSQL: "true"
     environment:
       DATABASE_URL: jdbc:mysql://commerce-db:3306/payments?allowPublicKeyRetrieval=true&sslMode=DISABLED&serverTimezone=UTC
       DATABASE_USERNAME: payments
@@ -89,7 +98,10 @@ services:
 
   invoice:
     image: commerceflow-invoice-qa-channel:batch2
-    build: ../../simulators/invoice-platform/service
+    build:
+      context: ../../simulators/invoice-platform/service
+      args:
+        MAVEN_LEGACY_MYSQL: "true"
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://commerce-db:3306/invoice_platform?allowPublicKeyRetrieval=true&sslMode=DISABLED&serverTimezone=UTC
       SPRING_DATASOURCE_USERNAME: invoice_platform

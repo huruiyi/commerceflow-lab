@@ -15,7 +15,10 @@ services:
       retries: 45
 
   invoice-simulator-service:
-    build: ../../simulators/invoice-platform/service
+    build:
+      context: ../../simulators/invoice-platform/service
+      args:
+        MAVEN_LEGACY_MYSQL: "true"
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://invoice-db:3306/invoice_platform
       SPRING_DATASOURCE_USERNAME: invoice

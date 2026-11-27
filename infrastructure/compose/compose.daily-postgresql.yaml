@@ -1,0 +1,385 @@
+# Daily operation uses the existing, migrated PostgreSQL volumes. Schema changes use the release procedures.
+x-daily-postgresql: &daily-postgresql
+  image: postgres:17.11-alpine
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d $$POSTGRES_DB"]
+    interval: 5s
+    timeout: 3s
+    retries: 30
+
+services:
+  catalog-data-migrator: !reset null
+  catalog-db: !reset null
+  catalog-demo-init: !reset null
+  commerce-db: !reset null
+  commerce-schema-migrator: !reset null
+  commerce-source-access-freezer: !reset null
+  fulfillment-db: !reset null
+  fulfillment-shadow-access: !reset null
+  inventory-data-migrator: !reset null
+  inventory-db: !reset null
+  legacy-shadow-access-revoker: !reset null
+  logistics-simulator-db: !reset null
+  messaging-simulator-db: !reset null
+  notification-data-migrator: !reset null
+  notification-db: !reset null
+  order-db: !reset null
+  payment-db: !reset null
+  payment-demo-init: !reset null
+  payment-simulator-db: !reset null
+  verification-db-access: !reset null
+  warehouse-simulator-db: !reset null
+
+  commerce-db-postgresql:
+    <<: *daily-postgresql
+    container_name: fairy-commerceflow-commerce-db-postgresql
+    environment:
+      POSTGRES_DB: commerceflow
+      POSTGRES_PASSWORD: ${COMMERCE_POSTGRES_ADMIN_PASSWORD:?Set COMMERCE_POSTGRES_ADMIN_PASSWORD for the existing PostgreSQL deployment}
+    volumes:
+      - commerce-postgresql-data:/var/lib/postgresql/data
+
+  commerce-service:
+    build:
+      args:
+        MAVEN_LEGACY_MYSQL: "false"
+    environment:
+      DATABASE_URL: jdbc:postgresql://commerce-db-postgresql:5432/commerceflow?currentSchema=commerceflow
+      DATABASE_USERNAME: commerce_runtime
+      DATABASE_PASSWORD: ${COMMERCE_POSTGRES_RUNTIME_PASSWORD:?Set COMMERCE_POSTGRES_RUNTIME_PASSWORD for the existing PostgreSQL deployment}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
+      INVOICE_ENABLED: "true"
+      INVOICE_BASE_URL: http://invoice-simulator-service:8080
+      INVOICE_REQUEST_SECRET: ${INVOICE_REQUEST_SECRET:?Set INVOICE_REQUEST_SECRET for the existing PostgreSQL deployment}
+      INVOICE_CALLBACK_SECRET: ${INVOICE_CALLBACK_SECRET:?Set INVOICE_CALLBACK_SECRET for the existing PostgreSQL deployment}
+    depends_on:
+      commerce-db: !reset null
+      commerce-source-access-freezer: !reset null
+      commerce-db-postgresql:
+        condition: service_healthy
+      invoice-simulator-service:
+        condition: service_healthy
+
+  catalog-db-postgresql:
+    <<: *daily-postgresql
+    container_name: fairy-commerceflow-catalog-db-postgresql
+    environment:
+      POSTGRES_DB: catalog
+      POSTGRES_PASSWORD: ${CATALOG_PG_ADMIN_PASSWORD:?Set CATALOG_PG_ADMIN_PASSWORD for the existing PostgreSQL deployment}
+    volumes:
+      - catalog-postgresql-data:/var/lib/postgresql/data
+
+  catalog-service:
+    build:
+      args:
+        MAVEN_LEGACY_MYSQL: "false"
+    environment:
+      DATABASE_URL: jdbc:postgresql://catalog-db-postgresql:5432/catalog?currentSchema=catalog
+      DATABASE_USERNAME: catalog_runtime
+      DATABASE_PASSWORD: ${CATALOG_PG_RUNTIME_PASSWORD:?Set CATALOG_PG_RUNTIME_PASSWORD for the existing PostgreSQL deployment}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
+    depends_on:
+      catalog-db: !reset null
+      catalog-db-postgresql:
+        condition: service_healthy
+
+  order-db-postgresql:
+    <<: *daily-postgresql
+    container_name: fairy-commerceflow-order-db-postgresql
+    environment:
+      POSTGRES_DB: orders
+      POSTGRES_PASSWORD: ${ORDER_PG_ADMIN_PASSWORD:?Set ORDER_PG_ADMIN_PASSWORD for the existing PostgreSQL deployment}
+    volumes:
+      - order-postgresql-data:/var/lib/postgresql/data
+
+  order-service:
+    build:
+      args:
+        MAVEN_LEGACY_MYSQL: "false"
+    environment:
+      DATABASE_URL: jdbc:postgresql://order-db-postgresql:5432/orders
+      DATABASE_USERNAME: order_runtime
+      DATABASE_PASSWORD: ${ORDER_PG_RUNTIME_PASSWORD:?Set ORDER_PG_RUNTIME_PASSWORD for the existing PostgreSQL deployment}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
+    depends_on:
+      order-db: !reset null
+      order-db-postgresql:
+        condition: service_healthy
+
+  inventory-db-postgresql:
+    <<: *daily-postgresql
+    container_name: fairy-commerceflow-inventory-db-postgresql
+    environment:
+      POSTGRES_DB: inventory
+      POSTGRES_PASSWORD: ${INVENTORY_PG_ADMIN_PASSWORD:?Set INVENTORY_PG_ADMIN_PASSWORD for the existing PostgreSQL deployment}
+    volumes:
+      - inventory-postgresql-data:/var/lib/postgresql/data
+
+  inventory-service:
+    build:
+      args:
+        MAVEN_LEGACY_MYSQL: "false"
+    environment:
+      DATABASE_URL: jdbc:postgresql://inventory-db-postgresql:5432/inventory
+      DATABASE_USERNAME: inventory_runtime
+      DATABASE_PASSWORD: ${INVENTORY_PG_RUNTIME_PASSWORD:?Set INVENTORY_PG_RUNTIME_PASSWORD for the existing PostgreSQL deployment}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
+    depends_on:
+      inventory-db: !reset null
+      inventory-db-postgresql:
+        condition: service_healthy
+
+  fulfillment-db-postgresql:
+    <<: *daily-postgresql
+    container_name: fairy-commerceflow-fulfillment-db-postgresql
+    environment:
+      POSTGRES_DB: fulfillment
+      POSTGRES_PASSWORD: ${FULFILLMENT_PG_ADMIN_PASSWORD:?Set FULFILLMENT_PG_ADMIN_PASSWORD for the existing PostgreSQL deployment}
+    volumes:
+      - fulfillment-postgresql-data:/var/lib/postgresql/data
+
+  fulfillment-service:
+    build:
+      args:
+        MAVEN_LEGACY_MYSQL: "false"
+    environment:
+      FULFILLMENT_DATABASE_URL: jdbc:postgresql://fulfillment-db-postgresql:5432/fulfillment
+      FULFILLMENT_DATABASE_USERNAME: fulfillment_runtime
+      FULFILLMENT_DATABASE_PASSWORD: ${FULFILLMENT_PG_RUNTIME_PASSWORD:?Set FULFILLMENT_PG_RUNTIME_PASSWORD for the existing PostgreSQL deployment}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
+    depends_on:
+      fulfillment-db: !reset null
+      commerce-source-access-freezer: !reset null
+      fulfillment-db-postgresql:
+        condition: service_healthy
+
+  payment-db-postgresql:
+    <<: *daily-postgresql
+    container_name: fairy-commerceflow-payment-db-postgresql
+    environment:
+      POSTGRES_DB: payments
+      POSTGRES_PASSWORD: ${PAYMENT_ORCHESTRATION_PG_ADMIN_PASSWORD:?Set PAYMENT_ORCHESTRATION_PG_ADMIN_PASSWORD for the existing PostgreSQL deployment}
+    volumes:
+      - payment-postgresql-data:/var/lib/postgresql/data
+
+  payment-orchestration-service:
+    build:
+      args:
+        MAVEN_LEGACY_MYSQL: "false"
+    environment:
+      DATABASE_URL: jdbc:postgresql://payment-db-postgresql:5432/payments
+      DATABASE_USERNAME: payment_orchestration_runtime
+      DATABASE_PASSWORD: ${PAYMENT_ORCHESTRATION_PG_RUNTIME_PASSWORD:?Set PAYMENT_ORCHESTRATION_PG_RUNTIME_PASSWORD for the existing PostgreSQL deployment}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
+    depends_on:
+      payment-db: !reset null
+      payment-db-postgresql:
+        condition: service_healthy
+
+  payment-simulator-db-postgresql:
+    <<: *daily-postgresql
+    container_name: fairy-commerceflow-payment-simulator-db-postgresql
+    environment:
+      POSTGRES_DB: payment_platform
+      POSTGRES_PASSWORD: ${PAYMENT_SIMULATOR_PG_ADMIN_PASSWORD:?Set PAYMENT_SIMULATOR_PG_ADMIN_PASSWORD for the existing PostgreSQL deployment}
+    volumes:
+      - payment-simulator-postgresql-data:/var/lib/postgresql/data
+
+  payment-simulator-service:
+    build:
+      args:
+        MAVEN_LEGACY_MYSQL: "false"
+    environment:
+      PAYMENT_DATABASE_URL: jdbc:postgresql://payment-simulator-db-postgresql:5432/payment_platform
+      PAYMENT_DATABASE_USERNAME: payment_simulator_runtime
+      PAYMENT_DATABASE_PASSWORD: ${PAYMENT_SIMULATOR_PG_RUNTIME_PASSWORD:?Set PAYMENT_SIMULATOR_PG_RUNTIME_PASSWORD for the existing PostgreSQL deployment}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
+    depends_on:
+      payment-simulator-db: !reset null
+      payment-simulator-db-postgresql:
+        condition: service_healthy
+
+  warehouse-simulator-db-postgresql:
+    <<: *daily-postgresql
+    container_name: fairy-commerceflow-warehouse-simulator-db-postgresql
+    environment:
+      POSTGRES_DB: warehouse_platform
+      POSTGRES_PASSWORD: ${WAREHOUSE_PG_ADMIN_PASSWORD:?Set WAREHOUSE_PG_ADMIN_PASSWORD for the existing PostgreSQL deployment}
+    volumes:
+      - warehouse-postgresql-data:/var/lib/postgresql/data
+
+  warehouse-simulator-service:
+    build:
+      args:
+        MAVEN_LEGACY_MYSQL: "false"
+    environment:
+      WAREHOUSE_DATABASE_URL: jdbc:postgresql://warehouse-simulator-db-postgresql:5432/warehouse_platform?currentSchema=warehouse_platform
+      WAREHOUSE_DATABASE_USERNAME: warehouse_runtime
+      WAREHOUSE_DATABASE_PASSWORD: ${WAREHOUSE_PG_RUNTIME_PASSWORD:?Set WAREHOUSE_PG_RUNTIME_PASSWORD for the existing PostgreSQL deployment}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
+    depends_on:
+      warehouse-simulator-db: !reset null
+      warehouse-simulator-db-postgresql:
+        condition: service_healthy
+
+  logistics-simulator-db-postgresql:
+    <<: *daily-postgresql
+    container_name: fairy-commerceflow-logistics-simulator-db-postgresql
+    environment:
+      POSTGRES_DB: logistics_platform
+      POSTGRES_PASSWORD: ${LOGISTICS_PG_ADMIN_PASSWORD:?Set LOGISTICS_PG_ADMIN_PASSWORD for the existing PostgreSQL deployment}
+    volumes:
+      - logistics-postgresql-data:/var/lib/postgresql/data
+
+  logistics-simulator-service:
+    build:
+      args:
+        MAVEN_LEGACY_MYSQL: "false"
+    environment:
+      LOGISTICS_DATABASE_URL: jdbc:postgresql://logistics-simulator-db-postgresql:5432/logistics_platform?currentSchema=logistics_platform
+      LOGISTICS_DATABASE_USERNAME: logistics_runtime
+      LOGISTICS_DATABASE_PASSWORD: ${LOGISTICS_PG_RUNTIME_PASSWORD:?Set LOGISTICS_PG_RUNTIME_PASSWORD for the existing PostgreSQL deployment}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
+    depends_on:
+      logistics-simulator-db: !reset null
+      logistics-simulator-db-postgresql:
+        condition: service_healthy
+
+  invoice-db-postgresql:
+    <<: *daily-postgresql
+    container_name: fairy-commerceflow-invoice-db-postgresql
+    environment:
+      POSTGRES_DB: invoice_platform
+      POSTGRES_PASSWORD: ${INVOICE_PG_ADMIN_PASSWORD:?Set INVOICE_PG_ADMIN_PASSWORD for the existing PostgreSQL deployment}
+    volumes:
+      - invoice-postgresql-data:/var/lib/postgresql/data
+
+  invoice-simulator-service:
+    container_name: fairy-commerceflow-invoice-simulator-service
+    build:
+      context: ./simulators/invoice-platform/service
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://invoice-db-postgresql:5432/invoice_platform?currentSchema=invoice_platform
+      SPRING_DATASOURCE_USERNAME: invoice_runtime
+      SPRING_DATASOURCE_PASSWORD: ${INVOICE_PG_RUNTIME_PASSWORD:?Set INVOICE_PG_RUNTIME_PASSWORD for the existing PostgreSQL deployment}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
+      INVOICE_CALLBACK_URL: http://commerce-service:8080/internal/v1/invoice-receipts
+      INVOICE_REQUEST_SECRET: ${INVOICE_REQUEST_SECRET:?Set INVOICE_REQUEST_SECRET for the existing PostgreSQL deployment}
+      INVOICE_CALLBACK_SECRET: ${INVOICE_CALLBACK_SECRET:?Set INVOICE_CALLBACK_SECRET for the existing PostgreSQL deployment}
+    depends_on:
+      invoice-db-postgresql:
+        condition: service_healthy
+
+  messaging-simulator-db-postgresql:
+    <<: *daily-postgresql
+    container_name: fairy-commerceflow-messaging-simulator-db-postgresql
+    environment:
+      POSTGRES_DB: messaging_platform
+      POSTGRES_PASSWORD: ${MESSAGING_PG_ADMIN_PASSWORD:?Set MESSAGING_PG_ADMIN_PASSWORD for the existing PostgreSQL deployment}
+    volumes:
+      - messaging-postgresql-data:/var/lib/postgresql/data
+
+  messaging-simulator-service:
+    build:
+      args:
+        MAVEN_LEGACY_MYSQL: "false"
+    environment:
+      MESSAGING_DATABASE_URL: jdbc:postgresql://messaging-simulator-db-postgresql:5432/messaging_platform?currentSchema=messaging_platform
+      MESSAGING_DATABASE_USERNAME: messaging_runtime
+      MESSAGING_DATABASE_PASSWORD: ${MESSAGING_PG_RUNTIME_PASSWORD:?Set MESSAGING_PG_RUNTIME_PASSWORD for the existing PostgreSQL deployment}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
+    depends_on:
+      messaging-simulator-db: !reset null
+      messaging-simulator-db-postgresql:
+        condition: service_healthy
+
+  notification-db-postgresql:
+    environment:
+      POSTGRES_PASSWORD: ${NOTIFICATION_POSTGRESQL_ADMIN_PASSWORD:?Set NOTIFICATION_POSTGRESQL_ADMIN_PASSWORD for the existing PostgreSQL deployment}
+      NOTIFICATION_DATABASE_PASSWORD: ${NOTIFICATION_DATABASE_PASSWORD:?Set NOTIFICATION_DATABASE_PASSWORD for the existing PostgreSQL deployment}
+      NOTIFICATION_POSTGRESQL_FLYWAY_ENABLED: "false"
+
+  notification-service-postgresql:
+    environment:
+      DATABASE_PASSWORD: ${NOTIFICATION_DATABASE_PASSWORD:?Set NOTIFICATION_DATABASE_PASSWORD for the existing PostgreSQL deployment}
+      SPRING_FLYWAY_ENABLED: "false"
+
+  reference-data-db:
+    environment:
+      POSTGRES_PASSWORD: ${REFERENCE_DATA_DB_PASSWORD:?Set REFERENCE_DATA_DB_PASSWORD for the existing PostgreSQL deployment}
+
+  reference-data-service:
+    environment:
+      DATABASE_PASSWORD: ${REFERENCE_DATA_DB_PASSWORD:?Set REFERENCE_DATA_DB_PASSWORD for the existing PostgreSQL deployment}
+      SPRING_FLYWAY_ENABLED: "false"
+
+volumes:
+  catalog-db-data: !reset null
+  commerce-db-data: !reset null
+  fulfillment-db-data: !reset null
+  inventory-db-data: !reset null
+  logistics-simulator-db-data: !reset null
+  messaging-simulator-db-data: !reset null
+  notification-db-data: !reset null
+  order-db-data: !reset null
+  payment-db-data: !reset null
+  payment-simulator-db-data: !reset null
+  warehouse-simulator-db-data: !reset null
+  catalog-postgresql-data:
+    external: true
+    name: fairy-commerceflow_catalog-postgresql-data
+  commerce-postgresql-data:
+    external: true
+    name: fairy-commerceflow_commerce-postgresql-data
+  fulfillment-postgresql-data:
+    external: true
+    name: fairy-commerceflow_fulfillment-postgresql-data
+  inventory-postgresql-data:
+    external: true
+    name: fairy-commerceflow_inventory-postgresql-data
+  invoice-postgresql-data:
+    external: true
+    name: fairy-commerceflow_invoice-postgresql-data
+  logistics-postgresql-data:
+    external: true
+    name: fairy-commerceflow_logistics-postgresql-data
+  messaging-postgresql-data:
+    external: true
+    name: fairy-commerceflow_messaging-postgresql-data
+  notification-postgresql-data:
+    external: true
+    name: fairy-commerceflow_notification-postgresql-data
+  order-postgresql-data:
+    external: true
+    name: fairy-commerceflow_order-postgresql-data
+  payment-postgresql-data:
+    external: true
+    name: fairy-commerceflow_payment-postgresql-data
+  payment-simulator-postgresql-data:
+    external: true
+    name: fairy-commerceflow_payment-simulator-postgresql-data
+  reference-data-postgresql-data:
+    external: true
+    name: fairy-commerceflow_reference-data-postgresql-data
+  warehouse-postgresql-data:
+    external: true
+    name: fairy-commerceflow_warehouse-postgresql-data
