@@ -225,6 +225,15 @@ Windows 任务 `CommerceFlow PostgreSQL Recovery Alerts` 每 15 分钟读取备�
 
 条件解除后发送恢复通知。Alertmanager 暂时不可用时，任务计划程序记录该次告警检查失败，下一轮重新检查。同一主机离线时无法通过这条本地链路通知。验收采用独立状态文件和 `acceptance-*` 告警标签，接收结果可从本地 Webhook 查阅。
 
+### Kafka 定期备份告警
+
+`CommerceFlow Kafka Backup Alerts` 每 15 分钟核对 `%LOCALAPPDATA%/CommerceFlow/kafka-maintenance/kafka-backup.json`，沿用本地 Alertmanager 和 Webhook。任务按独立状态跟踪触发与恢复。[Kafka 归档与恢复](architecture/DATABASE-EVOLUTION-PLAN.md#kafka-定期归档与恢复)
+
+| 告警 | 触发条件 | 排查动作 |
+| --- | --- | --- |
+| `CommerceFlowKafkaBackupFailed` | 归档失败，或运行状态持续超过 30 分钟 | 查 `kafka-backup.json` 的 `log`。核对 Docker Desktop、broker 进程的实际卷、暂存空间和备份盘，确认采集条件后重新触发备份。 |
+| `CommerceFlowKafkaBackupStale` | 尚无成功归档，或上一次成功距今超过 26 小时 | 查计划任务结果、用户登录和备份盘，重跑任务并校验完整归档。 |
+
 ## 5. 生产部署前仍需完成
 
 - Prometheus、Alertmanager、Grafana 和 Actuator 不应直接暴露到公网；应放入受控网络并启用 TLS、身份认证和访问审计。

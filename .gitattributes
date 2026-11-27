@@ -1,3 +1,4 @@
 scripts/*.ps1 text eol=lf
 infrastructure/**/*.sh text eol=lf
+scripts/messaging/capture-kafka-docker-desktop.sh text eol=lf
 scripts/reference-data/source/regions.sql text eol=lf

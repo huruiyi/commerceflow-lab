@@ -3,22 +3,34 @@ param(
   [Parameter(Mandatory)]
   [string]$StateDirectory,
   [ValidatePattern('^(daily|acceptance-[a-z0-9]+)$')]
-  [string]$Instance = 'daily'
+  [string]$Instance = 'daily',
+  [switch]$Kafka
 )
 
 $ErrorActionPreference = 'Stop'
 $null = New-Item -ItemType Directory -Path $StateDirectory -Force
 $now = [DateTimeOffset]::UtcNow
-$alertStateFile = Join-Path $StateDirectory 'alerts.json'
+$job = 'postgresql-maintenance'
+$alertState = 'alerts.json'
+$product = 'PostgreSQL'
+$prefix = 'CommerceFlowPostgresql'
+$operations = @(
+  @{ name = 'backup'; label = 'Backup'; interval = [TimeSpan]::FromHours(26); limit = '26 hours' },
+  @{ name = 'restore'; label = 'Restore'; interval = [TimeSpan]::FromDays(8); limit = '8 days' }
+)
+if ($Kafka) {
+  $job = 'kafka-maintenance'
+  $alertState = 'kafka-alerts.json'
+  $product = 'Kafka'
+  $prefix = 'CommerceFlowKafka'
+  $operations = @(@{ name = 'kafka-backup'; label = 'Backup'; interval = [TimeSpan]::FromHours(26); limit = '26 hours' })
+}
+$alertStateFile = Join-Path $StateDirectory $alertState
 $previous = @{}
 if (Test-Path -LiteralPath $alertStateFile) {
   $previous = Get-Content -LiteralPath $alertStateFile -Raw | ConvertFrom-Json -AsHashtable
 }
 
-$operations = @(
-  @{ name = 'backup'; label = 'Backup'; interval = [TimeSpan]::FromHours(26); limit = '26 hours' },
-  @{ name = 'restore'; label = 'Restore'; interval = [TimeSpan]::FromDays(8); limit = '8 days' }
-)
 $checks = foreach ($operation in $operations) {
   $path = Join-Path $StateDirectory "$($operation.name).json"
   $state = if (Test-Path -LiteralPath $path) { Get-Content -LiteralPath $path -Raw | ConvertFrom-Json }
@@ -26,18 +38,17 @@ $checks = foreach ($operation in $operations) {
     [DateTimeOffset]$state.startedAt -lt $now.AddMinutes(-30)
 
   @{
-    name = "CommerceFlowPostgresql$($operation.label)Failed"
+    name = "${prefix}$($operation.label)Failed"
     active = $state.status -eq 'failed' -or $overdue
-    summary = "PostgreSQL $($operation.name) failed or did not complete within 30 minutes"
+    summary = "$product $($operation.label.ToLowerInvariant()) failed or did not complete within 30 minutes"
   }
   @{
-    name = "CommerceFlowPostgresql$($operation.label)Stale"
+    name = "${prefix}$($operation.label)Stale"
     active = !$state.lastSuccessAt -or [DateTimeOffset]$state.lastSuccessAt -lt ($now - $operation.interval)
-    summary = "No successful PostgreSQL $($operation.name) in the last $($operation.limit)"
+    summary = "No successful $product $($operation.label.ToLowerInvariant()) in the last $($operation.limit)"
   }
 }
 
-$job = 'postgresql-maintenance'
 if ($Instance -ne 'daily') { $job += "-$Instance" }
 $active = @{}
 $alerts = foreach ($check in $checks) {

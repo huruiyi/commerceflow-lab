@@ -1,7 +1,7 @@
 #requires -Version 7.0
 param(
   [Parameter(Mandatory)]
-  [ValidateSet('Backup', 'Restore')]
+  [ValidateSet('Backup', 'Restore', 'KafkaBackup')]
   [string]$Operation,
   [Parameter(Mandatory)]
   [string]$BackupRoot,
@@ -14,6 +14,7 @@ $ErrorActionPreference = 'Stop'
 
 $null = New-Item -ItemType Directory -Path $StateDirectory -Force
 $operationName = $Operation.ToLowerInvariant()
+if ($Operation -eq 'KafkaBackup') { $operationName = 'kafka-backup' }
 $statusFile = Join-Path $StateDirectory "$operationName.json"
 $runId = [DateTimeOffset]::UtcNow.ToString('yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
 $log = Join-Path $StateDirectory "$operationName-$runId.log"
@@ -51,6 +52,9 @@ try {
     $verified = Read-VerifiedPostgresqlBackup $backup
     $status.backupDirectory = $verified.Root
     $status.verifiedFiles = $verified.FileCount
+  } elseif ($Operation -eq 'KafkaBackup') {
+    $status.backupDirectory = & (Join-Path $PSScriptRoot 'backup-daily-kafka.ps1') -BackupRoot $BackupRoot
+    $status.verifiedFiles = @(Get-Content -LiteralPath (Join-Path $status.backupDirectory 'SHA256SUMS.txt')).Count
   } else {
     $backup = Get-ChildItem -LiteralPath $BackupRoot -Directory -Filter 'postgresql-recovery-*' |
       Sort-Object Name -Descending |

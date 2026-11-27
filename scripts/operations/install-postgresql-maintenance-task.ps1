@@ -1,18 +1,22 @@
 #requires -Version 7.0
 param(
   [Parameter(Mandatory)]
-  [ValidateSet('Backup', 'Restore', 'Monitor')]
+  [ValidateSet('Backup', 'Restore', 'Monitor', 'KafkaBackup', 'KafkaMonitor')]
   [string]$Task,
   [string]$BackupRoot,
-  [string]$StateDirectory = (Join-Path $env:LOCALAPPDATA 'CommerceFlow/postgresql-maintenance')
+  [string]$StateDirectory
 )
 
 $ErrorActionPreference = 'Stop'
 if (!$IsWindows) { throw 'These maintenance tasks run through Windows Task Scheduler' }
 
-if ($Task -ne 'Monitor') {
+if ($Task -in @('Backup', 'Restore', 'KafkaBackup')) {
   if (!$BackupRoot) { throw 'BackupRoot is required for backup and restore tasks' }
   $BackupRoot = (Resolve-Path -LiteralPath $BackupRoot).Path
+}
+if (!$StateDirectory) {
+  $maintenance = if ($Task.StartsWith('Kafka')) { 'kafka-maintenance' } else { 'postgresql-maintenance' }
+  $StateDirectory = Join-Path $env:LOCALAPPDATA "CommerceFlow/$maintenance"
 }
 $StateDirectory = [IO.Path]::GetFullPath($StateDirectory)
 $pwsh = Join-Path $PSHOME 'pwsh.exe'
@@ -43,6 +47,18 @@ switch ($Task) {
     $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(2) `
       -RepetitionInterval (New-TimeSpan -Minutes 15)
     $options = "-StateDirectory `"$StateDirectory`""
+  }
+  'KafkaBackup' {
+    $name = 'CommerceFlow Kafka Daily Backup'
+    $trigger = New-ScheduledTaskTrigger -Daily -At $today.AddHours(21).AddMinutes(15)
+    $options = "-Operation KafkaBackup -BackupRoot `"$BackupRoot`" -StateDirectory `"$StateDirectory`""
+  }
+  'KafkaMonitor' {
+    $name = 'CommerceFlow Kafka Backup Alerts'
+    $runner = Join-Path $PSScriptRoot 'alert-postgresql-maintenance.ps1'
+    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(2) `
+      -RepetitionInterval (New-TimeSpan -Minutes 15)
+    $options = "-Kafka -StateDirectory `"$StateDirectory`""
   }
 }
 if (!(Test-Path -LiteralPath $runner -PathType Leaf)) { throw "Missing maintenance script: $runner" }

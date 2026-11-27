@@ -2221,6 +2221,20 @@ Grafana 在 CommerceFlow 文件夹自动加载「退款、红票与通知」看�
 
 日常库未查到两笔隔离订单号，原有 1,374 个 Docker 卷全部保留。门户健康检查返回 200，11 个 Prometheus 目标在线。两套隔离环境已停止，保留空卷项目的 15 个及恢复副本的 17 个命名卷。只读探针、账号权限、账本对照和故障回退证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/order-payment-ownership-20261128-025533/`，汇总文件为 `ownership-summary.json`。[后续巡检范围](architecture/README.md#3-下一批工程与运维建设)
 
+### 2.144 2026-11-28 Kafka 定期备份与首份归档恢复
+
+Windows 已注册 Kafka 每日 21:15 备份及每 15 分钟的状态告警。日常 broker 在线期间通过 Docker Desktop WSL 的只读挂载归档数据。首次触发发现宿主虚拟机默认临时目录空间不足，改为独立暂存目录后重跑。计划任务首份成功归档为 `G:/CommerceFlow-backups/kafka-recovery-20261127-195744-493a042d/`，耗时 50.15 秒，包含 519 个 Kafka 数据文件、10 个归档校验条目及完整性清单。采集期间业务分区和提交位点一致。[Kafka 定期归档与恢复](architecture/DATABASE-EVOLUTION-PLAN.md#kafka-定期归档与恢复)
+
+首次归档的消息摘要混入了 Kafka 命令日志。修正工具日志配置后，再次通过计划任务从原 Kafka 采样，确认主题、分区边界、消费位点及历史消息坐标与首份归档相同。恢复使用首份归档的数据，以修正后的同位点消息摘要作比对。业务库使用 11 月 27 日整栈演练已校验的 PostgreSQL 备份，本次按照对应的消费者收件账本交叉核验。
+
+隔离项目 `fairy-commerceflow-kafka-drill-c1edcb05` 恢复 13 个 PostgreSQL 库、202 张表，并从新卷启动 Kafka。核对 12 个主题的 ID、31 个业务分区的起止位置、6 个已提交位点和 6 条历史消息摘要。原通知和订单消费组加入后沿用归档位点。重投一条通知和一条取消事件后，提交位置分别由 46 前进到 47、由 49 前进到 50，积压归零。重投报文的键、头和内容一致，通知、订单与库存账本摘要一致，通知死信位点无变化。
+
+从开始校验归档到数据卷就绪用时 4.60 秒，到历史消息核对用时 54.87 秒，到应用消费组就绪用时 120.30 秒，到重复投递与账本核对结束用时 139.95 秒。隔离项目随后停止，保留 17 个命名卷。日常 Kafka 容器身份、业务分区末尾及消费提交位置复核一致，门户健康检查返回 HTTP 200，原有 1,374 个 Docker 卷全部保留。
+
+使用独立验收状态令一次备份失败，`CommerceFlowKafkaBackupFailed` 和 `CommerceFlowKafkaBackupStale` 均经 Alertmanager 到达本地 Webhook。恢复有效状态后，两条恢复通知均送达。日常告警计划任务返回 0。[Kafka 定期备份告警](ALERTING.md#kafka-定期备份告警)
+
+证据位于 `%LOCALAPPDATA%/CommerceFlow/kafka-maintenance/`。`first-scheduled-backup.json` 记录首份归档，`recovery-summary.json` 保存逐阶段耗时与重投结果，`daily-preservation.json` 保存日常核验，`alert-acceptance/webhook-proof.json` 保存告警与恢复回执。修正后的备份入口再次由计划任务触发，55.79 秒完成并返回 0。
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

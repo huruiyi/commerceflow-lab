@@ -61,11 +61,26 @@ Start-ScheduledTask -TaskName 'CommerceFlow PostgreSQL Weekly Restore'
 ./scripts/operations/verify-postgresql-backup.ps1 -BackupDirectory '<备份命令生成的目录>'
 ```
 
-以 `SHA256SUMS.txt` 为备份完成标记。清单记录逐库快照时间、Flyway 历史、运行镜像、Docker 挂载、已提交的 Kafka 消费位置和分区起止位置。数据库归档是逐库的，Kafka 文件记录位置。重放 Kafka 消息还需要对应的数据卷或 broker 归档。
+以 `SHA256SUMS.txt` 为备份完成标记。清单记录逐库快照时间、Flyway 历史、运行镜像、Docker 挂载、已提交的 Kafka 消费位置和分区起止位置。Kafka 数据由下列独立任务归档。按两个任务各自的采集窗口和跨库业务证据选取恢复副本。
 
 验证入口先核对所有文件摘要，再逐库在同镜像的无网络临时实例恢复并比对 Flyway 历史，输出逐库恢复耗时。整栈演练使用独立项目和独立卷启动 Compose，继续验证下单、支付、出库、退款及通知，记录到业务就绪的时间。可恢复到的业务时间以归档窗口和跨库订单核验为准。
 
 2026 年 11 月 27 日的整栈演练另取 Kafka 数据卷归档，先恢复 PostgreSQL 和 Kafka，核对消息与提交位置，再启动应用。两个原消费组实际接续并通过历史消息重投去重验证，恢复后的新订单通过出库、退款、开票及通知验收。[恢复结果与耗时](../IMPLEMENTED.md#2141-2026-11-27-postgresql-与-kafka-整栈隔离恢复)
+
+### Kafka 定期归档与恢复
+
+`CommerceFlow Kafka Daily Backup` 在北京时间每天 21:15 归档单节点 KRaft broker 的实际数据卷。这个时段与 PostgreSQL 21:00 备份错开。任务依赖当前用户登录、Docker Desktop 的 WSL 运行环境和可用的备份盘。它核对现役 Kafka 进程及实际挂载，在独立挂载命名空间以只读方式取样，比较采集前后的业务分区边界、消费位点和主题标识。文件列表及内容须吻合，允许 KRaft 日志在已校验前缀之后追加。采集期间发生变化时最多重试三次。任务保持 broker 在线，并以 SHA-256 清单和目录原子更名标记完成，`.incomplete` 目录仅用于排查。
+
+```powershell
+$state = Join-Path $env:LOCALAPPDATA 'CommerceFlow/kafka-maintenance'
+./scripts/operations/install-postgresql-maintenance-task.ps1 -Task KafkaBackup -BackupRoot 'G:/CommerceFlow-backups' -StateDirectory $state
+Start-ScheduledTask -TaskName 'CommerceFlow Kafka Daily Backup'
+./scripts/operations/install-postgresql-maintenance-task.ps1 -Task KafkaMonitor -StateDirectory $state
+```
+
+从 `kafka-backup.json` 查找归档和执行日志。归档含 Kafka 数据文件、主题、分区边界、消费组提交位点及历史消息摘要。按日备份的目标间隔为 24 小时，实际可恢复点取决于最近一次成功采集。人工整理时至少保留最近 7 份完整 Kafka 每日归档及仍关联恢复或回退的归档。计划任务保留原卷和既有备份。备份盘访问权限按业务数据管理。
+
+隔离恢复先校验归档，将数据解包到新卷并校验逐文件摘要，使用归档记录的 Kafka 镜像启动。核对集群与目录标识、主题 ID、分区边界、历史消息摘要和消费位点，再启动对应的应用与 PostgreSQL 恢复副本，确认消费组实际从原位点接续。重复投递选定的历史消息后，核对提交位置、业务账本和死信位点。记录从完整校验到回执核对结束的耗时。跨主机恢复单独验收。
 
 ## 已应用版本的注释清理
 
