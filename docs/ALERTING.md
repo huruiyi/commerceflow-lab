@@ -88,12 +88,12 @@ Grafana 教学账号为 `admin` / `commerceflow-grafana`。这些端口和演示
 区分无积压与读偏移失败。`commerceflow_notification_consumer_dead_letters_total` 统计通知消费者收到
 Kafka 确认的死信发布。两分钟内无新发布时，死信告警解除，累计值保留。
 
-订单服务每 5 秒从自己的 MySQL 刷新指标，采集目标为 `order-service`。
+订单服务每 5 秒从自己的原数据库刷新指标，采集目标为 `order-service`。
 
 | Prometheus 指标 | 统计口径 |
 | --- | --- |
 | `commerceflow_order_shipment_intents_pending` | `shop_orders` 中状态为 `CONFIRMED` 且 `shipment_intent_key` 非空的订单数。 |
-| `commerceflow_order_shipment_intents_oldest_seconds` | 上述订单最早的 `updated_at` 到 MySQL 当前时间的非负整秒，无未完成意图时为 0。该字段反映最近一次订单更新，重试写入会刷新时间。 |
+| `commerceflow_order_shipment_intents_oldest_seconds` | 上述订单最早的 `updated_at` 到原数据库当前时间的非负整秒，无未完成意图时为 0。该字段反映最近一次订单更新，重试写入会刷新时间。 |
 | `commerceflow_order_cancellation_recovery_required` | `order_process_managers` 中类型为 `CANCELLATION` 且状态为 `WAITING_RECONCILIATION`、`COMPENSATION_REQUIRED` 或 `MANUAL_REVIEW` 的流程数。 |
 | `commerceflow_order_metrics_refresh_success` | 最近一次查询成功为 1，首次成功前或查询失败时为 0。失败时保留上轮业务读数，业务告警要求刷新成功。 |
 
@@ -105,7 +105,7 @@ Kafka 确认的死信发布。两分钟内无新发布时，死信告警解除�
 | --- | --- |
 | `commerceflow_inventory_command_delivery_reconciliation_required` | 仅计 `RECONCILIATION_REQUIRED`，每条命令计一笔。 |
 | `commerceflow_inventory_command_delivery_pending` | 计 `NEW`、`IN_FLIGHT`、`RETRY`，包括尚未到重试时间或仍在等待回执的命令。 |
-| `commerceflow_inventory_command_delivery_oldest_seconds` | 用 MySQL 当前时间减去上述三种状态中最早的 `created_at`，取非负整秒。无积压时为 0。重试及回执截止时间变化均不重置等待时长。 |
+| `commerceflow_inventory_command_delivery_oldest_seconds` | 用原数据库当前时间减去上述三种状态中最早的 `created_at`，取非负整秒。无积压时为 0。重试及回执截止时间变化均不重置等待时长。 |
 | `commerceflow_inventory_command_delivery_metrics_refresh_success` | 最近一次聚合查询成功为 1，首次成功前或最近一次失败为 0。刷新失败时保留上次业务读数，两条业务告警只使用刷新成功的读数，采集故障由单独告警报告。 |
 
 `ACKNOWLEDGED` 和 `CLOSED` 不参与上述三项业务统计。
@@ -131,7 +131,7 @@ pwsh -File ./scripts/operations/verify-alerting.ps1
 
 已有监控容器时可传 `-SkipStart`。脚本只验证告警链，不通过停止业务服务制造故障。
 
-库存命令和出库事件的隔离 MySQL 专项见[验收记录](architecture/INVENTORY-RECONCILIATION-REVIEW.md#2026-11-19-库存命令监控验收)。
+库存命令和出库事件的隔离原数据库专项见[验收记录](architecture/INVENTORY-RECONCILIATION-REVIEW.md#2026-11-19-库存命令监控验收)。
 
 ### 用业务编号定位模拟服务告警
 
@@ -174,7 +174,7 @@ LIMIT 50;
 SELECT channel, reference, request_id, status, finished_at
 FROM messaging_deliveries
 WHERE channel = 'SMS' AND status = 'FAILED'
-  AND finished_at >= TIMESTAMPADD(MINUTE, -10, CURRENT_TIMESTAMP(6))
+  AND finished_at >= CURRENT_TIMESTAMP - INTERVAL '10' MINUTE
 ORDER BY finished_at DESC
 LIMIT 50;
 ```

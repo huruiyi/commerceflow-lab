@@ -70,8 +70,7 @@ $byId = @{}
 foreach ($service in $snapshot.services) { $byId.Add($service.id, $service) }
 Assert-Navigation (@($byId['commerce-portal-angular'].links.url -match '/merchant/orders$').Count -eq 1) 'Merchant orders shortcut missing.'
 Assert-Navigation (@($byId['commerce-portal-angular'].links.url -match '/admin/scheduling$').Count -eq 1) 'Scheduling shortcut missing.'
-$orderDatabaseId = if ($configured -ccontains 'order-db-postgresql') { 'order-db-postgresql' } else { 'order-db' }
-$orderDatabase = $byId[$orderDatabaseId]
+$orderDatabase = $byId['order-db-postgresql']
 Assert-Navigation ($orderDatabase.schema -ceq 'orders') 'Order database schema is incorrect.'
 Assert-Navigation (@($orderDatabase.addresses | Where-Object scope -EQ 'HOST').Count -eq 0) 'The order database unexpectedly has a host address.'
 if ($expected -ccontains 'rabbitmq-broker') {
@@ -81,10 +80,6 @@ if ($configured -ccontains 'invoice-db-postgresql') {
   $invoiceDb = $byId['invoice-db-postgresql']
   Assert-Navigation ($invoiceDb.group -ceq 'databases' -and $invoiceDb.schema -ceq 'invoice_platform') 'Invoice database metadata is incorrect.'
   Assert-Navigation ($invoiceDb.addresses.value -ccontains 'invoice-db-postgresql:5432') 'Invoice database internal address is missing.'
-} elseif ($expected -ccontains 'invoice-db') {
-  $invoiceDb = $byId['invoice-db']
-  Assert-Navigation ($invoiceDb.group -ceq 'databases' -and $invoiceDb.schema -ceq 'invoice_platform') 'Invoice database metadata is incorrect.'
-  Assert-Navigation ($invoiceDb.addresses.value -ccontains 'invoice-db:3306') 'Invoice database internal address is missing.'
 }
 if ($expected -ccontains 'invoice-simulator-service') {
   Assert-Navigation ($byId['invoice-simulator-service'].group -ceq 'simulators') 'Invoice simulator category is incorrect.'
@@ -132,11 +127,6 @@ Assert-Navigation ($database.schema -ceq 'notification' -and
   $database.addresses.value -ccontains 'notification-db-postgresql:5432') 'The PostgreSQL connection information is missing.'
 Assert-Navigation (@($database.addresses | Where-Object scope -CEQ 'HOST').Count -eq 0) 'The PostgreSQL database unexpectedly has a host address.'
 Assert-Navigation (@($database.probes | Where-Object status -CEQ 'REACHABLE').Count -eq 1) 'The PostgreSQL container health result is missing or failed.'
-foreach ($legacy in @('notification-service', 'notification-db')) {
-  if ($legacy -cin @($containers.service)) {
-    Assert-Navigation ($live[$legacy].status -ceq 'ROLLBACK_RETAINED') "$legacy must be marked as rollback retention."
-  }
-}
 $outcomes = $updated.services | Group-Object status | Sort-Object Name
 $outcomes | ForEach-Object { Write-Host "$($_.Name): $($_.Count)" }
 Write-Host "Verified Vue delivery, $($expected.Count) services ($($configured.Count) configured), $($containers.Count) project containers, navigation links and a fresh status update."

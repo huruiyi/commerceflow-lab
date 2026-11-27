@@ -12,13 +12,10 @@ function Get-CommerceLedger([string]$Project, [string]$AppId) {
   }
   $url = docker inspect $AppId --format '{{range .Config.Env}}{{println .}}{{end}}' |
     Where-Object { $_ -like 'DATABASE_URL=*' }
-  if ($LASTEXITCODE -or $url -notmatch '^DATABASE_URL=jdbc:(mysql|postgresql)://([a-z0-9-]+):(\d+)/([a-z0-9_]+)(?:\?|$)') {
+  if ($LASTEXITCODE -or $url -notmatch '^DATABASE_URL=jdbc:(postgresql)://([a-z0-9-]+):(5432)/([a-z0-9_]+)(?:\?|$)') {
     throw "Unrecognized commerce datasource in $Project"
   }
   $engine, $service, $port, $database = $Matches[1], $Matches[2], $Matches[3], $Matches[4]
-  if (($engine -eq 'postgresql' -and $port -ne '5432') -or ($engine -eq 'mysql' -and $port -ne '3306')) {
-    throw "Unexpected port for $Project/$service"
-  }
   $containers = @(docker ps -q --filter $scope --filter "label=com.docker.compose.service=$service" --filter 'label=com.docker.compose.oneoff=False')
   if ($LASTEXITCODE -or $containers.Count -ne 1) { throw "Missing live $Project/$service" }
   [pscustomobject]@{ Engine=$engine; Service=$service; Database=$database; Container=$containers[0] }
@@ -35,24 +32,14 @@ function Start-CommerceVerificationStack([string]$Root, [string]$Peer) {
   } else {
     $config = docker compose --project-directory $Root config --format json | ConvertFrom-Json
     if ($LASTEXITCODE -or !$config.name) { throw 'Could not identify the verification project' }
-    if ($config.name -eq 'fairy-commerceflow' -and $config.services.'commerce-service'.environment.DATABASE_URL -like 'jdbc:mysql:*') {
-      $retainedPg = docker ps -aq --filter 'label=com.docker.compose.project=fairy-commerceflow' --filter 'label=com.docker.compose.service=commerce-db-postgresql'
-      if ($LASTEXITCODE -or $retainedPg) {
-        throw 'The requested MySQL configuration cannot establish the daily release binding. Use the deployed release configuration.'
-      }
-    }
     docker compose --project-directory $Root up -d --no-recreate --wait commerce-service $Peer | Out-Null
   }
   if ($LASTEXITCODE) { throw "Could not start commerce-service and $Peer" }
 }
 
 function Read-CommerceLedger($Ledger, [string]$Sql) {
-  if ($Ledger.Engine -eq 'postgresql') {
-    $rows = docker exec -e 'PGOPTIONS=-c default_transaction_read_only=on -c search_path=commerceflow' $Ledger.Container `
-      psql -U postgres -d $Ledger.Database -XqAt -F "`t" -v ON_ERROR_STOP=1 -c $Sql
-  } else {
-    $rows = docker exec $Ledger.Container sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot --default-character-set=utf8mb4 -NB --init-command="SET SESSION TRANSACTION READ ONLY" "$1" -e "$2"' sh $Ledger.Database $Sql
-  }
+  $rows = docker exec -e 'PGOPTIONS=-c default_transaction_read_only=on -c search_path=commerceflow' $Ledger.Container `
+    psql -U postgres -d $Ledger.Database -XqAt -F "`t" -v ON_ERROR_STOP=1 -c $Sql
   if ($LASTEXITCODE) { throw "Read failed on $($Ledger.Service)/$($Ledger.Database)" }
   return $rows
 }
@@ -72,4 +59,26 @@ SELECT rolname FROM pg_roles WHERE rolname='commerce_runtime' AND
   (rolsuper OR rolcreaterole OR has_schema_privilege(rolname,'commerceflow','CREATE')
    OR pg_has_role(rolname,'pg_read_all_data','MEMBER') OR pg_has_role(rolname,'pg_write_all_data','MEMBER'));
 "@
+}
+
+function Invoke-ProjectDatabaseSql([string]$Project, [string]$Service, [string]$Database, [string]$Query) {
+  if ($Service -notlike '*-postgresql') { $Service += '-postgresql' }
+  $containers = @(docker ps -q --filter "label=com.docker.compose.project=$Project" `
+    --filter "label=com.docker.compose.service=$Service" --filter "label=com.docker.compose.oneoff=False")
+  if ($LASTEXITCODE -or $containers.Count -ne 1) { throw "Expected one live $Project/$Service" }
+  $result = docker exec -e "PGOPTIONS=-c search_path=$Database,public" $containers[0] `
+    psql -U postgres -d $Database -XqAt -F "`t" -v ON_ERROR_STOP=1 -c $Query
+  if ($LASTEXITCODE) { throw "Verification SQL failed for $Project/$Service" }
+  return $result
+}
+
+function New-VerificationTrigger([string]$Name, [string]$Operation, [string]$Table, [string]$Body) {
+  $function = $Name + "_fn"
+  $delimiter = '$fixture$'
+  "CREATE FUNCTION $function() RETURNS trigger LANGUAGE plpgsql AS $delimiter BEGIN $Body RETURN NEW; END; $delimiter; " +
+    "CREATE TRIGGER $Name BEFORE $Operation ON $Table FOR EACH ROW EXECUTE FUNCTION $function()"
+}
+
+function Remove-VerificationTrigger([string]$Name, [string]$Table) {
+  "DROP TRIGGER IF EXISTS $Name ON $Table; DROP FUNCTION IF EXISTS $($Name)_fn()"
 }

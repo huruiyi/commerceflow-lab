@@ -11,13 +11,6 @@
     INSERT INTO warehouse_returns (
       return_id,outbound_id,order_id,order_line_id,warehouse_id,tracking_number,expected_quantity
     ) VALUES (#{returnId},#{outboundId},#{orderId},#{orderLineId},#{warehouseId},#{trackingNumber},#{expectedQuantity})
-    ON DUPLICATE KEY UPDATE return_id=return_id
-  </insert>
-
-  <insert id="insert" databaseId="postgresql">
-    INSERT INTO warehouse_returns (
-      return_id,outbound_id,order_id,order_line_id,warehouse_id,tracking_number,expected_quantity
-    ) VALUES (#{returnId},#{outboundId},#{orderId},#{orderLineId},#{warehouseId},#{trackingNumber},#{expectedQuantity})
     ON CONFLICT (return_id) DO NOTHING
   </insert>
 

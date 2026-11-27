@@ -47,14 +47,15 @@ try {
 }
 
 if ($model.name -cne 'fairy-commerceflow') { throw 'Unexpected daily Compose project' }
-foreach ($service in $model.services.GetEnumerator()) {
-  $config = $service.Value
-  if ($config.image -match '(^|/)(mysql|mariadb)(:|@|$)' -or
-      $config.environment.Values -match 'jdbc:mysql:' -or
-      $config.build.args.MAVEN_LEGACY_MYSQL -eq 'true' -or
-      $config.volumes.target -contains '/var/lib/mysql') {
-    throw "Legacy database remains in the daily graph: $($service.Key)"
-  }
+$databaseServices = @($model.services.Values | Where-Object { $_.volumes.target -contains "/var/lib/postgresql/data" })
+if ($databaseServices.Count -ne $expected.Count -or
+    @($databaseServices | Where-Object image -cne "postgres:17.11-alpine").Count) {
+  throw "Unexpected PostgreSQL service count or image in the daily graph"
+}
+
+$jdbcServices = @($model.services.Values | Where-Object { $_.environment.Values -match '^jdbc:' })
+if ($jdbcServices.Count -ne $expected.Count) {
+  throw 'Unexpected number of JDBC applications in the daily graph'
 }
 
 foreach ($name in $expected.Keys) {

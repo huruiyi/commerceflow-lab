@@ -26,13 +26,13 @@
   <insert id="saveDefault">
     INSERT INTO merchant_shipping_rates (merchant_id, country_code, state_province, fee)
     VALUES (#{merchantId}, '', '', #{fee})
-    ON DUPLICATE KEY UPDATE fee = #{fee}
+    ON CONFLICT (merchant_id, country_code, state_province) DO UPDATE SET fee = #{fee}
   </insert>
 
-  <insert id="saveDefault" databaseId="postgresql">
-    INSERT INTO merchant_shipping_rates (merchant_id, country_code, state_province, fee)
+  <insert id="saveDefault" databaseId="h2">
+    MERGE INTO merchant_shipping_rates (merchant_id, country_code, state_province, fee)
+    KEY (merchant_id, country_code, state_province)
     VALUES (#{merchantId}, '', '', #{fee})
-    ON CONFLICT (merchant_id, country_code, state_province) DO UPDATE SET fee = #{fee}
   </insert>
 
   <delete id="deleteRegions">

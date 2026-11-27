@@ -67,11 +67,10 @@ class Acceptance {
     return name;
   }
 
-  mysql(service, schema, query) {
+  database(service, schema, query) {
     if (!this.databases.has(service)) this.databases.set(service, this.container(service));
-    return execFileSync("docker", ["exec", "-i", this.databases.get(service), "sh", "-ec",
-      'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -NB "$1"', "sh", schema],
-    { input: query, encoding: "utf8" }).trim();
+    return execFileSync("docker", ["exec", "-i", this.databases.get(service), "psql", "-U", "postgres", "-d", schema, "-XqAt", "-v", "ON_ERROR_STOP=1"],
+    { input: "SET search_path TO " + schema + ",public;\n" + query, encoding: "utf8" }).trim();
   }
 
   pg(query) {
@@ -187,16 +186,16 @@ class Acceptance {
           { status: 200, result: "ACKNOWLEDGED" },
         ], "late original payment callback and duplicate");
         await expect(buyer.getByText("已支付", { exact: true }).first()).toBeVisible({ timeout: 35000 });
-        const provider = this.mysql("payment-simulator-db", "payment_platform",
+        const provider = this.database("payment-simulator-db-postgresql", "payment_platform",
           "SELECT CONCAT(COUNT(*),'|',MIN(status)) FROM channel_transaction WHERE merchant_request_no=" + literal(payment.paymentNumber));
         same(provider, "1|SUCCESS", "one provider transaction");
-        const byKey = this.mysql("payment-db", "payments",
+        const byKey = this.database("payment-db-postgresql", "payments",
           "SELECT CONCAT(COUNT(*),'|',MIN(status)) FROM payment_records WHERE idempotency_key=" + literal(request.idempotencyKey));
         same(byKey, "1|SUCCESS", "one successful payment for original key");
-        const callbacks = this.mysql("payment-db", "payments",
+        const callbacks = this.database("payment-db-postgresql", "payments",
           "SELECT CONCAT(COUNT(*),'|',MIN(processing_status)) FROM payment_notifications WHERE notification_id=" + literal(notifyId));
         same(callbacks, "1|PROCESSED", "duplicate callback has one audit entry");
-        const orderEvents = this.mysql("order-db", "orders",
+        const orderEvents = this.database("order-db-postgresql", "orders",
           "SELECT COUNT(*) FROM order_events WHERE order_id=" + order.id + " AND event_type='PAYMENT_SUCCEEDED'");
         same(orderEvents, "1", "one order payment event");
         await buyer.screenshot({ path: join(this.artifacts, "payment-recovered.png"), fullPage: true });
@@ -257,7 +256,7 @@ class Acceptance {
         const trace = (await this.state()).messaging.requests[requestId];
         same([trace.channel, trace.reference, trace.submissions, trace.replyLost], [channel, eventId, 1, true]);
         assert(trace.queries >= 2, "status retried after recovery");
-        same(this.mysql("messaging-simulator-db", "messaging_platform",
+        same(this.database("messaging-simulator-db-postgresql", "messaging_platform",
           "SELECT CONCAT(COUNT(*),'|',MIN(provider_id),'|',MIN(status)) FROM messaging_deliveries WHERE request_id="
           + literal(requestId)), "1|" + providerId + "|DELIVERED", "one original provider row");
         const menu = page.getByRole("navigation", { name: "后台菜单" });
@@ -275,7 +274,7 @@ class Acceptance {
         await panel.getByRole("button", { name: "关闭详情" }).click();
         deliveries[channel] = { requestId, providerId, attempts: Number(attempts), ...trace };
       }
-      same(this.mysql("payment-db", "payments", "SELECT CONCAT(COUNT(*),'|',MIN(status)) FROM refund_records WHERE refund_number="
+      same(this.database("payment-db-postgresql", "payments", "SELECT CONCAT(COUNT(*),'|',MIN(status)) FROM refund_records WHERE refund_number="
         + literal(refund.refundNumber)), "1|SUCCEEDED", "one source refund");
       return { order: order.orderNumber, refund: finalOrder.refund.refundNumber, refundKey, eventId, deliveries };
     } finally {
@@ -300,7 +299,7 @@ class Acceptance {
     await buyer.reload();
     await expect(buyer.getByTestId("invoice-application")).toHaveText(application.applicationNo);
     await expect(buyer.locator('[data-state="PENDING"]')).toBeVisible();
-    same(this.mysql("invoice-db", "invoice_platform",
+    same(this.database("invoice-db-postgresql", "invoice_platform",
       "SELECT COUNT(*) FROM invoice_tickets WHERE request_id=" + literal(requestId)), "1", "channel issued before business got receipt");
     await this.control("invoice", "release");
     await expect(buyer.locator('[data-state="ISSUED"]')).toBeVisible({ timeout: 45000 });
@@ -311,12 +310,12 @@ class Acceptance {
       const record = (await this.state()).invoice.receipts[held[0]];
       return record.forwarded >= 2 && record;
     }, "invoice sender retried original signed receipt after lost acknowledgement");
-    same(this.mysql("commerce-db", "commerceflow", "SELECT CONCAT(COUNT(*),'|',MIN(status),'|',MIN(invoice_no)) FROM invoice_attempts "
+    same(this.database("commerce-db-postgresql", "commerceflow", "SELECT CONCAT(COUNT(*),'|',MIN(status),'|',MIN(invoice_no)) FROM invoice_attempts "
       + "WHERE kind='ISSUE' AND order_id=" + order.id), "1|SUCCEEDED|" + ticket, "one original commerce issue attempt");
-    same(this.mysql("invoice-db", "invoice_platform", "SELECT CONCAT(COUNT(*),'|',MIN(invoice_no)) FROM invoice_tickets WHERE request_id="
+    same(this.database("invoice-db-postgresql", "invoice_platform", "SELECT CONCAT(COUNT(*),'|',MIN(invoice_no)) FROM invoice_tickets WHERE request_id="
       + literal(requestId)), "1|" + ticket, "one simulated ticket on original request");
     const receipt = await until(() => {
-      const evidence = this.mysql("invoice-db", "invoice_platform", "SELECT CONCAT(COUNT(*),'|',MIN(attempts)) FROM invoice_receipts "
+      const evidence = this.database("invoice-db-postgresql", "invoice_platform", "SELECT CONCAT(COUNT(*),'|',MIN(attempts)) FROM invoice_receipts "
         + "WHERE event_id=" + literal(held[0]) + " AND delivered_at IS NOT NULL");
       return evidence.startsWith("1|") && evidence;
     }, "single delivered audit receipt");

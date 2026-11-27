@@ -1,6 +1,6 @@
 # 电子发票模拟平台
 
-服务独占 MySQL `invoice_platform` 中的请求、模拟票据和回执账本。调用方提供已核算的正票金额和单笔成功退款金额。金额均为正数，记至两位小数，最大为 `9999999999999999.99`，币种使用三个大写字母且红票与原票一致。正票记录开票申请号和原支付单号，红票记录原正票号和退款单号。
+服务独占 PostgreSQL 的 `invoice_platform` 数据库 中的请求、模拟票据和回执账本。调用方提供已核算的正票金额和单笔成功退款金额。金额均为正数，记至两位小数，最大为 `9999999999999999.99`，币种使用三个大写字母且红票与原票一致。正票记录开票申请号和原支付单号，红票记录原正票号和退款单号。
 
 ## 请求与状态
 
@@ -21,9 +21,9 @@
 
 所有业务 API 和回执使用 `X-Invoice-Timestamp` 和 `X-Invoice-Signature`。时间戳为 Unix 秒，容许时差为 300 秒，签名为 HMAC-SHA256 的十六进制表示。签名内容为 UTF-8 前缀 `timestamp + "\n" + HTTP_METHOD + "\n" + rawPath + "\n"` 拼接原始请求体字节，GET 的请求体为空。请求和回执各用独立密钥。
 
-终态、成功票据和待投递回执在同一事务提交。回执以 POST 发往固定的 `INVOICE_CALLBACK_URL`，正文包含 `eventId` 和 `result`。同一回执重投使用相同的事件 ID（`evt-<requestId>`）和结果，每次重新签名。接收方应先按事件 ID 幂等处理，再返回 2xx 确认。超时、断线或非 2xx 会触发重投，待处理请求和待确认回执均由 MySQL 恢复。
+终态、成功票据和待投递回执在同一事务提交。回执以 POST 发往固定的 `INVOICE_CALLBACK_URL`，正文包含 `eventId` 和 `result`。同一回执重投使用相同的事件 ID（`evt-<requestId>`）和结果，每次重新签名。接收方应先按事件 ID 幂等处理，再返回 2xx 确认。超时、断线或非 2xx 会触发重投，待处理请求和待确认回执均由 PostgreSQL 账本恢复。
 
-独立运行时填写标准 Spring 数据源变量，并设置 `INVOICE_REQUEST_SECRET`、`INVOICE_CALLBACK_SECRET`（不同且各至少 32 字符）和 `INVOICE_CALLBACK_URL`。验收入口从仓库根目录运行，使用独立 Compose 项目和数据卷，结束后保留该卷供复核。
+独立运行时设置 `SPRING_PROFILES_ACTIVE=postgresql`，并填写 Spring 的 PostgreSQL 数据源变量，并设置 `INVOICE_REQUEST_SECRET`、`INVOICE_CALLBACK_SECRET`（不同且各至少 32 字符）和 `INVOICE_CALLBACK_URL`。验收入口从仓库根目录运行，使用独立 Compose 项目和数据卷，结束后保留该卷供复核。
 
 ```powershell
 pwsh -NoProfile -File scripts/invoice/verify-invoice-simulator.ps1

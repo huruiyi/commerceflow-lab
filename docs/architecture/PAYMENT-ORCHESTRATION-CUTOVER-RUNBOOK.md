@@ -66,7 +66,7 @@ M3.6 第十一批已在明确授权的受控窗口完成 **CUTOVER**。普通支
 - 强停写后最终快照为 generation 16、水位 610，14 张表逐表行数和指纹全部 `MATCH`。
 - OPEN 孤儿、待发布 Payment Outbox、待处理 Command Outbox、未完成 Process Manager 均为 0。
 - payment 模式为 `acceptingTraffic=true/effectsEnabled=true/shadowEnabled=false`；两类回调只指向独立服务。
-- `commerce_runtime` 对 14 张旧源表的表权限计数为 0，直接 SELECT 返回 MySQL 1142。
+- `commerce_runtime` 对 14 张旧源表的表权限计数为 0，直接 SELECT 返回原数据库1142。
 - 受控订单 486 完成支付、支付重放、全额退款、退款重放；最终订单 `REFUNDED`、退款 `SUCCEEDED`、库存
   `REFUNDED`，独立库未决项为 0，commerce 旧源表没有该订单支付记录。
 - 独立库已接收新业务写，旧库仅作历史证据，不再是运行回退路径。
@@ -112,6 +112,6 @@ Payment/Command Outbox、未完成 Process Manager 和 OPEN 孤儿全部为 0。
 `CommerceFlowPaymentReconciliationBacklog`。两条告警按各自读数持续 10 分钟触发，
 新对账告警要求最新数据库读取成功。详细规则见[可观测性与告警](../ALERTING.md)。
 
-隔离 MySQL 通过支付服务真实采集，依次观察到两项读数 `0/0 → 4/0 → 0/2 → 0/0`。已结案账本行及
+隔离原数据库通过支付服务真实采集，依次观察到两项读数 `0/0 → 4/0 → 0/2 → 0/0`。已结案账本行及
 `WAITING_RESULT` 流程未被计入对应指标。Promtool 分别验证了仅账本积压、仅流程待恢复、未达 10 分钟、
 结案清零和数据库读取失败时的告警行为。现有本地环境没有写入告警测试数据。

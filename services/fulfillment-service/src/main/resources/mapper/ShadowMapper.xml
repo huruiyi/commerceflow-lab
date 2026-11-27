@@ -48,8 +48,8 @@
 
   <insert id="isolate">
     INSERT INTO fulfillment_shadow_quarantine (table_name,row_key,source_sequence,reason,payload)
-    VALUES (#{row.tableName},#{row.rowKey},#{sequence},#{reason},#{row.payload})
-    ON DUPLICATE KEY UPDATE source_sequence=#{sequence},reason=#{reason},payload=#{row.payload}
+    VALUES (#{row.tableName},#{row.rowKey},#{sequence},#{reason},CAST(#{row.payload} AS JSONB))
+    ON CONFLICT (table_name,row_key) DO UPDATE SET source_sequence=#{sequence},reason=#{reason},payload=EXCLUDED.payload
   </insert>
 
   <delete id="clearIsolation">
@@ -87,7 +87,7 @@
         ) VALUES (
           #{values.order_id}
         )
-        ON DUPLICATE KEY UPDATE
+        ON CONFLICT (order_id) DO UPDATE SET
           order_id=#{values.order_id}
       </when>
       <when test="tableName == 'fulfillment_command_ids'">
@@ -98,7 +98,7 @@
           #{values.command_id},
           #{values.order_id}
         )
-        ON DUPLICATE KEY UPDATE
+        ON CONFLICT (command_id) DO UPDATE SET
           order_id=#{values.order_id}
       </when>
       <when test="tableName == 'fulfillment_shipment_jobs'">
@@ -135,7 +135,7 @@
           #{values.created_at},
           #{values.updated_at}
         )
-        ON DUPLICATE KEY UPDATE
+        ON CONFLICT (command_id) DO UPDATE SET
           order_id=#{values.order_id},
           merchant_id=#{values.merchant_id},
           order_number=#{values.order_number},
@@ -187,7 +187,7 @@
           #{values.last_error},
           #{values.updated_at}
         )
-        ON DUPLICATE KEY UPDATE
+        ON CONFLICT (command_id) DO UPDATE SET
           order_id=#{values.order_id},
           merchant_id=#{values.merchant_id},
           operation=#{values.operation},
@@ -228,7 +228,7 @@
           #{values.evidence},
           #{values.created_at}
         )
-        ON DUPLICATE KEY UPDATE
+        ON CONFLICT (id) DO UPDATE SET
           order_id=#{values.order_id},
           recovery_id=#{values.recovery_id},
           command_id=#{values.command_id},
@@ -261,7 +261,7 @@
           #{values.evidence},
           #{values.created_at}
         )
-        ON DUPLICATE KEY UPDATE
+        ON CONFLICT (id) DO UPDATE SET
           command_id=#{values.command_id},
           recovery_id=#{values.recovery_id},
           operator_id=#{values.operator_id},

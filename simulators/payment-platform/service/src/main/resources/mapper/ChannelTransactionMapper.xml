@@ -6,7 +6,7 @@
       amount, currency, status, fault_scenario, checkout_token, expires_at, created_at, updated_at)
     VALUES (#{channelTransactionNo}, #{merchantId}, #{merchantRequestNo}, #{channel}, #{subject},
       #{amount}, #{currency}, #{status}, #{faultScenario}, #{checkoutToken}, #{expiresAt}, #{createdAt}, #{updatedAt})
-    <if test="_databaseId == 'postgresql'">ON CONFLICT (merchant_id, merchant_request_no) DO NOTHING</if>
+    ON CONFLICT (merchant_id, merchant_request_no) DO NOTHING
   </insert>
   <select id="lockRefundPayment" resultType="vip.fairy.commerceflow.simulator.payment.domain.ChannelTransaction">
     SELECT * FROM channel_transaction

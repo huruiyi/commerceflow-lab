@@ -2,7 +2,7 @@
 
 ## 1. 项目定位
 
-本项目是一个可公开发布的全栈学习示例。目标是让学习者克隆仓库后，只需按文档调整少量环境变量，即可通过 Docker Compose 启动前端、后端、MySQL 和 Redis，并走通一套简化但完整的电商流程。
+本项目是一个可公开发布的全栈学习示例。目标是让学习者克隆仓库后，只需按文档调整少量环境变量，即可通过 Docker Compose 启动前端、后端、原数据库和 Redis，并走通一套简化但完整的电商流程。
 
 仓库可以提交演示账号、演示密码、开发环境密钥和默认配置；不得提交真实生产凭据、个人数据或第三方正式密钥。`node_modules`、`dist`、`target`、日志、IDE 元数据等可重建产物不提交。
 
@@ -13,7 +13,7 @@
 | 前端 | Angular 22.2.6、SimUI 1.8.0 / Spartan UI 1.8.0、Tailwind CSS 4.3.5、Bootstrap 5.3.9、运行时中英文切换 |
 | 后端 | Java 25 LTS、Spring Boot 4.1.2、Spring Security 7 |
 | 数据访问 | MyBatis-Plus 3.5.18、Flyway |
-| 数据库 | MySQL 8.4 |
+| 数据库 | 原数据库 |
 | 缓存与会话 | Redis 7.4、Spring Session Data Redis |
 | 认证 | 基于 Session 的登录、CSRF、防暴力登录、持久化 Remember-Me |
 | 部署 | Docker Compose，一条命令启动完整环境 |
@@ -51,7 +51,7 @@ PENDING_PAYMENT -> CANCELLED（取消）
 - 商品数量范围统一为 1–99；数量减到边界时提示用户使用“移除”，不能出现数量 0 的购物车项。
 - 下单时保存商品名称、单价和收货地址快照，之后修改商品或地址不影响历史订单。
 - 用户只能访问自己的购物车、地址和订单；商家只能处理属于自己的商品订单。
-- MySQL 是业务事实来源；Redis 只保存会话、限流、幂等标记和可重建缓存。
+- 原数据库是业务事实来源；Redis 只保存会话、限流、幂等标记和可重建缓存。
 - 关键状态变更写入 `order_event`，保留操作者、旧状态、新状态和时间。
 
 计划涉及的主要表：
@@ -84,7 +84,7 @@ review, persistent_login
 ### 第 00 章：当前全栈基线（已完成）
 
 - [x] 前后端目录拆分。
-- [x] Angular 前端、Spring Boot 2.6.15 后端、MySQL Docker 化。
+- [x] Angular 前端、Spring Boot 2.6.15 后端、原数据库 Docker 化。
 - [x] 基础登录、商品展示、数量调整和订单列表。
 - [x] 后端测试、前端构建与测试、Docker 和浏览器验证。
 - 历史提交：`6a2394d feat: add Dockerized full-stack demo`
@@ -95,7 +95,7 @@ review, persistent_login
 - [x] 完成 `javax.*` 到 `jakarta.*` 的迁移。
 - [x] 移除 Spring Data JPA，使用 MyBatis-Plus 3.5.18。
 - [x] 引入 Flyway，所有结构和演示数据通过版本化脚本初始化。
-- [x] Compose 增加 Redis 7.4，并为 MySQL、Redis、后端和前端配置健康检查。
+- [x] Compose 增加 Redis 7.4，并为 原数据库、Redis、后端和前端配置健康检查。
 - [x] 保持现有登录、商品、用户和数量功能不回退。
 - 验收：全新数据卷一键启动；后端测试通过；现有前端测试、构建和主要浏览器流程通过。
 - 计划提交：`feat: migrate backend to Spring Boot 3 and MyBatis-Plus`
@@ -143,7 +143,7 @@ review, persistent_login
 
 ### 第 05A-0 章：高级支付方案与实施计划
 
-- [x] 定义商城后端、独立模拟支付服务、Kafka、MySQL 和 Redis 的职责边界。
+- [x] 定义商城后端、独立模拟支付服务、Kafka、原数据库和 Redis 的职责边界。
 - [x] 定义支付宝、微信支付、银联三种模拟商户及统一支付协议。
 - [x] 定义支付状态机、数据库幂等、签名验签、异步通知、Outbox 和补偿机制。
 - [x] 将高级支付拆分为可独立测试和提交的小章。
@@ -176,7 +176,7 @@ review, persistent_login
 ### 第 05A-3 章：签名、验签与防重放（已完成）
 
 - [x] 支持 RSA-SHA256、HMAC-SHA256、时间戳、Nonce 和请求体摘要。
-- [x] Redis 保存短期 Nonce、限流状态和可重建缓存，MySQL 保持最终安全约束。
+- [x] Redis 保存短期 Nonce、限流状态和可重建缓存，原数据库保持最终安全约束。
 - [x] 回调地址使用商户配置白名单，日志隐藏密钥和敏感内容。
 - [x] 提供仅供本地教学使用的演示密钥和密钥轮换结构。
 - [x] 支付后台敏感操作要求重新认证，并为管理员提供 TOTP 二次验证和恢复码教学流程。
@@ -263,9 +263,9 @@ review, persistent_login
 ### 第 08 章：Redis 业务增强与降级（已完成）
 
 - [x] 缓存商品、评分和评价列表，评价写入后正确失效。
-- [x] 为支付使用短期幂等辅助键，MySQL 继续保证最终正确性。
+- [x] 为支付使用短期幂等辅助键，原数据库继续保证最终正确性。
 - [x] 完善 Session、登录限流和缓存 Key 命名、TTL 文档。
-- [x] Redis 不可用时，公开商品读取降级 MySQL，数据库核心数据不受损。
+- [x] Redis 不可用时，公开商品读取降级 原数据库，数据库核心数据不受损。
 - 验收：缓存命中/失效、TTL、幂等、限流和 Redis 故障场景通过。
 - 计划提交：`feat: add Redis cache throttling and idempotency`
 

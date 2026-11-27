@@ -37,11 +37,7 @@
     UPDATE products SET lifecycle_status=#{status},business_version=business_version+1
     WHERE id=#{productId} AND merchant_id=#{merchantId} AND business_version=#{expectedVersion}
   </update>
-  <update id="updateMonitorProfile">
-    UPDATE products SET monitor_profile=#{profile},business_version=business_version+1
-    WHERE id=#{productId} AND merchant_id=#{merchantId} AND business_version=#{expectedVersion}
-      AND listing_product_id IS NULL
-  </update>
+
   <update id="advanceVersion">
     UPDATE products SET business_version=business_version+1
     WHERE id=#{productId} AND merchant_id=#{merchantId} AND business_version=#{expectedVersion}
@@ -55,14 +51,12 @@
     VALUES (#{merchantId},#{createRequestId},#{createFingerprint},#{name},#{brief},#{description},
       #{price},#{imageUrl},#{thumbnailUrl},#{lifecycleStatus},#{businessVersion})
   </sql>
+
   <insert id="insertListing" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
-    <include refid="insertListingValues"/>
-  </insert>
-  <insert id="insertListing" databaseId="postgresql" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
     <include refid="insertListingValues"/>
     ON CONFLICT (merchant_id,create_request_id) DO NOTHING
   </insert>
-  <update id="updateMonitorProfile" databaseId="postgresql">
+  <update id="updateMonitorProfile">
     UPDATE products SET monitor_profile=CAST(#{profile} AS jsonb),business_version=business_version+1
     WHERE id=#{productId} AND merchant_id=#{merchantId} AND business_version=#{expectedVersion}
       AND listing_product_id IS NULL

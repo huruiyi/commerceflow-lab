@@ -1,24 +1,197 @@
 services:
-  commerce-fulfillment-initializer:
-    image: mysql:8.4
-    entrypoint:
-      - sh
-      - -ec
-      - 'MYSQL_PWD="$$SOURCE_ROOT_PASSWORD" exec mysql --protocol=tcp -h commerce-db -uroot commerceflow < /access/initialize-fulfillment-source.sql'
+  commerce-schema-migrator:
+    image: redgate/flyway:12.4.0
     environment:
-      SOURCE_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
+      FLYWAY_URL: jdbc:postgresql://commerce-db-postgresql:5432/commerceflow
+      FLYWAY_USER: postgres
+      FLYWAY_PASSWORD: ${COMMERCE_POSTGRES_ADMIN_PASSWORD:-local-commerce-postgres-admin-password}
+      FLYWAY_SCHEMAS: commerceflow
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
     volumes:
-      - ./infrastructure/commerce/initialize-fulfillment-source.sql:/access/initialize-fulfillment-source.sql:ro
+      - ./services/commerce-service/src/main/resources/db/postgresql:/flyway/sql:ro
+    command: ["migrate"]
+    depends_on:
+      commerce-db-postgresql:
+        condition: service_healthy
+
+  commerce-demo-init:
+    image: postgres:17.11-alpine
+    environment:
+      PGPASSWORD: ${COMMERCE_POSTGRES_ADMIN_PASSWORD:-local-commerce-postgres-admin-password}
+      COMMERCE_POSTGRES_RUNTIME_PASSWORD: ${COMMERCE_POSTGRES_RUNTIME_PASSWORD:-local-commerce-postgres-runtime-password}
+      COMMERCE_AUDIT_PASSWORD: ${COMMERCE_AUDIT_PASSWORD:-local-commerce-audit}
+      COMMERCE_TASK_FIXTURE_PASSWORD: ${COMMERCE_TASK_FIXTURE_PASSWORD:-local-task-fixture}
+    entrypoint: ["psql", "-X", "-v", "ON_ERROR_STOP=1", "-h", "commerce-db-postgresql", "-U", "postgres", "-d", "commerceflow"]
+    command: ["-f", "/demo/commerce.sql", "-f", "/demo/runtime-grants.sql", "-f", "/demo/verification-grants.sql"]
+    volumes:
+      - ./infrastructure/demo/init-commerce.sql:/demo/commerce.sql:ro
+      - ./infrastructure/commerce/postgresql-runtime-grants.sql:/demo/runtime-grants.sql:ro
+      - ./infrastructure/commerce/postgresql-verification-grants.sql:/demo/verification-grants.sql:ro
     depends_on:
       commerce-schema-migrator:
         condition: service_completed_successfully
-    restart: "no"
 
-  commerce-source-access-freezer:
+  commerce-service:
     depends_on:
-      commerce-fulfillment-initializer:
+      commerce-demo-init:
         condition: service_completed_successfully
+
+  catalog-demo-init:
+    image: postgres:17.11-alpine
+    profiles: ["demo-data"]
+    entrypoint: ["sh", "/demo/init-demo-data.sh"]
+    environment:
+      CATALOG_PASSWORD: ${CATALOG_PG_RUNTIME_PASSWORD:-local-catalog-pg-runtime-password}
+      INVENTORY_PASSWORD: ${INVENTORY_PG_RUNTIME_PASSWORD:-local-inventory-pg-runtime-password}
+    volumes:
+      - ./infrastructure/demo:/demo:ro
+    depends_on:
+      catalog-service:
+        condition: service_healthy
+      inventory-service:
+        condition: service_healthy
+
+  payment-demo-init:
+    image: postgres:17.11-alpine
+    profiles: ["demo-data"]
+    environment:
+      PGPASSWORD: ${PAYMENT_ORCHESTRATION_PG_RUNTIME_PASSWORD:-local-payment-orchestration-pg-runtime-password}
+    entrypoint: ["psql", "-X", "-v", "ON_ERROR_STOP=1", "-h", "payment-db-postgresql", "-U", "payment_orchestration_runtime", "-d", "payments"]
+    command: ["-f", "/demo/payment.sql"]
+    volumes:
+      - ./infrastructure/demo/init-payment.sql:/demo/payment.sql:ro
+    depends_on:
+      payment-orchestration-service:
+        condition: service_healthy
+
+  catalog-db-postgresql:
+    environment:
+      POSTGRES_RUNTIME_USER: catalog_runtime
+      POSTGRES_RUNTIME_PASSWORD: ${CATALOG_PG_RUNTIME_PASSWORD:-local-catalog-pg-runtime-password}
+      POSTGRES_RUNTIME_SCHEMA: catalog
+    volumes:
+      - ./infrastructure/postgresql/init-runtime-role.sh:/docker-entrypoint-initdb.d/10-runtime-role.sh:ro
+
+  catalog-service:
+    environment:
+      SPRING_FLYWAY_ENABLED: "true"
+      SPRING_FLYWAY_DEFAULT_SCHEMA: catalog
+
+  order-db-postgresql:
+    environment:
+      POSTGRES_RUNTIME_USER: order_runtime
+      POSTGRES_RUNTIME_PASSWORD: ${ORDER_PG_RUNTIME_PASSWORD:-local-order-pg-runtime-password}
+      POSTGRES_RUNTIME_SCHEMA: public
+      POSTGRES_RUNTIME_ALLOW_EXTENSIONS: "true"
+    volumes:
+      - ./infrastructure/postgresql/init-runtime-role.sh:/docker-entrypoint-initdb.d/10-runtime-role.sh:ro
+
+  order-service:
+    environment:
+      SPRING_FLYWAY_ENABLED: "true"
+      SPRING_FLYWAY_DEFAULT_SCHEMA: public
+
+  inventory-db-postgresql:
+    environment:
+      POSTGRES_RUNTIME_USER: inventory_runtime
+      POSTGRES_RUNTIME_PASSWORD: ${INVENTORY_PG_RUNTIME_PASSWORD:-local-inventory-pg-runtime-password}
+      POSTGRES_RUNTIME_SCHEMA: public
+    volumes:
+      - ./infrastructure/postgresql/init-runtime-role.sh:/docker-entrypoint-initdb.d/10-runtime-role.sh:ro
+
+  inventory-service:
+    environment:
+      SPRING_FLYWAY_ENABLED: "true"
+      SPRING_FLYWAY_DEFAULT_SCHEMA: public
+
+  fulfillment-db-postgresql:
+    environment:
+      POSTGRES_RUNTIME_USER: fulfillment_runtime
+      POSTGRES_RUNTIME_PASSWORD: ${FULFILLMENT_PG_RUNTIME_PASSWORD:-local-fulfillment-pg-runtime-password}
+      POSTGRES_RUNTIME_SCHEMA: public
+    volumes:
+      - ./infrastructure/postgresql/init-runtime-role.sh:/docker-entrypoint-initdb.d/10-runtime-role.sh:ro
 
   fulfillment-service:
     environment:
       FULFILLMENT_REQUIRE_PROMOTED_MODE: "false"
+      SPRING_FLYWAY_ENABLED: "true"
+      SPRING_FLYWAY_DEFAULT_SCHEMA: public
+
+  payment-db-postgresql:
+    environment:
+      POSTGRES_RUNTIME_USER: payment_orchestration_runtime
+      POSTGRES_RUNTIME_PASSWORD: ${PAYMENT_ORCHESTRATION_PG_RUNTIME_PASSWORD:-local-payment-orchestration-pg-runtime-password}
+      POSTGRES_RUNTIME_SCHEMA: public
+    volumes:
+      - ./infrastructure/postgresql/init-runtime-role.sh:/docker-entrypoint-initdb.d/10-runtime-role.sh:ro
+
+  payment-orchestration-service:
+    environment:
+      SPRING_FLYWAY_ENABLED: "true"
+      SPRING_FLYWAY_DEFAULT_SCHEMA: public
+
+  payment-simulator-db-postgresql:
+    environment:
+      POSTGRES_RUNTIME_USER: payment_simulator_runtime
+      POSTGRES_RUNTIME_PASSWORD: ${PAYMENT_SIMULATOR_PG_RUNTIME_PASSWORD:-local-payment-simulator-pg-runtime-password}
+      POSTGRES_RUNTIME_SCHEMA: public
+    volumes:
+      - ./infrastructure/postgresql/init-runtime-role.sh:/docker-entrypoint-initdb.d/10-runtime-role.sh:ro
+
+  payment-simulator-service:
+    environment:
+      SPRING_FLYWAY_ENABLED: "true"
+      SPRING_FLYWAY_DEFAULT_SCHEMA: public
+
+  warehouse-simulator-db-postgresql:
+    environment:
+      POSTGRES_RUNTIME_USER: warehouse_runtime
+      POSTGRES_RUNTIME_PASSWORD: ${WAREHOUSE_PG_RUNTIME_PASSWORD:-local-warehouse-pg-runtime-password}
+      POSTGRES_RUNTIME_SCHEMA: warehouse_platform
+    volumes:
+      - ./infrastructure/postgresql/init-runtime-role.sh:/docker-entrypoint-initdb.d/10-runtime-role.sh:ro
+
+  warehouse-simulator-service:
+    environment:
+      SPRING_FLYWAY_ENABLED: "true"
+      SPRING_FLYWAY_DEFAULT_SCHEMA: warehouse_platform
+
+  logistics-simulator-db-postgresql:
+    environment:
+      POSTGRES_RUNTIME_USER: logistics_runtime
+      POSTGRES_RUNTIME_PASSWORD: ${LOGISTICS_PG_RUNTIME_PASSWORD:-local-logistics-pg-runtime-password}
+      POSTGRES_RUNTIME_SCHEMA: logistics_platform
+    volumes:
+      - ./infrastructure/postgresql/init-runtime-role.sh:/docker-entrypoint-initdb.d/10-runtime-role.sh:ro
+
+  logistics-simulator-service:
+    environment:
+      SPRING_FLYWAY_ENABLED: "true"
+      SPRING_FLYWAY_DEFAULT_SCHEMA: logistics_platform
+
+  invoice-db-postgresql:
+    environment:
+      POSTGRES_RUNTIME_USER: invoice_runtime
+      POSTGRES_RUNTIME_PASSWORD: ${INVOICE_PG_RUNTIME_PASSWORD:-local-invoice-pg-runtime-password}
+      POSTGRES_RUNTIME_SCHEMA: invoice_platform
+    volumes:
+      - ./infrastructure/postgresql/init-runtime-role.sh:/docker-entrypoint-initdb.d/10-runtime-role.sh:ro
+
+  invoice-simulator-service:
+    environment:
+      SPRING_FLYWAY_ENABLED: "true"
+      SPRING_FLYWAY_DEFAULT_SCHEMA: invoice_platform
+
+  messaging-simulator-db-postgresql:
+    environment:
+      POSTGRES_RUNTIME_USER: messaging_runtime
+      POSTGRES_RUNTIME_PASSWORD: ${MESSAGING_PG_RUNTIME_PASSWORD:-local-messaging-pg-runtime-password}
+      POSTGRES_RUNTIME_SCHEMA: messaging_platform
+    volumes:
+      - ./infrastructure/postgresql/init-runtime-role.sh:/docker-entrypoint-initdb.d/10-runtime-role.sh:ro
+
+  messaging-simulator-service:
+    environment:
+      SPRING_FLYWAY_ENABLED: "true"
+      SPRING_FLYWAY_DEFAULT_SCHEMA: messaging_platform

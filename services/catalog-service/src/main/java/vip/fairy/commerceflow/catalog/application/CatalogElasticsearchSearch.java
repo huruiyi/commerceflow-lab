@@ -257,7 +257,7 @@ public class CatalogElasticsearchSearch {
           return result;
         }
       } catch (RestClientException | JacksonException | ArithmeticException failure) {
-        LOG.debug("Using MySQL for this catalog search", failure);
+        LOG.debug("Using the relational catalog index for this search", failure);
       }
     }
     fallbacks.increment();

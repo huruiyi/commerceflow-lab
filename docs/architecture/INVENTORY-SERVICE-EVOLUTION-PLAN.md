@@ -19,7 +19,7 @@ Outbox/Result Inbox 和身份薄代理，catalog 事件也只投递独立服务�
 - V33 增加订单/退款自有 inventoryStatus、履约阻断及原命令人工恢复门禁；
 - V34 为每次受控恢复保留操作者、原因和时间，禁止无理由重试；
 - 双平台只读审计已确认 V34、七张边界表、零跨域外键、余额不变量、命令闭环和零待对账；
-- 独立 MySQL V1、唯一命令 HTTP 适配器、catalog 事件适配器及可重复五表快照已落地，流量门禁默认关闭；
+- 独立原数据库V1、唯一命令 HTTP 适配器、catalog 事件适配器及可重复五表快照已落地，流量门禁默认关闭；
 - 取消通知由订单取消事务写入 notification Outbox，库存释放不再承担客户身份查询或通知副作用；
 - ArchUnit 门禁禁止库存以外的模块重新依赖库存 API、领域、基础设施或具体应用实现；
 - 跨模块现状为 39 个方向、109 个 import、35 个源码文件，跨模块 infrastructure 引用仍为 18。
@@ -97,7 +97,7 @@ catalog-service 已是商品资料唯一所有者。inventory 只能消费 catal
 2. [已完成] 明确 checkout/payment/refund 的跨进程结果与补偿协议；
 3. [已完成] 实现订单等待库存状态、履约阻断、退款库存待对账和管理恢复入口；
 4. [已完成] 最终 CREATE 准入评审，冻结五表迁移、停写/追平、唯一远程适配器、Trace 和回退手册；
-5. [已完成] 在独立 MySQL Schema 创建分层 `inventory-service`，完成可重复计数、余额总和和完整内容指纹快照；
+5. [已完成] 在独立原数据库Schema 创建分层 `inventory-service`，完成可重复计数、余额总和和完整内容指纹快照；
 6. [已完成预演] 停写窗口内追平增量，并用原命令验证远程幂等、服务停机 503 与恢复；尚未整体切换调用方；
 7. [已完成命令切换] 整体切换四类命令调用方，验证真实新写的重复、顺序、超时、结果丢失、停机恢复和跨进程 Trace；
 8. [已完成完整单一所有权] 商家库存查询/调整迁入独立服务，commerce 的库存 Handler、Mapper/XML/运行表访问
@@ -108,5 +108,5 @@ catalog-service 已是商品资料唯一所有者。inventory 只能消费 catal
 
 - 四类库存命令和商家库存管理均已启用独立服务流量；commerce 源表仅保留历史证据，运行账号无访问权限；
 - 不同时启动 order/payment-orchestration/fulfillment 拆分；
-- 不引入 PostgreSQL 或 MySQL/PostgreSQL 双方言。只有 M3 清单中的 notification、catalog、inventory、order、
+- 不引入 PostgreSQL 或 原数据库/PostgreSQL 双方言。只有 M3 清单中的 notification、catalog、inventory、order、
   payment-orchestration、fulfillment 全部完成单一所有权切换并逐一验收后，才允许单独启动 PostgreSQL 专项。

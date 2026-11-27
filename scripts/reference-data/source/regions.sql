@@ -3,22 +3,37 @@
 -- 数据来源：民政部区划地名公共服务平台 https://dmfw.mca.gov.cn/xzqh/getList?year=2026
 DROP TABLE IF EXISTS regions;
 CREATE TABLE regions (
-  short_code      VARCHAR(12)  NOT NULL COMMENT '短码（2/4/6/9 位，源站口径）',
-  code            VARCHAR(12)  NOT NULL COMMENT '9 位行政区划代码',
-  name            VARCHAR(64)  NOT NULL COMMENT '名称',
-  level           TINYINT      NOT NULL COMMENT '层级：1 省 2 地级 3 县级 4 乡镇街道',
-  type            VARCHAR(16)  NOT NULL COMMENT '类型：省/自治区/直辖市/特别行政区/地级市/地区/自治州/盟/市辖区/县/自治县/县级市/旗/街道/镇/乡/民族乡/苏木/民族苏木/区公所',
-  type_source     VARCHAR(24)  NOT NULL COMMENT '类型来源：getList_2026 源站现行接口 / name-suffix_2026 名称后缀推断',
-  data_year       SMALLINT     NOT NULL COMMENT '数据口径年度',
-  parent_short_code VARCHAR(12) NULL COMMENT '父级短码',
-  parent_code     VARCHAR(12)  NULL COMMENT '父级 12 位代码',
-  parent_name     VARCHAR(64)  NULL COMMENT '父级名称',
-  name_path       VARCHAR(255) NOT NULL COMMENT '名称路径（乡镇层不带“全国”前缀，源站口径）',
-  name_path_full  VARCHAR(255) NOT NULL COMMENT '完整名称路径（含“全国”前缀）',
-  children_count  INT          NOT NULL DEFAULT 0 COMMENT '直属下级数量',
-  synthesized     TINYINT      NOT NULL DEFAULT 0 COMMENT '1=源站无独立记录、由上级信息补全',
+  short_code      VARCHAR(12)  NOT NULL,
+  code            VARCHAR(12)  NOT NULL,
+  name            VARCHAR(64)  NOT NULL,
+  level           SMALLINT      NOT NULL,
+  type            VARCHAR(16)  NOT NULL,
+  type_source     VARCHAR(24)  NOT NULL,
+  data_year       SMALLINT     NOT NULL,
+  parent_short_code VARCHAR(12) NULL,
+  parent_code     VARCHAR(12)  NULL,
+  parent_name     VARCHAR(64)  NULL,
+  name_path       VARCHAR(255) NOT NULL,
+  name_path_full  VARCHAR(255) NOT NULL,
+  children_count  INT          NOT NULL DEFAULT 0,
+  synthesized     SMALLINT      NOT NULL DEFAULT 0,
   PRIMARY KEY (code)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='全国行政区划现行数据';
+);
+COMMENT ON TABLE regions IS '全国行政区划现行数据';
+COMMENT ON COLUMN regions.short_code IS '短码（2/4/6/9 位，源站口径）';
+COMMENT ON COLUMN regions.code IS '9 位行政区划代码';
+COMMENT ON COLUMN regions.name IS '名称';
+COMMENT ON COLUMN regions.level IS '层级：1 省 2 地级 3 县级 4 乡镇街道';
+COMMENT ON COLUMN regions.type IS '类型：省/自治区/直辖市/特别行政区/地级市/地区/自治州/盟/市辖区/县/自治县/县级市/旗/街道/镇/乡/民族乡/苏木/民族苏木/区公所';
+COMMENT ON COLUMN regions.type_source IS '类型来源：getList_2026 源站现行接口 / name-suffix_2026 名称后缀推断';
+COMMENT ON COLUMN regions.data_year IS '数据口径年度';
+COMMENT ON COLUMN regions.parent_short_code IS '父级短码';
+COMMENT ON COLUMN regions.parent_code IS '父级 12 位代码';
+COMMENT ON COLUMN regions.parent_name IS '父级名称';
+COMMENT ON COLUMN regions.name_path IS '名称路径（乡镇层不带“全国”前缀，源站口径）';
+COMMENT ON COLUMN regions.name_path_full IS '完整名称路径（含“全国”前缀）';
+COMMENT ON COLUMN regions.children_count IS '直属下级数量';
+COMMENT ON COLUMN regions.synthesized IS '1=源站无独立记录、由上级信息补全';
 INSERT INTO regions VALUES ('11','110000000','北京市',1,'直辖市','getList_2026',2026,NULL,'000000000000',NULL,'全国/北京市','全国/北京市',16,0);
 INSERT INTO regions VALUES ('110101','110101000','东城区',3,'市辖区','getList_2026',2026,'11','110000000000','北京市','全国/北京市/东城区','全国/北京市/东城区',17,0);
 INSERT INTO regions VALUES ('110101001','110101001','东华门街道',4,'街道','getList_2026',2026,'110101','110101000000','东城区','北京市/东城区/东华门街道','全国/北京市/东城区/东华门街道',0,0);

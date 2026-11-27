@@ -3,10 +3,7 @@
 <mapper namespace="vip.fairy.commerceflow.payment.infrastructure.persistence.PaymentLedgerReportMapper">
 
   <sql id="epoch">
-    <choose>
-      <when test="_databaseId == 'postgresql'">EXTRACT(EPOCH FROM ${column})</when>
-      <otherwise>UNIX_TIMESTAMP(${column})</otherwise>
-    </choose>
+    EXTRACT(EPOCH FROM ${column})
   </sql>
 
   <sql id="orderOwnership">

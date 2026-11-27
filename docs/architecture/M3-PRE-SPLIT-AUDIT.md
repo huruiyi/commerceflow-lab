@@ -129,7 +129,7 @@ taskId 查询到同一 Trace 的 publish/process Span，并验证 Tempo 停机�
 - [x] 进程内/Kafka 可替换适配器具备 Outbox 重试、本地 DEAD/重放、Kafka DLT、Broker 恢复和重复幂等证据。
 - [x] notification Kafka 边界具备 trace/correlation 传播和单体回退开关。
 - [x] 影子投影核对窗口具备最小样本、零差异、零阻塞 Outbox、连续通过和显式停止条件。
-- [x] 独立 notification Schema 的 Flyway 迁移已在隔离 MySQL 中验证三张自有表、零外键和 Inbox 幂等。
+- [x] 独立 notification Schema 的 Flyway 迁移已在隔离原数据库中验证三张自有表、零外键和 Inbox 幂等。
 - [x] 实际运行目标使用独立 Schema，并完成历史回填、实时镜像、读切换、数据库停机和商城回滚验收。
 - [x] HTTP 与 Kafka 已具备可查询的跨进程 Trace、日志关联和追踪后端故障降级证据。
 - [x] RabbitMQ/RocketMQ 已具备真实跨消息 Trace 和追踪后端故障降级证据。
@@ -137,7 +137,7 @@ taskId 查询到同一 Trace 的 publish/process Span，并验证 Tempo 停机�
 M3.2 已完成 notification 单一所有权切换，M3.3 已完成 catalog 独立 Schema、数据交接和单一所有权切换。
 M3.4 已建立 inventory application port、V1 命令及自有 Inbox，移除 ordering 外键和 notification 运行依赖，
 完成 catalog V1 事件投影、命令 delivery/Result 协议、订单/退款等待态、履约阻断和人工恢复门禁。最终 CREATE
-准入评审已冻结五表迁移、停写追平、唯一远程适配器、Trace 和失败回退手册；不接流量的独立 MySQL 影子服务
+准入评审已冻结五表迁移、停写追平、唯一远程适配器、Trace 和失败回退手册；不接流量的独立原数据库影子服务
 和可重复快照已落地，最终追平、故障演练和 CUTOVER 仍未完成。
 
 ## 8. 自动基线

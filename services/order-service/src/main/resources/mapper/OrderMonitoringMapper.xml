@@ -3,9 +3,6 @@
 <mapper namespace="vip.fairy.commerceflow.order.infrastructure.persistence.OrderMonitoringMapper">
 
   <sql id="oldestShipmentIntentSeconds">
-    COALESCE(GREATEST(0,TIMESTAMPDIFF(SECOND,MIN(updated_at),CURRENT_TIMESTAMP(6))),0)
-  </sql>
-  <sql id="oldestShipmentIntentSeconds" databaseId="postgresql">
     COALESCE(GREATEST(0,TRUNC(EXTRACT(EPOCH FROM (statement_timestamp()-MIN(updated_at))))::bigint),0)
   </sql>
 

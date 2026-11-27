@@ -50,7 +50,7 @@ VXE Grid 使用 Vben 角色管理页的默认圆角边框，提供分页、刷�
 
 日常管理台位于 `http://127.0.0.1:18119`，用 `MESSAGING_ADMIN_TOKEN` 登录。
 在短信或邮件菜单按业务关联号、投递状态筛选，可查看脱敏收件地址、请求编号、供应商单号与时间。
-日常供应商回执存于 PostgreSQL 的 `messaging_platform`，通知服务按请求编号保存对应的供应商单号和送达状态。[日常切换与恢复](../architecture/DATABASE-EVOLUTION-PLAN.md#站外消息模拟库日常发布窗口)
+日常供应商回执存于 PostgreSQL 的 `messaging_platform`，通知服务按请求编号保存对应的供应商单号和送达状态。[日常切换与恢复](../architecture/DATABASE-EVOLUTION-PLAN.md)
 
 通知服务使用 `OFFSITE_CUSTOMER_SMS`、`OFFSITE_CUSTOMER_EMAIL`、
 `OFFSITE_MERCHANT_SMS` 和 `OFFSITE_MERCHANT_EMAIL` 配置角色测试地址。
@@ -88,7 +88,7 @@ pwsh -File ./scripts/operations/verify-simulator-admin.ps1
 ```
 
 需要 Docker Compose、Node.js 与 npm，以及 Chromium 运行依赖。首次运行会安装锁定版本的 Playwright 及 Chromium Headless Shell。
-每次使用独立 Compose 项目、随机回环端口和三个内存文件系统上的 MySQL 数据目录，结束后关闭该项目。验收使用当前源码构建镜像。
+每次使用独立 Compose 项目、随机回环端口和三个内存文件系统上的原数据库数据目录，结束后关闭该项目。验收使用当前源码构建镜像。
 
 脚本先从物流管理台新建测试运单，等待失败重试终止，再切换接收结果并手动重投。随后回归出库单、退货单、短信和邮件的
 分页、详情及登录状态。运行时打印证据目录位置，成功后保存 `result.json` 和浏览器截图，失败时保存隔离项目的服务日志。

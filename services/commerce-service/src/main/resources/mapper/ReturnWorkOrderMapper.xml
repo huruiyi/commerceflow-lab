@@ -23,13 +23,8 @@
       AND NOT EXISTS (SELECT 1 FROM return_exception_work_orders w WHERE w.case_id=s.id)
     ORDER BY s.id LIMIT 50
   </select>
-  <insert id="open">
-    INSERT IGNORE INTO return_exception_work_orders(case_id,warehouse_status)
-    SELECT s.id,s.warehouse_return_status FROM line_after_sales s
-    WHERE s.id=#{caseId} AND <include refid="reviewRequired"/>
-  </insert>
 
-  <insert id="open" databaseId="postgresql">
+  <insert id="open">
     INSERT INTO return_exception_work_orders(case_id,warehouse_status)
     SELECT s.id,s.warehouse_return_status FROM line_after_sales s
     WHERE s.id=#{caseId} AND <include refid="reviewRequired"/>

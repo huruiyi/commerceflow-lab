@@ -7,12 +7,41 @@
         "protocol": "HTTP",
         "probe": "/healthz",
         "links": [
-          { "label": "商城首页", "path": "/", "browserLaunch": true },
-          { "label": "商家订单", "path": "/merchant/orders", "role": "商家", "browserLaunch": true },
-          { "label": "商家库存", "path": "/merchant/inventory", "role": "商家", "browserLaunch": true },
-          { "label": "平台调度", "path": "/admin/scheduling", "role": "管理员", "browserLaunch": true },
-          { "label": "库存对账", "path": "/admin/inventory-reconciliation", "role": "管理员", "browserLaunch": true },
-          { "label": "支付账本", "path": "/admin/payment-ledger-reports", "role": "管理员", "browserLaunch": true }
+          {
+            "label": "商城首页",
+            "path": "/",
+            "browserLaunch": true
+          },
+          {
+            "label": "商家订单",
+            "path": "/merchant/orders",
+            "role": "商家",
+            "browserLaunch": true
+          },
+          {
+            "label": "商家库存",
+            "path": "/merchant/inventory",
+            "role": "商家",
+            "browserLaunch": true
+          },
+          {
+            "label": "平台调度",
+            "path": "/admin/scheduling",
+            "role": "管理员",
+            "browserLaunch": true
+          },
+          {
+            "label": "库存对账",
+            "path": "/admin/inventory-reconciliation",
+            "role": "管理员",
+            "browserLaunch": true
+          },
+          {
+            "label": "支付账本",
+            "path": "/admin/payment-ledger-reports",
+            "role": "管理员",
+            "browserLaunch": true
+          }
         ]
       }
     }
@@ -25,7 +54,11 @@
         "protocol": "HTTP",
         "probe": "/healthz",
         "links": [
-          { "label": "打开管理台", "path": "/", "browserLaunch": true }
+          {
+            "label": "打开管理台",
+            "path": "/",
+            "browserLaunch": true
+          }
         ]
       }
     }
@@ -38,7 +71,11 @@
         "protocol": "HTTP",
         "probe": "/healthz",
         "links": [
-          { "label": "打开管理台", "path": "/", "browserLaunch": true }
+          {
+            "label": "打开管理台",
+            "path": "/",
+            "browserLaunch": true
+          }
         ]
       }
     }
@@ -51,7 +88,11 @@
         "protocol": "HTTP",
         "probe": "/healthz",
         "links": [
-          { "label": "打开管理台", "path": "/", "browserLaunch": true }
+          {
+            "label": "打开管理台",
+            "path": "/",
+            "browserLaunch": true
+          }
         ]
       }
     }
@@ -64,7 +105,11 @@
         "protocol": "HTTP",
         "probe": "/healthz",
         "links": [
-          { "label": "打开管理台", "path": "/", "browserLaunch": true }
+          {
+            "label": "打开管理台",
+            "path": "/",
+            "browserLaunch": true
+          }
         ]
       }
     }
@@ -77,20 +122,10 @@
         "protocol": "HTTP",
         "probe": "/actuator/health",
         "links": [
-          { "label": "健康检查", "path": "/actuator/health" }
-        ]
-      }
-    }
-  },
-  "notification-service": {
-    "name": "通知服务 · MySQL",
-    "group": "services",
-    "ports": {
-      "8080": {
-        "protocol": "HTTP",
-        "probe": "/actuator/health",
-        "links": [
-          { "label": "健康检查", "path": "/actuator/health" }
+          {
+            "label": "健康检查",
+            "path": "/actuator/health"
+          }
         ]
       }
     }
@@ -104,8 +139,14 @@
         "alias": "notification-service",
         "probe": "/actuator/health",
         "links": [
-          { "label": "健康检查", "path": "/actuator/health" },
-          { "label": "Prometheus 指标", "path": "/actuator/prometheus" }
+          {
+            "label": "健康检查",
+            "path": "/actuator/health"
+          },
+          {
+            "label": "Prometheus 指标",
+            "path": "/actuator/prometheus"
+          }
         ]
       }
     }
@@ -118,7 +159,10 @@
         "protocol": "HTTP",
         "probe": "/actuator/health",
         "links": [
-          { "label": "健康检查", "path": "/actuator/health" }
+          {
+            "label": "健康检查",
+            "path": "/actuator/health"
+          }
         ]
       }
     }
@@ -131,7 +175,10 @@
         "protocol": "HTTP",
         "probe": "/actuator/health",
         "links": [
-          { "label": "健康检查", "path": "/actuator/health" }
+          {
+            "label": "健康检查",
+            "path": "/actuator/health"
+          }
         ]
       }
     }
@@ -144,7 +191,10 @@
         "protocol": "HTTP",
         "probe": "/actuator/health",
         "links": [
-          { "label": "健康检查", "path": "/actuator/health" }
+          {
+            "label": "健康检查",
+            "path": "/actuator/health"
+          }
         ]
       }
     }
@@ -157,7 +207,10 @@
         "protocol": "HTTP",
         "probe": "/actuator/health",
         "links": [
-          { "label": "健康检查", "path": "/actuator/health" }
+          {
+            "label": "健康检查",
+            "path": "/actuator/health"
+          }
         ]
       }
     }
@@ -170,7 +223,10 @@
         "protocol": "HTTP",
         "probe": "/actuator/health/readiness",
         "links": [
-          { "label": "健康检查", "path": "/actuator/health/readiness" }
+          {
+            "label": "健康检查",
+            "path": "/actuator/health/readiness"
+          }
         ]
       }
     }
@@ -183,7 +239,10 @@
         "protocol": "HTTP",
         "probe": "/actuator/health",
         "links": [
-          { "label": "健康检查", "path": "/actuator/health" }
+          {
+            "label": "健康检查",
+            "path": "/actuator/health"
+          }
         ]
       }
     }
@@ -196,7 +255,10 @@
         "protocol": "HTTP",
         "probe": "/actuator/health",
         "links": [
-          { "label": "健康检查", "path": "/actuator/health" }
+          {
+            "label": "健康检查",
+            "path": "/actuator/health"
+          }
         ]
       }
     }
@@ -209,7 +271,10 @@
         "protocol": "HTTP",
         "probe": "/actuator/health",
         "links": [
-          { "label": "健康检查", "path": "/actuator/health" }
+          {
+            "label": "健康检查",
+            "path": "/actuator/health"
+          }
         ]
       }
     }
@@ -222,7 +287,10 @@
         "protocol": "HTTP",
         "probe": "/actuator/health",
         "links": [
-          { "label": "健康检查", "path": "/actuator/health" }
+          {
+            "label": "健康检查",
+            "path": "/actuator/health"
+          }
         ]
       }
     }
@@ -235,82 +303,11 @@
         "protocol": "HTTP",
         "probe": "/actuator/health",
         "links": [
-          { "label": "健康检查", "path": "/actuator/health" }
+          {
+            "label": "健康检查",
+            "path": "/actuator/health"
+          }
         ]
-      }
-    }
-  },
-  "invoice-db": {
-    "name": "发票数据库",
-    "group": "databases",
-    "schema": "invoice_platform",
-    "ports": {
-      "3306": {
-        "protocol": "MySQL"
-      }
-    }
-  },
-  "commerce-db": {
-    "name": "商城数据库",
-    "group": "databases",
-    "ports": {
-      "3306": {
-        "protocol": "MySQL"
-      }
-    }
-  },
-  "catalog-db": {
-    "name": "商品数据库",
-    "group": "databases",
-    "ports": {
-      "3306": {
-        "protocol": "MySQL"
-      }
-    }
-  },
-  "inventory-db": {
-    "name": "库存数据库",
-    "group": "databases",
-    "ports": {
-      "3306": {
-        "protocol": "MySQL"
-      }
-    }
-  },
-  "order-db": {
-    "name": "订单数据库",
-    "group": "databases",
-    "ports": {
-      "3306": {
-        "protocol": "MySQL"
-      }
-    }
-  },
-  "payment-db": {
-    "name": "支付编排数据库",
-    "group": "databases",
-    "ports": {
-      "3306": {
-        "protocol": "MySQL"
-      }
-    }
-  },
-  "fulfillment-db": {
-    "name": "履约数据库",
-    "group": "databases",
-    "ports": {
-      "3306": {
-        "protocol": "MySQL"
-      }
-    }
-  },
-  "notification-db": {
-    "name": "通知数据库 · MySQL",
-    "group": "databases",
-    "schema": "notification",
-    "ports": {
-      "3306": {
-        "protocol": "MySQL"
       }
     }
   },
@@ -321,42 +318,6 @@
     "ports": {
       "5432": {
         "protocol": "PostgreSQL"
-      }
-    }
-  },
-  "payment-simulator-db": {
-    "name": "支付模拟数据库",
-    "group": "databases",
-    "ports": {
-      "3306": {
-        "protocol": "MySQL"
-      }
-    }
-  },
-  "logistics-simulator-db": {
-    "name": "物流模拟数据库",
-    "group": "databases",
-    "ports": {
-      "3306": {
-        "protocol": "MySQL"
-      }
-    }
-  },
-  "warehouse-simulator-db": {
-    "name": "仓储模拟数据库",
-    "group": "databases",
-    "ports": {
-      "3306": {
-        "protocol": "MySQL"
-      }
-    }
-  },
-  "messaging-simulator-db": {
-    "name": "短信邮件模拟数据库",
-    "group": "databases",
-    "ports": {
-      "3306": {
-        "protocol": "MySQL"
       }
     }
   },
@@ -444,6 +405,7 @@
   "invoice-db-postgresql": {
     "name": "发票数据库 · PostgreSQL",
     "group": "databases",
+    "schema": "invoice_platform",
     "ports": {
       "5432": {
         "protocol": "PostgreSQL"
@@ -503,7 +465,11 @@
         "protocol": "HTTP",
         "probe": "/",
         "links": [
-          { "label": "打开控制台", "path": "/", "browserLaunch": true }
+          {
+            "label": "打开控制台",
+            "path": "/",
+            "browserLaunch": true
+          }
         ]
       }
     }
@@ -519,7 +485,11 @@
         "protocol": "HTTP",
         "probe": "/",
         "links": [
-          { "label": "打开管理台", "path": "/", "browserLaunch": true }
+          {
+            "label": "打开管理台",
+            "path": "/",
+            "browserLaunch": true
+          }
         ]
       }
     }
@@ -550,7 +520,11 @@
         "protocol": "HTTP",
         "probe": "/-/ready",
         "links": [
-          { "label": "打开 Prometheus", "path": "/", "browserLaunch": true }
+          {
+            "label": "打开 Prometheus",
+            "path": "/",
+            "browserLaunch": true
+          }
         ]
       }
     }
@@ -563,7 +537,11 @@
         "protocol": "HTTP",
         "probe": "/-/ready",
         "links": [
-          { "label": "打开 Alertmanager", "path": "/", "browserLaunch": true }
+          {
+            "label": "打开 Alertmanager",
+            "path": "/",
+            "browserLaunch": true
+          }
         ]
       }
     }
@@ -576,7 +554,11 @@
         "protocol": "HTTP",
         "probe": "/api/health",
         "links": [
-          { "label": "打开 Grafana", "path": "/", "browserLaunch": true }
+          {
+            "label": "打开 Grafana",
+            "path": "/",
+            "browserLaunch": true
+          }
         ]
       }
     }
@@ -589,7 +571,10 @@
         "protocol": "HTTP",
         "probe": "/ready",
         "links": [
-          { "label": "就绪检查", "path": "/ready" }
+          {
+            "label": "就绪检查",
+            "path": "/ready"
+          }
         ]
       },
       "4318": {
@@ -605,15 +590,13 @@
         "protocol": "HTTP",
         "probe": "/healthz",
         "links": [
-          { "label": "健康检查", "path": "/healthz" }
+          {
+            "label": "健康检查",
+            "path": "/healthz"
+          }
         ]
       }
     }
-  },
-  "catalog-data-migrator": {
-    "name": "商品数据迁移",
-    "group": "services",
-    "kind": "task"
   },
   "catalog-demo-init": {
     "name": "商品演示数据初始化",
@@ -622,31 +605,6 @@
   },
   "commerce-schema-migrator": {
     "name": "商城 Schema 迁移",
-    "group": "services",
-    "kind": "task"
-  },
-  "commerce-source-access-freezer": {
-    "name": "商城源库权限收敛",
-    "group": "services",
-    "kind": "task"
-  },
-  "fulfillment-shadow-access": {
-    "name": "履约影子访问配置",
-    "group": "services",
-    "kind": "task"
-  },
-  "inventory-data-migrator": {
-    "name": "库存数据迁移",
-    "group": "services",
-    "kind": "task"
-  },
-  "legacy-shadow-access-revoker": {
-    "name": "旧影子权限回收",
-    "group": "services",
-    "kind": "task"
-  },
-  "notification-data-migrator": {
-    "name": "通知数据迁移",
     "group": "services",
     "kind": "task"
   },

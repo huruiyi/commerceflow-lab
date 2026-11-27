@@ -3,7 +3,7 @@ param(
   [string]$BaseUrl = 'http://localhost:18081',
   [ValidateRange(10, 600)][int]$MaxWaitSeconds = 120,
   [Parameter(Mandatory)][string]$ProjectName,
-  [ValidateSet('PostgreSQL','MySQL')][string]$Database = 'PostgreSQL'
+  [ValidateSet('PostgreSQL')][string]$Database = 'PostgreSQL'
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '../lib/checkout-verification.ps1')
@@ -53,15 +53,11 @@ function Assert-Target($From, [string]$Address, $Target) {
 }
 
 function Notification-Sql([string]$Query) {
-  $passwordKey = if ($Database -eq 'PostgreSQL') { 'PGPASSWORD' } else { 'MYSQL_PWD' }
+  $passwordKey = 'PGPASSWORD'
   $previous = [Environment]::GetEnvironmentVariable($passwordKey)
   try {
     [Environment]::SetEnvironmentVariable($passwordKey, $dbPassword)
-    if ($Database -eq 'PostgreSQL') {
-      Invoke-Docker exec -e $passwordKey $db.Id psql -h 127.0.0.1 -U $dbUser -d notification -XAtq -v ON_ERROR_STOP=1 -c $Query
-    } else {
-      Invoke-Docker exec -e $passwordKey $db.Id mysql -h 127.0.0.1 -u $dbUser -NB notification -e $Query
-    }
+    Invoke-Docker exec -e $passwordKey $db.Id psql -h 127.0.0.1 -U $dbUser -d notification -XAtq -v ON_ERROR_STOP=1 -c $Query
   } finally {
     [Environment]::SetEnvironmentVariable($passwordKey, $previous)
   }
@@ -78,16 +74,12 @@ if (!$endpoint.IsLoopback -or $endpoint.Scheme -cne 'http' -or $endpoint.Absolut
   throw 'BaseUrl must be the loopback HTTP origin of the selected commerce container'
 }
 
-$appService = if ($Database -eq 'PostgreSQL') { 'notification-service-postgresql' } else { 'notification-service' }
-$dbService = if ($Database -eq 'PostgreSQL') { 'notification-db-postgresql' } else { 'notification-db' }
-$otherApp = if ($Database -eq 'PostgreSQL') { 'notification-service' } else { 'notification-service-postgresql' }
+$appService = 'notification-service-postgresql'
+$dbService = 'notification-db-postgresql'
 $app = Get-Container $appService
 $db = Get-Container $dbService
 $commerce = Get-Container 'commerce-service'
 $kafka = Get-Container 'kafka-broker'
-if (@(Get-Container $otherApp -Optional | Where-Object { $_.State.Running }).Count -gt 0) {
-  throw "Both notification applications are running in $ProjectName"
-}
 $endpointHosts = if ($endpoint.DnsSafeHost -ieq 'localhost') { @('127.0.0.1', '::1') } else { @($endpoint.DnsSafeHost) }
 $bindings = @($commerce.NetworkSettings.Ports.'8080/tcp' | Where-Object {
   $_.HostPort -ceq [string]$endpoint.Port -and
@@ -105,7 +97,7 @@ $memberIds = @($networks | ForEach-Object { Invoke-Docker ps -q --no-trunc --fil
   Sort-Object -Unique)
 $networkMembers = @(Invoke-Docker inspect --type container @memberIds | ConvertFrom-Json)
 $jdbcEngine = $Database.ToLowerInvariant()
-$databasePort = if ($Database -eq 'PostgreSQL') { 5432 } else { 3306 }
+$databasePort = 5432
 $databasePattern = '^jdbc:' + $jdbcEngine + '://([^:/?]+):' + $databasePort + '/notification(?:\?.*)?$'
 $profile = Get-ContainerEnv $app 'SPRING_PROFILES_ACTIVE'
 if ((Get-ContainerEnv $app 'DATABASE_URL') -cnotmatch $databasePattern -or

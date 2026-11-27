@@ -16,8 +16,7 @@ function Wait-Healthy([string]$Container) {
 }
 
 function Catalog-Sql([string]$Query) {
-  $value = & docker compose exec -T catalog-db mysql -N -ucatalog `
-    -pcatalog-password catalog -e $Query 2>$null
+  $value = & docker compose exec -T catalog-db-postgresql psql -U postgres -d catalog -XqAt -v ON_ERROR_STOP=1 -c "SET search_path=catalog; $Query" 2>$null
   if ($LASTEXITCODE -ne 0) { throw 'Catalog database query failed' }
   return ($value | Out-String).Trim()
 }

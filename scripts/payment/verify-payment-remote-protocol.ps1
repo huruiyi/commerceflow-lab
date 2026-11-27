@@ -5,9 +5,9 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 Set-Location $ProjectRoot
-if ($env:COMPOSE_PROJECT_NAME -notlike 'fairy-commerceflow-shadow-?*' -or
-    @(docker compose config --services) -notcontains 'legacy-shadow-access') {
-  throw 'Use compose.yaml and infrastructure/compose/compose.legacy-shadow.yaml in an isolated fairy-commerceflow-shadow-* project.'
+if ($env:COMPOSE_PROJECT_NAME -notlike 'fairy-commerceflow-acceptance-?*' -or
+    @(docker compose config --services) -notcontains 'payment-db-postgresql') {
+  throw 'Use this verifier in an isolated PostgreSQL acceptance project.'
 }
 $InternalSecret = 'demo-payment-internal-secret'
 $CallbackSecret = 'demo-platform-callback-secret'
@@ -26,14 +26,12 @@ function Sha256([string]$Value) {
 }
 function Json($Value) { $Value | ConvertTo-Json -Compress -Depth 10 }
 function Target-Sql([string]$Sql) {
-  $result = docker compose exec -T -e MYSQL_PWD=payments-password payment-db mysql -upayments `
-    --batch --skip-column-names payments -e $Sql 2>$null
+  $result = docker compose exec -T payment-db-postgresql psql -U postgres -d payments -XqAt -v ON_ERROR_STOP=1 -c $Sql 2>$null
   if ($LASTEXITCODE -ne 0) { Fail 'payment-db SQL failed' }
   return ($result | Select-Object -Last 1)
 }
 function Simulator-Sql([string]$Sql) {
-  $result = docker compose exec -T -e MYSQL_PWD=payment-password payment-simulator-db `
-    mysql -upayment --batch --skip-column-names payment_platform -e $Sql 2>$null
+  $result = docker compose exec -T payment-simulator-db-postgresql psql -U postgres -d payment_platform -XqAt -v ON_ERROR_STOP=1 -c $Sql 2>$null
   if ($LASTEXITCODE -ne 0) { Fail 'payment-simulator-db SQL failed' }
   return ($result | Select-Object -Last 1)
 }
@@ -92,8 +90,8 @@ function New-Create([long]$OrderId, [string]$CommandId, [string]$Key) {
 }
 function Cleanup {
   try {
-    docker compose start payment-db | Out-Null
-    docker compose start payment-simulator-db | Out-Null
+    docker compose start payment-db-postgresql | Out-Null
+    docker compose start payment-simulator-db-postgresql | Out-Null
     $messageList = ($MessageIds | ForEach-Object { "'$_'" }) -join ','
     $requestList = ($RequestIds | ForEach-Object { "'$_'" }) -join ','
     $orders = $OrderIds -join ','
@@ -124,11 +122,10 @@ function Cleanup {
     Simulator-Sql "DELETE FROM channel_transaction WHERE merchant_request_no LIKE 'PAY-RMT-%';
       SELECT 1;" | Out-Null
   } catch { Write-Warning "Synthetic payment cleanup failed: $($_.Exception.Message)" }
-  $env:LEGACY_PAYMENT_ACCEPTING_TRAFFIC = 'false'
-  $env:LEGACY_PAYMENT_SHADOW_ENABLED = 'true'
+  $env:PAYMENT_ACCEPTING_TRAFFIC = 'false'
   $env:TRACING_EXPORT_ENABLED = 'false'
   docker compose up -d --force-recreate --wait payment-orchestration-service | Out-Null
-  Remove-Item Env:LEGACY_PAYMENT_ACCEPTING_TRAFFIC,Env:LEGACY_PAYMENT_SHADOW_ENABLED,Env:TRACING_EXPORT_ENABLED `
+  Remove-Item Env:PAYMENT_ACCEPTING_TRAFFIC,Env:TRACING_EXPORT_ENABLED `
     -ErrorAction SilentlyContinue
 }
 
@@ -144,15 +141,14 @@ $ReconciliationResult = [guid]::NewGuid().ToString()
 $RecoveryResult = [guid]::NewGuid().ToString()
 
 try {
-  $env:LEGACY_PAYMENT_ACCEPTING_TRAFFIC = 'true'
-  $env:LEGACY_PAYMENT_SHADOW_ENABLED = 'false'
+  $env:PAYMENT_ACCEPTING_TRAFFIC = 'true'
   $env:TRACING_EXPORT_ENABLED = 'true'
   docker compose up -d --build --force-recreate --wait payment-orchestration-service tempo | Out-Null
   $mode = Invoke-RestMethod "$BaseUrl/internal/v1/payment-shadow/mode"
   if (-not $mode.acceptingTraffic -or $mode.shadowEnabled) {
     Fail 'temporary rehearsal mode was not enabled'
   }
-  if ((Target-Sql "SELECT COUNT(*) FROM flyway_schema_history WHERE version='2' AND success=1;") -ne 1) {
+  if ((Target-Sql "SELECT COUNT(*) FROM flyway_schema_history WHERE version='2' AND success;") -ne 1) {
     Fail 'payment remote protocol Flyway V2 is not applied'
   }
 
@@ -322,11 +318,11 @@ try {
     Fail 'service restart lost payment state'
   }
 
-  docker compose stop payment-db | Out-Null
+  docker compose stop payment-db-postgresql | Out-Null
   Start-Sleep -Seconds 3
   try { Invoke-Signed '/internal/v1/payments/query' $query | Out-Null; Fail 'database outage was hidden' }
   catch { if ($_.Exception.Message -like '*database outage was hidden*') { throw } }
-  docker compose start payment-db | Out-Null
+  docker compose start payment-db-postgresql | Out-Null
   docker compose restart payment-orchestration-service | Out-Null
   Wait-Healthy
   if (-not (Invoke-Signed '/internal/v1/payments/query' $query).payment) {

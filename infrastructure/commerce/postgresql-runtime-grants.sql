@@ -67,4 +67,15 @@ GRANT SELECT ON TABLE
     commerceflow.payment_report_merchant_grants
 TO commerce_runtime;
 
+SELECT format('GRANT USAGE ON SEQUENCE %I.%I TO commerce_runtime', sequence_schema.nspname, sequence.relname)
+FROM pg_catalog.pg_class sequence
+JOIN pg_catalog.pg_namespace sequence_schema ON sequence_schema.oid = sequence.relnamespace
+JOIN pg_catalog.pg_depend ownership ON ownership.objid = sequence.oid
+JOIN pg_catalog.pg_class owner_table ON owner_table.oid = ownership.refobjid
+WHERE sequence.relkind = 'S' AND sequence_schema.nspname = 'commerceflow'
+  AND ownership.classid = 'pg_class'::regclass AND ownership.refclassid = 'pg_class'::regclass
+  AND ownership.deptype IN ('a','i') AND ownership.refobjsubid > 0
+  AND has_table_privilege('commerce_runtime', owner_table.oid, 'INSERT')
+\gexec
+
 COMMIT;

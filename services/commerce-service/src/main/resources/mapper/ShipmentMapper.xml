@@ -6,14 +6,6 @@
     <![CDATA[
       INSERT INTO shipment_records(order_id, package_id, merchant_shipment_no, carrier, tracking_number, status)
       VALUES (#{orderId}, #{packageId}, #{merchantNo}, #{carrier}, #{tracking}, 'REQUESTED')
-      ON DUPLICATE KEY UPDATE order_id = order_id
-    ]]>
-  </insert>
-
-  <insert id="prepare" databaseId="postgresql">
-    <![CDATA[
-      INSERT INTO shipment_records(order_id, package_id, merchant_shipment_no, carrier, tracking_number, status)
-      VALUES (#{orderId}, #{packageId}, #{merchantNo}, #{carrier}, #{tracking}, 'REQUESTED')
       ON CONFLICT DO NOTHING
     ]]>
   </insert>
@@ -37,18 +29,7 @@
     GROUP BY order_id
     HAVING COUNT(*)=COUNT(delivered_at)
       AND (MAX(package_delivery_checked_at) IS NULL
-        OR MAX(package_delivery_checked_at) &lt; TIMESTAMPADD(SECOND,-15,CURRENT_TIMESTAMP(6)))
-    ORDER BY MAX(package_delivery_checked_at),order_id LIMIT 20
-  </select>
-
-  <select id="pendingPackageDeliveries" databaseId="postgresql"
-          resultType="vip.fairy.commerceflow.commerce.logistics.infrastructure.ShipmentMapper$PackageDelivery">
-    SELECT order_id,MAX(delivered_at) AS delivered_at FROM shipment_records
-    WHERE package_id IS NOT NULL AND package_delivery_reported=FALSE
-    GROUP BY order_id
-    HAVING COUNT(*)=COUNT(delivered_at)
-      AND (MAX(package_delivery_checked_at) IS NULL
-        OR MAX(package_delivery_checked_at) &lt; CURRENT_TIMESTAMP + INTERVAL '-15 seconds')
+        OR MAX(package_delivery_checked_at) &lt; CURRENT_TIMESTAMP + INTERVAL '-15' SECOND)
     ORDER BY MAX(package_delivery_checked_at),order_id LIMIT 20
   </select>
 
@@ -76,19 +57,11 @@
       #{replacement})
   </insert>
 
-  <select id="pendingReturns" resultType="vip.fairy.commerceflow.commerce.logistics.domain.ShipmentRecordView">
-    SELECT * FROM shipment_records
-    WHERE after_sale_id IS NOT NULL AND platform_shipment_no IS NULL
-      AND (last_reconciled_at IS NULL OR last_reconciled_at &lt; TIMESTAMPADD(SECOND,-5,CURRENT_TIMESTAMP(6)))
-    ORDER BY COALESCE(last_reconciled_at, created_at), id
-    LIMIT 10
-  </select>
-
-  <select id="pendingReturns" databaseId="postgresql"
+  <select id="pendingReturns"
           resultType="vip.fairy.commerceflow.commerce.logistics.domain.ShipmentRecordView">
     SELECT * FROM shipment_records
     WHERE after_sale_id IS NOT NULL AND platform_shipment_no IS NULL
-      AND (last_reconciled_at IS NULL OR last_reconciled_at &lt; CURRENT_TIMESTAMP + INTERVAL '-5 seconds')
+      AND (last_reconciled_at IS NULL OR last_reconciled_at &lt; CURRENT_TIMESTAMP + INTERVAL '-5' SECOND)
     ORDER BY COALESCE(last_reconciled_at, created_at), id
     LIMIT 10
   </select>
@@ -169,16 +142,6 @@
 
   <insert id="insertEvent">
     <![CDATA[
-      INSERT IGNORE INTO shipment_events(
-        shipment_id, event_id, event_type, status, location, description, occurred_at
-      ) VALUES (
-        #{shipmentId}, #{eventId}, #{eventType}, #{status}, #{location}, #{description}, #{occurredAt}
-      )
-    ]]>
-  </insert>
-
-  <insert id="insertEvent" databaseId="postgresql">
-    <![CDATA[
       INSERT INTO shipment_events(
         shipment_id, event_id, event_type, status, location, description, occurred_at
       ) VALUES (
@@ -198,18 +161,6 @@
   </select>
 
   <insert id="insertNotification">
-    <![CDATA[
-      INSERT IGNORE INTO shipment_notifications(
-        shipment_id, notification_id, signature_valid, processing_status,
-        payload_digest, failure_reason, processed_at
-      ) VALUES (
-        #{shipmentId}, #{notificationId}, TRUE, #{processingStatus},
-        #{digest}, #{reason}, CURRENT_TIMESTAMP
-      )
-    ]]>
-  </insert>
-
-  <insert id="insertNotification" databaseId="postgresql">
     <![CDATA[
       INSERT INTO shipment_notifications(
         shipment_id, notification_id, signature_valid, processing_status,

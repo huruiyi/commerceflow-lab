@@ -1,4 +1,4 @@
--- CommerceFlow core schema after MySQL V74. All commerce timestamps use UTC.
+-- CommerceFlow core schema at V74. All commerce timestamps use UTC.
 
 CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA public;
 

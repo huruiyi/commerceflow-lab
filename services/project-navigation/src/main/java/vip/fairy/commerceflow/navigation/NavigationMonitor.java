@@ -172,17 +172,6 @@ class NavigationMonitor {
   }
 
   private static String status(NavigationCatalog.Entry entry, List<Instance> instances, List<Probe> probes) {
-    if (entry.notificationRole() == ROLLBACK_DB && !instances.isEmpty()) {
-      return "ROLLBACK_RETAINED";
-    }
-    if (entry.notificationRole() == ROLLBACK_APP && !instances.isEmpty()) {
-      return instances.stream().allMatch(item -> List.of("created", "exited").contains(item.state()))
-          ? "ROLLBACK_RETAINED" : "UNEXPECTED_ACTIVE";
-    }
-    if (entry.notificationRole() == DISABLED_APP
-        && instances.stream().anyMatch(item -> List.of("running", "restarting", "paused").contains(item.state()))) {
-      return "UNEXPECTED_ACTIVE";
-    }
     if (instances.isEmpty()) {
       if (entry.notificationRole() == ACTIVE) {
         return "MISSING";

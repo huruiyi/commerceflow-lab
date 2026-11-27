@@ -3,13 +3,6 @@
 <mapper namespace="vip.fairy.commerceflow.commerce.ordering.infrastructure.OrderCancellationCompletionMapper">
 
   <insert id="enqueue">
-    INSERT IGNORE INTO order_cancellation_completion(
-      order_id,customer_id,actor_id,reason,trigger_source,scheduled_task_id
-    )
-    VALUES(#{orderId},#{customerId},#{actorId},#{reason},#{triggerSource},#{scheduledTaskId})
-  </insert>
-
-  <insert id="enqueue" databaseId="postgresql">
     INSERT INTO order_cancellation_completion(
       order_id,customer_id,actor_id,reason,trigger_source,scheduled_task_id
     )

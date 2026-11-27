@@ -25,7 +25,7 @@ public class LoginRateLimitService {
         throw new LoginRateLimitException();
       }
     } catch (DataAccessException ignored) {
-      // MySQL remains usable during a transient Redis outage; monitoring exposes Redis health.
+      // PostgreSQL remains usable during a transient Redis outage; monitoring exposes Redis health.
     }
   }
 

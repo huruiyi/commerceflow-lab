@@ -9,14 +9,11 @@
   </resultMap>
 
   <sql id="lockPayment">
-    FOR UPDATE<if test="_databaseId == 'postgresql'"> OF p</if>
+    FOR UPDATE OF p
   </sql>
 
   <sql id="jsonPayload">
-    <choose>
-      <when test="_databaseId == 'postgresql'">CAST(#{payload} AS JSONB)</when>
-      <otherwise>#{payload}</otherwise>
-    </choose>
+    CAST(#{payload} AS JSONB)
   </sql>
 
   <sql id="paymentProjection">
@@ -30,10 +27,10 @@
   </resultMap>
 
   <insert id="ensureIdempotencyLock">
-    INSERT <if test="_databaseId != 'postgresql'">IGNORE </if>
+    INSERT
     INTO payment_idempotency_locks(idempotency_key, created_at) VALUES (#{key},
       CURRENT_TIMESTAMP(6))
-    <if test="_databaseId == 'postgresql'">ON CONFLICT DO NOTHING</if>
+    ON CONFLICT DO NOTHING
   </insert>
 
   <insert id="insertPayment">
@@ -221,20 +218,20 @@
   </insert>
 
   <insert id="insertResultOutbox">
-    INSERT <if test="_databaseId != 'postgresql'">IGNORE </if>
+    INSERT
     INTO payment_outbox(event_id, aggregate_type, aggregate_id, event_type, topic, payload,
       status, attempts, next_attempt_at, created_at, published_at) VALUES (#{eventId}, #{aggregateType},
       #{aggregateId}, #{eventType}, #{topic}, <include refid="jsonPayload"/>,
       'NEW', 0, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6),
       NULL)
-    <if test="_databaseId == 'postgresql'">ON CONFLICT DO NOTHING</if>
+    ON CONFLICT DO NOTHING
   </insert>
 
   <insert id="insertCommandInbox">
-    INSERT <if test="_databaseId != 'postgresql'">IGNORE </if>
+    INSERT
     INTO payment_remote_message_inbox(message_id, message_kind, payload_fingerprint,
       processing_status) VALUES (#{id}, #{kind}, #{fingerprint}, 'RECEIVED')
-    <if test="_databaseId == 'postgresql'">ON CONFLICT DO NOTHING</if>
+    ON CONFLICT DO NOTHING
   </insert>
 
   <select id="findCommandInbox" resultType="map">

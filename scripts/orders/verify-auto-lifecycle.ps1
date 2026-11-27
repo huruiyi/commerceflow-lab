@@ -56,12 +56,12 @@ $orders=Invoke-RestMethod "$BaseUrl/api/purchase-orders" -WebSession $customer
 $automatic=@($orders|Where-Object{$_.status-eq'SHIPPED'-and$_.logistics.status-eq'DELIVERED'})[0]
 if(-not$automatic){throw 'Delivered order for automatic receipt was not found'}
 
-Invoke-VerificationDb task "UPDATE scheduled_tasks SET due_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE task_type='AUTO_RECEIVE' AND task_key='order:$($automatic.id)'"|Out-Null
+Invoke-VerificationDb task "UPDATE scheduled_tasks SET due_at=(CURRENT_TIMESTAMP - INTERVAL '1 second') WHERE task_type='AUTO_RECEIVE' AND task_key='order:$($automatic.id)'"|Out-Null
 $autoReceived=Wait-OrderStatus $automatic.id 'RECEIVED'
 if(-not$autoReceived.receivedAt){throw 'AUTO_RECEIVE did not persist receivedAt'}
 if((Invoke-DbScalar "SELECT status FROM scheduled_tasks WHERE task_type='AUTO_RECEIVE' AND task_key='order:$($automatic.id)'")-ne'SUCCEEDED'){throw 'AUTO_RECEIVE task did not succeed'}
 
-Invoke-VerificationDb task "UPDATE scheduled_tasks SET due_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE task_type='AUTO_COMPLETE' AND task_key='order:$($automatic.id)'"|Out-Null
+Invoke-VerificationDb task "UPDATE scheduled_tasks SET due_at=(CURRENT_TIMESTAMP - INTERVAL '1 second') WHERE task_type='AUTO_COMPLETE' AND task_key='order:$($automatic.id)'"|Out-Null
 $completed=Wait-OrderStatus $automatic.id 'COMPLETED'
 if(-not$completed.completedAt-or-not$completed.payment-or$completed.logistics.status-ne'DELIVERED'-or$completed.availableActions-notcontains'REVIEW_ITEM'){throw 'COMPLETED order lost completion time, payment, logistics or review action'}
 if((Invoke-DbScalar "SELECT status FROM scheduled_tasks WHERE task_type='AUTO_COMPLETE' AND task_key='order:$($automatic.id)'")-ne'SUCCEEDED'){throw 'AUTO_COMPLETE task did not succeed'}
@@ -79,7 +79,7 @@ $completeTaskId=[long](Invoke-DbScalar "SELECT id FROM scheduled_tasks WHERE tas
 docker compose --project-directory $ProjectRoot stop commerce-service|Out-Null
 if($LASTEXITCODE-ne0){throw 'Could not stop commerce-service for lease recovery verification'}
 try{
-  Invoke-VerificationDb task "UPDATE scheduled_tasks SET status='PROCESSING',completed_at=NULL,due_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 2 SECOND),lease_until=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND),claimed_by='simulated-crashed-worker',last_error=NULL WHERE id=$completeTaskId"|Out-Null
+  Invoke-VerificationDb task "UPDATE scheduled_tasks SET status='PROCESSING',completed_at=NULL,due_at=(CURRENT_TIMESTAMP - INTERVAL '2 second'),lease_until=(CURRENT_TIMESTAMP - INTERVAL '1 second'),claimed_by='simulated-crashed-worker',last_error=NULL WHERE id=$completeTaskId"|Out-Null
 }finally{
   docker compose --project-directory $ProjectRoot start --wait commerce-service|Out-Null
   if($LASTEXITCODE-ne0){throw 'Backend did not restart after lease recovery setup'}

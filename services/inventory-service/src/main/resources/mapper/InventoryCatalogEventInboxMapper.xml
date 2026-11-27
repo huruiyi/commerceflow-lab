@@ -3,12 +3,6 @@
 <mapper namespace="vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryCatalogEventInboxMapper">
 
   <insert id="claim">
-    INSERT IGNORE INTO inventory_catalog_event_inbox(
-      event_id,product_id,business_version,payload_fingerprint,status
-    ) VALUES(#{eventId},#{productId},#{businessVersion},#{payloadFingerprint},'PROCESSING')
-  </insert>
-
-  <insert id="claim" databaseId="postgresql">
     INSERT INTO inventory_catalog_event_inbox(event_id,product_id,business_version,payload_fingerprint,status)
     VALUES(#{eventId},#{productId},#{businessVersion},#{payloadFingerprint},'PROCESSING')
     ON CONFLICT (event_id) DO NOTHING

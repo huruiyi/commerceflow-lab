@@ -112,7 +112,7 @@ public interface OrderStoreMapper {
 
   class GeneratedOrderKey {
 
-    /** MySQL 创建订单时生成的内部主键。 */
+    /** 创建订单时生成的内部主键。 */
     private Long id;
 
     public Long getId() {

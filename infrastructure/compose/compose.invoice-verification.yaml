@@ -1,27 +1,31 @@
 services:
-  invoice-db:
-    image: mysql:8.4
+  invoice-db-postgresql:
+    image: postgres:17.11-alpine
     environment:
-      MYSQL_DATABASE: invoice_platform
-      MYSQL_USER: invoice
-      MYSQL_PASSWORD: invoice-verification-password
-      MYSQL_ROOT_PASSWORD: invoice-verification-root
+      POSTGRES_DB: invoice_platform
+      POSTGRES_PASSWORD: invoice-verification-root
+      POSTGRES_RUNTIME_USER: invoice_runtime
+      POSTGRES_RUNTIME_PASSWORD: invoice-verification-password
+      POSTGRES_RUNTIME_SCHEMA: invoice_platform
     volumes:
-      - invoice-mysql-data:/var/lib/mysql
+      - invoice-postgresql-data:/var/lib/postgresql/data
+      - ../../infrastructure/postgresql/init-runtime-role.sh:/docker-entrypoint-initdb.d/10-runtime-role.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "mysql --protocol=TCP -uinvoice -p$$MYSQL_PASSWORD invoice_platform -e 'SELECT 1'"]
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "invoice_platform"]
       interval: 2s
       timeout: 3s
       retries: 45
 
   invoice-simulator-service:
+    image: ${INVOICE_VERIFICATION_IMAGE:-commerceflow-invoice-isolated:local}
     build:
       context: ../../simulators/invoice-platform/service
-      args:
-        MAVEN_LEGACY_MYSQL: "true"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://invoice-db:3306/invoice_platform
-      SPRING_DATASOURCE_USERNAME: invoice
+      SPRING_DATASOURCE_URL: jdbc:postgresql://invoice-db-postgresql:5432/invoice_platform?currentSchema=invoice_platform
+      SPRING_DATASOURCE_USERNAME: invoice_runtime
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "true"
+      SPRING_FLYWAY_DEFAULT_SCHEMA: invoice_platform
       SPRING_DATASOURCE_PASSWORD: invoice-verification-password
       INVOICE_REQUEST_SECRET: invoice-isolated-request-secret-2026
       INVOICE_CALLBACK_SECRET: invoice-isolated-callback-secret-2026
@@ -31,7 +35,7 @@ services:
     ports:
       - "127.0.0.1::8080"
     depends_on:
-      invoice-db:
+      invoice-db-postgresql:
         condition: service_healthy
 
   receipt-fixture:
@@ -45,4 +49,4 @@ services:
       - "127.0.0.1::8080"
 
 volumes:
-  invoice-mysql-data:
+  invoice-postgresql-data:

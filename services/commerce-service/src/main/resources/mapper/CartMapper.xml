@@ -11,14 +11,6 @@
     <![CDATA[
       INSERT INTO carts (user_id, created_at, updated_at)
       VALUES (#{userId}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      ON DUPLICATE KEY UPDATE updated_at = updated_at
-    ]]>
-  </insert>
-
-  <insert id="ensureCart" databaseId="postgresql">
-    <![CDATA[
-      INSERT INTO carts (user_id, created_at, updated_at)
-      VALUES (#{userId}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       ON CONFLICT DO NOTHING
     ]]>
   </insert>
@@ -41,26 +33,6 @@
         #{cartId}, #{productId}, #{merchantId}, #{productName}, #{thumbnailUrl}, #{unitPrice},
         #{quantity}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
-      ON DUPLICATE KEY UPDATE
-        quantity = LEAST(quantity + #{quantity}, 99),
-        merchant_id = #{merchantId},
-        product_name = #{productName},
-        thumbnail_url = #{thumbnailUrl},
-        unit_price = #{unitPrice},
-        updated_at = CURRENT_TIMESTAMP
-    ]]>
-  </insert>
-
-  <insert id="add" databaseId="postgresql">
-    <![CDATA[
-      INSERT INTO cart_items (
-        cart_id, product_id, merchant_id, product_name, thumbnail_url, unit_price,
-        quantity, created_at, updated_at
-      )
-      VALUES (
-        #{cartId}, #{productId}, #{merchantId}, #{productName}, #{thumbnailUrl}, #{unitPrice},
-        #{quantity}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-      )
       ON CONFLICT (cart_id, product_id) DO UPDATE SET
         quantity = LEAST(cart_items.quantity + #{quantity}, 99),
         merchant_id = #{merchantId},
@@ -69,6 +41,19 @@
         unit_price = #{unitPrice},
         updated_at = CURRENT_TIMESTAMP
     ]]>
+  </insert>
+
+  <insert id="add" databaseId="h2">
+    MERGE INTO cart_items AS target
+    USING (VALUES (CAST(#{cartId} AS BIGINT), CAST(#{productId} AS BIGINT))) AS source(cart_id, product_id)
+    ON target.cart_id = source.cart_id AND target.product_id = source.product_id
+    WHEN MATCHED THEN UPDATE SET quantity = LEAST(target.quantity + #{quantity}, 99),
+      merchant_id = #{merchantId}, product_name = #{productName}, thumbnail_url = #{thumbnailUrl},
+      unit_price = #{unitPrice}, updated_at = CURRENT_TIMESTAMP
+    WHEN NOT MATCHED THEN INSERT (cart_id, product_id, merchant_id, product_name, thumbnail_url,
+      unit_price, quantity, created_at, updated_at)
+    VALUES (source.cart_id, source.product_id, #{merchantId}, #{productName}, #{thumbnailUrl},
+      #{unitPrice}, #{quantity}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
   </insert>
 
   <select id="list" resultType="vip.fairy.commerceflow.commerce.cart.domain.OrderView">

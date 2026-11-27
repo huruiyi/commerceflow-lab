@@ -72,8 +72,8 @@ $pending = Invoke-RestMethod "$BaseUrl/api/purchase-orders/$($orderWithPayment.i
 if ($pending.payment.status -ne 'PENDING') { throw 'Acceptance payment was not pending' }
 $closed = Invoke-RestMethod "$BaseUrl/api/purchase-orders/$($orderWithPayment.id)/cancel" -Method Post -WebSession $customer.Session -Headers $customer.Headers -ContentType application/json -Body '{"reason":"close pending transaction"}'
 if ($closed.status -ne 'CANCELLED' -or $closed.payment.status -ne 'CLOSED') { throw 'Pending channel transaction was not closed before order cancellation' }
-$pendingProcesses = docker compose --project-directory $ProjectRoot exec -T -e MYSQL_PWD=payments-password `
-  payment-db mysql -upayments -Nse "SELECT COUNT(*) FROM payment_process_managers WHERE order_id=$($orderWithPayment.id) AND status<>'COMPLETED'; SELECT COUNT(*) FROM payment_command_outbox WHERE order_id=$($orderWithPayment.id) AND status<>'ACKNOWLEDGED';" payments
+$pendingProcesses = docker compose --project-directory $ProjectRoot exec -T `
+  payment-db-postgresql psql -U postgres -d payments -XqAt -v ON_ERROR_STOP=1 -c "SELECT COUNT(*) FROM payment_process_managers WHERE order_id=$($orderWithPayment.id) AND status<>'COMPLETED'; SELECT COUNT(*) FROM payment_command_outbox WHERE order_id=$($orderWithPayment.id) AND status<>'ACKNOWLEDGED';"
 if ($LASTEXITCODE -ne 0 -or @($pendingProcesses | Where-Object { $_ -ne '0' }).Count -ne 0) {
   throw 'Closing a pending payment did not complete its process and command outbox'
 }

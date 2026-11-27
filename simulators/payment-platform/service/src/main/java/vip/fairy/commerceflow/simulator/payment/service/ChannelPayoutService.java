@@ -27,7 +27,7 @@ public class ChannelPayoutService {
         return get(id);
       }
     } catch (DuplicateKeyException exception) {
-      // MySQL reports a duplicate key; PostgreSQL's conflict clause returns zero.
+      // Concurrent inserts may leave the existing payout unchanged.
     }
     var existing = payouts.lock(id);
     if (existing == null || !existing.statementId().equals(statement) || !existing.beneficiaryId().equals(merchant)

@@ -33,7 +33,7 @@ function Invoke-Signed([string]$Path, [string]$Payload, [string]$RequestId = '')
 }
 function Json($Value) { $Value | ConvertTo-Json -Compress }
 function Cleanup {
-  docker compose exec -T order-db mysql -uorders -porders-password --batch orders -e "
+  docker compose exec -T order-db-postgresql psql -U postgres -d orders -XqAt -v ON_ERROR_STOP=1 -c "
     DELETE FROM order_result_inbox WHERE order_id=$OrderId;
     DELETE FROM order_command_outbox WHERE order_id=$OrderId;
     DELETE FROM order_process_managers WHERE order_id=$OrderId;
@@ -52,7 +52,7 @@ try {
   $env:ORDER_ACCEPTING_TRAFFIC = 'true'
   $env:TRACING_EXPORT_ENABLED = 'true'
   docker compose up -d --build --force-recreate --wait order-service tempo | Out-Null
-  docker compose exec -T order-db mysql -uorders -porders-password --batch orders -e "
+  docker compose exec -T order-db-postgresql psql -U postgres -d orders -XqAt -v ON_ERROR_STOP=1 -c "
     DELETE FROM order_events WHERE order_id=$OrderId; DELETE FROM shop_orders WHERE id=$OrderId;
     INSERT INTO shop_orders(id,order_number,customer_id,status,inventory_status,total_amount,currency,
       created_at,updated_at,payment_due_at) VALUES ($OrderId,'REMOTE-PROTOCOL-$OrderId',1,
@@ -89,16 +89,14 @@ try {
     Fail 'signed HTTP request replay was accepted'
   } catch { if ([int]$_.Exception.Response.StatusCode -ne 409) { throw } }
 
-  docker compose exec -T order-db mysql -uorders -porders-password --batch orders -e "
-    UPDATE order_process_managers SET result_deadline_at=CURRENT_TIMESTAMP(6)-INTERVAL 1 SECOND
+  docker compose exec -T order-db-postgresql psql -U postgres -d orders -XqAt -v ON_ERROR_STOP=1 -c "
+    UPDATE order_process_managers SET result_deadline_at=CURRENT_TIMESTAMP(6)-INTERVAL '1' SECOND
     WHERE order_id=$OrderId;" | Out-Null
   Start-Sleep -Seconds 6
-  $unknown = [long](docker compose exec -T order-db mysql -uorders -porders-password `
-    --batch --skip-column-names orders -e "SELECT COUNT(*) FROM order_process_managers
+  $unknown = [long](docker compose exec -T order-db-postgresql psql -U postgres -d orders -XqAt -v ON_ERROR_STOP=1 -c "SELECT COUNT(*) FROM order_process_managers
     WHERE order_id=$OrderId AND status='WAITING_RECONCILIATION' AND last_error='RESULT_TIMEOUT_UNKNOWN';")
   if ($unknown -ne 1) { Fail 'missing result did not become unknown/reconcilable' }
-  $processId = docker compose exec -T order-db mysql -uorders -porders-password --batch `
-    --skip-column-names orders -e "SELECT process_id FROM order_process_managers WHERE order_id=$OrderId;"
+  $processId = docker compose exec -T order-db-postgresql psql -U postgres -d orders -XqAt -v ON_ERROR_STOP=1 -c "SELECT process_id FROM order_process_managers WHERE order_id=$OrderId;"
   $recovery = Json ([ordered]@{action='RETRY';operator='protocol-verifier';reason='downstream recovered';traceparent=$Traceparent})
   if ((Invoke-Signed "/internal/v1/orders/recovery/$processId" $recovery).status -ne 'RETRY') {
     Fail 'manual retry was not recorded'
@@ -115,8 +113,7 @@ try {
     $repeat = Invoke-Signed '/internal/v1/orders/results' $result
     if (-not $repeat.status.StartsWith('DUPLICATE_')) { Fail 'result duplicate was not idempotent' }
   }
-  $counts = docker compose exec -T order-db mysql -uorders -porders-password --batch `
-    --skip-column-names orders -e "SELECT CONCAT(status,'|',
+  $counts = docker compose exec -T order-db-postgresql psql -U postgres -d orders -XqAt -v ON_ERROR_STOP=1 -c "SELECT CONCAT(status,'|',
       (SELECT COUNT(*) FROM order_command_outbox WHERE order_id=$OrderId AND status='ACKNOWLEDGED'),'|',
       (SELECT COUNT(*) FROM order_result_inbox WHERE order_id=$OrderId),'|',recovered_by)
       FROM order_process_managers WHERE order_id=$OrderId;"

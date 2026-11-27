@@ -76,14 +76,6 @@
 
   <update id="finishIfFullyAllocated">
     UPDATE shop_orders o
-    CROSS JOIN (<include refid="latestPostedPackage"/>) p
-    SET o.status='SHIPPED',o.carrier=p.carrier,o.tracking_number=p.tracking_number,
-        o.shipped_at=CURRENT_TIMESTAMP(6),o.updated_at=CURRENT_TIMESTAMP(6)
-    <include refid="fullyAllocatedOrder"/>
-  </update>
-
-  <update id="finishIfFullyAllocated" databaseId="postgresql">
-    UPDATE shop_orders o
     SET status='SHIPPED',carrier=p.carrier,tracking_number=p.tracking_number,
         shipped_at=statement_timestamp(),updated_at=statement_timestamp()
     FROM (<include refid="latestPostedPackage"/>) p

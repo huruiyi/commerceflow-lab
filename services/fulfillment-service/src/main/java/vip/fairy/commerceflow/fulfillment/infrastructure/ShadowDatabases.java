@@ -80,6 +80,6 @@ public class ShadowDatabases {
   }
 
   private DataSource reader(String url, String password) {
-    return new UnpooledDataSource("com.mysql.cj.jdbc.Driver", url, "fulfillment_shadow", password);
+    return new UnpooledDataSource("org.postgresql.Driver", url, "fulfillment_shadow", password);
   }
 }

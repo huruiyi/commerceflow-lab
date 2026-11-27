@@ -1,12 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="vip.fairy.commerceflow.commerce.inventory.infrastructure.StocktakeReviewMapper">
-  <insert id="create">
-    INSERT IGNORE INTO inventory_stocktake_reviews(reference,proposal,counted_by)
-    VALUES(#{reference},#{proposal},#{actor})
-  </insert>
 
-  <insert id="create" databaseId="postgresql">
+  <insert id="create">
     INSERT INTO inventory_stocktake_reviews(reference,proposal,counted_by)
     VALUES(#{reference},#{proposal},#{actor})
     ON CONFLICT DO NOTHING

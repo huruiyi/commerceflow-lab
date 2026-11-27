@@ -6,12 +6,21 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-. (Join-Path $root 'scripts/lib/lifecycle-verification.ps1')
+function Get-VersionedMigrations([string]$Path) {
+  $versions = @(Get-ChildItem -LiteralPath $Path -File | ForEach-Object {
+    if ($_.Name -cmatch '^V(\d+)__.+\.sql$') {
+      [pscustomobject]@{ version = [int]$Matches[1]; script = $_.Name }
+    }
+  } | Sort-Object version)
+  if (!$versions.Count -or @($versions | Group-Object version | Where-Object Count -gt 1).Count) {
+    throw "Missing or ambiguous versioned migrations: $Path"
+  }
+  $versions
+}
 $projectName = 'fairy-commerceflow-invoice-qa-' + [guid]::NewGuid().ToString('N').Substring(0, 10)
 $composeFiles = @('-f', (Join-Path $root 'infrastructure/compose/compose.invoice-verification.yaml'))
 if ($PostgreSqlImage) {
   $env:INVOICE_VERIFICATION_IMAGE = $PostgreSqlImage
-  $composeFiles += @('-f', (Join-Path $root 'infrastructure/compose/compose.invoice-postgresql-verification.yaml'))
 }
 $requestSecret = 'invoice-isolated-request-secret-2026'
 $utf8 = [Text.Encoding]::UTF8
@@ -82,11 +91,7 @@ function Assert-Replay([string]$Path, $Payload, $ExpectedResult) {
 }
 
 function Invoke-Ledger([string]$Sql) {
-  if ($PostgreSqlImage) {
-    Invoke-Compose exec -T invoice-db-postgresql psql -U postgres -d invoice_platform -XAtq -v ON_ERROR_STOP=1 -c $Sql
-  } else {
-    Invoke-Compose exec -T -e MYSQL_PWD=invoice-verification-password invoice-db mysql --batch --skip-column-names -uinvoice invoice_platform -e $Sql
-  }
+  Invoke-Compose exec -T invoice-db-postgresql psql -U postgres -d invoice_platform -XAtq -v ON_ERROR_STOP=1 -c "SET search_path=invoice_platform; $Sql"
 }
 
 function Get-ReceiptState {
@@ -219,7 +224,7 @@ try {
     (Invoke-Ledger 'SELECT COUNT(*) FROM invoice_receipts WHERE delivered_at IS NOT NULL') -eq [string]$eventCount
   } "$eventCount durable receipt acknowledgements" | Out-Null
 
-  $migrationFolder = if ($PostgreSqlImage) { 'postgresql' } else { 'migration' }
+  $migrationFolder = 'postgresql'
   $migrations = Get-VersionedMigrations (Join-Path $root "simulators/invoice-platform/service/src/main/resources/db/$migrationFolder")
   $expectedHistory = $migrations | ForEach-Object { "$($_.version)|$($_.script)|1" }
   $history = Invoke-Ledger "SELECT CONCAT_WS('|', version, script, CASE WHEN success THEN 1 ELSE 0 END) FROM flyway_schema_history WHERE version IS NOT NULL ORDER BY installed_rank"
@@ -255,6 +260,6 @@ try {
 } finally {
   $client.Dispose()
   Invoke-Compose down | Out-Host
-  $volume = if ($PostgreSqlImage) { 'invoice-postgresql-data' } else { 'invoice-mysql-data' }
+  $volume = 'invoice-postgresql-data'
   Write-Host "Retained isolated volume: ${projectName}_$volume"
 }

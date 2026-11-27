@@ -2,7 +2,7 @@
 
 ## 1. 学习目标
 
-本实验不是单纯追求 QPS，而是在真实 Docker MySQL 和独立模拟支付平台上，反复改变“支付成功回调”与“客户取消”的先后次序，验证每轮都只收敛到可解释的账务事实。
+本实验不是单纯追求 QPS，而是在真实 Docker 原数据库和独立模拟支付平台上，反复改变“支付成功回调”与“客户取消”的先后次序，验证每轮都只收敛到可解释的账务事实。
 
 必须同时覆盖：
 
@@ -26,9 +26,9 @@ pwsh -File ./scripts/payment/verify-payment-cancellation-stress.ps1 `
 
 最终脚本保留限流，默认在每轮间暂停 900ms，且只对明确包含平台 `429` 的创建支付失败做 5 秒、最多 15 次退避。其他 `409`、鉴权或业务错误立即失败，不被压测脚本掩盖。
 
-## 4. MySQL 一致性审计
+## 4. 原数据库一致性审计
 
-每轮 API 断言通过后，stress 入口会使用本轮收集的订单 ID 直接查询 Docker MySQL，同时断言：
+每轮 API 断言通过后，stress 入口会使用本轮收集的订单 ID 直接查询 Docker 原数据库，同时断言：
 
 1. 订单数 = 本轮数。
 2. 支付记录数 = 本轮数。
@@ -41,19 +41,16 @@ pwsh -File ./scripts/payment/verify-payment-cancellation-stress.ps1 `
 
 2026-11-13 本机 Docker 结果：
 
-| 平台 | 时长 | 轮数 | `PAID/SUCCESS` | `CANCELLED/CLOSED` | MySQL 矛盾 |
+| 平台 | 时长 | 轮数 | `PAID/SUCCESS` | `CANCELLED/CLOSED` | 原数据库矛盾 |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Windows PowerShell | 120.6s | 95 | 55 | 40 | 0 |
 | 容器化 Bash | 121s | 97 | 58 | 39 | 0 |
 
-这证明的是当前单机 Docker、当前 MySQL/支付平台版本下的两分钟浸泡结果。它不等同于多实例、多节点数据库、网络分区、多小时/多日容量规划或生产可用性认证。
+这证明的是当前单机 Docker、当前 原数据库/支付平台版本下的两分钟浸泡结果。它不等同于多实例、多节点数据库、网络分区、多小时/多日容量规划或生产可用性认证。
 
 ## 6. 推荐学习资料
 
 | 资料 | 阅读重点 |
 | --- | --- |
-| [MySQL 8.4 InnoDB Locking](https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html) | 行锁、索引记录锁与并发写入的基础模型 |
-| [MySQL 8.4 Transaction Isolation](https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html) | 不同隔离级别下一致性读、锁定读和 UPDATE 的差异 |
-| [MySQL 8.4 Deadlocks](https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks.html) | 写竞争为什么可能死锁，以及为什么应用必须准备处理事务回滚 |
 
 建议对照 `ShopOrderMapper.lock/lockById`、`OrderCancellationService`和 `PaymentNotificationService` 阅读：行锁只负责串行化关键窗口，真正的安全性仍来自状态条件更新、资金事实优先和幂等补偿。

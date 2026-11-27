@@ -8,11 +8,6 @@
 
   <insert id="insert">
     INSERT INTO order_internal_request_replay(request_id,source_service,content_fingerprint,expires_at)
-    VALUES (#{requestId},#{service},#{fingerprint},CURRENT_TIMESTAMP(6) + INTERVAL 5 MINUTE)
-  </insert>
-
-  <insert id="insert" databaseId="postgresql">
-    INSERT INTO order_internal_request_replay(request_id,source_service,content_fingerprint,expires_at)
     VALUES (#{requestId},#{service},#{fingerprint},statement_timestamp() + INTERVAL '5 minutes')
   </insert>
 </mapper>

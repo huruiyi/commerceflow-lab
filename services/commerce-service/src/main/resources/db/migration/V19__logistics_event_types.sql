@@ -1,2 +1,0 @@
-ALTER TABLE shipment_events
-  ADD COLUMN event_type VARCHAR(30) NOT NULL DEFAULT 'PROGRESS' AFTER event_id;

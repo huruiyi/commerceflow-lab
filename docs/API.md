@@ -45,7 +45,7 @@
 
 例如 `GET /api/products/search?lang=en&q=coffee%20tea&match=any&exclude=decaf&sort=price-asc`。
 `q` 与 `exclude` 各限 120 个字符、12 个不同词。公开 API 对未知匹配模式或超限输入返回 400。
-Elasticsearch 和 MySQL 回退使用相同的匹配条件，相关性排序由各自的引擎计算。
+Elasticsearch 和原数据库回退使用相同的匹配条件，相关性排序由各自的引擎计算。
 
 目录 V8 将属性和销售规格分成两个参数，均使用以分号分隔的 `name=value`。名称和值忽略大小写并去除首尾空白。
 商品层的 `attributes` 支持最多六项固定属性，可用 `screen size=27;resolution=2560 × 1440` 查询 27 英寸 QHD。
@@ -60,13 +60,13 @@ Elasticsearch 和 MySQL 回退使用相同的匹配条件，相关性排序由�
 其中价格、已选规格和待计数的规格值必须出现在同一条可售 SKU 上。
 可点击选项使用对应参数的 `name=value;name=value` 格式，含分隔符且无法用该格式表达的名和值不出现在选项中。
 Elasticsearch 使用嵌套 SKU 聚合及商品级去重。聚合超过 2,000 个规格值、结果不完整或 Elasticsearch 不可用时，
-改由 MySQL 返回搜索页及完整计数。
+改由原数据库返回搜索页及完整计数。
 
 商品列表和搜索返回 `averageRating`、`reviewCount`，其中 `reviews` 为空数组。详情内嵌最新 5 条评价。
 `GET /api/products/{productId}/reviews` 返回 `reviews`、`total`、`page`、`size`，
 从第 0 页起算，默认 5 条，最大 20 条，按评价时间和评价 ID 倒序。商品不可对外展示时返回 404。
 
-日常公开店铺使用带 `merchantId` 的搜索分页。2026-11-25 日常目录沿原卷升级至 Flyway V8，搜索优先读取 Elasticsearch，故障时回退到 MySQL。独立商详首屏展示详情内嵌的最新评价，随后翻页调用独立评价接口。
+日常公开店铺使用带 `merchantId` 的搜索分页。2026-11-25 日常目录沿原卷升级至 Flyway V8，搜索优先读取 Elasticsearch，故障时回退到 原数据库。独立商详首屏展示详情内嵌的最新评价，随后翻页调用独立评价接口。
 
 日常购物车以 `POST /api/products/lookup?lang=zh-CN` 读取当前商品名和价格。请求体是最多 100 个商品 ID 的数组，
 响应按商品 ID 提供 `name` 和 `price`。不存在、已下架或店铺未开放的商品不出现在映射中。
@@ -75,7 +75,7 @@ Elasticsearch 使用嵌套 SKU 聚合及商品级去重。聚合超过 2,000 个
 日常店铺、评价、购物车的 Chrome 实测和 Elasticsearch 索引核对见[第 1 批日常发布记录](IMPLEMENTED.md#268-2026-11-24-第-1-批商品目录日常发布)。
 
 管理员通过 `GET /api/admin/catalog-search` 读取目录及 Elasticsearch 代次、同步阶段、待同步数和最早待同步时间。
-`GET /api/admin/catalog-search/comparison` 按商品编号逐批对照 MySQL 和 Elasticsearch，返回已核对数量以及缺失、多余和内容不一致的商品。
+`GET /api/admin/catalog-search/comparison` 按商品编号逐批对照原数据库和 Elasticsearch，返回已核对数量以及缺失、多余和内容不一致的商品。
 每批带 `generation`，翻页时把 `nextAfterId` 作为 `afterId` 传入。代次切换时返回 `RESTART`，积压中的核对返回 `CATCHING_UP`。
 `POST /api/admin/catalog-search/rebuild` 触发原索引重建流程。
 

@@ -52,7 +52,7 @@ class NavigationMonitorTest {
     var service = monitor.snapshot().services().getFirst();
     assertThat(service.status()).isEqualTo("UNKNOWN");
     assertThat(service.addresses()).containsExactly(new NavigationSnapshot.Address(
-        "MySQL", "INTERNAL", "order-db:3306"
+        "PostgreSQL", "INTERNAL", "order-db-postgresql:5432"
     ));
   }
 
@@ -65,11 +65,11 @@ class NavigationMonitorTest {
 
     var services = monitor.snapshot().services();
     assertThat(services).extracting(NavigationSnapshot.Service::id)
-        .containsExactly("order-db", "invoice-db", "invoice-simulator-service");
+        .containsExactly("order-db-postgresql", "invoice-db-postgresql", "invoice-simulator-service");
     assertThat(services).allMatch(service -> "READY".equals(service.status()));
     assertThat(services.get(1).schema()).isEqualTo("invoice_platform");
     assertThat(services.get(1).addresses()).containsExactly(new NavigationSnapshot.Address(
-        "MySQL", "INTERNAL", "invoice-db:3306"
+        "PostgreSQL", "INTERNAL", "invoice-db-postgresql:5432"
     ));
     assertThat(services.get(2).addresses()).containsExactly(new NavigationSnapshot.Address(
         "HTTP", "INTERNAL", "invoice-simulator-service:8080"
@@ -77,7 +77,7 @@ class NavigationMonitorTest {
   }
 
   @Test
-  void distinguishesMissingActiveNotificationFromRetainedMysql() throws IOException {
+  void reportsMissingNotificationApplicationWithHealthyDatabase() throws IOException {
     var compose = new FixtureCompose(mapper);
     compose.withNotification = true;
     var monitor = new NavigationMonitor(compose, new NavigationCatalog(mapper), new EndpointProbe(mapper));
@@ -85,14 +85,9 @@ class NavigationMonitorTest {
 
     var services = monitor.snapshot().services();
     assertThat(services).extracting(NavigationSnapshot.Service::status)
-        .containsExactly("MISSING", "READY", "ROLLBACK_RETAINED", "ROLLBACK_RETAINED");
+        .containsExactly("MISSING", "READY");
     assertThat(services.get(1).probes()).containsExactly(new NavigationSnapshot.Probe(
         "fairy-commerceflow-notification-db-postgresql", "REACHABLE", "PostgreSQL 容器健康检查", null));
-    assertThat(services.get(2).instances().getFirst().exitCode()).isEqualTo(143);
-
-    compose.legacyRunning = true;
-    monitor.refresh();
-    assertThat(monitor.snapshot().services().get(2).status()).isEqualTo("UNEXPECTED_ACTIVE");
   }
 
   private static class FixtureCompose extends ComposeClient {
@@ -101,7 +96,6 @@ class NavigationMonitorTest {
     private boolean connected = true;
     private boolean withRelease;
     private boolean withNotification;
-    private boolean legacyRunning;
     private String state = "running";
 
     FixtureCompose(ObjectMapper mapper) {
@@ -117,7 +111,7 @@ class NavigationMonitorTest {
             """);
       }
       return mapper.readTree("""
-          {"services":{"order-db":{"environment":{"MYSQL_DATABASE":"orders"}}}}
+          {"services":{"order-db-postgresql":{"environment":{"POSTGRES_DB":"orders"}}}}
           """);
     }
 
@@ -127,14 +121,10 @@ class NavigationMonitorTest {
         throw new IOException("Test Docker connection unavailable");
       }
       if (withNotification) {
-        var legacy = container("notification-service");
-        if (!legacyRunning) {
-          legacy.put("state", "exited").put("exitCode", 143);
-        }
-        return List.of(container("notification-db-postgresql"), legacy, container("notification-db"));
+        return List.of(container("notification-db-postgresql"));
       }
-      var orderDb = container("order-db");
-      return withRelease ? List.of(orderDb, container("invoice-db"), container("invoice-simulator-service"))
+      var orderDb = container("order-db-postgresql");
+      return withRelease ? List.of(orderDb, container("invoice-db-postgresql"), container("invoice-simulator-service"))
           : List.of(orderDb);
     }
 

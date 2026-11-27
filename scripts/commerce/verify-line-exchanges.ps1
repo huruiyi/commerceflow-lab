@@ -24,12 +24,10 @@ function Assert-Equal($Actual, $Expected, [string]$Context) {
   if ($Actual -cne $Expected) { throw "$Context expected $Expected, got $Actual" }
 }
 
+. "$PSScriptRoot/../lib/commerce-ledger.ps1"
+
 function Sql([string]$Service, [string]$Schema, [string]$Query) {
-  $name = "$ProjectName-$Service-1"
-  $scope = docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}/{{index .Config.Labels "com.docker.compose.service"}}' $name
-  Assert-Equal $scope "$ProjectName/$Service" 'Database scope'
-  docker exec $name sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -NB "$1" -e "$2"' sh $Schema $Query
-  if ($LASTEXITCODE) { throw "MySQL query failed for $Service" }
+  Invoke-ProjectDatabaseSql $ProjectName $Service $Schema $Query
 }
 
 function Wait-Value([scriptblock]$Read, [string]$Context) {

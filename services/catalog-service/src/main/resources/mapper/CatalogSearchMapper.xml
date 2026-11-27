@@ -103,21 +103,17 @@
     </foreach>
   </sql>
 
-  <sql id="termPosition">LOCATE(#{term},d.searchable)</sql>
-  <sql id="termPosition" databaseId="postgresql">
+  <sql id="termPosition">
     strpos(lower(d.searchable),lower(#{term}))
   </sql>
 
-  <sql id="binaryCollation">COLLATE utf8mb4_0900_bin</sql>
-  <sql id="binaryCollation" databaseId="postgresql">COLLATE "C"</sql>
+  <sql id="binaryCollation">COLLATE "C"</sql>
 
-  <sql id="defaultSpecContains">JSON_CONTAINS(LOWER(base_sku.specifications),#{skuJson})</sql>
-  <sql id="defaultSpecContains" databaseId="postgresql">
+  <sql id="defaultSpecContains">
     lower(base_sku.specifications::text)::jsonb @&gt; CAST(#{skuJson} AS jsonb)
   </sql>
 
-  <sql id="variantSpecContains">JSON_CONTAINS(LOWER(sku.specifications),#{skuJson})</sql>
-  <sql id="variantSpecContains" databaseId="postgresql">
+  <sql id="variantSpecContains">
     lower(sku.specifications::text)::jsonb @&gt; CAST(#{skuJson} AS jsonb)
   </sql>
 
@@ -168,21 +164,7 @@
     )
   </sql>
 
-  <select id="skuFacets" resultType="vip.fairy.commerceflow.catalog.application.CatalogSkuSearch$Facet">
-    SELECT CONVERT(spec.name USING utf8mb4) COLLATE utf8mb4_0900_bin AS name,
-      CONVERT(JSON_UNQUOTE(JSON_EXTRACT(LOWER(sku.specifications), CONCAT('$.', JSON_QUOTE(spec.name))))
-        USING utf8mb4) COLLATE utf8mb4_0900_bin AS value,
-      COUNT(DISTINCT d.product_id) AS product_count
-    <include refid="searchSource"/>
-    JOIN catalog_product_skus sku ON sku.product_id=d.product_id AND sku.stock_product_id IS NOT NULL
-      AND (sku.default_sku=TRUE OR sku.lifecycle_status='ACTIVE')
-      <include refid="skuFilters"/>
-    JOIN JSON_TABLE(JSON_KEYS(LOWER(sku.specifications)), '$[*]' COLUMNS (name VARCHAR(64) PATH '$')) spec
-    <include refid="productFilters"/>
-    GROUP BY 1, 2
-  </select>
-
-  <select id="skuFacets" databaseId="postgresql"
+  <select id="skuFacets"
           resultType="vip.fairy.commerceflow.catalog.application.CatalogSkuSearch$Facet">
     SELECT spec.key COLLATE "C" AS name,spec.value COLLATE "C" AS value,COUNT(DISTINCT d.product_id) AS product_count
     <include refid="searchSource"/>
@@ -215,25 +197,6 @@
   </select>
 
   <sql id="searchOrder">
-    <choose>
-      <when test="sort == 'price-asc'"><include refid="matchingSkuPrice"/> ASC,</when>
-      <when test="sort == 'price-desc'"><include refid="matchingSkuPrice"/> DESC,</when>
-      <when test="sort == 'rating' and !ratedIds.isEmpty()">
-        NULLIF(FIELD(d.product_id,
-        <foreach collection="ratedIds" item="rated" separator=",">#{rated}</foreach>
-        ),0) IS NULL,
-        FIELD(d.product_id,
-        <foreach collection="ratedIds" item="rated" separator=",">#{rated}</foreach>
-        ) ASC,
-      </when>
-      <when test="!terms.isEmpty()">
-        (LOCATE(#{terms[0]},d.name)&gt;0) DESC,
-        MATCH(d.searchable) AGAINST (#{query} IN NATURAL LANGUAGE MODE) DESC,
-      </when>
-    </choose>
-  </sql>
-
-  <sql id="searchOrder" databaseId="postgresql">
     <choose>
       <when test="sort == 'price-asc'"><include refid="matchingSkuPrice"/> ASC,</when>
       <when test="sort == 'price-desc'"><include refid="matchingSkuPrice"/> DESC,</when>

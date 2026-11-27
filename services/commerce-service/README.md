@@ -6,9 +6,9 @@
 - Spring Boot 4.1.2 / Spring Security 7
 - MyBatis-Plus 3.5.18
 - Flyway 数据库迁移
-- MySQL 8.4（Docker 运行）
+- 原数据库（Docker 运行）
 - Redis 7.4（Session、登录限流和持久化；缓存增强在后续章节实现）
-- H2 MySQL 兼容模式（自动化测试）
+- H2 原数据库兼容模式（自动化测试）
 
 ## 当前用户与密码
 
@@ -20,18 +20,9 @@
 
 项目还初始化 `ada@example.com`、`grace@example.com`、`alan@example.com` 三条用户资料，用于用户列表展示；它们均处于禁用状态，不能登录。
 
-账号和商品由 Flyway 迁移 `src/main/resources/db/migration/V1__baseline_schema_and_demo_data.sql` 初始化。为了保证公开教学仓库克隆后可直接运行，演示账号的 BCrypt 哈希随代码提交；数据库中没有明文密码，也不会使用 Spring Boot 随机生成的默认 `user` 密码。
+隔离环境执行 Flyway 建表后，通过 [演示账号和店铺初始化](../../infrastructure/demo/init-commerce.sql) 建立演示身份。商品、译文和库存通过 [演示数据入口](../../infrastructure/demo/init-demo-data.sh) 初始化。
 
 ### Spring Security `User` 的作用
-
-```text
-MySQL app_users
-    → AppUserMapper 按邮箱查询
-    → org.springframework.security.core.userdetails.User
-    → Authentication
-    → SecurityContext
-    → HTTP Session
-```
 
 `AppUser` 是 MyBatis-Plus 映射的数据库对象；Spring Security `User` 是认证过程中构造的 `UserDetails`。两者表示同一身份，不是两个账号。
 
@@ -73,7 +64,7 @@ MySQL app_users
 | GET | `/api/purchase-orders/{id}` | CUSTOMER | 当前客户的订单详情 |
 | POST | `/api/purchase-orders/{id}/payments` | CUSTOMER | 模拟支付；请求携带唯一幂等键 |
 | GET | `/api/users` | ADMIN | 演示用户列表 |
-| GET | `/actuator/health` | 否 | MySQL、Redis 与应用健康检查 |
+| GET | `/actuator/health` | 否 | 原数据库、Redis 与应用健康检查 |
 
 ## 数据访问和迁移
 
@@ -111,28 +102,12 @@ docker compose ps
 
 如需重建全部教学数据：
 
-```powershell
-docker compose down --volumes
-docker compose up --build -d --wait
-```
-
-`--volumes` 会删除 MySQL 和 Redis 的本地数据，只应在确认教学数据可丢弃时使用。
 
 ## 本地运行
 
-需要 Java 25、Maven、MySQL 和 Redis：
-
-```powershell
-$env:DATABASE_URL = 'jdbc:mysql://localhost:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC'
-$env:DATABASE_USERNAME = 'commerce_runtime'
-$env:DATABASE_PASSWORD = 'commerce-runtime-password'
-$env:SPRING_FLYWAY_ENABLED = 'false'
-$env:REDIS_HOST = 'localhost'
-$env:REDIS_PORT = '6379'
-mvn spring-boot:run
-```
-
-启动应用前先用 Compose 的 `commerce-schema-migrator` 和 `commerce-source-access-freezer` 完成建表及运行账号授权。
+需要 Java 25、Maven、PostgreSQL 和 Redis。使用已迁移的 `commerceflow` 数据库和运行账号，
+加载 `SPRING_PROFILES_ACTIVE=postgresql`、`DATABASE_URL`、`DATABASE_USERNAME` 和 `DATABASE_PASSWORD`。
+隔离初始化由 [Compose 空卷覆盖](../../infrastructure/compose/compose.fulfillment-fresh.yaml) 提供。
 
 ## 测试
 
@@ -149,4 +124,4 @@ docker run --rm -v "${PWD}:/workspace" -w /workspace `
   maven:3.9.11-eclipse-temurin-21-alpine mvn -q clean test
 ```
 
-集成测试使用 H2 和真实 Flyway 脚本，覆盖 CSRF、登录与权限、购物车、地址、结算、地址快照、支付失败/成功/幂等、用户列表和注销。
+集成测试使用 H2 和测试表结构，覆盖 CSRF、登录与权限、购物车、地址、结算、地址快照、支付失败/成功/幂等、用户列表和注销。

@@ -73,9 +73,7 @@ function Wait-Projection([long]$OrderId, [string]$Status, $Session, [int]$Second
 }
 
 function Logistics-Sql([string]$Sql) {
-  $user = if ($env:LOGISTICS_DATABASE_USERNAME) { $env:LOGISTICS_DATABASE_USERNAME } else { 'logistics' }
-  $password = if ($env:LOGISTICS_DATABASE_PASSWORD) { $env:LOGISTICS_DATABASE_PASSWORD } else { 'logistics-password' }
-  $result = docker compose --project-directory $ProjectRoot exec -T logistics-simulator-db mysql --batch --skip-column-names "-u$user" "-p$password" logistics_platform -e $Sql
+  $result = docker compose --project-directory $ProjectRoot exec -T logistics-simulator-db-postgresql psql -U postgres -d logistics_platform -XqAt -v ON_ERROR_STOP=1 -c "SET search_path=logistics_platform; $Sql"
   if ($LASTEXITCODE -ne 0) { throw 'Logistics database query failed' }
   return (($result | Select-Object -Last 1) -as [string]).Trim()
 }

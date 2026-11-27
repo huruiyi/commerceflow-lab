@@ -3,12 +3,6 @@
 <mapper namespace="vip.fairy.commerceflow.inventory.infrastructure.persistence.InventoryCommandInboxMapper">
 
   <insert id="claim">
-    INSERT IGNORE INTO inventory_command_inbox(
-      command_id,command_type,order_id,payload_fingerprint,status
-    ) VALUES(#{commandId},#{commandType},#{orderId},#{payloadFingerprint},'PROCESSING')
-  </insert>
-
-  <insert id="claim" databaseId="postgresql">
     INSERT INTO inventory_command_inbox(command_id,command_type,order_id,payload_fingerprint,status)
     VALUES(#{commandId},#{commandType},#{orderId},#{payloadFingerprint},'PROCESSING')
     ON CONFLICT (command_id) DO NOTHING

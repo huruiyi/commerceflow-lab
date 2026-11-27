@@ -8,8 +8,7 @@ $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 
 function Invoke-DatabaseScalar([string]$Service, [string]$User, [string]$Password,
                                [string]$Database, [string]$Query) {
-  $value = & docker compose --project-directory $ProjectRoot exec -T $Service mysql -N `
-    "-u$User" "-p$Password" $Database -e $Query 2>$null
+  $value = & docker compose --project-directory $ProjectRoot exec -T "$Service-postgresql" psql -U postgres -d $Database -XqAt -v ON_ERROR_STOP=1 -c $Query 2>$null
   if ($LASTEXITCODE -ne 0) { throw "$Service query failed" }
   return ($value | Out-String).Trim()
 }
@@ -37,26 +36,13 @@ if ($commerceEnvironment -notcontains 'DATABASE_USERNAME=commerce_runtime' `
   throw 'commerce-service is not using the restricted runtime database identity'
 }
 
-if ($ledger.Engine -eq 'postgresql') {
-  $owned = Read-CommerceLedger $ledger 'SET ROLE commerce_runtime; SELECT COUNT(*) FROM app_users;'
-  $tables = @('product_inventory','inventory_reservations','inventory_movements','inventory_command_inbox','inventory_catalog_event_inbox')
-  if ([long]$owned -lt 1 -or @(Get-PostgresCommerceGrantViolations $ledger $tables).Count) {
-    throw 'Unexpected commerce runtime inventory privileges'
-  }
-} else {
-  $allowed = Invoke-DatabaseScalar commerce-db commerce_runtime commerce-runtime-password `
-    commerceflow 'SELECT COUNT(*) FROM app_users;'
-  if ([long]$allowed -lt 1) { throw 'Runtime identity cannot access an owned commerce table' }
-  foreach ($table in @('product_inventory', 'inventory_reservations', 'inventory_movements',
-      'inventory_command_inbox', 'inventory_catalog_event_inbox')) {
-    & docker compose exec -T commerce-db mysql -N -ucommerce_runtime `
-      -pcommerce-runtime-password commerceflow -e "SELECT COUNT(*) FROM $table;" `
-      1>$null 2>$null
-    if ($LASTEXITCODE -eq 0) { throw "Runtime identity can still read $table" }
-  }
+$owned = Read-CommerceLedger $ledger 'SET ROLE commerce_runtime; SELECT COUNT(*) FROM app_users;'
+$tables = @('product_inventory','inventory_reservations','inventory_movements','inventory_command_inbox','inventory_catalog_event_inbox')
+if ([long]$owned -lt 1 -or @(Get-PostgresCommerceGrantViolations $ledger $tables).Count) {
+  throw 'Unexpected commerce runtime inventory privileges'
 }
 
-# This pre-cutover history belongs to the retained MySQL source.
+# Verify that adjustments leave the commerce history unchanged.
 function Get-LegacyMovementCount {
   $exists = Invoke-VerificationDb legacy "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='commerceflow' AND table_name='inventory_movements'"
   if ($exists -eq '0') { return 'retired' }

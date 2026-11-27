@@ -1,71 +1,24 @@
-# 06B：Flyway 空库、旧库升级与状态防护
+# 06B：PostgreSQL 的 Flyway 启动与状态防护
 
-## 1. 学习目标
+本章使用 Compose 新卷验证当前 PostgreSQL 结构。Flyway 根据各模块的 `db/postgresql` 执行版本化 SQL。核心商城从 V74 基线建立表，目录、订单、库存、履约和模拟器各自维护迁移历史。行政区划基础数据使用模块自己的迁移目录。
 
-本实验把“应用能启动”拆成三个可单独证明的问题：
+## 运行新卷验收
 
-1. 新环境能否从空 Schema 按顺序建立到当前版本。
-2. 已停在旧版本的数据库能否保留历史数据并完成回填。
-3. 数据库约束与 Java 领域服务能否共同拒绝非法状态。
-
-它们分别对应“可重建”、“可升级”和“升级后仍保持业务不变式”。
-
-## 2. 实验设计
-
-```text
-临时 MySQL A（空库）
-    -> Flyway migrate V1..V24
-    -> 校验当前表与 schema history
-
-临时 MySQL B（旧库）
-    -> Flyway target=16
-    -> 插入旧版待支付订单
-    -> Flyway migrate V17..V24
-    -> 校验 payment_due_at = created_at + 30m
-    -> 插入非法任务状态，期待 CHECK 约束拒绝
-```
-
-脚本固定 `redgate/flyway:12.4.0`，与当前 Spring Boot 后端打包的 Flyway 版本一致。两个 MySQL 容器和专用网络都使用随机名称，不连接现有 Compose MySQL，也不挂载开发数据卷。
-
-## 3. 运行方式
+从仓库根目录用 PowerShell 7 执行：
 
 ```powershell
-pwsh -File ./scripts/operations/verify-flyway-lifecycle.ps1
+./scripts/verify-quick.ps1
 ```
 
-领域层非法转换由 `CommerceFlowIntegrationTest.illegalOrderStateTransitionsAreRejectedWithoutChangingFacts` 覆盖，可通过构建后端执行：
+脚本为本轮验收单独分配 Compose 项目、网络、端口和 PostgreSQL 命名卷。数据库迁移完成后，初始化演示账号、商品、分仓库存和支付商户。结束时保留验收卷，可查看各业务库的 `flyway_schema_history` 并对照对应模块的迁移文件。
 
-```powershell
-docker compose build commerce-service
-```
+## 数据库约束和业务规则
 
-## 4. 为什么要同时测数据库和领域层
-
-| 层次 | 适合防护 | 不适合单独承担 |
-| --- | --- | --- |
-| MySQL 约束 | 枚举范围、非负数、唯一性、外键 | “只有当前用户且当前订单未支付才能取消”这类跨表规则 |
-| Java 领域服务 | 身份、当前状态、资金事实和幂等规则 | 防止绕过应用直接写入不合法枚举值 |
-
-因此本项目用 `CHECK` 约束保护任务状态的有限集，同时在 Service 中保护订单转换。`PAID` 订单不能再发起普通支付、取消或确认收货；自动任务收到非目标状态时则幂等结束。
-
-## 5. 验证边界
-
-本实验已证明：
-
-- 23 个 SQL 迁移可从空库执行。
-- V16 历史数据可升级到 V24，V17 回填符合预期，V24 核心表列注释完整。
-- MySQL 与 Java 两层都会拒绝已覆盖的非法状态。
-- Windows 和容器化 Bash 实机结果一致。
-
-本章覆盖数据库迁移层。全部服务的空数据卷端到端链路、携带 RabbitMQ/RocketMQ/Kafka 运行状态的旧卷升级与重启恢复，在后续 [M1 冻结验收](../archive/PROJECT-HISTORY.md#11-m1可复测基线冻结与验证体系启动门禁) 记录。当前脚本入口见 [验证体系](../VERIFICATION-SYSTEM.md#6-数据库与环境生命周期)。
-
-## 6. 推荐学习资料
-
-| 资料 | 阅读重点 |
+| 层次 | 防护范围 |
 | --- | --- |
-| [Flyway Commands](https://documentation.red-gate.com/flyway/reference/commands) | `migrate` 执行待应用迁移，`validate` 检查本地脚本与历史表是否一致 |
-| [Flyway Target Setting](https://documentation.red-gate.com/flyway/reference/configuration/flyway-namespace/flyway-target-setting) | 为什么实验可以先停在 V16，再执行真实的增量升级 |
-| [Flyway Validate](https://documentation.red-gate.com/flyway/reference/commands/validate) | 版本、名称和 checksum 不一致时如何失败 |
-| [MySQL 8.4 CHECK Constraints](https://dev.mysql.com/doc/refman/8.4/en/create-table-check-constraints.html) | `CHECK` 何时被执行，以及约束表达式的能力边界 |
+| PostgreSQL | 枚举范围、非负数、唯一性、外键及索引 |
+| Java 领域服务 | 当前用户权限、订单状态转换、资金事实和幂等边界 |
 
-建议先跟踪 `flyway_schema_history`，再逐条阅读 V15–V24，最后对照 `OrderCancellationService`、`PurchaseOrderService`和 `OrderReceiptLifecycleService` 理解“数据库约束 + 领域门禁”的分工。
+`CommerceFlowIntegrationTest.illegalOrderStateTransitionsAreRejectedWithoutChangingFacts` 验证非法操作后订单事实保持一致。快速回归在独立 PostgreSQL 环境验证下单、取消、付款、退款和服务恢复。
+
+现有卷变更前先做备份和隔离恢复。[PostgreSQL 运维与数据库演进](../architecture/DATABASE-EVOLUTION-PLAN.md)

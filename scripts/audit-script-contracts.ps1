@@ -48,16 +48,12 @@ if ($source -match '(?im)docker\s+volume\s+(rm|prune)|docker\s+compose[^\r\n]*\s
   throw 'Unscoped Docker volume deletion found'
 }
 $volumeDown = @(Select-String -LiteralPath $audited.FullName -Pattern 'down.*--volumes')
-$freshDown = @($volumeDown | Where-Object {
-    $_.Filename -eq 'verify-fresh-volume-lifecycle.ps1' -and
-    $_.Line -match 'if\s*\(\$RemoveTemporaryVolumes\)\s*\{\s*TempCompose\s+@\(''down'',''--volumes'''
-  })
 $acceptanceDown = @($volumeDown | Where-Object {
     $_.Filename -eq 'release-acceptance.ps1' -and $_.Line.Trim() -ceq 'Invoke-AcceptanceCompose down --volumes --remove-orphans' -and
     (Get-Content -LiteralPath $_.Path -TotalCount ($_.LineNumber - 1))[-1].Trim() -ceq 'elseif ($CleanupOnSuccess -and $acceptancePassed) {'
   })
-if ($volumeDown.Count -ne 2 -or $freshDown.Count -ne 1 -or $acceptanceDown.Count -ne 1) {
-  throw 'Temporary volume cleanup must require the explicit -RemoveTemporaryVolumes or -CleanupOnSuccess switch'
+if ($volumeDown.Count -ne 1 -or $acceptanceDown.Count -ne 1) {
+  throw 'Temporary volume cleanup must require the explicit -CleanupOnSuccess switch'
 }
 if ($source -match '(?im)rm\s+-rf\s+(?:/|~|"?\$HOME|"?\$PROJECT_ROOT)|Remove-Item[^\r\n]*(?:\$HOME|\$ProjectRoot)[^\r\n]*-Recurse') {
   throw 'Broad recursive deletion target found'

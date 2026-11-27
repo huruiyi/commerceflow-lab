@@ -11,17 +11,8 @@
     ORDER BY r.code
     ]]>
   </select>
-  <sql id="adminFilter">
-    <where>
-      <if test="term != ''">
-        LOCATE(LOWER(#{term}), LOWER(CONCAT_WS(' ', first_name, last_name))) &gt; 0
-        OR LOCATE(LOWER(#{term}), LOWER(email)) &gt; 0
-        OR LOCATE(#{term}, phone) &gt; 0
-      </if>
-    </where>
-  </sql>
 
-  <sql id="adminFilter" databaseId="postgresql">
+  <sql id="adminFilter">
     <where>
       <if test="term != ''">
         strpos(lower(public.unaccent(CONCAT_WS(' ', first_name, last_name))) COLLATE "C",
@@ -29,6 +20,16 @@
         OR strpos(lower(public.unaccent(email)) COLLATE "C",
                lower(public.unaccent(#{term}))) &gt; 0
         OR strpos(phone COLLATE "C", #{term}) &gt; 0
+      </if>
+    </where>
+  </sql>
+
+  <sql id="adminFilter" databaseId="h2">
+    <where>
+      <if test="term != ''">
+        POSITION(LOWER(#{term}) IN LOWER(CONCAT_WS(' ', first_name, last_name))) &gt; 0
+        OR POSITION(LOWER(#{term}) IN LOWER(email)) &gt; 0
+        OR POSITION(#{term} IN phone) &gt; 0
       </if>
     </where>
   </sql>

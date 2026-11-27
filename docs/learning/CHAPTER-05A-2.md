@@ -4,21 +4,7 @@
 
 本章把渠道侧能力从商城进程中拆出，建立独立的模拟支付平台。它不连接支付宝、微信支付或银联真实系统，也不会产生真实资金交易；重点是学习服务边界、后台身份、商户凭据、渠道适配器和收银台交互。
 
-```text
-Angular 商城（已有）                  Vue 3 支付平台（本章）
-        |                                      |
-        |                              Redis Session + CSRF
-        |                                      |
-        +---------- 后续签名请求 ----------> payment-simulator-service
-                                               |
-                          +--------------------+--------------------+
-                          |                    |                    |
-                    AlipayAdapter       WechatPayAdapter      UnionPayAdapter
-                          |                    |                    |
-                          +---------- 独立 payment MySQL -----------+
-```
-
-商城数据库和支付平台数据库由两个 MySQL 容器分别持有。支付服务没有商城数据源，也不能直接修改商城订单。
+商城数据库和支付平台数据库由两个原数据库容器分别持有。支付服务没有商城数据源，也不能直接修改商城订单。
 
 ## 为什么不直接使用 `UserDetailsManager#createUser`
 
@@ -109,7 +95,7 @@ pwsh -File ./scripts/payment/verify-payment.ps1
 - 商城：`http://localhost:14200`
 - 支付平台与收银台：`http://localhost:14201`
 - 支付服务健康检查：`http://localhost:18082/actuator/health`
-- 支付 MySQL 本机端口：`13307`
+- 支付原数据库本机端口：`13307`
 
 演示密码均为 `demo-password`：
 

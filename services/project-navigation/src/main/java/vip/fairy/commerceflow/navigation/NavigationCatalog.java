@@ -24,7 +24,6 @@ class NavigationCatalog {
 
   List<Entry> entries(JsonNode configuration, List<JsonNode> containers) {
     JsonNode configured = configuration.path("services");
-    boolean mysqlNotification = configured.path("commerce-service").path("depends_on").has("notification-service");
     Map<String, JsonNode> services = new LinkedHashMap<>();
     configured.properties().forEach(item -> services.put(item.getKey(), item.getValue()));
     containers.forEach(container -> {
@@ -45,15 +44,11 @@ class NavigationCatalog {
           && !"NONE".equals(configHealth.path("test").path(0).asString(""));
       boolean task = "task".equals(metadata.path("kind").asString(""));
       NotificationRole role = switch (id) {
-        case "notification-service-postgresql" -> mysqlNotification ? NotificationRole.DISABLED_APP : NotificationRole.ACTIVE;
-        case "notification-db-postgresql" -> mysqlNotification ? NotificationRole.NONE : NotificationRole.ACTIVE;
-        case "notification-service" -> mysqlNotification ? NotificationRole.ACTIVE : NotificationRole.ROLLBACK_APP;
-        case "notification-db" -> mysqlNotification ? NotificationRole.ACTIVE : NotificationRole.ROLLBACK_DB;
+        case "notification-service-postgresql", "notification-db-postgresql" -> NotificationRole.ACTIVE;
         default -> NotificationRole.NONE;
       };
       JsonNode environment = service.path("environment");
-      String schema = environment.path("POSTGRES_DB").asString(
-          environment.path("MYSQL_DATABASE").asString(metadata.path("schema").asString("")));
+      String schema = environment.path("POSTGRES_DB").asString(metadata.path("schema").asString(""));
       entries.add(new Entry(id, metadata.path("name").asString(id), metadata.path("group").asString("services"),
           task, healthcheck, List.copyOf(profiles), schema, service.path("ports"), metadata, role));
     }
@@ -66,6 +61,6 @@ class NavigationCatalog {
   }
 
   enum NotificationRole {
-    NONE, ACTIVE, DISABLED_APP, ROLLBACK_APP, ROLLBACK_DB
+    NONE, ACTIVE
   }
 }

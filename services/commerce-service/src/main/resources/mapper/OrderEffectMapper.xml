@@ -32,28 +32,12 @@
     <![CDATA[
       UPDATE order_effect_outbox
       SET status='RETRY',attempts=attempts+1,
-          next_attempt_at=DATE_ADD(CURRENT_TIMESTAMP,INTERVAL 5 SECOND)
-      WHERE id=#{id}
-    ]]>
-  </update>
-
-  <update id="retry" databaseId="postgresql">
-    <![CDATA[
-      UPDATE order_effect_outbox
-      SET status='RETRY',attempts=attempts+1,
-          next_attempt_at=CURRENT_TIMESTAMP + INTERVAL '5 seconds'
+          next_attempt_at=CURRENT_TIMESTAMP + INTERVAL '5' SECOND
       WHERE id=#{id}
     ]]>
   </update>
 
   <insert id="claim">
-    <![CDATA[
-      INSERT IGNORE INTO order_effect_inbox(consumer_group,event_id,topic)
-      VALUES(#{group},#{eventId},#{topic})
-    ]]>
-  </insert>
-
-  <insert id="claim" databaseId="postgresql">
     <![CDATA[
       INSERT INTO order_effect_inbox(consumer_group,event_id,topic)
       VALUES(#{group},#{eventId},#{topic})

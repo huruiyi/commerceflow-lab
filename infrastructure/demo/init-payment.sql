@@ -1,25 +1,9 @@
-CREATE TEMPORARY TABLE demo_payment_guard (verified INT PRIMARY KEY);
-INSERT INTO demo_payment_guard VALUES (0);
-INSERT INTO demo_payment_guard VALUES (COALESCE(GET_LOCK('commerceflow.demo-payment', 30), 0));
-
-START TRANSACTION;
-SET @account_count = (SELECT COUNT(*) FROM payment_merchant_accounts);
-SET @demo_count = (
-  SELECT COUNT(*) FROM payment_merchant_accounts
-  WHERE (channel, merchant_no) IN (
-    ('ALIPAY', 'ALIPAY_MERCHANT_10001'),
-    ('WECHAT_PAY', '1900001001'),
-    ('UNION_PAY', '898310000000001')
-  )
-);
-SET @can_initialize = @account_count = 0
+BEGIN;
+SELECT pg_advisory_xact_lock(hashtext('commerceflow.demo-payment'));
+SELECT NOT EXISTS (SELECT 1 FROM payment_merchant_accounts)
   AND NOT EXISTS (SELECT 1 FROM payment_records)
-  AND NOT EXISTS (SELECT 1 FROM refund_records);
-
--- Reject a non-empty merchant configuration and leave existing settings intact.
-INSERT INTO demo_payment_guard
-VALUES (IF(@can_initialize OR (@account_count = 3 AND @demo_count = 3), 2, 0));
-
+  AND NOT EXISTS (SELECT 1 FROM refund_records) AS can_initialize \gset
+\if :can_initialize
 INSERT INTO payment_merchant_accounts
   (channel, merchant_no, app_id, display_name, signing_algorithm, api_secret, created_at, updated_at)
 SELECT demo.channel, demo.merchant_no, demo.app_id, demo.display_name, demo.signing_algorithm, demo.api_secret,
@@ -35,7 +19,7 @@ FROM (
   SELECT 'UNION_PAY', '898310000000001', 'UP202611100001', 'CommerceFlow UnionPay Merchant', 'RSA_SHA256',
     'demo-unionpay-api-secret-not-for-production'
 ) AS demo
-WHERE @can_initialize;
+ON CONFLICT DO NOTHING;
 
+\endif
 COMMIT;
-DO RELEASE_LOCK('commerceflow.demo-payment');

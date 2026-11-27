@@ -27,10 +27,9 @@ function DbContainer([string]$Service){
 . "$PSScriptRoot/../lib/commerce-ledger.ps1"
 if (!$isolated) { $dailyLedger = Get-CommerceLedger $ProjectName }
 
-function Sql([string]$Service,[string]$Schema,[string]$Query){
+function Sql([string]$Service, [string]$Schema, [string]$Query) {
   if (!$isolated -and $Service -eq 'commerce-db') { return Read-CommerceLedger $dailyLedger $Query }
-  docker exec (DbContainer $Service) sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -NB "$1" -e "$2"' sh $Schema $Query
-  if($LASTEXITCODE){throw "Database query failed: $Service"}
+  Invoke-ProjectDatabaseSql $ProjectName $Service $Schema $Query
 }
 function Session([string]$Email){
   $csrf=Invoke-RestMethod "$BaseUrl/api/auth/csrf" -SessionVariable session -TimeoutSec 12
@@ -188,10 +187,8 @@ function Register-Return($Case,[string]$Tracking,[bool]$Interrupt=$false){
   $url="/api/purchase-orders/after-sales/$caseId/return"
   $body=@{carrier='CommerceFlow Express';trackingNumber=$Tracking;returnShippingCost=9.50}
   if($Interrupt){
-    $trigger="CREATE TRIGGER verify_return_attach BEFORE UPDATE ON shipment_records FOR EACH ROW BEGIN IF NEW.after_sale_id='$caseId' AND OLD.platform_shipment_no IS NULL AND NEW.platform_shipment_no IS NOT NULL THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='isolated return attach interruption'; END IF; END"
-    @('DELIMITER //',"$trigger//",'DELIMITER ;') |
-      docker exec -i (DbContainer commerce-db) sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot commerceflow'
-    if($LASTEXITCODE){throw 'Cannot create isolated attachment interruption fixture'}
+    $bodySql = "IF NEW.after_sale_id='$caseId' AND OLD.platform_shipment_no IS NULL AND NEW.platform_shipment_no IS NOT NULL THEN RAISE EXCEPTION 'isolated return attach interruption'; END IF;"
+    Sql commerce-db commerceflow (New-VerificationTrigger verify_return_attach UPDATE shipment_records $bodySql) | Out-Null
   }
   try{
     if((Api $buyer $url Post $body).status-ne'RETURN_SENT' -or (Api $buyer $url Post $body).id-ne$caseId){
@@ -201,7 +198,7 @@ function Register-Return($Case,[string]$Tracking,[bool]$Interrupt=$false){
       $platform=Wait-Value {
         Sql logistics-simulator-db logistics_platform "SELECT platform_shipment_no FROM shipment_records WHERE merchant_shipment_no='CFL-RETURN-$caseId'"
       } 'Carrier never wrote the interrupted shipment'
-      if((Sql commerce-db commerceflow "SELECT CONCAT(status,'/',IFNULL(platform_shipment_no,'pending')) FROM shipment_records WHERE after_sale_id='$caseId'")-ne'REQUESTED/pending'){
+      if((Sql commerce-db commerceflow "SELECT CONCAT(status,'/',COALESCE(platform_shipment_no,'pending')) FROM shipment_records WHERE after_sale_id='$caseId'")-ne'REQUESTED/pending'){
         throw 'Interrupted carrier association was committed'
       }
       $commerce=DbContainer 'commerce-service'
@@ -212,7 +209,7 @@ function Register-Return($Case,[string]$Tracking,[bool]$Interrupt=$false){
       $script:merchant=Session 'merchant@example.com'
     }
   }finally{
-    if($Interrupt){Sql commerce-db commerceflow 'DROP TRIGGER verify_return_attach'|Out-Null}
+    if($Interrupt){Sql commerce-db commerceflow (Remove-VerificationTrigger verify_return_attach shipment_records)|Out-Null}
   }
   $created=Wait-Tracking $Case 'CREATED'
   if($Interrupt -and $created.platformShipmentNo-ne$platform){throw 'Recovery created a second logistics shipment'}
@@ -231,16 +228,17 @@ function Verify-ReturnCallbacks($Case,$Created){
   Shipment-Step $shipment advance 'IN_TRANSIT'
   $null=Wait-Tracking $Case 'IN_TRANSIT'
   $platformId=Sql logistics-simulator-db logistics_platform "SELECT id FROM shipment_records WHERE merchant_shipment_no='$shipment'"
-  $hold="CREATE TRIGGER verify_return_callback BEFORE INSERT ON callback_outbox FOR EACH ROW SET NEW.next_attempt_at=IF(NEW.shipment_id=$platformId,TIMESTAMPADD(DAY,1,CURRENT_TIMESTAMP(6)),NEW.next_attempt_at)"
+  $bodySql = "IF NEW.shipment_id=$platformId THEN NEW.next_attempt_at = CURRENT_TIMESTAMP + INTERVAL '1' DAY; END IF;"
+  $hold = New-VerificationTrigger verify_return_callback INSERT callback_outbox $bodySql
   Sql logistics-simulator-db logistics_platform $hold|Out-Null
   try{
-    Sql commerce-db commerceflow "UPDATE shipment_records SET last_reconciled_at=TIMESTAMPADD(MINUTE,3,CURRENT_TIMESTAMP(6)) WHERE after_sale_id='$caseId'" | Out-Null
+    Sql commerce-db commerceflow "UPDATE shipment_records SET last_reconciled_at=(CURRENT_TIMESTAMP + INTERVAL '3' MINUTE) WHERE after_sale_id='$caseId'" | Out-Null
     Shipment-Step $shipment advance 'AT_STATION'
     Shipment-Step $shipment advance 'OUT_FOR_DELIVERY'
     Shipment-Step $shipment advance 'DELIVERED'
     $callback="$BaseUrl/api/logistics-notifications/callback"
     foreach($status in 'DELIVERED','OUT_FOR_DELIVERY','DELIVERED'){
-      $raw=Sql logistics-simulator-db logistics_platform "SELECT CAST(o.payload AS CHAR) FROM callback_outbox o JOIN shipment_events e ON e.event_id=o.event_id WHERE o.shipment_id=$platformId AND e.status='$status'"
+      $raw=Sql logistics-simulator-db logistics_platform "SELECT CAST(o.payload AS TEXT) FROM callback_outbox o JOIN shipment_events e ON e.event_id=o.event_id WHERE o.shipment_id=$platformId AND e.status='$status'"
       $signature=Sign 'demo-logistics-callback-secret' $raw
       $result=Invoke-RestMethod $callback -Headers @{'X-Callback-Signature'=$signature} -ContentType application/json -Method Post -Body $raw
       if($status-eq'OUT_FOR_DELIVERY' -and (Wait-Tracking $Case 'DELIVERED').status-ne'DELIVERED'){throw 'Late event regressed delivery'}
@@ -252,7 +250,7 @@ function Verify-ReturnCallbacks($Case,$Created){
       if($count-eq'1'){$true}
     } 'Dropped return callback was not repaired by reconciliation'
   }finally{
-    Sql logistics-simulator-db logistics_platform 'DROP TRIGGER verify_return_callback'|Out-Null
+    Sql logistics-simulator-db logistics_platform (Remove-VerificationTrigger verify_return_callback callback_outbox)|Out-Null
     Sql logistics-simulator-db logistics_platform "UPDATE callback_outbox SET next_attempt_at=CURRENT_TIMESTAMP(6) WHERE shipment_id=$platformId AND status IN ('NEW','RETRY')"|Out-Null
   }
 }

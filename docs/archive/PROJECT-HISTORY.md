@@ -48,7 +48,7 @@
 4. [x] 商家待处理订单。提供待接单和待发货队列，履约操作完成后刷新笔数。
 5. [x] 订单服务端查询与分页。订单服务按角色、关键字、状态和下单日期查询，门户展示匹配总数和分页。
 
-五项均已通过隔离 Docker 和 MySQL 验收。[第二批验收记录](../IMPLEMENTED.md#25-基础业务第二批验收)
+五项均已通过隔离 Docker 和原数据库验收。[第二批验收记录](../IMPLEMENTED.md#25-基础业务第二批验收)
 
 - [x] 发布到日常 Docker，实测结算、支付、接单、发货、履约笔数和历史订单查询。[日常发布记录](../IMPLEMENTED.md#26-基础业务第二批日常发布)
 - [x] 按选中商品结算。购物车支持单选和全选，订单与库存仅处理选中条目，未选商品继续保留。已发布到日常 Docker。[验收记录](../IMPLEMENTED.md#27-购物车按选中商品结算)
@@ -138,7 +138,7 @@ P3 已隔离验收并完成日常发布。[验收与发布记录](../IMPLEMENTED
 
 - P0–P3 按批次连续推进。已授权批次内的常规实现、隔离验收、可恢复故障修复、文档更新和提交自行完成。
   日常部署与推送按本轮授权范围执行。需要改变业务范围、清理日常数据、切换所有权或选择维护窗口时提出决策。
-- 每批先固定 Git、运行镜像与库版本，再在隔离 Docker 用真实 MySQL 和浏览器复验。
+- 每批先固定 Git、运行镜像与库版本，再在隔离 Docker 用真实原数据库和浏览器复验。
   涉及数据库时先迁移、再验证最小权限和版本兼容，随后使用同一候选镜像发布并进行日常抽检。
   手写 SQL 放 Mapper XML，验收使用现有 PowerShell 7 入口。细分提交采用中文。
 - 批次结束汇总验收用例、测试结果、日常发布状态、镜像标签、提交号及未解决项。
@@ -301,11 +301,11 @@ P3 的监控和取消恢复以及 P4 的履约专项、旧源归档和回退验�
 
 | 批次 | 交付和进入下一批的条件 |
 | --- | --- |
-| 1. 开票口径与模拟平台（已通过隔离验收） | 冻结金额和状态约定，完成签名受理、结果查询、异步回执、模拟票据账本和红冲接口。在隔离 MySQL 验证正常出正票、部分红冲、明确失败、超额拒绝、重启恢复。模拟已受理后响应超时、重复请求和回执，逐笔核对同一请求只有一个出票或红冲结果。 |
-| 2. 商城开票与退款联动（已通过隔离验收） | 通过现有订单和支付契约读取权威事实，保存申请快照，接入成功退款并完成红冲恢复。在隔离 MySQL 核对有优惠和运费的订单，覆盖冻结前退款、受理中退款、开票后多次部分退款、全退、重复与乱序回执和跨进程中断恢复。逐笔关联订单、支付单、退款单、正票和红冲，核对有效票面等于正票减累计成功红冲。 |
+| 1. 开票口径与模拟平台（已通过隔离验收） | 冻结金额和状态约定，完成签名受理、结果查询、异步回执、模拟票据账本和红冲接口。在隔离原数据库验证正常出正票、部分红冲、明确失败、超额拒绝、重启恢复。模拟已受理后响应超时、重复请求和回执，逐笔核对同一请求只有一个出票或红冲结果。 |
+| 2. 商城开票与退款联动（已通过隔离验收） | 通过现有订单和支付契约读取权威事实，保存申请快照，接入成功退款并完成红冲恢复。在隔离原数据库核对有优惠和运费的订单，覆盖冻结前退款、受理中退款、开票后多次部分退款、全退、重复与乱序回执和跨进程中断恢复。逐笔关联订单、支付单、退款单、正票和红冲，核对有效票面等于正票减累计成功红冲。 |
 | 3. 页面和发布验收（隔离浏览器及日常发布均已验收） | 顾客申请并查看自己的票据，商家查看本店票据，授权平台账号查询和处理失败或待核对记录。用两家商户在隔离浏览器中验证各方入口、权限与跨店隔离。隔离通过后使用同一候选版本发布日常 Docker，用新订单验收支付、开票、退款红冲，复核历史账本与数据卷，记录版本、对账证据和回退方式。 |
 
-第一批于 2026-11-21 通过隔离 Docker/MySQL 验收。逐笔核对 9 条终态请求、7 张票据和 9 条回执，主正票 250.00 CNY 累计红冲后余额为零。[第一批验收记录](../IMPLEMENTED.md#228-电子发票模拟平台第一批隔离验收)
+第一批于 2026-11-21 通过隔离 Docker/原数据库验收。逐笔核对 9 条终态请求、7 张票据和 9 条回执，主正票 250.00 CNY 累计红冲后余额为零。[第一批验收记录](../IMPLEMENTED.md#228-电子发票模拟平台第一批隔离验收)
 
 第二批于 2026-11-21 通过隔离验收。实付 300.00 CNY，冻结前退款 50.00，正票 250.00；冻结后红冲 80.00、100.00 和 70.00，最终余额为零。
 末笔红冲含退运费 20.00 CNY。两次强制重启均查回原请求，[第二批验收记录](../IMPLEMENTED.md#229-商城开票与退款红冲第二批隔离验收)
@@ -358,7 +358,7 @@ P3 的监控和取消恢复以及 P4 的履约专项、旧源归档和回退验�
 
 | 批次 | 交付和进入下一批的条件 |
 | --- | --- |
-| 1. 账本口径与汇总接口（隔离验收已完成） | 内部查询通过 MySQL 8.4 逐笔对账，覆盖重复回执、多次支付和部分退款、跨日负净收、多币种、时区边界和空结果。[首批隔离验收](../IMPLEMENTED.md#225-正式支付运营统计首批隔离验收) |
+| 1. 账本口径与汇总接口（隔离验收已完成） | 内部查询通过原数据库逐笔对账，覆盖重复回执、多次支付和部分退款、跨日负净收、多币种、时区边界和空结果。[首批隔离验收](../IMPLEMENTED.md#225-正式支付运营统计首批隔离验收) |
 | 2. 商家归属与权限（隔离验收已完成） | 共用支付宝渠道账户的两商家逐项核对日、渠道和币种汇总，验证新增归属、历史回填重跑、全量及限定平台权限、商家本人、越权过滤、既有会话撤权与未归属账本隔离。[第二批隔离验收](../IMPLEMENTED.md#226-正式支付运营统计第二批商家归属与权限) |
 | 3. 运营页面与发布验收（已日常发布） | 日期、时区、渠道、币种和授权商家筛选已接入。两商家浏览器核对趋势、卡片、状态分布、跨日退款、空结果与失败重试。[隔离与日常验收](../IMPLEMENTED.md#227-正式支付运营统计页面隔离验收) 日常使用同一候选镜像，完成新建订单、支付和退款账本抽检、权限校验及回退记录。 |
 
@@ -411,7 +411,7 @@ PAID
 - [x] 订单事件保留操作人、触发源、旧/新状态、原因和任务 ID。
 - [x] 新增 `docs/ORDER-LIFECYCLE.md`，统一订单、支付、退款、物流和任务状态。
 - [x] 订单响应新增 `availableActions`；写接口仍在后端重新验证。
-- [x] Flyway 空库创建、旧数据升级和非法状态转换测试通过；Windows/容器化 Bash 已使用隔离 MySQL 验证 V1–V24 与 V16→V24，商城 25 项测试包含订单非法转换。
+- [x] Flyway 空库创建、旧数据升级和非法状态转换测试通过；Windows/容器化 Bash 已使用隔离原数据库验证 V1–V24 与 V16→V24，商城 25 项测试包含订单非法转换。
 
 ### 6. 阶段 2：未支付订单关闭与可插拔触发
 
@@ -434,7 +434,7 @@ PAID
 - [x] 支付通知先落库时支付优先，订单进入 `PAID`，普通取消不覆盖。
 - [x] `CANCELLED` 后意外成功通知不忽略：恢复支付事实，使用稳定幂等键创建自动退款单，转入 `REFUNDING` 并复用退款对账。
 - [x] 使用两个真实线程和受控门闩复现“取消已进入 `CANCELLING`、支付成功回调随后到达”；数据库锁与条件更新保证最终为 `PAID/SUCCESS`，且不生成 `ORDER_CANCELLED`。
-- [x] Docker MySQL + 真实模拟支付平台的长时间随机化竞态压测：Windows 120.6 秒/95 轮、容器化 Bash 121 秒/97 轮，两类合法终态均覆盖且 MySQL 矛盾记录为 0。
+- [x] Docker 原数据库 + 真实模拟支付平台的长时间随机化竞态压测：Windows 120.6 秒/95 轮、容器化 Bash 121 秒/97 轮，两类合法终态均覆盖且原数据库矛盾记录为 0。
 
 #### 6.3 统一定时任务领域
 
@@ -685,9 +685,9 @@ M1 完成后依次完成了可复测验证体系文档、“退款区域/已收�
 - [x] 为版本化通知命令增加进程内/Kafka 可替换传输、事务 Outbox、有限重试、本地 DEAD/人工重放、
   Kafka DLT、Broker 恢复和单体回退门禁；notification 查询只接收 customerId，V1 命令与 Kafka Header
   传播 correlation/causation/traceparent。
-- [x] 定义 notification 影子投影核对窗口、连续通过与阻塞 Outbox 停止条件，并完成独立 MySQL Schema
+- [x] 定义 notification 影子投影核对窗口、连续通过与阻塞 Outbox 停止条件，并完成独立原数据库Schema
   的 Flyway 迁移演练；未启动 `notification-service`，也未迁移 PostgreSQL。
-- [x] 在现有 commerce-service 进程内让 notification 实际运行于独立 MySQL Schema，完成历史回填、
+- [x] 在现有 commerce-service 进程内让 notification 实际运行于独立原数据库Schema，完成历史回填、
   Kafka 实时镜像、连续核对、独立读切换、数据库停机与商城 Schema 回滚；M3.2 尚未创建独立进程。
 
 #### 13.6 M3.2 准入批次：跨进程追踪基线
@@ -760,7 +760,7 @@ inventory-service 或 PostgreSQL。
 
 #### 13.10 M3.3 第二批：catalog/inventory 数据所有权冻结
 
-本批继续运行于 commerce 模块化单体和同一 MySQL 实例，只拆清物理表责任与持久化访问，不创建
+本批继续运行于 commerce 模块化单体和同一原数据库实例，只拆清物理表责任与持久化访问，不创建
 catalog-service、inventory-service 或独立数据库，不引入双读/双写和 PostgreSQL。
 
 - [x] 新增 Flyway V28：将可售、预占、已售数量迁入 inventory 自有 `product_inventory`，保留稳定
@@ -769,7 +769,7 @@ catalog-service、inventory-service 或独立数据库，不引入双读/双写�
   catalog 的跨边界数据库外键，服务化后不依赖共享数据库约束。
 - [x] 为 `cart_items`、`customer_orders` 固化创建时的名称、图片和单价快照；购物车、轻量订单、结算锁定
   和商家库存查询不再跨模块 join `products`。
-- [x] 现有 MySQL 非破坏升级保留 6 条库存记录和 642/1/65 可售/预占/已售总量；空库 V1→V28、旧库
+- [x] 现有原数据库非破坏升级保留 6 条库存记录和 642/1/65 可售/预占/已售总量；空库 V1→V28、旧库
   V16→V28 的 Windows/Bash 隔离生命周期演练均通过。
 - [x] Java 25 正式镜像 29 项测试、Windows/Bash 快速回归和质量/脚本契约审计通过。
 - [x] 复核文档并独立提交推送。
@@ -792,7 +792,7 @@ commerce 内实现，通过稳定边界为下一批整体切换做准备。
 - [x] Java 25 正式镜像 32 项测试、Windows/Bash V1→V29 与 V16→V29 隔离升级、真实 Docker V1 API、
   Windows/Bash 快速回归和质量/脚本契约审计通过。
 - [x] 文档收口并独立提交推送。
-- [x] 下一批创建独立 catalog-service/MySQL Schema，完成一次性迁移、调用方整体切换、停机/恢复和
+- [x] 下一批创建独立 catalog-service/原数据库 Schema，完成一次性迁移、调用方整体切换、停机/恢复和
   跨进程 Trace 验收；验收后删除 commerce catalog Mapper/表访问，不保留 LOCAL/COMPARE 或数据库回退。
 
 #### 13.12 M3.3 第四批：catalog 单一所有权切换
@@ -801,7 +801,7 @@ commerce 内实现，通过稳定边界为下一批整体切换做准备。
 Outbox 的唯一运行所有者；commerce 仅保留公开 API、Session/RBAC、评价组合和签名 HTTP 薄代理。commerce
 数据库中的 V1–V29 历史表不改写，供 Git 级回退核对，但没有运行时 Mapper、双读、双写或数据库回退。
 
-- [x] 新增按 `api/application/domain/infrastructure` 子目录分层的独立 Spring Boot 服务、MySQL/Flyway Schema、
+- [x] 新增按 `api/application/domain/infrastructure` 子目录分层的独立 Spring Boot 服务、原数据库/Flyway Schema、
   MyBatis 持久化、商家乐观锁写入和同事务 catalog Outbox；内部 API 只接受 commerce-service 的 HMAC 请求。
 - [x] commerce 的列表、详情、购物车/轻量订单商品快照、商家维护整体切到 2 秒连接/3 秒读取的签名 HTTP
   客户端；404/409 保持原语义，其余连接失败稳定返回 `503/CATALOG_SERVICE_UNAVAILABLE`。
@@ -809,8 +809,8 @@ Outbox 的唯一运行所有者；commerce 仅保留公开 API、Session/RBAC、
   公开目录继续由 commerce 组合 review，自主服务不读取 review 或 identity 数据库。
 - [x] 一次性迁移要求 commerce Flyway 至少 V29，复制 6 条商品、6 条翻译和已有 Outbox，以计数和 CRC32
   XOR 指纹核对后写 `catalog-v29-single-owner=COMPLETE`；重复运行只读 COMPLETE 并拒绝覆盖新库。
-- [x] 真实 Docker 非破坏切换完成；首次演练发现 mysqldump 字符集问题时门禁写 FAILED 并阻止切换，清理仅限
-  可从源库恢复的失败目标行，补 `utf8mb4` 后计数/指纹一致并完成切换，未删除任何命名卷。
+- [x] 真实 Docker 非破坏切换完成；首次演练发现 历史数据库导出工具 字符集问题时门禁写 FAILED 并阻止切换，清理仅限
+  可从源库恢复的失败目标行，补 `原数据库配置` 后计数/指纹一致并完成切换，未删除任何命名卷。
 - [x] catalog 4 项、commerce 29 项 Java 25 镜像测试通过；Windows 运行门禁验证中英文代理、重复迁移、
   catalog 停机稳定 503 与 commerce 健康隔离；Trace `c04f5e90fb3e4162b28968ffc6b78b4b` 同时包含
   `commerce-service` 和 `catalog-service`。
@@ -923,11 +923,11 @@ Docker 拓扑，也不启动 PostgreSQL。
 - [x] 双平台 V1→V34/V16→V34、Windows 快速回归和真实持久库升级通过；现有订单分布为 COMMITTED 124、
   RELEASED 118、REFUNDED 21，21 条退款均已 REFUNDED，53 条命令全部 ACKNOWLEDGED，无等待或待对账残留。
 - [x] 下一批执行 inventory-service 最终准入评审：核对数据搬迁清单、停写/增量追平、单一远程适配器、
-  跨进程 Trace 和失败回退运行手册；评审通过后才可创建独立 MySQL inventory-service，仍不启动 PostgreSQL。
+  跨进程 Trace 和失败回退运行手册；评审通过后才可创建独立原数据库inventory-service，仍不启动 PostgreSQL。
 
 #### 13.18 M3.4 第六批：inventory-service 最终创建准入评审
 
-本批只授予创建独立服务和 MySQL Schema 的资格，不创建服务、不搬迁数据、不切换流量。详细步骤见
+本批只授予创建独立服务和原数据库Schema 的资格，不创建服务、不搬迁数据、不切换流量。详细步骤见
 [inventory-service 创建准入与单一所有权切换运行手册](../architecture/INVENTORY-SERVICE-CUTOVER-RUNBOOK.md)。
 
 - [x] 明确五张 inventory 所有权表必须迁入独立库：`product_inventory`、`inventory_reservations`、
@@ -945,14 +945,14 @@ Docker 拓扑，也不启动 PostgreSQL。
   `548|654|231355256`，命令 Inbox `87|673468363`，catalog Inbox `2|2798068318`；未决与待对账均为 0。
 - [x] CREATE 准入通过；CUTOVER 仍未获准。当前没有 inventory-service/inventory-db，没有远程库存写入，
   PostgreSQL 继续冻结。
-- [x] 下一批创建分层 `inventory-service` 与独立 MySQL `inventory-db`，实现五张所有权表及唯一远程适配器；
+- [x] 下一批创建分层 `inventory-service` 与独立原数据库`inventory-db`，实现五张所有权表及唯一远程适配器；
   先以不接流量状态启动并完成可重复迁移工具，未通过最终追平和故障演练前不得切流。
 
 #### 13.19 M3.4 第七批：inventory-service 影子运行时与可重复快照
 
 - [x] 新增独立 `services/inventory-service`，按 `api/internal`、`application/port`、`application/service`、
   `domain`、`infrastructure/persistence`、`infrastructure/transport` 分层；普通 class 声明与首字段之间保留空行。
-- [x] 独立 MySQL V1 创建五张所有权表及 migration state；不复制 delivery Outbox/结果 Inbox，不建立 ordering、
+- [x] 独立原数据库V1 创建五张所有权表及 migration state；不复制 delivery Outbox/结果 Inbox，不建立 ordering、
   catalog 或 identity 跨库外键。
 - [x] 实现唯一命令 HTTP 适配器和 catalog 事件适配器，复用冻结的 V1 幂等指纹、Inbox、余额状态机、HMAC
   身份和 W3C Trace 信封；没有 LOCAL/COMPARE、双写或数据库回退分支。
@@ -1019,7 +1019,7 @@ Docker 拓扑，也不启动 PostgreSQL。
 - [x] 删除 commerce 的本地 Inventory Handler、catalog event/command Handler、库存领域余额对象、四个 Mapper
   与 XML、旧内部 catalog 入口及专用签名拦截器；生产侧只保留命令 Outbox/Result Inbox 与公开身份薄代理。
 - [x] Compose 在 commerce 启动前先用迁移账号完成 Flyway V34，再创建显式逐表授权的 `commerce_runtime`。
-  运行账号可访问 commerce 自有表，但对五张库存源表均收到 MySQL 1142；源表保留为历史证据，不再是运行路径。
+  运行账号可访问 commerce 自有表，但对五张库存源表均收到原数据库1142；源表保留为历史证据，不再是运行路径。
 - [x] Java 25 正式镜像共 44 项测试通过（commerce 39、inventory 5）；代码质量门禁覆盖 368 个主源码 Java、
   27 个 Mapper XML、231 个映射语句、6 个 POM，并校验全部 383 个 Java 源文件类声明空行。
 - [x] Windows 实机验收通过商品 1 的 `72 -> 73 -> 72` 调账恢复、目标流水、未签名 401、服务停机 503 与恢复；
@@ -1045,7 +1045,7 @@ Docker 拓扑，也不启动 PostgreSQL。
 - [x] 回归后最终指纹为订单/商品项/地址各 329 条、事件 1565 条、金额 427371.00；process/command-outbox/
   result-inbox 当前均为 0，所有一致性错误计数为 0。第三批结束时尚未创建 order-service/order-db、未切流、
   未启动 PostgreSQL。
-- [x] M3.5 第四批已创建分层 `order-service` 与独立 MySQL `order-db`，仅无业务流量影子运行；Flyway V36
+- [x] M3.5 第四批已创建分层 `order-service` 与独立原数据库`order-db`，仅无业务流量影子运行；Flyway V36
   以提交顺序水位记录 7 张 order 所有权表变更，独立服务完成一致性可重复快照、增量追平、逐字段 SHA-256
   核对审计和孤儿隔离/重放。远程 Order V1 适配器复用冻结契约，但 `ORDER_ACCEPTING_TRAFFIC=false`，commerce
   未配置远程 order 依赖，不维护 LOCAL/COMPARE。双平台专项复跑后 generation 8、水位 120，337/337/337/1609
@@ -1078,7 +1078,7 @@ Docker 拓扑，也不启动 PostgreSQL。
   Outbox/Inbox，payment Outbox/Inbox 中的订单主题归零。
 - [x] 支付/退款恢复协议建立独立 Process Manager、命令 Outbox、结果 Inbox；同 ID 异 payload 冲突、结果
   未知转人工核对、超时转人工核对、人工重试操作人/原因/时间均有自动门禁。CREATE 准入已通过。
-- [x] M3.6 第四批已创建分层 `payment-orchestration-service` 和独立 MySQL `payment-db`，只进行无业务流量的
+- [x] M3.6 第四批已创建分层 `payment-orchestration-service` 和独立原数据库`payment-db`，只进行无业务流量的
   影子快照、增量追平、水位核对与孤儿隔离；`PAYMENT_ACCEPTING_TRAFFIC=false`，commerce 仍只使用唯一
   `LocalPaymentOrchestrationAdapter`，没有 LOCAL/COMPARE、CUTOVER、fulfillment 拆分或 PostgreSQL。
 - [x] Flyway V38 以单例提交顺序时钟和 42 个触发器记录 14 张所有权表变更；独立服务使用 REPEATABLE READ
@@ -1143,7 +1143,7 @@ Docker 拓扑，也不启动 PostgreSQL。
 - [x] 落地同订单持久化准入与商城内可执行 Fulfillment V1 契约，验证重放、跨操作冲突和原命令恢复。
 - [x] 复核独立运行的物流端口、拒绝后重新受理和六张表的交接清单，完成两次快照还原。CREATE 为 `REJECTED`。
 - [x] 在商城内实现物流命令回执端口和已知拒绝后的安全重新受理，验证故障与竞态。CREATE 通过。
-- [x] 创建独立履约影子服务与 MySQL，关闭业务流量，验证六表快照、增量水位、孤儿隔离及签名契约。
+- [x] 创建独立履约影子服务与 原数据库，关闭业务流量，验证六表快照、增量水位、孤儿隔离及签名契约。
 - [x] 完成影子断线追平、只读授权恢复、新命令冻结与切换前撤回演练。切流准入为 `REJECTED`。
 - [x] 补齐默认关闭的独立履约执行及签名适配，验证隔离的远程故障、六表转移和回退。切流准入仍为 `REJECTED`。
 - [x] 在隔离环境接通真实商城物流桥和独立管理员恢复，演练最终水位与六表核对、旧商城撤权及商家路由回退。
@@ -1160,9 +1160,9 @@ Docker 拓扑，也不启动 PostgreSQL。
 
 六个服务已完成运行路径切换，库存旧迁移入口已封住，35 笔历史投递已逐笔处理，其中 5 笔缺证测试数据保留归档。付款核对真实预占、空扣减拒绝和正常出库均已在日常环境复验。[订单 695／696 验收记录](../architecture/INVENTORY-RECONCILIATION-REVIEW.md#2026-11-19-日常环境库存门禁验收)
 
-商城已补齐库存命令待对账、在途积压和最老等待时间的指标及独立告警。隔离 MySQL 已核对正常零值、投递滞留、待人工对账、处理后恢复及终态排除，并验证库存服务的出库事件告警独立触发和恢复。[库存命令监控验收](../architecture/INVENTORY-RECONCILIATION-REVIEW.md#2026-11-19-库存命令监控验收)
+商城已补齐库存命令待对账、在途积压和最老等待时间的指标及独立告警。隔离原数据库已核对正常零值、投递滞留、待人工对账、处理后恢复及终态排除，并验证库存服务的出库事件告警独立触发和恢复。[库存命令监控验收](../architecture/INVENTORY-RECONCILIATION-REVIEW.md#2026-11-19-库存命令监控验收)
 
-订单服务的发货意图滞留、取消协议待恢复及采集失败告警已完成。隔离 MySQL 验证了指标和告警，日常库已只读核对所有者、旧表授权、存量订单身份及取消投递记录。[订单监控与只读核对](../architecture/ORDER-SERVICE-EVOLUTION-PLAN.md#10-订单监控与只读核对)
+订单服务的发货意图滞留、取消协议待恢复及采集失败告警已完成。隔离原数据库验证了指标和告警，日常库已只读核对所有者、旧表授权、存量订单身份及取消投递记录。[订单监控与只读核对](../architecture/ORDER-SERVICE-EVOLUTION-PLAN.md#10-订单监控与只读核对)
 
 目录和通知的业务链路监控已通过隔离验收，覆盖目录到库存的投递、商城到 Kafka 的通知发送、通知消费 lag 和消费死信。日常库完成所有权、旧表授权、事件及账本只读核对。[目录与通知监控验收](../architecture/M3-SINGLE-OWNERSHIP-REVIEW.md#10-目录与通知监控验收)
 
@@ -1190,20 +1190,19 @@ P4 日常履约发布及归档清理已通过。见[P4 验收记录](../architec
 #### 13.26 M4 通知数据库
 
 通知服务已切换至 PostgreSQL 17.11。历史迁移、停写、Kafka 持久化、切换和回退评审见
-[M4 通知服务 PostgreSQL 17 试点](../architecture/DATABASE-EVOLUTION-PLAN.md#m4-通知服务-postgresql-17-隔离试点)。
-最新日常备份已完成隔离原生恢复和反向 MySQL 回退，核对八表、首次已读、供应方回执和 Kafka 偏移。
-[最新备份恢复验收](../architecture/DATABASE-EVOLUTION-PLAN.md#2026-11-22-最新备份恢复与反向回退验收) ·
-[隔离告警送达确认升级验收](../architecture/DATABASE-EVOLUTION-PLAN.md#2026-11-22-通知告警送达确认与升级验收) ·
-[后续门禁](../architecture/DATABASE-EVOLUTION-PLAN.md#m4-切换后续门禁)
+[M4 通知服务 PostgreSQL 17 试点](../architecture/DATABASE-EVOLUTION-PLAN.md)。
+最新日常备份已完成隔离原生恢复和反向原数据库回退，核对八表、首次已读、供应方回执和 Kafka 偏移。
+[最新备份恢复验收](../architecture/DATABASE-EVOLUTION-PLAN.md) ·
+[隔离告警送达确认升级验收](../architecture/DATABASE-EVOLUTION-PLAN.md) ·
+[后续门禁](../architecture/DATABASE-EVOLUTION-PLAN.md)
 
-11 月 22 日收尾评审后 M4 保持开放。下次在日常业务流量窗口采集未读查询 P95 和错误率，同窗核对积压、存储重试及站外回执。[本次评审结果](../architecture/DATABASE-EVOLUTION-PLAN.md#2026-11-22-m4-收尾评审)
-
+11 月 22 日收尾评审后 M4 保持开放。下次在日常业务流量窗口采集未读查询 P95 和错误率，同窗核对积压、存储重试及站外回执。[本次评审结果](../architecture/DATABASE-EVOLUTION-PLAN.md)
 
 ### 14. 实施记录模板
 
 #### 2026-11-15：M3.2 第二批——notification 单一所有权切换
 
-- 所有权：notification-service 默认启动并独占通知读写与独立 MySQL；commerce 只保留事务 Outbox、V1
+- 所有权：notification-service 默认启动并独占通知读写与独立 原数据库；commerce 只保留事务 Outbox、V1
   生产契约及 Session/RBAC/HMAC 薄代理，不保留 `LOCAL/COMPARE`、本地读模型或数据库回退。
 - API：独立服务补齐列表、未读数、eventId 单条已读和全部已读；所有查询/更新带 customerId，已读重放
   保留首次 readAt。代理使用 2 秒连接/3 秒读取超时，失败返回稳定 503，Angular 显示重试入口。
@@ -1214,13 +1213,13 @@ P4 日常履约发布及归档清理已通过。见[P4 验收记录](../architec
 - 验证：commerce 29 项、notification 2 项测试和 Angular 生产构建通过；Windows 完整验收通过；Bash 等价
   全链路通过全部业务阶段，并在排除 Git Bash 对 `/opt/kafka`、`/etc/prometheus`、`/etc/alertmanager` 的
   MSYS 参数转换后单独补验告警尾段。277/21/198/4 质量审计、287 个 Java 类声明空行及 41 对脚本契约通过。
-- 边界：仍使用 MySQL；M3 清单中的 notification、catalog、inventory、order、payment-orchestration、
+- 边界：仍使用 原数据库；M3 清单中的 notification、catalog、inventory、order、payment-orchestration、
   fulfillment 全部完成单一所有权切换并逐一验收前，不评审、不启动、不迁移 PostgreSQL，也不建立数据库
   方言分支；后续新增待拆服务同样纳入该门禁。本批已以 `88d22c6` 独立提交并推送。
 
 #### 2026-11-15：M3.2 首批——notification-service 独立影子进程
 
-- 进程边界：新增 Spring Boot `notification-service`，使用独立 MySQL、Flyway、MyBatis、Kafka listener
+- 进程边界：新增 Spring Boot `notification-service`，使用独立 原数据库、Flyway、MyBatis、Kafka listener
   与本地事务；稳定消费者组继续使用 `commerceflow-independent-notification-v1`，避免切换时丢失既有 offset
   和 Inbox 身份。
 - 兼容与恢复：沿用 V1 payload/Header 校验及 DLT 有限重试；通知插入使用 eventId 幂等，服务停机期间
@@ -1279,22 +1278,22 @@ P4 日常履约发布及归档清理已通过。见[P4 验收记录](../architec
 
 #### 2026-11-15：notification 影子投影核对与独立 Schema 演练
 
-- 迁移：商城 V27 新增投影验证窗、窗口级影子投影和核对审计三张 notification 自有表；当前 MySQL
+- 迁移：商城 V27 新增投影验证窗、窗口级影子投影和核对审计三张 notification 自有表；当前 原数据库
   非破坏性升级到 V27，窗口从 `RUNNING` 经连续三次通过进入 `READY`，随后显式停止为 `STOPPED`。
 - 核对：独立 Kafka consumer group 只在开关启用时写影子投影，以窗口起始通知水位隔离历史数据；停止条件要求
   最少 5 条匹配、missing/orphan/mismatch 均为 0、窗口期间阻塞 Outbox 为 0，并连续通过 3 次检查。
 - 独立 Schema：新增只包含 `customer_notifications`、`notification_inbox`、
-  `notification_delivery_outbox` 的 V1 Flyway 迁移；Windows 与容器化 Bash 均在随机网络和 tmpfs MySQL 中
+  `notification_delivery_outbox` 的 V1 Flyway 迁移；Windows 与容器化 Bash 均在随机网络和 tmpfs 原数据库中
   验证三表、零外键、身份/订单快照与 Inbox 幂等，未连接或删除开发数据卷。
 - 验证：真实 Kafka 窗口收到 5 条影子投影，三次审计全部通过后才允许停止；商城 30 项测试及正式镜像、
   Windows/Bash 质量门禁和 38 对脚本契约通过。默认配置已恢复为 `IN_PROCESS` 且投影关闭。
-- 边界：独立 Schema 目前只完成可重放迁移演练，实际运行仍使用商城 MySQL；未创建 notification-service、
+- 边界：独立 Schema 目前只完成可重放迁移演练，实际运行仍使用商城 原数据库；未创建 notification-service、
   独立运行数据库或 PostgreSQL，M3.2 尚未启动。
 
 #### 2026-11-15：notification 可替换异步传输与恢复门禁
 
 - 迁移：商城 V26 为 notification 增加自有 `notification_delivery_outbox`，Inbox 保存
-  correlation/causation/traceparent；现有 MySQL 非破坏性升级到 V26。
+  correlation/causation/traceparent；现有原数据库非破坏性升级到 V26。
 - 传输：`CustomerNotificationCommandPublisher` 在 `IN_PROCESS/KAFKA` 间配置切换；Kafka 模式在原业务事务
   写 Outbox，Dispatcher 发布并以事件 ID + Inbox 唯一键抵御确认窗口重复投递。
 - 恢复：发布失败进入持久 RETRY，超过阈值进入本地 DEAD 并可人工重放，消费毒消息有限重试后进入
@@ -1307,7 +1306,7 @@ P4 日常履约发布及归档清理已通过。见[P4 验收记录](../architec
 
 #### 2026-11-15：notification 写入所有权与 Inbox 收口
 
-- 迁移：商城 V25 新增 notification 自有 `notification_inbox`，现有 MySQL 非破坏性升级成功。
+- 迁移：商城 V25 新增 notification 自有 `notification_inbox`，现有原数据库非破坏性升级成功。
 - 契约：新增 `CustomerNotificationCommandV1`，固定版本、事件/通知类型、发生时间、客户/订单、
   correlation/causation ID 等字段，并提供可反序列化 fixture。
 - 所有权：InventoryMapper 不再写 `customer_notifications`；notification Handler 在同一事务中先登记 Inbox，
@@ -1332,7 +1331,7 @@ P4 日常履约发布及归档清理已通过。见[P4 验收记录](../architec
 - 格式：为 173 个既有 Java 文件补齐 175 个类声明后空行，并以 Windows/Bash 门禁覆盖全部 256 个 Java 源文件。
 - 验证：248 个主源码 Java、20 个 Mapper XML、189 个映射语句和 3 个 POM 的双平台质量审计通过；
   物流镜像 Maven 打包、主链路和 Outbox 管理专项通过。
-- 边界：保留三个独立 MySQL 和现有数据卷；未启动微服务拆分或 PostgreSQL 迁移。
+- 边界：保留三个独立原数据库和现有数据卷；未启动微服务拆分或 PostgreSQL 迁移。
 
 #### 2026-11-14：M2 工程质量总验收与基线冻结
 
@@ -1364,7 +1363,7 @@ P4 日常履约发布及归档清理已通过。见[P4 验收记录](../architec
 - 迁移：`V15__generic_scheduled_tasks.sql`、`V16__scheduled_task_policy_audit.sql`。
 - 配置：`commerceflow.scheduling` 默认策略、10 类任务策略、Database 扫描、对账和租约恢复。
 - 实现：策略解析/快照、Handler 注册表、统一执行器、Database 扫描、对账、租约恢复、管理员治理 API 与审计。
-- 验证：后端 6 个集成测试通过，Flyway 15/16 在现有 MySQL 卷升级成功，Windows/Bash 管理 API 专项脚本通过。
+- 验证：后端 6 个集成测试通过，Flyway 15/16 在现有原数据库卷升级成功，Windows/Bash 管理 API 专项脚本通过。
 - 遗留：除 `PAYMENT_TIMEOUT` 外的生产业务 Handler、RabbitMQ/RocketMQ 及六组合故障实验。
 - 提交：未提交。
 
@@ -1373,7 +1372,7 @@ P4 日常履约发布及归档清理已通过。见[P4 验收记录](../architec
 - 迁移：`V17__order_lifecycle_foundation.sql`，补充订单截止/取消/收货/完成时间及订单事件任务来源。
 - 配置：`commerceflow.order-lifecycle` 三类时限；`PAYMENT_TIMEOUT` 默认使用 Database + 对账。
 - 实现：客户主动取消、渠道交易关闭、本地支付关闭、幂等重试、支付/取消状态保护、超时 Handler 和提前取消任务。
-- 验证：后端 6 个集成测试、MySQL 旧卷迁移、Windows 与容器化 Bash 专项脚本通过。
+- 验证：后端 6 个集成测试、原数据库旧卷迁移、Windows 与容器化 Bash 专项脚本通过。
 - 补充：取消终态同事务写入 `ORDER_CANCELLED` Outbox，订单响应新增 `availableActions`，Angular 接入未支付取消表单。
 - 验证：后端集成测试校验 Outbox 和动作契约，Windows/Bash 专项脚本与全量 Docker 回归通过。
 - 遗留：Outbox 下游消费者、真实并发压力测试、RabbitMQ/RocketMQ。
@@ -1382,7 +1381,7 @@ P4 日常履约发布及归档清理已通过。见[P4 验收记录](../architec
 #### 2026-11-12：独立模拟物流最小完整闭环
 
 - 迁移：商城 `V18__logistics_projection.sql`；物流平台 `V1__logistics_platform.sql`。
-- 组件：新增 `logistics-mysql` 和 `logistics-simulator-service`，物流平台不直连商城数据库。
+- 组件：新增 `logistics-原数据库` 和 `logistics-simulator-service`，物流平台不直连商城数据库。
 - 实现：幂等建单、运单更正、六段轨迹状态机、请求 HMAC/时间戳/Nonce 防重放、签名回调、回调去重/防倒退、客户归属查询和 Angular 展开轨迹。
 - 验证：物流服务构建通过；后端 6 项集成测试通过；Angular 生产构建通过；Docker 旧卷升级后全服务健康；Windows 专项验证签名建单、重放 `409`、伪造签名 `401`、`CREATED -> DELIVERED` 及商城投影；Windows `verify-all -SkipBuild` 全量回归通过。
 - 跨平台边界：Bash 同语义脚本已提供；当前 Git Bash 缺少 `jq`，本轮未实机执行 Bash 专项。
@@ -1463,27 +1462,27 @@ P4 日常履约发布及归档清理已通过。见[P4 验收记录](../architec
 
 #### 2026-11-12：Flyway 空库、旧库升级与非法状态
 
-- 隔离：脚本为每次运行创建随机命名的 Docker 网络和两个 MySQL 8.4 容器，结束时只删除这些临时资源，不挂载或清空 Compose 开发数据卷。
+- 隔离：脚本为每次运行创建随机命名的 Docker 网络和两个原数据库容器，结束时只删除这些临时资源，不挂载或清空 Compose 开发数据卷。
 - 空库：固定 `redgate/flyway:12.4.0` 与后端运行时一致，24 个迁移从空 Schema 全部成功，并确认定时任务、物流投影、库存预占表和核心数据字典注释存在。
 - 旧库：先以 `target=16` 建立旧 Schema 并插入历史待支付订单，再升级到 V24；V17 将 `payment_due_at` 精确回填为 `created_at + 30m`，V24 补充核心数据字典注释。
-- 非法状态：MySQL 实机拒绝 `scheduled_tasks.status=CORRUPTED`；新集成测试确认 `PAID` 订单不能重新支付、普通取消或确认收货，自动收货/完成对非目标状态也不会改写事实。
+- 非法状态：原数据库实机拒绝 `scheduled_tasks.status=CORRUPTED`；新集成测试确认 `PAID` 订单不能重新支付、普通取消或确认收货，自动收货/完成对非目标状态也不会改写事实。
 - 验证：Windows 与容器化 Bash 两套脚本实机通过；本批复验商城 25 项测试通过。
 - 边界：本项不勾选“空数据卷全链路”或“旧卷服务/MQ 重启恢复”，那两项仍需独立完成。
 - 提交：待本批次提交。
 
 #### 2026-11-13：支付/取消随机化竞态浸泡压测
 
-- 工具：扩展快速竞态脚本，支持最少轮数、持续时间、固定随机种子、轮间节流和本轮 Docker MySQL 审计；新增 Windows/Bash 同名 stress 入口。
+- 工具：扩展快速竞态脚本，支持最少轮数、持续时间、固定随机种子、轮间节流和本轮 Docker 原数据库审计；新增 Windows/Bash 同名 stress 入口。
 - 时序：每 3 轮固定覆盖支付优先、取消优先和随机近同时，每轮都轮询到非中间态后再判定订单/支付/退款组合。
 - 限流：首轮无节流实验在第 81 轮真实命中支付平台 `120 requests/minute` 签名限流；保留限流后增加 900ms 轮间节流和仅针对该 `429` 的 5 秒有限退避。
 - 库存：stress 入口通过商家 API 将演示商品可售库存补到安全水位，保留人工调整流水，不直改库存表或删除压测订单。
-- 结果：Windows `120.6s/95` 轮，`PAID/SUCCESS=55`、`CANCELLED/CLOSED=40`；容器化 Bash `121s/97` 轮，分别为 `58/39`。两次 MySQL 审计的订单数=支付记录数=本轮轮数，矛盾记录为 0。
+- 结果：Windows `120.6s/95` 轮，`PAID/SUCCESS=55`、`CANCELLED/CLOSED=40`；容器化 Bash `121s/97` 轮，分别为 `58/39`。两次原数据库审计的订单数=支付记录数=本轮轮数，矛盾记录为 0。
 - 边界：这是单机 Docker 两分钟浸泡验收，不等同于多小时/多日容量规划、多实例压力或网络分区验收；脚本可将时长调至 86400 秒继续扩展。
 - 提交：待本批次提交。
 
 #### 2026-11-13：支付/取消锁等待超时专项
 
-- 配置：commerce-service MySQL 连接使用可配置的 `innodb_lock_wait_timeout`，Compose 默认 5 秒；专项脚本临时压缩为 2 秒并在结束时恢复 commerce-service，不删除数据卷。
+- 配置：commerce-service 原数据库连接使用可配置的 `原数据库配置_lock_wait_timeout`，Compose 默认 5 秒；专项脚本临时压缩为 2 秒并在结束时恢复 commerce-service，不删除数据卷。
 - 契约：Spring 短暂数据访问异常统一返回 HTTP `503`、`DATABASE_CONCURRENCY_RETRY` 与 `Retry-After: 1`；支付回调不再把这类异常包装成不可区分的通用异常。
 - 验证：Windows 和容器化 Bash 同名脚本分别持有订单行与支付行锁；首次取消/回调超时后订单、支付、通知和事件仍为原始事实，释放锁后重试分别达到 `CANCELLED` 与 `PAID/SUCCESS`。
 - 自动测试：Docker Maven 构建通过 19 个测试，其中新增错误契约单元测试。
@@ -1494,7 +1493,7 @@ P4 日常履约发布及归档清理已通过。见[P4 验收记录](../architec
 
 - 故障注入：新增默认关闭、必须同时指定订单 ID 和阶段的实验暂停点；脚本观测到精确窗口后对 commerce-service 发送 SIGKILL，结束后恢复默认关闭。
 - 取消窗口：已验证 `PENDING_PAYMENT -> CANCELLING` 提交后崩溃可重试完成；渠道已持久化 `CLOSED`、本地仍为 `CANCELLING/PENDING` 时崩溃，重试不重复业务事实且只写一次 `ORDER_CANCELLED`。
-- 回调窗口：支付记录已改为 `SUCCESS` 但回调事务未提交时崩溃，MySQL 完整回滚订单、支付、通知和事件；重放相同回调后只提交一份 `PAID/SUCCESS` 事实。
+- 回调窗口：支付记录已改为 `SUCCESS` 但回调事务未提交时崩溃，原数据库完整回滚订单、支付、通知和事件；重放相同回调后只提交一份 `PAID/SUCCESS` 事实。
 - 迟到回调：订单留在 `CANCELLING`、渠道成功回调稍后到达时，资金事实优先，订单恢复为 `PAID`。
 - 验证：Windows 与容器化 Bash 同名脚本均通过；Docker Maven 19 项测试通过。
 - 边界：这是单机容器的精确事务窗口实验，不代表多节点容灾或网络分区验收。
@@ -1539,9 +1538,9 @@ P4 日常履约发布及归档清理已通过。见[P4 验收记录](../architec
 
 #### 2026-11-13：旧库升级、全栈重启恢复与历史一致性
 
-- 升级边界：在隔离 MySQL 中重放 V1–V16，插入历史订单后升级到 V24，验证 30 分钟支付截止时间回填、核心注释和当前约束；这是可重放旧库演练，不冒充生产备份升级。
+- 升级边界：在隔离原数据库中重放 V1–V16，插入历史订单后升级到 V24，验证 30 分钟支付截止时间回填、核心注释和当前约束；这是可重放旧库演练，不冒充生产备份升级。
 - 持久卷：现有商城/支付/物流数据已非破坏性升级至 V24/V4/V5，无失败迁移；本阶段未删除任何现有卷。
-- 重启范围：三个 MySQL、Redis、Kafka、支付/物流服务、services/commerce-service/web/UI、RabbitMQ 和 RocketMQ 均实际重启并恢复健康。
+- 重启范围：三个 原数据库、Redis、Kafka、支付/物流服务、services/commerce-service/web/UI、RabbitMQ 和 RocketMQ 均实际重启并恢复健康。
 - 未完成任务：注入已领取但租约过期的 `AUTO_COMPLETE` 任务；Windows 任务 `1391/1392`、容器化 Bash 任务 `1393/1394` 分别由 RabbitMQ/RocketMQ 恢复，`TASK_LEASE_EXPIRED/TASK_CLAIMED/TASK_SUCCEEDED` 均各一次。
 - 历史一致性：终态订单、支付、已送达物流和评价的计数+行 CRC 聚合指纹在重启前后均为 `300:3562683193|559:1055010103|83:1695107719|21:1066884382`。
 - 提交：本阶段独立提交（见 Git 历史）。
@@ -1550,7 +1549,7 @@ P4 日常履约发布及归档清理已通过。见[P4 验收记录](../architec
 
 - 文件名：35 组 `verify-*` PowerShell/Bash 入口基名一一对应；Windows-only 的视频生成器不属于业务验收入口。
 - 参数修正：对齐物流服务 URL、支付服务 URL、RabbitMQ 用户名/密码/等待时间，以及支付/取消竞态的有序参数。
-- 安全语义：不存在默认 `down -v`、`docker volume rm/prune`；空卷专项的临时卷删除只能显式开启，Flyway 临时 MySQL 改用 tmpfs 避免匿名卷泄漏。
+- 安全语义：不存在默认 `down -v`、`docker volume rm/prune`；空卷专项的临时卷删除只能显式开启，Flyway 临时原数据库改用 tmpfs 避免匿名卷泄漏。
 - 自动审计：PowerShell 与容器化 Bash 入口均返回通过，契约覆盖 35 组脚本；全部 PowerShell AST 和 Bash `-n` 语法检查通过。
 - 轻量实链路：Windows 支付通知的新支付地址参数通过；容器化 Bash 按新顺序运行 1 轮支付/取消竞态，以 `PAID/SUCCESS` 且数据库审计通过结束。
 - 提交：本阶段独立提交（见 Git 历史）。
@@ -1587,9 +1586,9 @@ P4 日常履约发布及归档清理已通过。见[P4 验收记录](../architec
 | M1 冻结基线 | Git 标签 `m1-baseline-2026-11-13` |
 | M2 冻结基线 | Git 标签 `m2-quality-baseline-2026-11-14` |
 | 当前阶段 | M3 已正式关闭。六个内部服务各自拥有独立数据库，履约旧入口和支付旧捕获对象已在日常环境退役，完整准入及业务回归通过。[M3 日常发布验收](../architecture/M3-SINGLE-OWNERSHIP-REVIEW.md#14-2026-11-21-日常发布与-m3-验收) |
-| 当前优先级 | M4 通知服务日常使用 PostgreSQL 17.11。11 月 22 日收尾评审决定保持开放。切换验收的 30 次未读查询 P95 为 19.81 ms，放行后仅观察到两次验收请求，仍需补齐日常业务流量证据。[M4 收尾评审与四阶段证据](../architecture/DATABASE-EVOLUTION-PLAN.md#2026-11-22-m4-收尾评审) |
+| 当前优先级 | M4 通知服务日常使用 PostgreSQL 17.11。11 月 22 日收尾评审决定保持开放。切换验收的 30 次未读查询 P95 为 19.81 ms，放行后仅观察到两次验收请求，仍需补齐日常业务流量证据。[M4 收尾评审与四阶段证据](../architecture/DATABASE-EVOLUTION-PLAN.md) |
 | 近期日常发布 | 单仓多包裹、两仓拆履约、商品全文搜索、站外通知和正式支付运营统计均已发布。 |
-| 范围边界 | 商城持有身份、购物车、调度、部分投递账本和物流投影。独立履约服务执行，旧源归档和回退包在仓库外保存。通知服务使用 PostgreSQL，其余业务库继续使用 MySQL。 |
+| 范围边界 | 商城持有身份、购物车、调度、部分投递账本和物流投影。独立履约服务执行，旧源归档和回退包在仓库外保存。通知服务使用 PostgreSQL，其余业务库继续使用 原数据库。 |
 | 电子发票 | 顾客、商家和平台页面已通过隔离验收，`invoice-20261121` 已部署到日常 Docker。订单 736 的支付、开票、退款红冲及历史账本复核通过。[发布记录](../IMPLEMENTED.md#2301-电子发票日常发布与验收) |
 
 事实优先级为：当前源码/迁移/脚本和实际验收结果 > [IMPLEMENTED.md](../IMPLEMENTED.md) > [TODO.md](#旧版待办与实施记录) 勾选状态 > `archive/` 和各专题中标明的历史记录。发现冲突时必须修改文档，不得为了勾选代办而改写实际验收结论。
@@ -1619,7 +1618,7 @@ P4 日常履约发布及归档清理已通过。见[P4 验收记录](../architec
 | 库存与商家库存中心 | 已实现 | 可售/预占/已售、转正/释放/退款回补、调整流水 |
 | Angular/Vue 界面 | Angular 主流程和订单页视觉收尾已实现 | 订单详情与支付信息已扁平化，商品图有失败回退；通知菜单使用中性列表和细滚动条，支持外部点击、`Esc`、关闭按钮和选择通知后关闭；语言切换使用图标；导航与 1480 px 正文容器对齐，桌面与 390 px 窄屏已验收 |
 | Flyway 数据库生命周期 | 空卷和迁移层已验收 | 日常商城 V68、订单 V12、库存 V10、履约 V4、支付编排 V5、支付模拟平台 V7、目录 V4、通知 V4。 |
-| notification 独立服务 | 单一所有权切换已实现，日常已切 PostgreSQL 17.11 | PostgreSQL 通知实例接续原 Kafka 消费组，commerce 仅签名代理，故障返回 503。原 MySQL 供受控反向回退。[日常切库记录](../architecture/DATABASE-EVOLUTION-PLAN.md#2026-11-22-日常通知库切换-postgresql-17) |
+| notification 独立服务 | 单一所有权切换已实现，日常已切 PostgreSQL 17.11 | PostgreSQL 通知实例接续原 Kafka 消费组，commerce 仅签名代理，故障返回 503。原数据库供受控反向回退。[日常切库记录](../architecture/DATABASE-EVOLUTION-PLAN.md) |
 | catalog 拆分准入 | 单一所有权已切换 | catalog-service/catalog-db 独占资料、翻译、版本和 Outbox；commerce 只保留鉴权、签名代理与 review 组合 |
 | inventory 拆分准入 | 完整单一所有权已切换 | 库存服务持有余额、预占、流水、出库单及出库事件；商城持有库存命令投递和结果账本。历史五笔缺证测试订单已归档 |
 | 订单、支付编排与履约 | 均已切流 | Order V1 持有正式订单，Payment V1 持有支付与退款，履约服务以 `EXECUTION` 模式持有流程状态。日常商城库旧订单源表已清理并保留离线备份。 |
@@ -1653,7 +1652,7 @@ M1 期间只维护当前实现证据和专项学习文档，未提前创建或�
 
 - 真实支付机构和真实物流渠道仍待实施。首版售后异常工单已日常发布，覆盖仓库短收、拒收和质检不通过。[工单验收](../IMPLEMENTED.md#222-售后异常工单)
 - 同店同 SKU 无差价换货后端及顾客、商家、平台页面均已在日常 Docker 发布。订单 738 的换货和两条物流已验收。[换货页面发布](../IMPLEMENTED.md#2313-换货页面日常发布)
-- 多节点 MySQL/Redis/Kafka/MQ 高可用、跨可用区容灾、多日容量压测和生产合规认证。
+- 多节点 原数据库/Redis/Kafka/MQ 高可用、跨可用区容灾、多日容量压测和生产合规认证。
 - Prometheus Rule、Alertmanager 与本地 Webhook 已实现并完成 Windows/容器化 Bash 实时投递；真实通知供应商凭据、通知到人和值班升级流程未配置。
 - [全开发生命周期可复测验证体系](../VERIFICATION-SYSTEM.md) 已建立；当前为本地单机 Docker 学习环境门禁，不代表多节点容灾、多日容量或生产合规验收。
 - Java/Maven 已统一为 `vip.fairy.commerceflow`，Compose 已统一为 `fairy-commerceflow`，目录已按 `services/web/simulators/infrastructure` 责任分组。旧学习卷按用户明确授权精确清理，新空卷 Flyway V24/V4/V5、完整业务链路和快速回归均已通过；M1 标签保留迁移前证据。
@@ -1665,13 +1664,13 @@ M1 期间只维护当前实现证据和专项学习文档，未提前创建或�
 M2 只读基线与分批门禁见 [M2 代码质量与模块化单体治理计划](#m2-代码质量治理记录)。
 当前继续修复数据映射与格式问题，并已建立首批模块边界门禁；微服务拆分和 PostgreSQL 迁移仍是独立架构待办。
 首批已修正支付退款实体主键映射，并将支付模拟服务通配符导入与
-超过 120 字符的 Java 行均清零。支付服务 9 项测试及 Windows/容器化 Bash 真实 MySQL
+超过 120 字符的 Java 行均清零。支付服务 9 项测试及 Windows/容器化 Bash 真实 原数据库
 退款全链路专项均已复验通过。物流模拟服务也已完成强类型持久化投影与格式治理，
 并通过回调恢复、DEAD 人工重投、固定种子乱序并发和容器化 Bash 基础链路验收。
 商城服务已建立 4 条 ArchUnit 模块边界门禁，移除用户 API 直接访问 Mapper 的越层依赖，
 并完成 `identity` 首批格式治理。第二批完成 `catalog`、`cart` 格式与数据访问治理，
 商品翻译改用 MyBatis-Plus 单表查询，并修复旧订单投影遗漏商品 ID；25 项 Maven 测试、
-Windows L2 快速回归、容器化 Bash i18n/权限回归及现有 MySQL 卷的订单投影实测均通过。
+Windows L2 快速回归、容器化 Bash i18n/权限回归及现有原数据库卷的订单投影实测均通过。
 第三批完成 `customer`、`review`、`receipt` 格式与数据访问治理：地址查询改用 Lambda Wrapper，
 评价写入改用带字段注释的实体和 `BaseMapper`，复杂联表、聚合与批量更新仍保留在 Mapper XML。
 目标三个包的通配符导入和超过 120 字符的 Java 行均为 0；25 项 Maven 测试、Windows 快速回归、
@@ -1771,7 +1770,7 @@ notification 恢复任务。notification application 已不再接收 `AppUser`�
 `IN_PROCESS` 且投影关闭。
 
 独立 notification Schema V1 只包含通知、Inbox 和投递 Outbox 三张表且无外键；Windows 与容器化 Bash
-已在随机网络和 tmpfs MySQL 中验证 Flyway、快照字段和 Inbox 幂等。商城空库 V1→V27 与旧库 V16→V27
+已在随机网络和 tmpfs 原数据库中验证 Flyway、快照字段和 Inbox 幂等。商城空库 V1→V27 与旧库 V16→V27
 隔离升级演练均通过。当前商城所有权基线为 42 张表；依赖基线仍为 41 组方向、118 个 import、38 个文件和
 21 个基础设施引用，HTTP 基线为 18 个 Controller、60 个操作。独立 Schema 尚未成为实际运行目标，
 notification-service、独立运行数据库和 PostgreSQL 均未启动，M3.2 仍需单独授权。
@@ -1803,7 +1802,7 @@ Windows 任务 410/411 和容器化 Bash 任务 414/415 均在 Tempo 查询到�
 
 第八批在单独授权后实现 `notification-service` 影子进程。服务按
 `api/application/domain/infrastructure` 分层并继续拆分 `messaging/persistence`，只消费冻结的 notification
-V1 命令，使用稳定消费者组、独立 MySQL Schema、Inbox 和本地事务，不访问商城 Mapper 或 Schema。
+V1 命令，使用稳定消费者组、独立原数据库Schema、Inbox 和本地事务，不访问商城 Mapper 或 Schema。
 Compose 的 `notification-service` Profile 默认关闭，健康与只读影子状态端点使用 `18086`。
 
 Windows 与容器化 Bash 均完成实时写入、进程停机期间消息积压、重启追平、commerce/notification 同一
@@ -1845,7 +1844,7 @@ Java 25 正式镜像 32 项测试、双平台 V1→V29/V16→V29 生命周期及
 第四批已创建独立 `catalog-service` 和 `catalog-db`，按 api/application/domain/infrastructure 分层承接商品
 资料、翻译、业务版本和 catalog Outbox。一次性迁移以 commerce V29 为源门槛，复制 6 条商品、6 条翻译和
 既有 Outbox，计数与内容指纹一致后写入 `catalog-v29-single-owner=COMPLETE`；重复运行只读取 COMPLETE，
-不会用陈旧 commerce 表覆盖独立库。首次真实演练的字符集差异被 FAILED 门禁阻止，补齐 utf8mb4 后完成，
+不会用陈旧 commerce 表覆盖独立库。首次真实演练的字符集差异被 FAILED 门禁阻止，补齐 原数据库配置 后完成，
 未删除命名卷。commerce 已删除 catalog Mapper/XML/本地写路径与 shared 过渡投影，只通过 HMAC HTTP 访问；
 catalog 停机稳定返回 503，commerce 核心健康保持 UP，跨进程 Trace 同时出现 commerce-service 与
 catalog-service。inventory-service 与 PostgreSQL 均未启动。
@@ -1900,7 +1899,7 @@ delivery Outbox 和结果 Inbox 留在 commerce；冻结快照、增量追平、
 263 条、流水 548 条、命令 Inbox 87 条、catalog Inbox 2 条，未决与待对账均为 0。本批仅授予 CREATE
 资格；没有创建 inventory-service/inventory-db 或切换流量，CUTOVER 与 PostgreSQL 继续冻结。
 
-第十一批创建分层 inventory-service、独立 MySQL 和 `inventory-shadow` Profile。V1 只持有五张 inventory
+第十一批创建分层 inventory-service、独立原数据库和 `inventory-shadow` Profile。V1 只持有五张 inventory
 所有权表与迁移状态；唯一命令 HTTP 适配器和 catalog 事件适配器复用 V1 Inbox、幂等指纹、余额状态机、
 HMAC 与 Trace 信封。默认流量门禁关闭，健康检查为 UP，未签名请求 401、已签名请求 503，commerce/catalog
 均未改指向。可重复迁移连续至少 20 代 READY，快速回归后的源/目标完整字段指纹一致。Java 25 的 2 项测试、Windows/Git Bash
@@ -1927,7 +1926,7 @@ Result V1 确认后再推进订单/退款库存状态；inventory-service/invent
 公开 API 只保留 Session/CSRF/MERCHANT RBAC 和 HMAC 薄代理；独立服务停机稳定返回 503，不回退本地表。
 commerce 本地库存 Handler、领域余额对象、四个 Mapper/XML、旧 catalog 内部入口及专用签名代码已删除。
 Compose 先以迁移账号执行 Flyway，再为 `commerce_runtime` 逐表授权；该账号可访问 commerce 自有表，但五张
-库存源表均被 MySQL 1142 拒绝。Windows 实机完成 `72 -> 73 -> 72` 调账恢复、未签名 401、停机 503 和恢复，
+库存源表均被原数据库1142 拒绝。Windows 实机完成 `72 -> 73 -> 72` 调账恢复、未签名 401、停机 503 和恢复，
 源流水保持 582，目标流水增至 641。Java 25 共 44 项测试，368/27/231/6 质量门禁、383 个 Java 源文件类声明
 空行及 46 对脚本契约通过；Bash 对等脚本已通过语法审计。本批未启动 PostgreSQL，下一步是 order-service
 边界准入治理，不直接创建服务或数据库。
@@ -2009,7 +2008,7 @@ Process Manager、命令 Outbox、结果 Inbox，以及同 ID 异 payload 冲突
 OPEN 对账 0、payment 中订单事件 0，179/179 条订单 Outbox/Inbox 完整保留；55 项测试通过。CREATE 已准入，
 CUTOVER 仍冻结；本批没有创建独立服务/数据库、没有并行拆 fulfillment，也没有启动 PostgreSQL。
 
-M3.6 第四批创建分层 `payment-orchestration-service` 和独立 MySQL `payment-db`，但 commerce 仍只使用唯一
+M3.6 第四批创建分层 `payment-orchestration-service` 和独立原数据库`payment-db`，但 commerce 仍只使用唯一
 `LocalPaymentOrchestrationAdapter`，独立服务的 `PAYMENT_ACCEPTING_TRAFFIC=false`，只开放影子管理端点。
 Flyway V38 以 42 个触发器和提交顺序水位捕获 14 张所有权表变更；独立服务完成 REPEATABLE READ 可重复快照、
 增量追平、逐字段 SHA-256 核对和外键孤儿隔离/重放。Windows 与 Ubuntu 26.04 WSL 专项及最终快速回归后
@@ -2082,34 +2081,34 @@ M3.7 第一批决定让履约拥有执行流程与恢复记录。订单、资金
 0 条跨边界外键与 0 条通知断链。
 
 M3.7 第二批在 commerce 内实现发货编排、发货与退款原子互斥、发货人工恢复与改运单版本保护。商城 V42 将
-接单和改运单也纳入持久化执行，受理后可查询原命令，后台从渠道或订单检查点继续。真实 MySQL 样本 601
+接单和改运单也纳入持久化执行，受理后可查询原命令，后台从渠道或订单检查点继续。真实原数据库样本 601
 在渠道先提交、商城后重启的场景使用原命令完成，三处运单版本一致，订单接单和改运单事件各 1 条。
-商城 48 项测试、Angular 构建、MySQL 空库与旧库升级、Windows 快速回归以及 Windows/WSL 审计通过。
+商城 48 项测试、Angular 构建、原数据库空库与旧库升级、Windows 快速回归以及 Windows/WSL 审计通过。
 
 商城 V43 补齐接单和改运单的管理员恢复与审计。订单 609 模拟 Order V1 已提交、商城尚未确认，两路认领只有
 一路成功，接单租约过期后自动完成，改运单经管理员恢复完成，两个 Inbox 成功结果与运单版本保持一致。接单、
-改运单事件及恢复审计各 1 条。商城 49 项测试、MySQL 空库与旧库升级、商家履约专项和 Windows/WSL 准入审计通过。
+改运单事件及恢复审计各 1 条。商城 49 项测试、原数据库空库与旧库升级、商家履约专项和 Windows/WSL 准入审计通过。
 
-V43 后完成 CREATE 复核，结论仍为 `REJECTED`。MySQL 样本 611 复现接单、发货或改运单已在下游提交、商城任务
+V43 后完成 CREATE 复核，结论仍为 `REJECTED`。原数据库样本 611 复现接单、发货或改运单已在下游提交、商城任务
 仍待核对时，新履约操作可进入。Windows/WSL 复测记录 33 条任务，未决任务、到期租约、重叠订单与发货意图
 均为 0。已修订 Fulfillment V1 草案。
 
-V44 在商城内落地同订单事务准入和 Fulfillment V1 提交、结果查询。真实 MySQL 样本 612 的三个跨操作场景均受
+V44 在商城内落地同订单事务准入和 Fulfillment V1 提交、结果查询。真实原数据库样本 612 的三个跨操作场景均受
 待核对任务阻塞，管理员恢复原命令后继续。商城 51 项测试、V44 空库安装及旧库升级验证通过。独立履约服务仍处于
 CREATE 复核阶段。
 
-已完成 V44 拆分前评审。MySQL 一致性快照中的六张履约表在隔离库还原两次，行数、摘要、表定义和自增游标一致，
+已完成 V44 拆分前评审。原数据库一致性快照中的六张履约表在隔离库还原两次，行数、摘要、表定义和自增游标一致，
 17 组订单与商家引用均匹配。样本 614 证实渠道重放返回当前资源或版本冲突。下一步在商城内落实物流命令回执端口，
 并为无副作用的已知拒绝保留历史、允许重新准入。当时结论为 `REJECTED`。
 
 V45 已通过独立履约服务 CREATE 准入，范围为关闭业务流量的影子运行。订单 615 验证发货已知拒绝后只允许一个
 新命令执行，已有同参数发货意图仍被 Order V1 拒绝。运单升到版本 2 后，原改运单命令仍能恢复版本 1 的回执，
-订单事件无重复。商城 53 项测试、订单 2 项测试、MySQL 空库与旧库升级、六表两次还原及 Windows 快速回归通过。
+订单事件无重复。商城 53 项测试、订单 2 项测试、原数据库空库与旧库升级、六表两次还原及 Windows 快速回归通过。
 Windows/WSL 最终审计记录 59 条任务、9 条物流回执，未决任务、待完成回执、回执不一致及未清发货意图均为 0。
 
-V46 已启动独立 `fulfillment-service` 和 MySQL `fulfillment-db` 影子环境，商城继续承担履约业务。真实 MySQL
+V46 已启动独立 `fulfillment-service` 和原数据库`fulfillment-db` 影子环境，商城继续承担履约业务。真实 原数据库
 验收通过重复快照、回滚、增量写入与删除、孤儿隔离、重启续跑和签名读写门禁。最终源与目标水位均为 52，六表
-摘要匹配，67 条任务的命令登记一致，待隔离记录为 0。新服务 2 项、商城 53 项测试，真实 MySQL 空库与旧库升级、
+摘要匹配，67 条任务的命令登记一致，待隔离记录为 0。新服务 2 项、商城 53 项测试，真实原数据库空库与旧库升级、
 完整 Windows 快速回归及 58 对 Windows/WSL 脚本契约通过。
 
 V47 增加商城履约新命令冻结，完成影子进程断线、源只读授权恢复、商城冻结排空和撤回演练。六次冻结写请求
@@ -2133,7 +2132,7 @@ M3.7 已接通商城商家与管理员的签名远程路由。隔离演练在 ge
 版本 2，管理员审计保留。默认环境保持 `SHADOW`，源目标水位 297，隔离与未决任务为 0。后续需将六表权限
 交接和回退配置固化到部署脚本并通过重启验收。
 
-V48 与独立执行覆盖配置已完成权限交接的重启验收。两套隔离 MySQL 和应用重启、授权任务重跑后，旧账号对
+V48 与独立执行覆盖配置已完成权限交接的重启验收。两套隔离原数据库和应用重启、授权任务重跑后，旧账号对
 六表的 18 次增删改均被拒绝。回退恢复原商城权限，退役目标拒绝旧执行配置重启。默认环境仍为
 `COMMERCE`/`SHADOW`，源目标水位 345、隔离与未决任务为 0。正式履约切流待明确授权和窗口内最终核对。
 
@@ -2181,7 +2180,7 @@ V48 与独立执行覆盖配置已完成权限交接的重启验收。两套隔�
 - `SchedulerConfiguration` 中的 `JdbcTemplate` 只用于 ShedLock 官方适配器配置，不属于业务 SQL。
 - 未发现多个字段或方法压缩在同一行的现存 Java 声明。
 - 基线时尚未配置自动格式检查；ArchUnit 模块依赖边界测试已在 M2.3 首批治理中建立。
-- `ChannelRefund` 错把外部退款编号标为 `@TableId(AUTO)`，与数据库 `id BIGINT AUTO_INCREMENT`
+- `ChannelRefund` 错把外部退款编号标为 `@TableId(AUTO)`，与数据库 `id BIGINT 自增序列`
   不一致；该项作为第一批功能性修复处理。
 
 ### 3. 分批实施顺序
@@ -2190,7 +2189,7 @@ V48 与独立执行覆盖配置已完成权限交接的重启验收。两套隔�
 
 - [x] 修正 `ChannelRefund.id` 的 MyBatis-Plus 自增主键映射并增加防回归测试。
 - [x] 整理支付模块通配符导入、过长构造器和 Wrapper 链，不改变退款事务和通知补偿语义。
-- [x] 使用真实 MySQL 重新执行模拟支付测试和退款专项。
+- [x] 使用真实原数据库重新执行模拟支付测试和退款专项。
 
 首批验证证据：支付服务 9 项 Maven 测试通过；Windows 与容器化 Bash 真实退款专项均完成
 签名支付、全额退款、账本核对、重复请求幂等、重复退款 `409`、伪造回调 `401` 和通知重投幂等。
@@ -2237,7 +2236,7 @@ Windows 回调可靠性专项通过 `RETRY -> PUBLISHED` 和丢失回调对账�
 购物车 upsert、联表投影和按用户归属条件更新仍保留在 Mapper XML。审计同时发现旧订单投影遗漏
 `product_id`，修复后补充接口级回归测试，并将测试 Schema 与 V1 真实迁移对齐。商城服务 25 项测试、
 Windows L2 快速回归、容器化 Bash i18n 与权限回归均通过。Bash i18n 脚本还修复了
-`pipefail` 下 `curl | grep -q` 提前断管导致的页面可用性误判。最终镜像还在现有 MySQL 卷完成
+`pipefail` 下 `curl | grep -q` 提前断管导致的页面可用性误判。最终镜像还在现有原数据库卷完成
 旧订单创建与数量更新，响应保留正确的 `productId`。本批未删除或重建数据卷。
 
 第三批治理将 `customer`、`review` 与 `receipt` 的通配符导入和超过 120 字符的 Java 行均清零。
@@ -2402,6 +2401,6 @@ M3.1 最终门禁新增 notification 独立 DataSource/Flyway/MyBatis/事务配�
 
 1. 修改前后 `git diff --check` 通过，格式化变更与业务语义变更可以清晰审查。
 2. 相关 Maven 测试和 Docker 镜像构建通过。
-3. 涉及数据访问时执行真实 MySQL 专项；涉及并发 SQL 时执行对应竞态或恢复脚本。
+3. 涉及数据访问时执行真实原数据库专项；涉及并发 SQL 时执行对应竞态或恢复脚本。
 4. Windows/Bash 脚本契约保持一致，默认不删除现有数据卷。
 5. 每批独立提交并推送，验证结果同步到本计划和 `PROJECT-STATUS.md`。

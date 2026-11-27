@@ -24,7 +24,7 @@ function New-DeliveredOrder{
   return [long](Wait-Sql "SELECT o.id FROM shop_orders o WHERE o.id>$before AND o.status='SHIPPED' AND o.logistics_delivered_at IS NOT NULL ORDER BY o.id DESC LIMIT 1" {param($v) -not [string]::IsNullOrWhiteSpace($v)} 'delivered order creation' order)
 }
 function Invoke-Race([long]$OrderId,[long]$TaskId,[string]$TaskType,[string]$Bias,$Customer){
-  Invoke-VerificationDb task "UPDATE scheduled_tasks SET due_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE id=$TaskId"|Out-Null
+  Invoke-VerificationDb task "UPDATE scheduled_tasks SET due_at=(CURRENT_TIMESTAMP - INTERVAL '1' SECOND) WHERE id=$TaskId"|Out-Null
   $payload=@{taskId=$TaskId;taskType=$TaskType;dueAt=[DateTimeOffset]::UtcNow.AddSeconds(-1).ToString('o');strategySnapshot='RABBITMQ'}|ConvertTo-Json -Compress
   $publishBody=@{properties=@{content_type='application/json';delivery_mode=2};routing_key='scheduled-task.ready';payload=$payload;payload_encoding='string'}|ConvertTo-Json -Depth 8 -Compress
   $rabbitToken=[Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes('commerceflow:commerceflow-password'))

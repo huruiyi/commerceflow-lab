@@ -1,17 +1,5 @@
 services:
-  invoice-db:
-    volumes: !reset []
-    tmpfs: [/var/lib/mysql]
-    command: ["--innodb-use-native-aio=OFF"]
-  logistics-simulator-db:
-    command: ["--innodb-use-native-aio=OFF"]
-  messaging-simulator-db:
-    command: ["--innodb-use-native-aio=OFF"]
   invoice-simulator-service:
-    build:
-      context: ./simulators/invoice-platform/service
-      args:
-        MAVEN_LEGACY_MYSQL: "true"
     environment:
       COMMERCEFLOW_INVOICE_PROCESSING_DELAY_MS: "14000"
     healthcheck:

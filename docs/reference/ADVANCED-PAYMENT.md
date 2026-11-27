@@ -8,30 +8,9 @@
 
 ## 2. 服务与数据边界
 
-```text
-Angular 商城
-    |
-    | 创建支付单、查询状态
-    v
-商城 commerce-service ------------------------+
-    |                                |
-    | 签名支付请求                    | MySQL 业务事务
-    v                                | payment/order/event/outbox
-payment-simulator-service                 |
-    |                                |
-    | 模拟收银台                      +----> Outbox Publisher
-    | 支付宝 / 微信 / 银联                         |
-    |                                             v
-    +---- 签名异步通知 ----> 商城 commerce-service -----> Kafka
-                                                   |
-                              +--------------------+------------------+
-                              v                    v                  v
-                           订单处理             商家通知           审计/对账
-```
-
 - 商城后端拥有商城订单、支付单、通知处理结果和 Outbox。
 - 模拟支付服务拥有独立的渠道交易数据，不能直接修改商城数据库。
-- MySQL 是支付和订单状态的事实来源。
+- 原数据库是支付和订单状态的事实来源。
 - Redis 只保存 Session、Nonce、限流和可重建缓存。
 - Kafka 传递已经持久化的业务事件，不承担数据库事实存储职责。
 
@@ -139,7 +118,7 @@ payment-events-dlq
 
 消息 Key 分别使用支付单号、订单 ID 或渠道交易号，以保证同一业务聚合内的消息顺序。生产者启用 `acks=all` 和幂等生产。
 
-支付事务不能直接依赖一次 Kafka 发送。商城在同一 MySQL 事务中更新支付、订单、事件和 Outbox，提交后由 Outbox Publisher 重试发布。第一版使用带行锁的定时轮询；后续可以增加 Debezium 和 Kafka Connect 的 CDC 对照实现。
+支付事务不能直接依赖一次 Kafka 发送。商城在同一原数据库事务中更新支付、订单、事件和 Outbox，提交后由 Outbox Publisher 重试发布。第一版使用带行锁的定时轮询；后续可以增加 Debezium 和 Kafka Connect 的 CDC 对照实现。
 
 ## 8. 高可用和补偿
 
@@ -152,7 +131,7 @@ payment-events-dlq
 - ShedLock 保证超时关闭和对账任务仅由一个实例执行。
 - Prometheus 指标和 Grafana 教学面板。
 
-定时对账扫描长时间处于 `PENDING` 的支付单，主动查询模拟渠道并补偿通知丢失。单节点 MySQL、Redis 仍是实验环境单点；生产级高可用还需要数据库集群、Redis Sentinel/Cluster、跨主机 Kafka 和完善的灾备方案。
+定时对账扫描长时间处于 `PENDING` 的支付单，主动查询模拟渠道并补偿通知丢失。单节点 原数据库、Redis 仍是实验环境单点；生产级高可用还需要数据库集群、Redis Sentinel/Cluster、跨主机 Kafka 和完善的灾备方案。
 
 ## 9. 验收矩阵
 

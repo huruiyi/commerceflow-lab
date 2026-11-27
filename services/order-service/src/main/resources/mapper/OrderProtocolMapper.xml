@@ -2,15 +2,9 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="vip.fairy.commerceflow.order.infrastructure.persistence.OrderProtocolMapper">
 
-  <sql id="resultDeadline">CURRENT_TIMESTAMP(6) + INTERVAL 5 MINUTE</sql>
-  <sql id="resultDeadline" databaseId="postgresql">statement_timestamp() + INTERVAL '5 minutes'</sql>
+  <sql id="resultDeadline">statement_timestamp() + INTERVAL '5 minutes'</sql>
 
   <insert id="insertCommand">
-    INSERT IGNORE INTO order_remote_message_inbox(message_id,message_kind,payload_fingerprint,processing_status)
-      VALUES (#{messageId},'COMMAND',#{fingerprint},'RECEIVED')
-  </insert>
-
-  <insert id="insertCommand" databaseId="postgresql">
     INSERT INTO order_remote_message_inbox(message_id,message_kind,payload_fingerprint,processing_status)
     VALUES (#{messageId},'COMMAND',#{fingerprint},'RECEIVED')
     ON CONFLICT (message_id) DO NOTHING
@@ -22,13 +16,6 @@
   </select>
 
   <insert id="insertResult">
-    INSERT IGNORE INTO order_result_inbox(result_id,process_id,order_id,result_type,outcome,payload_fingerprint,
-      payload,processing_status,error_detail,correlation_id,causation_id,traceparent,received_at,processed_at)
-    VALUES (#{resultId},#{processId},#{orderId},#{resultType},#{outcome},#{fingerprint},#{payload},#{status},
-      #{error},#{correlationId},#{causationId},#{traceparent},CURRENT_TIMESTAMP(6),CURRENT_TIMESTAMP(6))
-  </insert>
-
-  <insert id="insertResult" databaseId="postgresql">
     INSERT INTO order_result_inbox(result_id,process_id,order_id,result_type,outcome,payload_fingerprint,
       payload,processing_status,error_detail,correlation_id,causation_id,traceparent,received_at,processed_at)
     VALUES (#{resultId},#{processId},#{orderId},#{resultType},#{outcome},#{fingerprint},#{payload},#{status},

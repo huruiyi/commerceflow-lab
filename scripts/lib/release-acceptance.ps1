@@ -52,7 +52,7 @@ function Invoke-IsolatedAcceptance {
   $directory = New-Item -ItemType Directory -Path (Join-Path ([IO.Path]::GetTempPath()) $project)
   $baseFile = Join-Path $acceptanceRoot 'compose.yaml'
   $freshFile = Join-Path $acceptanceRoot 'infrastructure/compose/compose.fulfillment-fresh.yaml'
-  $files = @($baseFile, $freshFile)
+  $files = @($baseFile, $freshFile, (Join-Path $acceptanceRoot 'infrastructure/compose/compose.reference-data.yaml'))
   if ($SimulatorAdmin) {
     $files += Join-Path $acceptanceRoot 'infrastructure/compose/compose.simulator-admin-verification.yaml'
   }
@@ -165,13 +165,6 @@ function Invoke-IsolatedAcceptance {
         $yaml.Add("    image: $image")
         $yaml.Add('    pull_policy: never')
       }
-      $definition = $base.services[$service]
-      if ($definition.image -like 'mysql:*' -and
-          @($definition.volumes | Where-Object target -eq '/var/lib/mysql').Count) {
-        # MySQL instances share the host AIO quota with the daily stack.
-        $command = @($definition.command | Where-Object { $_ }) + '--innodb-use-native-aio=OFF'
-        $yaml.Add("    command: $(ConvertTo-Json -InputObject $command -Compress)")
-      }
       switch ($service) {
         'commerce-service' {
           if ($BrokerProfiles -contains 'rocketmq') {
@@ -241,9 +234,6 @@ function Invoke-IsolatedAcceptance {
     if ($CleanupOnSuccess) { $oneOffOptions += '--rm' }
     foreach ($service in 'catalog-demo-init', 'payment-demo-init') {
       Invoke-AcceptanceCompose run @oneOffOptions $service
-    }
-    foreach ($scope in '--readers', '--task-fixture') {
-      Invoke-AcceptanceCompose run @oneOffOptions verification-db-access $scope
     }
 
     Assert-AcceptanceHealth $target

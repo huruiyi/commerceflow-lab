@@ -2,13 +2,13 @@
 
 > 实施状态（2026-11-16）：M3.3 第四批已完成独立 catalog-service/catalog-db 的一次性迁移和单一所有权
 > 切换。commerce 只保留签名 HTTP 薄代理与 review 组合；没有 LOCAL/COMPARE、双写或数据库回退。
-> 当前仍使用 MySQL，PostgreSQL 继续冻结到 M3 清单全部服务独立验收之后。
+> 当前仍使用 原数据库，PostgreSQL 继续冻结到 M3 清单全部服务独立验收之后。
 
 ## 1. 目标边界
 
 catalog-service 最终只负责商品主数据、标准售价、展示图片、多语言资料、上下架状态和目录缓存。切换完成后：
 
-- catalog-service 与独立 MySQL Schema 是商品目录的唯一运行实现；
+- catalog-service 与独立原数据库Schema 是商品目录的唯一运行实现；
 - commerce 不访问 catalog 表，也不保留本地 Mapper、双读或数据库回退；
 - cart、ordering 等调用方只消费稳定的商品快照或版本化 API，不远程调用 Mapper 语义；
 - inventory 独占可售、预占、已售数量和库存流水；
@@ -55,7 +55,7 @@ catalog-service 最终只负责商品主数据、标准售价、展示图片、�
 
 ### 4.3 单一所有权切换（已完成）
 
-- 已创建独立 catalog-service 和独立 MySQL Schema；
+- 已创建独立 catalog-service 和独立原数据库Schema；
 - 一次性迁移以 V29、记录数和内容指纹为门禁，并以 COMPLETE 标记禁止陈旧源数据再次覆盖；
 - commerce 已删除 catalog Mapper、XML、Outbox 写入和过渡投影，全部调用改为签名 HTTP；
 - 已验证中英文目录、停机 503、核心健康隔离、恢复和 commerce→catalog 跨进程 Trace；
@@ -70,9 +70,9 @@ catalog-service 最终只负责商品主数据、标准售价、展示图片、�
 ## 6. 商品全文搜索与索引重建验收
 
 目录库 V4 增加搜索文档和代次状态。目录服务继续持有商品资料和价格，库存余额由库存服务维护。
-MySQL InnoDB ngram 索引提供中文相关性。空白分词后的必含词逐一核对，价格筛选包含两端，
+原数据库原数据库配置 ngram 索引提供中文相关性。空白分词后的必含词逐一核对，价格筛选包含两端，
 价格和评分可分别排序，同分时按商品编号确定分页顺序。商城传入当前允许公开的店铺范围，
-目录同时核验商品当前状态，详情和结算继续使用权威价格。 [MySQL ngram 说明](https://dev.mysql.com/doc/refman/8.4/en/fulltext-search-ngram.html)
+目录同时核验商品当前状态，详情和结算继续使用权威价格。
 
 增量处理独立记录 Outbox 的 `search_indexed_at`，库存投递继续使用原来的状态和重试字段。
 消费者根据变化的商品编号重读当前目录和译文，在同一事务刷新文档并确认对应事件。
@@ -101,8 +101,8 @@ Chromium 在日常门户复核搜索、筛选和商品详情，Prometheus 九个
 
 ## 7. Elasticsearch 商品搜索
 
-目录 MySQL 继续持有商品、译文和价格。V5 为 Elasticsearch 单独记录 Outbox 消费时间和索引代次，
-库存投递和 MySQL 搜索投影的确认字段各自独立。处理事件时按商品编号读取当前版本。
+目录原数据库继续持有商品、译文和价格。V5 为 Elasticsearch 单独记录 Outbox 消费时间和索引代次，
+库存投递和原数据库搜索投影的确认字段各自独立。处理事件时按商品编号读取当前版本。
 索引代次重建并刷新后再启用。中文和英文分别索引，缺少译文时用商品原文，搜索词按字面匹配。
 店铺范围由商城交给目录，按价格、评分或相关性排序时，同分按商品编号稳定排列。
 
@@ -110,16 +110,16 @@ Chromium 在日常门户复核搜索、筛选和商品详情，Prometheus 九个
 Elasticsearch 9.5.6 单节点，节点仅在 Compose 网络提供服务，索引用独立数据卷。
 目录参数为 `COMMERCEFLOW_CATALOG_SEARCH_ELASTICSEARCH_ENABLED` 和
 `COMMERCEFLOW_CATALOG_SEARCH_ELASTICSEARCH_URL`。索引缺失、同步落后、查询失败、结果版本不符
-或请求超出 Elasticsearch 的 10,000 条结果窗口时，查询回退到 MySQL 搜索投影。
+或请求超出 Elasticsearch 的 10,000 条结果窗口时，查询回退到原数据库搜索投影。
 [Elasticsearch 分页说明](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/paginate-search-results)
 
-管理员沿用 `POST /api/admin/catalog-search/rebuild`，先重建 MySQL 投影，随后同步新一代 Elasticsearch
-索引。 `GET /api/admin/catalog-search` 展示 MySQL 投影状态。目录 Prometheus 指标
+管理员沿用 `POST /api/admin/catalog-search/rebuild`，先重建原数据库投影，随后同步新一代 Elasticsearch
+索引。 `GET /api/admin/catalog-search` 展示原数据库投影状态。目录 Prometheus 指标
 `commerceflow_catalog_search_elasticsearch_reads_total` 和
 `commerceflow_catalog_search_elasticsearch_fallbacks_total` 用于核对查询命中和回退。
 
 2026-11-23 隔离空卷验证了首轮建索引、改价、语言切换、下架、评分排序、节点停机回退和重启追赶。
-节点恢复后管理员触发了新代次重建。日常仍使用 MySQL 搜索投影。
+节点恢复后管理员触发了新代次重建。日常仍使用原数据库搜索投影。
 [门户分页与商品搜索隔离验收](../IMPLEMENTED.md#240-2026-11-23-门户分页与商品搜索隔离验收)
 旧卷从 V4 升级至 V5 后，停节点、关闭开关和换回原目录镜像均返回相同的两件商品。
 [目录旧卷升级与搜索回退](../IMPLEMENTED.md#241-2026-11-23-目录旧卷升级与搜索回退)

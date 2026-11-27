@@ -1,237 +1,31 @@
-# Base configuration for explicit legacy rehearsals and the daily PostgreSQL overlay.
 name: fairy-commerceflow
+
+x-business-postgresql: &business-postgresql
+  image: postgres:17.11-alpine
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d $$POSTGRES_DB"]
+    interval: 5s
+    timeout: 3s
+    retries: 30
+
+
 services:
-  commerce-db:
-    container_name: fairy-commerceflow-commerce-db
-    image: mysql:8.4
-    environment:
-      MYSQL_DATABASE: commerceflow
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
-    volumes:
-      - commerce-db-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 20s
-    restart: unless-stopped
-
-  commerce-schema-migrator:
-    container_name: fairy-commerceflow-commerce-schema-migrator
-    image: redgate/flyway:12.4.0
-    command:
-      - -url=jdbc:mysql://commerce-db:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      - -user=root
-      - -password=${MYSQL_ROOT_PASSWORD:-local-root-password}
-      - -connectRetries=60
-      - migrate
-    volumes:
-      - ./services/commerce-service/src/main/resources/db/migration:/flyway/sql:ro
-    depends_on:
-      commerce-db:
-        condition: service_healthy
-    restart: "no"
-
-  commerce-source-access-freezer:
-    container_name: fairy-commerceflow-commerce-source-access-freezer
-    image: mysql:8.4
-    entrypoint: ["sh", "/access/freeze-source-access.sh"]
-    environment:
-      SOURCE_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
-      RUNTIME_DATABASE_USERNAME: ${COMMERCE_RUNTIME_DATABASE_USERNAME:-commerce_runtime}
-      RUNTIME_DATABASE_PASSWORD: ${COMMERCE_RUNTIME_DATABASE_PASSWORD:-commerce-runtime-password}
-      FULFILLMENT_SOURCE_OWNER: FULFILLMENT
-    volumes:
-      - ./infrastructure/commerce/freeze-source-access.sh:/access/freeze-source-access.sh:ro
-    depends_on:
-      commerce-schema-migrator:
-        condition: service_completed_successfully
-    restart: "no"
-
-  verification-db-access:
-    container_name: fairy-commerceflow-verification-db-access
-    image: mysql:8.4
-    profiles: ["verification-access"]
-    entrypoint: ["sh", "/access/verification-db-access.sh"]
-    command: ["--readers"]
-    environment:
-      COMMERCE_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
-      ORDER_ROOT_PASSWORD: ${ORDER_MYSQL_ROOT_PASSWORD:-local-order-root-password}
-      PAYMENT_ROOT_PASSWORD: ${PAYMENT_ORCHESTRATION_MYSQL_ROOT_PASSWORD:-local-payments-root-password}
-      COMMERCE_AUDIT_PASSWORD: ${COMMERCE_AUDIT_PASSWORD:-local-commerce-audit}
-      COMMERCE_LEGACY_AUDIT_PASSWORD: ${COMMERCE_LEGACY_AUDIT_PASSWORD:-local-legacy-audit}
-      COMMERCE_TASK_FIXTURE_PASSWORD: ${COMMERCE_TASK_FIXTURE_PASSWORD:-local-task-fixture}
-      COMMERCE_RECOVERY_FIXTURE_PASSWORD: ${COMMERCE_RECOVERY_FIXTURE_PASSWORD:-local-recovery-fixture}
-      COMMERCE_LEGACY_LOCK_PASSWORD: ${COMMERCE_LEGACY_LOCK_PASSWORD:-local-legacy-lock}
-      ORDER_AUDIT_PASSWORD: ${ORDER_AUDIT_PASSWORD:-local-order-audit}
-      PAYMENT_AUDIT_PASSWORD: ${PAYMENT_AUDIT_PASSWORD:-local-payment-audit}
-      VERIFICATION_PROJECT: ${COMPOSE_PROJECT_NAME}
-    volumes:
-      - ./infrastructure/commerce/verification-db-access.sh:/access/verification-db-access.sh:ro
-    restart: "no"
-
-  notification-db:
-    container_name: fairy-commerceflow-notification-db
-    profiles: [notification-migration]
-    image: mysql:8.4
-    environment:
-      MYSQL_DATABASE: notification
-      MYSQL_USER: ${NOTIFICATION_DATABASE_USERNAME:-notification}
-      MYSQL_PASSWORD: ${NOTIFICATION_DATABASE_PASSWORD:-notification-password}
-      MYSQL_ROOT_PASSWORD: ${NOTIFICATION_MYSQL_ROOT_PASSWORD:-local-notification-root-password}
-    volumes:
-      - notification-db-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 20s
-    restart: unless-stopped
-
-  catalog-db:
-    container_name: fairy-commerceflow-catalog-db
-    image: mysql:8.4
-    environment:
-      MYSQL_DATABASE: catalog
-      MYSQL_USER: ${CATALOG_DATABASE_USERNAME:-catalog}
-      MYSQL_PASSWORD: ${CATALOG_DATABASE_PASSWORD:-catalog-password}
-      MYSQL_ROOT_PASSWORD: ${CATALOG_MYSQL_ROOT_PASSWORD:-local-catalog-root-password}
-    volumes:
-      - catalog-db-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 20s
-    restart: unless-stopped
-
-  inventory-db:
-    container_name: fairy-commerceflow-inventory-db
-    image: mysql:8.4
-    environment:
-      MYSQL_DATABASE: inventory
-      MYSQL_USER: ${INVENTORY_DATABASE_USERNAME:-inventory}
-      MYSQL_PASSWORD: ${INVENTORY_DATABASE_PASSWORD:-inventory-password}
-      MYSQL_ROOT_PASSWORD: ${INVENTORY_MYSQL_ROOT_PASSWORD:-local-inventory-root-password}
-    volumes:
-      - inventory-db-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 20s
-    restart: unless-stopped
-
-  order-db:
-    container_name: fairy-commerceflow-order-db
-    image: mysql:8.4
-    environment:
-      MYSQL_DATABASE: orders
-      MYSQL_USER: ${ORDER_DATABASE_USERNAME:-orders}
-      MYSQL_PASSWORD: ${ORDER_DATABASE_PASSWORD:-orders-password}
-      MYSQL_ROOT_PASSWORD: ${ORDER_MYSQL_ROOT_PASSWORD:-local-order-root-password}
-    volumes:
-      - order-db-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 20s
-    restart: unless-stopped
-
-  payment-db:
-    container_name: fairy-commerceflow-payment-db
-    image: mysql:8.4
-    environment:
-      MYSQL_DATABASE: payments
-      MYSQL_USER: ${PAYMENT_ORCHESTRATION_DATABASE_USERNAME:-payments}
-      MYSQL_PASSWORD: ${PAYMENT_ORCHESTRATION_DATABASE_PASSWORD:-payments-password}
-      MYSQL_ROOT_PASSWORD: ${PAYMENT_ORCHESTRATION_MYSQL_ROOT_PASSWORD:-local-payments-root-password}
-    volumes:
-      - payment-db-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 20s
-    restart: unless-stopped
-
-  fulfillment-db:
-    container_name: fairy-commerceflow-fulfillment-db
-    image: mysql:8.4
-    environment:
-      MYSQL_DATABASE: fulfillment
-      MYSQL_USER: ${FULFILLMENT_DATABASE_USERNAME:-fulfillment}
-      MYSQL_PASSWORD: ${FULFILLMENT_DATABASE_PASSWORD:-fulfillment-password}
-      MYSQL_ROOT_PASSWORD: ${FULFILLMENT_MYSQL_ROOT_PASSWORD:-local-fulfillment-root-password}
-    volumes:
-      - fulfillment-db-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 20s
-    restart: unless-stopped
-
-  fulfillment-shadow-access:
-    profiles: [fulfillment-shadow]
-    container_name: fairy-commerceflow-fulfillment-shadow-access
-    image: mysql:8.4
-    entrypoint: ["sh", "/access/fulfillment-shadow-access.sh"]
-    volumes:
-      - ./infrastructure/commerce/fulfillment-shadow-access.sh:/access/fulfillment-shadow-access.sh:ro
-    environment:
-      SHADOW_PROJECT: ${COMPOSE_PROJECT_NAME}
-      COMMERCE_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
-      ORDER_ROOT_PASSWORD: ${ORDER_MYSQL_ROOT_PASSWORD:-local-order-root-password}
-      FULFILLMENT_READER_PASSWORD: ${FULFILLMENT_READER_PASSWORD:-fulfillment-shadow-reader}
-    depends_on:
-      commerce-schema-migrator:
-        condition: service_completed_successfully
-      order-service:
-        condition: service_healthy
-    restart: "no"
-
-  messaging-simulator-db:
-    container_name: fairy-commerceflow-messaging-simulator-db
-    image: mysql:8.4
-    environment:
-      MYSQL_DATABASE: messaging_platform
-      MYSQL_USER: ${MESSAGING_DATABASE_USERNAME:-messaging}
-      MYSQL_PASSWORD: ${MESSAGING_DATABASE_PASSWORD:-messaging-password}
-      MYSQL_ROOT_PASSWORD: ${MESSAGING_MYSQL_ROOT_PASSWORD:-local-messaging-root-password}
-    volumes:
-      - messaging-simulator-db-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 20s
-    restart: unless-stopped
-
   messaging-simulator-service:
     container_name: fairy-commerceflow-messaging-simulator-service
     build:
       context: ./simulators/messaging-platform/service
-      args:
-        MAVEN_LEGACY_MYSQL: "true"
     environment:
-      MESSAGING_DATABASE_URL: jdbc:mysql://messaging-simulator-db:3306/messaging_platform?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=UTC
-      MESSAGING_DATABASE_USERNAME: ${MESSAGING_DATABASE_USERNAME:-messaging}
-      MESSAGING_DATABASE_PASSWORD: ${MESSAGING_DATABASE_PASSWORD:-messaging-password}
+      MESSAGING_DATABASE_URL: jdbc:postgresql://messaging-simulator-db-postgresql:5432/messaging_platform?currentSchema=messaging_platform
+      MESSAGING_DATABASE_USERNAME: messaging_runtime
+      MESSAGING_DATABASE_PASSWORD: ${MESSAGING_PG_RUNTIME_PASSWORD:-local-messaging-pg-runtime-password}
       MESSAGING_ADMIN_TOKEN: ${MESSAGING_ADMIN_TOKEN:-demo-messaging-admin-token}
       MESSAGING_SENDER_SECRET: ${MESSAGING_SENDER_SECRET:-demo-messaging-sender-secret}
       MESSAGING_FAULTS_ENABLED: "${MESSAGING_FAULTS_ENABLED:-false}"
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
     depends_on:
-      messaging-simulator-db:
+      messaging-simulator-db-postgresql:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
@@ -259,39 +53,21 @@ services:
       retries: 20
     restart: unless-stopped
 
-  warehouse-simulator-db:
-    container_name: fairy-commerceflow-warehouse-simulator-db
-    image: mysql:8.4
-    environment:
-      MYSQL_DATABASE: warehouse_platform
-      MYSQL_USER: ${WAREHOUSE_DATABASE_USERNAME:-warehouse}
-      MYSQL_PASSWORD: ${WAREHOUSE_DATABASE_PASSWORD:-warehouse-password}
-      MYSQL_ROOT_PASSWORD: ${WAREHOUSE_MYSQL_ROOT_PASSWORD:-local-warehouse-root-password}
-    volumes:
-      - warehouse-simulator-db-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 20s
-    restart: unless-stopped
-
   warehouse-simulator-service:
     container_name: fairy-commerceflow-warehouse-simulator-service
     build:
       context: ./simulators/warehouse-platform/service
-      args:
-        MAVEN_LEGACY_MYSQL: "true"
     environment:
-      WAREHOUSE_DATABASE_URL: jdbc:mysql://warehouse-simulator-db:3306/warehouse_platform?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=UTC
-      WAREHOUSE_DATABASE_USERNAME: ${WAREHOUSE_DATABASE_USERNAME:-warehouse}
-      WAREHOUSE_DATABASE_PASSWORD: ${WAREHOUSE_DATABASE_PASSWORD:-warehouse-password}
+      WAREHOUSE_DATABASE_URL: jdbc:postgresql://warehouse-simulator-db-postgresql:5432/warehouse_platform?currentSchema=warehouse_platform
+      WAREHOUSE_DATABASE_USERNAME: warehouse_runtime
+      WAREHOUSE_DATABASE_PASSWORD: ${WAREHOUSE_PG_RUNTIME_PASSWORD:-local-warehouse-pg-runtime-password}
       WAREHOUSE_RETURN_SECRET: ${WAREHOUSE_RETURN_SECRET:-demo-warehouse-return-secret}
       WAREHOUSE_ADMIN_TOKEN: ${WAREHOUSE_ADMIN_TOKEN:-demo-warehouse-admin-token}
       FULFILLMENT_WAREHOUSE_SECRET: ${FULFILLMENT_WAREHOUSE_SECRET:-demo-fulfillment-warehouse-secret}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
     depends_on:
-      warehouse-simulator-db:
+      warehouse-simulator-db-postgresql:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
@@ -324,14 +100,12 @@ services:
     container_name: fairy-commerceflow-fulfillment-service
     build:
       context: ./services/fulfillment-service
-      args:
-        MAVEN_LEGACY_MYSQL: "true"
     environment:
       FULFILLMENT_RUNTIME_MODE: EXECUTION
       FULFILLMENT_REQUIRE_PROMOTED_MODE: "true"
-      FULFILLMENT_DATABASE_URL: jdbc:mysql://fulfillment-db:3306/fulfillment?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
-      FULFILLMENT_DATABASE_USERNAME: ${FULFILLMENT_DATABASE_USERNAME:-fulfillment}
-      FULFILLMENT_DATABASE_PASSWORD: ${FULFILLMENT_DATABASE_PASSWORD:-fulfillment-password}
+      FULFILLMENT_DATABASE_URL: jdbc:postgresql://fulfillment-db-postgresql:5432/fulfillment
+      FULFILLMENT_DATABASE_USERNAME: fulfillment_runtime
+      FULFILLMENT_DATABASE_PASSWORD: ${FULFILLMENT_PG_RUNTIME_PASSWORD:-local-fulfillment-pg-runtime-password}
       FULFILLMENT_INTERNAL_SECRET: ${FULFILLMENT_INTERNAL_SECRET:-demo-fulfillment-internal-secret}
       FULFILLMENT_RECOVERY_ENABLED: "true"
       FULFILLMENT_ADMIN_SECRET: ${FULFILLMENT_ADMIN_SECRET:-demo-fulfillment-admin-secret}
@@ -343,18 +117,18 @@ services:
       FULFILLMENT_WAREHOUSE_SECRET: ${FULFILLMENT_WAREHOUSE_SECRET:-demo-fulfillment-warehouse-secret}
       FULFILLMENT_INVENTORY_ENDPOINT: http://inventory-service:8080
       FULFILLMENT_INVENTORY_SECRET: ${FULFILLMENT_INVENTORY_SECRET:-demo-fulfillment-inventory-secret}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
     ports:
       - "127.0.0.1:18091:8080"
     depends_on:
-      fulfillment-db:
-        condition: service_healthy
       warehouse-simulator-service:
         condition: service_healthy
-      commerce-source-access-freezer:
-        condition: service_completed_successfully
       order-service:
         condition: service_healthy
       inventory-service:
+        condition: service_healthy
+      fulfillment-db-postgresql:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health/readiness"]
@@ -609,27 +383,6 @@ services:
       tempo: {condition: service_started}
     restart: unless-stopped
 
-  payment-simulator-db:
-    container_name: fairy-commerceflow-payment-simulator-db
-    image: mysql:8.4
-    command: ["--log-bin-trust-function-creators=1"]
-    environment:
-      MYSQL_DATABASE: payment_platform
-      MYSQL_USER: ${PAYMENT_DATABASE_USERNAME:-payment}
-      MYSQL_PASSWORD: ${PAYMENT_DATABASE_PASSWORD:-payment-password}
-      MYSQL_ROOT_PASSWORD: ${PAYMENT_MYSQL_ROOT_PASSWORD:-local-payment-root-password}
-    ports:
-      - "13307:3306"
-    volumes:
-      - payment-simulator-db-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 20s
-    restart: unless-stopped
-
   payment-simulator-redis:
     container_name: fairy-commerceflow-payment-simulator-redis
     image: redis:7.4-alpine
@@ -647,12 +400,10 @@ services:
     container_name: fairy-commerceflow-payment-simulator-service
     build:
       context: ./simulators/payment-platform/service
-      args:
-        MAVEN_LEGACY_MYSQL: "true"
     environment:
-      PAYMENT_DATABASE_URL: jdbc:mysql://payment-simulator-db:3306/payment_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      PAYMENT_DATABASE_USERNAME: ${PAYMENT_DATABASE_USERNAME:-payment}
-      PAYMENT_DATABASE_PASSWORD: ${PAYMENT_DATABASE_PASSWORD:-payment-password}
+      PAYMENT_DATABASE_URL: jdbc:postgresql://payment-simulator-db-postgresql:5432/payment_platform
+      PAYMENT_DATABASE_USERNAME: payment_simulator_runtime
+      PAYMENT_DATABASE_PASSWORD: ${PAYMENT_SIMULATOR_PG_RUNTIME_PASSWORD:-local-payment-simulator-pg-runtime-password}
       PAYMENT_CREDENTIAL_MASTER_KEY: ${PAYMENT_CREDENTIAL_MASTER_KEY:-bG9jYWwtZGVtby1rZXktMTIzNDU2Nzg5MC1hYmNkZWY=}
       PAYMENT_CHECKOUT_BASE_URL: http://localhost:14201
       REDIS_HOST: payment-simulator-redis
@@ -666,12 +417,14 @@ services:
       TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
       TRACING_OTLP_ENDPOINT: ${TRACING_OTLP_ENDPOINT:-http://tempo:4318/v1/traces}
       TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1.0}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
     ports:
       - "18082:8080"
     depends_on:
-      payment-simulator-db:
-        condition: service_healthy
       payment-simulator-redis:
+        condition: service_healthy
+      payment-simulator-db-postgresql:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
@@ -700,36 +453,14 @@ services:
       start_period: 5s
     restart: unless-stopped
 
-  logistics-simulator-db:
-    container_name: fairy-commerceflow-logistics-simulator-db
-    image: mysql:8.4
-    environment:
-      MYSQL_DATABASE: logistics_platform
-      MYSQL_USER: ${LOGISTICS_DATABASE_USERNAME:-logistics}
-      MYSQL_PASSWORD: ${LOGISTICS_DATABASE_PASSWORD:-logistics-password}
-      MYSQL_ROOT_PASSWORD: ${LOGISTICS_MYSQL_ROOT_PASSWORD:-local-logistics-root-password}
-    ports:
-      - "13308:3306"
-    volumes:
-      - logistics-simulator-db-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 20s
-    restart: unless-stopped
-
   logistics-simulator-service:
     container_name: fairy-commerceflow-logistics-simulator-service
     build:
       context: ./simulators/logistics-platform/service
-      args:
-        MAVEN_LEGACY_MYSQL: "true"
     environment:
-      LOGISTICS_DATABASE_URL: jdbc:mysql://logistics-simulator-db:3306/logistics_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      LOGISTICS_DATABASE_USERNAME: ${LOGISTICS_DATABASE_USERNAME:-logistics}
-      LOGISTICS_DATABASE_PASSWORD: ${LOGISTICS_DATABASE_PASSWORD:-logistics-password}
+      LOGISTICS_DATABASE_URL: jdbc:postgresql://logistics-simulator-db-postgresql:5432/logistics_platform?currentSchema=logistics_platform
+      LOGISTICS_DATABASE_USERNAME: logistics_runtime
+      LOGISTICS_DATABASE_PASSWORD: ${LOGISTICS_PG_RUNTIME_PASSWORD:-local-logistics-pg-runtime-password}
       LOGISTICS_ADMIN_TOKEN: ${LOGISTICS_ADMIN_TOKEN-demo-logistics-admin-token}
       LOGISTICS_APP_ID: ${LOGISTICS_APP_ID:-commerceflow-storefront}
       LOGISTICS_REQUEST_SECRET: ${LOGISTICS_REQUEST_SECRET:-demo-logistics-request-secret}
@@ -752,10 +483,12 @@ services:
       TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
       TRACING_OTLP_ENDPOINT: ${TRACING_OTLP_ENDPOINT:-http://tempo:4318/v1/traces}
       TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1.0}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
     ports:
       - "18083:8080"
     depends_on:
-      logistics-simulator-db:
+      logistics-simulator-db-postgresql:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
@@ -788,8 +521,6 @@ services:
     container_name: fairy-commerceflow-commerce-service
     build:
       context: ./services/commerce-service
-      args:
-        MAVEN_LEGACY_MYSQL: "true"
     volumes:
       - notification-maintenance:/gate:ro
     environment:
@@ -799,9 +530,9 @@ services:
       FULFILLMENT_ADMIN_SECRET: ${FULFILLMENT_ADMIN_SECRET:-demo-fulfillment-admin-secret}
       FULFILLMENT_LOGISTICS_BRIDGE_ENABLED: "true"
       FULFILLMENT_LOGISTICS_SECRET: ${FULFILLMENT_LOGISTICS_SECRET:-demo-fulfillment-logistics-secret}
-      DATABASE_URL: jdbc:mysql://commerce-db:3306/commerceflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&sessionVariables=innodb_lock_wait_timeout=${DATABASE_LOCK_WAIT_TIMEOUT_SECONDS:-5}
-      DATABASE_USERNAME: ${COMMERCE_RUNTIME_DATABASE_USERNAME:-commerce_runtime}
-      DATABASE_PASSWORD: ${COMMERCE_RUNTIME_DATABASE_PASSWORD:-commerce-runtime-password}
+      DATABASE_URL: jdbc:postgresql://commerce-db-postgresql:5432/commerceflow?currentSchema=commerceflow
+      DATABASE_USERNAME: commerce_runtime
+      DATABASE_PASSWORD: ${COMMERCE_POSTGRES_RUNTIME_PASSWORD:-local-commerce-postgres-runtime-password}
       SPRING_FLYWAY_ENABLED: "false"
       REMEMBER_ME_KEY: ${REMEMBER_ME_KEY:-commerceflow-demo-remember-me-key-change-in-production}
       REDIS_HOST: commerce-redis
@@ -888,13 +619,16 @@ services:
       TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
       TRACING_OTLP_ENDPOINT: ${TRACING_OTLP_ENDPOINT:-http://tempo:4318/v1/traces}
       TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1.0}
+      SPRING_PROFILES_ACTIVE: postgresql
+      INVOICE_ENABLED: "true"
+      INVOICE_BASE_URL: http://invoice-simulator-service:8080
+      INVOICE_REQUEST_SECRET: ${INVOICE_REQUEST_SECRET:-local-invoice-request-secret-for-testing}
+      INVOICE_CALLBACK_SECRET: ${INVOICE_CALLBACK_SECRET:-local-invoice-callback-secret-for-testing}
     ports:
       - "18081:8080"
     depends_on:
       fulfillment-service:
         condition: service_healthy
-      commerce-source-access-freezer:
-        condition: service_completed_successfully
       commerce-redis:
         condition: service_healthy
       payment-simulator-service:
@@ -912,6 +646,10 @@ services:
       order-service:
         condition: service_healthy
       payment-orchestration-service:
+        condition: service_healthy
+      commerce-db-postgresql:
+        condition: service_healthy
+      invoice-simulator-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
@@ -1006,34 +744,14 @@ services:
     volumes:
       - notification-maintenance:/gate
 
-  notification-data-migrator:
-    container_name: fairy-commerceflow-notification-data-migrator
-    image: mysql:8.4
-    profiles: ["notification-migration"]
-    entrypoint: ["sh", "/migration/migrate-notification-data.sh"]
-    command: ["--check"]
-    environment:
-      SOURCE_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
-      TARGET_ROOT_PASSWORD: ${NOTIFICATION_MYSQL_ROOT_PASSWORD:-local-notification-root-password}
-    volumes:
-      - ./infrastructure/notification:/migration:ro
-    depends_on:
-      commerce-db:
-        condition: service_healthy
-      notification-db:
-        condition: service_healthy
-    restart: "no"
-
   catalog-service:
     container_name: fairy-commerceflow-catalog-service
     build:
       context: ./services/catalog-service
-      args:
-        MAVEN_LEGACY_MYSQL: "true"
     environment:
-      DATABASE_URL: jdbc:mysql://catalog-db:3306/catalog?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      DATABASE_USERNAME: ${CATALOG_DATABASE_USERNAME:-catalog}
-      DATABASE_PASSWORD: ${CATALOG_DATABASE_PASSWORD:-catalog-password}
+      DATABASE_URL: jdbc:postgresql://catalog-db-postgresql:5432/catalog?currentSchema=catalog
+      DATABASE_USERNAME: catalog_runtime
+      DATABASE_PASSWORD: ${CATALOG_PG_RUNTIME_PASSWORD:-local-catalog-pg-runtime-password}
       CATALOG_INTERNAL_SECRET: ${CATALOG_INTERNAL_SECRET:-demo-catalog-internal-secret}
       COMMERCE_SERVICE_INTERNAL_URL: http://commerce-service:8080
       INVENTORY_SERVICE_INTERNAL_URL: http://inventory-service:8080
@@ -1042,10 +760,12 @@ services:
       TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
       TRACING_OTLP_ENDPOINT: ${TRACING_OTLP_ENDPOINT:-http://tempo:4318/v1/traces}
       TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1.0}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
     ports:
       - "18087:8080"
     depends_on:
-      catalog-db:
+      catalog-db-postgresql:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
@@ -1055,55 +775,14 @@ services:
       start_period: 20s
     restart: unless-stopped
 
-  catalog-data-migrator:
-    container_name: fairy-commerceflow-catalog-data-migrator
-    image: mysql:8.4
-    profiles: ["catalog-migration"]
-    entrypoint: ["sh", "/migration/migrate-catalog-data.sh"]
-    environment:
-      SOURCE_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
-      TARGET_ROOT_PASSWORD: ${CATALOG_MYSQL_ROOT_PASSWORD:-local-catalog-root-password}
-    volumes:
-      - ./infrastructure/catalog/migrate-catalog-data.sh:/migration/migrate-catalog-data.sh:ro
-    depends_on:
-      commerce-db:
-        condition: service_healthy
-      commerce-schema-migrator:
-        condition: service_completed_successfully
-      catalog-service:
-        condition: service_healthy
-    restart: "no"
-
-  catalog-demo-init:
-    container_name: fairy-commerceflow-catalog-demo-init
-    image: mysql:8.4
-    profiles: ["demo-data"]
-    entrypoint: ["sh", "/demo/init-demo-data.sh"]
-    environment:
-      CATALOG_USERNAME: ${CATALOG_DATABASE_USERNAME:-catalog}
-      CATALOG_PASSWORD: ${CATALOG_DATABASE_PASSWORD:-catalog-password}
-      INVENTORY_USERNAME: ${INVENTORY_DATABASE_USERNAME:-inventory}
-      INVENTORY_PASSWORD: ${INVENTORY_DATABASE_PASSWORD:-inventory-password}
-      DEMO_MERCHANT_ID: ${DEMO_MERCHANT_ID:-5}
-    volumes:
-      - ./infrastructure/demo:/demo:ro
-    depends_on:
-      catalog-service:
-        condition: service_healthy
-      inventory-service:
-        condition: service_healthy
-    restart: "no"
-
   inventory-service:
     container_name: fairy-commerceflow-inventory-service
     build:
       context: ./services/inventory-service
-      args:
-        MAVEN_LEGACY_MYSQL: "true"
     environment:
-      DATABASE_URL: jdbc:mysql://inventory-db:3306/inventory?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      DATABASE_USERNAME: ${INVENTORY_DATABASE_USERNAME:-inventory}
-      DATABASE_PASSWORD: ${INVENTORY_DATABASE_PASSWORD:-inventory-password}
+      DATABASE_URL: jdbc:postgresql://inventory-db-postgresql:5432/inventory
+      DATABASE_USERNAME: inventory_runtime
+      DATABASE_PASSWORD: ${INVENTORY_PG_RUNTIME_PASSWORD:-local-inventory-pg-runtime-password}
       INVENTORY_ACCEPTING_TRAFFIC: ${INVENTORY_ACCEPTING_TRAFFIC:-true}
       INVENTORY_RESULT_DELAY_LAB: ${INVENTORY_RESULT_DELAY_LAB:-0s}
       KAFKA_BOOTSTRAP_SERVERS: kafka-broker:9092
@@ -1114,12 +793,14 @@ services:
       TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
       TRACING_OTLP_ENDPOINT: ${TRACING_OTLP_ENDPOINT:-http://tempo:4318/v1/traces}
       TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1.0}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
     ports:
       - "18088:8080"
     depends_on:
-      inventory-db:
-        condition: service_healthy
       kafka-broker:
+        condition: service_healthy
+      inventory-db-postgresql:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
@@ -1133,13 +814,11 @@ services:
     container_name: fairy-commerceflow-order-service
     build:
       context: ./services/order-service
-      args:
-        MAVEN_LEGACY_MYSQL: "true"
     environment:
       FULFILLMENT_ORDER_SECRET: ${FULFILLMENT_ORDER_SECRET:-demo-fulfillment-order-secret}
-      DATABASE_URL: jdbc:mysql://order-db:3306/orders?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      DATABASE_USERNAME: ${ORDER_DATABASE_USERNAME:-orders}
-      DATABASE_PASSWORD: ${ORDER_DATABASE_PASSWORD:-orders-password}
+      DATABASE_URL: jdbc:postgresql://order-db-postgresql:5432/orders
+      DATABASE_USERNAME: order_runtime
+      DATABASE_PASSWORD: ${ORDER_PG_RUNTIME_PASSWORD:-local-order-pg-runtime-password}
       ORDER_ACCEPTING_TRAFFIC: ${ORDER_ACCEPTING_TRAFFIC:-true}
       ORDER_SHADOW_ENABLED: "false"
       ORDER_INTERNAL_SECRET: ${ORDER_INTERNAL_SECRET:-demo-order-internal-secret}
@@ -1147,10 +826,12 @@ services:
       TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
       TRACING_OTLP_ENDPOINT: ${TRACING_OTLP_ENDPOINT:-http://tempo:4318/v1/traces}
       TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1.0}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
     ports:
       - "18089:8080"
     depends_on:
-      order-db:
+      order-db-postgresql:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
@@ -1164,15 +845,13 @@ services:
     container_name: fairy-commerceflow-payment-orchestration-service
     build:
       context: ./services/payment-orchestration-service
-      args:
-        MAVEN_LEGACY_MYSQL: "true"
     volumes:
       - notification-maintenance:/gate:ro
     environment:
       COMMERCEFLOW_OFFSITE_DISPATCH_PAUSE_FILE: /gate/offsite.paused
-      DATABASE_URL: jdbc:mysql://payment-db:3306/payments?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      DATABASE_USERNAME: ${PAYMENT_ORCHESTRATION_DATABASE_USERNAME:-payments}
-      DATABASE_PASSWORD: ${PAYMENT_ORCHESTRATION_DATABASE_PASSWORD:-payments-password}
+      DATABASE_URL: jdbc:postgresql://payment-db-postgresql:5432/payments
+      DATABASE_USERNAME: payment_orchestration_runtime
+      DATABASE_PASSWORD: ${PAYMENT_ORCHESTRATION_PG_RUNTIME_PASSWORD:-local-payment-orchestration-pg-runtime-password}
       PAYMENT_ACCEPTING_TRAFFIC: ${PAYMENT_ACCEPTING_TRAFFIC:-true}
       PAYMENT_EFFECTS_ENABLED: ${PAYMENT_EFFECTS_ENABLED:-true}
       COMMERCEFLOW_OFFSITE_SECRET: ${OFFSITE_PAYMENT_SECRET:-demo-offsite-payment-secret}
@@ -1188,16 +867,18 @@ services:
       TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
       TRACING_OTLP_ENDPOINT: ${TRACING_OTLP_ENDPOINT:-http://tempo:4318/v1/traces}
       TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1.0}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
     ports:
       - "18090:8080"
     depends_on:
-      payment-db:
-        condition: service_healthy
       payment-simulator-service:
         condition: service_healthy
       order-service:
         condition: service_healthy
       inventory-service:
+        condition: service_healthy
+      payment-db-postgresql:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
@@ -1206,57 +887,6 @@ services:
       retries: 30
       start_period: 20s
     restart: unless-stopped
-
-  payment-demo-init:
-    image: mysql:8.4
-    profiles: ["demo-data"]
-    entrypoint:
-      - sh
-      - -ec
-      - 'MYSQL_PWD="$$PAYMENT_PASSWORD" exec mysql -h payment-db -u "$$PAYMENT_USERNAME" --default-character-set=utf8mb4 payments < /demo/init-payment.sql'
-    environment:
-      PAYMENT_USERNAME: ${PAYMENT_ORCHESTRATION_DATABASE_USERNAME:-payments}
-      PAYMENT_PASSWORD: ${PAYMENT_ORCHESTRATION_DATABASE_PASSWORD:-payments-password}
-    volumes:
-      - ./infrastructure/demo/init-payment.sql:/demo/init-payment.sql:ro
-    depends_on:
-      payment-orchestration-service:
-        condition: service_healthy
-    restart: "no"
-
-  inventory-data-migrator:
-    container_name: fairy-commerceflow-inventory-data-migrator
-    image: mysql:8.4
-    profiles: ["inventory-migration"]
-    entrypoint: ["sh", "/migration/migrate-inventory-data.sh"]
-    environment:
-      SOURCE_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
-      TARGET_ROOT_PASSWORD: ${INVENTORY_MYSQL_ROOT_PASSWORD:-local-inventory-root-password}
-    volumes:
-      - ./infrastructure/inventory/migrate-inventory-data.sh:/migration/migrate-inventory-data.sh:ro
-    depends_on:
-      commerce-db:
-        condition: service_healthy
-      inventory-db:
-        condition: service_healthy
-    restart: "no"
-
-  legacy-shadow-access-revoker:
-    container_name: fairy-commerceflow-legacy-shadow-access-revoker
-    image: mysql:8.4
-    profiles: ["migration-access"]
-    entrypoint: ["sh", "/access/revoke-shadow-access.sh"]
-    environment:
-      COMMERCE_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
-      ORDER_ROOT_PASSWORD: ${ORDER_MYSQL_ROOT_PASSWORD:-local-order-root-password}
-    volumes:
-      - ./infrastructure/commerce/revoke-shadow-access.sh:/access/revoke-shadow-access.sh:ro
-    depends_on:
-      commerce-db:
-        condition: service_healthy
-      order-db:
-        condition: service_healthy
-    restart: "no"
 
   commerce-portal-angular:
     container_name: fairy-commerceflow-commerce-portal-angular
@@ -1275,25 +905,148 @@ services:
       start_period: 5s
     restart: unless-stopped
 
+  commerce-db-postgresql:
+    <<: *business-postgresql
+    container_name: fairy-commerceflow-commerce-db-postgresql
+    environment:
+      POSTGRES_DB: commerceflow
+      POSTGRES_PASSWORD: ${COMMERCE_POSTGRES_ADMIN_PASSWORD:-local-commerce-postgres-admin-password}
+    volumes:
+      - commerce-postgresql-data:/var/lib/postgresql/data
+
+  catalog-db-postgresql:
+    <<: *business-postgresql
+    container_name: fairy-commerceflow-catalog-db-postgresql
+    environment:
+      POSTGRES_DB: catalog
+      POSTGRES_PASSWORD: ${CATALOG_PG_ADMIN_PASSWORD:-local-catalog-pg-admin-password}
+    volumes:
+      - catalog-postgresql-data:/var/lib/postgresql/data
+
+  order-db-postgresql:
+    <<: *business-postgresql
+    container_name: fairy-commerceflow-order-db-postgresql
+    environment:
+      POSTGRES_DB: orders
+      POSTGRES_PASSWORD: ${ORDER_PG_ADMIN_PASSWORD:-local-order-pg-admin-password}
+    volumes:
+      - order-postgresql-data:/var/lib/postgresql/data
+
+  inventory-db-postgresql:
+    <<: *business-postgresql
+    container_name: fairy-commerceflow-inventory-db-postgresql
+    environment:
+      POSTGRES_DB: inventory
+      POSTGRES_PASSWORD: ${INVENTORY_PG_ADMIN_PASSWORD:-local-inventory-pg-admin-password}
+    volumes:
+      - inventory-postgresql-data:/var/lib/postgresql/data
+
+  fulfillment-db-postgresql:
+    <<: *business-postgresql
+    container_name: fairy-commerceflow-fulfillment-db-postgresql
+    environment:
+      POSTGRES_DB: fulfillment
+      POSTGRES_PASSWORD: ${FULFILLMENT_PG_ADMIN_PASSWORD:-local-fulfillment-pg-admin-password}
+    volumes:
+      - fulfillment-postgresql-data:/var/lib/postgresql/data
+
+  payment-db-postgresql:
+    <<: *business-postgresql
+    container_name: fairy-commerceflow-payment-db-postgresql
+    environment:
+      POSTGRES_DB: payments
+      POSTGRES_PASSWORD: ${PAYMENT_ORCHESTRATION_PG_ADMIN_PASSWORD:-local-payment-orchestration-pg-admin-password}
+    volumes:
+      - payment-postgresql-data:/var/lib/postgresql/data
+
+  payment-simulator-db-postgresql:
+    <<: *business-postgresql
+    container_name: fairy-commerceflow-payment-simulator-db-postgresql
+    environment:
+      POSTGRES_DB: payment_platform
+      POSTGRES_PASSWORD: ${PAYMENT_SIMULATOR_PG_ADMIN_PASSWORD:-local-payment-simulator-pg-admin-password}
+    volumes:
+      - payment-simulator-postgresql-data:/var/lib/postgresql/data
+
+  warehouse-simulator-db-postgresql:
+    <<: *business-postgresql
+    container_name: fairy-commerceflow-warehouse-simulator-db-postgresql
+    environment:
+      POSTGRES_DB: warehouse_platform
+      POSTGRES_PASSWORD: ${WAREHOUSE_PG_ADMIN_PASSWORD:-local-warehouse-pg-admin-password}
+    volumes:
+      - warehouse-postgresql-data:/var/lib/postgresql/data
+
+  logistics-simulator-db-postgresql:
+    <<: *business-postgresql
+    container_name: fairy-commerceflow-logistics-simulator-db-postgresql
+    environment:
+      POSTGRES_DB: logistics_platform
+      POSTGRES_PASSWORD: ${LOGISTICS_PG_ADMIN_PASSWORD:-local-logistics-pg-admin-password}
+    volumes:
+      - logistics-postgresql-data:/var/lib/postgresql/data
+
+  invoice-db-postgresql:
+    <<: *business-postgresql
+    container_name: fairy-commerceflow-invoice-db-postgresql
+    environment:
+      POSTGRES_DB: invoice_platform
+      POSTGRES_PASSWORD: ${INVOICE_PG_ADMIN_PASSWORD:-local-invoice-pg-admin-password}
+    volumes:
+      - invoice-postgresql-data:/var/lib/postgresql/data
+
+  invoice-simulator-service:
+    container_name: fairy-commerceflow-invoice-simulator-service
+    build:
+      context: ./simulators/invoice-platform/service
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://invoice-db-postgresql:5432/invoice_platform?currentSchema=invoice_platform
+      SPRING_DATASOURCE_USERNAME: invoice_runtime
+      SPRING_DATASOURCE_PASSWORD: ${INVOICE_PG_RUNTIME_PASSWORD:-local-invoice-pg-runtime-password}
+      SPRING_PROFILES_ACTIVE: postgresql
+      SPRING_FLYWAY_ENABLED: "false"
+      INVOICE_CALLBACK_URL: http://commerce-service:8080/internal/v1/invoice-receipts
+      INVOICE_REQUEST_SECRET: ${INVOICE_REQUEST_SECRET:-local-invoice-request-secret-for-testing}
+      INVOICE_CALLBACK_SECRET: ${INVOICE_CALLBACK_SECRET:-local-invoice-callback-secret-for-testing}
+    depends_on:
+      invoice-db-postgresql:
+        condition: service_healthy
+
+  messaging-simulator-db-postgresql:
+    <<: *business-postgresql
+    container_name: fairy-commerceflow-messaging-simulator-db-postgresql
+    environment:
+      POSTGRES_DB: messaging_platform
+      POSTGRES_PASSWORD: ${MESSAGING_PG_ADMIN_PASSWORD:-local-messaging-pg-admin-password}
+    volumes:
+      - messaging-postgresql-data:/var/lib/postgresql/data
+
 volumes:
-  commerce-db-data:
-  notification-db-data:
   notification-postgresql-data:
   notification-maintenance:
-  catalog-db-data:
-  inventory-db-data:
-  order-db-data:
-  payment-db-data:
-  fulfillment-db-data:
   commerce-redis-data:
-  payment-simulator-db-data:
   payment-simulator-redis-data:
-  logistics-simulator-db-data:
-  warehouse-simulator-db-data:
-  messaging-simulator-db-data:
   kafka-broker-data:
   kafka-broker-persistent-data:
   rabbitmq-broker-data:
   rocketmq-nameserver-logs:
   rocketmq-broker-store:
   rocketmq-broker-logs:
+  catalog-postgresql-data:
+  commerce-postgresql-data:
+  fulfillment-postgresql-data:
+  inventory-postgresql-data:
+  invoice-postgresql-data:
+  logistics-postgresql-data:
+  messaging-postgresql-data:
+  order-postgresql-data:
+  payment-postgresql-data:
+  payment-simulator-postgresql-data:
+  warehouse-postgresql-data:

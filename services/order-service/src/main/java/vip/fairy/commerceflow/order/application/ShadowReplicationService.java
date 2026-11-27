@@ -233,9 +233,9 @@ public class ShadowReplicationService {
   private void upsert(Connection connection, ShadowTable table, Map<String,Object> row) throws SQLException {
     String placeholders = String.join(",", java.util.Collections.nCopies(table.columns().size(), "?"));
     String updates = table.columns().stream().filter(column -> !column.equals(table.keyColumn()))
-      .map(column -> column + "=VALUES(" + column + ")").collect(java.util.stream.Collectors.joining(","));
+      .map(column -> column + "=EXCLUDED." + column).collect(java.util.stream.Collectors.joining(","));
     String sql = "INSERT INTO " + table.name() + "(" + String.join(",", table.columns()) + ") VALUES ("
-      + placeholders + ") ON DUPLICATE KEY UPDATE " + updates;
+      + placeholders + ") ON CONFLICT (" + table.keyColumn() + ") DO UPDATE SET " + updates;
     try (PreparedStatement statement = connection.prepareStatement(sql)) {
       for (int index = 0; index < table.columns().size(); index++)
         statement.setObject(index + 1, row.get(table.columns().get(index)));
@@ -255,7 +255,8 @@ public class ShadowReplicationService {
       throws SQLException {
     try (PreparedStatement statement = connection.prepareStatement(
       "INSERT INTO order_shadow_orphan_quarantine(change_sequence,table_name,row_key,operation,payload,reason) " +
-        "VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE reason=VALUES(reason),attempts=attempts+1")) {
+        "VALUES (?,?,?,?,?,?) ON CONFLICT (change_sequence) DO UPDATE SET " +
+        "reason=EXCLUDED.reason,attempts=order_shadow_orphan_quarantine.attempts+1")) {
       statement.setLong(1, change.sequence());
       statement.setString(2, change.tableName());
       statement.setString(3, change.rowKey());

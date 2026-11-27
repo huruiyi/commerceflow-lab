@@ -22,13 +22,13 @@ class MicroserviceReadinessBaselineTest {
   private static final Path MODULE_ROOT = locateModuleRoot();
   private static final Path JAVA_ROOT = MODULE_ROOT.resolve(
     "src/main/java/vip/fairy/commerceflow/commerce");
-  private static final Path MIGRATION_ROOT = MODULE_ROOT.resolve("src/main/resources/db/migration");
+  private static final Path MIGRATION_ROOT = MODULE_ROOT.resolve("src/main/resources/db/postgresql");
   private static final Pattern PACKAGE = Pattern.compile(
     "package\\s+vip\\.fairy\\.commerceflow\\.commerce\\.([a-z]+)");
   private static final Pattern IMPORT = Pattern.compile(
     "import\\s+vip\\.fairy\\.commerceflow\\.commerce\\.([a-z]+)\\.([^;]+);");
   private static final Pattern CREATE_TABLE = Pattern.compile(
-    "(?im)^\\s*CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?`?([a-z0-9_]+)`?");
+    "(?im)^\\s*CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?\"?([a-z0-9_]+)\"?");
 
   @Test
   void newTablesMustDeclareAnOwner() throws IOException {
@@ -114,17 +114,7 @@ class MicroserviceReadinessBaselineTest {
       Map.entry("customer_coupons", "ordering"),
       Map.entry("merchant_shipping_rates", "ordering"),
       Map.entry("cart_items", "cart"),
-      Map.entry("customer_orders", "cart"),
       Map.entry("shipping_addresses", "customer"),
-      Map.entry("shop_orders", "ordering"),
-      Map.entry("order_items", "ordering"),
-      Map.entry("order_shipping_addresses", "ordering"),
-      Map.entry("order_events", "ordering"),
-      Map.entry("order_process_managers", "ordering"),
-      Map.entry("order_command_outbox", "ordering"),
-      Map.entry("order_result_inbox", "ordering"),
-      Map.entry("order_shadow_change_clock", "ordering"),
-      Map.entry("order_shadow_change_log", "ordering"),
       Map.entry("order_effect_outbox", "ordering"),
       Map.entry("order_effect_inbox", "ordering"),
       Map.entry("payment_records", "payment"),
@@ -156,14 +146,6 @@ class MicroserviceReadinessBaselineTest {
       Map.entry("logistics_fulfillment_commands", "logistics"),
       Map.entry("shipment_events", "logistics"),
       Map.entry("shipment_notifications", "logistics"),
-      Map.entry("fulfillment_shipment_jobs", "fulfillment"),
-      Map.entry("fulfillment_shipment_recoveries", "fulfillment"),
-      Map.entry("fulfillment_merchant_jobs", "fulfillment"),
-      Map.entry("fulfillment_merchant_recoveries", "fulfillment"),
-      Map.entry("fulfillment_order_locks", "fulfillment"),
-      Map.entry("fulfillment_command_ids", "fulfillment"),
-      Map.entry("fulfillment_shadow_clock", "fulfillment"),
-      Map.entry("fulfillment_shadow_changes", "fulfillment"),
       Map.entry("fulfillment_write_admission", "fulfillment"),
       Map.entry("inventory_reservations", "inventory"),
       Map.entry("order_cancellation_completion", "ordering"),

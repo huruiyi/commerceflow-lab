@@ -14,8 +14,7 @@ function Commerce-Sql([string]$Query) {
 }
 
 function Inventory-Sql([string]$Query) {
-  $value = & docker compose exec -T inventory-db mysql -N -uinventory `
-    -pinventory-password inventory -e $Query 2>$null
+  $value = & docker compose exec -T inventory-db-postgresql psql -U postgres -d inventory -XqAt -v ON_ERROR_STOP=1 -c $Query 2>$null
   if ($LASTEXITCODE -ne 0) { throw 'Inventory database query failed' }
   return ($value | Out-String).Trim()
 }
@@ -84,7 +83,7 @@ function Wait-CrossProcessTrace([string]$TraceId) {
 
 function Restore-Runtime {
   Remove-Item Env:TRACING_EXPORT_ENABLED,Env:INVENTORY_RESULT_DELAY_LAB -ErrorAction SilentlyContinue
-  docker compose start inventory-db inventory-service 2>$null | Out-Null
+  docker compose start inventory-db-postgresql inventory-service 2>$null | Out-Null
   try { Wait-Healthy 'fairy-commerceflow-inventory-db' } catch { Write-Warning $_ }
   try { Recreate-Runtime $false } catch { Write-Warning $_ }
   if (-not $tempoWasRunning) { docker compose stop tempo 2>$null | Out-Null }
@@ -146,10 +145,10 @@ try {
     throw 'Inventory service outage was not retried'
   }
 
-  docker compose stop inventory-db | Out-Null
+  docker compose stop inventory-db-postgresql | Out-Null
   $databaseOutageOrder = New-Order (New-CustomerSession)
   Start-Sleep -Seconds 2
-  docker compose start inventory-db | Out-Null
+  docker compose start inventory-db-postgresql | Out-Null
   Wait-Healthy 'fairy-commerceflow-inventory-db'
   Wait-Healthy 'fairy-commerceflow-inventory-service'
   if ([int](Wait-Delivery $databaseOutageOrder.id).Split('|')[1] -lt 2) {

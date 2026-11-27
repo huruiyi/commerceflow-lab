@@ -58,7 +58,7 @@ M1 标签 `m1-baseline-2026-11-13` 的实际状态是：
 1. 本项目为学习环境，用户已明确旧 Docker 数据无需保留。
 2. 使用旧项目名 `commerceflow` 显式执行 `down --volumes --remove-orphans`，只删除已校验的本项目资源。
 3. Compose 项目名改为 `fairy-commerceflow`，服务名改为业务归属 + 角色；默认环境设置固定容器名，HA 多副本服务除外。
-4. 从空卷启动三个 MySQL 和独立 Redis，执行 Flyway 和完整业务回归。
+4. 从空卷启动三个原数据库和独立 Redis，执行 Flyway 和完整业务回归。
 5. M1 Git 标签保留旧实现证据；新空卷验收不改写 M1 历史。
 
 ### 4.3 第三阶段：评估持久协议标识

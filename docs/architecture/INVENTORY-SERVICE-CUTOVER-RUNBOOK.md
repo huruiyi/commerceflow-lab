@@ -7,7 +7,7 @@
 
 本手册把“可以创建服务”和“可以切换生产写入”分成两道不可混淆的门：
 
-- **CREATE 准入**：允许下一批创建分层 `inventory-service` 与独立 MySQL `inventory-db`，实现唯一远程适配器和迁移工具；
+- **CREATE 准入**：允许下一批创建分层 `inventory-service` 与独立原数据库`inventory-db`，实现唯一远程适配器和迁移工具；
 - **CUTOVER 准入**：只有独立进程完成数据追平、跨进程 Trace、并发/重复/乱序/超时/停机恢复和回退演练后，才允许整体切换调用方。
 
 CREATE、生产命令切换和最终单一所有权门均已完成：独立服务/Schema 进入默认拓扑，commerce 生产 Gateway
@@ -42,7 +42,7 @@ CREATE、生产命令切换和最终单一所有权门均已完成：独立服�
 
 1. 包结构至少分为 `api`、`application/port`、`application/service`、`domain`、`infrastructure/persistence`、
    `infrastructure/transport`，类声明与首个字段之间保留空行；
-2. 独立库继续使用 MySQL 8.4，只实现一套运行路径；禁止 `LOCAL/COMPARE`、双写、影子写和数据库回退；
+2. 独立库继续使用 原数据库，只实现一套运行路径；禁止 `LOCAL/COMPARE`、双写、影子写和数据库回退；
 3. commerce 只有一个 `InventoryCommandPort` 远程适配器，四类命令仍使用原 commandId；
 4. catalog V1 只投递到独立服务，inventory 不写回 catalog；
 5. 服务先以未接流量状态启动，建表和迁移验证不得改变现有 commerce 写入口。
@@ -95,13 +95,6 @@ commerce-service 与 inventory-service；重试可以产生新 span，但不得�
 payment-orchestration、fulfillment 以及 M3 清单中所有待拆服务全部完成独立验收。
 
 ## 8. 本批可复跑命令
-
-```powershell
-pwsh -File ./scripts/audit/audit-inventory-service-admission.ps1
-pwsh -File ./scripts/inventory/verify-inventory-remote-rehearsal.ps1
-pwsh -File ./scripts/inventory/verify-inventory-runtime-cutover.ps1
-pwsh -File ./scripts/inventory/verify-inventory-single-owner.ps1
-```
 
 `audit-*` 只启动已有 `commerce-db`（如尚未运行）并执行只读查询。`verify-inventory-remote-rehearsal` 保留为历史
 迁移/预演复测；`verify-inventory-runtime-cutover` 验证当前唯一生产路径、四类命令、跨进程 Trace、结果丢失及

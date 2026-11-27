@@ -7,6 +7,6 @@
     VALUES (#{channelRefundNo}, #{merchantId}, #{merchantRefundNo}, #{channelTransactionNo}, #{amount},
       #{currency}, #{reasonCode}, #{status}, #{faultScenario}, #{failureReason}, #{succeededAt}, #{failedAt},
       #{createdAt}, #{updatedAt})
-    <if test="_databaseId == 'postgresql'">ON CONFLICT (merchant_id, merchant_refund_no) DO NOTHING</if>
+    ON CONFLICT (merchant_id, merchant_refund_no) DO NOTHING
   </insert>
 </mapper>

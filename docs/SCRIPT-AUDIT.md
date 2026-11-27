@@ -15,7 +15,7 @@ pwsh -File ./scripts/verify-quick.ps1 -SkipBuild
 | 目录 | 内容 |
 | --- | --- |
 | `scripts/` | 快速回归、完整验收、脚本契约审计与参数清单 |
-| `scripts/audit/` | 代码质量、服务准入与所有权审计，履约审计 SQL 随入口存放 |
+| `scripts/audit/` | 代码质量和日常 PostgreSQL 拓扑审计 |
 | `scripts/commerce/` | 鉴权、国际化、目录、结算计价、优惠、售后、商家操作与 Redis |
 | `scripts/orders/` | 订单切换、取消、自动生命周期、收货和评价 |
 | `scripts/payment/` | 支付、退款、支付切换、回调及竞态 |
@@ -23,7 +23,7 @@ pwsh -File ./scripts/verify-quick.ps1 -SkipBuild
 | `scripts/inventory/` | 库存预占与独立库存服务 |
 | `scripts/messaging/` | 通知服务和短信邮件模拟器 |
 | `scripts/scheduling/` | 定时调度、RabbitMQ、RocketMQ 和消息追踪 |
-| `scripts/operations/` | 监控告警、分布式追踪、Flyway、空卷和升级恢复 |
+| `scripts/operations/` | 监控告警、运行控制台和分布式追踪 |
 | `scripts/lib/` | 公用的验证函数 |
 | `scripts/tools/` | 教学工具，视频生成器使用 Windows 图形与语音组件 |
 
@@ -31,7 +31,7 @@ pwsh -File ./scripts/verify-quick.ps1 -SkipBuild
 
 ## 数据卷
 
-快速回归和完整验收默认保留持久卷。全新卷演练使用独立项目，只有显式传入 `-RemoveTemporaryVolumes` 才清理本次临时项目卷。Flyway 空库和升级演练使用临时容器、网络与 tmpfs。
+快速回归和完整验收使用隔离 PostgreSQL 卷，并默认保留。显式传入 `-CleanupOnSuccess` 时，仅在验收成功后清理该隔离项目的临时卷。
 
 脚本契约审计检查临时删卷开关、全局 Docker 卷删除命令和宽范围的递归删除。按代码变动选择验收层级，见[开发生命周期验证体系](VERIFICATION-SYSTEM.md)。
 

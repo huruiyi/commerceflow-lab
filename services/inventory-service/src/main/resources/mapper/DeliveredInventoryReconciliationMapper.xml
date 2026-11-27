@@ -3,11 +3,6 @@
 <mapper namespace="vip.fairy.commerceflow.inventory.infrastructure.persistence.DeliveredInventoryReconciliationMapper">
 
   <insert id="claim">
-    INSERT IGNORE INTO inventory_delivered_reconciliation(order_id,evidence_fingerprint,recorded_by)
-    VALUES(#{orderId},#{fingerprint},#{actor})
-  </insert>
-
-  <insert id="claim" databaseId="postgresql">
     INSERT INTO inventory_delivered_reconciliation(order_id,evidence_fingerprint,recorded_by)
     VALUES(#{orderId},#{fingerprint},#{actor})
     ON CONFLICT (order_id) DO NOTHING

@@ -9,13 +9,6 @@
   <insert id="insert">
     INSERT INTO warehouse_outbounds(outbound_id,order_id,merchant_id,warehouse_id,whole_order,planned)
     VALUES (#{value.outboundId},#{value.orderId},#{value.merchantId},#{value.warehouseId},
-      #{value.wholeOrder},#{planned})
-    ON DUPLICATE KEY UPDATE outbound_id=outbound_id
-  </insert>
-
-  <insert id="insert" databaseId="postgresql">
-    INSERT INTO warehouse_outbounds(outbound_id,order_id,merchant_id,warehouse_id,whole_order,planned)
-    VALUES (#{value.outboundId},#{value.orderId},#{value.merchantId},#{value.warehouseId},
       #{value.wholeOrder},CAST(#{planned} AS jsonb))
     ON CONFLICT (outbound_id) DO NOTHING
   </insert>
@@ -57,11 +50,6 @@
   </select>
 
   <update id="decide">
-    UPDATE warehouse_outbounds SET status=#{status},actual=#{actual},decided_at=CURRENT_TIMESTAMP(6)
-    WHERE outbound_id=#{id} AND status='PENDING'
-  </update>
-
-  <update id="decide" databaseId="postgresql">
     UPDATE warehouse_outbounds SET status=#{status},actual=CAST(#{actual} AS jsonb),decided_at=CURRENT_TIMESTAMP(6)
     WHERE outbound_id=#{id} AND status='PENDING'
   </update>

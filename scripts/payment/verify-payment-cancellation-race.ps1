@@ -177,7 +177,7 @@ if ($AuditDockerDatabase) {
     }
   }
   if (@($orderRows).Count -ne $iteration -or $payments.Count -ne $iteration -or $contradictions -ne 0) {
-    throw "Docker MySQL consistency audit failed: $(@($orderRows).Count)/$($payments.Count)/$contradictions"
+    throw "PostgreSQL consistency audit failed: $(@($orderRows).Count)/$($payments.Count)/$contradictions"
   }
 }
 

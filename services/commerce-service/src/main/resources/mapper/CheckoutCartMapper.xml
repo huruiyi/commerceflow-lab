@@ -40,18 +40,8 @@
       AND id IN
     <foreach collection="itemIds" item="itemId" open="(" separator="," close=")">#{itemId}</foreach>
   </delete>
-  <insert id="restoreMissing">
-    INSERT INTO cart_items
-      (cart_id, product_id, merchant_id, product_name, thumbnail_url, unit_price, quantity, created_at, updated_at)
-    <foreach collection="items" item="item" separator=" UNION ALL ">
-      SELECT c.id, #{item.productId}, #{item.merchantId}, #{item.productName}, #{item.thumbnailUrl},
-             #{item.unitPrice}, #{item.quantity}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-      FROM carts c WHERE c.user_id = #{customerId}
-    </foreach>
-    ON DUPLICATE KEY UPDATE cart_id = cart_items.cart_id
-  </insert>
 
-  <insert id="restoreMissing" databaseId="postgresql">
+  <insert id="restoreMissing">
     INSERT INTO cart_items
       (cart_id, product_id, merchant_id, product_name, thumbnail_url, unit_price, quantity, created_at, updated_at)
     <foreach collection="items" item="item" separator=" UNION ALL ">

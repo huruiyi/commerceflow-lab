@@ -1,4 +1,4 @@
--- Stable business identifiers keep the case- and accent-insensitive MySQL comparisons.
+-- Stable business identifiers keep the case- and accent-insensitive comparisons.
 CREATE COLLATION inventory_identifier (provider = icu, locale = 'und-u-ks-level1', deterministic = false);
 
 CREATE TABLE inventory_warehouses (

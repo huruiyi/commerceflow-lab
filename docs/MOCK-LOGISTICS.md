@@ -4,18 +4,6 @@
 
 首版已建立一条可运行、可验签、可回放的物流闭环：
 
-```text
-商家发货
-  -> 商城准备 REQUESTED 投影
-  -> HMAC 签名调用模拟物流建单
-  -> 物流平台在独立 MySQL 保存运单和轨迹
-  -> 同一事务写入 Callback Outbox（回调事务发件箱）
-  -> 后台领取、HMAC 签名回调商城并失败重试
-  -> 商城幂等投影轨迹
-  -> Database Reconciliation（数据库主动对账）补偿永久丢失
-  -> 客户查询本人订单物流
-```
-
 已实现状态是 `CREATED（已创建） -> PICKED_UP（已揽收） -> IN_TRANSIT（运输中） -> AT_STATION（已到站） -> OUT_FOR_DELIVERY（派送中） -> DELIVERED（已送达）`。轨迹既可通过签名的 `advance` 接口人工推进，也可由默认关闭的配置化定时器自动推进。非终态可进入 `EXCEPTION（异常件）`，经 `RECOVERY（异常恢复）` 返回原状态后继续。回调 Outbox、失败重试、处理租约、最大次数和商城主动对账均已实现。
 
 ## 2. 服务和数据边界
@@ -23,9 +11,9 @@
 | 组件 | 端口/存储 | 职责 |
 | --- | --- | --- |
 | `logistics-simulator-service` | `18083` | 验签、防重放、运单幂等、轨迹状态机、回调 Outbox、重试、人工重放与指标 |
-| `logistics-mysql` | 宿主机 `13308` | 物流平台运单、轨迹、已用 Nonce 和 `callback_outbox` |
+| `logistics-原数据库` | 宿主机 `13308` | 物流平台运单、轨迹、已用 Nonce 和 `callback_outbox` |
 | `commerce-service` | `18081` | 商城运单投影、回调去重、主动对账、归属校验和客户查询 |
-| 商城 MySQL | Compose 内部 | `shipment_records/events/notifications` 读模型 |
+| 商城原数据库| Compose 内部 | `shipment_records/events/notifications` 读模型 |
 
 模拟物流不连接商城数据库。两边不使用跨库事务：商城先持久化可恢复的 `REQUESTED` 投影，远程建单成功后才将订单改为 `SHIPPED`。
 

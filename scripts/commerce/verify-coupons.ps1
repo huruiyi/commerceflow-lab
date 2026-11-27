@@ -20,10 +20,9 @@ function Container([string]$Service) {
 . "$PSScriptRoot/../lib/commerce-ledger.ps1"
 if (!$isolated) { $dailyLedger = Get-CommerceLedger $ProjectName }
 
-function Sql([string]$Service,[string]$Database,[string]$Query) {
+function Sql([string]$Service, [string]$Database, [string]$Query) {
   if (!$isolated -and $Service -eq 'commerce-db') { return Read-CommerceLedger $dailyLedger $Query }
-  docker exec (Container $Service) sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -NB "$1" -e "$2"' sh $Database $Query
-  if ($LASTEXITCODE) { throw "SQL failed for $Service" }
+  Invoke-ProjectDatabaseSql $ProjectName $Service $Database $Query
 }
 function Actor([string]$Email) {
   $csrf = Invoke-RestMethod "$BaseUrl/api/auth/csrf" -SessionVariable session -TimeoutSec 15
@@ -223,7 +222,7 @@ try {
   $selection.itemIds=Add-Cart
   $quote=Quote $selection
   if($isolated){
-    $trigger="CREATE TRIGGER coupon_test_block_receipt BEFORE INSERT ON checkout_receipts FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='isolated coupon recovery fixture'"
+    $trigger=(New-VerificationTrigger coupon_test_block_receipt INSERT checkout_receipts "RAISE EXCEPTION 'isolated coupon recovery fixture';")
     Sql commerce-db commerceflow $trigger|Out-Null
     try{
       Reject $buyer '/api/purchase-orders/checkout' Post @{selection=$selection;quoteId=$quote.quoteId} @(500,503)
@@ -239,7 +238,7 @@ try {
       $buyer=Actor 'demo@example.com'
       $merchant=Actor 'merchant@example.com'
     }finally{
-      Sql commerce-db commerceflow 'DROP TRIGGER coupon_test_block_receipt'|Out-Null
+      Sql commerce-db commerceflow (Remove-VerificationTrigger coupon_test_block_receipt checkout_receipts)|Out-Null
     }
     $fixed=Wait-Value {
       $row=Sql commerce-db commerceflow "SELECT order_id FROM checkout_intents WHERE quote_id='$($quote.quoteId)' AND status='BOUND'"
@@ -270,8 +269,8 @@ try {
   if($isolated){
     $expiryCoupon=Use-Coupon (Make-Campaign $threshold 10 5)
     $expiry=Confirm @{addressId=$addressId;itemIds=(Add-Cart);couponId=$expiryCoupon.id}
-    Sql order-db orders "UPDATE shop_orders SET payment_due_at=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(6)) WHERE id=$($expiry.id)"|Out-Null
-    Sql commerce-db commerceflow "UPDATE coupon_campaigns SET expires_at=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(6)),starts_at=TIMESTAMPADD(MINUTE,-2,CURRENT_TIMESTAMP(6)) WHERE id='$($expiryCoupon.campaignId)'; UPDATE scheduled_tasks SET primary_trigger_snapshot='DATABASE',due_at=CURRENT_TIMESTAMP(6) WHERE aggregate_id='$($expiry.id)' AND task_type='PAYMENT_TIMEOUT';"|Out-Null
+    Sql order-db orders "UPDATE shop_orders SET payment_due_at=(CURRENT_TIMESTAMP + INTERVAL '-1' SECOND) WHERE id=$($expiry.id)"|Out-Null
+    Sql commerce-db commerceflow "UPDATE coupon_campaigns SET expires_at=(CURRENT_TIMESTAMP + INTERVAL '-1' SECOND),starts_at=(CURRENT_TIMESTAMP + INTERVAL '-2' MINUTE) WHERE id='$($expiryCoupon.campaignId)'; UPDATE scheduled_tasks SET primary_trigger_snapshot='DATABASE',due_at=CURRENT_TIMESTAMP(6) WHERE aggregate_id='$($expiry.id)' AND task_type='PAYMENT_TIMEOUT';"|Out-Null
     $null=Wait-Value {if((Wallet-State $expiryCoupon.id)-eq'EXPIRED'){$true}} 'Timed-out checkout did not expire the returned coupon'
     $timed=Api $buyer "/api/purchase-orders/$($expiry.id)"
     if($timed.status-ne'CANCELLED'){throw 'Expired booking is not cancelled'}

@@ -6,14 +6,6 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 
-function DbScalar([string]$Service, [string]$User, [string]$Password,
-                  [string]$Database, [string]$Query) {
-  $value = docker compose --project-directory $ProjectRoot exec -T $Service mysql -N "--user=$User" `
-    "--password=$Password" $Database -e $Query 2>$null
-  if ($LASTEXITCODE -ne 0) { throw "$Service query failed" }
-  return ($value | Select-Object -Last 1).Trim()
-}
-
 function WaitHealthy([string]$Container) {
   $deadline = (Get-Date).AddSeconds($MaxWaitSeconds)
   do {
@@ -21,16 +13,6 @@ function WaitHealthy([string]$Container) {
     Start-Sleep -Seconds 2
   } while ((Get-Date) -lt $deadline)
   throw "$Container did not become healthy"
-}
-
-# Historical MySQL source for the order-service ownership handoff.
-function Get-SourceOrderState {
-  $exists = DbScalar commerce-db root local-root-password commerceflow @'
-SELECT COUNT(*) FROM information_schema.tables
-WHERE table_schema='commerceflow' AND table_name='shop_orders';
-'@
-  if ($exists -eq '0') { return 'retired' }
-  return DbScalar commerce-db root local-root-password commerceflow 'SELECT COUNT(*) FROM shop_orders;'
 }
 
 . "$PSScriptRoot/../lib/commerce-ledger.ps1"
@@ -45,18 +27,25 @@ if ($orderEnvironment -notcontains 'ORDER_ACCEPTING_TRAFFIC=true' -or
   throw 'Order service is not in runtime-only cutover mode'
 }
 
-$sourceBefore = Get-SourceOrderState
-if ($ledger.Engine -eq 'postgresql') {
-  if (@(Get-PostgresCommerceGrantViolations $ledger @('shop_orders','order_items','order_events')).Count) {
-    throw 'Commerce runtime can access legacy order tables'
-  }
-} elseif ($sourceBefore -ne 'retired') {
-  docker compose --project-directory $ProjectRoot exec -T commerce-db mysql --user=commerce_runtime `
-    --password=commerce-runtime-password commerceflow -e 'SELECT COUNT(*) FROM shop_orders;' 2>$null | Out-Null
-  if ($LASTEXITCODE -eq 0) { throw 'Commerce runtime user can still read the order source table' }
+function Get-SourceOrderState {
+  $exists = Read-CommerceLedger $ledger "SELECT to_regclass('commerceflow.shop_orders') IS NOT NULL"
+  if ($exists -eq 'f') { return 'retired' }
+  return Read-CommerceLedger $ledger 'SELECT COUNT(*) FROM shop_orders'
 }
-$targetBefore = [long](DbScalar order-db orders orders-password orders `
-  'SELECT COUNT(*) FROM shop_orders;')
+
+$sourceBefore = Get-SourceOrderState
+if (@(Get-PostgresCommerceGrantViolations $ledger @('shop_orders','order_items','order_events')).Count) {
+  throw 'Commerce runtime can access retired order tables'
+}
+
+function Read-OrderCount([string]$Where = '') {
+  $value = docker compose --project-directory $ProjectRoot exec -T order-db-postgresql psql -U postgres -d orders `
+    -XqAt -v ON_ERROR_STOP=1 -c "SELECT COUNT(*) FROM shop_orders $Where"
+  if ($LASTEXITCODE -ne 0) { throw 'Order ledger query failed' }
+  return [long]$value
+}
+
+$targetBefore = Read-OrderCount
 
 $session = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
 $csrf = Invoke-RestMethod "$BaseUrl/api/auth/csrf" -WebSession $session
@@ -70,10 +59,8 @@ Invoke-RestMethod "$BaseUrl/api/cart/items" -Method Post -WebSession $session `
 $order = (Submit-VerifiedCheckout $BaseUrl $session $headers)
 
 $sourceAfter = Get-SourceOrderState
-$targetAfter = [long](DbScalar order-db orders orders-password orders `
-  'SELECT COUNT(*) FROM shop_orders;')
-$targetRow = [long](DbScalar order-db orders orders-password orders `
-  "SELECT COUNT(*) FROM shop_orders WHERE id=$($order.id) AND order_number='$($order.orderNumber)';")
+$targetAfter = Read-OrderCount
+$targetRow = Read-OrderCount "WHERE id=$($order.id) AND order_number='$($order.orderNumber)'"
 if ($sourceAfter -ne $sourceBefore -or $targetAfter -ne ($targetBefore + 1) -or $targetRow -ne 1) {
   throw "Order ownership audit failed: source=$sourceBefore->$sourceAfter target=$targetBefore->$targetAfter row=$targetRow"
 }

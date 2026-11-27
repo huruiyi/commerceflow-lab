@@ -55,16 +55,8 @@
     UPDATE customer_coupons SET status='HELD',bound_quote=#{quoteId}
     WHERE id=#{id} AND customer_id=#{customerId} AND status='AVAILABLE'
   </update>
-  <update id="reconcile">
-    UPDATE customer_coupons c JOIN coupon_campaigns a ON a.id=c.campaign_id
-    SET c.status=CASE WHEN #{consumed} THEN 'USED'
-                      WHEN a.expires_at&lt;=CURRENT_TIMESTAMP(6) THEN 'EXPIRED'
-                      ELSE 'AVAILABLE' END,
-        c.bound_quote=CASE WHEN #{consumed} THEN #{quoteId} ELSE NULL END
-    WHERE c.id=#{id} AND c.status='HELD' AND c.bound_quote=#{quoteId}
-  </update>
 
-  <update id="reconcile" databaseId="postgresql">
+  <update id="reconcile">
     UPDATE customer_coupons c
     SET status=CASE WHEN #{consumed} THEN 'USED'
                       WHEN a.expires_at&lt;=CURRENT_TIMESTAMP(6) THEN 'EXPIRED'

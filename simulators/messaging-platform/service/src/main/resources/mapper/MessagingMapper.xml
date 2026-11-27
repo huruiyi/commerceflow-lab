@@ -13,20 +13,13 @@
   <select id="lock" resultType="vip.fairy.commerceflow.messaging.DeliveryLedger$Stored">
     SELECT <include refid="stored"/> FROM messaging_deliveries WHERE request_id=#{requestId} FOR UPDATE
   </select>
+
   <insert id="insert">
     INSERT INTO messaging_deliveries (
       request_id,provider_id,channel,recipient_mask,reference,fingerprint,outcome,ready_at
     ) VALUES (
       #{requestId},#{providerId},#{channel},#{recipientMask},#{reference},#{fingerprint},#{outcome},
-      TIMESTAMPADD(SECOND,2,CURRENT_TIMESTAMP(6))
-    ) ON DUPLICATE KEY UPDATE request_id=messaging_deliveries.request_id
-  </insert>
-  <insert id="insert" databaseId="postgresql">
-    INSERT INTO messaging_deliveries (
-      request_id,provider_id,channel,recipient_mask,reference,fingerprint,outcome,ready_at
-    ) VALUES (
-      #{requestId},#{providerId},#{channel},#{recipientMask},#{reference},#{fingerprint},#{outcome},
-      CURRENT_TIMESTAMP + INTERVAL '2 seconds'
+      CURRENT_TIMESTAMP + INTERVAL '2' SECOND
     ) ON CONFLICT (request_id) DO NOTHING
   </insert>
   <select id="fault" resultType="string">
@@ -38,12 +31,8 @@
   <insert id="setFault">
     INSERT INTO messaging_faults(request_id,behavior) VALUES(#{requestId},#{behavior})
   </insert>
+
   <update id="finishDue">
-    UPDATE messaging_deliveries SET status=outcome,finished_at=CURRENT_TIMESTAMP(6)
-    WHERE status='ACCEPTED' AND ready_at&lt;=CURRENT_TIMESTAMP(6)
-    ORDER BY ready_at LIMIT 100
-  </update>
-  <update id="finishDue" databaseId="postgresql">
     WITH due AS (
       SELECT request_id FROM messaging_deliveries
       WHERE status='ACCEPTED' AND ready_at &lt;= CURRENT_TIMESTAMP
@@ -64,14 +53,10 @@
   <select id="count" resultType="int">
     SELECT COUNT(*) FROM messaging_deliveries <include refid="filters"/>
   </select>
+
   <select id="countRecentFailures" resultType="long">
     SELECT COUNT(*) FROM messaging_deliveries
-    WHERE channel = #{channel} AND status = 'FAILED'
-      AND finished_at >= TIMESTAMPADD(SECOND, -#{windowSeconds}, CURRENT_TIMESTAMP(6))
-  </select>
-  <select id="countRecentFailures" databaseId="postgresql" resultType="long">
-    SELECT COUNT(*) FROM messaging_deliveries
     WHERE channel=#{channel} AND status='FAILED'
-      AND finished_at >= CURRENT_TIMESTAMP - #{windowSeconds} * INTERVAL '1 second'
+      AND finished_at >= CURRENT_TIMESTAMP - #{windowSeconds} * INTERVAL '1' SECOND
   </select>
 </mapper>

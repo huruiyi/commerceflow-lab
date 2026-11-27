@@ -2,12 +2,12 @@
 
 ## 1. 复核结论
 
-2026-11-21 复核确认六个内部服务均已切换到各自的 MySQL。六个目标库及商城库均无跨 Schema 外键。商城的
+2026-11-21 复核确认六个内部服务均已切换到各自的 原数据库。六个目标库及商城库均无跨 Schema 外键。商城的
 业务请求经签名 API 或消息交给对应所有者。支付和物流模拟器属于外部平台边界。
 
 **M3 于 2026-11-21 正式关闭。** 六个服务的单一所有权已经核实，日常履约旧入口和支付旧捕获对象均已退役。
 完整准入审计及多包裹、售后、发票回归通过。详见[日常发布与验收](#14-2026-11-21-日常发布与-m3-验收)。
-现阶段继续使用 MySQL，PostgreSQL 专项按[数据库演进计划](DATABASE-EVOLUTION-PLAN.md)另行评审。
+现阶段继续使用 原数据库，PostgreSQL 专项按[数据库演进计划](DATABASE-EVOLUTION-PLAN.md)另行评审。
 
 ## 2. 初次复核的逐服务证据
 
@@ -70,16 +70,16 @@
 - [x] 独立履约回退包已脱离当前检出完成恢复、回传及旧商城镜像接管。新运单仍可查，重复发货继续幂等。[独立回退包验收](FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#25-2026-11-19-履约独立回退包验收)
 - [x] 商城本地履约执行代码及专用 Mapper 已退役，空卷、存量重启、商家发货、管理员恢复和错误归属门禁已通过隔离验收。[商城本地履约代码退役](FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#26-2026-11-19-商城本地履约代码退役)
 - [x] 日常环境已部署真实预占付款校验和库存提交门禁，保留原数据库及五笔归档。订单 695 拒绝付款、发货和两次空扣减；订单 696 扣减两件并生成一张运单。[验收记录](INVENTORY-RECONCILIATION-REVIEW.md#2026-11-19-日常环境库存门禁验收)
-- [x] 商城从自己的 `inventory_command_delivery_outbox` 分别统计待对账、未完成投递数量及最老等待时长。隔离 MySQL 已逐项核对物理行、指标和告警状态，确认已确认和已关闭记录排除在积压之外。库存服务的出库积压和发布失败独立触发及恢复。[库存命令监控验收](INVENTORY-RECONCILIATION-REVIEW.md#2026-11-19-库存命令监控验收)
-- [x] 订单服务已报告发货意图滞留、取消协议待恢复及采集失败。隔离 MySQL 逐项核对指标与告警，日常库通过只读脚本复核订单所有者、旧表授权、历史身份差异及取消效果投递记录。[订单监控与只读核对](ORDER-SERVICE-EVOLUTION-PLAN.md#10-订单监控与只读核对)
-- [x] 目录和通知监控已通过隔离 MySQL 和 Kafka 验收，日常只读脚本核对数据所有者、旧表授权、下游事件匹配和未决账本。[目录与通知监控验收](#10-目录与通知监控验收)
+- [x] 商城从自己的 `inventory_command_delivery_outbox` 分别统计待对账、未完成投递数量及最老等待时长。隔离原数据库已逐项核对物理行、指标和告警状态，确认已确认和已关闭记录排除在积压之外。库存服务的出库积压和发布失败独立触发及恢复。[库存命令监控验收](INVENTORY-RECONCILIATION-REVIEW.md#2026-11-19-库存命令监控验收)
+- [x] 订单服务已报告发货意图滞留、取消协议待恢复及采集失败。隔离原数据库逐项核对指标与告警，日常库通过只读脚本复核订单所有者、旧表授权、历史身份差异及取消效果投递记录。[订单监控与只读核对](ORDER-SERVICE-EVOLUTION-PLAN.md#10-订单监控与只读核对)
+- [x] 目录和通知监控已通过隔离原数据库和 Kafka 验收，日常只读脚本核对数据所有者、旧表授权、下游事件匹配和未决账本。[目录与通知监控验收](#10-目录与通知监控验收)
 - [x] 取消订单跨库中断恢复已通过隔离验收。商城在调用 Order V1 写终态前提交完成记录，重启时回放稳定的订单命令并在本地事务补齐取消效果和通知。库存释放和通知各完成一次。[恢复验收记录](#11-取消订单跨库中断恢复验收)
 - [x] 日常商城库的十张旧订单表、影子触发器及过程已在备份恢复验证后清理。正式订单和活跃账本摘要保持一致，商城与订单服务健康检查通过。[订单旧源退役记录](ORDER-SERVICE-EVOLUTION-PLAN.md#11-日常环境旧订单源退役)
 - [x] 旧履约六表和捕获对象已完成归档评审及隔离恢复。原授权脚本仍依赖旧水位表，临时拆分初始化后已通过无旧源重部署和业务验证。[归档评审](FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#27-2026-11-19-商城旧履约源归档评审)
 - [x] 履约正式启动、审计和回退入口已支持有旧源和无旧源两种部署。隔离验证归档恢复、六表回传和旧镜像接管。[入口改造验收](FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#28-2026-11-19-履约归档后启动审计与回退)
 - [x] 履约候选版完成隔离回退及日常发布。旧源经恢复验证与依赖核对后已清理，五笔库存历史归档完整。[P4 验收记录](FULFILLMENT-SERVICE-EVOLUTION-PLAN.md#29-2026-11-20-p4-日常发布和旧源清理)
 
-初次复核使用现有服务、仓库源码、MySQL 元数据与行级汇总、Prometheus 当前目标及支付静态切流审计。
+初次复核使用现有服务、仓库源码、原数据库元数据与行级汇总、Prometheus 当前目标及支付静态切流审计。
 库存防重灌验收在隔离库执行，现有库单独登记迁移状态标记。
 
 第 4 至 9 节保留各批次验收时的数据库状态。五笔库存测试订单后续已按第 3 节归档。
@@ -95,8 +95,8 @@
 | 影子捕获 | `order_shadow_change_clock`、`payment_shadow_change_clock`、`payment_shadow_change_log` |
 
 执行前后对比正式数据库的权限记录，目标表直接授权从 44 项降到 0，其余 93 项表级授权逐项一致。
-用运行中商城容器的账号连接 MySQL，核实 `CURRENT_USER()` 后逐表做零行读写探针，44 次均返回 MySQL 1142。
-商城自有的通知投递 Outbox 和库存命令投递 Outbox 仍可访问。修改后的授权生成器在隔离 MySQL 重复执行两次，
+用运行中商城容器的账号连接 原数据库，核实 `CURRENT_USER()` 后逐表做零行读写探针，44 次均返回原数据库1142。
+商城自有的通知投递 Outbox 和库存命令投递 Outbox 仍可访问。修改后的授权生成器在隔离原数据库重复执行两次，
 目标表授权持续为 0，正式环境后续重新生成授权也会排除这些表。
 
 - 目录经门户 API 返回商品 1 的中文名称和价格，与目录库匹配。
@@ -119,7 +119,7 @@
 标记时直接退出。没有该标记的目标需无目录业务数据，并且没有其他初始化记录。迁移在目标事务内核对商品、
 翻译和目录 Outbox 的行数与摘要，核对通过后同事务登记 `COMPLETE`。
 
-2026-11-19 使用隔离 Compose 和 MySQL 8.4 验收：
+2026-11-19 使用隔离 Compose 和原数据库验收：
 
 - 目录服务单独启动时只启动目录库。默认依赖图未启动两个初始化工具，空库的门户商品接口返回空列表。
 - 显式初始化后，门户返回六件商品及中文翻译。订单 1 经加购、地址选择和下单达到待付款、库存已预占，商品 1
@@ -141,12 +141,12 @@ docker compose --profile notification-migration run --rm --no-deps notification-
 docker compose --profile notification-migration run --rm --no-deps notification-data-migrator --complete
 ```
 
-`--check` 在事务中演练回填并回滚行变更，MySQL 可能已分配自增号。有历史通知时先在隔离副本演练。
+`--check` 在事务中演练回填并回滚行变更，原数据库可能已分配自增号。有历史通知时先在隔离副本演练。
 `--complete` 在同一事务中按 eventId 补齐历史通知，核对已发布事件对应的通知正文、业务字段和独立消费 Inbox，
 确认没有缺失、冲突或无来源通知后，再写入历史水位和通过记录。已经读过的目标通知保留首次已读时间。
 工具不会投递 Kafka 消息。若核对期间刚好有新通知到达目标而源快照尚未包含对应的已发布事件，等待投递追平后复查。
 
-- 隔离 MySQL 8.4 使用现有库的 301 条已发布事件及对应通知和 Inbox，并添加 3 条旧通知样本，历史主键为 2、5、8。
+- 隔离原数据库使用现有库的 301 条已发布事件及对应通知和 Inbox，并添加 3 条旧通知样本，历史主键为 2、5、8。
   首次回填只插入缺失的 1 条，恢复 1 条历史已读记录，保留目标原有首次已读时间。水位为 8，目标 304 个不同 eventId。
   重跑后通知、Inbox、水位、完成时间及核对记录逐行一致。正文冲突、缺失 Inbox 和无来源通知分别验证会拒绝登记。
 - 现有商城旧通知和旧 Inbox 均为 0。依 Outbox 主键逐条核对了原 298 个 eventId 和随后新增的 3 个，均匹配目标通知
@@ -167,16 +167,10 @@ docker compose --profile notification-migration run --rm --no-deps notification-
 | 工具 | 常驻部署 | 手工入口 |
 | --- | --- | --- |
 | 库存旧快照 | 配置保持在 `inventory-migration`，库存运行容器只有自己库的连接配置。 | `docker compose --profile inventory-migration run --rm --no-deps inventory-data-migrator --check-target`。核准空目标后去掉 `--check-target` 执行。 |
-| 订单和支付影子复制 | 默认影子开关固定为关闭，订单和支付不携带商城源库凭据。支付启动只依赖自己的库和业务服务。 | 在隔离 Docker 环境显式加载 `infrastructure/compose/compose.legacy-shadow.yaml`。读者分别有订单 9 张源表、支付 16 张源表的 `SELECT` 权限。 |
 | 履约影子复制 | 正式执行覆盖配置使用独立库及 HTTP 契约。旧授权容器只在 `fulfillment-shadow` 中。 | 在隔离环境使用旧商城持有履约写权的源库启动 `fulfillment-shadow`，只授予商城三项对象与订单库三列的 `SELECT`。 |
 
 先选择独立 Docker 环境或为该隔离项目覆盖固定容器名和端口，再执行手工演练。影子授权仅接受
 `fairy-commerceflow-shadow-*` 项目。以下命令均以未切流的隔离副本为目标：
-
-```powershell
-docker compose -p fairy-commerceflow-shadow-qa -f compose.yaml -f infrastructure/compose/compose.legacy-shadow.yaml up -d --build --wait order-service payment-orchestration-service
-docker compose -p fairy-commerceflow-shadow-qa -f compose.yaml -f infrastructure/compose/compose.fulfillment-shadow.yaml --profile fulfillment-shadow up -d --build --wait fulfillment-service
-```
 
 运行仓库中的订单或支付影子验收脚本时，通过 `COMPOSE_PROJECT_NAME` 和 `COMPOSE_FILE` 显式指定上述项目和两个配置文件。
 演练结束后先停止影子进程，再用对应项目运行 `--profile migration-access run --rm --no-deps legacy-shadow-access-revoker`。
@@ -191,13 +185,13 @@ docker compose -p fairy-commerceflow-shadow-qa -f compose.yaml -f infrastructure
 - 订单和支付手工快照各执行两次，7 表和 14 表核对均为 `MATCH`。履约重复快照六表摘要相同，业务写入口返回 503。
   用专用读者验证授权范围，跨域读和写入均被拒绝。两次撤权后读者登录被拒绝，默认运行服务重启后授权仍为 0。
 - 本地现有支付容器已用移除源库配置的镜像重建，正常接单和下游处理开关保持开启。旧履约读者在商城库的三项授权和
-  订单库的三列授权均从 3 降为 0，两库登录返回 MySQL 3118。重建与撤权前后，源水位、各目标水位及业务行数一致，
+  订单库的三列授权均从 3 降为 0，两库登录返回原数据库3118。重建与撤权前后，源水位、各目标水位及业务行数一致，
   订单、支付、履约与门户健康检查通过。
 - 库存历史订单 465、479、480、497、498 仍待仓库凭证，尝试次数各为 5，结案记录为 0。旧预占未重放。
 
 ## 8. 验收与运维账号撤权
 
-新建商城数据库卷时，MySQL 不再自动创建 `commerceflow@%`。完成 Flyway 建表后，按需启用核验账号：
+新建商城数据库卷时，原数据库不再自动创建 `commerceflow@%`。完成 Flyway 建表后，按需启用核验账号：
 
 ```powershell
 docker compose --profile verification-access run --rm --no-deps verification-db-access --readers
@@ -211,12 +205,12 @@ docker compose --profile verification-access run --rm --no-deps verification-db-
 | 调度演练 | `--task-fixture` 允许更新时间和租约等演练字段。`--recovery-fixture` 仅允许插入演练任务所需列。 |
 | 旧商城支付行锁 | `--legacy-lock` 仅适用于 `commerceflow-legacy-*` 隔离项目，允许按主键锁定旧订单和支付行。旧支付崩溃、锁超时和 Kafka 验收使用对应的历史单体基线。 |
 
-隔离 MySQL 验证两端脚本的连接、只读和拒绝写入、真实任务行更新、恢复任务插入与行锁。用 root
+隔离原数据库验证两端脚本的连接、只读和拒绝写入、真实任务行更新、恢复任务插入与行锁。用 root
 对照元数据快照，外键和注释统计一致。权限、国际化、支付回调及支付与取消竞态通过。锁定旧账号后再次执行 4 轮竞态，
 订单库和支付库结果一致。历史单体专项本轮验证了其数据库权限与行锁。
 
 现有环境启用只读账号并对照查询结果后，通过 `verification-db-access --retire` 锁定 `commerceflow@%`。
-18 项商城库级授权降为 0，旧账号连接收到 MySQL 3118。重复撤权、只读查询、商城与门户健康检查通过。
+18 项商城库级授权降为 0，旧账号连接收到原数据库3118。重复撤权、只读查询、商城与门户健康检查通过。
 库存历史订单 465、479、480、497、498 仍挂账，尝试次数各为 5，结案记录为 0。旧预占未重放。
 
 ## 9. 旧轻量订单退役
@@ -227,32 +221,24 @@ docker compose --profile verification-access run --rm --no-deps verification-db-
 
 商城移除旧 Controller、Service 和 Mapper。Flyway V50 将旧表原子更名为 `retired_customer_orders`，
 同时去掉最后一条指向活跃用户表的外键。运行账号不授予新旧表权限，早期 Flyway 文件继续保留。
-真实 MySQL 8.4 验证空库 V1→V50 和含轻量订单行的 V16→V50，旧行、商品 ID 和数量均保留。
+真实原数据库验证空库 V1→V50 和含轻量订单行的 V16→V50，旧行、商品 ID 和数量均保留。
 商城 55 项测试通过。隔离门户验证旧 GET 返回 404，Order V1 支持查询列表和详情、下单并预占，
 取消后释放库存，商城旧正式订单表没有新增记录。
 
-现有本地环境已应用 V49→V50。退役归档为 0 行，商城运行账号读取归档返回 MySQL 1142，
+现有本地环境已应用 V49→V50。退役归档为 0 行，商城运行账号读取归档返回原数据库1142，
 门户旧入口返回 404，Order V1 查询及商城健康检查通过。历史五笔库存投递状态、尝试次数和流水均与升级前一致。
 
 ## 10. 目录与通知监控验收
 
-2026-11-19 使用 Windows PowerShell 7、MySQL 8.4、Kafka 4.1.1 和 Prometheus 3.7.3。脚本在独立 Docker
-网络运行最新编译的商城、目录和通知 JAR 与库存服务，四个 MySQL Schema 各使用自己的账号。
+2026-11-19 使用 Windows PowerShell 7、原数据库、Kafka 4.1.1 和 Prometheus 3.7.3。脚本在独立 Docker
+网络运行最新编译的商城、目录和通知 JAR 与库存服务，四个原数据库Schema 各使用自己的账号。
 隔离测试和日常只读核对共用一份入口。构建使用 JDK 25，脚本复用本地服务运行镜像。
-
-```powershell
-mvn -f services/catalog-service/pom.xml clean package
-mvn -f services/notification-service/pom.xml clean package
-mvn -f services/commerce-service/pom.xml clean package
-pwsh -NoProfile -File ./scripts/commerce/verify-catalog-notification-monitoring.ps1
-pwsh -NoProfile -File ./scripts/commerce/verify-catalog-notification-monitoring.ps1 -ReadOnly
-```
 
 隔离库为两个发送链路各准备两条有效合成事件。其中一条预设为只剩最后一次尝试。
 先保持库存 HTTP 和 Kafka 目的端不可用，由实际投递器把两条分别推进为 `RETRY`、`DEAD`。
 每阶段独立查询数据库，并核对 Prometheus 采集值和规则状态。非零年龄允许 20 秒采样时差。
 
-| 阶段 | 目录 MySQL 待发／最老秒数／DEAD／已发 | 商城通知 MySQL 待发／最老秒数／DEAD／已发 | 两端指标与告警 |
+| 阶段 | 目录原数据库待发／最老秒数／DEAD／已发 | 商城通知原数据库待发／最老秒数／DEAD／已发 | 两端指标与告警 |
 | --- | --- | --- | --- |
 | 空库 | 0／0／0／0 | 0／0／0／0 | 三项业务指标为 0，两条业务告警 `inactive` |
 | 目的端不可用 | 1／224／1／0 | 1／224／1／0 | 两端待发 1、最老 217 秒、DEAD 1，积压和 DEAD 均 `firing` |
@@ -262,7 +248,7 @@ pwsh -NoProfile -File ./scripts/commerce/verify-catalog-notification-monitoring.
 隔离 SQL 将两个 DEAD 夹具重新置为 RETRY，由原投递器完成实际投递。库存用两个 `eventId` 各匹配一条
 `APPLIED` Inbox，商品快照版本从 1 更新到 2，单价从 40 更新到 42。商城两条有效通知均进入 Kafka。
 
-| 消费阶段 | Broker 或 MySQL 核对结果 | Prometheus 与告警 |
+| 消费阶段 | Broker 或原数据库核对结果 | Prometheus 与告警 |
 | --- | --- | --- |
 | 只启采集，暂停消费者 | 干净主题的末端偏移合计 2，消费组尚未提交偏移 | lag=2，消费 lag `firing`，发送告警已恢复 |
 | 恢复消费者 | 消费组 lag=0，两个 eventId 分别匹配一条 Inbox 和一条可见通知 | lag=0，消费 lag `inactive` |
@@ -281,16 +267,11 @@ Inbox 和版本一致，305 条商城已发布通知全部匹配 Inbox 和可见
 恢复时 Order V1 按原 mutation ID 返回已提交结果。商城锁定待恢复行，在同一本地事务写取消效果 Outbox、
 通知 Outbox 和完成时间。后台重启后扫描未完成行。此前已取消且没有完成记录的订单不产生补发。
 
-使用 JDK 25 构建，PowerShell 7 脚本在独立 Docker 网络运行 MySQL 8.4、Kafka、Redis 与真实服务。
-
-```powershell
-mvn -f services/commerce-service/pom.xml clean package
-pwsh -NoProfile -File ./scripts/orders/verify-order-cancellation-cutover-recovery.ps1
-```
+使用 JDK 25 构建，PowerShell 7 脚本在独立 Docker 网络运行 原数据库、Kafka、Redis 与真实服务。
 
 | 时点 | 订单库 | 商城库 | 库存与通知库 |
 | --- | --- | --- | --- |
-| 中断前 | 合成订单 101 已为 `CANCELLED / RESERVED`，取消审计 1 条，稳定 mutation 回执 2 个 | 已提交的待恢复记录 1 条。MySQL 证实商城插入 Outbox 正被间隙锁阻塞，取消效果和通知 Outbox 均为 0 | 预占仍为 `RESERVED`，可售／预占为 9／1，释放流水和通知均为 0 |
+| 中断前 | 合成订单 101 已为 `CANCELLED / RESERVED`，取消审计 1 条，稳定 mutation 回执 2 个 | 已提交的待恢复记录 1 条。原数据库证实商城插入 Outbox 正被间隙锁阻塞，取消效果和通知 Outbox 均为 0 | 预占仍为 `RESERVED`，可售／预占为 9／1，释放流水和通知均为 0 |
 | 商城 SIGKILL 后重启 | `CANCELLED / RELEASED`，取消审计仍为 1 条，回执仍为 2 个 | 后台自动补齐，完成记录、取消效果 Outbox、效果 Inbox、已发布通知 Outbox、已确认释放命令各 1 条 | 预占已释放，可售／预占为 10／0，释放流水及命令 Inbox 各 1 条，可见通知及其 Inbox 各 1 条 |
 | 重复请求后 | 原取消原因和来源保留，取消审计与回执数量一致 | 支付关闭回执仍为 1 条。新增恢复记录产生的取消效果、通知和释放投递各 1 条。合成历史已取消订单 102 产生 0 条新效果 | 释放流水和通知数量均保持 1 |
 
@@ -303,7 +284,7 @@ pwsh -NoProfile -File ./scripts/orders/verify-order-cancellation-cutover-recover
 
 本节保留实施收尾改造前的基线。改造及恢复结果见第 13 节。
 
-本轮读取日常容器连接配置、源码、MySQL 权限与账本、Kafka 消费位置和 Prometheus。六个运行账号均仅有自身
+本轮读取日常容器连接配置、源码、原数据库权限与账本、Kafka 消费位置和 Prometheus。六个运行账号均仅有自身
 Schema 的授权，无跨库权限。商城运行账号只获指定表的权限，无全局、库级或例程授权，对下表的旧对象无表级
 或列级授权。旧 `commerceflow` 账号和履约影子读者均锁定，影子读者在商城库和订单库的对象授权均为 0。
 `commerce_legacy_audit` 留有历史只读权限。11 个采集目标均为 `up`，41 条规则中无 `pending` 或 `firing`。
@@ -321,7 +302,6 @@ Schema 的授权，无跨库权限。商城运行账号只获指定表的权限�
 
 - 门户商家接单、发货、改运单仍调用旧外层路由，商城适配器继续调用 `/legacy-commands`。独立履约已是唯一执行方，
   但过渡命令仍是运行依赖。迁移调用方之前需要覆盖处理中响应、幂等和状态查询恢复。
-- `scripts/audit/audit-fulfillment-admission.ps1` 因 `MerchantFulfillmentService` 直接引用 `LogisticsService`
   查询包裹、`MerchantOrderResponse` 引用 `LogisticsResponse` 而失败。单独执行只读 SQL 后确认旧回执查询仅按订单号关联，
   产生 28 行差异，涉及 23 个命令和 18 个订单。补查平台运单号、包裹 ID 和版本后，找不到匹配投影的命令为 0。
   需按实际关联键调整审计，并对同单多包裹补回归。
@@ -334,7 +314,7 @@ Schema 的授权，无跨库权限。商城运行账号只获指定表的权限�
 使用 PowerShell 7 核对 `%LOCALAPPDATA%/CommerceFlow/releases/r20261119-fulfillment-rollback-01` 的
 `invoke-rollback-rehearsal.ps1 -Action Check`、订单旧源归档的清单，以及
 `%LOCALAPPDATA%/CommerceFlow/releases/p4-20261120/restore-source` 的九库 SHA-256 和文件大小。
-九份 SQL 均导入无网络、无宿主机端口、使用临时文件系统的 MySQL 8.4，核对各库的表及 Flyway 成功记录后移除临时容器。
+九份 SQL 均导入无网络、无宿主机端口、使用临时文件系统的 原数据库，核对各库的表及 Flyway 成功记录后移除临时容器。
 这是历史快照的恢复实测。当前商城已升到 Flyway V68，当前验收仍需以现行镜像和备份复演并核对 P4 之后的新写入。
 日常容器 ID、镜像、启动时间、挂载及 Docker 命名卷清单在本轮前后一致。
 
@@ -354,10 +334,10 @@ Schema 的授权，无跨库权限。商城运行账号只获指定表的权限�
 
 ### 当前镜像与备份
 
-以 `%LOCALAPPDATA%/CommerceFlow/releases/m3-closeout-20261121-174517` 为证据目录。日常 12 个 MySQL 库
+以 `%LOCALAPPDATA%/CommerceFlow/releases/m3-closeout-20261121-174517` 为证据目录。日常 12 个原数据库库
 分别做一致性快照并逐份记录 SHA-256。恢复到单独的本地 Docker 网络、专用容器和专用卷，先用日常镜像启动，
 再切换隔离商城、履约和门户到候选镜像。镜像 ID、备份清单和验证输出均保存在该目录。
-恢复使用干净的隔离 Kafka 与 Redis，本轮验证的持久业务状态来自 MySQL。
+恢复使用干净的隔离 Kafka 与 Redis，本轮验证的持久业务状态来自 原数据库。
 
 | 范围 | 恢复与复验 |
 | --- | --- |
@@ -384,7 +364,7 @@ Schema 的授权，无跨库权限。商城运行账号只获指定表的权限�
 三个服务健康检查均通过。其余 39 个 Compose 容器的 ID、镜像、启动时间和挂载保持一致，15 个项目数据卷完整保留。
 三个前序镜像均已固定本地回退标签。发布及验收证据保存在 `%LOCALAPPDATA%/CommerceFlow/releases/m3-daily-20261121`。
 
-日常商城旧库生成带 SHA-256 的完整快照。在无网络的临时 MySQL 中恢复后，对照了 42 个触发器、存储过程参数和
+日常商城旧库生成带 SHA-256 的完整快照。在无网络的临时原数据库中恢复后，对照了 42 个触发器、存储过程参数和
 定义、执行身份、SQL 模式及水位 610。确认独立支付影子已关闭、日常进程无商城源库连接配置、旧影子读者无可用账号后，
 定向移除 `record_payment_shadow_change` 及引用它的 42 个触发器。旧资料和捕获水位保留，旧例程和触发器计数均为 0。
 

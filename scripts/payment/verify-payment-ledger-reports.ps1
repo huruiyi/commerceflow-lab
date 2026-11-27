@@ -29,8 +29,8 @@ function Wait-Until([scriptblock]$Check, [string]$Label) {
 }
 
 function Invoke-LedgerSql([string]$Statement) {
-  "SET time_zone = '+00:00';" + [Environment]::NewLine + $Statement |
-    docker exec -i $database sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -uledger --batch --skip-column-names payments'
+  "SET TIME ZONE 'UTC';" + [Environment]::NewLine + $Statement |
+    docker exec -i $database psql -U ledger -d payments -XqAt -F "`t" -P null=NULL -v ON_ERROR_STOP=1
 }
 
 function Invoke-Report($Query, [int]$ExpectedStatus = 200) {
@@ -148,19 +148,18 @@ function Assert-Report($Query, $PaymentRows, $RefundRows) {
 try {
   if (-not $Image) {
     $Image = 'commerceflow-payment-ledger-report:verification'
-    docker build --build-arg MAVEN_LEGACY_MYSQL=true -t $Image (Join-Path $root 'services/payment-orchestration-service')
+    docker build -t $Image (Join-Path $root 'services/payment-orchestration-service')
   }
   docker network create $isolation | Out-Null
   $networkCreated = $true
-  docker run -d --name $database --network $isolation -e MYSQL_DATABASE=payments -e MYSQL_USER=ledger `
-    -e "MYSQL_PASSWORD=$dbPassword" -e MYSQL_RANDOM_ROOT_PASSWORD=yes mysql:8.4 --default-time-zone=+05:30 | Out-Null
+  docker run -d --name $database --network $isolation -e POSTGRES_DB=payments -e POSTGRES_USER=ledger -e "POSTGRES_PASSWORD=$dbPassword" postgres:17.11-alpine -c timezone=Asia/Kolkata | Out-Null
   $databaseCreated = $true
   Wait-Until {
-    docker exec $database sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -h127.0.0.1 -uledger payments -N -e "SELECT 1"' 2>$null
-  } 'MySQL TCP login'
+    docker exec -e "PGPASSWORD=$dbPassword" $database psql -h 127.0.0.1 -U ledger -d payments -XqAt -c "SELECT 1" 2>$null
+  } 'PostgreSQL TCP login'
   docker run -d --name $application --network $isolation -p '127.0.0.1::8080' `
-    -e "DATABASE_URL=jdbc:mysql://$($database):3306/payments?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=SERVER" `
-    -e DATABASE_USERNAME=ledger -e "DATABASE_PASSWORD=$dbPassword" -e PAYMENT_ACCEPTING_TRAFFIC=true `
+    -e "DATABASE_URL=jdbc:postgresql://$($database):5432/payments" `
+    -e SPRING_PROFILES_ACTIVE=postgresql -e DATABASE_USERNAME=ledger -e "DATABASE_PASSWORD=$dbPassword" -e PAYMENT_ACCEPTING_TRAFFIC=true `
     -e PAYMENT_EFFECTS_ENABLED=false -e "PAYMENT_INTERNAL_SECRET=$internalSecret" -e "PAYMENT_CALLBACK_SECRET=$callbackSecret" `
     $Image | Out-Null
   $applicationCreated = $true
@@ -171,35 +170,35 @@ try {
 INSERT INTO payment_records(id, order_id, payment_number, idempotency_key, amount, status, failure_reason, created_at,
   channel, currency, request_fingerprint, channel_transaction_no, paid_at, updated_at, version, refunded_amount)
 VALUES
-  (1,101,'REPORT-P1','report-p1',100.00,'SUCCESS','','2025-03-08 15:59:59.999999','ALIPAY','CNY','p1','CHANNEL-P1','2025-03-08 16:00:00',NOW(6),0,30.00),
-  (2,101,'REPORT-P2','report-p2',100.00,'FAILED','','2025-03-08 15:00:00','WECHAT_PAY','CNY','p2','CHANNEL-P2',NULL,NOW(6),0,0),
-  (3,102,'REPORT-P3','report-p3',12.34,'SUCCESS','','2025-03-09 07:00:00','UNION_PAY','USD','p3','CHANNEL-P3','2025-03-09 07:00:00',NOW(6),0,0),
-  (4,103,'REPORT-P4','report-p4',90.00,'PENDING','','2025-03-09 15:59:59.999999','ALIPAY','CNY','p4','CHANNEL-P4',NULL,NOW(6),0,0),
-  (5,104,'REPORT-P5','report-p5',42.01,'SUCCESS','','2025-03-10 16:00:00','ALIPAY','CNY','p5','CHANNEL-P5','2025-03-10 16:00:00',NOW(6),0,0),
-  (6,105,'REPORT-P6','report-p6',77.00,'SUCCESS','','2025-03-09 05:00:00','ALIPAY','CNY','p6','CHANNEL-P6',NULL,NOW(6),0,0),
-  (7,106,'REPORT-P7','report-p7',19.90,'CLOSED','','2025-03-10 03:59:59.999999','UNION_PAY','CNY','p7','CHANNEL-P7',NULL,NOW(6),0,0),
-  (8,107,'REPORT-P8','report-p8',11.00,'CLOSED','','2025-03-10 04:00:00','UNION_PAY','CNY','p8','CHANNEL-P8',NULL,NOW(6),0,0),
-  (9,108,'REPORT-P9','report-p9',8.00,'PENDING','',NOW(6),'ALIPAY','CNY','p9','CHANNEL-P9',NULL,NOW(6),0,0);
+  (1,101,'REPORT-P1','report-p1',100.00,'SUCCESS','','2025-03-08 15:59:59.999999','ALIPAY','CNY','p1','CHANNEL-P1','2025-03-08 16:00:00',CURRENT_TIMESTAMP(6),0,30.00),
+  (2,101,'REPORT-P2','report-p2',100.00,'FAILED','','2025-03-08 15:00:00','WECHAT_PAY','CNY','p2','CHANNEL-P2',NULL,CURRENT_TIMESTAMP(6),0,0),
+  (3,102,'REPORT-P3','report-p3',12.34,'SUCCESS','','2025-03-09 07:00:00','UNION_PAY','USD','p3','CHANNEL-P3','2025-03-09 07:00:00',CURRENT_TIMESTAMP(6),0,0),
+  (4,103,'REPORT-P4','report-p4',90.00,'PENDING','','2025-03-09 15:59:59.999999','ALIPAY','CNY','p4','CHANNEL-P4',NULL,CURRENT_TIMESTAMP(6),0,0),
+  (5,104,'REPORT-P5','report-p5',42.01,'SUCCESS','','2025-03-10 16:00:00','ALIPAY','CNY','p5','CHANNEL-P5','2025-03-10 16:00:00',CURRENT_TIMESTAMP(6),0,0),
+  (6,105,'REPORT-P6','report-p6',77.00,'SUCCESS','','2025-03-09 05:00:00','ALIPAY','CNY','p6','CHANNEL-P6',NULL,CURRENT_TIMESTAMP(6),0,0),
+  (7,106,'REPORT-P7','report-p7',19.90,'CLOSED','','2025-03-10 03:59:59.999999','UNION_PAY','CNY','p7','CHANNEL-P7',NULL,CURRENT_TIMESTAMP(6),0,0),
+  (8,107,'REPORT-P8','report-p8',11.00,'CLOSED','','2025-03-10 04:00:00','UNION_PAY','CNY','p8','CHANNEL-P8',NULL,CURRENT_TIMESTAMP(6),0,0),
+  (9,108,'REPORT-P9','report-p9',8.00,'PENDING','',CURRENT_TIMESTAMP(6),'ALIPAY','CNY','p9','CHANNEL-P9',NULL,CURRENT_TIMESTAMP(6),0,0);
 INSERT INTO refund_records(id, refund_number, order_id, payment_id, customer_id, idempotency_key, request_fingerprint, amount,
   currency, reason_code, reason_detail, status, inventory_status, order_status_before_refund, failure_reason, requested_at,
   succeeded_at, created_at, updated_at, version)
 VALUES
-  (1,'REPORT-R1',101,1,1,'report-r1','r1',10.00,'CNY','TEST','','SUCCEEDED','NOT_STARTED','PAID','','2025-03-09 10:00:00','2025-03-09 16:00:00','2025-03-09 10:00:00',NOW(6),0),
-  (2,'REPORT-R2',101,1,1,'report-r2','r2',20.00,'CNY','TEST','','SUCCEEDED','NOT_STARTED','PAID','','2025-03-09 10:10:00','2025-03-10 01:00:00','2025-03-09 10:10:00',NOW(6),0),
-  (3,'REPORT-R3',102,3,1,'report-r3','r3',1.00,'USD','TEST','','FAILED','NOT_STARTED','PAID','','2025-03-09 09:00:00',NULL,'2025-03-09 09:00:00',NOW(6),0),
-  (4,'REPORT-R4',102,3,1,'report-r4','r4',2.00,'USD','TEST','','REQUESTED','NOT_STARTED','PAID','','2025-03-09 09:00:00',NULL,'2025-03-09 09:00:00',NOW(6),0),
-  (5,'REPORT-R5',101,1,1,'report-r5','r5',1.00,'CNY','TEST','','SUCCEEDED','NOT_STARTED','PAID','','2025-03-09 06:59:59.999999',NULL,'2025-03-09 06:59:59.999999',NOW(6),0),
-  (6,'REPORT-R6',108,9,1,'report-r6','r6',2.75,'CNY','TEST','','REQUESTED','NOT_STARTED','PAID','',NOW(6),NULL,NOW(6),NOW(6),0);
+  (1,'REPORT-R1',101,1,1,'report-r1','r1',10.00,'CNY','TEST','','SUCCEEDED','NOT_STARTED','PAID','','2025-03-09 10:00:00','2025-03-09 16:00:00','2025-03-09 10:00:00',CURRENT_TIMESTAMP(6),0),
+  (2,'REPORT-R2',101,1,1,'report-r2','r2',20.00,'CNY','TEST','','SUCCEEDED','NOT_STARTED','PAID','','2025-03-09 10:10:00','2025-03-10 01:00:00','2025-03-09 10:10:00',CURRENT_TIMESTAMP(6),0),
+  (3,'REPORT-R3',102,3,1,'report-r3','r3',1.00,'USD','TEST','','FAILED','NOT_STARTED','PAID','','2025-03-09 09:00:00',NULL,'2025-03-09 09:00:00',CURRENT_TIMESTAMP(6),0),
+  (4,'REPORT-R4',102,3,1,'report-r4','r4',2.00,'USD','TEST','','REQUESTED','NOT_STARTED','PAID','','2025-03-09 09:00:00',NULL,'2025-03-09 09:00:00',CURRENT_TIMESTAMP(6),0),
+  (5,'REPORT-R5',101,1,1,'report-r5','r5',1.00,'CNY','TEST','','SUCCEEDED','NOT_STARTED','PAID','','2025-03-09 06:59:59.999999',NULL,'2025-03-09 06:59:59.999999',CURRENT_TIMESTAMP(6),0),
+  (6,'REPORT-R6',108,9,1,'report-r6','r6',2.75,'CNY','TEST','','REQUESTED','NOT_STARTED','PAID','',CURRENT_TIMESTAMP(6),NULL,CURRENT_TIMESTAMP(6),CURRENT_TIMESTAMP(6),0);
 '@ | Out-Null
 
   $paymentSql = @'
-SELECT channel,currency,status,amount,DATE_FORMAT(created_at,'%Y-%m-%dT%H:%i:%s.%fZ'),
-  DATE_FORMAT(paid_at,'%Y-%m-%dT%H:%i:%s.%fZ')
+SELECT channel,currency,status,amount,to_char(created_at,'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+  to_char(paid_at,'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
 FROM payment_records ORDER BY id;
 '@
   $refundSql = @'
-SELECT p.channel,r.currency,r.status,r.amount,DATE_FORMAT(r.requested_at,'%Y-%m-%dT%H:%i:%s.%fZ'),
-  DATE_FORMAT(r.succeeded_at,'%Y-%m-%dT%H:%i:%s.%fZ')
+SELECT p.channel,r.currency,r.status,r.amount,to_char(r.requested_at,'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+  to_char(r.succeeded_at,'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
 FROM refund_records r JOIN payment_records p ON p.id = r.payment_id ORDER BY r.id;
 '@
   $payments = @(Invoke-LedgerSql $paymentSql | ForEach-Object { ,($_ -split '\t') })
@@ -249,7 +248,7 @@ FROM refund_records r JOIN payment_records p ON p.id = r.payment_id ORDER BY r.i
   $refunds = @(Invoke-LedgerSql $refundSql | ForEach-Object { ,($_ -split '\t') })
   $afterReplay = Assert-Report $replayWindow $payments $refunds
   Assert-Equal ($beforeReplay | ConvertTo-Json -Depth 10 -Compress) ($afterReplay | ConvertTo-Json -Depth 10 -Compress) 'Report after callback replay'
-  Write-Host 'Ledger reports verified against 9 payment and 6 refund rows in isolated MySQL 8.4.'
+  Write-Host 'Ledger reports verified against 9 payment and 6 refund rows in isolated PostgreSQL 17.'
   Write-Host 'Checked three time zones, balances and filters, request validation, and HTTP replay of both callback types.'
 } catch {
   if ($applicationCreated) { docker logs --tail 55 $application }

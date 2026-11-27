@@ -65,13 +65,6 @@ function passwordLogin(username: string, password: string, overrideVariables?: s
   }
 }
 
-function mysqlLogin(username: string, configPrefix: string): ServiceLogin {
-  return passwordLogin(username, username + '-password', [
-    configPrefix + '_DATABASE_USERNAME',
-    configPrefix + '_DATABASE_PASSWORD',
-  ], '此处为 MySQL 初始化创建的应用账号。已有数据卷请使用当前数据库中的账号密码。')
-}
-
 // These values are the repository defaults for local development.
 export const serviceLogins: Partial<Record<string, ServiceLogin>> = {
   'logistics-simulator-web': {
@@ -112,21 +105,9 @@ export const serviceLogins: Partial<Record<string, ServiceLogin>> = {
   'rabbitmq-broker': passwordLogin('commerceflow', 'commerceflow-password', [
     'RABBITMQ_USERNAME', 'RABBITMQ_PASSWORD',
   ], '此账号用于管理台和 AMQP 连接。'),
-  'commerce-db': passwordLogin('root', 'local-root-password', ['MYSQL_ROOT_PASSWORD'],
-    '此处为本地 MySQL 管理账号。已有数据卷请使用当前数据库中的密码。'),
-  'notification-db': mysqlLogin('notification', 'NOTIFICATION'),
   'notification-db-postgresql': passwordLogin('notification', 'notification-password', [
     'NOTIFICATION_DATABASE_USERNAME', 'NOTIFICATION_DATABASE_PASSWORD',
   ], '此账号用于容器网络内访问 notification 数据库。'),
-  'catalog-db': mysqlLogin('catalog', 'CATALOG'),
-  'inventory-db': mysqlLogin('inventory', 'INVENTORY'),
-  'order-db': mysqlLogin('orders', 'ORDER'),
-  'payment-db': mysqlLogin('payments', 'PAYMENT_ORCHESTRATION'),
-  'fulfillment-db': mysqlLogin('fulfillment', 'FULFILLMENT'),
-  'messaging-simulator-db': mysqlLogin('messaging', 'MESSAGING'),
-  'warehouse-simulator-db': mysqlLogin('warehouse', 'WAREHOUSE'),
-  'payment-simulator-db': mysqlLogin('payment', 'PAYMENT'),
-  'logistics-simulator-db': mysqlLogin('logistics', 'LOGISTICS'),
 }
 
 export interface Snapshot {
@@ -163,8 +144,6 @@ const statuses: Record<string, { label: string; bucket: string }> = {
   FAILED: { label: '异常退出', bucket: 'issue' },
   DEGRADED: { label: '部分副本异常', bucket: 'issue' },
   MISSING: { label: '现役容器缺失', bucket: 'issue' },
-  UNEXPECTED_ACTIVE: { label: '非现役应用意外启动', bucket: 'issue' },
-  ROLLBACK_RETAINED: { label: '回退保留', bucket: 'inactive' },
   UNHEALTHY: { label: '不健康', bucket: 'issue' },
   UNREACHABLE: { label: '入口异常', bucket: 'issue' },
   STOPPED: { label: '已停止', bucket: 'inactive' },

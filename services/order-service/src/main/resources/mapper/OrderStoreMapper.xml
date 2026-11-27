@@ -32,8 +32,7 @@
     EXISTS (SELECT 1 FROM order_items own WHERE own.order_id = o.id AND own.merchant_id = #{merchantId})
   </sql>
 
-  <sql id="keywordMatches">LOCATE(LOWER(#{request.criteria.keyword}), LOWER(${field})) &gt; 0</sql>
-  <sql id="keywordMatches" databaseId="postgresql">
+  <sql id="keywordMatches">
     STRPOS(LOWER(unaccent(${field} COLLATE "C")), LOWER(unaccent(#{request.criteria.keyword}))) &gt; 0
   </sql>
 
@@ -139,11 +138,7 @@
       #{request.shippingFee},#{request.discountAmount},#{request.couponId})
   </sql>
 
-  <insert id="insertOrder" useGeneratedKeys="true" keyProperty="key.id">
-    <include refid="newOrder"/>
-  </insert>
-
-  <insert id="insertOrder" databaseId="postgresql" useGeneratedKeys="true" keyProperty="key.id" keyColumn="id">
+  <insert id="insertOrder" useGeneratedKeys="true" keyProperty="key.id" keyColumn="id">
     <include refid="newOrder"/>
     ON CONFLICT (order_number) DO NOTHING
   </insert>
@@ -164,11 +159,6 @@
   </insert>
 
   <insert id="insertMutation">
-    INSERT INTO order_remote_message_inbox(message_id,message_kind,payload_fingerprint,processing_status)
-    VALUES (#{mutationId},'MUTATION',#{fingerprint},'RECEIVED')
-  </insert>
-
-  <insert id="insertMutation" databaseId="postgresql">
     INSERT INTO order_remote_message_inbox(message_id,message_kind,payload_fingerprint,processing_status)
     VALUES (#{mutationId},'MUTATION',#{fingerprint},'RECEIVED')
     ON CONFLICT (message_id) DO NOTHING

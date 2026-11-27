@@ -151,8 +151,7 @@ WHERE request.reference_no IN ('QA-APPLICATION-SLOW', 'QA-REFUND-SLOW')
   AND receipt.delivered_at IS NULL
 ORDER BY request.reference_no;
 '@
-  $pendingReceipts = @(docker compose @compose exec -T -e MYSQL_PWD=invoice-verification-password invoice-db `
-    mysql --batch --skip-column-names -uinvoice invoice_platform -e $invoiceLookup)
+  $pendingReceipts = @(docker compose @compose exec -T invoice-db-postgresql psql -U postgres -d invoice_platform -XqAt -v ON_ERROR_STOP=1 -c "SET search_path=invoice_platform; $invoiceLookup")
   $expectedReceipts = @('QA-APPLICATION-SLOW:qa-invoice-issue', 'QA-REFUND-SLOW:qa-invoice-red')
   if (($pendingReceipts -join ',') -cne ($expectedReceipts -join ',')) {
     throw 'Could not locate both undelivered invoice receipts by application and refund number.'

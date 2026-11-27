@@ -1,4 +1,4 @@
--- Match case- and accent-insensitive comparisons for existing MySQL identifiers.
+-- Match case- and accent-insensitive comparisons for existing business identifiers.
 CREATE COLLATION payment_identifier_ci (provider = icu, locale = 'und-u-ks-level1', deterministic = false);
 
 CREATE TABLE payment_admin_user (

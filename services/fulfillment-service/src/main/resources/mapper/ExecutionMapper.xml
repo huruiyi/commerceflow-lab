@@ -2,32 +2,9 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="vip.fairy.commerceflow.fulfillment.infrastructure.ExecutionMapper">
 
-  <sql id="statementClock">CURRENT_TIMESTAMP(6)</sql>
-  <sql id="statementClock" databaseId="postgresql">statement_timestamp()</sql>
+  <sql id="statementClock">statement_timestamp()</sql>
 
   <update id="initializeMode">
-    <choose>
-      <when test="mode == 'EXECUTION'">
-        UPDATE fulfillment_runtime_mode AS runtime
-        JOIN fulfillment_shadow_watermark AS watermark USING (singleton_id)
-        SET runtime.mode=#{mode}, watermark.generation=1
-        WHERE runtime.singleton_id=1 AND runtime.mode IS NULL
-          AND watermark.generation=0 AND watermark.source_sequence=0
-          AND NOT EXISTS (SELECT 1 FROM fulfillment_shadow_quarantine)
-          AND NOT EXISTS (SELECT 1 FROM fulfillment_order_locks)
-          AND NOT EXISTS (SELECT 1 FROM fulfillment_command_ids)
-          AND NOT EXISTS (SELECT 1 FROM fulfillment_shipment_jobs)
-          AND NOT EXISTS (SELECT 1 FROM fulfillment_merchant_jobs)
-          AND NOT EXISTS (SELECT 1 FROM fulfillment_shipment_recoveries)
-          AND NOT EXISTS (SELECT 1 FROM fulfillment_merchant_recoveries)
-      </when>
-      <otherwise>
-        UPDATE fulfillment_runtime_mode SET mode=#{mode} WHERE singleton_id=1 AND mode IS NULL
-      </otherwise>
-    </choose>
-  </update>
-
-  <update id="initializeMode" databaseId="postgresql">
     WITH initialized AS (
       UPDATE fulfillment_runtime_mode AS runtime
       SET mode=#{mode}
@@ -73,13 +50,6 @@
   </select>
 
   <sql id="oldestDueSeconds">
-    COALESCE(TIMESTAMPDIFF(SECOND,
-      MIN(CASE WHEN status='PENDING' AND next_attempt_at &lt;= <include refid="statementClock"/>
-        THEN next_attempt_at END),
-      <include refid="statementClock"/>),0)
-  </sql>
-
-  <sql id="oldestDueSeconds" databaseId="postgresql">
     COALESCE(TRUNC(EXTRACT(EPOCH FROM (<include refid="statementClock"/> -
       MIN(CASE WHEN status='PENDING' AND next_attempt_at &lt;= <include refid="statementClock"/>
         THEN next_attempt_at END))))::bigint,0)
@@ -87,20 +57,10 @@
 
   <insert id="lockOrder">
     INSERT INTO fulfillment_order_locks (order_id) VALUES (#{orderId})
-    ON DUPLICATE KEY UPDATE order_id=order_id
-  </insert>
-
-  <insert id="reserveCommand">
-    INSERT INTO fulfillment_command_ids (command_id,order_id) VALUES (#{commandId},#{orderId})
-    ON DUPLICATE KEY UPDATE order_id=order_id
-  </insert>
-
-  <insert id="lockOrder" databaseId="postgresql">
-    INSERT INTO fulfillment_order_locks (order_id) VALUES (#{orderId})
     ON CONFLICT (order_id) DO UPDATE SET order_id=EXCLUDED.order_id
   </insert>
 
-  <insert id="reserveCommand" databaseId="postgresql">
+  <insert id="reserveCommand">
     INSERT INTO fulfillment_command_ids (command_id,order_id) VALUES (#{commandId},#{orderId})
     ON CONFLICT (command_id) DO NOTHING
   </insert>
@@ -217,8 +177,7 @@
       AND (lease_until IS NULL OR lease_until &lt;= <include refid="statementClock"/>)
   </update>
 
-  <sql id="leaseDeadline">TIMESTAMPADD(SECOND,60,<include refid="statementClock"/>)</sql>
-  <sql id="leaseDeadline" databaseId="postgresql"><include refid="statementClock"/> + INTERVAL '60 seconds'</sql>
+  <sql id="leaseDeadline"><include refid="statementClock"/> + INTERVAL '60' SECOND</sql>
 
   <update id="advance">
     UPDATE <include refid="jobTable"/> SET step=#{step},attempts=0,last_error=NULL,
@@ -233,8 +192,8 @@
       next_attempt_at=<include refid="warehousePollTime"/>
     WHERE <include refid="lease"/> AND step='WAREHOUSE'
   </update>
-  <sql id="warehousePollTime">TIMESTAMPADD(SECOND,2,<include refid="statementClock"/>)</sql>
-  <sql id="warehousePollTime" databaseId="postgresql"><include refid="statementClock"/> + INTERVAL '2 seconds'</sql>
+
+  <sql id="warehousePollTime"><include refid="statementClock"/> + INTERVAL '2' SECOND</sql>
 
   <update id="finish">
     UPDATE <include refid="jobTable"/> SET status=#{status},last_error=#{error},
@@ -249,9 +208,9 @@
       next_attempt_at=<include refid="retryTime"/>
     WHERE <include refid="lease"/>
   </update>
-  <sql id="retryTime">TIMESTAMPADD(SECOND,LEAST(POWER(2,attempts),30),<include refid="statementClock"/>)</sql>
-  <sql id="retryTime" databaseId="postgresql">
-    <include refid="statementClock"/> + LEAST(POWER(2,attempts),30) * INTERVAL '1 second'
+
+  <sql id="retryTime">
+    <include refid="statementClock"/> + LEAST(POWER(2,attempts),30) * INTERVAL '1' SECOND
   </sql>
 
   <select id="reviewable" resultType="string">

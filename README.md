@@ -82,13 +82,12 @@ docker compose ps
 ```
 
 日常覆盖文件用于已迁移卷，应用使用现役账号并保持初始化迁移关闭。新版本数据库迁移沿用分库发布流程。
-MySQL JDBC 驱动和 Flyway 模块仅在显式启用 Maven 的 `legacy-mysql` Profile 时打包。
-跨库迁移、回退和历史验收通过显式 Compose 参数运行。[核心商城的启动与回退](docs/architecture/DATABASE-EVOLUTION-PLAN.md#核心商城的启动与回退)
+现有数据卷的启动、备份和数据库迁移见[PostgreSQL 运维](docs/architecture/DATABASE-EVOLUTION-PLAN.md)。
 
 通知应用占用宿主机 `18086`，容器内通过 `notification-service:8080` 访问。重建前还需核对通知维护卷、
-Kafka 持久化卷和通知消费组的已提交位置。[通知部署与验收](docs/architecture/DATABASE-EVOLUTION-PLAN.md#日常通知部署与验收)
+Kafka 持久化卷和通知消费组的已提交位置。[通知部署与验收](docs/architecture/DATABASE-EVOLUTION-PLAN.md)
 
-### 隔离历史验收
+### 隔离 PostgreSQL 验收
 
 `scripts/verify-quick.ps1` 和 `scripts/verify-all.ps1` 在隔离项目中使用显式基础配置。
 脚本会初始化新通知数据库、Kafka 消费组和演示数据：
@@ -99,10 +98,6 @@ Kafka 持久化卷和通知消费组的已提交位置。[通知部署与验收]
 
 新消费组的每个分区都有有效提交位置后，重建时把偏移策略切回 `none`，并关闭初始化 Flyway。
 
-已有商城本地履约数据的历史环境先完成所有权切换，回退时使用已验收的版本化回退包。
-参见[履约演进计划](docs/architecture/FULFILLMENT-SERVICE-EVOLUTION-PLAN.md)。
-
-从旧商城库导入目录数据时使用[手工迁移入口](docs/architecture/M3-SINGLE-OWNERSHIP-REVIEW.md#5-目录启动与初始化验收)。
 
 访问地址：
 
@@ -200,7 +195,7 @@ pwsh -File ./scripts/audit-script-contracts.ps1
 
 契约清单与删卷边界见 [验收脚本审计](docs/SCRIPT-AUDIT.md)；改动类型对应的必跑门禁、证据格式和基线冻结检查见 [全开发生命周期可复测验证体系](docs/VERIFICATION-SYSTEM.md)。
 
-四个 Java 服务的只读代码质量与 Mapper 契约门禁：
+Java 服务的只读代码质量与 Mapper 契约门禁：
 
 ```powershell
 pwsh -File ./scripts/audit/audit-code-quality.ps1
@@ -209,81 +204,10 @@ pwsh -File ./scripts/audit/audit-code-quality.ps1
 该入口不会格式化或改写文件；它检查后端 Java、Mapper XML 和 Maven POM 的客观格式规则，
 并校验 Mapper namespace、SQL statement id、Java 方法、内联 SQL 和直接 JDBC 边界。
 
-order-service 的只读 CREATE 准入审计可单独复跑；它检查 7 张 order 所有权表、跨边界外键归零、状态与关联不变量、
-外部 Mapper 消费者保持为 0，以及全局事务协调器缺席门禁，不创建服务、不迁移数据、不清空卷：
+订单、库存和支付编排已使用独立数据库。可通过订单单一所有权验收核对商城运行账号、订单写入和故障恢复。
 
 ```powershell
-pwsh -File ./scripts/audit/audit-order-service-admission.ps1
-```
-
-当前结论和后续收口顺序见
-[order-service 准入与单一所有权演进计划](docs/architecture/ORDER-SERVICE-EVOLUTION-PLAN.md)。
-
-order-service 已完成一次性 CUTOVER 并独占订单运行时读写。以下入口验证新订单只写 order-db、源端计数不变、
-commerce 运行账号无源表权限，以及 order-service 停机时明确返回 503、恢复后重新健康：
-
-```powershell
-pwsh -File ./scripts/orders/verify-order-runtime-cutover.ps1
-```
-
-远程 Order V1 故障语义使用合成订单在独立库内演练；脚本临时打开协议门，验证 HMAC/摘要/防重放、Tempo
-Trace、重复/冲突/乱序、命令 Outbox/结果 Inbox、超时未知结果和人工恢复，随后清理合成数据并恢复 503：
-
-```powershell
-pwsh -File ./scripts/orders/verify-order-remote-protocol.ps1
-pwsh -File ./scripts/orders/verify-order-precutover-rehearsal.ps1
-```
-
-影子与预切换脚本保留为历史取证入口；默认运行时关闭影子复制且不再配置源库，不应重新开放源端权限。
-
-支付编排已在日常环境切流，商城使用远程 Payment V1 适配器，支付与退款回调直达支付编排服务。
-权威数据库、旧权限退役和恢复证据见 [M3 最终验收](docs/architecture/M3-SINGLE-OWNERSHIP-REVIEW.md#14-2026-11-21-日常发布与-m3-验收)。
-
-以下为切流前的历史取证入口。CREATE 准入审计当时核对了 14 张所有权表、跨域依赖、金额与幂等约束、
-Outbox/Inbox 及恢复不变量：
-
-```powershell
-pwsh -File ./scripts/audit/audit-payment-orchestration-admission.ps1
-```
-
-历史准入过程见
-[payment-orchestration-service 准入与单一所有权演进计划](docs/architecture/PAYMENT-ORCHESTRATION-SERVICE-EVOLUTION-PLAN.md)。
-受控停写、最终追平、唯一远程适配器、回调切换和源表撤权的原子顺序见
-[payment-orchestration 一次性切换运行手册](docs/architecture/PAYMENT-ORCHESTRATION-CUTOVER-RUNBOOK.md)。
-切流前的阶段评审见
-[payment-orchestration 最终切换 GO/NO-GO 评审](docs/architecture/PAYMENT-CUTOVER-GO-NO-GO-REVIEW.md)。
-切换窗口使用 `PAYMENT_WRITE_FROZEN=true` 暂停创建支付、关闭支付和发起退款，同时保留签名回调排空；默认必须为
-`false`，该开关本身不表示已经切流。
-创建、查询、关闭和结果的稳定字段与恢复语义见
-[支付第一版远程契约](docs/architecture/PAYMENT-V1-CONTRACT.md)。
-
-切流前的一次性评审曾记录 `REJECTED`，当时的阻断是商城本地路径、渠道回调和源表权限尚未切换。
-脚本保留了默认流量与副作用开关、影子关闭及源库连接配置退役的检查。2026-11-24 复跑时，这四项通过；随后，全局排除 PostgreSQL 的历史断言命中现役通知配置，脚本退出。当前支付所有权以 M3 最终验收记录为准。
-
-```powershell
-pwsh -File ./scripts/audit/audit-payment-cutover-readiness.ps1
-```
-
-历史隔离配置下，支付副作用演练只插入一条精确合成 Outbox，验证远程失败进入可恢复 RETRY 且不产生库存写入；结束时删除该事件并
-恢复流量关、副作用关、影子开：
-
-```powershell
-pwsh -File ./scripts/payment/verify-payment-effects-rehearsal.ps1
-```
-
-支付影子运行专项会执行可重复快照、增量水位、14 表指纹核对和可恢复孤儿演练。支付副作用、影子运行、远程协议
-及预切换演练脚本均使用显式隔离配置，启动方法见[旧迁移工具与权限验收](docs/architecture/M3-SINGLE-OWNERSHIP-REVIEW.md#7-旧迁移工具与权限验收)。
-
-```powershell
-pwsh -File ./scripts/payment/verify-payment-shadow-runtime.ps1
-```
-
-远程协议专项会临时开启独立服务流量门，使用合成数据验证签名、防重放、支付/关闭竞态、退款、结果丢失、
-服务/数据库停机与整体回退；脚本结束后自动清理合成数据并恢复关闭流量：
-
-```powershell
-pwsh -File ./scripts/payment/verify-payment-remote-protocol.ps1
-pwsh -File ./scripts/payment/verify-payment-precutover-rehearsal.ps1
+./scripts/orders/verify-order-runtime-cutover.ps1
 ```
 
 Angular 商城门户和支付模拟器 Web 都使用模块本地 Prettier 只读门禁：
@@ -322,7 +246,7 @@ Maven/ArchUnit 测试或前端格式检查。它不代替两分钟浸泡、MQ �
 pwsh -File ./scripts/verify-all.ps1
 ```
 
-完整验收会先构建镜像并运行镜像内测试，再启动完整环境，最后验证认证、CSRF、权限边界、国际化、支付/取消竞态、支付结果、Kafka、签名物流和回调轨迹、收货评价、Redis 缓存、MySQL 降级与健康状态。已有最新镜像时可跳过构建：
+完整验收会先构建镜像并运行镜像内测试，再启动完整环境，最后验证认证、CSRF、权限边界、国际化、支付/取消竞态、支付结果、Kafka、签名物流和回调轨迹、收货评价、Redis 缓存、PostgreSQL 降级与健康状态。已有最新镜像时可跳过构建：
 
 ```powershell
 pwsh -File ./scripts/verify-all.ps1 -SkipBuild
@@ -342,25 +266,20 @@ pwsh -File ./scripts/verify-all.ps1 -SkipBuild
 | `verify-quick` | 始终执行后端代码质量和脚本契约门禁，默认构建并覆盖核心业务、重启恢复、Redis 降级与健康 | 隔离项目的本机端口 |
 | `verify-authorization` | 匿名访问、登录、禁用账号、CSRF 和三种角色权限矩阵 | 商城 `14200` |
 | `verify-i18n` | 中英文商品、按语言隔离的 Redis 缓存、稳定错误码和前端入口 | 商城 `14200` |
-| `verify-flyway-lifecycle` | 在隔离 MySQL 命名卷验证空库、V16 旧库到当前迁移终点、历史订单归档、期限回填和关键约束 | Docker Engine |
-| `verify-fresh-volume-lifecycle` | 用新卷核对现行 Flyway 账本、PostgreSQL 和 Kafka 首次启动、订单取消通知及收货评价。默认保留隔离卷，显式 `-RemoveTemporaryVolumes` 才删除本次隔离卷 | 隔离 Compose 项目 |
-| `verify-upgrade-restart-recovery` | 在隔离旧卷执行 V16 到当前版本升级，重启后核对 Flyway、历史摘要、通知回执、Kafka 偏移和两种 MQ 任务恢复 | 隔离 Compose 项目 |
 | `verify-payment-notifications` | 创建订单、发起待支付交易、模拟签名回调并拒绝伪造回调 | 商城 `14200` |
 | `verify-payment-attempt-deadline` | 验证单次渠道支付过期不关闭整单、到期前可换渠道重试，以及整单截止时先关闭待支付交易再取消订单 | 商城 `14200`、支付平台 `14201` |
 | `verify-payment-cancellation-race` | 交替偏置并加入随机抖动，并发支付完成与客户取消，校验订单/支付/退款一致性 | 商城 `14200`、支付平台 `14201` |
-| `verify-payment-cancellation-stress` | 可配置时长、最少轮数、随机种子和节流的竞态浸泡测试；自动准备库存并对本轮订单做 MySQL 矛盾记录审计 | 商城 `14200`、支付平台 `14201`、Docker MySQL |
-| `verify-payment-cancellation-lock-timeout` | 真实持有订单/支付行锁，验证锁等待超时可识别、事务完整回滚且释放锁后可重试 | commerce-service `18081`、Docker MySQL；只重建 commerce-service 容器，不删卷 |
-| `verify-payment-cancellation-crash-recovery` | 定点 SIGKILL 验证取消中间态、渠道已关窗口、回调事务回滚与迟到回调 | commerce-service `18081`、商城/支付 MySQL；钩子默认关闭，不删卷 |
+| `verify-payment-cancellation-stress` | 可配置时长、最少轮数、随机种子和节流的竞态浸泡测试；自动准备库存并对本轮订单做 PostgreSQL 矛盾记录审计 | 商城 `14200`、支付平台 `14201`、Docker PostgreSQL |
 | `verify-kafka-payment` | 支付回调、Kafka Topic、Outbox 发布和消费记录 | 商城 `14200` |
-| `verify-notification-runtime-cutover` | 校验项目与实例绑定后，验证 Kafka、签名代理、eventId 已读、停机 503 和恢复 | 显式 `-ProjectName`，`-BaseUrl` 指向该项目直连商城端口。默认 PostgreSQL，MySQL 学习基线传 `-Database MySQL` |
-| `verify-inventory-single-owner` | 商家库存签名代理、调账恢复、五张源表权限拒绝、未签名 401、停机 503 与恢复 | 商城 `18081`、库存服务 `18088`、商城/库存 MySQL |
+| `verify-notification-runtime-cutover` | 校验项目与实例绑定后，验证 Kafka、签名代理、eventId 已读、停机 503 和恢复 | 显式 `-ProjectName`，`-BaseUrl` 指向该项目直连商城端口。默认 PostgreSQL |
+| `verify-inventory-single-owner` | 商家库存签名代理、调账恢复、五张源表权限拒绝、未签名 401、停机 503 与恢复 | 商城 `18081`、库存服务 `18088`、商城/库存 PostgreSQL |
 | `verify-payment-outcomes` | 失败、余额不足、取消和超时四类支付结果 | 商城 `14200` |
 | `verify-refunds` | 全额退款、资金账一致性、请求/通知幂等、重复申请和伪造通知拒绝 | 商城 `14200` |
 | `verify-merchant-fulfillment` | 已支付订单的商家确认、发货及客户越权拒绝 | 商城 `14200` |
 | `verify-logistics` | 独立物流建单、签名/防重放、`EXCEPTION（异常件） -> RECOVERY（异常恢复）`、六段轨迹和回调投影 | 商城 `14200`、物流 `18083` |
 | `verify-logistics-automation` | 临时启用秒级自动轨迹，验证自动送达与 `AUTO_RECEIVE`，结束后恢复默认关闭 | 商城 `14200`、物流 `18083` |
 | `verify-logistics-reliability` | 验证 commerce-service 停机后的 `RETRY -> PUBLISHED`，以及永久丢失回调由主动对账恢复为 `RECONCILED` | 商城 `14200`、物流 `18083` |
-| `verify-logistics-ordering-stress` | 可配置时长/并发/最少回调数的乱序浸泡，审计状态不倒退、副作用有界和不变字段 | 商城 `14200`、commerce-service `18081`、Docker MySQL |
+| `verify-logistics-ordering-stress` | 可配置时长/并发/最少回调数的乱序浸泡，审计状态不倒退、副作用有界和不变字段 | 商城 `14200`、commerce-service `18081`、Docker PostgreSQL |
 | `verify-logistics-callback-governance` | 制造 `DEAD（停止自动重试）`，验证管理员人工重放、审计、权限、幂等和 Prometheus 指标 | 商城 `14200`、物流 `18083` |
 | `verify-auto-lifecycle` | 手动收货取消自动任务、`DELIVERED（已送达） -> RECEIVED（已收货） -> COMPLETED（已完成）`，以及 commerce-service 重启后租约恢复/幂等重放 | 商城 `14200`、物流 `18083` |
 | `verify-auto-lifecycle-mq-failures` | 分别停止 RabbitMQ/RocketMQ，验证 `AUTO_RECEIVE/AUTO_COMPLETE` 发布失败可观测、Broker 恢复后按策略快照执行且副作用仅一次 | 商城 `14200`、Docker Compose、RabbitMQ、RocketMQ；不删卷 |
@@ -371,19 +290,11 @@ pwsh -File ./scripts/verify-all.ps1 -SkipBuild
 | `verify-mq-scheduling-idempotency` | 向 RabbitMQ/RocketMQ 重放已完成任务的旧消息并注入非法 JSON，验证只有一次领取/完成及两种 DLQ；需同时启用两个 MQ Profile | 商城 `14200`、后端指标 `18081`、RabbitMQ 管理端 `15672`、RocketMQ |
 | `verify-mq-scheduling-redelivery` | 在消费者已取到消息但未确认时强制终止 commerce-service，验证 RabbitMQ/RocketMQ 重新投递且业务只执行一次 | 商城 `14200`、Docker Compose、RabbitMQ、RocketMQ |
 | `verify-receipt-reviews` | 收货、一次性评价、评分校验及商品评分聚合 | 商城 `14200` |
-| `verify-redis-business` | 商品缓存 TTL、支付幂等键、Redis 停机时 MySQL 降级及恢复 | 商城 `14200` |
+| `verify-redis-business` | 商品缓存 TTL、支付幂等键、Redis 停机时 PostgreSQL 降级及恢复 | 商城 `14200` |
 | `verify-payment-security` | HMAC/RSA 三渠道签名、Nonce/篡改/过期拒绝、TOTP、Step-up 和审计哈希链 | 支付平台 `14201` |
 | `verify-payment` | `verify-payment-security` 的兼容入口 | 支付平台 `14201` |
 
 单项脚本通过 `-BaseUrl` 改地址：
-
-```powershell
-pwsh -File ./scripts/commerce/verify-authorization.ps1 -BaseUrl http://localhost:14200
-pwsh -File ./scripts/operations/verify-flyway-lifecycle.ps1
-pwsh -File ./scripts/payment/verify-payment-attempt-deadline.ps1 -BaseUrl http://localhost:14200 -PaymentUrl http://localhost:14201
-pwsh -File ./scripts/payment/verify-payment-cancellation-stress.ps1 -DurationSeconds 300 -MinimumIterations 30
-pwsh -File ./scripts/payment/verify-payment.ps1 -BaseUrl http://localhost:14201
-```
 
 RabbitMQ 调度专项验收需要显式启用可选适配器；默认 `docker compose up` 仍只使用 Database，不依赖 RabbitMQ：
 
@@ -438,7 +349,7 @@ docker compose up --build -d --wait
 docker compose --profile demo-data run --rm catalog-demo-init
 ```
 
-`--volumes` 会同时删除已有订单和所有 MySQL 演示数据，使用前请确认数据可以丢弃。
+`--volumes` 会同时删除已有订单和所有 PostgreSQL 演示数据，使用前请确认数据可以丢弃。
 
 停止服务：
 
@@ -471,10 +382,10 @@ Compose 中的数据库密码、商户号、App ID/Secret、RSA/HMAC 密钥和�
 ## 常见故障
 
 - 端口被占用：检查 `14200`、`14201`、`14202`、`18081`、`18082`、`18083`、`18086`、`13307`、`13308`，或修改 Compose 端口映射。
-- 服务一直 `starting`：运行 `docker compose ps` 和 `docker compose logs <service>`，优先查看 MySQL、Kafka 和后端依赖健康状态。
+- 服务一直 `starting`：运行 `docker compose ps` 和 `docker compose logs <service>`，优先查看 PostgreSQL、Kafka 和后端依赖健康状态。
 - 修改源码未生效：执行 `docker compose up -d --build --wait` 重新构建镜像。
 - 演示数据需要重置：确认数据可删除后执行 `docker compose down --volumes`，再启动并显式运行 `catalog-demo-init`。
-- Redis 暂停时登录 Session 会受影响，但公开商品会降级查询 MySQL；恢复后等待健康检查通过。
+- Redis 暂停时登录 Session 会受影响，但公开商品会降级查询 PostgreSQL；恢复后等待健康检查通过。
 - Windows 脚本执行策略阻止运行时，可使用 `pwsh -ExecutionPolicy Bypass -File ./scripts/verify-all.ps1`。
 
 详见 [前端说明](web/commerce-portal/angular/README.md) 和 [后端说明](services/commerce-service/README.md)。

@@ -8,7 +8,7 @@ CREATE TEMPORARY TABLE demo_products (
   zh_name VARCHAR(160) NOT NULL,
   zh_brief VARCHAR(300) NOT NULL,
   zh_description VARCHAR(2000) NOT NULL
-) CHARACTER SET utf8mb4;
+) ON COMMIT DROP;
 
 INSERT INTO demo_products VALUES
   (1, 'Learning Laptop', 'A practical laptop for coding labs',

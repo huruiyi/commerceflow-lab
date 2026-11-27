@@ -84,12 +84,6 @@
   <insert id="savePlatformBinding">
     INSERT INTO payment_admin_user_role (user_id, role_id, enabled)
     VALUES (#{userId}, #{roleId}, #{enabled})
-    ON DUPLICATE KEY UPDATE enabled = #{enabled}
-  </insert>
-
-  <insert id="savePlatformBinding" databaseId="postgresql">
-    INSERT INTO payment_admin_user_role (user_id, role_id, enabled)
-    VALUES (#{userId}, #{roleId}, #{enabled})
     ON CONFLICT (user_id, role_id) DO UPDATE SET enabled = EXCLUDED.enabled
   </insert>
 
@@ -98,12 +92,6 @@
   </delete>
 
   <insert id="saveMerchantBinding">
-    INSERT INTO payment_admin_user_merchant_role (user_id, merchant_id, role_id, enabled)
-    VALUES (#{userId}, #{merchantId}, #{roleId}, #{enabled})
-    ON DUPLICATE KEY UPDATE enabled = #{enabled}
-  </insert>
-
-  <insert id="saveMerchantBinding" databaseId="postgresql">
     INSERT INTO payment_admin_user_merchant_role (user_id, merchant_id, role_id, enabled)
     VALUES (#{userId}, #{merchantId}, #{roleId}, #{enabled})
     ON CONFLICT (user_id, merchant_id, role_id) DO UPDATE SET enabled = EXCLUDED.enabled

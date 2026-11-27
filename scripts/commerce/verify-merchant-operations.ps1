@@ -8,7 +8,7 @@ param(
   [string]$ProjectName='fairy-commerceflow',
   [string]$WarehouseBaseUrl='http://127.0.0.1:18118',
   [string]$MessagingBaseUrl='http://127.0.0.1:18119',
-  [ValidateSet('PostgreSQL','MySQL')][string]$NotificationDatabase='PostgreSQL'
+  [ValidateSet('PostgreSQL')][string]$NotificationDatabase='PostgreSQL'
 )
 
 $ErrorActionPreference='Stop'
@@ -54,21 +54,13 @@ function Assert-OperationsEndpoint([string]$Service,[int]$ContainerPort,[string]
 . "$PSScriptRoot/../lib/messaging-ledger.ps1"
 if (!$isolated) { $dailyLedger = Get-CommerceLedger $ProjectName }
 
-function Sql([string]$Service,[string]$Database,[string]$Query){
+function Sql([string]$Service, [string]$Database, [string]$Query) {
   if (!$isolated -and $Service -eq 'commerce-db') { return Read-CommerceLedger $dailyLedger $Query }
-  $name=if($isolated){"$ProjectName-$Service-1"}else{"$ProjectName-$Service"}
-  $labels=docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}/{{index .Config.Labels "com.docker.compose.service"}}' $name
-  if($LASTEXITCODE -or $labels-ne"$ProjectName/$Service"){throw "Unexpected SQL scope for $Service"}
-  if($Service-eq'notification-db-postgresql'){
-    docker exec $name sh -ec 'PGPASSWORD="$POSTGRES_PASSWORD" exec psql -h 127.0.0.1 -U postgres -d "$1" -XAtq -v ON_ERROR_STOP=1 -c "$2"' sh $Database $Query
-  }else{
-    docker exec $name sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -NB "$1" -e "$2"' sh $Database $Query
-  }
-  if($LASTEXITCODE){throw "SQL failed for $Service"}
+  Invoke-ProjectDatabaseSql $ProjectName $Service $Database $Query
 }
 
 function Notification-Sql([string]$Query){
-  $service=if($NotificationDatabase-eq'PostgreSQL'){'notification-db-postgresql'}else{'notification-db'}
+  $service='notification-db-postgresql'
   Sql $service notification $Query
 }
 function Session([string]$Email,[string]$Password='demo-password'){
@@ -221,17 +213,17 @@ function Verify-Search($shop,$other){
   $hold=$null
   try{
     if($isolated){
-      $container="$ProjectName-catalog-db-1"
+      $container="$ProjectName-catalog-db-postgresql-1"
       $scope=docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' $container
       if($LASTEXITCODE -or $scope-ne$ProjectName){throw 'Catalog pause is outside isolation'}
       $hold=Start-ThreadJob -ArgumentList $container -ScriptBlock {
         param($name)
-        $query="START TRANSACTION; SELECT generation FROM catalog_search_state WHERE singleton_id=1 FOR UPDATE; DO GET_LOCK('search-verify',0); DO SLEEP(15); COMMIT;"
-        docker exec $name sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -NB catalog -e "$1"' sh $query
+        $query="START TRANSACTION; SELECT generation FROM catalog_search_state WHERE singleton_id=1 FOR UPDATE; SELECT pg_advisory_xact_lock(hashtext('search-verify')); SELECT pg_sleep(15); COMMIT;"
+        docker exec $name psql -U postgres -d catalog -XqAt -v ON_ERROR_STOP=1 -c "SET search_path=catalog; $query"
         if($LASTEXITCODE){throw 'Failed to hold isolated search consumer'}
       }
       $null=Wait-Value {
-        if((Sql catalog-db catalog "SELECT IS_USED_LOCK('search-verify') IS NOT NULL")-eq'1'){$true}
+        if((Sql catalog-db catalog "SELECT NOT pg_try_advisory_lock(hashtext('search-verify'))")-eq't'){$true}
       } 'Isolated search consumer was not paused'
     }
     $price=Api $shop.actor "/api/merchant/catalog/v1/products/$id/price" Put @{
@@ -302,11 +294,9 @@ function Set-OrderCompletionDue([long]$OrderId) {
     WHERE task_type='AUTO_COMPLETE' AND task_key='order:$OrderId' AND status='SCHEDULED'"
   if ($isolated) {
     Sql commerce-db commerceflow $query | Out-Null
-  } elseif ($dailyLedger.Engine -eq 'postgresql') {
+  } else {
     docker exec $dailyLedger.Container psql -U postgres -d $dailyLedger.Database -Xq -v ON_ERROR_STOP=1 `
       -c "SET search_path TO commerceflow; $query" | Out-Null
-  } else {
-    docker exec $dailyLedger.Container sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot "$1" -e "$2"' sh $dailyLedger.Database $query
   }
   if ($LASTEXITCODE) { throw "Could not advance the completion task for order $OrderId" }
 }
@@ -438,7 +428,7 @@ function Verify-Packages($shop,$product){
     }
   } 'First package delivery not projected'
   $second=Ship-Package $shop $order 2 'COMPLETED'
-  $outbound=Sql inventory-db inventory "SELECT GROUP_CONCAT(l.quantity ORDER BY l.quantity) FROM inventory_outbound_lines l JOIN inventory_outbound_documents d ON d.outbound_id=l.outbound_id WHERE d.order_id=$id"
+  $outbound=Sql inventory-db inventory "SELECT STRING_AGG(l.quantity::text, ',' ORDER BY l.quantity) FROM inventory_outbound_lines l JOIN inventory_outbound_documents d ON d.outbound_id=l.outbound_id WHERE d.order_id=$id"
   $movements=Sql inventory-db inventory "SELECT COUNT(*) FROM inventory_movements WHERE order_id=$id AND movement_type='OUTBOUND_POSTED'"
   $allocations=Sql order-db orders "SELECT COUNT(*) FROM order_package_allocations WHERE order_id=$id AND posted_at IS NOT NULL"
   if($outbound-ne'1,2' -or $movements-ne'2' -or $allocations-ne'2'){throw 'Partial outbound ledgers do not agree'}
@@ -946,7 +936,7 @@ function Verify-ReturnWork($shop){
   if((Api $shop.actor "$workUrl/evidence").qualifiedQuantity-ne1){throw 'Signed supplemental inspection missing'}
   Reject $shop.actor $actionUrl Post @{requestId=[guid]::NewGuid();action='APPROVE';quantity=2;note='Excess'} @(409)
   if($isolated){
-    Sql inventory-db inventory "CREATE TRIGGER return_work_restock_fixture BEFORE INSERT ON inventory_line_credits FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Isolated work order restock retry'"|Out-Null
+    Sql inventory-db inventory (New-VerificationTrigger return_work_restock_fixture INSERT inventory_line_credits "RAISE EXCEPTION 'Isolated work order restock retry';")|Out-Null
   }
   try{
     if($isolated){
@@ -964,7 +954,7 @@ function Verify-ReturnWork($shop){
       Api $shop.actor $actionUrl Post $approve|Out-Null
     }
   }finally{
-    if($isolated){Sql inventory-db inventory 'DROP TRIGGER IF EXISTS return_work_restock_fixture'|Out-Null}
+    if($isolated){Sql inventory-db inventory (Remove-VerificationTrigger return_work_restock_fixture inventory_line_credits)|Out-Null}
   }
   $done=Wait-ReturnCase $sale COMPLETED SHORT_RECEIVED
   $resolved=Api $shop.actor $workUrl
@@ -1095,7 +1085,7 @@ function Verify-WmsReturn($shop){
     Put-WmsReceipt $sale 1|Out-Null
     Put-WmsQuality $sale $true|Out-Null
     Put-WmsQuality $sale $false 409
-    $trigger="CREATE TRIGGER wms_return_restock_fixture BEFORE INSERT ON inventory_line_credits FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='WMS return isolated recovery'"
+    $trigger=(New-VerificationTrigger wms_return_restock_fixture INSERT inventory_line_credits "RAISE EXCEPTION 'WMS return isolated recovery';")
     Sql inventory-db inventory $trigger|Out-Null
   }
   try{
@@ -1112,7 +1102,7 @@ function Verify-WmsReturn($shop){
       if($credit-ne'0' -or $refunded-ne'184.99'){throw 'Failed restock did not roll back or refund was not confirmed'}
     }
   }finally{
-    if($isolated){Sql inventory-db inventory 'DROP TRIGGER IF EXISTS wms_return_restock_fixture'|Out-Null}
+    if($isolated){Sql inventory-db inventory (Remove-VerificationTrigger wms_return_restock_fixture inventory_line_credits)|Out-Null}
   }
   $returned=Wait-ReturnCase $sale COMPLETED PASSED
   $moves=@(Sql inventory-db inventory "SELECT CONCAT(warehouse_id,'/',movement_type,'/',quantity) FROM inventory_movements WHERE order_id=$id AND movement_type IN ('OUTBOUND_POSTED','UNSHIPPED_REFUND_RESTOCKED','RETURN_RESTOCKED') ORDER BY id")
@@ -1154,13 +1144,13 @@ function Assert-Statement($Statement,[decimal]$Merchandise,[decimal]$Freight,[de
 
 function Test-FreezeRecovery($shop,[string]$Path,$Request){
   $id=$shop.id
-  Sql commerce-db commerceflow "CREATE TRIGGER settlement_fixture_block_assignment BEFORE UPDATE ON merchant_settlement_entries FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='isolated settlement freeze interruption'" | Out-Null
+  Sql commerce-db commerceflow (New-VerificationTrigger settlement_fixture_block_assignment UPDATE merchant_settlement_entries "RAISE EXCEPTION 'isolated settlement freeze interruption';") | Out-Null
   try {
     Reject $admin $Path Post $Request @(500)
     $left=Sql commerce-db commerceflow "SELECT COUNT(*) FROM merchant_settlement_statements WHERE merchant_id=$id"
     if($left-ne'0'){throw 'Interrupted freeze left a partial statement'}
   } finally {
-    Sql commerce-db commerceflow 'DROP TRIGGER settlement_fixture_block_assignment'|Out-Null
+    Sql commerce-db commerceflow (Remove-VerificationTrigger settlement_fixture_block_assignment merchant_settlement_entries)|Out-Null
   }
   $target="$ProjectName-commerce-service-1"
   if((docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' $target)-ne$ProjectName){
@@ -1258,7 +1248,7 @@ function Wait-Payout($shop,[string]$Statement,[string]$Id,[string]$Expected){
 }
 
 function Start-PayoutRecovery($shop,[string]$Path,[string]$FailedId){
-  Sql commerce-db commerceflow "CREATE TRIGGER payout_fixture_block_confirmation BEFORE UPDATE ON merchant_payout_attempts FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='isolated payout outcome interruption'"|Out-Null
+  Sql commerce-db commerceflow (New-VerificationTrigger payout_fixture_block_confirmation UPDATE merchant_payout_attempts "RAISE EXCEPTION 'isolated payout outcome interruption';")|Out-Null
   try{
     $second=Session 'admin@example.com'
     $jobs=@()
@@ -1295,7 +1285,7 @@ function Start-PayoutRecovery($shop,[string]$Path,[string]$FailedId){
     $script:original=Session 'merchant@example.com'
     $shop.actor=Session $shop.email $shop.password
   }finally{
-    Sql commerce-db commerceflow 'DROP TRIGGER payout_fixture_block_confirmation'|Out-Null
+    Sql commerce-db commerceflow (Remove-VerificationTrigger payout_fixture_block_confirmation merchant_payout_attempts)|Out-Null
   }
   return $id
 }
@@ -1383,7 +1373,7 @@ function Verify-StocktakeBoundary($order,$outbound,$report){
   $outbound=[guid]$outbound
   $match="outbound_id='$outbound' AND order_line_id=$line AND product_id=$product"
   $update="UPDATE inventory_outbound_lines SET quantity="
-  if((Sql inventory-db inventory "$update 3 WHERE $match AND quantity=2; SELECT ROW_COUNT()")-ne'1'){
+  if((Sql inventory-db inventory "WITH changed AS ($update 3 WHERE $match AND quantity=2 RETURNING 1) SELECT COUNT(*) FROM changed")-ne'1'){
     throw 'Expected a unique two-unit outbound line for the isolated discrepancy'
   }
   try{
@@ -1417,7 +1407,7 @@ function Verify-StocktakeBoundary($order,$outbound,$report){
     $view=Api $admin $disposition
     if($view.status-ne'OPEN' -or $view.route-ne'MANUAL'){throw 'Outstanding inventory evidence must remain open'}
   }finally{
-    if((Sql inventory-db inventory "$update 2 WHERE $match AND quantity=3; SELECT ROW_COUNT()")-ne'1'){
+    if((Sql inventory-db inventory "WITH changed AS ($update 2 WHERE $match AND quantity=3 RETURNING 1) SELECT COUNT(*) FROM changed")-ne'1'){
       throw 'Could not restore isolated inventory discrepancy fixture'
     }
   }
@@ -1447,8 +1437,8 @@ function Verify-StatementCorrections($shop){
 
   # Scope the injected channel failures to this blue ticket. The simulator issues all receipts.
   $trigger="fixture_red_failure_$id"
-  Sql invoice-db invoice_platform "CREATE TRIGGER $trigger BEFORE UPDATE ON invoice_requests FOR EACH ROW
-    SET NEW.simulation=IF(NEW.original_invoice_no='$blue' AND NEW.status='ACCEPTED','FAIL',NEW.simulation)"|Out-Null
+  $bodySql = "IF NEW.original_invoice_no='$blue' AND NEW.status='ACCEPTED' THEN NEW.simulation = 'FAIL'; END IF;"
+  Sql invoice-db invoice_platform (New-VerificationTrigger $trigger UPDATE invoice_requests $bodySql) | Out-Null
   try{
     $request=Api $buyer "/api/purchase-orders/$id/after-sales" Post @{
       orderLineId=$order.items[0].id;quantity=1;warehouseId=2;outboundId=$outbound;
@@ -1470,14 +1460,14 @@ function Verify-StatementCorrections($shop){
     $closure=@{requestId=[guid]::NewGuid();reason='Rechecked the original refund and the confirmed red ticket'}
     Reject $admin "$disposition/closure" Post $closure @(409)
   }finally{
-    Sql invoice-db invoice_platform "DROP TRIGGER $trigger"|Out-Null
+    Sql invoice-db invoice_platform (Remove-VerificationTrigger $trigger invoice_requests)|Out-Null
   }
 
   $operator=Api $admin '/api/auth/me'
   $actor=[long]$operator.id
   $grant="SELECT $actor,id FROM roles WHERE code='INVOICE_OPERATIONS'"
   if($actor-le0 -or $operator.email-ne'admin@example.com'){throw 'Unexpected isolated invoice operator'}
-  $added=Sql commerce-db commerceflow "INSERT IGNORE INTO user_roles(user_id,role_id) $grant; SELECT ROW_COUNT()"
+  $added=Sql commerce-db commerceflow "WITH added AS (INSERT INTO user_roles(user_id,role_id) $grant ON CONFLICT DO NOTHING RETURNING 1) SELECT COUNT(*) FROM added"
   try{
     $action=@{requestId=[guid]::NewGuid();note='Verified original blue ticket and restored channel availability'}
     $result=Api $admin "/api/admin/invoices/$id/review-actions" Post $action

@@ -60,7 +60,7 @@ fairy-commerceflow-rabbitmq-broker
 
 - 默认 Compose 服务显式设置 `container_name: fairy-commerceflow-<服务名>`，不显示单副本的 `-1` 后缀。
 - 固定容器名不能使用 `docker compose up --scale`；确需多副本的 HA 覆盖文件必须重置 `container_name`，允许 Compose 为副本添加序号。
-- Compose 命名卷实际会使用 `<project>_<volume>` 形式，例如 `fairy-commerceflow_mysql-data`；文档中的 `fairy-commerceflow-*` 是资源族的逻辑前缀。
+- Compose 命名卷实际会使用 `<project>_<volume>` 形式，例如 `fairy-commerceflow_commerce-postgresql-data`；文档中的 `fairy-commerceflow-*` 是资源族的逻辑前缀。
 - 服务名、Profile 名和卷的逻辑名使用小写 kebab-case。
 - 破坏性清理必须有明确参数；默认脚本不得执行 `down -v`、`docker volume rm` 或 `docker volume prune`。
 

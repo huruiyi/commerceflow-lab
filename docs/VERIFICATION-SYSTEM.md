@@ -40,12 +40,7 @@
 
 日常核对一笔订单时，传入该单的数字 ID。例如，下面两条只读命令分别检查订单 750 的结算凭证、库存命令，以及整个目录与通知链路的积压。
 
-```powershell
-pwsh scripts/orders/verify-order-monitoring.ps1 -ReadOnly -OrderId 750
-pwsh scripts/commerce/verify-catalog-notification-monitoring.ps1 -ReadOnly
-```
-
-输出中的 `Commerce ledger` 来自当前商城应用的 JDBC 连接。日常切换后应指向 `commerce-db-postgresql/commerceflow`。`Historical order source` 指向保留的只读 MySQL，供核对拆分前的订单历史。订单状态、库存流水和退款记录仍分别由订单、库存和支付服务持有。
+输出中的 `Commerce ledger` 来自当前商城应用的 JDBC 连接。日常切换后应指向 `commerce-db-postgresql/commerceflow`。`Historical order source` 指向保留的只读 原数据库，供核对拆分前的订单历史。订单状态、库存流水和退款记录仍分别由订单、库存和支付服务持有。
 
 ## 4. 日常开发流程
 
@@ -65,7 +60,7 @@ docker compose ps
 ### 4.2 编码循环：最小反馈
 
 1. 先运行被改模块的构建/测试。
-2. 修改 Java/Mapper XML/POM 后先运行 `audit-code-quality`；修改 Mapper XML 还要运行对应 Spring 测试和真实 MySQL 专项，不只依赖 H2。
+2. 修改 Java/Mapper XML/POM 后先运行 `audit-code-quality`；修改 Mapper XML 还要运行对应 Spring 测试和真实 PostgreSQL 专项，不只依赖 H2。
 3. 修改页面后完成生产构建，并运行相关 API/权限/国际化脚本。
 4. 在提交前运行 L0，普通功能改动再运行 L2。
 
@@ -77,7 +72,7 @@ pwsh -File ./scripts/verify-all.ps1 -CleanupOnSuccess
 ```
 
 `verify-quick` 和 `verify-all` 始终运行后端质量与脚本契约门禁。两者均创建独立 Compose 项目，
-按仓库默认配置在新卷初始化 MySQL、通知 PostgreSQL 和 Kafka。业务请求、数据库核对、故障恢复及健康检查
+在独立项目中用新卷初始化业务 PostgreSQL 和 Kafka。业务请求、数据库核对、故障恢复及健康检查
 均使用该项目，完整入口还启用隔离观测 Profile。默认结束时停止隔离容器并保留卷。默认构建模式还会通过 Angular Dockerfile 执行
 `npm run format:check` 和生产构建。`-SkipBuild` 只能在已确认镜像来自当前源码时使用，
 并且不会重新执行 Maven/ArchUnit 测试或 Angular 格式检查。冻结基线或修改 Dockerfile/POM/前端依赖时
@@ -117,7 +112,7 @@ Invoke-IsolatedAcceptance -SimulatorAdmin -MessagingFaults -CleanupOnSuccess -Ve
 
 输出包含正常出库和短发、补充质检、退款及红票、冻结账单、打款回执和异常结案的关联号。重点核对同一退货的实发、实收、合格件数、退款金额和红票引用，以及恢复后的单笔库存入账和成功打款。通知验收包含渠道接收后超时、查询恢复与重放。新卷报告初始归档为空。复用历史副本时核对记录中的五笔历史归档。
 
-同卷回退先锁定商城和门户的原镜像与候选、卷名、Flyway 版本、处置行和渠道回执，验证冷备可恢复后先把门户切回原镜像，再切商城。以原路径读取冻结账单和复核历史，然后先切回候选商城，再切候选门户。两次切换均核对 MySQL 容器及卷身份，恢复后确认处置回执、结案及待办可读。验收证据记录镜像 ID、备份校验和、全表基线及清理清单。
+同卷回退先锁定商城和门户的原镜像与候选、卷名、Flyway 版本、处置行和渠道回执，验证冷备可恢复后先把门户切回原镜像，再切商城。以原路径读取冻结账单和复核历史，然后先切回候选商城，再切候选门户。两次切换均核对原数据库容器及卷身份，恢复后确认处置回执、结案及待办可读。验收证据记录镜像 ID、备份校验和、全表基线及清理清单。
 
 ## 5. 改动类型与必跑门禁
 
@@ -140,55 +135,13 @@ Invoke-IsolatedAcceptance -SimulatorAdmin -MessagingFaults -CleanupOnSuccess -Ve
 验收与运维的 SQL 连接使用[按用途授权的核验账号](architecture/M3-SINGLE-OWNERSHIP-REVIEW.md#8-验收与运维账号撤权)。
 运行依赖 SQL 的独立专项前，先为当前项目启用所需读者或演练账号。
 
-### 6.1 Flyway 隔离演练
+### 6.1 空卷与 Flyway
 
-```powershell
-pwsh -File ./scripts/operations/verify-flyway-lifecycle.ps1
-```
+快速回归和完整验收在隔离项目使用新卷，按各服务的 PostgreSQL 迁移文件初始化业务库和演示数据。
 
-演练使用独立 MySQL 容器、网络和命名卷。历史结构与业务约束在 V60 核对，再将空库和含 V16 历史夹具的卷
-迁移至源码目录中的当前版本，校验迁移历史、校验和、归档记录及支付期限。结束时停止数据库并保留卷。
+### 6.2 旧卷备份恢复
 
-notification 独立 Schema 使用 `verify-notification-schema-split`，在随机网络和 tmpfs MySQL 中验证
-V1→V3 的三张业务表、回填/核对/隔离表、零外键、快照字段和 Inbox 幂等。
-
-`verify-notification-runtime-cutover` 对已启动的项目执行真实取消订单、Kafka 投递、签名代理和已读持久化，
-随后停止选中的通知实例，核对商城通知 API 的 HTTP 503、商城自身健康和恢复后的历史通知。必须显式指定
-`-ProjectName` 和与该项目一致的商城直连端口。默认 PostgreSQL，MySQL 学习基线显式传 `-Database MySQL`。
-脚本在任何业务写入和停机前，校验实例数、项目、应用数据库方言和网络绑定、商城代理以及 Kafka 归属。
-复跑使用已初始化演示数据的隔离项目。见[通知部署与验收](architecture/DATABASE-EVOLUTION-PLAN.md#日常通知部署与验收)。
-
-`verify-distributed-tracing` 临时开启 OTLP 导出并启动 Tempo，通过真实商家发货链路查询
-commerce-service 与 logistics-simulator-service 的同一 Trace；随后停止 Tempo，确认追踪后端故障不会
-拖垮三个业务服务，最后恢复原导出配置。默认由脚本管理 Compose；宿主机已配置追踪时可使用
-`EXTERNAL_RUNTIME=true` 让宿主机管理 Compose，避免 Docker Desktop 将容器内仓库路径当作宿主 bind path。
-该专项证明 HTTP 和 Kafka Observation 基线；MQ 传播由下述独立专项验收。
-
-`verify-mq-distributed-tracing` 临时开启 RabbitMQ、RocketMQ 和 OTLP，分别创建真实 `PAYMENT_TIMEOUT`
-任务，并按 taskId 在 Tempo 中要求同一 Trace 同时存在 publish/process Span。随后停止 Tempo 验证
-commerce-service 健康，再恢复后端和默认 `Database + tracing off` 运行态。Windows 与容器化 Bash 均已
-实测；脚本不删除 Broker 或业务数据卷。
-
-### 6.2 全新卷全链路
-
-```powershell
-pwsh -File ./scripts/operations/verify-fresh-volume-lifecycle.ps1
-```
-
-脚本使用独立 Compose 项目、网络、卷和本机端口。启动时初始化通知 PostgreSQL Flyway 和新 Kafka 消费组。
-按各服务迁移目录核对 Flyway 账本，验证初始空订单、取消订单的通知消费以及收货到评价。商品、订单、通知和
-评价分别从权威库核对。默认停止隔离容器并保留卷供排查。只有显式传入 `-RemoveTemporaryVolumes` 才删除本次隔离项目的卷。
-
-### 6.3 旧卷升级和重启恢复
-
-```powershell
-pwsh -File ./scripts/operations/verify-upgrade-restart-recovery.ps1
-```
-
-该入口在独立命名卷安装商城 V16 并写入历史夹具，再以现行拓扑升级同一个卷。随后在隔离项目重启数据库、Redis、
-Kafka、RabbitMQ、RocketMQ 和相关业务服务。通知重启采用关闭 Flyway 和 Kafka `auto.offset.reset=none` 的存量参数。
-核对 Flyway 历史和卷标识、Kafka 集群及提交位置、通知八表摘要、首次已读、站外回执，以及两种 MQ 的任务恢复。
-隔离容器停止后保留数据卷。两项可用 `-SkipBuild` 复用从当前源码构建的本地验收镜像。
+以独立 PostgreSQL 恢复副本核对每个库的表摘要、序列、约束和授权。部署参数、校验和及业务对账要求见[数据库运维](architecture/DATABASE-EVOLUTION-PLAN.md)。
 
 ## 7. 可靠性和并发专项
 

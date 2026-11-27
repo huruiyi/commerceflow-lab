@@ -1,6 +1,6 @@
 # payment-simulator-service
 
-05A-2/05A-3 的独立 Java 25 / Spring Boot 4.1.2 模拟支付平台。它使用自己的 MySQL schema、后台账号与 Redis Session，不读写商城数据库。
+05A-2/05A-3 的独立 Java 25 / Spring Boot 4.1.2 模拟支付平台。它使用独立的 PostgreSQL 数据库 `payment_platform`、后台账号与 Redis Session，不读写商城数据库。
 
 核心边界：
 
@@ -8,7 +8,7 @@
 - `PaymentAdminPrincipal` 是认证投影，实现 `UserDetails` 和 `CredentialsContainer`。
 - `PaymentAdminUserDetailsService` 在登录时加载有效权限。`PaymentAdminAccountService` 保存账号资料与初始平台角色；已有账号的角色授权由角色绑定接口管理。
 - App Secret 使用 AES-256-GCM 加密，只在签发和轮换时显示一次；平台 RSA 私钥也加密保存。
-- 05A-3 渠道 API 已改为 HMAC-SHA256/RSA-SHA256 签名，并使用时间戳、Nonce、请求体摘要、Redis 与 MySQL 双层防重放。
+- 05A-3 渠道 API 已改为 HMAC-SHA256/RSA-SHA256 签名，并使用时间戳、Nonce、请求体摘要、Redis 与 PostgreSQL 双层防重放。
 - 支付后台已实现 TOTP、一次性恢复码、Step-up 令牌和哈希链审计。
 
 演示后台账号密码均为 `demo-password`：
@@ -23,8 +23,8 @@
 
 内置角色支持编辑且不可删除。支付平台管理员角色可编辑名称和说明，权限与启用状态受保护。角色编码和授权层级在创建后固定。角色列表的禁用操作会暂停该角色的所有授权，重新启用后恢复仍处于启用状态的绑定。
 
-V6 将旧商户范围迁移为内置商户角色。`OPERATE` 提供关单，`REFUND` 提供重发退款通知，`ADMIN` 包含两种操作，`READ_ONLY` 和 `AUDIT` 仅提供商户账本查询。交易和退款的写操作根据记录归属的商户实时校验。
+商户范围由内置商户角色管理。`OPERATE` 提供关单，`REFUND` 提供重发退款通知，`ADMIN` 包含两种操作，`READ_ONLY` 和 `AUDIT` 仅提供商户账本查询。交易和退款的写操作根据记录归属的商户实时校验。
 
-商户可编辑显示名称和备注，启用和禁用沿用二次认证。禁用后商户的签名 API 请求会被拒绝，账本历史仍可查看。V7 为已知示例商户补齐中文显示名以及记录原英文名和用途的备注。
+商户可编辑显示名称和备注，启用和禁用沿用二次认证。禁用后商户的签名 API 请求会被拒绝，账本历史仍可查看。示例商户显示中文名称，备注保存原英文名称和用途。
 
 推荐从根目录执行 `docker compose up -d --build --wait`，管理 UI 位于 `http://localhost:14201`，健康检查位于 `http://localhost:18082/actuator/health`。签名协议与验收方法见 [`docs/learning/CHAPTER-05A-3.md`](../../../docs/learning/CHAPTER-05A-3.md)。

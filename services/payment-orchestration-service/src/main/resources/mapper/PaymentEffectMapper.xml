@@ -3,10 +3,7 @@
 <mapper namespace="vip.fairy.commerceflow.payment.infrastructure.persistence.PaymentEffectMapper">
 
   <sql id="retryDelay">
-    <choose>
-      <when test="_databaseId == 'postgresql'">LEAST(attempts, 30) * INTERVAL '1' SECOND</when>
-      <otherwise>INTERVAL LEAST(attempts, 30) SECOND</otherwise>
-    </choose>
+    LEAST(attempts, 30) * INTERVAL '1' SECOND
   </sql>
 
   <update id="rejectRefundAdmission">
@@ -62,24 +59,24 @@
   </select>
 
   <insert id="insertRefundProcess">
-    INSERT <if test="_databaseId != 'postgresql'">IGNORE </if>
+    INSERT
     INTO payment_process_managers(process_id, order_id, process_type, status, command_id,
       command_fingerprint, correlation_id, causation_id, traceparent, result_deadline_at, next_check_at,
       version, created_at, updated_at) VALUES (#{processId}, #{orderId}, 'REFUND_CREATE', 'WAITING_RESULT',
       #{commandId}, #{fingerprint}, #{correlationId}, #{causationId}, #{traceparent},
       CURRENT_TIMESTAMP(6)+INTERVAL '5' MINUTE, CURRENT_TIMESTAMP(6)+INTERVAL '5' MINUTE, 0, CURRENT_TIMESTAMP(6),
       CURRENT_TIMESTAMP(6))
-    <if test="_databaseId == 'postgresql'">ON CONFLICT DO NOTHING</if>
+    ON CONFLICT DO NOTHING
   </insert>
 
   <insert id="insertRefundCommand">
-    INSERT <if test="_databaseId != 'postgresql'">IGNORE </if>
+    INSERT
     INTO payment_command_outbox(command_id, process_id, order_id, command_type,
       payload_fingerprint, payload, status, attempts, next_attempt_at, result_deadline_at, correlation_id,
       causation_id, traceparent, created_at) VALUES (#{commandId}, #{processId}, #{orderId}, 'CREATE_REFUND',
       #{fingerprint}, #{payload}, 'NEW', 0, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6)+INTERVAL '5' MINUTE,
       #{correlationId}, #{causationId}, #{traceparent}, CURRENT_TIMESTAMP(6))
-    <if test="_databaseId == 'postgresql'">ON CONFLICT DO NOTHING</if>
+    ON CONFLICT DO NOTHING
   </insert>
 
   <update id="markRefundProcessing">
