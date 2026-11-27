@@ -2201,6 +2201,16 @@ PostgreSQL 恢复用时 40.08 秒。从开始校验归档到 42 个隔离容器�
 
 演练结束后仅停止隔离项目，保留其 18 个命名卷。42 个日常容器的身份、启动时间和挂载一致，39 个有健康检查的容器均健康。原有 1,307 个 Docker 卷全部保留，日常 Kafka 业务分区末尾及消费位置一致，隔离订单号未写入日常库。证据位于 `G:/CommerceFlow-backups/postgresql-kafka-drill-20261127-212006-baef8c/paired-capture/`。其中 `recovery-summary.json` 汇总恢复结果，`timeline.jsonl` 记录时间，`kafka/replay-proof.json` 和 `journey/cross-service-ledger-proof.json` 保存消息接续与业务对账证据。
 
+### 2.142 2026-11-27 退款红票与通知可观测性验收
+
+Grafana 在 CommerceFlow 文件夹自动加载「退款、红票与通知」看板。六个面板覆盖退款处理中、红票等待、商城通知命令、Kafka 通知积压、短信邮件失败和采集状态。Chrome 在隔离环境验证六个面板和七条 Prometheus 查询。[处置手册](ALERTING.md#退款红票与通知处置手册)
+
+隔离项目 `fairy-commerceflow-acceptance-refund-observability-c7c70a2d5b` 上的订单 1 完成真实支付、出库、退货退款及蓝票。回执代理暂缓退款 `REF-RMT-EF910B98D94A4D6A` 的红票回执。正式规则在等待达到 300 秒且持续 1 分钟后触发，Grafana 查询观测到 367 秒。用同一退款号定位到发票库唯一未确认回执及其原请求。
+
+本地 Webhook 于 23:41:11 收到触发通知，放行原事件后于 23:41:40 收到恢复通知，红票等待值回到 0。商城收到两次同一回执，只确认一张 92.49 元红票。支付、发票和通知账本对齐，模拟短信、邮件各送达一次。复验入口为 `scripts/operations/verify-refund-observability.ps1`。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/refund-observability-20261127-230507/fairy-commerceflow-acceptance-refund-observability-c7c70a2d5b-evidence/`，含 `result.json`、`red-receipt-webhook.json` 及看板截图。
+
+隔离 Compose 停止成功并保留 17 个命名卷。复核原有 1,328 个 Docker 卷均存在，日常门户健康检查返回 200，Prometheus 的 11 个日常抓取目标均在线。运行侧核对记录保存在同一目录内的 `runtime-preservation.json`。
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

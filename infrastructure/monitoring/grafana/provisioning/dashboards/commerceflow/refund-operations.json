@@ -1,0 +1,271 @@
+{
+  "uid": "commerceflow-refund-operations",
+  "title": "退款、红票与通知",
+  "description": "跟踪退款处理、红票回执与通知投递。按业务编号定位单笔请求的步骤见《CommerceFlow 告警管道》。",
+  "tags": [
+    "commerceflow",
+    "operations"
+  ],
+  "schemaVersion": 42,
+  "editable": false,
+  "graphTooltip": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "退款处理中",
+      "description": "支付编排库中处于处理状态的退款笔数。",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(commerceflow_payment_refund_processing{job=\"payment-orchestration-service\"})",
+          "legendFormat": "处理中",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "红票最老等待时间",
+      "description": "分别观察红票处理和回执确认。回执达到 300 秒并持续 1 分钟时触发告警。",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "custom": {
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 300
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (phase) (commerceflow_invoice_pending_oldest_seconds{job=\"invoice-simulator-service\",kind=\"RED\"})",
+          "legendFormat": "{{phase}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "商城通知命令",
+      "description": "商城通知 Outbox 待投递与终止数量。",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(commerceflow_notification_delivery_pending{job=\"commerce-service\"})",
+          "legendFormat": "待投递",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "expr": "max(commerceflow_notification_delivery_dead{job=\"commerce-service\"})",
+          "legendFormat": "已终止",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Kafka 通知消费积压",
+      "description": "通知消费组的未消费偏移量。",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(commerceflow_notification_consumer_lag{job=\"notification-service\"})",
+          "legendFormat": "未消费",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "短信与邮件近期失败",
+      "description": "消息模拟平台按渠道统计滚动窗口内的失败次数。",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (channel) (commerceflow_messaging_delivery_failures_recent{job=\"messaging-simulator-service\"})",
+          "legendFormat": "{{channel}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "采集状态",
+      "description": "1 表示 Prometheus 可抓取对应服务。",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (job) (up{job=~\"payment-orchestration-service|invoice-simulator-service|commerce-service|notification-service|messaging-simulator-service\"})",
+          "legendFormat": "{{job}}",
+          "range": true
+        }
+      ]
+    }
+  ]
+}

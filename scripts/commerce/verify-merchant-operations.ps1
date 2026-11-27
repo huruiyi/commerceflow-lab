@@ -1,20 +1,21 @@
 #requires -Version 7.0
 param(
   [ValidateSet('Store','Settlement','Payout','Packages','Search','Warehouses','WmsOutbound','WmsReturn',
-    'ReturnWork','Offsite','Operations','StatementCorrections')][string]$Chapter='Store',
+    'ReturnWork','Offsite','Operations','StatementCorrections','RefundObservability')][string]$Chapter='Store',
   [string]$BaseUrl='http://localhost:14200',
   [string]$PaymentBaseUrl='http://localhost:14201',
   [string]$LogisticsUrl='http://localhost:18083',
   [string]$ProjectName='fairy-commerceflow',
   [string]$WarehouseBaseUrl='http://127.0.0.1:18118',
   [string]$MessagingBaseUrl='http://127.0.0.1:18119',
-  [ValidateSet('PostgreSQL')][string]$NotificationDatabase='PostgreSQL'
+  [ValidateSet('PostgreSQL')][string]$NotificationDatabase='PostgreSQL',
+  [hashtable]$ObservabilityEndpoints
 )
 
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '../lib/checkout-verification.ps1')
 $isolated=$ProjectName-ne'fairy-commerceflow'
-$combined=$Chapter-in'Operations','StatementCorrections'
+$combined=$Chapter-in'Operations','StatementCorrections','RefundObservability'
 $warehouseRehearsal=$Chapter -in 'WmsOutbound','WmsReturn' -and $ProjectName -cmatch '^fairy-commerceflow-acceptance-warehouse-[a-f0-9]{12}$'
 $verifyOffsite=$Chapter-in'Offsite','Operations'
 $isolatedPattern=if($combined -or $warehouseRehearsal){'^fairy-commerceflow-(merchant-isolated|acceptance)-[a-z0-9-]+$'}else{
@@ -27,7 +28,7 @@ if($isolated -and ($ProjectName-notmatch $isolatedPattern -or
     !([uri]$LogisticsUrl).IsLoopback -or ([uri]$LogisticsUrl).Port-eq18083)){
   throw 'Invalid isolated merchant benchmark project'
 }
-$warehouseChapters=@('WmsOutbound','WmsReturn','ReturnWork','Offsite','Packages','Warehouses','Settlement','Operations','StatementCorrections')
+$warehouseChapters=@('WmsOutbound','WmsReturn','ReturnWork','Offsite','Packages','Warehouses','Settlement','Operations','StatementCorrections','RefundObservability')
 if($Chapter-in$warehouseChapters -and (!([uri]$WarehouseBaseUrl).IsLoopback -or
     ($isolated -and ([uri]$WarehouseBaseUrl).Port-eq18118))){
   throw 'Invalid warehouse acceptance endpoint'
@@ -79,8 +80,8 @@ function Api($Actor,[string]$Path,[string]$Method='Get',$Body){
   return $result
 }
 
-function Wait-Value([scriptblock]$Check,[string]$Message){
-  $deadline=(Get-Date).AddSeconds(110)
+function Wait-Value([scriptblock]$Check,[string]$Message,[int]$TimeoutSeconds=110){
+  $deadline=(Get-Date).AddSeconds($TimeoutSeconds)
   do{
     $value=& $Check
     if($value){return $value}
@@ -1549,6 +1550,15 @@ if($combined -or $warehouseRehearsal){
   Assert-OperationsEndpoint payment-simulator-web 80 $PaymentBaseUrl
   Assert-OperationsEndpoint logistics-simulator-service 8080 $LogisticsUrl
   Assert-OperationsEndpoint warehouse-simulator-web 80 $WarehouseBaseUrl
+  if ($Chapter -eq 'RefundObservability') {
+    if (!$ObservabilityEndpoints) { throw 'Refund observability requires isolated monitoring endpoints' }
+    Assert-OperationsEndpoint messaging-simulator-web 80 $MessagingBaseUrl
+    $ports = @{ grafana = 3000; 'alert-webhook' = 8080; 'simulator-fault-fixture' = 8080 }
+    foreach ($service in $ports.Keys) {
+      Assert-OperationsEndpoint $service $ports[$service] $ObservabilityEndpoints[$service]
+    }
+    . (Join-Path $PSScriptRoot '../lib/refund-observability-verification.ps1')
+  }
   if($Chapter-eq'Operations'){
     Assert-OperationsEndpoint messaging-simulator-web 80 $MessagingBaseUrl
     $messaging=docker inspect "$ProjectName-messaging-simulator-service-1" | ConvertFrom-Json
@@ -1579,6 +1589,10 @@ try{
     $null=Api $buyer "/api/addresses/$($address.id)/select" Put @{}
   }
   if($combined){
+    if ($Chapter -eq 'RefundObservability') {
+      Verify-RefundObservability $shop | ConvertTo-Json -Depth 9
+      return
+    }
     if($Chapter-eq'StatementCorrections'){
       Verify-StatementCorrections $shop | ConvertTo-Json -Depth 6
       return

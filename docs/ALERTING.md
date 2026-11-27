@@ -254,3 +254,25 @@ Windows 任务 `CommerceFlow PostgreSQL Recovery Alerts` 每 15 分钟读取备�
 | 部分退货停在入库或缺补充质检 | 用售后单号对照原出库号、WMS 实收和补充质检、支付退款单、库存行回补。确认原工单有权继续后，在原售后入口恢复；按售后单号查退款和库存入账的唯一记录，回到异常待办核对阶段。 |
 | 打款迟迟未确认或已失败 | 用账单号和尝试号查商家打款记录及模拟渠道回执。渠道已受理时使用同一请求等待查询补偿。渠道确认失败后从原打款入口恢复，关单前核对渠道成功金额及尝试号与复核关联。 |
 | 红票或通知回执积压 | 用退款单号查红票请求号和渠道回执，观察 `commerceflow_invoice_pending_oldest_seconds`。用事件 ID 查 PostgreSQL Inbox、投递与供应商请求号，结合 `commerceflow_notification_delivery_pending`、`commerceflow_notification_delivery_oldest_seconds` 和 `commerceflow_notification_consumer_lag` 确认恢复。供应商已受理时核对原请求号，回执缺失时使用现有查询或恢复入口。 |
+
+### 退款、红票与通知处置手册
+
+启动 `observability` 后，在 Grafana 的 CommerceFlow 文件夹打开「退款、红票与通知」。先确认「采集状态」中相关服务为 1，再查看退款处理中、红票最老等待时间、商城通知命令、Kafka 通知消费积压和短信邮件近期失败。发票模拟器随对应部署覆盖启动。退款短信和邮件的单笔送达以通知账本和渠道回执为准。[Grafana 看板](http://localhost:13000/d/commerceflow-refund-operations)
+
+1. 收到 `CommerceFlowInvoicePendingTooLong` 时确认 `kind=RED` 和 `phase=receipt`。该规则在最老回执等待至少 300 秒并持续 1 分钟时触发。看板的 `processing` 表示等待发票平台处理，`receipt` 表示发票平台已完成、仍待确认回执。告警标签提供故障阶段，业务编号从账本读取。
+2. 在发票库 `invoice_platform` 用下方查询取最老的未确认回执。记录退款号、红票请求号和事件号，再在支付编排库 `refund_records` 按退款号查订单号、金额和退款状态。用同一订单检查商城发票详情，核对原蓝票和当前红票。
+
+   ```sql
+   SELECT request.reference_no AS refund_no, request.request_id, request.status, request.invoice_no,
+          receipt.event_id, receipt.attempts, request.completed_at
+   FROM invoice_requests request
+   JOIN invoice_receipts receipt USING (request_id)
+   WHERE request.kind = 'RED' AND receipt.delivered_at IS NULL
+   ORDER BY request.completed_at, request.request_id
+   LIMIT 20;
+   ```
+
+3. 检查商城回执接收端的健康状态和签名配置，恢复后让发票平台沿用原事件号重试。若平台返回 `FAILED` 或商城已进入人工复核，先查原请求的渠道结果，再由有发票运营权限的人员使用原复核入口。记录解除告警的时间、原事件号、重试次数和最终红票号。
+4. 核对红票金额等于原退款金额，商城与发票平台认同同一张红票。以 `offsite-refund:<退款号>` 查通知库的 `offsite_notification_inbox` 和 `offsite_notification_deliveries`，再用渠道请求号核对模拟平台回执。验收需看到红票等待值回到 0、Webhook 收到 `resolved`、红票只生效一张、短信和邮件各送达一次。
+
+在 PowerShell 7 下运行 `pwsh -File ./scripts/operations/verify-refund-observability.ps1` 可在新卷上复验。已有同版本验收镜像时可加 `-SkipBuild`。脚本使用正式告警阈值，由隔离回执代理暂缓投递，再放行原回执并让其重试。

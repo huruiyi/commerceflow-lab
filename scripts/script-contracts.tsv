@@ -6,6 +6,7 @@ operations/verify-project-navigation.ps1	BaseUrl,MaxWaitSeconds,ProjectName,Comp
 operations/verify-postgresql-backup.ps1	BackupDirectory
 operations/verify-simulator-admin.ps1	MaxWaitSeconds
 operations/verify-simulator-monitoring.ps1	MaxWaitSeconds
+operations/verify-refund-observability.ps1	SkipBuild,EvidenceDirectory
 fulfillment/verify-logistics-simulator-web.ps1	BaseUrl,AdminToken
 commerce/verify-line-exchanges.ps1	BaseUrl,PaymentBaseUrl,LogisticsUrl,WarehouseBaseUrl,ProjectName
 verify-all.ps1	BaseUrl,SkipBuild,CleanupOnSuccess
@@ -56,6 +57,6 @@ fulfillment/verify-fulfillment-shadow-runtime.ps1	BaseUrl
 commerce/verify-checkout-pricing.ps1	BaseUrl,PaymentBaseUrl,HistoricalOrderId,ExercisePricing
 commerce/verify-line-after-sales.ps1	BaseUrl,PaymentBaseUrl,LogisticsUrl,ProjectName,WarehouseBaseUrl
 commerce/verify-coupons.ps1	BaseUrl,PaymentBaseUrl,ProjectName
-commerce/verify-merchant-operations.ps1	Chapter,BaseUrl,PaymentBaseUrl,LogisticsUrl,ProjectName,WarehouseBaseUrl,MessagingBaseUrl,NotificationDatabase
+commerce/verify-merchant-operations.ps1	Chapter,BaseUrl,PaymentBaseUrl,LogisticsUrl,ProjectName,WarehouseBaseUrl,MessagingBaseUrl,NotificationDatabase,ObservabilityEndpoints
 messaging/verify-messaging-simulator.ps1	BaseUrl,ProjectName
 invoice/verify-invoice-simulator.ps1	MaxWaitSeconds,PostgreSqlImage

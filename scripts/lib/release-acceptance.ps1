@@ -21,12 +21,13 @@ function Assert-AcceptanceHealth($Target) {
 function Invoke-IsolatedAcceptance {
   param(
     [string]$BaseUrl, [switch]$SkipBuild, [switch]$Full, [string]$ProjectName,
-    [switch]$CleanupOnSuccess, [switch]$SimulatorAdmin, [switch]$MessagingFaults,
+    [switch]$CleanupOnSuccess, [switch]$SimulatorAdmin, [switch]$MessagingFaults, [switch]$Grafana,
     [ValidateRange(30, 420)][int]$WaitSeconds = 420,
     [ValidateSet('rabbitmq','rocketmq')][string[]]$BrokerProfiles,
     [scriptblock]$Initialize, [scriptblock]$Verify, [scriptblock]$Cleanup
   )
   if ($MessagingFaults -and !$SimulatorAdmin) { throw 'MessagingFaults requires SimulatorAdmin' }
+  if ($Grafana -and !$Full) { throw 'Grafana requires the observability profile' }
 
   $requestedPort = 0
   if ($BaseUrl) {
@@ -97,6 +98,7 @@ function Invoke-IsolatedAcceptance {
     $endpointSpecs['alertmanager'] = @(9093, '/-/ready')
     $endpointSpecs['alert-webhook'] = @(8080, '/healthz')
   }
+  if ($Grafana) { $endpointSpecs['grafana'] = @(3000, '/api/health') }
   if ($SimulatorAdmin) {
     foreach ($service in 'logistics-simulator-web', 'warehouse-simulator-web', 'messaging-simulator-web') {
       $endpointSpecs[$service] = @(80, '/')
