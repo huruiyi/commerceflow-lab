@@ -152,6 +152,7 @@ $rules = Wait-Json "$PrometheusUrl/api/v1/rules" {
   param($value)
   $expected = @('CommerceFlowWatchdog','CommerceFlowPaymentReconciliationIssueOpen','CommerceFlowPaymentReconciliationBacklog',
     'CommerceFlowInventoryOutboundPublishFailed','CommerceFlowInventoryOutboundBacklog',
+    'CommerceFlowOrderCancellationReleaseReconciliationRequired',
     'CommerceFlowInventoryCommandReconciliationRequired','CommerceFlowInventoryCommandDeliveryBacklog',
     'CommerceFlowInventoryCommandDeliveryMetricsRefreshFailed',
     'CommerceFlowOrderShipmentIntentStalled','CommerceFlowOrderCancellationRecoveryRequired',

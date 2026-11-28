@@ -20,6 +20,7 @@ public interface FulfillmentDownstream {
   PackageReservation reservePackage(ExecutionTask task);
   boolean finishPackage(ExecutionTask task);
   WarehouseDispatch warehouseDispatch(ExecutionTask task, List<ShipmentLine> planned);
+  boolean hasMatchingWarehouseDispatch(ExecutionTask task);
   boolean recordDispatch(ExecutionTask task, List<DispatchLine> actual);
 
   record PackageReservation(boolean accepted, List<ShipmentLine> lines, List<ShipmentLine> actualLines) {

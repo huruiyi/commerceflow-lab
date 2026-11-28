@@ -241,6 +241,16 @@ groups:
 
   - name: commerceflow-inventory-command-delivery
     rules:
+      - alert: CommerceFlowOrderCancellationReleaseReconciliationRequired
+        expr: |
+          commerceflow_order_cancellation_release_reconciliation_required{job="commerce-service"} > 0
+            and commerceflow_inventory_command_delivery_metrics_refresh_success{job="commerce-service"} == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Order cancellation stock release requires reconciliation
+          description: The commerce delivery ledger has contained cancellation stock releases requiring reconciliation for one minute.
       - alert: CommerceFlowInventoryCommandReconciliationRequired
         expr: |
           commerceflow_inventory_command_delivery_reconciliation_required{job="commerce-service"} > 0

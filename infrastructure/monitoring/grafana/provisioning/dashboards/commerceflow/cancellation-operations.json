@@ -1,0 +1,327 @@
+{
+  "uid": "commerceflow-cancellation-operations",
+  "title": "订单取消补偿与库存命令待对账",
+  "description": "跟踪顾客取消后的库存释放、命令积压与告警。按原订单号和命令 ID 查账本，见《CommerceFlow 告警管道》。",
+  "tags": [
+    "commerceflow",
+    "operations"
+  ],
+  "schemaVersion": 42,
+  "editable": false,
+  "graphTooltip": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "取消补偿待对账",
+      "description": "商城取消事件生成的 RELEASE 命令进入待对账后计入此处。",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(commerceflow_order_cancellation_release_reconciliation_required{job=\"commerce-service\"})",
+          "legendFormat": "取消释放待对账",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "库存命令待对账",
+      "description": "商城库存投递账本中进入 RECONCILIATION_REQUIRED 的全部命令。",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(commerceflow_inventory_command_delivery_reconciliation_required{job=\"commerce-service\"})",
+          "legendFormat": "全部待对账",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "仍在投递的库存命令",
+      "description": "已创建、等待回执或等待重试的库存命令。",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(commerceflow_inventory_command_delivery_pending{job=\"commerce-service\"})",
+          "legendFormat": "未完成命令",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "最老命令等待时间",
+      "description": "从命令初次创建计时。达到 120 秒并持续 1 分钟触发积压告警。",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "custom": {
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 120
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(commerceflow_inventory_command_delivery_oldest_seconds{job=\"commerce-service\"})",
+          "legendFormat": "最老等待",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "订单服务协议待恢复",
+      "description": "订单服务独立取消协议中处于待对账、待补偿或人工复核的流程。",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(commerceflow_order_cancellation_recovery_required{job=\"order-service\"})",
+          "legendFormat": "协议待恢复",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "指标刷新状态",
+      "description": "1 表示最近查询成功，0 表示查询失败。空白时先检查指标采集目标。",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(commerceflow_inventory_command_delivery_metrics_refresh_success{job=\"commerce-service\"})",
+          "legendFormat": "商城命令账本",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "expr": "max(commerceflow_order_metrics_refresh_success{job=\"order-service\"})",
+          "legendFormat": "订单协议",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "取消与库存告警",
+      "description": "1 表示告警正在触发。采集异常时结合指标刷新状态判断。",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 24,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(ALERTS{alertname=\"CommerceFlowOrderCancellationReleaseReconciliationRequired\",alertstate=\"firing\"}) or on() vector(0)",
+          "legendFormat": "取消释放待对账",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "expr": "max(ALERTS{alertname=\"CommerceFlowInventoryCommandReconciliationRequired\",alertstate=\"firing\"}) or on() vector(0)",
+          "legendFormat": "库存命令待对账",
+          "range": true
+        },
+        {
+          "refId": "C",
+          "expr": "max(ALERTS{alertname=\"CommerceFlowInventoryCommandDeliveryBacklog\",alertstate=\"firing\"}) or on() vector(0)",
+          "legendFormat": "库存命令积压",
+          "range": true
+        },
+        {
+          "refId": "D",
+          "expr": "max(ALERTS{alertname=\"CommerceFlowOrderCancellationRecoveryRequired\",alertstate=\"firing\"}) or on() vector(0)",
+          "legendFormat": "订单协议待恢复",
+          "range": true
+        }
+      ]
+    }
+  ]
+}

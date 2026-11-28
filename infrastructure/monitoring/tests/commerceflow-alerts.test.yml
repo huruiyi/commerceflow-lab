@@ -474,3 +474,32 @@ tests:
       - eval_time: 8m
         alertname: CommerceFlowInventoryCommandDeliveryMetricsRefreshFailed
         exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'commerceflow_order_cancellation_release_reconciliation_required{job="commerce-service"}'
+        values: '0 1 1 1 1 1 0 0'
+      - series: 'commerceflow_inventory_command_delivery_metrics_refresh_success{job="commerce-service"}'
+        values: '1 1 1 0 1 1 1 1'
+      - series: 'commerceflow_order_cancellation_release_reconciliation_required{job="inventory-service"}'
+        values: '2x7'
+      - series: 'commerceflow_inventory_command_delivery_metrics_refresh_success{job="inventory-service"}'
+        values: '1x7'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: CommerceFlowOrderCancellationReleaseReconciliationRequired
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: CommerceFlowOrderCancellationReleaseReconciliationRequired
+        exp_alerts:
+          - exp_labels:
+              job: commerce-service
+              severity: warning
+            exp_annotations:
+              summary: Order cancellation stock release requires reconciliation
+              description: The commerce delivery ledger has contained cancellation stock releases requiring reconciliation for one minute.
+      - eval_time: 3m
+        alertname: CommerceFlowOrderCancellationReleaseReconciliationRequired
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: CommerceFlowOrderCancellationReleaseReconciliationRequired
+        exp_alerts: []

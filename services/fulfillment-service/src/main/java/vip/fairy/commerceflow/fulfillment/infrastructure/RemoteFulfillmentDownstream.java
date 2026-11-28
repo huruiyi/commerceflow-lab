@@ -8,6 +8,7 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.Map;
@@ -18,14 +19,21 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import vip.fairy.commerceflow.fulfillment.application.FulfillmentDownstream;
 import vip.fairy.commerceflow.fulfillment.domain.ExecutionTask;
+import vip.fairy.commerceflow.fulfillment.domain.FulfillmentCommand.PackageLine;
 import org.springframework.http.ResponseEntity;
 
 @Component
@@ -131,9 +139,41 @@ public class RemoteFulfillmentDownstream implements FulfillmentDownstream {
     var request = Map.of("outboundId", task.commandId(), "orderId", task.orderId(), "merchantId", task.merchantId(),
       "warehouseId", warehouseId, "wholeOrder", !task.packageShipment(), "lines", planned);
     JsonNode reply = post(warehouse, "/internal/v1/outbounds", request);
+    return readWarehouseDispatch(task, planned, reply);
+  }
+
+  @Override
+  public boolean hasMatchingWarehouseDispatch(ExecutionTask task) {
+    try {
+      JsonNode reply = post(warehouse, "/internal/v1/outbounds/query", Map.of("outboundId", task.commandId()));
+      if (!"DISPATCHED".equals(reply.path("status").asText()) || !reply.hasNonNull("decidedAt")
+          || !reply.path("planned").isArray() || reply.path("planned").isEmpty()) {
+        return false;
+      }
+      List<ShipmentLine> planned = mapper.treeToValue(reply.path("planned"), new TypeReference<>() { });
+      if (planned.stream().anyMatch(line -> line == null || line.orderLineId() <= 0
+          || line.productId() <= 0 || line.quantity() <= 0)) {
+        return false;
+      }
+      if (task.packageShipment()) {
+        List<PackageLine> requested = mapper.readValue(task.packageLines(), new TypeReference<>() { });
+        var receiptPlan = planned.stream().map(line -> new PackageLine(line.orderLineId(), line.quantity()))
+          .sorted(Comparator.comparingLong(PackageLine::orderLineId)).toList();
+        if (!receiptPlan.equals(requested)) return false;
+      }
+      return "DISPATCHED".equals(readWarehouseDispatch(task, planned, reply).status());
+    } catch (HttpClientErrorException.NotFound | IllegalStateException | JacksonException failure) {
+      return false;
+    } catch (RestClientException failure) {
+      throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+        "Warehouse receipt could not be verified", failure);
+    }
+  }
+
+  private WarehouseDispatch readWarehouseDispatch(ExecutionTask task, List<ShipmentLine> planned, JsonNode reply) {
     if (!task.commandId().equals(reply.path("outboundId").asText())
         || task.orderId() != reply.path("orderId").asLong() || task.merchantId() != reply.path("merchantId").asLong()
-        || warehouseId != reply.path("warehouseId").asLong()) {
+        || warehouseId(task) != reply.path("warehouseId").asLong()) {
       throw new IllegalStateException("Warehouse receipt does not identify the submitted outbound");
     }
     String status = reply.path("status").asText();

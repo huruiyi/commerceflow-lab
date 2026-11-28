@@ -61,6 +61,7 @@ public interface InventoryCommandDeliveryMapper {
              @Param("recoveredBy") String recoveredBy,
              @Param("recoveryReason") String recoveryReason);
 
-  record Backlog(long reconciliationRequired, long pending, long oldestSeconds) {
+  record Backlog(long reconciliationRequired, long cancellationReleaseReconciliationRequired,
+                 long pending, long oldestSeconds) {
   }
 }

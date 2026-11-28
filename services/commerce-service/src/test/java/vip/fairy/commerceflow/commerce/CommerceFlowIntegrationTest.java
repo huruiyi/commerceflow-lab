@@ -35,6 +35,8 @@ import vip.fairy.commerceflow.commerce.ordering.application.ShippingTemplateServ
 import vip.fairy.commerceflow.commerce.ordering.application.ShippingTemplateService.Rate;
 import vip.fairy.commerceflow.commerce.ordering.application.ShippingTemplateService.Template;
 import vip.fairy.commerceflow.commerce.receipt.application.OrderReceiptLifecycleService;
+import vip.fairy.commerceflow.commerce.refund.domain.LineAfterSale;
+import vip.fairy.commerceflow.commerce.refund.infrastructure.LineAfterSaleMapper;
 import vip.fairy.commerceflow.commerce.ordering.application.OrderCancellationProjection;
 import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderCommandV1;
 import vip.fairy.commerceflow.commerce.ordering.application.contract.v1.OrderResultV1;
@@ -663,6 +665,67 @@ class CommerceFlowIntegrationTest {
       jdbc.update("INSERT INTO user_roles(user_id,role_id) VALUES (?,?)", merchantId, merchantRole);
       jdbc.update("UPDATE app_users SET enabled=true WHERE email IN (?,?)", "admin@example.com", "demo@example.com");
     }
+  }
+
+  @Test
+  @Transactional
+  void lineAfterSaleReviewRequiresCurrentMerchantOwnershipAndCsrf(@Autowired LineAfterSaleMapper afterSales)
+      throws Exception {
+    var merchant = users.selectOne(Wrappers.<AppUser>lambdaQuery().eq(AppUser::getEmail, "merchant@example.com"));
+    var customer = users.selectOne(Wrappers.<AppUser>lambdaQuery().eq(AppUser::getEmail, "demo@example.com"));
+    String otherEmail = "after-sale-review-" + UUID.randomUUID() + "@example.com";
+    var otherMerchant = new AppUser(otherEmail, merchant.getPasswordHash(), "Other", "Merchant", "", "MERCHANT", true);
+    assertEquals(1, users.insert(otherMerchant));
+    assertEquals(1, users.grantMerchant(otherMerchant.getId()));
+
+    UUID caseId = UUID.randomUUID();
+    afterSales.insert(new LineAfterSale(caseId.toString(), 920001L, 920002L, 1L, customer.getId(), merchant.getId(),
+      1, new BigDecimal("20.00"), new BigDecimal("0.00"), "CNY", "RETURN", "APPLIED", "Return request",
+      null, null, null, null, null, null, 1L, UUID.randomUUID().toString(), null, null, null, null));
+
+    var ownerSession = login(merchant.getEmail(), false);
+    var otherSession = login(otherMerchant.getEmail(), false);
+    var customerSession = login(customer.getEmail(), false);
+    var anonymous = csrfContext();
+    String path = "/api/merchant/after-sales/{id}/review";
+    String decision = """
+      {"accepted":true,"note":"Approve the original return"}
+      """;
+
+    mvc.perform(post(path, caseId).session(anonymous.session()).cookie(anonymous.cookie())
+        .header("X-XSRF-TOKEN", anonymous.token()).contentType("application/json").content(decision))
+      .andExpect(status().isUnauthorized());
+    mvc.perform(post(path, caseId).session(customerSession.session()).cookie(customerSession.cookie())
+        .header("X-XSRF-TOKEN", customerSession.token()).contentType("application/json").content(decision))
+      .andExpect(status().isForbidden());
+    mvc.perform(post(path, caseId).session(ownerSession.session()).cookie(ownerSession.cookie())
+        .contentType("application/json").content(decision))
+      .andExpect(status().isForbidden());
+    mvc.perform(post(path, caseId).session(otherSession.session()).cookie(otherSession.cookie())
+        .header("X-XSRF-TOKEN", otherSession.token()).contentType("application/json").content(decision))
+      .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));
+    assertEquals("APPLIED", afterSales.find(caseId.toString()).status());
+
+    for (int submission = 0; submission < 2; submission++) {
+      mvc.perform(post(path, caseId).session(ownerSession.session()).cookie(ownerSession.cookie())
+          .header("X-XSRF-TOKEN", ownerSession.token()).contentType("application/json").content(decision))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(caseId.toString()))
+        .andExpect(jsonPath("$.status").value("WAITING_RETURN"));
+    }
+    String revised = """
+      {"accepted":true,"note":"Change the recorded decision"}
+      """;
+    mvc.perform(post(path, caseId).session(ownerSession.session()).cookie(ownerSession.cookie())
+        .header("X-XSRF-TOKEN", ownerSession.token()).contentType("application/json").content(revised))
+      .andExpect(status().isConflict());
+    assertEquals(1, users.update(Wrappers.<AppUser>lambdaUpdate().eq(AppUser::getId, merchant.getId())
+      .set(AppUser::isEnabled, false)));
+    mvc.perform(post(path, caseId).session(ownerSession.session()).cookie(ownerSession.cookie())
+        .header("X-XSRF-TOKEN", ownerSession.token()).contentType("application/json").content(decision))
+      .andExpect(status().isForbidden());
+    var saved = afterSales.find(caseId.toString());
+    assertEquals("WAITING_RETURN", saved.status());
+    assertEquals("Approve the original return", saved.decision());
   }
 
   @Test

@@ -1,7 +1,8 @@
 #requires -Version 7.0
 param(
   [ValidateSet('Store','Settlement','Payout','Packages','Search','Warehouses','WmsOutbound','WmsReturn',
-    'ReturnWork','Offsite','Operations','StatementCorrections','RefundObservability')][string]$Chapter='Store',
+    'ReturnWork','Offsite','Operations','StatementCorrections','RefundObservability',
+    'FulfillmentReviewObservability')][string]$Chapter='Store',
   [string]$BaseUrl='http://localhost:14200',
   [string]$PaymentBaseUrl='http://localhost:14201',
   [string]$LogisticsUrl='http://localhost:18083',
@@ -17,18 +18,21 @@ $ErrorActionPreference='Stop'
 $isolated=$ProjectName-ne'fairy-commerceflow'
 $combined=$Chapter-in'Operations','StatementCorrections','RefundObservability'
 $warehouseRehearsal=$Chapter -in 'WmsOutbound','WmsReturn' -and $ProjectName -cmatch '^fairy-commerceflow-acceptance-warehouse-[a-f0-9]{12}$'
+$fulfillmentReviewRehearsal = $Chapter -eq 'FulfillmentReviewObservability'
 $verifyOffsite=$Chapter-in'Offsite','Operations'
-$isolatedPattern=if($combined -or $warehouseRehearsal){'^fairy-commerceflow-(merchant-isolated|acceptance)-[a-z0-9-]+$'}else{
+$isolatedPattern=if($fulfillmentReviewRehearsal){'^fairy-commerceflow-acceptance-fulfillment-review-[a-f0-9]{12}$'}
+elseif($combined -or $warehouseRehearsal){'^fairy-commerceflow-(merchant-isolated|acceptance)-[a-z0-9-]+$'}else{
   '^fairy-commerceflow-merchant-isolated-'
 }
-if($combined -and !$isolated){throw 'Operations requires a dedicated isolated Compose project'}
+if(($combined -or $fulfillmentReviewRehearsal) -and !$isolated){throw 'Operations requires a dedicated isolated Compose project'}
 if($isolated -and ($ProjectName-notmatch $isolatedPattern -or
     !([uri]$BaseUrl).IsLoopback -or ([uri]$BaseUrl).Port-eq14200 -or
     !([uri]$PaymentBaseUrl).IsLoopback -or ([uri]$PaymentBaseUrl).Port-eq14201 -or
     !([uri]$LogisticsUrl).IsLoopback -or ([uri]$LogisticsUrl).Port-eq18083)){
   throw 'Invalid isolated merchant benchmark project'
 }
-$warehouseChapters=@('WmsOutbound','WmsReturn','ReturnWork','Offsite','Packages','Warehouses','Settlement','Operations','StatementCorrections','RefundObservability')
+$warehouseChapters=@('WmsOutbound','WmsReturn','ReturnWork','Offsite','Packages','Warehouses','Settlement',
+  'Operations','StatementCorrections','RefundObservability','FulfillmentReviewObservability')
 if($Chapter-in$warehouseChapters -and (!([uri]$WarehouseBaseUrl).IsLoopback -or
     ($isolated -and ([uri]$WarehouseBaseUrl).Port-eq18118))){
   throw 'Invalid warehouse acceptance endpoint'
@@ -99,7 +103,8 @@ function Archives {
   $orders=@(Sql order-db orders "SELECT CONCAT(id,'/',inventory_status,'/',total_amount) FROM shop_orders WHERE id IN (465,479,480,497,498) ORDER BY id")
   $commands=@(Sql commerce-db commerceflow "SELECT CONCAT(order_id,'/',status,'/',attempts,'/',payload_fingerprint) FROM inventory_command_delivery_outbox WHERE command_id IN ('order:465:reserve','order:479:reserve','order:480:reserve','order:497:reserve','order:498:reserve') ORDER BY order_id")
   $movements=Sql inventory-db inventory 'SELECT COUNT(*) FROM inventory_movements WHERE order_id IN (465,479,480,497,498)'
-  if(($combined -or $warehouseRehearsal) -and !$orders.Count -and !$commands.Count -and $movements-eq'0'){return 'FRESH'}
+  if(($combined -or $warehouseRehearsal -or $fulfillmentReviewRehearsal) -and
+      !$orders.Count -and !$commands.Count -and $movements-eq'0'){return 'FRESH'}
   if($orders.Count-ne5 -or $commands.Count-ne5 -or @($orders-notmatch'/TEST_DATA_ARCHIVED/').Count -or
       @($commands-notmatch'/CLOSED/5/').Count -or $movements-ne'0'){throw 'Missing five preserved archives'}
   ($orders+$commands+$movements)-join'|'
@@ -1545,11 +1550,21 @@ function Verify-OperationsStatement($shop,$returned){
     received=$arrival.receipt.receivedQuantity;qualified=$arrival.receipt.qualifiedQuantity;payout=$payout}
 }
 
-if($combined -or $warehouseRehearsal){
+if($combined -or $warehouseRehearsal -or $fulfillmentReviewRehearsal){
   Assert-OperationsEndpoint commerce-portal-angular 80 $BaseUrl
   Assert-OperationsEndpoint payment-simulator-web 80 $PaymentBaseUrl
   Assert-OperationsEndpoint logistics-simulator-service 8080 $LogisticsUrl
   Assert-OperationsEndpoint warehouse-simulator-web 80 $WarehouseBaseUrl
+  if ($fulfillmentReviewRehearsal) {
+    if (!$ObservabilityEndpoints.evidence -or !$ObservabilityEndpoints.browser -or
+        !(Test-Path -LiteralPath $ObservabilityEndpoints.evidence -PathType Container) -or
+        !(Test-Path -LiteralPath $ObservabilityEndpoints.browser -PathType Leaf)) {
+      throw 'Fulfillment review requires an evidence directory and a browser script'
+    }
+    Assert-OperationsEndpoint grafana 3000 $ObservabilityEndpoints.grafana
+    Assert-OperationsEndpoint alert-webhook 8080 $ObservabilityEndpoints['alert-webhook']
+    . (Join-Path $PSScriptRoot '../lib/fulfillment-review-observability.ps1')
+  }
   if ($Chapter -eq 'RefundObservability') {
     if (!$ObservabilityEndpoints) { throw 'Refund observability requires isolated monitoring endpoints' }
     Assert-OperationsEndpoint messaging-simulator-web 80 $MessagingBaseUrl
@@ -1580,13 +1595,18 @@ $shop=Open-FixtureStore
 $otherShop=$null
 try{
   if($combined -and !(Api $admin '/api/auth/me').invoiceEnabled){throw 'Operations requires the isolated invoice service'}
-  if(($combined -or $warehouseRehearsal) -and !(Api $buyer '/api/addresses/selected').addressId){
+  if(($combined -or $warehouseRehearsal -or $fulfillmentReviewRehearsal) -and
+      !(Api $buyer '/api/addresses/selected').addressId){
     $address=Api $buyer '/api/addresses' Post @{
       recipientName='Acceptance Customer';phone='13800000000';countryCode='CN';stateProvince='Shanghai'
       city='Shanghai';district='Pudong';addressLine1='1 Isolated Lab Road';postalCode='200120';label='Acceptance'
       isDefault=$true
     }
     $null=Api $buyer "/api/addresses/$($address.id)/select" Put @{}
+  }
+  if ($fulfillmentReviewRehearsal) {
+    Verify-FulfillmentReviewObservability $shop | ConvertTo-Json -Depth 12
+    return
   }
   if($combined){
     if ($Chapter -eq 'RefundObservability') {

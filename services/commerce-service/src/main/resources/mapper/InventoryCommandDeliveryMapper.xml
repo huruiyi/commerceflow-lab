@@ -27,6 +27,8 @@
   <select id="backlog"
           resultType="vip.fairy.commerceflow.commerce.inventory.infrastructure.InventoryCommandDeliveryMapper$Backlog">
     SELECT COUNT(CASE WHEN status='RECONCILIATION_REQUIRED' THEN 1 END) AS reconciliationRequired,
+      COUNT(CASE WHEN status='RECONCILIATION_REQUIRED' AND command_type='RELEASE' THEN 1 END)
+        AS cancellationReleaseReconciliationRequired,
       COUNT(CASE WHEN status IN ('NEW','IN_FLIGHT','RETRY') THEN 1 END) AS pending,
       COALESCE(GREATEST(0,trunc(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP -
         MIN(CASE WHEN status IN ('NEW','IN_FLIGHT','RETRY') THEN created_at END))))::bigint),0) AS oldestSeconds

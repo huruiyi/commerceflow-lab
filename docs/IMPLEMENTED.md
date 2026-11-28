@@ -2280,6 +2280,40 @@ WMS 指标候选和故障注入均在隔离项目中运行。项目停止后保�
 
 隔离项目已停止，保留 15 个命名卷。日常环境只读复核，受检运行身份、连接、对象统计及 1,374 个原有卷一致，门户健康返回 HTTP 200。隔离订单、履约命令、库存出库记录及 WMS 回执均未写入日常库。GitHub Actions 在验收前后均为禁用。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/fulfillment-contract-acceptance-20261128-072755/`，汇总见 `summary.json`，归档 `fulfillment-contract-evidence.zip` 含 25 项并已校验 SHA-256。
 
+### 2.148 2026-11-28 订单取消补偿与库存命令待对账可观测性验收
+
+Grafana 新增「订单取消补偿与库存命令待对账」看板，包含 7 个面板，Chrome 实测 11 个查询均返回样本。商城从库存投递账本增加取消释放待对账指标，`RELEASE` 命令进入 `RECONCILIATION_REQUIRED` 后计数。新的取消释放告警与既有的库存命令待对账告警均要求指标刷新成功并持续 1 分钟。看板另列订单服务独立的取消协议恢复指标。[看板和处置手册](ALERTING.md#订单取消补偿与库存命令待对账处置手册)
+
+在空卷项目 `fairy-commerceflow-cancellation-observability-fresh-075325` 下了两笔未支付订单。隔离数据库触发器分别回滚库存端的原释放事务、回滚商城端的结果入库，故障只作用于对应订单。每次均由正式投递流程在 5 次尝试后进入待对账，按正式规则触发 `CommerceFlowOrderCancellationReleaseReconciliationRequired` 和 `CommerceFlowInventoryCommandReconciliationRequired`。从管理待对账列表定位订单 ID，再到订单库核对原订单号和取消事件。
+
+| 场景 | 故障现场 | 告警送达及解除（北京时间） | 恢复验收 |
+| --- | --- | --- | --- |
+| 订单 2 库存尚未释放 | 预占为 `RESERVED`，库存无成功 Inbox 和释放流水，商城无确认 | 08:02:24 触发，08:02:54 解除 | 按原命令重试后写入一条释放流水，回补 1 件。解除故障到业务核对通过 13.08 秒，全程 149.07 秒。 |
+| 订单 3 库存已释放，商城未确认 | 预占为 `RELEASED`，库存已写入一条成功 Inbox 和一条释放流水，商城无确认 | 08:04:54 触发，08:05:24 解除 | 重试原命令补齐商城回执，原库存 Inbox、处理时间和释放流水保持一致。解除故障到业务核对通过 11.03 秒，全程 147.01 秒。 |
+
+两笔订单最终均为 `CANCELLED` 且库存投影为 `RELEASED`，各有一个 `ACKNOWLEDGED` 释放命令、一条商城成功结果和一条库存释放流水。用隔离开关启用的原命令复验入口再次发送同一请求，并重复顾客取消，订单、库存及投递账本均未新增记录。两条告警的触发与解除均经 Prometheus、Alertmanager 到达 Webhook，解除使用各自原指纹和开始时间，库存待对账及投递指标归零。5 项商城测试、Prometheus 规则测试及 61 项脚本契约检查通过。
+
+隔离项目已停止，18 个命名卷全部保留。日常仅做只读核对，受检连接、对象统计与 1,374 个既有卷一致，门户健康返回 HTTP 200、11 个监控目标在线。日常库中未查到演练订单、投递命令、回执和释放流水。本轮候选只在隔离环境运行，GitHub Actions 验收前后均为禁用。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/cancellation-observability-20261128-075325/`，见 `summary.json` 和 `cancellation-observability-evidence.zip`。归档包含原单查账、告警与解除通知、看板截图和运行日志，并逐项校验 SHA-256。
+
+### 2.149 2026-11-28 履约人工复核与 WMS 原回执恢复验收
+
+在独立 Compose 项目 `fairy-commerceflow-acceptance-fulfillment-review-ca4af14040dd` 的新卷上创建两笔订单。隔离测试将原履约命令置为 `REVIEW_REQUIRED`。平台管理员从待复核列表和详情定位原订单号、履约命令和 WMS 出库单。`CommerceFlowFulfillmentReviewRequired` 按正式规则持续 3 分钟后进入触发状态，经 Alertmanager 送达 Webhook。
+
+| 场景 | Webhook 触发与解除（北京时间） | 恢复结果 |
+| --- | --- | --- |
+| 订单 1，WMS 已实发 | 10:21:53.375 触发，距进入待复核 201.372 秒。10:22:23.378 解除。 | 按原 `DISPATCHED` 回执恢复，从提交恢复请求到订单和库存核对通过用时 3.503 秒。Kafka 分区 0，偏移量 0。 |
+| 订单 2，WMS 回执暂缺 | 10:25:53.372 触发，距进入待复核 196.991 秒。10:26:23.372 解除。 | 原出库单为 `PENDING` 时恢复返回 HTTP 409。履约仍待复核，订单保持 `CONFIRMED`，库存流水、恢复审计和 Kafka 偏移量均无变化。在原出库单录入实际发货后，沿用原命令和恢复请求，3.528 秒完成业务核对。Kafka 分区 0，偏移量 1。 |
+
+两笔订单最终均为 `SHIPPED`，原 WMS 回执各实发 2 件。每笔各有一个已发货包裹、一条库存出库记录、一条库存流水、一条恢复审计和一条 `INVENTORY_OUTBOUND_POSTED` Kafka 消息。重复提交同一恢复请求返回原审计记录，Kafka 消息键及内容与库存 Outbox 一致。两次解除通知各自沿用触发指纹和开始时间。Grafana 核对 14 个查询，待复核数由 1 回到 0，其余读数回归基线，WMS 累计实发单数按两次实际发货各增加 1。回执签名、订单、仓库和发货明细不匹配的情况由履约测试覆盖。
+
+隔离项目已停止并保留 17 个命名卷。日常 `fairy-commerceflow` 前后快照显示，42 个受检容器的启动时间、状态、健康标记及挂载一致，44 个受检命名卷全部保留。本轮证据包含本地 Compose 验收结果，GitHub Actions 开关未实时复核。证据位于 `%LOCALAPPDATA%/CommerceFlow/releases/fairy-commerceflow-acceptance-fulfillment-review-ca4af14040dd-evidence/`，汇总见 `result.json`。`fulfillment-review-evidence.zip` 含 24 个证据文件及 SHA-256 清单，已逐项核验，内含 4 张 Grafana 截图。复验入口见[履约告警处置手册](ALERTING.md#订单发货wms-实发与库存出库处置手册)。
+
+### 2.150 2026-11-28 按订单行售后申请与商家审核契约回归
+
+沿用商城的 Spring Security、MockMvc 和 H2 测试环境，验证按订单行售后审核的会话、CSRF、商家归属和状态约束。匿名请求返回 HTTP 401，顾客越角色、商家缺少 CSRF 和账户停用后的原会话返回 HTTP 403，其他商家用自己的会话访问同一售后单返回 HTTP 404。拒绝请求后原售后单仍为 `APPLIED`。所属商家审核后状态为 `WAITING_RETURN`，重发相同决定返回原售后单，随后尝试改动已记录的审核意见返回 HTTP 409，原意见保留。
+
+应用层测试验证相同 `requestId` 和申请内容返回原售后单。订单归属、订单或订单行、数量、申请原因、仓库及退换类型变化时，原 `requestId` 被拒绝。这些重复与冲突请求均未新增售后单或重新查询订单计价。定向回归 11 项、商城模块全量 78 项、履约模块 8 项测试及 62 项脚本契约检查均通过。本轮使用本机测试进程及其测试库。PostgreSQL 隔离整栈复验入口见[按行售后验证脚本](../scripts/commerce/verify-line-after-sales.ps1)。
+
 ## 3. 支付
 
 - 商城通过 Payment V1 访问独立支付编排服务，支付和退款记录归 `payment-db`。模拟支付平台独立持有渠道交易与回执。

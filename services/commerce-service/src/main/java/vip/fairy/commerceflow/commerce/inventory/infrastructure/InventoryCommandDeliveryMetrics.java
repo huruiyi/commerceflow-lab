@@ -14,7 +14,7 @@ public class InventoryCommandDeliveryMetrics {
   private static final Logger LOG = LoggerFactory.getLogger(InventoryCommandDeliveryMetrics.class);
 
   private final InventoryCommandDeliveryMapper delivery;
-  private volatile Backlog backlog = new Backlog(0, 0, 0);
+  private volatile Backlog backlog = new Backlog(0, 0, 0, 0);
   private volatile boolean refreshed;
 
   public InventoryCommandDeliveryMetrics(InventoryCommandDeliveryMapper delivery, MeterRegistry registry) {
@@ -22,6 +22,10 @@ public class InventoryCommandDeliveryMetrics {
     Gauge.builder("commerceflow.inventory.command.delivery.reconciliation.required",
         this, value -> value.backlog.reconciliationRequired())
       .description("Inventory commands awaiting manual reconciliation")
+      .register(registry);
+    Gauge.builder("commerceflow.order.cancellation.release.reconciliation.required",
+        this, value -> value.backlog.cancellationReleaseReconciliationRequired())
+      .description("Cancellation stock release commands awaiting reconciliation")
       .register(registry);
     Gauge.builder("commerceflow.inventory.command.delivery.pending", this, value -> value.backlog.pending())
       .description("Inventory commands in NEW, IN_FLIGHT or RETRY")

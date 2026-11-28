@@ -17,10 +17,12 @@ public class FulfillmentReview {
 
   private final ShadowDatabases databases;
   private final FulfillmentMode mode;
+  private final FulfillmentDownstream downstream;
 
-  public FulfillmentReview(ShadowDatabases databases, FulfillmentMode mode) {
+  public FulfillmentReview(ShadowDatabases databases, FulfillmentMode mode, FulfillmentDownstream downstream) {
     this.databases = databases;
     this.mode = mode;
+    this.downstream = downstream;
   }
 
   public List<ExecutionTask> list(int limit, Boolean shipment) {
@@ -79,6 +81,12 @@ public class FulfillmentReview {
           throw new ResponseStatusException(HttpStatus.CONFLICT, "Recovery ID was reused with different details");
         }
         return recorded;
+      }
+      if (!"REVIEW_REQUIRED".equals(task.status())) {
+        throw new ResponseStatusException(HttpStatus.CONFLICT, "Task is not available for reconciliation");
+      }
+      if (task.shipment() && !"RESERVE".equals(task.step()) && !downstream.hasMatchingWarehouseDispatch(task)) {
+        throw new ResponseStatusException(HttpStatus.CONFLICT, "Matching warehouse dispatch receipt is required");
       }
       if (store.requeue(task) != 1) {
         throw new ResponseStatusException(HttpStatus.CONFLICT, "Task is not available for reconciliation");

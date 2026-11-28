@@ -57,6 +57,7 @@ Grafana 教学账号为 `admin` / `commerceflow-grafana`。这些端口和演示
 | `CommerceFlowOrderShipmentIntentStalled` | 订单库有未完成发货意图，最长无更新时间达到 120 秒，且最新指标刷新成功 | 1 分钟 | `warning` |
 | `CommerceFlowOrderCancellationRecoveryRequired` | 订单取消协议存在待对账、待补偿或人工复核的流程，且最新指标刷新成功 | 1 分钟 | `warning` |
 | `CommerceFlowOrderMetricsRefreshFailed` | 订单指标刷新未成功 | 1 分钟 | `warning` |
+| `CommerceFlowOrderCancellationReleaseReconciliationRequired` | 商城有取消后的库存释放命令待对账，且最新库存命令指标刷新成功 | 1 分钟 | `warning` |
 | `CommerceFlowInventoryCommandReconciliationRequired` | 商城有库存命令待人工对账，且最新指标刷新成功 | 1 分钟 | `warning` |
 | `CommerceFlowInventoryCommandDeliveryBacklog` | 商城有投递中的库存命令，最老一条创建已满 120 秒，且最新指标刷新成功 | 1 分钟 | `warning` |
 | `CommerceFlowInventoryCommandDeliveryMetricsRefreshFailed` | 商城的库存命令指标刷新未成功 | 1 分钟 | `warning` |
@@ -99,14 +100,15 @@ Kafka 确认的死信发布。两分钟内无新发布时，死信告警解除�
 
 取消恢复指标覆盖订单侧协议流程。日常顾客取消跨库链路另外按订单号核对商城取消效果、库存释放和通知投递，见[订单监控与只读核对](architecture/ORDER-SERVICE-EVOLUTION-PLAN.md#10-订单监控与只读核对)。
 
-商城从自己的 `inventory_command_delivery_outbox` 每 5 秒刷新一次，指标和三条告警均归 `commerce-service`。
+商城从自己的 `inventory_command_delivery_outbox` 每 5 秒刷新一次，指标和告警均归 `commerce-service`。
 
 | Prometheus 指标 | 统计口径 |
 | --- | --- |
 | `commerceflow_inventory_command_delivery_reconciliation_required` | 仅计 `RECONCILIATION_REQUIRED`，每条命令计一笔。 |
+| `commerceflow_order_cancellation_release_reconciliation_required` | 上述命令中类型为 `RELEASE` 的子集，来自商城取消事件的库存释放。 |
 | `commerceflow_inventory_command_delivery_pending` | 计 `NEW`、`IN_FLIGHT`、`RETRY`，包括尚未到重试时间或仍在等待回执的命令。 |
 | `commerceflow_inventory_command_delivery_oldest_seconds` | 用原数据库当前时间减去上述三种状态中最早的 `created_at`，取非负整秒。无积压时为 0。重试及回执截止时间变化均不重置等待时长。 |
-| `commerceflow_inventory_command_delivery_metrics_refresh_success` | 最近一次聚合查询成功为 1，首次成功前或最近一次失败为 0。刷新失败时保留上次业务读数，两条业务告警只使用刷新成功的读数，采集故障由单独告警报告。 |
+| `commerceflow_inventory_command_delivery_metrics_refresh_success` | 最近一次聚合查询成功为 1，首次成功前或最近一次失败为 0。刷新失败时保留上次业务读数，业务告警只使用刷新成功的读数，采集故障由单独告警报告。 |
 
 `ACKNOWLEDGED` 和 `CLOSED` 不参与上述三项业务统计。
 
@@ -294,6 +296,7 @@ Windows 任务 `CommerceFlow PostgreSQL Recovery Alerts` 每 15 分钟读取备�
 | --- | --- | --- |
 | `CommerceFlowOrderShipmentIntentStalled`，最老发货意图至少 120 秒且持续 1 分钟 | 在订单库按发货意图查订单 ID 和命令 ID，用完整订单号打开商家订单。继续查履约命令和 WMS 接单记录。 | 恢复卡住的服务或签名调用，查看原发货意图是否完成。 |
 | `CommerceFlowFulfillmentJobsOverdue`，履约任务超期超过 120 秒且持续 2 分钟 | 在 `fulfillment` 库定位最老命令。按该命令号查 WMS `warehouse_outbounds.outbound_id`、`status` 和 `actual`，并对照商家订单的命令状态。 | 已实发时保留原出库单。服务恢复后等待原待执行任务接续，或在原商家入口用相同 `packageId` 和原请求重试。进入 `REVIEW_REQUIRED` 时，由有权限的人员用平台原命令复核入口处理。核对同一出库单、运单与库存流水。 |
+| `CommerceFlowFulfillmentReviewRequired`，履约执行已启用且待复核任务持续 3 分钟 | 平台管理员通过 `GET /api/admin/fulfillment/shipments` 取候选命令，再按 `orderId` 查询详情，记录原订单号、履约命令 ID 和对应 WMS 原出库单。 | 对已到仓库或后续阶段的发货命令，先取得与原单一致的 WMS `DISPATCHED` 回执，再用 `POST /api/admin/fulfillment/shipments/{orderId}/retry` 提交原 `commandId`、`recoveryId`、`reason` 和 `evidence`。缺失或不匹配时返回 HTTP 409，任务继续待复核。重复提交同一恢复请求时核对审计记录和 Kafka 事件。 |
 | `CommerceFlowInventoryOutboundBacklog`，有待投递且最老事件至少 120 秒并持续 1 分钟 | 从库存 Outbox 的 `outbound_id` 关联库存出库单和订单行，记录原 `event_id`。用同一单号核对 WMS 实发、履约完成状态和库存出库凭证。 | 恢复 Kafka 与库存发布连接，由库存服务沿用原事件投递。核对原 Outbox 行的 `published_at`、Kafka 中的原消息与原业务流水。 |
 
 在对应 PostgreSQL 库用只读查询取最老候选。履约结果的 `command_id` 是 WMS 出库单号，库存结果保留原订单行与事件编号。
@@ -316,3 +319,44 @@ LIMIT 20;
 ```
 
 确认解除时保存原订单号、出库命令、事件号、告警触发和恢复时间。检查履约待执行与库存待投递回到基线，Webhook 收到 `resolved`。按原命令及订单行逐笔核对 WMS 回执、库存出库流水和 Kafka 事件各一份。验收注入在独立 Compose 项目和新卷中执行。
+
+在 PowerShell 7 运行 `pwsh -File ./scripts/operations/verify-fulfillment-review-observability.ps1` 可复验已有实发回执及回执暂缺两种场景。脚本在独立 Compose 项目中新建测试订单，采集触发和解除通知、看板截图、订单及库存流水和 Kafka 消息，并验证证据归档的 SHA-256。结束后停止隔离项目并保留其命名卷。连接同一个 Docker 引擎时，脚本还会只读记录日常 `fairy-commerceflow` 容器和数据卷，核对容器状态及原有卷是否保留。
+
+### 订单取消补偿与库存命令待对账处置手册
+
+在 Grafana 的 CommerceFlow 文件夹打开「订单取消补偿与库存命令待对账」。先看商城命令账本和订单协议的指标刷新是否为 1，再核对取消释放、全部待对账以及投递积压。取消释放是全部待对账的子集，同一笔故障可以同时触发两条告警。订单服务的协议告警覆盖独立的 `order_process_managers`，收到该告警时按[订单协议只读核对](architecture/ORDER-SERVICE-EVOLUTION-PLAN.md#10-订单监控与只读核对)追踪流程。[Grafana 看板](http://localhost:13000/d/commerceflow-cancellation-operations)
+
+1. 在商城以管理员身份调用 `GET /api/admin/inventory-command-recoveries`，记录待对账的 `commandId`、`orderId`、尝试次数和最后错误。也可在商城库用下面的只读查询取最早候选。在订单库按 `orderId` 查 `shop_orders.order_number`、`status`、`inventory_status`。订单可能已显示 `CANCELLED`，此时库存仍可处于 `RECONCILIATION_REQUIRED`。用命令 ID 对应的事件号核对商城 `order_effect_outbox` 中的原 `ORDER_CANCELLED`。
+
+   ```sql
+   SELECT command_id, order_id, attempts, last_error, created_at
+   FROM commerceflow.inventory_command_delivery_outbox
+   WHERE command_type = 'RELEASE' AND status = 'RECONCILIATION_REQUIRED'
+   ORDER BY created_at, command_id
+   LIMIT 20;
+   ```
+
+2. 在库存库以原命令查 `inventory_command_inbox`，再查原订单的预占和释放流水。在商城查 `inventory_command_result_inbox` 是否已写入对应结果。
+
+   | 现场 | 判定与处置 |
+   | --- | --- |
+   | 库存仍为 `RESERVED`，原释放命令无成功 Inbox、无释放流水 | 检查库存服务和数据库的写入错误。修复后重试原命令，确认预占转为 `RELEASED`、库存回补。 |
+   | 库存已为 `RELEASED`，原命令 Inbox 为 `SUCCEEDED`，商城没有结果 | 检查库存响应链路和商城结果入库错误。修复后重试原命令，库存返回已有执行结果，商城接收确认，既有释放流水保持一份。 |
+   | 两侧证据相互矛盾，或存在库存流水但无法关联原命令 | 保留原单、命令和两侧日志，交由库存与订单负责人复核。核对完成前暂停该单重试。 |
+
+   ```sql
+   -- 库存库。将命令 ID 和订单 ID 替换为前一步读取的值。
+   SELECT command_id, status, processed_at
+   FROM public.inventory_command_inbox
+   WHERE command_id = '原命令 ID';
+
+   SELECT id, product_id, warehouse_id, quantity, status
+   FROM public.inventory_reservations WHERE order_id = :order_id;
+
+   SELECT event_id, product_id, warehouse_id, quantity
+   FROM public.inventory_movements
+   WHERE order_id = :order_id AND movement_type = 'RELEASED';
+   ```
+
+3. 故障修复后，由有权限的管理员通过原会话提交 `POST /api/admin/inventory-command-recoveries/{commandId}/retry`，附 CSRF 请求头和正文 `{"reason":"实际故障及修复记录"}`。路径参数使用原命令 ID，接口读取账本保存的原请求并记录处置人。仍在 `NEW`、`IN_FLIGHT` 或 `RETRY` 的命令由商城调度接续。
+4. 复核命令为 `ACKNOWLEDGED`，商城结果 Inbox 有一条 `SUCCEEDED`，订单为 `CANCELLED` 且库存投影为 `RELEASED`。对照每笔原预占的商品、仓库和数量，释放流水各一条，释放量与原预占量相符。确认命令从待对账列表消失，指标回到基线，Webhook 对原告警指纹收到 `resolved`。保存原订单号、事件号、命令 ID、恢复结果、耗时和相关日志。
